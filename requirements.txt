@@ -1,0 +1,25 @@
+# =============================================================================
+# Multi-Agent Task Allocation & Adaptation - Dependencies
+# =============================================================================
+
+# Core scientific computing
+numpy>=1.21.0
+scipy>=1.7.0
+
+# Deep learning (MAPPO / PPO)
+torch>=2.0.0
+
+# Optimization (MATCH-AOU MINLP solver)
+pyomo>=6.0
+# Note: Pyomo requires a solver backend. Install one of:
+#   conda install -c conda-forge ipopt
+#   apt-get install coinor-libipopt-dev   (then: pip install cyipopt)
+#   conda install -c conda-forge glpk     (for GLPK)
+# The project uses 'bonmin' by default.
+
+# Simulation environment (BLADE / Panopticon)
+gymnasium>=0.28.0
+
+# Geospatial
+shapely>=2.0.0
+haversine>=2.8.0
