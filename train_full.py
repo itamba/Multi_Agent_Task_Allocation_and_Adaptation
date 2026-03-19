@@ -69,9 +69,12 @@ from match_aou.utils.blade_utils.scenario_factory import _normalize_side_color
 from match_aou.rl.agent import ActorCriticNetwork
 from match_aou.rl.observation import build_observation_vector, ObservationConfig
 from match_aou.rl.observation.observation_utils import extract_target_id_from_action
-from match_aou.rl.training import (
-    PPOTrainer, PPOConfig,
-    compute_reward, RewardConfig, RewardTracker,
+from match_aou.rl.training import PPOTrainer, PPOConfig
+from match_aou.rl.training.reward import (
+    compute_step_reward, compute_episode_reward,
+    RewardConfig, RewardTracker,
+    build_target_utility_map, get_action_utility,
+    compute_oracle_total_utility,
 )
 from match_aou.rl.plan_editor import plan_edit_to_blade_action
 
@@ -79,6 +82,9 @@ from match_aou.rl.plan_editor import plan_edit_to_blade_action
 from match_aou.utils.blade_utils.scenario_generator import (
     ScenarioGenerator, VariationConfig,
 )
+
+# --- Fuel damage events ---
+from match_aou.rl.training.fuel_damage import FuelDamageManager, FuelDamageConfig
 
 # Add src to path if needed
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -96,8 +102,10 @@ SOLVER_NAME = "bonmin"
 MAX_SIM_TICKS = 14400
 DECISION_INTERVAL = 100       # RL decides every N ticks
 PARTIAL_RATIO = 2 / 3         # Fraction of tasks in partial set
+VARY_SCENARIOS = True          # Toggle scenario variation (or use --vary-scenarios flag)
+FUEL_DAMAGE_ENABLED = True     # Toggle fuel damage surprise events
 OUTPUT_DIR = "training_output"  # Directory for logs and recordings
-MAX_AGENTS = 3                 # Max agents for critic padding (fixed network size)
+MAX_AGENTS = 5                 # Max agents for critic padding (fixed network size)
 
 
 def all_agents_returned_to_base(observation, agent_ids: List[str]) -> bool:
@@ -724,6 +732,29 @@ def train_episode(
     n_agents = len(attacking_agents)
     obs_dim = obs_config.top_k * 6 + 6 + 6  # 30
 
+    # --- Utility-based reward setup ---
+    # Build target_id → utility mapping from ALL tasks (for reward computation)
+    target_utility_map = build_target_utility_map(all_tasks, extract_target_id_from_action)
+    max_utility = max((t.utility for t in all_tasks), default=1.0)
+    oracle_total_utility = compute_oracle_total_utility(
+        full_solution, full_tasks_filtered, extract_target_id_from_action,
+    )
+    # Track which targets RL agents successfully attacked (for episode-end reward)
+    rl_attacked_target_ids: Set[str] = set()
+
+    if verbose:
+        logger.info(f"  Utility map: {target_utility_map}")
+        logger.info(f"  Max utility: {max_utility}")
+        logger.info(f"  Oracle total utility: {oracle_total_utility}")
+
+    # --- Fuel damage setup ---
+    fuel_dmg = FuelDamageManager(FuelDamageConfig(enabled=FUEL_DAMAGE_ENABLED))
+    fuel_dmg.plan_episode(
+        agent_ids=[a.id for a in attacking_agents],
+        max_ticks=max_ticks,
+        seed=episode_num,
+    )
+
     if n_agents > MAX_AGENTS:
         logger.warning(
             f"Scenario has {n_agents} agents but MAX_AGENTS={MAX_AGENTS}. "
@@ -737,6 +768,9 @@ def train_episode(
         except ValueError as e:
             logger.debug(f"Tick {tick}: Executor error (skipping): {e}")
             executor_action = ""
+
+        # Check for fuel damage activation
+        fuel_dmg.check_and_activate(tick)
 
         # Check if this is a decision point
         is_decision_tick = (tick % decision_interval == 0) and tick > 0
@@ -760,6 +794,10 @@ def train_episode(
                         tasks=partial_tasks_filtered,
                         solution=partial_solution,
                     )
+                    # Apply fuel damage to observation (if active)
+                    if fuel_dmg.is_damaged(agent_id):
+                        obs.vector[0] = fuel_dmg.apply_damage(agent_id, obs.vector[0])
+                        obs.self_state.fuel_norm = obs.vector[0]
                     agent_obs_map[agent_id] = obs
                 except (ValueError, Exception) as e:
                     logger.debug(f"Tick {tick}: Can't observe {agent_id}: {e}")
@@ -812,22 +850,38 @@ def train_episode(
                     obs, agent_id, full_agent_targets
                 )
 
+                # Compute utilities for reward
+                rl_utility = get_action_utility(rl_action, obs, target_utility_map)
+                oracle_utility = get_action_utility(oracle_action, obs, target_utility_map)
+
                 is_valid = bool(action_mask[rl_action]) if rl_action < len(action_mask) else False
-                reward = compute_reward(
+                reward = compute_step_reward(
                     rl_action=rl_action,
                     oracle_action=oracle_action,
-                    observation=obs,
+                    rl_utility=rl_utility,
+                    oracle_utility=oracle_utility,
+                    max_utility=max_utility,
                     is_valid=is_valid,
                     config=trainer.config.reward_config,
                 )
 
                 episode_reward += reward
                 decisions += 1
-                if rl_action == oracle_action:
+                is_match = (rl_action == oracle_action)
+                if is_match:
                     matches += 1
 
-                trainer.reward_tracker.add_reward(
-                    reward, is_match=(rl_action == oracle_action)
+                # Track attacked targets for episode-end utility
+                if 1 <= rl_action <= 3:
+                    slot_idx = rl_action - 1
+                    if slot_idx < len(obs.targets) and obs.targets[slot_idx].exists:
+                        rl_attacked_target_ids.add(obs.targets[slot_idx].id)
+
+                trainer.reward_tracker.add_step(
+                    reward=reward,
+                    is_match=is_match,
+                    rl_utility=rl_utility,
+                    oracle_utility=oracle_utility,
                 )
 
                 # Log RL decisions
@@ -838,7 +892,8 @@ def train_episode(
                         f"RL={action_names.get(rl_action, '?')} "
                         f"Oracle={action_names.get(oracle_action, '?')} "
                         f"Match={'✓' if rl_action == oracle_action else '✗'} "
-                        f"Reward={reward:+.1f}"
+                        f"Reward={reward:+.2f} "
+                        f"(rl_u={rl_utility:.0f}, oracle_u={oracle_utility:.0f})"
                     )
 
                 # RL override: ONLY on discovery events
@@ -899,7 +954,32 @@ def train_episode(
             logger.info(f"  Episode ended at tick {tick}: terminated={terminated}")
             break
 
-    # === End of episode: PPO update ===
+    # === End of episode: compute episode-end utility reward ===
+    # Sum utility of targets RL successfully attacked
+    achieved_utility = sum(
+        target_utility_map.get(tid, 0.0) for tid in rl_attacked_target_ids
+    )
+    ep_reward = compute_episode_reward(
+        achieved_utility=achieved_utility,
+        oracle_total_utility=oracle_total_utility,
+        config=trainer.config.reward_config,
+    )
+    # Add episode reward to the LAST transition in buffer
+    # GAE will propagate this backward through advantages
+    if trainer.buffer.size > 0:
+        trainer.buffer.rewards[trainer.buffer.size - 1] += ep_reward
+        episode_reward += ep_reward
+
+    trainer.reward_tracker.set_episode_utilities(achieved_utility, oracle_total_utility)
+
+    logger.info(
+        f"  Episode utility: achieved={achieved_utility:.0f} / "
+        f"oracle={oracle_total_utility:.0f} "
+        f"(ratio={achieved_utility / max(oracle_total_utility, 1):.2f}) "
+        f"→ ep_reward={ep_reward:+.2f}"
+    )
+
+    # === PPO update ===
     # Compute GAE advantages using collected trajectory
     last_value = 0.0  # Terminal state → value = 0
     if trainer.buffer.size > 0:
@@ -953,6 +1033,10 @@ def train_episode(
         "policy_loss": update_metrics.get("policy_loss", 0.0),
         "value_loss": update_metrics.get("value_loss", 0.0),
         "entropy": update_metrics.get("entropy", 0.0),
+        "achieved_utility": achieved_utility,
+        "oracle_utility": oracle_total_utility,
+        "utility_ratio": achieved_utility / max(oracle_total_utility, 1),
+        "fuel_damage_events": len(fuel_dmg.events),
     }
 
 
@@ -1004,7 +1088,7 @@ def main():
     parser = argparse.ArgumentParser(description="Full RL Training with BLADE + MATCH-AOU")
     parser.add_argument(
         "--scenario",
-        default="data/scenarios/strike_training_2v3.json",
+        default="data/scenarios/strike_training_4v5.json",
         help="Path to scenario JSON",
     )
     parser.add_argument("--episodes", type=int, default=50, help="Number of training episodes")
@@ -1018,7 +1102,7 @@ def main():
     parser.add_argument("--output-dir", default=OUTPUT_DIR, help="Output directory for logs/recordings")
 
     # --- Scenario variation args ---
-    parser.add_argument("--vary-scenarios", action="store_true",
+    parser.add_argument("--vary-scenarios", action="store_true", default=VARY_SCENARIOS,
                         help="Enable scenario variation between episodes")
     parser.add_argument("--min-aircraft", type=int, default=2,
                         help="Min aircraft per episode (when --vary-scenarios)")
@@ -1030,10 +1114,16 @@ def main():
                         help="Max facilities per episode (when --vary-scenarios)")
     parser.add_argument("--max-target-dist", type=float, default=500.0,
                         help="Max target distance from base in km")
+    parser.add_argument("--min-red-airbases", type=int, default=0,
+                        help="Min RED airbases per episode (when --vary-scenarios)")
+    parser.add_argument("--max-red-airbases", type=int, default=3,
+                        help="Max RED airbases per episode (when --vary-scenarios)")
     parser.add_argument("--vary-base", action="store_true",
                         help="Also randomize blue base position")
     parser.add_argument("--base-shift-km", type=float, default=150.0,
                         help="Max base shift radius in km")
+    parser.add_argument("--extra-templates", nargs="*", default=[],
+                        help="Additional scenario JSONs to extract aircraft templates from")
 
     args = parser.parse_args()
 
@@ -1049,12 +1139,15 @@ def main():
     scenarios_dir = output_dir / "scenarios"
     scenarios_dir.mkdir(exist_ok=True)
 
-    # Clean old recordings and logs
+    # Clean old recordings, logs, and generated scenarios
     for old_file in recordings_dir.glob("*"):
         old_file.unlink()
         logger.debug(f"Removed old recording: {old_file}")
     for old_file in logs_dir.glob("episode_*.log"):
         old_file.unlink()
+    for old_file in scenarios_dir.glob("*.json"):
+        old_file.unlink()
+        logger.debug(f"Removed old scenario: {old_file}")
 
     # --- Setup file logging ---
     # Console: INFO level (compact)
@@ -1084,6 +1177,7 @@ def main():
     logger.info(f"Max agents:        {MAX_AGENTS}")
     logger.info(f"Learning rate:     {args.lr}")
     logger.info(f"Seed:              {args.seed}")
+    logger.info(f"Fuel damage:       {FUEL_DAMAGE_ENABLED}")
     logger.info(f"Output dir:        {output_dir.resolve()}")
 
     # --- Setup scenario generator ---
@@ -1091,13 +1185,15 @@ def main():
     if args.vary_scenarios:
         scenario_gen = ScenarioGenerator(
             base_scenario_path=args.scenario,
+            extra_template_paths=args.extra_templates or None,
             output_dir=str(scenarios_dir),
         )
         logger.info(
-            f"ScenarioGenerator: aircraft=({args.min_aircraft}-{args.max_aircraft}), "
+            f"ScenarioGenerator: aircraft_pool={scenario_gen.aircraft_pool.class_names}, "
+            f"aircraft=({args.min_aircraft}-{args.max_aircraft}), "
             f"facilities=({args.min_facilities}-{args.max_facilities}), "
-            f"max_dist={args.max_target_dist}km, "
-            f"vary_base={args.vary_base}"
+            f"red_airbases=({args.min_red_airbases}-{args.max_red_airbases}), "
+            f"max_dist={args.max_target_dist}km, vary_base={args.vary_base}"
         )
 
     # --- Setup BLADE ---
@@ -1140,7 +1236,7 @@ def main():
         value_coef=0.5,
         entropy_coef=0.01,
         buffer_capacity=2048,
-        reward_config=RewardConfig(use_shaping=True),
+        reward_config=RewardConfig(),
         model_dir=str(models_dir),
     )
     trainer = PPOTrainer(network, config)
@@ -1163,7 +1259,9 @@ def main():
             ep_config = VariationConfig(
                 num_aircraft=(args.min_aircraft, args.max_aircraft),
                 num_facilities=(args.min_facilities, args.max_facilities),
+                num_red_airbases=(args.min_red_airbases, args.max_red_airbases),
                 randomize_facility_positions=True,
+                randomize_red_airbase_positions=True,
                 max_target_distance_km=args.max_target_dist,
                 randomize_base_position=args.vary_base,
                 base_shift_radius_km=args.base_shift_km,
@@ -1208,6 +1306,7 @@ def main():
             f"  → Reward: {metrics['episode_reward']:7.2f} | "
             f"Decisions: {metrics['decisions']:3d} | "
             f"Accuracy: {metrics['accuracy']:5.1%} | "
+            f"Utility: {metrics.get('utility_ratio', 0):5.1%} | "
             f"π_loss: {metrics['policy_loss']:.4f} | "
             f"V_loss: {metrics['value_loss']:.4f} | "
             f"Ticks: {metrics['ticks']} | "
@@ -1238,8 +1337,10 @@ def main():
     if all_metrics:
         avg_reward = np.mean([m["episode_reward"] for m in all_metrics[-10:]])
         avg_accuracy = np.mean([m["accuracy"] for m in all_metrics[-10:]])
+        avg_utility = np.mean([m.get("utility_ratio", 0) for m in all_metrics[-10:]])
         logger.info(f"Avg reward (last 10): {avg_reward:.2f}")
         logger.info(f"Avg accuracy (last 10): {avg_accuracy:.1%}")
+        logger.info(f"Avg utility ratio (last 10): {avg_utility:.1%}")
 
     logger.info(f"\nOutputs saved to: {output_dir.resolve()}")
     logger.info(f"  Logs:       {logs_dir}/")

@@ -1,28 +1,41 @@
 """
-Reward Function - Imitation Learning from MATCH-AOU Oracle
-===========================================================
+Reward Function - Utility-Based Imitation Learning from MATCH-AOU Oracle
+=========================================================================
 
-Reward function for training RL agent to imitate MATCH-AOU's optimal decisions.
+Reward function for training RL agents to imitate MATCH-AOU's optimal decisions,
+using task utility values as the reward signal.
 
-Approach:
-- MATCH-AOU solves the full problem (knows all targets)
-- RL agent sees partial information (discovers targets gradually)
-- Reward = how similar is RL action to what oracle would do?
+Design principles (per advisor guidance):
+- NO ad-hoc bonuses (fuel efficiency, target coverage, etc.)
+- ALL reward signal derives from MATCH-AOU utility comparison
+- Two components:
+    1. Per-step: utility-proportional reward based on oracle comparison
+    2. Episode-end: ratio of achieved utility vs oracle total utility
 
-Reward Components:
-1. Imitation reward - main signal (did we match oracle?)
-2. Fuel efficiency - bonus for conserving fuel
-3. Target coverage - bonus for attacking unassigned targets
-4. Invalid action penalty - strong negative for illegal actions
+Per-step logic:
+    Match (RL == Oracle):
+        - Attack match  → +oracle_utility / max_utility
+        - NOOP match    → +noop_match_reward (small positive)
+    Mismatch (RL != Oracle):
+        - (rl_utility - oracle_utility) / max_utility
+        - e.g., RL picks NOOP when oracle says ATTACK(100): (0-100)/100 = -1.0
+        - e.g., RL picks ATTACK(80) when oracle says ATTACK(100): (80-100)/100 = -0.2
+
+Episode-end logic:
+    achieved_utility / oracle_total_utility * episode_reward_scale
+
+References:
+    - IRAT (Wang et al., 2022): per-step individual + episodic team reward
+    - Differentiated reward (2025): utility-proportional signals accelerate MAPPO
+    - HERO (Tao et al., 2025): hybrid sparse+dense outperforms either alone
 
 Usage:
-    from match_aou.rl.reward import compute_reward, RewardConfig
-    
-    reward = compute_reward(
-        rl_action=1,           # RL chose ATTACK_TARGET_0
-        oracle_action=1,       # Oracle also chose ATTACK_TARGET_0
-        observation=obs,
-        config=RewardConfig()
+    from match_aou.rl.training import compute_step_reward, compute_episode_reward, RewardConfig
+
+    reward = compute_step_reward(
+        rl_action=1, oracle_action=2,
+        rl_utility=80.0, oracle_utility=100.0,
+        max_utility=100.0, config=RewardConfig()
     )
 """
 
@@ -34,289 +47,293 @@ import numpy as np
 @dataclass
 class RewardConfig:
     """
-    Configuration for reward computation.
-    
-    Attributes:
-        imitation_reward: Reward for matching oracle (+1.0)
-        imitation_penalty: Penalty for not matching oracle (-0.5)
-        
-        fuel_efficiency_bonus: Bonus for having fuel surplus (0.1)
-        target_coverage_bonus: Bonus for attacking unassigned targets (0.2)
-        
-        invalid_action_penalty: Penalty for invalid actions (-5.0)
-        
-        use_shaping: Whether to use reward shaping (True)
-            If False, only imitation reward is used (simpler)
+    Configuration for utility-based reward computation.
+
+    Per-step parameters:
+        noop_match_reward: Reward when both RL and oracle choose NOOP (+0.1)
+        invalid_action_penalty: Penalty for invalid actions (-2.0)
+
+    Episode-end parameters:
+        episode_reward_scale: Multiplier for utility ratio at episode end (5.0)
+
+    Weighting (for combined total, used externally):
+        step_weight: Relative weight of per-step component (0.3)
+        episode_weight: Relative weight of episode-end component (0.7)
     """
-    
-    # Core imitation learning
-    imitation_reward: float = 1.0
-    imitation_penalty: float = -0.5
-    
-    # Reward shaping (optional)
-    fuel_efficiency_bonus: float = 0.1
-    target_coverage_bonus: float = 0.2
-    
-    # Safety
-    invalid_action_penalty: float = -5.0
-    
-    # Toggle reward shaping
-    use_shaping: bool = True
+
+    # Per-step
+    noop_match_reward: float = 0.1
+    invalid_action_penalty: float = -2.0
+
+    # Episode-end
+    episode_reward_scale: float = 5.0
+
+    # Weighting guidance (used by train_full.py, not enforced here)
+    step_weight: float = 0.3
+    episode_weight: float = 0.7
 
 
-def compute_reward(
+# =============================================================================
+# Per-Step Reward
+# =============================================================================
+
+def compute_step_reward(
     rl_action: int,
     oracle_action: int,
-    observation,  # ObservationOutput
+    rl_utility: float,
+    oracle_utility: float,
+    max_utility: float,
     is_valid: bool = True,
-    config: Optional[RewardConfig] = None
+    config: Optional[RewardConfig] = None,
 ) -> float:
     """
-    Compute reward for RL agent's action.
-    
-    Main signal: Does RL action match oracle action?
-    
+    Compute per-step reward based on utility comparison with oracle.
+
     Args:
         rl_action: Action selected by RL agent (0-4)
-        oracle_action: Action selected by MATCH-AOU oracle (0-4)
-        observation: ObservationOutput with current state
-        is_valid: Whether rl_action is valid (passed action masking)
+        oracle_action: Action selected by oracle (0-4)
+        rl_utility: Utility of the target RL chose (0.0 if NOOP/RTB)
+        oracle_utility: Utility of the target oracle chose (0.0 if NOOP)
+        max_utility: Maximum utility across all tasks (for normalization)
+        is_valid: Whether rl_action passed action masking
         config: RewardConfig (uses default if None)
-    
+
     Returns:
         Float reward value
-        
-    Example:
-        >>> reward = compute_reward(
-        ...     rl_action=1,      # RL: Attack target 0
-        ...     oracle_action=1,  # Oracle: Attack target 0
-        ...     observation=obs,
-        ...     is_valid=True
-        ... )
-        >>> print(reward)
-        1.0  # Perfect match!
+
+    Examples:
+        >>> # RL matches oracle on high-value target
+        >>> compute_step_reward(1, 1, 100.0, 100.0, 100.0)
+        1.0
+        >>> # RL picks NOOP when oracle says attack
+        >>> compute_step_reward(0, 1, 0.0, 100.0, 100.0)
+        -1.0
+        >>> # Both NOOP — small positive
+        >>> compute_step_reward(0, 0, 0.0, 0.0, 100.0)
+        0.1
     """
     if config is None:
         config = RewardConfig()
-    
-    # Invalid action penalty (overrides everything else)
+
+    # Invalid action overrides everything
     if not is_valid:
         return config.invalid_action_penalty
-    
-    # Core imitation reward
+
+    # Avoid division by zero
+    if max_utility <= 0:
+        max_utility = 1.0
+
+    # Match
     if rl_action == oracle_action:
-        reward = config.imitation_reward
-    else:
-        reward = config.imitation_penalty
-    
-    # Optional reward shaping
-    if config.use_shaping:
-        # Fuel efficiency bonus
-        if _has_fuel_surplus(observation):
-            reward += config.fuel_efficiency_bonus
-        
-        # Target coverage bonus (attacking unassigned targets)
-        if _is_attacking_unassigned_target(rl_action, observation):
-            reward += config.target_coverage_bonus
-    
-    return reward
+        if oracle_utility > 0:
+            # Attack match — proportional to target value
+            return oracle_utility / max_utility
+        else:
+            # NOOP=NOOP or RTB=RTB — small positive
+            return config.noop_match_reward
+
+    # Mismatch — utility differential
+    return (rl_utility - oracle_utility) / max_utility
 
 
-def compute_reward_batch(
+# =============================================================================
+# Episode-End Reward
+# =============================================================================
+
+def compute_episode_reward(
+    achieved_utility: float,
+    oracle_total_utility: float,
+    config: Optional[RewardConfig] = None,
+) -> float:
+    """
+    Compute episode-end reward as utility ratio.
+
+    This is the "big picture" signal: how much of the oracle's total
+    utility did the RL agents actually achieve?
+
+    Args:
+        achieved_utility: Sum of utilities of targets successfully attacked by RL
+        oracle_total_utility: Sum of utilities in the full oracle solution
+        config: RewardConfig (uses default if None)
+
+    Returns:
+        Scaled utility ratio (0 to episode_reward_scale, typically 0-5)
+
+    Examples:
+        >>> # Perfect execution
+        >>> compute_episode_reward(280.0, 280.0)
+        5.0
+        >>> # Half the utility achieved
+        >>> compute_episode_reward(140.0, 280.0)
+        2.5
+        >>> # Nothing achieved
+        >>> compute_episode_reward(0.0, 280.0)
+        0.0
+    """
+    if config is None:
+        config = RewardConfig()
+
+    if oracle_total_utility <= 0:
+        return 0.0
+
+    ratio = achieved_utility / oracle_total_utility
+    # Clamp to [0, 1.5] — allow slight over-performance but cap it
+    ratio = min(ratio, 1.5)
+
+    return ratio * config.episode_reward_scale
+
+
+# =============================================================================
+# Batch Computation
+# =============================================================================
+
+def compute_step_reward_batch(
     rl_actions: list,
     oracle_actions: list,
-    observations: list,
+    rl_utilities: list,
+    oracle_utilities: list,
+    max_utility: float,
     is_valid_list: list,
-    config: Optional[RewardConfig] = None
+    config: Optional[RewardConfig] = None,
 ) -> np.ndarray:
     """
-    Compute rewards for a batch of actions (vectorized).
-    
+    Compute per-step rewards for a batch of actions.
+
     Args:
         rl_actions: List of RL actions
         oracle_actions: List of oracle actions
-        observations: List of ObservationOutputs
+        rl_utilities: List of RL target utilities
+        oracle_utilities: List of oracle target utilities
+        max_utility: Max utility for normalization
         is_valid_list: List of validity flags
         config: RewardConfig
-    
+
     Returns:
-        np.array of rewards (same length as input lists)
-    
-    Example:
-        >>> rewards = compute_reward_batch(
-        ...     rl_actions=[1, 2, 0],
-        ...     oracle_actions=[1, 1, 0],
-        ...     observations=[obs1, obs2, obs3],
-        ...     is_valid_list=[True, True, True]
-        ... )
-        >>> print(rewards)
-        [1.0, -0.5, 1.0]  # Match, mismatch, match
+        np.array of rewards
     """
     rewards = []
-    
-    for rl_act, oracle_act, obs, is_valid in zip(
-        rl_actions, oracle_actions, observations, is_valid_list
+    for rl_act, oracle_act, rl_u, oracle_u, is_valid in zip(
+        rl_actions, oracle_actions, rl_utilities, oracle_utilities, is_valid_list
     ):
-        r = compute_reward(rl_act, oracle_act, obs, is_valid, config)
+        r = compute_step_reward(rl_act, oracle_act, rl_u, oracle_u, max_utility, is_valid, config)
         rewards.append(r)
-    
+
     return np.array(rewards, dtype=np.float32)
 
 
 # =============================================================================
-# Reward Shaping Helpers
+# Utility Helpers
 # =============================================================================
 
-def _has_fuel_surplus(observation) -> bool:
+def build_target_utility_map(tasks: list, extract_target_id_fn) -> dict:
     """
-    Check if agent has fuel surplus (from plan_context features).
-    
+    Build a mapping from target_id → utility from Task objects.
+
+    This is called once per episode to create the lookup table used
+    by the reward function.
+
     Args:
-        observation: ObservationOutput
-    
+        tasks: List of Task objects (with .utility and .steps[].action)
+        extract_target_id_fn: Function that extracts target_id from action string
+            Signature: (action_str: str) -> Optional[str]
+
     Returns:
-        True if agent has extra fuel beyond plan requirements
-    """
-    # Check if observation has plan context (30 features)
-    if len(observation.vector) < 30:
-        return False
-    
-    # Plan context starts at index 24
-    # Feature 0 (index 24): fuel_margin_for_plan
-    fuel_margin = observation.vector[24]
-    
-    # Margin > 0.5 means surplus (see plan_context.py)
-    return fuel_margin > 0.5
-
-
-def _is_attacking_unassigned_target(action: int, observation) -> bool:
-    """
-    Check if action attacks an unassigned target.
-    
-    Unassigned targets are opportunities that should be encouraged.
-    
-    Args:
-        action: Action index (0-4)
-        observation: ObservationOutput
-    
-    Returns:
-        True if action is attacking an unassigned target
-    """
-    # Check if action is an attack (1-3)
-    if not (1 <= action <= 3):
-        return False
-    
-    # Get target slot (0-2)
-    target_slot = action - 1
-    
-    # Check if target exists and is unassigned
-    if target_slot >= len(observation.targets):
-        return False
-    
-    target = observation.targets[target_slot]
-    
-    if not target.exists:
-        return False
-    
-    # Target is unassigned if is_in_plan == False
-    return not target.is_in_plan
-
-
-# =============================================================================
-# Alternative Reward Functions
-# =============================================================================
-
-def compute_simple_imitation_reward(
-    rl_action: int,
-    oracle_action: int
-) -> float:
-    """
-    Simplest possible reward: +1 for match, 0 for mismatch.
-    
-    Use this for initial debugging/testing.
-    
-    Args:
-        rl_action: RL agent's action
-        oracle_action: Oracle's action
-    
-    Returns:
-        1.0 if match, 0.0 if mismatch
-    """
-    return 1.0 if rl_action == oracle_action else 0.0
-
-
-def compute_soft_imitation_reward(
-        rl_action: int,
-        oracle_action: int,
-        action_similarities: Optional[dict] = None
-) -> float:
-    """
-    Soft imitation reward with partial credit for similar actions.
+        Dict mapping target_id (str) → utility (float)
 
     Example:
-        Oracle chooses ATTACK_0
-        RL chooses ATTACK_1
-        â†’ Give partial credit (e.g., 0.5) instead of 0
+        >>> from match_aou.rl.observation.observation_utils import extract_target_id_from_action
+        >>> utility_map = build_target_utility_map(all_tasks, extract_target_id_from_action)
+        >>> utility_map
+        {'facility-1': 100.0, 'facility-2': 100.0, 'airbase-1': 80.0}
+    """
+    target_utility = {}
+    for task in tasks:
+        for step in task.steps:
+            action_str = getattr(step, "action", "") or ""
+            target_id = extract_target_id_fn(action_str)
+            if target_id:
+                target_utility[target_id] = task.utility
+    return target_utility
+
+
+def get_action_utility(
+    action: int,
+    observation,  # ObservationOutput
+    target_utility_map: dict,
+) -> float:
+    """
+    Get the utility of the target associated with an action.
 
     Args:
-        rl_action: RL agent's action
-        oracle_action: Oracle's action
-        action_similarities: Dict mapping (rl_action, oracle_action) â†’ similarity
-            If None, uses default similarities
+        action: Action index (0=NOOP, 1-3=ATTACK slot, 4=RTB)
+        observation: ObservationOutput with targets info
+        target_utility_map: Mapping target_id → utility
 
     Returns:
-        Reward in [0, 1] based on action similarity
+        Utility of the target (0.0 for NOOP/RTB or missing target)
     """
-    # Perfect match
-    if rl_action == oracle_action:
-        return 1.0
+    # NOOP or RTB — no target utility
+    if action == 0 or action == 4:
+        return 0.0
 
-    # Default similarities
-    if action_similarities is None:
-        # All attack actions are somewhat similar
-        # NOOP vs attack = less similar
-        # RTB vs anything = least similar
-        action_similarities = {
-            # (rl, oracle): similarity
-            (0, 0): 1.0,  # NOOP = NOOP
-            (0, 1): 0.3, (0, 2): 0.3, (0, 3): 0.3,  # NOOP vs attack
-            (0, 4): 0.1,  # NOOP vs RTB
+    # ATTACK slot (1-3) → target slot (0-2)
+    slot_idx = action - 1
+    if slot_idx >= len(observation.targets):
+        return 0.0
 
-            (1, 0): 0.3, (1, 1): 1.0, (1, 2): 0.7, (1, 3): 0.7,  # ATTACK_0
-            (1, 4): 0.1,
+    target = observation.targets[slot_idx]
+    if not target.exists:
+        return 0.0
 
-            (2, 0): 0.3, (2, 1): 0.7, (2, 2): 1.0, (2, 3): 0.7,  # ATTACK_1
-            (2, 4): 0.1,
+    return target_utility_map.get(target.id, 0.0)
 
-            (3, 0): 0.3, (3, 1): 0.7, (3, 2): 0.7, (3, 3): 1.0,  # ATTACK_2
-            (3, 4): 0.1,
 
-            (4, 0): 0.1, (4, 1): 0.1, (4, 2): 0.1, (4, 3): 0.1,  # RTB
-            (4, 4): 1.0,
-        }
+def compute_oracle_total_utility(
+    full_solution: dict,
+    tasks: list,
+    extract_target_id_fn,
+) -> float:
+    """
+    Compute total utility of the full oracle solution.
 
-    # Get similarity
-    similarity = action_similarities.get((rl_action, oracle_action), 0.0)
+    Sums utilities of all unique tasks assigned in the oracle solution.
 
-    return similarity
+    Args:
+        full_solution: {agent_id: [(task_idx, step_idx, level), ...]}
+        tasks: Task list (indexed by task_idx)
+        extract_target_id_fn: Target ID extractor function
+
+    Returns:
+        Total utility (float)
+    """
+    selected_tasks = set()
+    for assignments in full_solution.values():
+        for task_idx, step_idx, _level in assignments:
+            selected_tasks.add(task_idx)
+
+    total = 0.0
+    for task_idx in selected_tasks:
+        if 0 <= task_idx < len(tasks):
+            total += tasks[task_idx].utility
+
+    return total
 
 
 # =============================================================================
-# Reward Statistics
+# Reward Tracker
 # =============================================================================
 
 class RewardTracker:
     """
     Track reward statistics during training.
 
-    Useful for monitoring learning progress.
+    Tracks both per-step rewards and utility-based metrics.
 
     Example:
         >>> tracker = RewardTracker()
-        >>> tracker.add_reward(1.0)
-        >>> tracker.add_reward(-0.5)
+        >>> tracker.add_step(reward=0.8, is_match=True, rl_utility=100, oracle_utility=100)
+        >>> tracker.set_episode_utilities(achieved=180, oracle_total=280)
         >>> print(tracker.get_stats())
-        {'mean': 0.25, 'std': 0.75, 'count': 2}
     """
 
     def __init__(self):
@@ -324,44 +341,71 @@ class RewardTracker:
         self.imitation_matches = 0
         self.total_actions = 0
 
-    def add_reward(self, reward: float, is_match: bool = None):
-        """Add a reward to tracker."""
+        # Utility tracking
+        self.rl_utilities = []
+        self.oracle_utilities = []
+        self.episode_achieved_utility = 0.0
+        self.episode_oracle_utility = 0.0
+
+    def add_step(
+        self,
+        reward: float,
+        is_match: bool = False,
+        rl_utility: float = 0.0,
+        oracle_utility: float = 0.0,
+    ):
+        """Record a single decision step."""
         self.rewards.append(reward)
         self.total_actions += 1
-
-        if is_match is not None and is_match:
+        if is_match:
             self.imitation_matches += 1
+        self.rl_utilities.append(rl_utility)
+        self.oracle_utilities.append(oracle_utility)
+
+    def set_episode_utilities(self, achieved: float, oracle_total: float):
+        """Record episode-level utility totals."""
+        self.episode_achieved_utility = achieved
+        self.episode_oracle_utility = oracle_total
 
     def get_stats(self) -> dict:
-        """Get reward statistics."""
-        empty = {
-            'mean': 0.0, 'std': 0.0, 'min': 0.0,
-            'max': 0.0, 'count': 0, 'accuracy': 0.0,
+        """Get reward and utility statistics."""
+        if not self.rewards:
+            return {
+                "mean_reward": 0.0, "std_reward": 0.0,
+                "min_reward": 0.0, "max_reward": 0.0,
+                "count": 0, "accuracy": 0.0,
+                "utility_ratio": 0.0,
+                "mean_rl_utility": 0.0, "mean_oracle_utility": 0.0,
+            }
+
+        reward_floats = [float(r) for r in self.rewards]
+        n = len(reward_floats)
+        mean_val = sum(reward_floats) / n
+        var_val = sum((r - mean_val) ** 2 for r in reward_floats) / n
+
+        utility_ratio = (
+            self.episode_achieved_utility / self.episode_oracle_utility
+            if self.episode_oracle_utility > 0 else 0.0
+        )
+
+        return {
+            "mean_reward": mean_val,
+            "std_reward": var_val ** 0.5,
+            "min_reward": min(reward_floats),
+            "max_reward": max(reward_floats),
+            "count": n,
+            "accuracy": self.imitation_matches / self.total_actions if self.total_actions > 0 else 0.0,
+            "utility_ratio": utility_ratio,
+            "mean_rl_utility": sum(self.rl_utilities) / n if n > 0 else 0.0,
+            "mean_oracle_utility": sum(self.oracle_utilities) / n if n > 0 else 0.0,
         }
 
-        if not self.rewards or len(self.rewards) == 0:
-            return empty
-
-        try:
-            # Use Python builtins for min/max to avoid numpy version issues
-            reward_floats = [float(r) for r in self.rewards]
-            n = len(reward_floats)
-            mean_val = sum(reward_floats) / n
-            var_val = sum((r - mean_val) ** 2 for r in reward_floats) / n
-
-            return {
-                'mean': mean_val,
-                'std': var_val ** 0.5,
-                'min': min(reward_floats),
-                'max': max(reward_floats),
-                'count': n,
-                'accuracy': self.imitation_matches / self.total_actions if self.total_actions > 0 else 0.0,
-            }
-        except (TypeError, ValueError):
-            return empty
-
     def reset(self):
-        """Reset tracker."""
+        """Reset tracker for next episode."""
         self.rewards = []
         self.imitation_matches = 0
         self.total_actions = 0
+        self.rl_utilities = []
+        self.oracle_utilities = []
+        self.episode_achieved_utility = 0.0
+        self.episode_oracle_utility = 0.0

@@ -3,28 +3,34 @@
 Generates varied BLADE scenario JSONs from a base template for RL training.
 
 Capabilities:
+- Aircraft pool: extract templates from multiple JSONs, build diverse fleets
 - Randomize facility (target) positions within reachable range
-- Add/remove facilities (targets)
-- Add/remove aircraft (agents)
+- Add/remove/randomize RED airbases as targets
+- Add/remove facilities (SAM sites)
 - Full fuel-based reachability validation
 - Traceability: each generated scenario is tagged with its episode number
 
 Usage:
-    generator = ScenarioGenerator(base_scenario_path="strike_training_2v3.json")
+    generator = ScenarioGenerator(
+        base_scenario_path="strike_training_2v3.json",
+        extra_template_paths=["strike_training_4v5.json"],
+    )
     scenario_json = generator.generate(episode=5, config=VariationConfig(...))
-    # Saves to: generated_scenarios/episode_005_scenario.json
 """
 
 from __future__ import annotations
 
 import copy
 import json
+import logging
 import math
 import random
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -38,37 +44,33 @@ class VariationConfig:
     Set a field to None to keep the base-template value unchanged.
     """
 
-    # --- Facility (target) count ---
+    # --- Facility (SAM site) count ---
     # None  = keep base count
-    # int   = exact number of facilities to have
-    # (min, max) = sample uniformly from this range (inclusive)
+    # int   = exact number
+    # (min, max) = sample uniformly (inclusive)
     num_facilities: Optional[int | Tuple[int, int]] = None
 
+    # --- RED airbase (target) count ---
+    # Same semantics. Only counts RED-side airbases (empty enemy bases).
+    num_red_airbases: Optional[int | Tuple[int, int]] = None
+
     # --- Aircraft (agent) count ---
-    # Same semantics as num_facilities
     num_aircraft: Optional[int | Tuple[int, int]] = None
 
     # --- Position randomization ---
     randomize_facility_positions: bool = True
+    randomize_red_airbase_positions: bool = True
 
-    # --- Max target distance (km) ---
-    # Caps how far facilities can be placed from the blue base.
-    # The effective sampling radius is min(max_target_distance_km, fuel-based range).
-    # None = no cap (fuel-based range only)
+    # --- Max / min target distance (km) ---
+    # Applies to both facilities and RED airbases.
     max_target_distance_km: Optional[float] = 500.0
-
-    # --- Min target distance (km) ---
-    # Facilities won't be placed closer than this to the blue base.
     min_target_distance_km: float = 50.0
 
     # --- Blue base randomization ---
-    # If True, the blue base is moved to a random position before
-    # placing targets. The shift radius is controlled by base_shift_radius_km.
     randomize_base_position: bool = False
     base_shift_radius_km: float = 200.0
 
     # --- Fuel safety margin (0.0 - 1.0) ---
-    # 0.3 means we only use 70% of the theoretical max one-way range
     fuel_safety_margin: float = 0.3
 
     # --- Random seed (None = random each time) ---
@@ -81,7 +83,7 @@ class VariationConfig:
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Great-circle distance in km between two lat/lon points."""
-    R = 6371.0  # Earth radius in km
+    R = 6371.0
     rlat1, rlat2 = math.radians(lat1), math.radians(lat2)
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
@@ -106,6 +108,22 @@ def _resolve_range(
     return rng.randint(lo, hi)
 
 
+def _random_point_in_ring(
+    center_lat: float, center_lon: float,
+    min_km: float, max_km: float,
+    rng: random.Random,
+) -> Tuple[float, float]:
+    """Sample a random lat/lon within a ring [min_km, max_km] from center."""
+    bearing_rad = rng.uniform(0, 2 * math.pi)
+    distance_km = rng.uniform(min_km, max_km)
+
+    dlat = (distance_km * math.cos(bearing_rad)) / 111.0
+    dlon = (distance_km * math.sin(bearing_rad)) / (
+        111.0 * math.cos(math.radians(center_lat))
+    )
+    return center_lat + dlat, center_lon + dlon
+
+
 # ---------------------------------------------------------------------------
 # Reachability calculator
 # ---------------------------------------------------------------------------
@@ -117,15 +135,9 @@ class ReachabilityCalculator:
         self.safety_margin = safety_margin
 
     def max_one_way_km(self, aircraft: Dict[str, Any]) -> float:
-        """Max one-way distance (km) an aircraft can travel and still return.
-
-        Formula:
-            total_range_km = (currentFuel / fuelRate) * speed_knots * 1.852
-            one_way = total_range_km / 2
-            usable  = one_way * (1 - safety_margin)
-        """
+        """Max one-way distance (km) keeping enough fuel to return."""
         fuel = float(aircraft.get("currentFuel", 0))
-        fuel_rate = float(aircraft.get("fuelRate", 1))  # per hour
+        fuel_rate = float(aircraft.get("fuelRate", 1))
         speed_knots = float(aircraft.get("speed", 0))
 
         if fuel_rate <= 0 or speed_knots <= 0:
@@ -136,27 +148,87 @@ class ReachabilityCalculator:
         one_way = total_range_km / 2.0
         return one_way * (1.0 - self.safety_margin)
 
-    def is_reachable(
-        self,
-        aircraft: Dict[str, Any],
-        base_lat: float, base_lon: float,
-        target_lat: float, target_lon: float,
-    ) -> bool:
-        """Can this aircraft fly from base to target and back?"""
-        dist = _haversine_km(base_lat, base_lon, target_lat, target_lon)
-        return dist <= self.max_one_way_km(aircraft)
-
     def is_reachable_by_any(
         self,
         aircraft_list: List[Dict[str, Any]],
         base_lat: float, base_lon: float,
         target_lat: float, target_lon: float,
     ) -> bool:
-        """Can at least one aircraft reach this target?"""
-        return any(
-            self.is_reachable(ac, base_lat, base_lon, target_lat, target_lon)
-            for ac in aircraft_list
-        )
+        """Can at least one aircraft reach this target and return?"""
+        for ac in aircraft_list:
+            dist = _haversine_km(base_lat, base_lon, target_lat, target_lon)
+            if dist <= self.max_one_way_km(ac):
+                return True
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Aircraft template pool
+# ---------------------------------------------------------------------------
+
+class AircraftPool:
+    """Stores aircraft templates keyed by className.
+
+    Templates are extracted from scenario JSONs. Each template is a full
+    aircraft dict (with weapons, fuel, etc.) ready to be cloned into a
+    new scenario with fresh UUIDs.
+    """
+
+    def __init__(self):
+        self._templates: Dict[str, Dict[str, Any]] = {}
+
+    @property
+    def class_names(self) -> List[str]:
+        return list(self._templates.keys())
+
+    def __len__(self) -> int:
+        return len(self._templates)
+
+    def add_from_scenario_file(self, path: str) -> None:
+        """Extract aircraft templates from a scenario JSON file."""
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        scenario = data["currentScenario"]
+        for airbase in scenario.get("airbases", []):
+            for ac in airbase.get("aircraft", []):
+                class_name = ac.get("className", "")
+                if class_name and class_name not in self._templates:
+                    self._templates[class_name] = copy.deepcopy(ac)
+
+    def pick(self, rng: random.Random) -> Dict[str, Any]:
+        """Return a deep copy of a random template with fresh UUIDs."""
+        if not self._templates:
+            raise ValueError("Aircraft pool is empty")
+
+        template = rng.choice(list(self._templates.values()))
+        return self._stamp_new_ids(template, rng)
+
+    def pick_by_class(self, class_name: str, rng: random.Random) -> Dict[str, Any]:
+        """Return a deep copy of a specific class template with fresh UUIDs."""
+        if class_name not in self._templates:
+            raise KeyError(
+                f"No template for '{class_name}'. "
+                f"Available: {self.class_names}"
+            )
+        return self._stamp_new_ids(self._templates[class_name], rng)
+
+    @staticmethod
+    def _stamp_new_ids(
+        template: Dict[str, Any], rng: random.Random
+    ) -> Dict[str, Any]:
+        """Deep copy a template and assign fresh UUIDs + tail number."""
+        ac = copy.deepcopy(template)
+        ac["id"] = _new_uuid()
+
+        tail_num = rng.randint(100, 999)
+        class_name = ac.get("className", "Aircraft")
+        ac["name"] = f"{class_name} #{tail_num}"
+
+        for weapon in ac.get("weapons", []):
+            weapon["id"] = _new_uuid()
+
+        return ac
 
 
 # ---------------------------------------------------------------------------
@@ -164,11 +236,19 @@ class ReachabilityCalculator:
 # ---------------------------------------------------------------------------
 
 class ScenarioGenerator:
-    """Generates BLADE scenario JSON variations from a base template."""
+    """Generates BLADE scenario JSON variations from a base template.
+
+    Args:
+        base_scenario_path: Path to the primary template JSON.
+        extra_template_paths: Additional JSONs to extract aircraft
+                              templates from.
+        output_dir: Where generated scenarios are saved.
+    """
 
     def __init__(
         self,
         base_scenario_path: str,
+        extra_template_paths: Optional[List[str]] = None,
         output_dir: str = "generated_scenarios",
     ):
         self.base_path = Path(base_scenario_path)
@@ -178,13 +258,23 @@ class ScenarioGenerator:
         with open(self.base_path, "r", encoding="utf-8") as f:
             self._base_data = json.load(f)
 
-        # Cache side IDs for quick lookups
+        # Cache side IDs
         self._blue_side_id, self._red_side_id = self._identify_sides()
+
+        # Build aircraft pool from base + extras
+        self.aircraft_pool = AircraftPool()
+        self.aircraft_pool.add_from_scenario_file(str(self.base_path))
+        for extra in (extra_template_paths or []):
+            self.aircraft_pool.add_from_scenario_file(extra)
+
+        logger.info(
+            f"ScenarioGenerator ready: base={self.base_path.name}, "
+            f"aircraft_pool={self.aircraft_pool.class_names}"
+        )
 
     # ---- Side identification ----
 
     def _identify_sides(self) -> Tuple[str, str]:
-        """Find BLUE and RED side IDs from the scenario."""
         scenario = self._base_data["currentScenario"]
         blue_id = red_id = ""
         for side in scenario["sides"]:
@@ -194,29 +284,28 @@ class ScenarioGenerator:
                 red_id = side["id"]
         return blue_id, red_id
 
-    # ---- Blue base location ----
+    # ---- Accessors ----
 
     def _get_blue_base(self, scenario: Dict) -> Tuple[float, float, Dict]:
-        """Returns (lat, lon, airbase_dict) for the blue airbase."""
         for ab in scenario.get("airbases", []):
             if ab.get("sideId") == self._blue_side_id:
                 return ab["latitude"], ab["longitude"], ab
         raise ValueError("No BLUE airbase found in scenario")
 
-    # ---- Aircraft from blue base ----
-
     def _get_blue_aircraft(self, scenario: Dict) -> List[Dict]:
-        """Get list of aircraft dicts from the blue airbase."""
         _, _, blue_base = self._get_blue_base(scenario)
         return blue_base.get("aircraft", [])
 
-    # ---- Red facilities ----
-
     def _get_red_facilities(self, scenario: Dict) -> List[Dict]:
-        """Get all RED-side facilities."""
         return [
             f for f in scenario.get("facilities", [])
             if f.get("sideId") == self._red_side_id
+        ]
+
+    def _get_red_airbases(self, scenario: Dict) -> List[Dict]:
+        return [
+            ab for ab in scenario.get("airbases", [])
+            if ab.get("sideId") == self._red_side_id
         ]
 
     # ==================================================================
@@ -226,26 +315,17 @@ class ScenarioGenerator:
     def generate(
         self, episode: int, config: Optional[VariationConfig] = None
     ) -> Path:
-        """Generate a scenario variation and save it to disk.
-
-        Args:
-            episode: Episode number (used in filename and metadata).
-            config: Variation settings. Uses defaults if None.
-
-        Returns:
-            Path to the saved JSON file.
-        """
+        """Generate a scenario variation and save it to disk."""
         config = config or VariationConfig()
         rng = random.Random(config.seed if config.seed is not None else None)
         reachability = ReachabilityCalculator(
             safety_margin=config.fuel_safety_margin
         )
 
-        # Deep copy the base scenario
         data = copy.deepcopy(self._base_data)
         scenario = data["currentScenario"]
 
-        # Step 1: Adjust aircraft count (before reachability checks)
+        # Step 1: Adjust aircraft count (uses pool)
         desired_aircraft = _resolve_range(config.num_aircraft, rng)
         if desired_aircraft is not None:
             self._adjust_aircraft_count(scenario, desired_aircraft, rng)
@@ -255,23 +335,34 @@ class ScenarioGenerator:
         if desired_facilities is not None:
             self._adjust_facility_count(scenario, desired_facilities, rng)
 
-        # Step 3: Randomize blue base position (before target placement)
+        # Step 3: Adjust RED airbase count
+        desired_red_ab = _resolve_range(config.num_red_airbases, rng)
+        if desired_red_ab is not None:
+            self._adjust_red_airbase_count(scenario, desired_red_ab, rng)
+
+        # Step 4: Randomize blue base position
         if config.randomize_base_position:
             self._randomize_base_position(
                 scenario, config.base_shift_radius_km, rng
             )
 
-        # Step 4: Randomize facility positions (with reachability validation)
+        # Step 5: Randomize target positions
         if config.randomize_facility_positions:
-            self._randomize_facility_positions(
-                scenario, reachability, config, rng
+            self._randomize_target_positions(
+                self._get_red_facilities(scenario),
+                scenario, reachability, config, rng,
+            )
+        if config.randomize_red_airbase_positions:
+            self._randomize_target_positions(
+                self._get_red_airbases(scenario),
+                scenario, reachability, config, rng,
             )
 
-        # Step 5: Tag with episode metadata
+        # Step 6: Tag with episode metadata
         scenario["name"] = f"episode_{episode:04d}"
         scenario["id"] = _new_uuid()
 
-        # Step 6: Save
+        # Step 7: Save
         filename = f"episode_{episode:04d}_scenario.json"
         out_path = self.output_dir / filename
         with open(out_path, "w", encoding="utf-8") as f:
@@ -280,24 +371,22 @@ class ScenarioGenerator:
         return out_path
 
     # ==================================================================
-    # Position randomization
+    # Position randomization (shared for facilities and RED airbases)
     # ==================================================================
 
-    def _randomize_facility_positions(
+    def _randomize_target_positions(
         self,
+        targets: List[Dict],
         scenario: Dict,
         reachability: ReachabilityCalculator,
         config: VariationConfig,
         rng: random.Random,
         max_attempts: int = 100,
     ) -> None:
-        """Randomize RED facility positions within aircraft reachable range.
+        """Randomize positions of a list of target dicts.
 
-        The sampling radius is capped by both:
-        - The weakest aircraft's fuel-based range
-        - config.max_target_distance_km (if set)
-
-        Minimum distance is config.min_target_distance_km.
+        Works for both facilities and RED airbases — any dict with
+        latitude/longitude fields.
         """
         base_lat, base_lon, _ = self._get_blue_base(scenario)
         aircraft_list = self._get_blue_aircraft(scenario)
@@ -305,107 +394,48 @@ class ScenarioGenerator:
         if not aircraft_list:
             return
 
-        # Fuel-based max radius (weakest aircraft)
         fuel_range_km = min(
             reachability.max_one_way_km(ac) for ac in aircraft_list
         )
-
-        # Apply the config cap
         max_radius = fuel_range_km
         if config.max_target_distance_km is not None:
             max_radius = min(max_radius, config.max_target_distance_km)
 
         min_radius = config.min_target_distance_km
-
-        # Safety: if min >= max, force a small valid ring
         if min_radius >= max_radius:
             min_radius = max_radius * 0.1
 
-        red_facilities = self._get_red_facilities(scenario)
-
-        for facility in red_facilities:
-            placed = False
+        for target in targets:
             for _ in range(max_attempts):
-                new_lat, new_lon = self._random_point_in_ring(
-                    base_lat, base_lon,
-                    min_radius, max_radius,
-                    rng,
+                new_lat, new_lon = _random_point_in_ring(
+                    base_lat, base_lon, min_radius, max_radius, rng,
                 )
                 if reachability.is_reachable_by_any(
                     aircraft_list, base_lat, base_lon, new_lat, new_lon
                 ):
-                    facility["latitude"] = new_lat
-                    facility["longitude"] = new_lon
-                    placed = True
+                    target["latitude"] = new_lat
+                    target["longitude"] = new_lon
                     break
-
-            if not placed:
-                # Fallback: keep original position (from the base template)
-                pass
-
-    @staticmethod
-    def _random_point_in_ring(
-        center_lat: float, center_lon: float,
-        min_km: float, max_km: float,
-        rng: random.Random,
-    ) -> Tuple[float, float]:
-        """Sample a random lat/lon within a ring [min_km, max_km] from center.
-
-        Uses uniform random bearing + uniform distance in the ring.
-        Approximation: treats lat/lon offsets linearly (accurate enough
-        for distances < ~500 km at these latitudes).
-        """
-        bearing_rad = rng.uniform(0, 2 * math.pi)
-        distance_km = rng.uniform(min_km, max_km)
-
-        # 1 degree lat ~ 111 km, 1 degree lon ~ 111 * cos(lat) km
-        dlat = (distance_km * math.cos(bearing_rad)) / 111.0
-        dlon = (distance_km * math.sin(bearing_rad)) / (
-            111.0 * math.cos(math.radians(center_lat))
-        )
-
-        return center_lat + dlat, center_lon + dlon
 
     # ==================================================================
     # Blue base randomization
     # ==================================================================
 
     def _randomize_base_position(
-        self,
-        scenario: Dict,
-        shift_radius_km: float,
-        rng: random.Random,
+        self, scenario: Dict, shift_radius_km: float, rng: random.Random,
     ) -> None:
-        """Move the blue airbase to a random nearby position.
-
-        Also updates all aircraft positions to match the new base location,
-        since aircraft inherit their starting coordinates from the base.
-
-        Args:
-            scenario: The scenario dict to modify in-place.
-            shift_radius_km: Max distance (km) to shift from original position.
-            rng: Random number generator.
-        """
+        """Move the blue airbase (and its aircraft) to a random nearby position."""
         old_lat, old_lon, blue_base = self._get_blue_base(scenario)
 
-        # Sample a new base position within [0, shift_radius_km] of the original
-        new_lat, new_lon = self._random_point_in_ring(
-            old_lat, old_lon,
-            min_km=0.0,
-            max_km=shift_radius_km,
-            rng=rng,
+        new_lat, new_lon = _random_point_in_ring(
+            old_lat, old_lon, 0.0, shift_radius_km, rng,
         )
 
-        # Update the airbase itself
         blue_base["latitude"] = new_lat
         blue_base["longitude"] = new_lon
 
-        # Update all aircraft in this base to the new position.
-        # In the base JSON, aircraft lat/lon represent their starting
-        # position. We shift them by the same delta as the base.
         dlat = new_lat - old_lat
         dlon = new_lon - old_lon
-
         for ac in blue_base.get("aircraft", []):
             ac["latitude"] += dlat
             ac["longitude"] += dlon
@@ -417,18 +447,15 @@ class ScenarioGenerator:
     def _adjust_facility_count(
         self, scenario: Dict, desired: int, rng: random.Random
     ) -> None:
-        """Add or remove RED facilities to reach the desired count."""
+        """Add or remove RED facilities."""
         red_facilities = self._get_red_facilities(scenario)
         current = len(red_facilities)
-
-        if desired < 1:
-            desired = 1  # Must have at least one target
+        desired = max(desired, 1)
 
         if desired == current:
             return
 
         if desired < current:
-            # Remove excess facilities (random selection)
             to_remove = rng.sample(red_facilities, current - desired)
             remove_ids = {f["id"] for f in to_remove}
             scenario["facilities"] = [
@@ -436,57 +463,103 @@ class ScenarioGenerator:
                 if f["id"] not in remove_ids
             ]
         else:
-            # Add facilities by cloning existing ones
             template = rng.choice(red_facilities)
             for i in range(desired - current):
-                new_facility = copy.deepcopy(template)
-                new_facility["id"] = _new_uuid()
-                new_facility["name"] = f"Target Site {chr(65 + current + i)}"
-
-                # Give each weapon a new UUID too
-                for weapon in new_facility.get("weapons", []):
+                new_fac = copy.deepcopy(template)
+                new_fac["id"] = _new_uuid()
+                new_fac["name"] = f"Target Site {chr(65 + current + i)}"
+                for weapon in new_fac.get("weapons", []):
                     weapon["id"] = _new_uuid()
-
-                scenario["facilities"].append(new_facility)
+                scenario["facilities"].append(new_fac)
 
     # ==================================================================
-    # Aircraft count adjustment
+    # RED airbase count adjustment
     # ==================================================================
 
-    def _adjust_aircraft_count(
+    def _adjust_red_airbase_count(
         self, scenario: Dict, desired: int, rng: random.Random
     ) -> None:
-        """Add or remove aircraft from the BLUE airbase."""
-        _, _, blue_base = self._get_blue_base(scenario)
-        aircraft_list = blue_base.get("aircraft", [])
-        current = len(aircraft_list)
-
-        if desired < 1:
-            desired = 1  # Must have at least one agent
+        """Add or remove RED airbases (empty enemy bases as targets)."""
+        red_airbases = self._get_red_airbases(scenario)
+        current = len(red_airbases)
+        desired = max(desired, 0)  # Can have zero RED airbases
 
         if desired == current:
             return
 
         if desired < current:
-            # Keep first N, remove the rest
-            blue_base["aircraft"] = aircraft_list[:desired]
+            to_remove = rng.sample(red_airbases, current - desired)
+            remove_ids = {ab["id"] for ab in to_remove}
+            scenario["airbases"] = [
+                ab for ab in scenario["airbases"]
+                if ab["id"] not in remove_ids
+            ]
         else:
-            # Clone existing aircraft with new IDs
-            template = aircraft_list[0] if aircraft_list else None
-            if template is None:
-                return
+            if red_airbases:
+                template = rng.choice(red_airbases)
+            else:
+                # No existing RED airbase — build a minimal one
+                template = {
+                    "id": "",
+                    "name": "",
+                    "sideId": self._red_side_id,
+                    "className": "Airfield",
+                    "latitude": 0.0,
+                    "longitude": 0.0,
+                    "altitude": 0,
+                    "sideColor": "red",
+                    "aircraft": [],
+                }
 
             for i in range(desired - current):
-                new_ac = copy.deepcopy(template)
-                new_ac["id"] = _new_uuid()
+                new_ab = copy.deepcopy(template)
+                new_ab["id"] = _new_uuid()
+                num = rng.randint(1000, 9999)
+                new_ab["name"] = f"Enemy Airbase #{num}"
+                new_ab["aircraft"] = []  # Always empty
+                scenario["airbases"].append(new_ab)
 
-                # Generate a new tail number
-                tail_num = rng.randint(100, 999)
-                new_ac["name"] = f"F-16 Fighting Falcon #{tail_num}"
+    # ==================================================================
+    # Aircraft count adjustment (pool-based)
+    # ==================================================================
 
-                # New UUIDs for all weapons
-                for weapon in new_ac.get("weapons", []):
-                    weapon["id"] = _new_uuid()
+    def _adjust_aircraft_count(
+        self, scenario: Dict, desired: int, rng: random.Random
+    ) -> None:
+        """Add or remove aircraft from the BLUE airbase.
+
+        New aircraft are picked randomly from the aircraft pool,
+        giving diverse fleet compositions.
+        """
+        base_lat, base_lon, blue_base = self._get_blue_base(scenario)
+        aircraft_list = blue_base.get("aircraft", [])
+        current = len(aircraft_list)
+        desired = max(desired, 1)
+
+        if desired == current:
+            return
+
+        if desired < current:
+            blue_base["aircraft"] = aircraft_list[:desired]
+        else:
+            for _ in range(desired - current):
+                new_ac = self.aircraft_pool.pick(rng)
+
+                # Set ownership and position to match this blue base
+                new_ac["homeBaseId"] = blue_base["id"]
+                new_ac["sideId"] = self._blue_side_id
+                new_ac["sideColor"] = "blue"
+
+                # Match position of existing aircraft, or use base offset
+                if aircraft_list:
+                    ref = aircraft_list[0]
+                    new_ac["latitude"] = ref["latitude"]
+                    new_ac["longitude"] = ref["longitude"]
+                    new_ac["altitude"] = ref["altitude"]
+                else:
+                    new_ac["latitude"] = base_lat - 0.5
+                    new_ac["longitude"] = base_lon - 0.5
+                    new_ac["altitude"] = 10000
 
                 aircraft_list.append(new_ac)
 
@@ -500,31 +573,14 @@ class ScenarioGenerator:
         config: Optional[VariationConfig] = None,
         start_episode: int = 0,
     ) -> List[Path]:
-        """Generate multiple scenario variations.
-
-        Args:
-            num_episodes: How many scenarios to generate.
-            config: Shared variation config. If seed is None,
-                    each episode gets its own seed (= episode number)
-                    for reproducibility.
-            start_episode: Starting episode number.
-
-        Returns:
-            List of paths to generated files.
-        """
         config = config or VariationConfig()
         paths = []
-
         for i in range(num_episodes):
             ep = start_episode + i
             ep_config = copy.deepcopy(config)
-
-            # Deterministic per-episode seed for reproducibility
             if ep_config.seed is None:
                 ep_config.seed = ep
-
             paths.append(self.generate(episode=ep, config=ep_config))
-
         return paths
 
 
@@ -535,42 +591,41 @@ class ScenarioGenerator:
 if __name__ == "__main__":
     import sys
 
-    base_path = (
-        sys.argv[1] if len(sys.argv) > 1 else "strike_training_2v3.json"
-    )
+    base_path = sys.argv[1] if len(sys.argv) > 1 else "strike_training_2v3.json"
+    extra_paths = sys.argv[2:] if len(sys.argv) > 2 else []
 
-    gen = ScenarioGenerator(base_scenario_path=base_path)
+    gen = ScenarioGenerator(
+        base_scenario_path=base_path,
+        extra_template_paths=extra_paths,
+    )
+    print(f"Aircraft pool: {gen.aircraft_pool.class_names}")
 
     configs = [
-        # Episode 0: Just randomize positions, capped at 500km (default)
+        # Episode 0: Base scenario, just randomize positions
         VariationConfig(randomize_facility_positions=True, seed=42),
-        # Episode 1: 2v4, tighter range (300km max)
-        VariationConfig(num_facilities=4, max_target_distance_km=300.0, seed=43),
-        # Episode 2: 3v2 with base shift
+        # Episode 1: 3 aircraft (from pool), 4 facilities, 2 RED airbases
         VariationConfig(
-            num_aircraft=3, num_facilities=2,
+            num_aircraft=3, num_facilities=4, num_red_airbases=2,
+            max_target_distance_km=400.0, seed=43,
+        ),
+        # Episode 2: 5 aircraft, 3 facilities, 1 RED airbase, base shift
+        VariationConfig(
+            num_aircraft=5, num_facilities=3, num_red_airbases=1,
             randomize_base_position=True, base_shift_radius_km=150.0,
             seed=44,
         ),
-        # Episode 3: Random targets 2-5, base shift, tight range
+        # Episode 3: Random everything
         VariationConfig(
-            num_facilities=(2, 5),
-            randomize_base_position=True, base_shift_radius_km=100.0,
-            max_target_distance_km=400.0,
-            seed=45,
-        ),
-        # Episode 4: Random everything
-        VariationConfig(
-            num_aircraft=(2, 4), num_facilities=(2, 5),
+            num_aircraft=(2, 5), num_facilities=(2, 5),
+            num_red_airbases=(0, 3),
             randomize_base_position=True, base_shift_radius_km=200.0,
-            max_target_distance_km=500.0,
-            seed=46,
+            max_target_distance_km=500.0, seed=45,
         ),
     ]
 
     for ep, cfg in enumerate(configs):
         path = gen.generate(episode=ep, config=cfg)
-        print(f"Episode {ep}: {path}")
+        print(f"\nEpisode {ep}: {path}")
 
         with open(path) as f:
             data = json.load(f)
@@ -578,9 +633,10 @@ if __name__ == "__main__":
         blue_ab = next(
             ab for ab in sc["airbases"] if ab["sideColor"] == "blue"
         )
-        n_ac = len(blue_ab.get("aircraft", []))
-        n_fac = len(sc["facilities"])
-        print(
-            f"  -> {n_ac} aircraft, {n_fac} facilities, "
-            f"base=({blue_ab['latitude']:.2f}, {blue_ab['longitude']:.2f})"
-        )
+        red_abs = [ab for ab in sc["airbases"] if ab["sideColor"] == "red"]
+
+        ac_types = [ac["className"] for ac in blue_ab.get("aircraft", [])]
+        print(f"  Aircraft ({len(ac_types)}): {ac_types}")
+        print(f"  Facilities: {len(sc['facilities'])}")
+        print(f"  RED airbases: {len(red_abs)}")
+        print(f"  Base: ({blue_ab['latitude']:.2f}, {blue_ab['longitude']:.2f})")

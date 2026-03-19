@@ -13,7 +13,7 @@ Legacy (DQN):
 - DQNTrainer, TrainingConfig, ReplayBuffer
 
 Shared:
-- Reward functions, Oracle, EpisodeInitializer
+- Reward functions, Oracle, EpisodeInitializer, FuelDamage
 """
 
 # PPO (primary)
@@ -28,13 +28,16 @@ from .rollout_buffer import RolloutBuffer
 from .oracle import MatchAOUOracle, SimpleOracle
 from .episode_initializer import EpisodeInitializer
 from .reward import (
-    compute_reward,
-    compute_reward_batch,
-    compute_simple_imitation_reward,
-    compute_soft_imitation_reward,
+    compute_step_reward,
+    compute_episode_reward,
+    compute_step_reward_batch,
     RewardConfig,
     RewardTracker,
+    build_target_utility_map,
+    get_action_utility,
+    compute_oracle_total_utility,
 )
+from .fuel_damage import FuelDamageManager, FuelDamageConfig
 
 __all__ = [
     # PPO (primary)
@@ -56,10 +59,16 @@ __all__ = [
     'EpisodeInitializer',
 
     # Reward
-    'compute_reward',
-    'compute_reward_batch',
-    'compute_simple_imitation_reward',
-    'compute_soft_imitation_reward',
+    'compute_step_reward',
+    'compute_episode_reward',
+    'compute_step_reward_batch',
     'RewardConfig',
     'RewardTracker',
+    'build_target_utility_map',
+    'get_action_utility',
+    'compute_oracle_total_utility',
+
+    # Fuel damage
+    'FuelDamageManager',
+    'FuelDamageConfig',
 ]
