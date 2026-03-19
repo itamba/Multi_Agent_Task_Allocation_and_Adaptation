@@ -105,6 +105,7 @@ PARTIAL_RATIO = 2 / 3         # Fraction of tasks in partial set
 VARY_SCENARIOS = True          # Toggle scenario variation (or use --vary-scenarios flag)
 VARY_BASE = False              # Toggle blue base position randomization
 FUEL_DAMAGE_ENABLED = True     # Toggle fuel damage surprise events
+VALIDATE_EVERY = 10            # Run oracle-only validation every N episodes (0=disabled)
 OUTPUT_DIR = "training_output"  # Directory for logs and recordings
 MAX_AGENTS = 5                 # Max agents for critic padding (fixed network size)
 
@@ -466,7 +467,149 @@ def get_simple_action_mask(observation, action_dim: int = 5) -> np.ndarray:
 
 
 # =============================================================================
-# 7. Training Episode
+# 7. Validation Episode (oracle-only, no RL)
+# =============================================================================
+
+def run_validation_episode(
+    game: Game,
+    env,
+    scenario_path: str,
+    episode_num: int,
+    max_ticks: int = MAX_SIM_TICKS,
+    recordings_dir: str = None,
+) -> None:
+    """
+    Run the full MATCH-AOU solution through BLADE without RL intervention.
+
+    Purpose: produce a recording where the oracle plan executes cleanly,
+    so we can visually verify that MATCH-AOU assignments are correct and
+    aircraft actually reach and attack their targets.
+
+    Flow:
+        1. Reset BLADE
+        2. Create agents + ALL tasks (no partial split)
+        3. Solve MATCH-AOU on full task set
+        4. Launch aircraft
+        5. Run BladeExecutorMinimal until all agents RTB or max ticks
+        6. Export recording as episode_XXX_validation.jsonl
+    """
+    logger.info("--- Validation run (oracle only, no RL) ---")
+
+    # --- Reset ---
+    observation, info = env.reset()
+
+    blue_side = None
+    for side in observation.sides:
+        if str(getattr(side, "name", "")).upper() == "BLUE":
+            blue_side = side
+            break
+    if blue_side:
+        game.current_side_id = blue_side.id
+
+    # --- Create agents and tasks ---
+    agents_by_side = create_agents_from_scenario(observation)
+    attacking_agents = agents_by_side.get(ATTACKING_SIDE_COLOR, [])
+    if not attacking_agents:
+        logger.warning("Validation: no agents found, skipping")
+        return
+
+    all_tasks = generate_all_enemy_tasks(observation, ATTACKING_SIDE_COLOR)
+    if not all_tasks:
+        logger.warning("Validation: no tasks found, skipping")
+        return
+
+    logger.info(f"Validation: {len(attacking_agents)} agents, {len(all_tasks)} tasks")
+
+    # --- Solve MATCH-AOU (full) ---
+    solution, tasks_filtered, _ = solve_match_aou(
+        attacking_agents, all_tasks, SOLVER_NAME
+    )
+    if not solution:
+        logger.warning("Validation: solver returned empty solution, skipping")
+        return
+
+    # --- Launch aircraft ---
+    game.start_recording()
+    game.record_step()
+
+    for _ in range(5):
+        observation, _, _, _, _ = env.step("")
+        game.record_step(force=True)
+
+    for airbase in getattr(observation, "airbases", []) or []:
+        ab_side = _normalize_side_color(getattr(airbase, "side_color", ""))
+        if ab_side != ATTACKING_SIDE_COLOR:
+            continue
+        ab_id = str(airbase.id)
+        for ac in list(getattr(airbase, "aircraft", []) or []):
+            observation, _, _, _, _ = env.step(
+                f"launch_aircraft_from_airbase('{ab_id}')"
+            )
+            game.record_step()
+
+    for _ in range(10):
+        observation, _, _, _, _ = env.step("")
+        game.record_step()
+
+    # --- Setup executor with FULL plan ---
+    executor = BladeExecutorMinimal(
+        tasks=tasks_filtered,
+        solution=solution,
+        agents=attacking_agents,
+        add_return_to_base=True,
+        arrival_threshold_km=50.0,
+    )
+
+    # --- Simulation loop (executor only) ---
+    agent_ids = [str(a.id) for a in attacking_agents]
+    returned: set = set()
+
+    for tick in range(max_ticks):
+        try:
+            action = executor.next_action(observation, fallback_tick=tick) or ""
+        except ValueError:
+            action = ""
+
+        observation, _, terminated, truncated, _ = env.step(action)
+        game.record_step()
+
+        # Check RTB
+        airborne_ids = {
+            str(getattr(ac, "id", ""))
+            for ac in getattr(observation, "aircraft", []) or []
+        }
+        for aid in agent_ids:
+            if aid not in returned and aid not in airborne_ids:
+                returned.add(aid)
+
+        if tick > 100 and len(returned) == len(agent_ids):
+            logger.info(f"  Validation: all agents RTB at tick {tick}")
+            break
+        if terminated or truncated:
+            break
+
+    # --- Export recording ---
+    try:
+        game.export_recording()
+
+        if recordings_dir:
+            rec_dir = Path(recordings_dir)
+            jsonl_files = sorted(
+                rec_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime
+            )
+            if jsonl_files:
+                latest = jsonl_files[-1]
+                new_name = rec_dir / f"episode_{episode_num + 1:03d}_validation.jsonl"
+                if new_name.exists():
+                    new_name.unlink()
+                latest.rename(new_name)
+                logger.info(f"  Validation recording: {new_name.name}")
+    except Exception as e:
+        logger.warning(f"  Failed to export validation recording: {e}")
+
+
+# =============================================================================
+# 8. Training Episode
 # =============================================================================
 
 def train_episode(
@@ -1038,7 +1181,7 @@ def train_episode(
             jsonl_files = sorted(rec_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime)
             if jsonl_files:
                 latest = jsonl_files[-1]
-                new_name = rec_dir / f"episode_{episode_num + 1:03d}.jsonl"
+                new_name = rec_dir / f"episode_{episode_num + 1:03d}_rl.jsonl"
                 if latest != new_name:
                     # Don't rename if already named correctly (re-run)
                     if new_name.exists():
@@ -1129,6 +1272,8 @@ def main():
                         help="Max simulation ticks per episode")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate (PPO default: 3e-4)")
     parser.add_argument("--save-freq", type=int, default=10, help="Save checkpoint every N episodes")
+    parser.add_argument("--validate-every", type=int, default=VALIDATE_EVERY,
+                        help="Run oracle-only validation every N episodes (0=disabled)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output-dir", default=OUTPUT_DIR, help="Output directory for logs/recordings")
 
@@ -1206,6 +1351,7 @@ def main():
     logger.info(f"Learning rate:     {args.lr}")
     logger.info(f"Seed:              {args.seed}")
     logger.info(f"Fuel damage:       {FUEL_DAMAGE_ENABLED}")
+    logger.info(f"Validate every:    {args.validate_every} episodes")
     logger.info(f"Output dir:        {output_dir.resolve()}")
 
     # --- Setup scenario generator ---
@@ -1302,6 +1448,19 @@ def main():
             logger.info(f"  Generated scenario: {Path(ep_scenario_path).name}")
         else:
             ep_scenario_path = args.scenario
+
+        # --- Validation run (oracle only, every N episodes) ---
+        if args.validate_every > 0 and episode % args.validate_every == 0:
+            run_validation_episode(
+                game=game,
+                env=env,
+                scenario_path=ep_scenario_path,
+                episode_num=episode,
+                max_ticks=args.max_ticks,
+                recordings_dir=str(recordings_dir),
+            )
+            # Reload same scenario fresh for the RL episode
+            reload_scenario(game, ep_scenario_path)
 
         # Per-episode log file
         ep_log_path = logs_dir / f"episode_{episode + 1:03d}.log"
