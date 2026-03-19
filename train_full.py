@@ -533,6 +533,36 @@ def train_episode(
             return airbase_fifo_order.index(aid) if aid in airbase_fifo_order else 9999
         attacking_agents = sorted(attacking_agents, key=_fifo_sort_key)
 
+    # --- Compact scenario summary (every episode) ---
+    _blue_base = None
+    _ac_types = []
+    for ab in getattr(observation, "airbases", []) or []:
+        if _normalize_side_color(getattr(ab, "side_color", "")) == ATTACKING_SIDE_COLOR:
+            _blue_base = ab
+            _ac_types = [getattr(ac, "class_name", "?") for ac in getattr(ab, "aircraft", [])]
+            break
+
+    _base_loc = f"({_blue_base.latitude:.2f}, {_blue_base.longitude:.2f})" if _blue_base else "?"
+
+    _target_parts = []
+    for fac in getattr(observation, "facilities", []) or []:
+        if _normalize_side_color(getattr(fac, "side_color", "")) != ATTACKING_SIDE_COLOR:
+            _target_parts.append(
+                f"{getattr(fac, 'class_name', '?')} ({fac.latitude:.2f}, {fac.longitude:.2f})"
+            )
+    for ab in getattr(observation, "airbases", []) or []:
+        if _normalize_side_color(getattr(ab, "side_color", "")) != ATTACKING_SIDE_COLOR:
+            _target_parts.append(
+                f"Red Airbase ({ab.latitude:.2f}, {ab.longitude:.2f})"
+            )
+
+    logger.info(
+        f"Scenario: {len(_ac_types)} agents {_ac_types} | Blue base: {_base_loc}"
+    )
+    logger.info(
+        f"  Targets ({len(_target_parts)}): {', '.join(_target_parts)}"
+    )
+
     # --- Verbose: print agents and tasks ---
     if verbose:
         logger.info("")
