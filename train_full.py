@@ -476,7 +476,6 @@ def run_validation_episode(
     scenario_path: str,
     episode_num: int,
     max_ticks: int = MAX_SIM_TICKS,
-    recordings_dir: str = None,
 ) -> None:
     """
     Run the full MATCH-AOU solution through BLADE without RL intervention.
@@ -529,6 +528,7 @@ def run_validation_episode(
         return
 
     # --- Launch aircraft ---
+    game.current_scenario.name = f"ep{episode_num + 1:03d}_validation"
     game.start_recording()
     game.record_step()
 
@@ -591,19 +591,7 @@ def run_validation_episode(
     # --- Export recording ---
     try:
         game.export_recording()
-
-        if recordings_dir:
-            rec_dir = Path(recordings_dir)
-            jsonl_files = sorted(
-                rec_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime
-            )
-            if jsonl_files:
-                latest = jsonl_files[-1]
-                new_name = rec_dir / f"episode_{episode_num + 1:03d}_validation.jsonl"
-                if new_name.exists():
-                    new_name.unlink()
-                latest.rename(new_name)
-                logger.info(f"  Validation recording: {new_name.name}")
+        logger.info(f"  Validation recording exported: ep{episode_num + 1:03d}_validation")
     except Exception as e:
         logger.warning(f"  Failed to export validation recording: {e}")
 
@@ -621,7 +609,6 @@ def train_episode(
     episode_num: int,
     decision_interval: int = DECISION_INTERVAL,
     max_ticks: int = MAX_SIM_TICKS,
-    recordings_dir: str = None,
 ) -> Dict:
     """
     Run a single training episode with MAPPO (PPO + CTDE).
@@ -808,6 +795,7 @@ def train_episode(
         return _empty_metrics()
 
     # --- Step 5: Pre-launch all aircraft from airbases ---
+    game.current_scenario.name = f"ep{episode_num + 1:03d}_rl"
     game.start_recording()
     game.record_step()
 
@@ -1174,24 +1162,7 @@ def train_episode(
 
     try:
         game.export_recording()
-
-        # Rename recording to include episode number
-        if recordings_dir:
-            rec_dir = Path(recordings_dir)
-            jsonl_files = sorted(rec_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime)
-            if jsonl_files:
-                latest = jsonl_files[-1]
-                new_name = rec_dir / f"episode_{episode_num + 1:03d}_rl.jsonl"
-                if latest != new_name:
-                    # Don't rename if already named correctly (re-run)
-                    if new_name.exists():
-                        new_name.unlink()
-                    latest.rename(new_name)
-                logger.info(f"  Recording saved: {new_name.name}")
-            else:
-                logger.info(f"  Recording exported (no .jsonl found to rename)")
-        else:
-            logger.info(f"  Recording exported for episode {episode_num}")
+        logger.info(f"  Recording exported: ep{episode_num + 1:03d}_rl")
     except Exception as e:
         logger.warning(f"  Failed to export recording: {e}")
 
@@ -1457,7 +1428,6 @@ def main():
                 scenario_path=ep_scenario_path,
                 episode_num=episode,
                 max_ticks=args.max_ticks,
-                recordings_dir=str(recordings_dir),
             )
             # Reload same scenario fresh for the RL episode
             reload_scenario(game, ep_scenario_path)
@@ -1480,7 +1450,6 @@ def main():
             episode_num=episode,
             decision_interval=args.decision_interval,
             max_ticks=args.max_ticks,
-            recordings_dir=str(recordings_dir),
         )
 
         # Remove per-episode handler
