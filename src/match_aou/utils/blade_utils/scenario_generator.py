@@ -3,17 +3,17 @@
 Generates varied BLADE scenario JSONs from a base template for RL training.
 
 Capabilities:
-- Aircraft pool: extract templates from multiple JSONs, build diverse fleets
+- Aircraft pool: extract templates from scenario JSONs, build diverse fleets
+- Facility pool: extract facility templates (SAM types), build diverse targets
 - Randomize facility (target) positions within reachable range
 - Add/remove/randomize RED airbases as targets
-- Add/remove facilities (SAM sites)
+- Add/remove facilities (SAM sites) from diverse pool
 - Full fuel-based reachability validation
 - Traceability: each generated scenario is tagged with its episode number
 
 Usage:
     generator = ScenarioGenerator(
-        base_scenario_path="strike_training_2v3.json",
-        extra_template_paths=["strike_training_4v5.json"],
+        base_scenario_path="strike_training_4v5.json",
     )
     scenario_json = generator.generate(episode=5, config=VariationConfig(...))
 """
@@ -232,6 +232,79 @@ class AircraftPool:
 
 
 # ---------------------------------------------------------------------------
+# Facility template pool
+# ---------------------------------------------------------------------------
+
+class FacilityPool:
+    """Stores facility templates keyed by className.
+
+    Templates are extracted from scenario JSONs — only RED-side facilities.
+    Each template is a full facility dict (with weapons) ready to be cloned
+    into a new scenario with fresh UUIDs.
+
+    Same pattern as AircraftPool.
+    """
+
+    def __init__(self):
+        self._templates: Dict[str, Dict[str, Any]] = {}
+
+    @property
+    def class_names(self) -> List[str]:
+        return list(self._templates.keys())
+
+    def __len__(self) -> int:
+        return len(self._templates)
+
+    def add_from_scenario_file(self, path: str) -> None:
+        """Extract RED facility templates from a scenario JSON file."""
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        scenario = data["currentScenario"]
+        for facility in scenario.get("facilities", []):
+            # Only RED-side facilities are targets
+            if facility.get("sideColor", "").lower() != "red":
+                continue
+            class_name = facility.get("className", "")
+            if class_name and class_name not in self._templates:
+                self._templates[class_name] = copy.deepcopy(facility)
+
+    def pick(self, rng: random.Random) -> Dict[str, Any]:
+        """Return a deep copy of a random template with fresh UUIDs."""
+        if not self._templates:
+            raise ValueError("Facility pool is empty")
+
+        template = rng.choice(list(self._templates.values()))
+        return self._stamp_new_ids(template, rng)
+
+    def pick_by_class(self, class_name: str, rng: random.Random) -> Dict[str, Any]:
+        """Return a deep copy of a specific class template with fresh UUIDs."""
+        if class_name not in self._templates:
+            raise KeyError(
+                f"No template for '{class_name}'. "
+                f"Available: {self.class_names}"
+            )
+        return self._stamp_new_ids(self._templates[class_name], rng)
+
+    @staticmethod
+    def _stamp_new_ids(
+        template: Dict[str, Any], rng: random.Random
+    ) -> Dict[str, Any]:
+        """Deep copy a template and assign fresh UUIDs + name."""
+        fac = copy.deepcopy(template)
+        fac["id"] = _new_uuid()
+
+        num = rng.randint(1000, 9999)
+        class_name = fac.get("className", "Facility")
+        fac["name"] = f"{class_name} #{num}"
+
+        for weapon in fac.get("weapons", []):
+            weapon["id"] = _new_uuid()
+
+        return fac
+
+
+# ---------------------------------------------------------------------------
 # Main generator
 # ---------------------------------------------------------------------------
 
@@ -267,9 +340,16 @@ class ScenarioGenerator:
         for extra in (extra_template_paths or []):
             self.aircraft_pool.add_from_scenario_file(extra)
 
+        # Build facility pool from base + extras (same sources)
+        self.facility_pool = FacilityPool()
+        self.facility_pool.add_from_scenario_file(str(self.base_path))
+        for extra in (extra_template_paths or []):
+            self.facility_pool.add_from_scenario_file(extra)
+
         logger.info(
             f"ScenarioGenerator ready: base={self.base_path.name}, "
-            f"aircraft_pool={self.aircraft_pool.class_names}"
+            f"aircraft_pool={self.aircraft_pool.class_names}, "
+            f"facility_pool={self.facility_pool.class_names}"
         )
 
     # ---- Side identification ----
@@ -447,7 +527,11 @@ class ScenarioGenerator:
     def _adjust_facility_count(
         self, scenario: Dict, desired: int, rng: random.Random
     ) -> None:
-        """Add or remove RED facilities."""
+        """Add or remove RED facilities (pool-based).
+
+        New facilities are picked randomly from the facility pool,
+        giving diverse target compositions (Tor-M2, Pantsir-S1, etc.).
+        """
         red_facilities = self._get_red_facilities(scenario)
         current = len(red_facilities)
         desired = max(desired, 1)
@@ -463,13 +547,16 @@ class ScenarioGenerator:
                 if f["id"] not in remove_ids
             ]
         else:
-            template = rng.choice(red_facilities)
-            for i in range(desired - current):
-                new_fac = copy.deepcopy(template)
-                new_fac["id"] = _new_uuid()
-                new_fac["name"] = f"Target Site {chr(65 + current + i)}"
+            for _ in range(desired - current):
+                new_fac = self.facility_pool.pick(rng)
+
+                # Set ownership to RED side
+                new_fac["sideId"] = self._red_side_id
+                new_fac["sideColor"] = "red"
                 for weapon in new_fac.get("weapons", []):
-                    weapon["id"] = _new_uuid()
+                    weapon["sideId"] = self._red_side_id
+                    weapon["sideColor"] = "red"
+
                 scenario["facilities"].append(new_fac)
 
     # ==================================================================
@@ -591,14 +678,11 @@ class ScenarioGenerator:
 if __name__ == "__main__":
     import sys
 
-    base_path = sys.argv[1] if len(sys.argv) > 1 else "strike_training_2v3.json"
-    extra_paths = sys.argv[2:] if len(sys.argv) > 2 else []
+    base_path = sys.argv[1] if len(sys.argv) > 1 else "strike_training_4v5.json"
 
-    gen = ScenarioGenerator(
-        base_scenario_path=base_path,
-        extra_template_paths=extra_paths,
-    )
+    gen = ScenarioGenerator(base_scenario_path=base_path)
     print(f"Aircraft pool: {gen.aircraft_pool.class_names}")
+    print(f"Facility pool: {gen.facility_pool.class_names}")
 
     configs = [
         # Episode 0: Base scenario, just randomize positions
@@ -636,7 +720,8 @@ if __name__ == "__main__":
         red_abs = [ab for ab in sc["airbases"] if ab["sideColor"] == "red"]
 
         ac_types = [ac["className"] for ac in blue_ab.get("aircraft", [])]
+        fac_types = [f["className"] for f in sc["facilities"]]
         print(f"  Aircraft ({len(ac_types)}): {ac_types}")
-        print(f"  Facilities: {len(sc['facilities'])}")
+        print(f"  Facilities ({len(fac_types)}): {fac_types}")
         print(f"  RED airbases: {len(red_abs)}")
         print(f"  Base: ({blue_ab['latitude']:.2f}, {blue_ab['longitude']:.2f})")

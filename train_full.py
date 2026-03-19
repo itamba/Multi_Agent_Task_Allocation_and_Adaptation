@@ -27,10 +27,10 @@ Training approach:
 
 Usage:
     # Fixed scenario (original behavior):
-    python train_full.py --scenario data/scenarios/strike_training_2v3.json --episodes 50
+    python train_full.py --scenario data/scenarios/strike_training_4v5.json --episodes 50
 
-    # Varied scenarios (new):
-    python train_full.py --scenario data/scenarios/strike_training_2v3.json \\
+    # Varied scenarios (default):
+    python train_full.py --scenario data/scenarios/strike_training_4v5.json \\
         --vary-scenarios --min-aircraft 2 --max-aircraft 3 \\
         --min-facilities 2 --max-facilities 4 --max-target-dist 500 \\
         --vary-base --episodes 100
@@ -103,6 +103,7 @@ MAX_SIM_TICKS = 14400
 DECISION_INTERVAL = 100       # RL decides every N ticks
 PARTIAL_RATIO = 2 / 3         # Fraction of tasks in partial set
 VARY_SCENARIOS = True          # Toggle scenario variation (or use --vary-scenarios flag)
+VARY_BASE = False              # Toggle blue base position randomization
 FUEL_DAMAGE_ENABLED = True     # Toggle fuel damage surprise events
 OUTPUT_DIR = "training_output"  # Directory for logs and recordings
 MAX_AGENTS = 5                 # Max agents for critic padding (fixed network size)
@@ -1089,7 +1090,7 @@ def main():
     parser.add_argument(
         "--scenario",
         default="data/scenarios/strike_training_4v5.json",
-        help="Path to scenario JSON",
+        help="Path to base scenario JSON (used as template for pools)",
     )
     parser.add_argument("--episodes", type=int, default=50, help="Number of training episodes")
     parser.add_argument("--decision-interval", type=int, default=DECISION_INTERVAL,
@@ -1118,13 +1119,10 @@ def main():
                         help="Min RED airbases per episode (when --vary-scenarios)")
     parser.add_argument("--max-red-airbases", type=int, default=3,
                         help="Max RED airbases per episode (when --vary-scenarios)")
-    parser.add_argument("--vary-base", action="store_true",
+    parser.add_argument("--vary-base", action="store_true", default=VARY_BASE,
                         help="Also randomize blue base position")
     parser.add_argument("--base-shift-km", type=float, default=150.0,
                         help="Max base shift radius in km")
-    parser.add_argument("--extra-templates", nargs="*", default=[],
-                        help="Additional scenario JSONs to extract aircraft templates from")
-
     args = parser.parse_args()
 
     # --- Setup output directory ---
@@ -1185,11 +1183,11 @@ def main():
     if args.vary_scenarios:
         scenario_gen = ScenarioGenerator(
             base_scenario_path=args.scenario,
-            extra_template_paths=args.extra_templates or None,
             output_dir=str(scenarios_dir),
         )
         logger.info(
             f"ScenarioGenerator: aircraft_pool={scenario_gen.aircraft_pool.class_names}, "
+            f"facility_pool={scenario_gen.facility_pool.class_names}, "
             f"aircraft=({args.min_aircraft}-{args.max_aircraft}), "
             f"facilities=({args.min_facilities}-{args.max_facilities}), "
             f"red_airbases=({args.min_red_airbases}-{args.max_red_airbases}), "
