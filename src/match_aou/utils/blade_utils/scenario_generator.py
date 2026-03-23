@@ -81,12 +81,21 @@ class VariationConfig:
     max_target_distance_km: Optional[float] = 500.0
     min_target_distance_km: float = 50.0
 
+    # --- Stretch targets ---
+    # Fraction of targets placed in the "stretch zone" — beyond the range
+    # of the weakest aircraft but within range of the strongest.
+    # Creates allocation constraints: the solver must assign long-range
+    # agents to far targets and short-range agents to close ones.
+    # 0.0 = all targets reachable by everyone (original behavior).
+    # Has no effect when all aircraft have the same range (e.g. all F-35s).
+    stretch_target_ratio: float = 0.3
+
     # --- Blue base randomization ---
     randomize_base_position: bool = False
     base_shift_radius_km: float = 200.0
 
     # --- Fuel safety margin (0.0 - 1.0) ---
-    fuel_safety_margin: float = 0.3
+    fuel_safety_margin: float = 0.2
 
     # --- Random seed (None = random each time) ---
     seed: Optional[int] = None
@@ -492,8 +501,16 @@ class ScenarioGenerator:
     ) -> None:
         """Randomize positions of a list of target dicts.
 
-        Works for both facilities and RED airbases — any dict with
-        latitude/longitude fields.
+        Two placement zones:
+        - Easy zone: [min_dist, min(min_range, max_target_distance_km)]
+          All aircraft can reach these targets.
+        - Stretch zone: [min_range, max_range]
+          Only longer-range aircraft can reach these. Ignores
+          max_target_distance_km since stretch targets are intentionally
+          beyond the easy cap to test solver allocation.
+
+        When all aircraft have the same range (homogeneous fleet),
+        the stretch zone is empty and all targets land in the easy zone.
         """
         base_lat, base_lon, _ = self._get_blue_base(scenario)
         aircraft_list = self._get_blue_aircraft(scenario)
@@ -501,28 +518,87 @@ class ScenarioGenerator:
         if not aircraft_list:
             return
 
-        fuel_range_km = min(
-            reachability.max_one_way_km(ac) for ac in aircraft_list
-        )
-        max_radius = fuel_range_km
+        # Per-aircraft ranges
+        ranges = [reachability.max_one_way_km(ac) for ac in aircraft_list]
+        min_range = min(ranges)
+        max_range = max(ranges)
+
+        # Easy zone: all aircraft can reach
+        easy_max = min_range
         if config.max_target_distance_km is not None:
-            max_radius = min(max_radius, config.max_target_distance_km)
+            easy_max = min(easy_max, config.max_target_distance_km)
+        easy_min = config.min_target_distance_km
+        if easy_min >= easy_max:
+            easy_min = easy_max * 0.1
 
-        min_radius = config.min_target_distance_km
-        if min_radius >= max_radius:
-            min_radius = max_radius * 0.1
+        # Stretch zone: only some aircraft can reach
+        # Only meaningful when aircraft have different ranges
+        range_gap = max_range - min_range
+        has_stretch = (
+            config.stretch_target_ratio > 0
+            and range_gap > 50  # At least 50km gap to be meaningful
+        )
 
-        for target in targets:
+        if has_stretch:
+            # Small buffer so stretch targets are clearly beyond min_range
+            stretch_min = min_range + range_gap * 0.1
+            stretch_max = max_range
+            n_stretch = max(1, round(len(targets) * config.stretch_target_ratio))
+            n_easy = len(targets) - n_stretch
+            logger.info(
+                f"  Target placement: {n_easy} easy (≤{easy_max:.0f}km), "
+                f"{n_stretch} stretch ({stretch_min:.0f}–{stretch_max:.0f}km)"
+            )
+        else:
+            n_easy = len(targets)
+            n_stretch = 0
+            if config.stretch_target_ratio > 0 and range_gap <= 50:
+                logger.debug(
+                    f"  Stretch targets disabled: fleet range gap "
+                    f"({range_gap:.0f}km) too small for differentiation"
+                )
+
+        # Shuffle targets so stretch assignment is random
+        shuffled_indices = list(range(len(targets)))
+        rng.shuffle(shuffled_indices)
+
+        for i, target_idx in enumerate(shuffled_indices):
+            target = targets[target_idx]
+            is_stretch = (i >= n_easy)  # First n_easy are easy, rest stretch
+
+            if is_stretch:
+                ring_min, ring_max = stretch_min, stretch_max
+            else:
+                ring_min, ring_max = easy_min, easy_max
+
+            placed = False
             for _ in range(max_attempts):
                 new_lat, new_lon = _random_point_in_ring(
-                    base_lat, base_lon, min_radius, max_radius, rng,
+                    base_lat, base_lon, ring_min, ring_max, rng,
                 )
                 if reachability.is_reachable_by_any(
                     aircraft_list, base_lat, base_lon, new_lat, new_lon
                 ):
                     target["latitude"] = new_lat
                     target["longitude"] = new_lon
+                    placed = True
                     break
+
+            # Fallback: if stretch target couldn't be placed, try easy zone
+            if not placed and is_stretch:
+                for _ in range(max_attempts):
+                    new_lat, new_lon = _random_point_in_ring(
+                        base_lat, base_lon, easy_min, easy_max, rng,
+                    )
+                    if reachability.is_reachable_by_any(
+                        aircraft_list, base_lat, base_lon, new_lat, new_lon
+                    ):
+                        target["latitude"] = new_lat
+                        target["longitude"] = new_lon
+                        logger.debug(
+                            f"  Stretch target fell back to easy zone"
+                        )
+                        break
 
     # ==================================================================
     # Blue base randomization

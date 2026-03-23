@@ -1443,6 +1443,10 @@ def main():
     parser.add_argument("--allowed-aircraft", nargs="+", default=None,
                         help="Aircraft classes to use (e.g. 'F-35A Lightning II'). "
                              "Default: all types from pool.")
+    parser.add_argument("--stretch-ratio", type=float, default=0.3,
+                        help="Fraction of targets in stretch zone (only reachable by "
+                             "some agents). 0.0=all easy, 0.3=30%% stretch. "
+                             "No effect with homogeneous fleets. (default: 0.3)")
     args = parser.parse_args()
 
     # --- Setup output directory ---
@@ -1499,6 +1503,7 @@ def main():
     logger.info(f"Fuel damage:       {FUEL_DAMAGE_ENABLED}")
     logger.info(f"Include SAMs:      {args.include_sams}")
     logger.info(f"Allowed aircraft:  {args.allowed_aircraft or 'all (from pool)'}")
+    logger.info(f"Stretch ratio:     {args.stretch_ratio}")
     logger.info(f"Validate every:    {args.validate_every} episodes")
     logger.info(f"Output dir:        {output_dir.resolve()}")
 
@@ -1592,6 +1597,7 @@ def main():
                 randomize_facility_positions=True,
                 randomize_red_airbase_positions=True,
                 max_target_distance_km=args.max_target_dist,
+                stretch_target_ratio=args.stretch_ratio,
                 randomize_base_position=args.vary_base,
                 base_shift_radius_km=args.base_shift_km,
                 seed=args.seed + episode,  # Deterministic per episode
