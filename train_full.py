@@ -17,8 +17,10 @@ Training approach:
     3. Split tasks: partial (2/3) vs full (all)
     4. Solve MATCH-AOU on both sets
     5. Run BLADE with partial plan (BladeExecutorMinimal)
-    6. At decision points (every N ticks + discovery events):
-       - Build local obs per agent + global obs (padded to MAX_AGENTS)
+    6. Event-driven RL decisions (NO periodic — only on trigger events):
+       - Discovery: agent sees a target not in its partial plan
+       - Fuel damage: agent's fuel is reduced mid-mission
+       - On trigger: build local obs + global obs (padded to MAX_AGENTS)
        - Actor samples action from policy π(a|o)
        - Critic estimates state value V(s) from global state
        - Oracle provides ground truth from full solution
@@ -44,6 +46,7 @@ import glob
 import logging
 import os
 import random
+import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
@@ -53,9 +56,13 @@ import torch
 
 # --- BLADE imports ---
 import gymnasium
-from gymnasium.wrappers.common import TimeLimit
 from blade.Game import Game
 from blade.Scenario import Scenario
+
+# Override BLADE's 10MB recording file-size limit to avoid splitting
+# recordings into multiple files mid-episode.
+import blade.utils.PlaybackRecorder as _pbr
+_pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # 500MB
 
 # --- MATCH-AOU imports ---
 from match_aou.solvers import MatchAou
@@ -100,10 +107,13 @@ logger = logging.getLogger("train_full")
 ATTACKING_SIDE_COLOR = "blue"
 SOLVER_NAME = "bonmin"
 MAX_SIM_TICKS = 14400
-DECISION_INTERVAL = 100       # RL decides every N ticks
+# RL is event-driven: decisions only on discovery or fuel damage (no periodic)
+DISCOVERY_SCAN_INTERVAL = 50  # Check for new targets every N ticks (not every tick)
+PROGRESS_LOG_INTERVAL = 1000  # Print simulation progress every N ticks
 PARTIAL_RATIO = 2 / 3         # Fraction of tasks in partial set
 VARY_SCENARIOS = True          # Toggle scenario variation (or use --vary-scenarios flag)
 VARY_BASE = False              # Toggle blue base position randomization
+INCLUDE_SAMS = False           # When False, scenarios have only RED airbases (no SAM interception)
 FUEL_DAMAGE_ENABLED = True     # Toggle fuel damage surprise events
 VALIDATE_EVERY = 10            # Run oracle-only validation every N episodes (0=disabled)
 OUTPUT_DIR = "training_output"  # Directory for logs and recordings
@@ -213,22 +223,36 @@ def setup_blade_env(scenario_path: str, max_steps: int = MAX_SIM_TICKS, recordin
     rec_path = recording_dir or str(Path(scenario_path).parent)
     game = Game(
         current_scenario=Scenario(),
-        record_every_seconds=1,
+        record_every_seconds=10,
         recording_export_path=rec_path,
     )
     with open(scenario_path, "r", encoding="utf-8") as f:
         game.load_scenario(f.read())
 
-    env = gymnasium.make("blade/BLADE-v0", game=game)
+    # Log the registered default so we can verify it
+    try:
+        spec = gymnasium.spec("blade/BLADE-v0")
+        logger.info(f"BLADE registered max_episode_steps: {spec.max_episode_steps}")
+    except Exception:
+        pass
+
+    # Pass max_episode_steps directly to gymnasium.make.
+    # This OVERRIDES any default registered with the env spec,
+    # preventing a hidden inner TimeLimit from cutting episodes short.
+    duration_from_scenario = 0
+    env = gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=max_steps)
     observation, info = env.reset()
 
-    # Ensure episode horizon is long enough
-    duration = int(getattr(observation, "duration", 0) or 0)
-    desired_steps = max(max_steps, duration + 5 if duration > 0 else max_steps)
-    env = TimeLimit(env, max_episode_steps=desired_steps)
+    duration_from_scenario = int(getattr(observation, "duration", 0) or 0)
+    if duration_from_scenario > max_steps:
+        logger.warning(
+            f"Scenario duration ({duration_from_scenario}) > max_steps ({max_steps}). "
+            f"Consider increasing --max-ticks."
+        )
 
     logger.info(
-        f"BLADE env ready: duration={duration}, "
+        f"BLADE env ready: duration={duration_from_scenario}, "
+        f"max_episode_steps={max_steps}, "
         f"start_time={getattr(observation, 'start_time', '?')}, "
         f"current_time={getattr(observation, 'current_time', '?')}"
     )
@@ -467,6 +491,81 @@ def get_simple_action_mask(observation, action_dim: int = 5) -> np.ndarray:
 
 
 # =============================================================================
+# 6b. Simulation Logging Helpers
+# =============================================================================
+
+# Pre-compiled regex patterns for parsing BLADE action strings
+_RE_ATTACK = re.compile(r"handle_aircraft_attack\('([^']*)'[^']*'([^']*)'")
+_RE_MOVE = re.compile(r"move_aircraft\('([^']*)',\s*\[\[([^\]]+)\]\]")
+_RE_LAUNCH = re.compile(r"launch_aircraft_from_airbase\('([^']*)'\)")
+_RE_RTB = re.compile(r"return_to_base\('([^']*)'\)")
+
+
+def _log_blade_action(tick: int, action: str, source: str) -> None:
+    """
+    Parse a BLADE action string and log it in a human-readable format.
+
+    Args:
+        tick: Current simulation tick
+        action: BLADE action string (e.g., "handle_aircraft_attack(...)")
+        source: "EXEC" for executor, "RL" for RL override
+    """
+    if not action:
+        return
+
+    m = _RE_ATTACK.search(action)
+    if m:
+        agent_id, target_id = m.group(1), m.group(2)
+        logger.info(
+            f"  Tick {tick:5d} [{source:4s}] ATTACK: "
+            f"agent {agent_id[:8]}.. → target {target_id[:8]}.."
+        )
+        return
+
+    m = _RE_MOVE.search(action)
+    if m:
+        agent_id, coords = m.group(1), m.group(2)
+        logger.info(
+            f"  Tick {tick:5d} [{source:4s}] MOVE:   "
+            f"agent {agent_id[:8]}.. → ({coords})"
+        )
+        return
+
+    m = _RE_LAUNCH.search(action)
+    if m:
+        logger.info(f"  Tick {tick:5d} [{source:4s}] LAUNCH: from airbase {m.group(1)[:8]}..")
+        return
+
+    m = _RE_RTB.search(action)
+    if m:
+        logger.info(f"  Tick {tick:5d} [{source:4s}] RTB:    agent {m.group(1)[:8]}..")
+        return
+
+    # Fallback: unknown action format
+    logger.info(f"  Tick {tick:5d} [{source:4s}] ACTION: {action[:80]}")
+
+
+def _log_progress(
+    tick: int,
+    n_agents: int,
+    returned_agents: Set[str],
+    decisions: int,
+    episode_reward: float,
+    rl_attacked_target_ids: Set[str],
+    n_tasks: int,
+) -> None:
+    """Log a periodic progress summary during the simulation."""
+    airborne = n_agents - len(returned_agents)
+    logger.info(
+        f"  ── Tick {tick:5d} ── "
+        f"airborne: {airborne}/{n_agents} | "
+        f"RL decisions: {decisions} | "
+        f"reward: {episode_reward:+.2f} | "
+        f"targets attacked: {len(rl_attacked_target_ids)}/{n_tasks}"
+    )
+
+
+# =============================================================================
 # 7. Validation Episode (oracle-only, no RL)
 # =============================================================================
 
@@ -586,6 +685,10 @@ def run_validation_episode(
             logger.info(f"  Validation: all agents RTB at tick {tick}")
             break
         if terminated or truncated:
+            logger.info(
+                f"  Validation ended at tick {tick}: "
+                f"terminated={terminated}, truncated={truncated}"
+            )
             break
 
     # --- Export recording ---
@@ -607,7 +710,6 @@ def train_episode(
     scenario_path: str,
     obs_config: ObservationConfig,
     episode_num: int,
-    decision_interval: int = DECISION_INTERVAL,
     max_ticks: int = MAX_SIM_TICKS,
 ) -> Dict:
     """
@@ -615,7 +717,11 @@ def train_episode(
 
     Episode 0 prints full diagnostic info. Episodes 1+ print compact runtime info.
 
-    MAPPO flow per decision point:
+    Event-driven RL: decisions happen ONLY when a trigger event occurs
+    for a specific agent (discovery or fuel damage). No periodic decisions.
+    This avoids polluting the rollout buffer with meaningless NOOP transitions.
+
+    MAPPO flow per triggered agent:
         1. Build local obs for EACH agent
         2. Concatenate all → global_obs (for centralized critic)
         3. Actor(local_obs) → action sample + log_prob
@@ -819,8 +925,8 @@ def train_episode(
         aircraft_in_base = list(getattr(airbase, "aircraft", []) or [])
         for ac in aircraft_in_base:
             launch_cmd = f"launch_aircraft_from_airbase('{ab_id}')"
-            if verbose:
-                logger.info(f"  LAUNCH: {getattr(ac, 'name', ac.id)} from airbase {ab_id}")
+            ac_name = getattr(ac, 'name', ac.id)
+            logger.info(f"  LAUNCH: {ac_name} (id={str(ac.id)[:8]}..) from airbase {ab_id[:8]}..")
             observation, _, _, _, _ = env.step(launch_cmd)
             game.record_step()
 
@@ -828,9 +934,8 @@ def train_episode(
         observation, _, _, _, _ = env.step("")
         game.record_step()
 
-    if verbose:
-        airborne = [getattr(ac, 'name', ac.id) for ac in getattr(observation, 'aircraft', [])]
-        logger.info(f"  Airborne after launch: {airborne}")
+    airborne = [getattr(ac, 'name', ac.id) for ac in getattr(observation, 'aircraft', [])]
+    logger.info(f"  Airborne after launch: {len(airborne)} aircraft — {airborne}")
 
     # --- Step 6: Setup executor with partial plan ---
     executor = BladeExecutorMinimal(
@@ -923,24 +1028,46 @@ def train_episode(
             f"Only the first {MAX_AGENTS} will be used for the critic."
         )
 
+    # Track which (agent, target) discoveries have already triggered RL.
+    # Without this, the same hidden target would re-trigger every tick
+    # because partial_target_ids never changes during the episode.
+    processed_discoveries: Dict[str, Set[str]] = {
+        str(a.id): set() for a in attacking_agents
+    }
+
     for tick in range(max_ticks):
-        # Executor decides action for this tick
+        # Executor decides action for this tick (partial plan)
         try:
             executor_action = executor.next_action(observation, fallback_tick=tick) or ""
         except ValueError as e:
             logger.debug(f"Tick {tick}: Executor error (skipping): {e}")
             executor_action = ""
 
-        # Check for fuel damage activation
-        fuel_dmg.check_and_activate(tick)
+        # Check for fuel damage activation — capture newly damaged agents
+        newly_damaged = fuel_dmg.check_and_activate(tick)
 
-        # Check if this is a decision point
-        is_decision_tick = (tick % decision_interval == 0) and tick > 0
         rl_override_action = ""
 
-        if is_decision_tick or tick == 0:
-            # === MAPPO: Build observations for ALL agents first ===
-            agent_obs_map: Dict[str, object] = {}  # agent_id → ObservationOutput
+        # === Event detection ===
+        # Two triggers: (1) discovery (checked every DISCOVERY_SCAN_INTERVAL),
+        #               (2) fuel damage (checked every tick, triggers immediately).
+        triggered_agents: Dict[str, str] = {}  # agent_id → trigger reason
+
+        # Fuel damage: immediate trigger (no waiting for scan tick)
+        for aid in newly_damaged:
+            if aid not in returned_agents:
+                triggered_agents[aid] = "fuel_damage"
+
+        # Discovery scan: only every N ticks (avoid building obs every tick)
+        is_scan_tick = (tick > 0 and tick % DISCOVERY_SCAN_INTERVAL == 0)
+
+        # Build observations when we have a reason:
+        # - Scan tick → check for discoveries
+        # - Fuel damage → need obs for RL decision + global obs for critic
+        needs_obs = is_scan_tick or bool(triggered_agents)
+
+        agent_obs_map: Dict[str, object] = {}
+        if needs_obs:
             for agent_obj in attacking_agents:
                 agent_id = agent_obj.id
                 if agent_id in returned_agents:
@@ -964,10 +1091,24 @@ def train_episode(
                 except (ValueError, Exception) as e:
                     logger.debug(f"Tick {tick}: Can't observe {agent_id}: {e}")
 
-            # === Construct global observation (padded to MAX_AGENTS) ===
-            # First N slots are actual agents (in attacking_agents order).
-            # Remaining slots (up to MAX_AGENTS) are zero-padded.
-            # This keeps critic input size fixed regardless of actual agent count.
+            # On scan ticks, check for NEW (unprocessed) discoveries
+            if is_scan_tick:
+                for agent_id, obs in agent_obs_map.items():
+                    for target in obs.targets:
+                        if (target.exists
+                                and not target.is_in_plan
+                                and target.id not in partial_target_ids
+                                and target.id not in processed_discoveries[agent_id]):
+                            processed_discoveries[agent_id].add(target.id)
+                            triggered_agents.setdefault(agent_id, "discovery")
+                            logger.info(
+                                f"  Tick {tick:5d} DISCOVERY: "
+                                f"agent {agent_id[:8]}.. sees target {target.id[:8]}.."
+                            )
+
+        # === RL decisions (ONLY when triggered) ===
+        if triggered_agents:
+            # Construct global observation (padded to MAX_AGENTS)
             global_obs_parts = []
             for i in range(MAX_AGENTS):
                 if i < len(attacking_agents):
@@ -977,27 +1118,20 @@ def train_episode(
                     else:
                         global_obs_parts.append(np.zeros(obs_dim, dtype=np.float32))
                 else:
-                    # Padding slot — no agent here
                     global_obs_parts.append(np.zeros(obs_dim, dtype=np.float32))
             global_obs = np.concatenate(global_obs_parts)
 
-            # === Per-agent decisions ===
+            # Per-agent decisions (only for triggered agents)
             for agent_obj in attacking_agents:
                 agent_id = agent_obj.id
-                if agent_id in returned_agents:
+                if agent_id not in triggered_agents:
                     continue
                 if agent_id not in agent_obs_map:
                     continue
 
+                trigger = triggered_agents[agent_id]
                 obs = agent_obs_map[agent_id]
                 local_obs = obs.vector
-
-                is_discovery = check_discovery(obs, partial_target_ids)
-                if not is_decision_tick and not is_discovery:
-                    continue
-
-                if is_discovery:
-                    logger.info(f"  Tick {tick}: DISCOVERY for {agent_id}!")
 
                 action_mask = get_simple_action_mask(obs)
 
@@ -1046,29 +1180,27 @@ def train_episode(
                     oracle_utility=oracle_utility,
                 )
 
-                # Log RL decisions
-                if is_discovery or verbose:
-                    action_names = {0: "NOOP", 1: "ATTACK_0", 2: "ATTACK_1", 3: "ATTACK_2", 4: "RTB"}
-                    logger.info(
-                        f"  Tick {tick} | {agent_id[:8]}.. | "
-                        f"RL={action_names.get(rl_action, '?')} "
-                        f"Oracle={action_names.get(oracle_action, '?')} "
-                        f"Match={'✓' if rl_action == oracle_action else '✗'} "
-                        f"Reward={reward:+.2f} "
-                        f"(rl_u={rl_utility:.0f}, oracle_u={oracle_utility:.0f})"
-                    )
+                # Log every event-driven RL decision (these are rare and meaningful)
+                action_names = {0: "NOOP", 1: "ATTACK_0", 2: "ATTACK_1", 3: "ATTACK_2", 4: "RTB"}
+                logger.info(
+                    f"  Tick {tick:5d} RL DECISION: {agent_id[:8]}.. | "
+                    f"trigger={trigger} | "
+                    f"RL={action_names.get(rl_action, '?')} "
+                    f"Oracle={action_names.get(oracle_action, '?')} "
+                    f"Match={'✓' if rl_action == oracle_action else '✗'} "
+                    f"Reward={reward:+.2f} "
+                    f"(rl_u={rl_utility:.0f}, oracle_u={oracle_utility:.0f})"
+                )
 
-                # RL override: ONLY on discovery events
-                if is_discovery and rl_action != 0:
+                # RL override: any trigger can produce an override action
+                # (discovery → attack new target, fuel damage → RTB, etc.)
+                if rl_action != 0:
                     try:
                         rl_override_action = plan_edit_to_blade_action(
                             action_token=rl_action,
                             observation_output=obs,
                             scenario=observation,
                             agent_id=agent_id,
-                        )
-                        logger.info(
-                            f"  Tick {tick}: RL OVERRIDE → '{rl_override_action[:80]}'"
                         )
                     except (ValueError, Exception) as e:
                         logger.debug(f"  RL action {rl_action} invalid for {agent_id}: {e}")
@@ -1091,10 +1223,10 @@ def train_episode(
         # Decide what action to send to BLADE
         final_action = rl_override_action if rl_override_action else executor_action
 
-        # Log BLADE actions
+        # Log BLADE actions with parsed, human-readable format
         if final_action:
             source = "RL" if rl_override_action else "EXEC"
-            logger.info(f"  Tick {tick} [{source}]: '{final_action}'")
+            _log_blade_action(tick, final_action, source)
 
         observation, _reward, terminated, truncated, info = env.step(final_action)
         game.record_step()
@@ -1105,7 +1237,35 @@ def train_episode(
             aid = str(agent_obj.id)
             if aid not in returned_agents and aid not in airborne_ids:
                 returned_agents.add(aid)
-                logger.info(f"  Tick {tick}: Agent {aid[:8]}.. returned to base")
+                logger.info(f"  Tick {tick:5d} RTB:     agent {aid[:8]}.. landed")
+
+        # --- Detailed logging near end of episode ---
+        # Log every tick in the last 100 before max_ticks, or when
+        # terminated/truncated is about to fire, so we can see exactly
+        # what's happening when the episode cuts off.
+        ticks_remaining = max_ticks - tick
+        if ticks_remaining <= 100 and ticks_remaining % 10 == 0:
+            all_aircraft = getattr(observation, "aircraft", []) or []
+            logger.info(
+                f"  ── Tick {tick:5d} [END-ZONE] ── "
+                f"remaining={ticks_remaining} | "
+                f"airborne={len(all_aircraft)} | "
+                f"returned={len(returned_agents)}/{n_agents} | "
+                f"terminated={terminated} | truncated={truncated}"
+            )
+            for ac in all_aircraft:
+                ac_id = str(getattr(ac, "id", ""))[:8]
+                ac_name = getattr(ac, "name", ac_id)
+                fuel = getattr(ac, "current_fuel", 0)
+                rtb = getattr(ac, "rtb", False)
+                lat = getattr(ac, "latitude", 0)
+                lon = getattr(ac, "longitude", 0)
+                route_len = len(getattr(ac, "route", []) or [])
+                logger.info(
+                    f"    {ac_name} (id={ac_id}..): "
+                    f"pos=({lat:.2f},{lon:.2f}) fuel={fuel:.0f} "
+                    f"rtb={rtb} route_pts={route_len}"
+                )
 
         # End episode when all agents have returned to base
         if tick > 100 and len(returned_agents) == len(attacking_agents):
@@ -1113,8 +1273,19 @@ def train_episode(
             break
 
         if terminated or truncated:
-            logger.info(f"  Episode ended at tick {tick}: terminated={terminated}")
+            logger.info(
+                f"  Episode ended at tick {tick}: "
+                f"terminated={terminated}, truncated={truncated} "
+                f"(env step count ≈ {tick + PRE_LAUNCH_BUFFER + n_agents + 10})"
+            )
             break
+
+        # Periodic progress summary
+        if tick > 0 and tick % PROGRESS_LOG_INTERVAL == 0:
+            _log_progress(
+                tick, n_agents, returned_agents, decisions,
+                episode_reward, rl_attacked_target_ids, len(all_tasks),
+            )
 
     # === End of episode: compute episode-end utility reward ===
     # Sum utility of targets RL successfully attacked
@@ -1237,8 +1408,6 @@ def main():
         help="Path to base scenario JSON (used as template for pools)",
     )
     parser.add_argument("--episodes", type=int, default=50, help="Number of training episodes")
-    parser.add_argument("--decision-interval", type=int, default=DECISION_INTERVAL,
-                        help="Ticks between RL decisions")
     parser.add_argument("--max-ticks", type=int, default=MAX_SIM_TICKS,
                         help="Max simulation ticks per episode")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate (PPO default: 3e-4)")
@@ -1261,14 +1430,19 @@ def main():
                         help="Max facilities per episode (when --vary-scenarios)")
     parser.add_argument("--max-target-dist", type=float, default=500.0,
                         help="Max target distance from base in km")
-    parser.add_argument("--min-red-airbases", type=int, default=0,
+    parser.add_argument("--min-red-airbases", type=int, default=2,
                         help="Min RED airbases per episode (when --vary-scenarios)")
-    parser.add_argument("--max-red-airbases", type=int, default=3,
+    parser.add_argument("--max-red-airbases", type=int, default=5,
                         help="Max RED airbases per episode (when --vary-scenarios)")
     parser.add_argument("--vary-base", action="store_true", default=VARY_BASE,
                         help="Also randomize blue base position")
+    parser.add_argument("--include-sams", action="store_true", default=INCLUDE_SAMS,
+                        help="Include SAM facilities as targets (default: False, airbases only)")
     parser.add_argument("--base-shift-km", type=float, default=150.0,
                         help="Max base shift radius in km")
+    parser.add_argument("--allowed-aircraft", nargs="+", default=None,
+                        help="Aircraft classes to use (e.g. 'F-35A Lightning II'). "
+                             "Default: all types from pool.")
     args = parser.parse_args()
 
     # --- Setup output directory ---
@@ -1316,12 +1490,15 @@ def main():
     logger.info(f"Base scenario:     {args.scenario}")
     logger.info(f"Vary scenarios:    {args.vary_scenarios}")
     logger.info(f"Episodes:          {args.episodes}")
-    logger.info(f"Decision interval: {args.decision_interval} ticks")
+    logger.info(f"RL trigger:        event-driven (discovery + fuel damage)")
+    logger.info(f"Discovery scan:    every {DISCOVERY_SCAN_INTERVAL} ticks")
     logger.info(f"Max ticks:         {args.max_ticks}")
     logger.info(f"Max agents:        {MAX_AGENTS}")
     logger.info(f"Learning rate:     {args.lr}")
     logger.info(f"Seed:              {args.seed}")
     logger.info(f"Fuel damage:       {FUEL_DAMAGE_ENABLED}")
+    logger.info(f"Include SAMs:      {args.include_sams}")
+    logger.info(f"Allowed aircraft:  {args.allowed_aircraft or 'all (from pool)'}")
     logger.info(f"Validate every:    {args.validate_every} episodes")
     logger.info(f"Output dir:        {output_dir.resolve()}")
 
@@ -1401,10 +1578,17 @@ def main():
 
         # --- Generate or reuse scenario ---
         if scenario_gen is not None:
+            # When SAMs are excluded, ensure at least 1 RED airbase as target
+            min_rab = args.min_red_airbases
+            if not args.include_sams and min_rab < 1:
+                min_rab = 1
+
             ep_config = VariationConfig(
+                include_sams=args.include_sams,
                 num_aircraft=(args.min_aircraft, args.max_aircraft),
+                allowed_aircraft_classes=args.allowed_aircraft,
                 num_facilities=(args.min_facilities, args.max_facilities),
-                num_red_airbases=(args.min_red_airbases, args.max_red_airbases),
+                num_red_airbases=(min_rab, args.max_red_airbases),
                 randomize_facility_positions=True,
                 randomize_red_airbase_positions=True,
                 max_target_distance_km=args.max_target_dist,
@@ -1448,7 +1632,6 @@ def main():
             scenario_path=ep_scenario_path,
             obs_config=obs_config,
             episode_num=episode,
-            decision_interval=args.decision_interval,
             max_ticks=args.max_ticks,
         )
 

@@ -44,10 +44,17 @@ class VariationConfig:
     Set a field to None to keep the base-template value unchanged.
     """
 
+    # --- SAM inclusion toggle ---
+    # When False, all facilities (SAM sites) are removed from the scenario.
+    # This ensures targets are only RED airbases (no interception capability),
+    # so blue missiles can hit their targets and the RL loop gets reward signal.
+    include_sams: bool = True
+
     # --- Facility (SAM site) count ---
     # None  = keep base count
     # int   = exact number
     # (min, max) = sample uniformly (inclusive)
+    # Ignored when include_sams=False (forced to 0).
     num_facilities: Optional[int | Tuple[int, int]] = None
 
     # --- RED airbase (target) count ---
@@ -56,6 +63,14 @@ class VariationConfig:
 
     # --- Aircraft (agent) count ---
     num_aircraft: Optional[int | Tuple[int, int]] = None
+
+    # --- Aircraft class filter ---
+    # When set, only these aircraft types are used. Existing aircraft of
+    # other types are removed BEFORE adjusting count. New aircraft are
+    # sampled uniformly from this list.
+    # Example: ["F-35A Lightning II"] → all agents will be F-35s.
+    # None = use any type from the pool (original behavior).
+    allowed_aircraft_classes: Optional[List[str]] = None
 
     # --- Position randomization ---
     randomize_facility_positions: bool = True
@@ -405,15 +420,27 @@ class ScenarioGenerator:
         data = copy.deepcopy(self._base_data)
         scenario = data["currentScenario"]
 
-        # Step 1: Adjust aircraft count (uses pool)
+        # Step 1: Adjust aircraft count and/or filter by allowed classes
         desired_aircraft = _resolve_range(config.num_aircraft, rng)
-        if desired_aircraft is not None:
-            self._adjust_aircraft_count(scenario, desired_aircraft, rng)
+        if desired_aircraft is not None or config.allowed_aircraft_classes:
+            # If only filtering (no count change), pass current count as desired
+            if desired_aircraft is None:
+                _, _, bb = self._get_blue_base(scenario)
+                desired_aircraft = len(bb.get("aircraft", []))
+            self._adjust_aircraft_count(
+                scenario, desired_aircraft, rng,
+                allowed_classes=config.allowed_aircraft_classes,
+            )
 
-        # Step 2: Adjust facility count
-        desired_facilities = _resolve_range(config.num_facilities, rng)
-        if desired_facilities is not None:
-            self._adjust_facility_count(scenario, desired_facilities, rng)
+        # Step 2: Adjust facility count (SAM sites)
+        if not config.include_sams:
+            # Remove ALL facilities — targets will be RED airbases only
+            self._adjust_facility_count(scenario, 0, rng)
+            logger.info("  include_sams=False → removed all SAM facilities")
+        else:
+            desired_facilities = _resolve_range(config.num_facilities, rng)
+            if desired_facilities is not None:
+                self._adjust_facility_count(scenario, desired_facilities, rng)
 
         # Step 3: Adjust RED airbase count
         desired_red_ab = _resolve_range(config.num_red_airbases, rng)
@@ -427,7 +454,7 @@ class ScenarioGenerator:
             )
 
         # Step 5: Randomize target positions
-        if config.randomize_facility_positions:
+        if config.include_sams and config.randomize_facility_positions:
             self._randomize_target_positions(
                 self._get_red_facilities(scenario),
                 scenario, reachability, config, rng,
@@ -534,7 +561,7 @@ class ScenarioGenerator:
         """
         red_facilities = self._get_red_facilities(scenario)
         current = len(red_facilities)
-        desired = max(desired, 1)
+        desired = max(desired, 0)  # 0 is valid (e.g. include_sams=False)
 
         if desired == current:
             return
@@ -611,15 +638,31 @@ class ScenarioGenerator:
     # ==================================================================
 
     def _adjust_aircraft_count(
-        self, scenario: Dict, desired: int, rng: random.Random
+        self, scenario: Dict, desired: int, rng: random.Random,
+        allowed_classes: Optional[List[str]] = None,
     ) -> None:
         """Add or remove aircraft from the BLUE airbase.
 
-        New aircraft are picked randomly from the aircraft pool,
-        giving diverse fleet compositions.
+        Args:
+            scenario: The scenario dict to modify.
+            desired: Target number of aircraft.
+            rng: Random number generator.
+            allowed_classes: If set, only these aircraft types are kept.
+                Existing aircraft of other types are removed first.
+                New aircraft are sampled uniformly from this list.
+                None = use any type from the pool (original behavior).
         """
         base_lat, base_lon, blue_base = self._get_blue_base(scenario)
         aircraft_list = blue_base.get("aircraft", [])
+
+        # Step 1: Filter by allowed classes (before adjusting count)
+        if allowed_classes:
+            aircraft_list = [
+                ac for ac in aircraft_list
+                if ac.get("className", "") in allowed_classes
+            ]
+            blue_base["aircraft"] = aircraft_list
+
         current = len(aircraft_list)
         desired = max(desired, 1)
 
@@ -627,10 +670,16 @@ class ScenarioGenerator:
             return
 
         if desired < current:
-            blue_base["aircraft"] = aircraft_list[:desired]
+            # Randomly select which aircraft to keep (not just first N)
+            blue_base["aircraft"] = rng.sample(aircraft_list, desired)
         else:
             for _ in range(desired - current):
-                new_ac = self.aircraft_pool.pick(rng)
+                # Pick a random class from the allowed list, or from full pool
+                if allowed_classes:
+                    cls = rng.choice(allowed_classes)
+                    new_ac = self.aircraft_pool.pick_by_class(cls, rng)
+                else:
+                    new_ac = self.aircraft_pool.pick(rng)
 
                 # Set ownership and position to match this blue base
                 new_ac["homeBaseId"] = blue_base["id"]
