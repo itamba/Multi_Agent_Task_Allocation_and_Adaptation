@@ -40,6 +40,15 @@ desktop.ini
 # Training outputs (generated at runtime, not source code)
 # =============================================================================
 training_output/
+training_output_*/
+runs/
+plots/
+eval_results/
+
+# =============================================================================
+# Claude Code agent workspace (worktrees, local settings) — not source
+# =============================================================================
+.claude/
 
 # =============================================================================
 # Legacy backup archives

@@ -1,42 +1,26 @@
 """
-Reward Function - Utility-Based Imitation Learning from MATCH-AOU Oracle
-=========================================================================
+Reward Function — Pure Utility-Based, with Aircraft Loss as Negative Utility
+=============================================================================
 
-Reward function for training RL agents to imitate MATCH-AOU's optimal decisions,
-using task utility values as the reward signal.
+Per advisor guidance, the reward is now a single sparse signal delivered at
+episode end:
 
-Design principles (per advisor guidance):
-- NO ad-hoc bonuses (fuel efficiency, target coverage, etc.)
-- ALL reward signal derives from MATCH-AOU utility comparison
-- Two components:
-    1. Per-step: utility-proportional reward based on oracle comparison
-    2. Episode-end: ratio of achieved utility vs oracle total utility
+    aircraft_value = aircraft_value_alpha * max_target_utility
+    net_utility    = achieved_utility - lost_aircraft_count * aircraft_value
+    reward         = (net_utility - max_total_utility) / max_total_utility
+                   * episode_reward_scale
 
-Per-step logic:
-    Match (RL == Oracle):
-        - Attack match  → +oracle_utility / max_utility
-        - NOOP match    → +noop_match_reward (small positive)
-    Mismatch (RL != Oracle):
-        - (rl_utility - oracle_utility) / max_utility
-        - e.g., RL picks NOOP when oracle says ATTACK(100): (0-100)/100 = -1.0
-        - e.g., RL picks ATTACK(80) when oracle says ATTACK(100): (80-100)/100 = -0.2
+`achieved_utility` is the sum of utilities of targets the team actually
+destroyed (regardless of whether they were in the partial plan or hidden).
+`max_total_utility` is the sum of all target utilities in the scenario —
+the team's reward is 0 when it destroys everything and loses no aircraft.
 
-Episode-end logic:
-    achieved_utility / oracle_total_utility * episode_reward_scale
+Per-step rewards are gone. The only step-time signal is an
+`invalid_action_penalty` for sanity (kept off the imitation path).
 
 References:
-    - IRAT (Wang et al., 2022): per-step individual + episodic team reward
-    - Differentiated reward (2025): utility-proportional signals accelerate MAPPO
-    - HERO (Tao et al., 2025): hybrid sparse+dense outperforms either alone
-
-Usage:
-    from match_aou.rl.training import compute_step_reward, compute_episode_reward, RewardConfig
-
-    reward = compute_step_reward(
-        rl_action=1, oracle_action=2,
-        rl_utility=80.0, oracle_utility=100.0,
-        max_utility=100.0, config=RewardConfig()
-    )
+    - Reward shaping in cooperative MARL (Schroeder de Witt et al., 2020)
+    - Sparse-reward MAPPO best practices (Yu et al., 2022)
 """
 
 from dataclasses import dataclass
@@ -49,28 +33,20 @@ class RewardConfig:
     """
     Configuration for utility-based reward computation.
 
-    Per-step parameters:
-        noop_match_reward: Reward when both RL and oracle choose NOOP (+0.1)
-        invalid_action_penalty: Penalty for invalid actions (-2.0)
-
-    Episode-end parameters:
-        episode_reward_scale: Multiplier for utility ratio at episode end (5.0)
-
-    Weighting (for combined total, used externally):
-        step_weight: Relative weight of per-step component (0.3)
-        episode_weight: Relative weight of episode-end component (0.7)
+    Fields:
+        aircraft_value_alpha: Multiplier mapping max-target-utility to
+            per-aircraft asset value. At alpha=1.0 a lost aircraft costs
+            exactly one max-utility target.
+        invalid_action_penalty: Per-step penalty when the actor samples an
+            invalid action (kept for sanity; unrelated to imitation).
+        episode_reward_scale: Multiplier applied to the normalized episode
+            reward. Default 1.0 — the new normalization already lives near
+            [-2, 0], so the old 5x scaling is no longer needed.
     """
 
-    # Per-step
-    noop_match_reward: float = 0.1
+    aircraft_value_alpha: float = 1.0
     invalid_action_penalty: float = -2.0
-
-    # Episode-end
-    episode_reward_scale: float = 5.0
-
-    # Weighting guidance (used by train_full.py, not enforced here)
-    step_weight: float = 0.3
-    episode_weight: float = 0.7
+    episode_reward_scale: float = 1.0
 
 
 # =============================================================================
@@ -87,53 +63,21 @@ def compute_step_reward(
     config: Optional[RewardConfig] = None,
 ) -> float:
     """
-    Compute per-step reward based on utility comparison with oracle.
+    Per-decision reward — invalid-action penalty only.
 
-    Args:
-        rl_action: Action selected by RL agent (0-4)
-        oracle_action: Action selected by oracle (0-4)
-        rl_utility: Utility of the target RL chose (0.0 if NOOP/RTB)
-        oracle_utility: Utility of the target oracle chose (0.0 if NOOP)
-        max_utility: Maximum utility across all tasks (for normalization)
-        is_valid: Whether rl_action passed action masking
-        config: RewardConfig (uses default if None)
+    DEPRECATED imitation signature: `oracle_action`, `rl_utility`,
+    `oracle_utility`, `max_utility` are ignored. They are kept so callers
+    that still log Match=✓/✗ and (rl_u=, oracle_u=) don't break, but the
+    function returns either the invalid-action penalty or 0.0.
 
-    Returns:
-        Float reward value
-
-    Examples:
-        >>> # RL matches oracle on high-value target
-        >>> compute_step_reward(1, 1, 100.0, 100.0, 100.0)
-        1.0
-        >>> # RL picks NOOP when oracle says attack
-        >>> compute_step_reward(0, 1, 0.0, 100.0, 100.0)
-        -1.0
-        >>> # Both NOOP — small positive
-        >>> compute_step_reward(0, 0, 0.0, 0.0, 100.0)
-        0.1
+    The real learning signal arrives at episode end via
+    `compute_episode_reward`.
     """
     if config is None:
         config = RewardConfig()
-
-    # Invalid action overrides everything
     if not is_valid:
         return config.invalid_action_penalty
-
-    # Avoid division by zero
-    if max_utility <= 0:
-        max_utility = 1.0
-
-    # Match
-    if rl_action == oracle_action:
-        if oracle_utility > 0:
-            # Attack match — proportional to target value
-            return oracle_utility / max_utility
-        else:
-            # NOOP=NOOP or RTB=RTB — small positive
-            return config.noop_match_reward
-
-    # Mismatch — utility differential
-    return (rl_utility - oracle_utility) / max_utility
+    return 0.0
 
 
 # =============================================================================
@@ -142,45 +86,61 @@ def compute_step_reward(
 
 def compute_episode_reward(
     achieved_utility: float,
-    oracle_total_utility: float,
+    max_total_utility: float,
+    lost_aircraft_count: int = 0,
+    max_target_utility: float = 0.0,
     config: Optional[RewardConfig] = None,
 ) -> float:
     """
-    Compute episode-end reward as utility ratio.
+    Compute episode-end reward as normalized net utility shortfall.
 
-    This is the "big picture" signal: how much of the oracle's total
-    utility did the RL agents actually achieve?
+    Formula:
+        aircraft_value = config.aircraft_value_alpha * max_target_utility
+        net_utility    = achieved_utility - lost_aircraft_count * aircraft_value
+        reward         = (net_utility - max_total_utility) / max_total_utility
+                       * config.episode_reward_scale
+
+    Reward is 0 when the team destroys every target and loses no aircraft.
+    It is -1 when nothing is achieved and no aircraft is lost. It can go
+    below -1 when aircraft are lost — there is no lower clamp.
 
     Args:
-        achieved_utility: Sum of utilities of targets successfully attacked by RL
-        oracle_total_utility: Sum of utilities in the full oracle solution
-        config: RewardConfig (uses default if None)
+        achieved_utility:    Sum of utilities of targets the team destroyed.
+        max_total_utility:   Sum of all target utilities in the scenario
+                             (i.e. the upper bound on achievable utility).
+        lost_aircraft_count: Number of our aircraft removed by BLADE
+                             (fuel-zero crashes etc).
+        max_target_utility:  Maximum utility of any single target — used to
+                             scale per-aircraft asset value.
+        config:              RewardConfig (uses defaults if None).
 
     Returns:
-        Scaled utility ratio (0 to episode_reward_scale, typically 0-5)
+        Scaled reward, typically in [-2, 0].
 
     Examples:
-        >>> # Perfect execution
-        >>> compute_episode_reward(280.0, 280.0)
-        5.0
-        >>> # Half the utility achieved
-        >>> compute_episode_reward(140.0, 280.0)
-        2.5
-        >>> # Nothing achieved
-        >>> compute_episode_reward(0.0, 280.0)
+        >>> # All targets hit, 0 crashes
+        >>> compute_episode_reward(300.0, 300.0, 0, 100.0)
         0.0
+        >>> # 0 targets hit, 0 crashes
+        >>> compute_episode_reward(0.0, 300.0, 0, 100.0)
+        -1.0
+        >>> # 0 targets hit, 1 crash (alpha=1.0, max_util=100, total=300)
+        >>> round(compute_episode_reward(0.0, 300.0, 1, 100.0), 4)
+        -1.3333
+        >>> # All targets hit, 1 crash
+        >>> round(compute_episode_reward(300.0, 300.0, 1, 100.0), 4)
+        -0.3333
     """
     if config is None:
         config = RewardConfig()
 
-    if oracle_total_utility <= 0:
+    if max_total_utility <= 0:
         return 0.0
 
-    ratio = achieved_utility / oracle_total_utility
-    # Clamp to [0, 1.5] — allow slight over-performance but cap it
-    ratio = min(ratio, 1.5)
-
-    return ratio * config.episode_reward_scale
+    aircraft_value = config.aircraft_value_alpha * max_target_utility
+    net_utility = achieved_utility - lost_aircraft_count * aircraft_value
+    reward = (net_utility - max_total_utility) / max_total_utility
+    return reward * config.episode_reward_scale
 
 
 # =============================================================================
@@ -197,27 +157,18 @@ def compute_step_reward_batch(
     config: Optional[RewardConfig] = None,
 ) -> np.ndarray:
     """
-    Compute per-step rewards for a batch of actions.
-
-    Args:
-        rl_actions: List of RL actions
-        oracle_actions: List of oracle actions
-        rl_utilities: List of RL target utilities
-        oracle_utilities: List of oracle target utilities
-        max_utility: Max utility for normalization
-        is_valid_list: List of validity flags
-        config: RewardConfig
-
-    Returns:
-        np.array of rewards
+    Batched form of compute_step_reward. Same deprecation note applies:
+    imitation arguments are ignored; only `is_valid_list` and `config`
+    affect the result.
     """
-    rewards = []
-    for rl_act, oracle_act, rl_u, oracle_u, is_valid in zip(
-        rl_actions, oracle_actions, rl_utilities, oracle_utilities, is_valid_list
-    ):
-        r = compute_step_reward(rl_act, oracle_act, rl_u, oracle_u, max_utility, is_valid, config)
-        rewards.append(r)
-
+    rewards = [
+        compute_step_reward(
+            rl_act, oracle_act, rl_u, oracle_u, max_utility, is_valid, config,
+        )
+        for rl_act, oracle_act, rl_u, oracle_u, is_valid in zip(
+            rl_actions, oracle_actions, rl_utilities, oracle_utilities, is_valid_list,
+        )
+    ]
     return np.array(rewards, dtype=np.float32)
 
 
@@ -229,22 +180,7 @@ def build_target_utility_map(tasks: list, extract_target_id_fn) -> dict:
     """
     Build a mapping from target_id → utility from Task objects.
 
-    This is called once per episode to create the lookup table used
-    by the reward function.
-
-    Args:
-        tasks: List of Task objects (with .utility and .steps[].action)
-        extract_target_id_fn: Function that extracts target_id from action string
-            Signature: (action_str: str) -> Optional[str]
-
-    Returns:
-        Dict mapping target_id (str) → utility (float)
-
-    Example:
-        >>> from match_aou.rl.observation.observation_utils import extract_target_id_from_action
-        >>> utility_map = build_target_utility_map(all_tasks, extract_target_id_from_action)
-        >>> utility_map
-        {'facility-1': 100.0, 'facility-2': 100.0, 'airbase-1': 80.0}
+    Called once per episode for use by the reward function.
     """
     target_utility = {}
     for task in tasks:
@@ -270,13 +206,11 @@ def get_action_utility(
         target_utility_map: Mapping target_id → utility
 
     Returns:
-        Utility of the target (0.0 for NOOP/RTB or missing target)
+        Utility of the target (0.0 for NOOP/RTB or missing target).
     """
-    # NOOP or RTB — no target utility
     if action == 0 or action == 4:
         return 0.0
 
-    # ATTACK slot (1-3) → target slot (0-2)
     slot_idx = action - 1
     if slot_idx >= len(observation.targets):
         return 0.0
@@ -294,17 +228,7 @@ def compute_oracle_total_utility(
     extract_target_id_fn,
 ) -> float:
     """
-    Compute total utility of the full oracle solution.
-
-    Sums utilities of all unique tasks assigned in the oracle solution.
-
-    Args:
-        full_solution: {agent_id: [(task_idx, step_idx, level), ...]}
-        tasks: Task list (indexed by task_idx)
-        extract_target_id_fn: Target ID extractor function
-
-    Returns:
-        Total utility (float)
+    Sum utilities of all unique tasks assigned in the oracle solution.
     """
     selected_tasks = set()
     for assignments in full_solution.values():
@@ -327,13 +251,11 @@ class RewardTracker:
     """
     Track reward statistics during training.
 
-    Tracks both per-step rewards and utility-based metrics.
+    `imitation_matches` / `accuracy` are kept as informational counters —
+    they no longer affect reward, but they are still useful for monitoring
+    how often the policy agrees with the oracle.
 
-    Example:
-        >>> tracker = RewardTracker()
-        >>> tracker.add_step(reward=0.8, is_match=True, rl_utility=100, oracle_utility=100)
-        >>> tracker.set_episode_utilities(achieved=180, oracle_total=280)
-        >>> print(tracker.get_stats())
+    `episode_crashes` records the per-episode aircraft loss count.
     """
 
     def __init__(self):
@@ -341,11 +263,11 @@ class RewardTracker:
         self.imitation_matches = 0
         self.total_actions = 0
 
-        # Utility tracking
         self.rl_utilities = []
         self.oracle_utilities = []
         self.episode_achieved_utility = 0.0
         self.episode_oracle_utility = 0.0
+        self.episode_crashes = 0
 
     def add_step(
         self,
@@ -367,6 +289,10 @@ class RewardTracker:
         self.episode_achieved_utility = achieved
         self.episode_oracle_utility = oracle_total
 
+    def set_crashes(self, n: int):
+        """Record number of aircraft lost this episode."""
+        self.episode_crashes = int(n)
+
     def get_stats(self) -> dict:
         """Get reward and utility statistics."""
         if not self.rewards:
@@ -376,6 +302,7 @@ class RewardTracker:
                 "count": 0, "accuracy": 0.0,
                 "utility_ratio": 0.0,
                 "mean_rl_utility": 0.0, "mean_oracle_utility": 0.0,
+                "crashes": self.episode_crashes,
             }
 
         reward_floats = [float(r) for r in self.rewards]
@@ -398,6 +325,7 @@ class RewardTracker:
             "utility_ratio": utility_ratio,
             "mean_rl_utility": sum(self.rl_utilities) / n if n > 0 else 0.0,
             "mean_oracle_utility": sum(self.oracle_utilities) / n if n > 0 else 0.0,
+            "crashes": self.episode_crashes,
         }
 
     def reset(self):
@@ -409,3 +337,4 @@ class RewardTracker:
         self.oracle_utilities = []
         self.episode_achieved_utility = 0.0
         self.episode_oracle_utility = 0.0
+        self.episode_crashes = 0

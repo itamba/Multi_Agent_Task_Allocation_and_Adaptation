@@ -18,6 +18,27 @@ from pyomo.environ import (
 EPSILON = 1e-6  # Small safety margin to avoid numerical issues in (1 - p)**m when p is 0 or 1.
 
 
+def round_trip_cost(agent, step_loc):
+    """Independent round-trip movement cost for one assigned target: out + back.
+
+    Outbound: agent.location -> step_loc
+    Return:   step_loc -> agent.return_location (or agent.location if unset)
+
+    This is intentionally an independent round-trip per target (a "star"): for a
+    multi-target sortie it is conservative (no inter-target routing), and exact for
+    the current one-target-per-agent regime. Single source of truth for the leg cost
+    shared by the solver's movement-budget constraint and the validation audit.
+
+    Callers must guarantee ``step_loc`` and ``agent.location`` are valid Locations;
+    the budget constraint handles the None cases (skip) before calling this.
+    """
+    start_loc = getattr(agent, "location", None)
+    return_loc = getattr(agent, "return_location", None) or start_loc
+    outbound = agent.move_cost(destination=step_loc, source=start_loc)
+    inbound = agent.move_cost(destination=return_loc, source=step_loc)
+    return outbound + inbound
+
+
 class MatchAou:
     """Solve a MATCH-AOU-style allocation problem as a MINLP in Pyomo.
 
@@ -135,17 +156,16 @@ class MatchAou:
         self.model.task_full_allocation = Constraint(self.model.T, rule=task_full_allocation_constraint)
 
         # ---------------------------------------------------------------------
-        # Movement budget constraint (approximation)
+        # Movement budget constraint (independent round-trip per assigned target)
         #
-        # IMPORTANT:
-        # The original implementation computed a *full task route* cost and applied it to each x[i,j,k].
-        # That is overly conservative when tasks are split across agents or when you deliberately assign
-        # multiple agents to the same step (MATCH-AOU redundancy).
+        # Each assigned step is charged a full round-trip via round_trip_cost():
+        #   sum_{j,k} round_trip_cost(i, step_{j,k}) * x[i,j,k] <= budget_i * (1 - risk_factor)
         #
-        # Here we use a per-agent aggregate travel approximation:
-        #   sum_{j,k} travel_cost(i, step_{j,k}) * x[i,j,k] <= budget_i
-        #
-        # travel_cost(i, step) is estimated from agent.start_location -> step.location.
+        # round_trip_cost charges outbound (start -> step) plus return
+        # (step -> return_location, or start if unset). Round-trips are summed
+        # independently per target (a "star"): conservative for multi-target sorties
+        # (no inter-target routing) and exact for the one-target-per-agent regime.
+        # risk_factor defaults to 0.0 now that the return leg is charged explicitly.
         # ---------------------------------------------------------------------
         def movement_budget_constraint(model, i):
             agent = self.agents[int(i)]
@@ -160,7 +180,7 @@ class MatchAou:
                     step_loc = getattr(step, "location", None)
                     if step_loc is None:
                         continue
-                    total_cost += agent.move_cost(destination=step_loc, source=start_loc) * model.x[i, j, k]
+                    total_cost += round_trip_cost(agent, step_loc) * model.x[i, j, k]
 
             return total_cost <= agent.budget * (1 - self.risk_factor)
 

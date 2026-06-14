@@ -34,6 +34,24 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Class-based range tiers
+# ---------------------------------------------------------------------------
+# Target one-way effective range (km) per aircraft class. The generator
+# overrides `currentFuel` (and `maxFuel`) on each aircraft so its reachable
+# range matches its tier, creating natural allocation constraints: short-
+# range fighters must take close targets, long-range platforms take far ones.
+#
+# Classes not listed here are left untouched (their fuel comes from the
+# base template unchanged).
+CLASS_RANGE_TIERS: Dict[str, float] = {
+    "F-16 Fighting Falcon": 400.0,
+    "F-35A Lightning II": 900.0,
+    "B-2 Spirit": 1500.0,
+    "KC-135R Stratotanker": 2100.0,
+}
+
+
+# ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
@@ -78,7 +96,8 @@ class VariationConfig:
 
     # --- Max / min target distance (km) ---
     # Applies to both facilities and RED airbases.
-    max_target_distance_km: Optional[float] = 500.0
+    # None = no upper cap; easy zone extends up to the shortest fleet range.
+    max_target_distance_km: Optional[float] = None
     min_target_distance_km: float = 50.0
 
     # --- Stretch targets ---
@@ -88,7 +107,17 @@ class VariationConfig:
     # agents to far targets and short-range agents to close ones.
     # 0.0 = all targets reachable by everyone (original behavior).
     # Has no effect when all aircraft have the same range (e.g. all F-35s).
-    stretch_target_ratio: float = 0.3
+    stretch_target_ratio: float = 0.5
+
+    # --- Time-feasibility cap on stretch_max (km, one-way) ---
+    # When set, caps stretch_max so the slowest aircraft in the fleet
+    # can round-trip a stretch target within MAX_SIM_TICKS at cruise speed
+    # with the same safety margin as the fuel reachability calculator.
+    # None = no cap (preserves pre-fix behaviour; produces (c) timeouts on
+    # slow agents). Auto-computed at ScenarioGenerator init from the pool
+    # if not explicitly set on the VariationConfig. Pass a very large
+    # number (e.g. 1e9) to explicitly disable for ablation runs.
+    time_feasible_max_km: Optional[float] = None
 
     # --- Blue base randomization ---
     randomize_base_position: bool = False
@@ -104,6 +133,38 @@ class VariationConfig:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def compute_time_feasible_one_way_km(
+    aircraft_pool_speeds_kmh: List[float],
+    max_ticks: int,
+    safety_margin: float = 0.3,
+) -> float:
+    """One-way distance the slowest aircraft can round-trip within
+    ``max_ticks`` seconds at cruise speed with the given safety margin.
+
+    Each tick is one second of simulation time (BLADE convention).
+    The slowest agent is binding because if it can't time-round-trip a
+    stretch target, the solver will sometimes assign the trip anyway
+    (it only enforces fuel-budget) and the episode hits MAX_SIM_TICKS
+    while the agent is still airborne — the !TIMEOUT category (c) signal.
+
+    Args:
+        aircraft_pool_speeds_kmh: cruise speeds (km/h) of the eligible
+            aircraft pool (post `--allowed-aircraft` filtering).
+        max_ticks: simulation tick cap (1 tick = 1 second).
+        safety_margin: fraction subtracted from the time budget. Default
+            0.3 to match `ReachabilityCalculator.safety_margin=0.3`.
+
+    Returns:
+        One-way km the slowest agent can round-trip within max_ticks.
+    """
+    if not aircraft_pool_speeds_kmh:
+        raise ValueError("aircraft_pool_speeds_kmh is empty")
+    slowest_kmh = min(aircraft_pool_speeds_kmh)
+    slowest_kms = slowest_kmh / 3600.0
+    round_trip_max = max_ticks * slowest_kms * (1.0 - safety_margin)
+    return round_trip_max / 2.0
+
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Great-circle distance in km between two lat/lon points."""
@@ -146,6 +207,21 @@ def _random_point_in_ring(
         111.0 * math.cos(math.radians(center_lat))
     )
     return center_lat + dlat, center_lon + dlon
+
+
+def _fuel_for_range(
+    aircraft: Dict[str, Any], target_one_way_km: float, safety_margin: float,
+) -> Optional[float]:
+    """Invert ReachabilityCalculator: fuel needed for a given effective range.
+
+    Returns None if speed/fuelRate/margin make the computation ill-defined.
+    """
+    fuel_rate = float(aircraft.get("fuelRate", 0))
+    speed_knots = float(aircraft.get("speed", 0))
+    denom = speed_knots * 1.852 * (1.0 - safety_margin)
+    if fuel_rate <= 0 or denom <= 0:
+        return None
+    return 2.0 * target_one_way_km * fuel_rate / denom
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +280,21 @@ class AircraftPool:
     @property
     def class_names(self) -> List[str]:
         return list(self._templates.keys())
+
+    def speeds_kmh(self, allowed_classes: Optional[List[str]] = None) -> List[float]:
+        """Return cruise speeds (km/h) for eligible templates.
+
+        ``allowed_classes`` mirrors ``VariationConfig.allowed_aircraft_classes``;
+        when None, includes the full pool. Skips templates with speed=0.
+        """
+        out: List[float] = []
+        for cls, template in self._templates.items():
+            if allowed_classes is not None and cls not in allowed_classes:
+                continue
+            speed_knots = float(template.get("speed", 0))
+            if speed_knots > 0:
+                out.append(speed_knots * 1.852)
+        return out
 
     def __len__(self) -> int:
         return len(self._templates)
@@ -340,6 +431,14 @@ class ScenarioGenerator:
         extra_template_paths: Additional JSONs to extract aircraft
                               templates from.
         output_dir: Where generated scenarios are saved.
+        max_sim_ticks: simulation tick cap (1 tick = 1 second). Used to
+            auto-compute ``time_feasible_max_km``. When None (default),
+            no auto-compute happens and ``time_feasible_max_km`` defaults
+            to the value on each ``VariationConfig`` (None = no cap,
+            preserving the pre-fix behaviour).
+        time_feasible_safety_margin: matches `ReachabilityCalculator`'s
+            safety margin (default 0.3) so the time cap and the fuel cap
+            apply the same reserve.
     """
 
     def __init__(
@@ -347,10 +446,17 @@ class ScenarioGenerator:
         base_scenario_path: str,
         extra_template_paths: Optional[List[str]] = None,
         output_dir: str = "generated_scenarios",
+        max_sim_ticks: Optional[int] = None,
+        time_feasible_safety_margin: float = 0.3,
     ):
         self.base_path = Path(base_scenario_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.max_sim_ticks = max_sim_ticks
+        self.time_feasible_safety_margin = time_feasible_safety_margin
+        self.time_feasible_max_km_default: Optional[float] = None
+        # Slowest-agent diagnostics for the run header / log.
+        self.time_feasible_inputs: Dict[str, Any] = {}
 
         with open(self.base_path, "r", encoding="utf-8") as f:
             self._base_data = json.load(f)
@@ -370,11 +476,66 @@ class ScenarioGenerator:
         for extra in (extra_template_paths or []):
             self.facility_pool.add_from_scenario_file(extra)
 
+        # Snapshot of stats from the most recent generate() call. Read by the
+        # training loop to build the per-episode summary line. Keys:
+        #   n_easy, n_stretch                    (target placement zones)
+        #   easy_relocated, easy_total, easy_isolated
+        #   stretch_relocated, stretch_total, stretch_isolated
+        #   reachable_count, total_targets       (reachability audit)
+        #   min_radar_km
+        self.last_generation_stats: Dict[str, Any] = {}
+
+        # Auto-compute time-feasibility cap when max_sim_ticks is provided.
+        # The cap can be refined later (e.g. after applying
+        # --allowed-aircraft) via recompute_time_feasible_cap().
+        if self.max_sim_ticks is not None:
+            self.recompute_time_feasible_cap(allowed_classes=None)
+
         logger.info(
             f"ScenarioGenerator ready: base={self.base_path.name}, "
             f"aircraft_pool={self.aircraft_pool.class_names}, "
             f"facility_pool={self.facility_pool.class_names}"
         )
+
+    def recompute_time_feasible_cap(
+        self, allowed_classes: Optional[List[str]] = None,
+    ) -> Optional[float]:
+        """Recompute the auto-default ``time_feasible_max_km`` from the
+        slowest aircraft in the eligible pool.
+
+        Call this after applying ``allowed_aircraft_classes`` if you want
+        the cap to track the filtered fleet (so removing the slowest agent
+        relaxes the cap accordingly). Stores the result on the generator.
+
+        Returns the computed value (or None when max_sim_ticks isn't set).
+        """
+        if self.max_sim_ticks is None:
+            return None
+        speeds = self.aircraft_pool.speeds_kmh(allowed_classes=allowed_classes)
+        if not speeds:
+            return None
+        cap = compute_time_feasible_one_way_km(
+            speeds, self.max_sim_ticks, self.time_feasible_safety_margin,
+        )
+        self.time_feasible_max_km_default = cap
+        slowest_kmh = min(speeds)
+        # Find the class name corresponding to the slowest speed for logging
+        slowest_class = "?"
+        for cls, template in self.aircraft_pool._templates.items():
+            if allowed_classes is not None and cls not in allowed_classes:
+                continue
+            sk = float(template.get("speed", 0))
+            if sk > 0 and abs(sk * 1.852 - slowest_kmh) < 0.5:
+                slowest_class = cls
+                break
+        self.time_feasible_inputs = {
+            "slowest_class": slowest_class,
+            "slowest_kmh": slowest_kmh,
+            "max_ticks": self.max_sim_ticks,
+            "safety": self.time_feasible_safety_margin,
+            "cap_km": cap,
+        }
+        return cap
 
     # ---- Side identification ----
 
@@ -421,7 +582,19 @@ class ScenarioGenerator:
     ) -> Path:
         """Generate a scenario variation and save it to disk."""
         config = config or VariationConfig()
+        # Inject the auto-computed time-feasibility cap into the config
+        # when the caller didn't override it. The cap is derived from the
+        # eligible pool (post `allowed_aircraft_classes` filter) so a run
+        # that removes the slowest aircraft relaxes the cap accordingly.
+        if config.time_feasible_max_km is None and self.max_sim_ticks is not None:
+            cap = self.recompute_time_feasible_cap(
+                allowed_classes=config.allowed_aircraft_classes,
+            )
+            if cap is not None:
+                config.time_feasible_max_km = cap
         rng = random.Random(config.seed if config.seed is not None else None)
+        # Reset stats snapshot for this generation pass
+        self.last_generation_stats = {}
         reachability = ReachabilityCalculator(
             safety_margin=config.fuel_safety_margin
         )
@@ -441,11 +614,15 @@ class ScenarioGenerator:
                 allowed_classes=config.allowed_aircraft_classes,
             )
 
+        # Step 1.5: Override fuel per class tier so fleet ranges are
+        # meaningfully differentiated (F-16 short, F-35A medium, etc.).
+        self._apply_fuel_tiers(scenario, config.fuel_safety_margin)
+
         # Step 2: Adjust facility count (SAM sites)
         if not config.include_sams:
             # Remove ALL facilities — targets will be RED airbases only
             self._adjust_facility_count(scenario, 0, rng)
-            logger.info("  include_sams=False → removed all SAM facilities")
+            logger.debug("  include_sams=False → removed all SAM facilities")
         else:
             desired_facilities = _resolve_range(config.num_facilities, rng)
             if desired_facilities is not None:
@@ -473,6 +650,41 @@ class ScenarioGenerator:
                 self._get_red_airbases(scenario),
                 scenario, reachability, config, rng,
             )
+
+        # Step 5.25: Discovery chain — ensure every target has a radar-visible
+        # neighbor *within its own zone*, so an agent flying to any known
+        # target in a given zone can detect nearby masked targets in the
+        # same zone (cross-zone discovery is impossible: zones are separated
+        # by far more than radar range).
+        self._ensure_discovery_chain(scenario, reachability, config, rng)
+
+        # Step 5.5: Reachability audit (read-only)
+        base_lat, base_lon, _ = self._get_blue_base(scenario)
+        aircraft_list = self._get_blue_aircraft(scenario)
+        all_targets = (
+            self._get_red_facilities(scenario) + self._get_red_airbases(scenario)
+        )
+        reachable_count = 0
+        total_count = len(all_targets)
+        for target in all_targets:
+            if reachability.is_reachable_by_any(
+                aircraft_list,
+                base_lat, base_lon,
+                target["latitude"], target["longitude"],
+            ):
+                reachable_count += 1
+            else:
+                # Frequent under stretch placement — debug only.
+                logger.debug(
+                    "Target '%s' is unreachable by all agents - "
+                    "expected behavior for stretch targets", target["name"]
+                )
+        logger.debug(
+            "Reachability audit: %d/%d targets reachable by at least one agent",
+            reachable_count, total_count
+        )
+        self.last_generation_stats["reachable_count"] = reachable_count
+        self.last_generation_stats["total_targets"] = total_count
 
         # Step 6: Tag with episode metadata
         scenario["name"] = f"episode_{episode:04d}"
@@ -543,9 +755,25 @@ class ScenarioGenerator:
             # Small buffer so stretch targets are clearly beyond min_range
             stretch_min = min_range + range_gap * 0.1
             stretch_max = max_range
+            # Apply time-feasibility cap so the slowest aircraft can
+            # round-trip a stretch target within MAX_SIM_TICKS at cruise
+            # speed. Without this, the MATCH-AOU solver (which only
+            # enforces fuel-budget) routinely assigns time-infeasible
+            # stretch missions and the episode hits the tick cap with
+            # the agent still airborne — !TIMEOUT category (c).
+            if config.time_feasible_max_km is not None:
+                if stretch_max > config.time_feasible_max_km:
+                    stretch_max = config.time_feasible_max_km
+                if stretch_max <= stretch_min:
+                    logger.debug(
+                        f"  Stretch zone collapsed by time-feasibility cap "
+                        f"(stretch_max={stretch_max:.0f} ≤ stretch_min={stretch_min:.0f})"
+                    )
+                    has_stretch = False
+        if has_stretch:
             n_stretch = max(1, round(len(targets) * config.stretch_target_ratio))
             n_easy = len(targets) - n_stretch
-            logger.info(
+            logger.debug(
                 f"  Target placement: {n_easy} easy (≤{easy_max:.0f}km), "
                 f"{n_stretch} stretch ({stretch_min:.0f}–{stretch_max:.0f}km)"
             )
@@ -557,6 +785,14 @@ class ScenarioGenerator:
                     f"  Stretch targets disabled: fleet range gap "
                     f"({range_gap:.0f}km) too small for differentiation"
                 )
+        # Track placement counts so the training loop can render the
+        # tg=N[Xe+Ys] portion of the per-episode summary line.
+        self.last_generation_stats["n_easy"] = (
+            self.last_generation_stats.get("n_easy", 0) + n_easy
+        )
+        self.last_generation_stats["n_stretch"] = (
+            self.last_generation_stats.get("n_stretch", 0) + n_stretch
+        )
 
         # Shuffle targets so stretch assignment is random
         shuffled_indices = list(range(len(targets)))
@@ -599,6 +835,270 @@ class ScenarioGenerator:
                             f"  Stretch target fell back to easy zone"
                         )
                         break
+
+    # ==================================================================
+    # Discovery chain (radar-neighbor connectivity)
+    # ==================================================================
+
+    def _compute_zone_bounds(
+        self,
+        aircraft_list: List[Dict[str, Any]],
+        config: VariationConfig,
+        reachability: ReachabilityCalculator,
+    ) -> Tuple[float, float, Optional[float], Optional[float]]:
+        """Re-derive the easy/stretch zone radii from base.
+
+        Mirrors the boundary logic in `_randomize_target_positions` so the
+        discovery-chain step can classify targets by zone and constrain
+        relocations to stay within the same zone.
+
+        Returns:
+            (easy_min, easy_max, stretch_min, stretch_max). The stretch
+            bounds are None when the fleet has no meaningful range
+            differentiation (gap ≤ 50 km or stretch_target_ratio == 0).
+        """
+        ranges = [reachability.max_one_way_km(ac) for ac in aircraft_list]
+        min_range = min(ranges)
+        max_range = max(ranges)
+
+        easy_max = min_range
+        if config.max_target_distance_km is not None:
+            easy_max = min(easy_max, config.max_target_distance_km)
+        easy_min = config.min_target_distance_km
+        if easy_min >= easy_max:
+            easy_min = easy_max * 0.1
+
+        range_gap = max_range - min_range
+        has_stretch = (
+            config.stretch_target_ratio > 0 and range_gap > 50
+        )
+        stretch_min = (min_range + range_gap * 0.1) if has_stretch else None
+        stretch_max = max_range if has_stretch else None
+        # Mirror the time-feasibility cap from _randomize_target_positions
+        # so the discovery-chain step classifies targets against the same
+        # zone boundary the placement loop will use.
+        if (
+            stretch_max is not None
+            and config.time_feasible_max_km is not None
+            and stretch_max > config.time_feasible_max_km
+        ):
+            stretch_max = config.time_feasible_max_km
+        if (
+            stretch_min is not None and stretch_max is not None
+            and stretch_max <= stretch_min
+        ):
+            stretch_min = stretch_max = None
+        return easy_min, easy_max, stretch_min, stretch_max
+
+    def _ensure_discovery_chain(
+        self,
+        scenario: Dict,
+        reachability: ReachabilityCalculator,
+        config: VariationConfig,
+        rng: random.Random,
+        max_attempts: int = 50,
+    ) -> None:
+        """Per-zone connectivity for radar-discovery during masked episodes.
+
+        Goal:
+        Guarantee that within each placement zone (easy, stretch), every
+        target has at least one radar-range neighbor in the *same zone*.
+        This is the graph-level precondition that makes the downstream
+        split-time mask-aware sampler in `train_full.py` solvable: with
+        every target connected to at least one same-zone peer, the
+        sampler can almost always find a partition where every hidden
+        target has at least one known same-zone neighbor.
+
+        Why per-zone, not graph-wide:
+        The zone system is the project's primary mechanism for forcing
+        heterogeneous fleet allocation — short-range fighters take easy
+        targets, long-range platforms take stretch targets. The two zones
+        are separated by hundreds of kilometres along the radial axis,
+        far beyond any aircraft radar (typically 50–200 km). Cross-zone
+        radar discovery is therefore physically impossible. A relocation
+        that crossed the zone boundary would silently demote a stretch
+        target into easy or vice versa, breaking allocation pressure
+        without producing any extra discovery benefit. We constrain
+        relocations to stay in the same zone (both the radar ring around
+        an in-zone anchor *and* the [zone_min, zone_max] band from base
+        must be satisfied) to keep zone semantics intact.
+
+        Why this isn't sufficient on its own:
+        Even with per-zone connectivity, masking decided downstream may
+        hide both members of a connected pair, leaving them invisible.
+        The split-time sampler in `train_full.py` is responsible for
+        avoiding such partitions. This step's job is only to make a
+        valid partition exist.
+
+        Single-target zones, or zones where geometry makes connection
+        impossible, are left as-is and logged. The split-time sampler
+        will pin such isolated targets into the known set so they are
+        at least seen by the solver.
+        """
+        aircraft_list = self._get_blue_aircraft(scenario)
+        if not aircraft_list:
+            return
+
+        radar_ranges_nm = [
+            float(ac.get("range", 0)) for ac in aircraft_list
+            if float(ac.get("range", 0)) > 0
+        ]
+        if not radar_ranges_nm:
+            return
+        min_radar_km = min(radar_ranges_nm) * 1.852
+
+        all_targets = (
+            self._get_red_facilities(scenario)
+            + self._get_red_airbases(scenario)
+        )
+        if len(all_targets) < 2:
+            return
+
+        base_lat, base_lon, _ = self._get_blue_base(scenario)
+        easy_min, easy_max, stretch_min, stretch_max = self._compute_zone_bounds(
+            aircraft_list, config, reachability,
+        )
+
+        # Classify each target by its current distance from base.
+        # Targets that fall in the inter-zone gap (between easy_max and
+        # stretch_min) or beyond stretch_max are absorbed into the closest
+        # zone for connectivity purposes.
+        easy_targets: List[Dict[str, Any]] = []
+        stretch_targets: List[Dict[str, Any]] = []
+        for t in all_targets:
+            d_from_base = _haversine_km(
+                base_lat, base_lon, t["latitude"], t["longitude"],
+            )
+            if stretch_min is not None and d_from_base >= stretch_min:
+                stretch_targets.append(t)
+            else:
+                easy_targets.append(t)
+
+        ring_min = min_radar_km * 0.2
+        ring_max = min_radar_km * 0.8
+
+        easy_relocated, easy_isolated = self._connect_zone_targets(
+            easy_targets, base_lat, base_lon,
+            zone_min=easy_min, zone_max=easy_max,
+            min_radar_km=min_radar_km,
+            ring_min=ring_min, ring_max=ring_max,
+            aircraft_list=aircraft_list, reachability=reachability,
+            rng=rng, max_attempts=max_attempts,
+        )
+        stretch_relocated = stretch_isolated = 0
+        if stretch_min is not None:
+            stretch_relocated, stretch_isolated = self._connect_zone_targets(
+                stretch_targets, base_lat, base_lon,
+                zone_min=stretch_min, zone_max=stretch_max,
+                min_radar_km=min_radar_km,
+                ring_min=ring_min, ring_max=ring_max,
+                aircraft_list=aircraft_list, reachability=reachability,
+                rng=rng, max_attempts=max_attempts,
+            )
+
+        logger.debug(
+            "Discovery chain: easy relocated=%d/%d isolated=%d, "
+            "stretch relocated=%d/%d isolated=%d (min fleet radar=%.0f km)",
+            easy_relocated, len(easy_targets), easy_isolated,
+            stretch_relocated, len(stretch_targets), stretch_isolated,
+            min_radar_km,
+        )
+        # Stash L1 (gen-time discovery chain) stats for the summary line.
+        self.last_generation_stats["easy_relocated"] = easy_relocated
+        self.last_generation_stats["easy_total"] = len(easy_targets)
+        self.last_generation_stats["easy_isolated"] = easy_isolated
+        self.last_generation_stats["stretch_relocated"] = stretch_relocated
+        self.last_generation_stats["stretch_total"] = len(stretch_targets)
+        self.last_generation_stats["stretch_isolated"] = stretch_isolated
+        self.last_generation_stats["min_radar_km"] = min_radar_km
+
+    def _connect_zone_targets(
+        self,
+        targets: List[Dict[str, Any]],
+        base_lat: float,
+        base_lon: float,
+        *,
+        zone_min: float,
+        zone_max: float,
+        min_radar_km: float,
+        ring_min: float,
+        ring_max: float,
+        aircraft_list: List[Dict[str, Any]],
+        reachability: ReachabilityCalculator,
+        rng: random.Random,
+        max_attempts: int,
+    ) -> Tuple[int, int]:
+        """Relocate isolated targets within a single zone.
+
+        For each target with no radar-range peer in the same zone, try to
+        place it within `[ring_min, ring_max]` km of an in-zone anchor,
+        constrained to the band `[zone_min, zone_max]` km from base, and
+        still reachable by some aircraft. If no valid placement is found
+        for any anchor after `max_attempts` per-anchor tries, the target
+        is left where it was and counted as `isolated` (the split-time
+        sampler will pin it to the known set).
+
+        Returns:
+            (relocated_count, isolated_count) for this zone.
+        """
+        if len(targets) < 2:
+            # Single-target zones can't have in-zone neighbors by
+            # definition. They are isolated by structure, not by bad
+            # placement. Layer 2 (split-time sampler) handles them.
+            return 0, len(targets)
+
+        relocated = 0
+        isolated = 0
+        for target in targets:
+            has_neighbor = False
+            for other in targets:
+                if other is target:
+                    continue
+                d = _haversine_km(
+                    target["latitude"], target["longitude"],
+                    other["latitude"], other["longitude"],
+                )
+                if d <= min_radar_km:
+                    has_neighbor = True
+                    break
+            if has_neighbor:
+                continue
+
+            anchors = [t for t in targets if t is not target]
+            rng.shuffle(anchors)
+            placed = False
+            for anchor in anchors:
+                for _ in range(max_attempts):
+                    new_lat, new_lon = _random_point_in_ring(
+                        anchor["latitude"], anchor["longitude"],
+                        ring_min, ring_max, rng,
+                    )
+                    d_base = _haversine_km(
+                        base_lat, base_lon, new_lat, new_lon,
+                    )
+                    if not (zone_min <= d_base <= zone_max):
+                        continue
+                    if not reachability.is_reachable_by_any(
+                        aircraft_list, base_lat, base_lon, new_lat, new_lon,
+                    ):
+                        continue
+                    target["latitude"] = new_lat
+                    target["longitude"] = new_lon
+                    placed = True
+                    relocated += 1
+                    break
+                if placed:
+                    break
+
+            if not placed:
+                isolated += 1
+                logger.warning(
+                    "Discovery chain: could not connect target '%s' within "
+                    "zone bounds [%.0f-%.0f km]; leaving isolated",
+                    target.get("name", "?"), zone_min, zone_max,
+                )
+
+        return relocated, isolated
 
     # ==================================================================
     # Blue base randomization
@@ -774,6 +1274,40 @@ class ScenarioGenerator:
                     new_ac["altitude"] = 10000
 
                 aircraft_list.append(new_ac)
+
+    # ==================================================================
+    # Class-based fuel tiers
+    # ==================================================================
+
+    def _apply_fuel_tiers(
+        self, scenario: Dict, safety_margin: float,
+    ) -> None:
+        """Override currentFuel/maxFuel on blue aircraft per CLASS_RANGE_TIERS.
+
+        For each aircraft whose className is in the tier map, compute the
+        fuel needed so its effective one-way range equals the tier value
+        (given the current safety_margin, speed, and fuelRate). Aircraft
+        with classes not in the map are left unchanged.
+        """
+        _, _, blue_base = self._get_blue_base(scenario)
+        aircraft_list = blue_base.get("aircraft", [])
+        for ac in aircraft_list:
+            cls = ac.get("className", "")
+            target_km = CLASS_RANGE_TIERS.get(cls)
+            if target_km is None:
+                logger.debug(
+                    f"  No fuel tier for class '{cls}'; keeping template fuel"
+                )
+                continue
+            fuel = _fuel_for_range(ac, target_km, safety_margin)
+            if fuel is None:
+                logger.debug(
+                    f"  Cannot compute fuel for '{cls}' (speed/fuelRate "
+                    f"invalid); keeping template fuel"
+                )
+                continue
+            ac["currentFuel"] = fuel
+            ac["maxFuel"] = fuel
 
     # ==================================================================
     # Batch generation

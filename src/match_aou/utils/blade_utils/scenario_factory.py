@@ -1,19 +1,26 @@
 """scenario_factory.py
 
-Same as scenario_factory_fixed.py plus:
-- Better side_color normalization (string vs enum).
+Converts BLADE Scenario observations into MATCH-AOU model objects (Agents, Tasks).
+
+Responsibilities:
+- create_agents_from_scenario: BLADE units → MATCH-AOU Agent objects
+- generate_all_enemy_tasks: BLADE enemy units → MATCH-AOU Task objects (one per target)
+
+Design notes:
 - When aircraft are stored inside an Airbase, we ensure their Agent.home_base_id is set
   to that airbase id (needed for launch_aircraft_from_airbase planning).
 - Uses a more sensible minimum planning speed for aircraft that start on the ground
   with speed=0, to avoid absurd costs/travel times in MATCH-AOU.
-
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from ...models import Agent, Capability, Location, Step, StepType, Task
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_side_color(side_color: Any) -> str:
@@ -128,77 +135,72 @@ def create_agents_from_scenario(scenario: Any) -> Dict[str, List[Agent]]:
     # Aircraft stored in Airbases: ensure home_base_id is set to that airbase
     for base in getattr(scenario, "airbases", []) or []:
         base_id = getattr(base, "id", None)
-        for ac in getattr(base, "aircraft", []) or []:
+        for ac in getattr(base, "aircraft", []) or []: 
             add_agent(convert_unit_to_agent(ac, home_base_id_override=base_id))
 
     return agents_by_side
 
 
-def generate_attack_base_task(
+def generate_all_enemy_tasks(
     scenario: Any,
-    attacking_agent_side_color: str,
-    agent_id_placeholder: str = "AGENT_ID",
-) -> Optional[Task]:
-    enemy_facilities = [
-        facility
-        for facility in (getattr(scenario, "facilities", []) or [])
-        if _normalize_side_color(getattr(facility, "side_color", None))
-        != _normalize_side_color(attacking_agent_side_color)
-    ]
-    if not enemy_facilities:
-        return None
+    attacking_side_color: str,
+    probability: float = 1.0,
+) -> List[Task]:
+    """Generate one attack Task per enemy target (facility / airbase / ship).
 
-    target_facility = enemy_facilities[0]
+    Scans all units in the scenario and creates a Task for each one whose
+    side_color differs from ours.
+
+    Args:
+        scenario: BLADE Scenario observation object
+        attacking_side_color: Our side color (e.g. "blue")
+        probability: Success probability per attack step. Use 1.0 for targets
+            destroyed in a single hit (e.g. airbases). Use < 1.0 for defended
+            targets where multi-agent redundancy may be beneficial.
+
+    Returns:
+        List of Task objects, one per enemy target
+    """
+    tasks: List[Task] = []
+    our_side = _normalize_side_color(attacking_side_color)
 
     attack_capability = Capability(name="attack", properties={"Quantity": 2})
     attack_step_type = StepType(name="attack", base_cost=1)
 
-    target_lat = target_facility.latitude - 2
-    target_lon = target_facility.longitude - 4
-    target_alt = getattr(target_facility, "altitude", 0) or 0
+    def _make_task(unit: Any, utility: float) -> Task:
+        target_loc = Location(
+            unit.latitude,
+            unit.longitude,
+            getattr(unit, "altitude", 0) or 0,
+        )
+        step = Step(
+            location=target_loc,
+            capabilities=[attack_capability],
+            step_type=attack_step_type,
+            effort=2,
+            probability=probability,
+            action=f"handle_aircraft_attack('AGENT_ID', '{unit.id}', 'WEAPON_ID', 2)",
+        )
+        return Task(steps=[step], utility=utility)
 
-    step_attack = Step(
-        location=Location(target_lat, target_lon, target_alt),
-        capabilities=[attack_capability],
-        step_type=attack_step_type,
-        effort=2,
-        probability=0.6,
-        action=f"handle_aircraft_attack('{agent_id_placeholder}', '{target_facility.id}', 'WEAPON_ID', 2)",
-    )
+    # Enemy facilities
+    for facility in getattr(scenario, "facilities", []) or []:
+        side = _normalize_side_color(getattr(facility, "side_color", ""))
+        if side and side != our_side:
+            tasks.append(_make_task(facility, utility=100))
 
-    return Task(steps=[step_attack], utility=100)
+    # Enemy airbases
+    for airbase in getattr(scenario, "airbases", []) or []:
+        side = _normalize_side_color(getattr(airbase, "side_color", ""))
+        if side and side != our_side:
+            tasks.append(_make_task(airbase, utility=80))
 
+    # Enemy ships
+    for ship in getattr(scenario, "ships", []) or []:
+        side = _normalize_side_color(getattr(ship, "side_color", ""))
+        if side and side != our_side:
+            tasks.append(_make_task(ship, utility=95))
 
-def generate_attack_ship_task(
-    scenario: Any,
-    attacking_agent_side_color: str,
-    agent_id_placeholder: str = "AGENT_ID",
-) -> Optional[Task]:
-    enemy_ships = [
-        ship
-        for ship in (getattr(scenario, "ships", []) or [])
-        if _normalize_side_color(getattr(ship, "side_color", None))
-        != _normalize_side_color(attacking_agent_side_color)
-    ]
-    if not enemy_ships:
-        return None
+    logger.debug(f"Generated {len(tasks)} enemy tasks")
 
-    target_ship = enemy_ships[0]
-
-    attack_capability = Capability(name="attack", properties={"Quantity": 2})
-    attack_step_type = StepType(name="attack", base_cost=1)
-
-    target_lat = target_ship.latitude - 3.6
-    target_lon = target_ship.longitude + 2.5
-    target_alt = 10000
-
-    step_attack = Step(
-        location=Location(target_lat, target_lon, target_alt),
-        capabilities=[attack_capability],
-        step_type=attack_step_type,
-        effort=2,
-        probability=0.6,
-        action=f"handle_aircraft_attack('{agent_id_placeholder}', '{target_ship.id}', 'WEAPON_ID', 2)",
-    )
-
-    return Task(steps=[step_attack], utility=95)
+    return tasks

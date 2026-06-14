@@ -12,21 +12,27 @@ How it works:
 - The oracle had no knowledge of this → RL must learn independent decision-making
 
 Implementation approach:
-- BLADE continues running with real fuel (simulation integrity preserved)
-- Damage is applied at the OBSERVATION level: when building the RL observation,
-  we multiply the agent's fuel reading by a damage factor
-- This means the RL "perceives" fuel damage even though BLADE's physics are unaffected
-- The gap between oracle plan (full fuel) and RL reaction (damaged fuel) is the
-  learning signal we want
+- One-time real-fuel hit at the activation tick: aircraft.current_fuel *= damage_factor
+  is applied directly to BLADE state. From then on, BLADE drains fuel normally and
+  the observation reads the (already reduced) real fuel naturally.
+- Asymmetry preserved: the oracle plan was solved at episode start with full fuel,
+  so the damaged agent must learn to deviate when its (real) fuel can no longer
+  cover the oracle's plan. If it ignores the damage, BLADE physics will drain
+  the tank to zero and remove_aircraft() fires → crash.
+
+Behavior change vs. earlier version: damage was originally observation-only
+(BLADE physics ran on full fuel). Under sparse utility-based reward that created
+a perverse incentive — ignoring damage gave higher utility. Real-fuel mutation
+makes the RTB signal direct.
 
 Usage in train_full.py:
     manager = FuelDamageManager(FuelDamageConfig())
     events = manager.plan_episode(agent_ids, max_ticks)
 
-    # In observation building:
-    fuel = get_aircraft_fuel(observation, agent_id)
-    fuel = manager.apply_damage(agent_id, tick, fuel)
-    # Use adjusted fuel for observation vector
+    # Each tick:
+    newly_damaged = manager.check_and_activate(tick)
+    for aid in newly_damaged:
+        manager.apply_real_damage(scenario, aid)  # mutates BLADE state once
 """
 
 from __future__ import annotations
@@ -78,22 +84,19 @@ class FuelDamageManager:
     Lifecycle:
         1. plan_episode() — called at episode start, rolls dice for damage
         2. check_and_activate() — called each tick, activates events
-        3. apply_damage() — called when building observations, adjusts fuel
+        3. apply_real_damage() — called once per newly-activated agent,
+           mutates aircraft.current_fuel in BLADE state
 
     Example:
         >>> config = FuelDamageConfig(probability=0.5, damage_factor_range=(0.2, 0.4))
         >>> manager = FuelDamageManager(config)
         >>> events = manager.plan_episode(['agent-1', 'agent-2'], max_ticks=14400)
-        >>> # events might be: [FuelDamageEvent(agent_id='agent-2', trigger_tick=4320, ...)]
         >>>
         >>> # During simulation loop:
         >>> newly_activated = manager.check_and_activate(current_tick=4320)
-        >>> # newly_activated = ['agent-2']
-        >>>
-        >>> # When building observation:
-        >>> real_fuel = 8000.0
-        >>> adjusted_fuel = manager.apply_damage('agent-2', current_tick=5000, fuel=real_fuel)
-        >>> # adjusted_fuel = 2400.0  (8000 * 0.3)
+        >>> for aid in newly_activated:
+        ...     manager.apply_real_damage(scenario, aid)
+        >>> # The agent's BLADE current_fuel is now factor × old_value (one-time hit).
     """
 
     def __init__(self, config: Optional[FuelDamageConfig] = None):
@@ -158,7 +161,7 @@ class FuelDamageManager:
             )
             self.events.append(event)
 
-            logger.info(
+            logger.debug(
                 f"  Fuel damage planned: agent={agent_id[:8]}.. "
                 f"tick={trigger_tick} factor={damage_factor:.2f}"
             )
@@ -185,7 +188,7 @@ class FuelDamageManager:
                 self._active_agents[event.agent_id] = event.damage_factor
                 newly_activated.append(event.agent_id)
 
-                logger.info(
+                logger.debug(
                     f"  *** FUEL DAMAGE at tick {current_tick}: "
                     f"agent={event.agent_id[:8]}.. "
                     f"fuel reduced to {event.damage_factor:.0%} ***"
@@ -193,24 +196,41 @@ class FuelDamageManager:
 
         return newly_activated
 
-    def apply_damage(self, agent_id: str, fuel: float) -> float:
+    def apply_real_damage(self, scenario: Any, agent_id: str) -> Optional[float]:
         """
-        Apply fuel damage to an agent's fuel reading.
+        Apply a one-time real-fuel reduction to BLADE state.
 
-        Call this when building observations. If the agent has active
-        damage, the fuel is multiplied by the damage factor.
+        Called once per agent right after check_and_activate() reports the
+        activation. Mutates aircraft.current_fuel *= damage_factor on the
+        BLADE Aircraft object so the agent physically has less fuel from
+        this tick onward. From then on, BLADE drains fuel normally; the
+        observation reads the reduced real fuel directly (no obs-side
+        multiplier — that would compound).
 
         Args:
-            agent_id: Agent ID
-            fuel: Real fuel value from BLADE
+            scenario: BLADE Scenario observation (has .aircraft list)
+            agent_id: Agent ID whose damage just activated
 
         Returns:
-            Adjusted fuel (reduced if agent is damaged, unchanged otherwise)
+            New current_fuel after mutation, or None if the aircraft was
+            not found (e.g., already landed/crashed before activation).
         """
         if agent_id not in self._active_agents:
-            return fuel
+            return None
+        factor = self._active_agents[agent_id]
 
-        return fuel * self._active_agents[agent_id]
+        for ac in getattr(scenario, "aircraft", []) or []:
+            if str(getattr(ac, "id", "")) == str(agent_id):
+                old_fuel = float(getattr(ac, "current_fuel", 0.0))
+                new_fuel = old_fuel * factor
+                ac.current_fuel = new_fuel
+                logger.debug(
+                    f"  Real fuel hit: agent={agent_id[:8]}.. "
+                    f"{old_fuel:.0f} → {new_fuel:.0f} (factor {factor:.2f})"
+                )
+                return new_fuel
+
+        return None
 
     def is_damaged(self, agent_id: str) -> bool:
         """Check if an agent currently has fuel damage."""

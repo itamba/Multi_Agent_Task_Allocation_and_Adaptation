@@ -353,7 +353,11 @@ class PPOTrainer:
             },
             path,
         )
-        logger.info(f"Saved PPO checkpoint: {path}")
+        # Demoted to DEBUG: long-run mode shows this via the
+        # `=== Checkpoint saved (epNNNN) | rolling avg reward ... ===`
+        # banner that train_full emits on save cadence; the verbose
+        # path remains visible because debug-level handlers receive it.
+        logger.debug(f"Saved PPO checkpoint: {path}")
 
     def load_checkpoint(self, path: str):
         """Load training state."""
