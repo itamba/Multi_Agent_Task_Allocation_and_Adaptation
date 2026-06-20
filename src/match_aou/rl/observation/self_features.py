@@ -24,7 +24,8 @@ import re
 from .observation_types import SelfState
 from .config import ObservationConfig
 from ..shared_utils import clip_to_01, nm_to_km, haversine_distance
-from .observation_utils import calculate_fuel_needed, is_attack_action
+from .observation_utils import calculate_fuel_needed
+from ...models import StepKind
 
 def compute_self_features(
     aircraft,  # BLADE Aircraft object
@@ -186,15 +187,15 @@ def _is_current_step_attack(
     """
     Check if this agent's current/next task step is an attack.
 
-    Looks at the agent's assigned steps and checks if any contain
-    attack actions (handle_aircraft_attack, handle_ship_attack, etc.)
+    Looks at the agent's assigned steps and checks if any are attack
+    steps (StepKind.ATTACK).
 
     This is agent-specific: only checks this agent's plan, not others.
 
     Args:
         aircraft_id: This agent's ID
         current_plan: This agent's task assignments
-        tasks: All task objects (to extract action strings)
+        tasks: All task objects (to read each step's semantic kind)
 
     Returns:
         True if any assigned step is an attack
@@ -215,9 +216,8 @@ def _is_current_step_attack(
 
         step = task.steps[step_idx]
 
-        # Check if step has an attack action using shared utility
-        action = getattr(step, 'action', None)
-        if action and is_attack_action(action):
+        # Check if this is an attack step (semantic kind, not a parsed string).
+        if step.step_kind == StepKind.ATTACK:
             return True
 
     return False

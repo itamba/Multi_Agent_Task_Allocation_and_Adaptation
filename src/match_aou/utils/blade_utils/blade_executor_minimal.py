@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from ...models import Agent, Location, Task
+from ...models import Agent, Location, StepKind, Task
 
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level_order)
 
@@ -88,14 +88,6 @@ def _infer_weapon_id_for_unit(scenario: Any, unit_id: str) -> Optional[str]:
 
     return None
 
-def _replace_placeholders(action: str, *, agent_id: str, weapon_id: Optional[str]) -> str:
-    out = str(action).replace("AGENT_ID", str(agent_id))
-    if "WEAPON_ID" in out:
-        if weapon_id is None:
-            raise ValueError(f"Action requires WEAPON_ID but agent {agent_id} has no weapon_id")
-        out = out.replace("WEAPON_ID", str(weapon_id))
-    return out
-
 def _build_validated_launch_action_for_aircraft(scenario: Any, aircraft_id: str, *, airbase_id: Optional[str]=None) -> str:
     ac_id = str(aircraft_id)
     resolved_ab_id = str(airbase_id) if airbase_id else _infer_airbase_id_for_aircraft(scenario, ac_id)
@@ -141,6 +133,8 @@ class Candidate:
     # If this candidate represents executing the current step, carry indices to mark complete
     task_idx: Optional[int] = None
     step_idx: Optional[int] = None
+    # Semantic target id of an ATTACK STEP candidate (audit-only; consumed in _on_action_chosen)
+    target_id: Optional[str] = None
 
 
 class BladeExecutorMinimal:
@@ -180,6 +174,12 @@ class BladeExecutorMinimal:
         self.max_level: int = max((lv for assigns in self.queue.values() for *_, lv in assigns), default=0)
 
         self._rr_cursor = 0
+
+        # Target id of the most recent attack command actually emitted. Written in
+        # _on_action_chosen for the chosen candidate only (so it reflects the agent that
+        # acted this tick), and read by callers that have only the emitted BLADE string
+        # (e.g. train_full's validation loop). Audit-only: never influences action selection.
+        self.last_attack_target_id: Optional[str] = None
 
     def is_done(self) -> bool:
         for aid in self.agent_order:
@@ -270,8 +270,7 @@ class BladeExecutorMinimal:
             return Candidate(agent_id=aid, action="", kind="STEP", task_idx=int(task_idx), step_idx=int(step_idx))
 
         step = self.tasks[int(task_idx)].steps[int(step_idx)]
-        action_template = getattr(step, "action", None) or ""
-        step_type = str(getattr(getattr(step, "step_type", None), "name", "")).lower()
+        step_kind = getattr(step, "step_kind", None)
 
         airborne = _aircraft_airborne(observation, aid)
         in_airbase = _aircraft_in_any_airbase(observation, aid)
@@ -288,7 +287,7 @@ class BladeExecutorMinimal:
         loc = getattr(step, "location", None)
 
         # ATTACK: wait until close enough before issuing attack; move is one-shot but commit only on chosen
-        if step_type == "attack" and loc is not None:
+        if step_kind == StepKind.ATTACK and loc is not None:
             cur = _get_aircraft_location(observation, aid)
             if cur is None:
                 return None
@@ -311,8 +310,9 @@ class BladeExecutorMinimal:
                     )
                 return None  # already moved; let others act while we travel
 
-        # Non-attack optional one-shot move (also commit only on chosen)
-        if loc is not None and "move_aircraft" not in str(action_template) and step_type != "attack":
+        # Non-ATTACK step kinds may need a one-shot move to the step location first.
+        # No such kind exists today; preserved for future kinds (commit only on chosen).
+        if loc is not None and step_kind != StepKind.ATTACK:
             goal = (float(loc.latitude), float(loc.longitude))
             if st.last_move_goal != goal:
                 return Candidate(
@@ -322,20 +322,25 @@ class BladeExecutorMinimal:
                     move_goal=goal,
                 )
 
-        # Execute step action (or empty -> skip) (commit advances idx only if chosen)
-        if not action_template:
-            return Candidate(agent_id=aid, action="", kind="STEP", task_idx=int(task_idx), step_idx=int(step_idx))
+        # Build the BLADE command for this step. This executor is the sole translation
+        # layer: it constructs the simulator command from the semantic Step + the agent
+        # assignment. The Step itself carries no command string.
+        if step_kind == StepKind.ATTACK:
+            weapon_id = getattr(agent, "weapon_id", None) or _infer_weapon_id_for_unit(observation, aid)
+            if weapon_id is None:
+                raise ValueError(f"Attack step requires a weapon but agent {aid} has no weapon_id")
+            action = f"handle_aircraft_attack('{aid}', '{step.target_id}', '{weapon_id}', 2)"
+            return Candidate(
+                agent_id=aid,
+                action=action,
+                kind="STEP",
+                task_idx=int(task_idx),
+                step_idx=int(step_idx),
+                target_id=str(step.target_id),
+            )
 
-        weapon_id = getattr(agent, "weapon_id", None) or _infer_weapon_id_for_unit(observation, aid)
-        resolved = _replace_placeholders(str(action_template), agent_id=aid, weapon_id=weapon_id)
-
-        return Candidate(
-            agent_id=aid,
-            action=str(resolved),
-            kind="STEP",
-            task_idx=int(task_idx),
-            step_idx=int(step_idx),
-        )
+        # Unknown / unsupported step_kind -> skip with empty action (never emit garbage).
+        return Candidate(agent_id=aid, action="", kind="STEP", task_idx=int(task_idx), step_idx=int(step_idx))
 
     def _on_action_chosen(self, chosen: Candidate) -> None:
         """Commit side-effects ONLY for the chosen action."""
@@ -350,6 +355,11 @@ class BladeExecutorMinimal:
             return
 
         if chosen.kind == "STEP":
+            # Record the target of the attack command we are emitting this tick. Chosen
+            # candidate only, so it reflects the agent actually acting (multiple agents may
+            # have built ATTACK candidates this tick; only one is emitted). Audit-only.
+            if chosen.target_id is not None:
+                self.last_attack_target_id = chosen.target_id
             # Mark step complete on issue (demo semantics)
             if st.idx < len(self.queue.get(chosen.agent_id, [])):
                 st.idx += 1

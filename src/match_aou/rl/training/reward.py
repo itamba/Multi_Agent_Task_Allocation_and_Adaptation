@@ -176,17 +176,17 @@ def compute_step_reward_batch(
 # Utility Helpers
 # =============================================================================
 
-def build_target_utility_map(tasks: list, extract_target_id_fn) -> dict:
+def build_target_utility_map(tasks: list) -> dict:
     """
     Build a mapping from target_id → utility from Task objects.
 
+    Reads each step's explicit semantic `target_id` field (no action-string parsing).
     Called once per episode for use by the reward function.
     """
     target_utility = {}
     for task in tasks:
         for step in task.steps:
-            action_str = getattr(step, "action", "") or ""
-            target_id = extract_target_id_fn(action_str)
+            target_id = getattr(step, "target_id", None)
             if target_id:
                 target_utility[target_id] = task.utility
     return target_utility
@@ -225,7 +225,6 @@ def get_action_utility(
 def compute_oracle_total_utility(
     full_solution: dict,
     tasks: list,
-    extract_target_id_fn,
 ) -> float:
     """
     Sum utilities of all unique tasks assigned in the oracle solution.

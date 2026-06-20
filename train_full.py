@@ -84,7 +84,6 @@ from match_aou.utils.blade_utils.scenario_factory import (
 # --- RL imports ---
 from match_aou.rl.agent import ActorCriticNetwork
 from match_aou.rl.observation import build_observation_vector, ObservationConfig
-from match_aou.rl.observation.observation_utils import extract_target_id_from_action
 from match_aou.rl.training import PPOTrainer, PPOConfig
 from match_aou.rl.training.reward import (
     compute_step_reward, compute_episode_reward,
@@ -488,8 +487,7 @@ def extract_target_ids_from_solution(
             if 0 <= task_idx < len(tasks):
                 task = tasks[task_idx]
                 if 0 <= step_idx < len(task.steps):
-                    action = getattr(task.steps[step_idx], "action", "") or ""
-                    target_id = extract_target_id_from_action(action)
+                    target_id = getattr(task.steps[step_idx], "target_id", None)
                     if target_id:
                         targets.add(target_id)
         agent_targets[agent_id] = targets
@@ -799,7 +797,7 @@ def run_validation_episode(
     target_reach: Dict[str, Set[str]] = {}
     target_short: Dict[str, str] = {}
     for task in all_tasks:
-        tid = extract_target_id_from_action(task.steps[0].action) or "?"
+        tid = task.steps[0].target_id or "?"
         target_short[tid] = tid[:8]
         target_cost[tid] = {}
         target_rt[tid] = {}
@@ -839,7 +837,7 @@ def run_validation_episode(
             if task_idx >= len(tasks_filtered):
                 continue
             tsk = tasks_filtered[task_idx]
-            tid = extract_target_id_from_action(tsk.steps[0].action) or "?"
+            tid = tsk.steps[0].target_id or "?"
             oracle_plan[aid].append(tid)
             oracle_assigned_tids.add(tid)
             if aid not in target_reach.get(tid, set()):
@@ -916,7 +914,9 @@ def run_validation_episode(
             action = ""
 
         if action and "handle_aircraft_attack" in action:
-            tid = extract_target_id_from_action(action)
+            # The executor recorded the target of the attack it just emitted this tick
+            # (last_attack_target_id, set in _on_action_chosen). No string parsing needed.
+            tid = executor.last_attack_target_id
             if tid:
                 attacked_tids.add(tid)
 
@@ -1198,14 +1198,14 @@ def train_episode(
         logger.debug(f"ALL TASKS ({len(all_tasks)} total)")
         logger.debug("=" * 60)
         for i, t in enumerate(all_tasks):
-            action_str = t.steps[0].action
-            target_id = extract_target_id_from_action(action_str) or "?"
-            loc = t.steps[0].location
+            step0 = t.steps[0]
+            target_id = step0.target_id or "?"
+            loc = step0.location
             logger.debug(f"  Task {i}:")
             logger.debug(f"    Target ID: {target_id}")
             logger.debug(f"    Utility:   {t.utility}")
             logger.debug(f"    Location:  ({loc.latitude:.4f}, {loc.longitude:.4f})")
-            logger.debug(f"    Action:    {action_str}")
+            logger.debug(f"    Step kind: {step0.step_kind}")
 
     # --- Step 3: Split tasks ---
     partial_tasks, full_tasks, split_meta = split_tasks(
@@ -1215,13 +1215,13 @@ def train_episode(
     if verbose:
         partial_ids = set()
         for t in partial_tasks:
-            tid = extract_target_id_from_action(t.steps[0].action)
+            tid = t.steps[0].target_id
             if tid:
                 partial_ids.add(tid)
 
         full_ids = set()
         for t in full_tasks:
-            tid = extract_target_id_from_action(t.steps[0].action)
+            tid = t.steps[0].target_id
             if tid:
                 full_ids.add(tid)
 
@@ -1233,11 +1233,11 @@ def train_episode(
         logger.debug("=" * 60)
         logger.debug(f"  Partial tasks ({len(partial_tasks)}):")
         for i, t in enumerate(partial_tasks):
-            tid = extract_target_id_from_action(t.steps[0].action) or "?"
+            tid = t.steps[0].target_id or "?"
             logger.debug(f"    [{i}] target={tid}, utility={t.utility}")
         logger.debug(f"  Full tasks ({len(full_tasks)}):")
         for i, t in enumerate(full_tasks):
-            tid = extract_target_id_from_action(t.steps[0].action) or "?"
+            tid = t.steps[0].target_id or "?"
             marker = " *** HIDDEN ***" if tid in hidden_ids else ""
             logger.debug(f"    [{i}] target={tid}, utility={t.utility}{marker}")
         logger.debug(f"  Hidden targets: {hidden_ids}")
@@ -1353,8 +1353,7 @@ def train_episode(
             for task_idx, step_idx, level in q:
                 target_id = "?"
                 if 0 <= task_idx < len(partial_tasks_filtered):
-                    action = getattr(partial_tasks_filtered[task_idx].steps[step_idx], "action", "")
-                    target_id = extract_target_id_from_action(action) or "?"
+                    target_id = partial_tasks_filtered[task_idx].steps[step_idx].target_id or "?"
                 logger.debug(f"    task={task_idx}, step={step_idx}, level={level}, target={target_id}")
 
     # Pre-compute oracle data
@@ -1365,10 +1364,9 @@ def train_episode(
     for assignments in partial_solution.values():
         for task_idx, step_idx, _level in assignments:
             if 0 <= task_idx < len(partial_tasks_filtered):
-                action = getattr(
-                    partial_tasks_filtered[task_idx].steps[step_idx], "action", ""
-                ) or ""
-                tid = extract_target_id_from_action(action)
+                tid = getattr(
+                    partial_tasks_filtered[task_idx].steps[step_idx], "target_id", None
+                )
                 if tid:
                     partial_target_ids.add(tid)
 
@@ -1399,10 +1397,10 @@ def train_episode(
 
     # --- Utility-based reward setup ---
     # Build target_id → utility mapping from ALL tasks (for reward computation)
-    target_utility_map = build_target_utility_map(all_tasks, extract_target_id_from_action)
+    target_utility_map = build_target_utility_map(all_tasks)
     max_utility = max((t.utility for t in all_tasks), default=1.0)
     oracle_total_utility = compute_oracle_total_utility(
-        full_solution, full_tasks_filtered, extract_target_id_from_action,
+        full_solution, full_tasks_filtered,
     )
 
     # Hidden targets = in full plan but NOT in partial plan (RL's job to discover)
@@ -1811,7 +1809,7 @@ def train_episode(
 
     # Compute partial-vs-full oracle utilities for the summary line.
     partial_oracle_utility = compute_oracle_total_utility(
-        partial_solution, partial_tasks_filtered, extract_target_id_from_action,
+        partial_solution, partial_tasks_filtered,
     )
 
     # Apply debug flag injection (test-only path used in smoke tests to
@@ -1924,10 +1922,8 @@ def _log_solution_details(solution: Dict, tasks: List[Task]):
         logger.debug(f"  Agent {agent_id}:")
         for task_idx, step_idx, level in assignments:
             target_id = "?"
-            action = ""
             if 0 <= task_idx < len(tasks):
-                action = getattr(tasks[task_idx].steps[step_idx], "action", "") or ""
-                target_id = extract_target_id_from_action(action) or "?"
+                target_id = getattr(tasks[task_idx].steps[step_idx], "target_id", None) or "?"
             logger.debug(
                 f"    task={task_idx} step={step_idx} level={level} → target={target_id}"
             )
@@ -1939,8 +1935,7 @@ def _extract_all_target_ids(solution: Dict, tasks: List[Task]) -> Set[str]:
     for assignments in solution.values():
         for task_idx, step_idx, _level in assignments:
             if 0 <= task_idx < len(tasks):
-                action = getattr(tasks[task_idx].steps[step_idx], "action", "") or ""
-                tid = extract_target_id_from_action(action)
+                tid = getattr(tasks[task_idx].steps[step_idx], "target_id", None)
                 if tid:
                     ids.add(tid)
     return ids

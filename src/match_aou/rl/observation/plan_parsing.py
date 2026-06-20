@@ -3,41 +3,11 @@ Plan Parsing Module
 
 Extract information from agent's execution plan:
     - Which targets are already in the plan
-    - Identify attack actions
 """
 
-from typing import Dict, List, Set
+from typing import List
 
-from .observation_utils import extract_target_id_from_action, is_attack_action
 from .observation_types import TargetInfo
-
-
-def extract_targets_from_plan(
-    plan: Dict[int, List[str]]
-) -> Set[str]:
-    """
-    Extract target IDs from attack actions in plan.
-    
-    Parses action strings like:
-        "handle_aircraft_attack('f16_01', 'target_01', 'aim_120', 2)"
-    
-    Args:
-        plan: execution_time_to_actions format
-    
-    Returns:
-        Set of target IDs mentioned in plan
-    """
-    target_ids = set()
-    
-    for timestep, actions in plan.items():
-        for action in actions:
-            # Only parse attack actions
-            if is_attack_action(action):
-                target_id = extract_target_id_from_action(action)
-                if target_id:
-                    target_ids.add(target_id)
-    
-    return target_ids
 
 
 def mark_targets_in_plan(
@@ -86,12 +56,10 @@ def mark_targets_in_plan(
 
             step = task.steps[step_idx]
 
-            # Extract target ID from action string
-            action = getattr(step, 'action', None)
-            if action:
-                target_id = extract_target_id_from_action(action)
-                if target_id:
-                    planned_target_ids.add(target_id)
+            # Target id is now an explicit Step field (no action-string parsing).
+            target_id = getattr(step, 'target_id', None)
+            if target_id:
+                planned_target_ids.add(target_id)
 
     # Mark targets
     for target in targets:

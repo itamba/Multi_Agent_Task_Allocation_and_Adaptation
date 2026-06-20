@@ -1,69 +1,67 @@
-from typing import List, Optional, Dict
+from enum import Enum
+from typing import List, Optional
 from match_aou.models.capability import Capability
-from match_aou.models.step_type import StepType
 from match_aou.models.location import Location
+
+
+class StepKind(Enum):
+    """Semantic kind of a Step.
+
+    This is a DOMAIN concept describing what a step *means* (e.g. "this is an
+    attack"), NOT a simulator instruction. Translating a StepKind into a
+    concrete command (a BLADE action string) lives entirely in the executor
+    (the translation layer), so domain objects stay free of simulator strings.
+
+    Only ATTACK exists today; add new kinds here as the domain grows.
+    """
+    ATTACK = "attack"
+
 
 class Step:
     """
-    Represents a single step in a task.
-    Supports multi-agent execution, with each agent having a specific action and execution time.
+    A single step in a task: pure semantic data, no simulator-specific commands.
+
+    A Step describes WHAT must happen (act on this target, at this location, with
+    these capabilities) but never HOW to express it to a particular simulator.
+    The executor (BladeExecutorMinimal) is the sole translation layer: it turns a
+    Step plus its agent assignment into concrete BLADE commands. The Step itself
+    carries no agent identity, no action template, and no placeholders.
     """
 
-    def __init__(self, location: Optional[Location], capabilities: List[Capability], step_type: StepType,
-                 effort: int, probability: float, action: Optional[str] = None):
+    def __init__(
+        self,
+        location: Optional[Location],
+        target_id: Optional[str],
+        capabilities: List[Capability],
+        probability: float,
+        effort: int,
+        step_kind: StepKind,
+    ):
         """
         Initialize a step.
-        :param location: Location object representing the step's location (can be None for non-location-dependent tasks).
-        :param capabilities: List of Capability objects required for the step.
-        :param step_type: StepType object representing the type of the step (e.g., 'surveillance', 'photography').
-        :param effort: Effort required to complete the step (e.g., number of photos to take).
-        :param probability: Probability of successful completion by an agent.
-        :param action: (Optional) Action to be executed for the step in BLADE (e.g., move_aircraft('{agent_id}', ...)).
-                        Should contain a placeholder like '{agent_id}' to be filled during simulation.
+        :param location: Location of the step (can be None for non-location-dependent steps).
+        :param target_id: Semantic identifier of the target this step acts on.
+        :param capabilities: List of Capability objects required for the step (solver matching).
+        :param probability: Probability of successful completion (the p in (1 - p)^m).
+        :param effort: Effort required to complete the step (currently inert; kept for
+                       future interfaces).
+        :param step_kind: Semantic kind of the step (StepKind enum, e.g. ATTACK).
         """
         self.location = location
         self.capabilities = capabilities
-        self.step_type = step_type
-        self.effort = effort
+        self.target_id = target_id
         self.probability = probability
-        self.agent_id_placeholder='AGENT_ID'
-
-        self.action = action  # Template string to be filled at execution time using the agent ID
-        self.execution_times: Dict[str, int] = {}   # agent_id → execution time. Will be filled later based on timing logic
-
-    def compute_step_cost(self) -> float:
-        """Calculate cost of completing this step."""
-        return self.step_type.compute_cost(self.effort)
-
-    def get_action(self, agent_id: str) -> Optional[str]:
-        """
-        Get the action string with the agent ID inserted.
-        :param agent_id: The ID of the agent performing this step.
-        :return: Action string with placeholders filled.
-        """
-        if not self.action:
-            return None
-        return self.action.replace(self.agent_id_placeholder, agent_id)
-
-    def get_execution_time(self, agent_id: Optional[str] = None):
-        """
-        Gets the execution time for a specific agent.
-        If no agent ID is provided, returns the default execution_time .
-
-        :param agent_id: Optional agent ID to retrieve specific time.
-        :return: Execution time in time steps, or None.
-        """
-        return self.execution_times.get(agent_id)
+        self.effort = effort
+        self.step_kind = step_kind
 
     def __repr__(self):
         return (
             f"Step(\n"
             f"  Location: {self.location},\n"
             f"  Capabilities: {self.capabilities},\n"
-            f"  Step Type: {self.step_type},\n"
-            f"  Effort: {self.effort},\n"
+            f"  Target ID: {self.target_id},\n"
             f"  Probability: {self.probability},\n"
-            f"  Action Template: {self.action},\n"
-            f"  Execution Time(s): {self.execution_times}\n"
+            f"  Effort: {self.effort},\n"
+            f"  Step Kind: {self.step_kind}\n"
             f")"
         )

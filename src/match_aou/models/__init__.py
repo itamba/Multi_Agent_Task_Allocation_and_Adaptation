@@ -1,8 +1,7 @@
 from .agent import Agent
 from .task import Task
-from .step import Step
+from .step import Step, StepKind
 from .location import Location
 from .capability import Capability
-from .step_type import StepType
 
-__all__ = ["Agent", "Task", "Step", "Location", "Capability", "StepType"]
+__all__ = ["Agent", "Task", "Step", "StepKind", "Location", "Capability"]

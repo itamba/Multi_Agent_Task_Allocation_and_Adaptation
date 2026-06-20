@@ -1,4 +1,4 @@
-from .models import Agent, Capability, Location, Step, StepType, Task
+from .models import Agent, Capability, Location, Step, StepKind, Task
 from .solvers import MatchAou
 
 __all__ = [
@@ -6,7 +6,7 @@ __all__ = [
     "Capability",
     "Location",
     "Step",
-    "StepType",
+    "StepKind",
     "Task",
     "MatchAou",
 ]

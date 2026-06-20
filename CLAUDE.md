@@ -53,9 +53,13 @@ The one **advisor-approved** change to the movement-budget constraint is the per
 
 Don't bypass any without a corresponding BLADE-side change.
 
+**Domain/BLADE boundary:** domain objects (`Step`/`Task`) contain **no** BLADE command strings. `BladeExecutorMinimal` is the **sole** BLADE translation layer — it builds every command (move / launch / attack / RTB) from semantic `Step` data (`step_kind`, `target_id`, `location`) plus the solver's assignment. The attack string is built directly in the executor (no template, no placeholders); this is behavior-preserving and verified byte-identical.
+
 ### 🛑 Legacy DQN code
 
 Anything under `legacy/` (at repo root) is archived DQN-era code. Don't import from it, don't resurrect it. Active entry point: `train_full.py`. Active executor: `blade_executor_minimal.py`.
+
+**Inactive modules (deletion candidates, not the active path):** `match_aou_parser.py` and `blade_plan_utils.py` have no live importers (`blade_plan_utils` is no longer exported from `blade_utils/__init__.py`). They are excluded from the WI-3 grep-zero acceptance for this reason — they are not part of the active path.
 
 ### ⚠️ Old checkpoints
 
@@ -83,7 +87,7 @@ Subpackages: `observation/`, `action/`, `agent/`, `training/`. `plan_editor.py` 
 |---|---|
 | Change what the agent sees (feature vector) | `observation/observation_builder.py` + `observation_types.py` + `self_features.py` + `target_extraction.py` + `plan_parsing.py` + `plan_context.py` |
 | Change obs dim / top_k / normalization | `observation/config.py` (`ObservationConfig`) |
-| Parse an action string / extract target IDs / fuel helpers | `observation/observation_utils.py` |
+| Compute travel time / fuel needed | `observation/observation_utils.py` — fuel helpers only (`target_id` is an explicit `Step` field, read directly; no action-string parsing) |
 | Add / remove / change actions | `action/action_config.py` (`ActionType`), `action/action_utils.py`, `action/action_validation.py` |
 | Translate an action token into a BLADE command | `plan_editor.py` |
 | Change the network | `agent/network.py` (`ActorCriticNetwork`) |
@@ -121,7 +125,7 @@ The boundary between scenario content and MATCH-AOU object construction is **str
 |---|---|
 | Change the objective / constraints | `match_aou_MINLP_solver.py` (with extreme caution — see section 2) |
 | Change post-solve scheduling / level ordering | `scheduling_utils.py`, `topology_utils.py` |
-| Change domain objects | `agent.py`, `task.py`, `step.py`, `step_type.py`, `location.py`, `capability.py` |
+| Change domain objects | `agent.py`, `task.py`, `step.py` (carries the semantic `StepKind` enum — a DOMAIN concept, *not* a BLADE string), `location.py`, `capability.py` |
 
 > **Reference `.md` files in the repo** (`BLADE_API_DOCUMENTATION.md`, `MATCH_AOU_API.md`, `INTEGRATION_GUIDE.md`, `RL_MODULE_DOCUMENTATION.md`) are hand-written and may lag the code. **Prefer reading the code.**
 
@@ -129,7 +133,7 @@ The boundary between scenario content and MATCH-AOU object construction is **str
 
 ## 4. Gotchas & Conventions
 
-- **Target IDs** are extracted from BLADE action strings via regex (`extract_target_id_from_action` in `rl/observation/observation_utils.py`). A change to BLADE's action format breaks the regex silently.
+- **Target IDs** are an explicit semantic field on `Step` (`step.target_id`), set by `scenario_factory` to `str(unit.id)` and read directly by the executor and the observation layer. No regex, no action-string parsing — the old silent-break risk on BLADE's action format is gone.
 - **Landed aircraft** are moved by BLADE from `scenario.aircraft` → `airbase.aircraft`. "All agents returned to base" is checked by this transition, not a flag.
 - **Fresh UUIDs per episode.** `ScenarioGenerator` assigns new UUIDs to cloned units — never assume a unit ID persists across episodes.
 - **`effort` and `Quantity` have no effect on solver allocation.** `effort` is not consumed anywhere in the MINLP. `Quantity` is only checked as a capability-name match. Multi-agent-per-target was a pure objective-function artifact under `p < 1.0` — fixed by setting `probability = 1.0` at task construction (see below).

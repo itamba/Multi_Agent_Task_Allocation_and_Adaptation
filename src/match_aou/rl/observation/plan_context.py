@@ -24,7 +24,8 @@ from typing import List, Tuple, Optional, Set
 import numpy as np
 
 from ..shared_utils import nm_to_km, clip_to_01, haversine_distance
-from .observation_utils import extract_target_id_from_action, is_attack_action, calculate_fuel_needed
+from .observation_utils import calculate_fuel_needed
+from ...models import StepKind
 
 # Type aliases
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
@@ -304,12 +305,10 @@ def _extract_all_planned_targets(solution: Solution, tasks: List) -> Set[str]:
             
             step = task.steps[step_idx]
             
-            # Extract target ID from action string
-            action = getattr(step, 'action', None)
-            if action:
-                target_id = extract_target_id_from_action(action)
-                if target_id:
-                    target_ids.add(target_id)
+            # Target id is now an explicit Step field (no action-string parsing).
+            target_id = getattr(step, 'target_id', None)
+            if target_id:
+                target_ids.add(target_id)
     
     return target_ids
 
@@ -379,10 +378,9 @@ def _check_next_target_visible(
         
         step = task.steps[step_idx]
         
-        # Check if this is an attack action
-        action = getattr(step, 'action', None)
-        if action and is_attack_action(action):
-            next_target_id = extract_target_id_from_action(action)
+        # Check if this is an attack step (semantic kind, not a parsed string).
+        if step.step_kind == StepKind.ATTACK:
+            next_target_id = step.target_id
             if next_target_id:
                 break  # Found first attack
     
@@ -456,11 +454,9 @@ def _extract_targets_from_plan(
         
         step = task.steps[step_idx]
         
-        action = getattr(step, 'action', None)
-        if action:
-            target_id = extract_target_id_from_action(action)
-            if target_id:
-                target_ids.add(target_id)
+        target_id = getattr(step, 'target_id', None)
+        if target_id:
+            target_ids.add(target_id)
     
     return target_ids
 
@@ -485,12 +481,10 @@ def _count_agents_for_target(
             
             step = task.steps[step_idx]
             
-            action = getattr(step, 'action', None)
-            if action:
-                tid = extract_target_id_from_action(action)
-                if tid == target_id:
-                    agent_count += 1
-                    break  # Count each agent once per target
+            tid = getattr(step, 'target_id', None)
+            if tid == target_id:
+                agent_count += 1
+                break  # Count each agent once per target
     
     return agent_count
 
@@ -530,8 +524,7 @@ def _compute_time_until_attack(
         
         step = task.steps[step_idx]
         
-        action = getattr(step, 'action', None)
-        if action and is_attack_action(action):
+        if step.step_kind == StepKind.ATTACK:
             found_attack = True
             break
         

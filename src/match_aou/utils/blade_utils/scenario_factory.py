@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from ...models import Agent, Capability, Location, Step, StepType, Task
+from ...models import Agent, Capability, Location, Step, StepKind, Task
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +165,6 @@ def generate_all_enemy_tasks(
     our_side = _normalize_side_color(attacking_side_color)
 
     attack_capability = Capability(name="attack", properties={"Quantity": 2})
-    attack_step_type = StepType(name="attack", base_cost=1)
 
     def _make_task(unit: Any, utility: float) -> Task:
         target_loc = Location(
@@ -175,11 +174,11 @@ def generate_all_enemy_tasks(
         )
         step = Step(
             location=target_loc,
+            target_id=str(unit.id),
             capabilities=[attack_capability],
-            step_type=attack_step_type,
-            effort=2,
             probability=probability,
-            action=f"handle_aircraft_attack('AGENT_ID', '{unit.id}', 'WEAPON_ID', 2)",
+            effort=2,
+            step_kind=StepKind.ATTACK,
         )
         return Task(steps=[step], utility=utility)
 
