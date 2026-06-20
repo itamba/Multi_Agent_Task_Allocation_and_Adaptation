@@ -61,15 +61,6 @@ class Agent:
             raise ValueError("Source and Destination must be a Location object.")
         return self.move_cost_function(source, destination)
 
-    def step_cost(self, step):
-        """
-        Calculate the cost of performing a step based on its type and effort.
-
-        :param step: A Step object.
-        :return: Cost of performing the step.
-        """
-        return step.step_type.compute_cost(step.effort)
-
     def has_capabilities(self, required_capabilities):
         """
         Check if the agent has the required capabilities for a task step.
