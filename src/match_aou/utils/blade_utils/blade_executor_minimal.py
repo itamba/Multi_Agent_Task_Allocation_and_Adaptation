@@ -1,11 +1,68 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from itertools import groupby
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ...models import Agent, Location, StepKind, Task
 
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level_order)
+
+
+# ----------------------------
+# Intra-level nearest-neighbor ordering (WI-4)
+# ----------------------------
+
+def nearest_neighbor_order(
+    assignments: Sequence[Assignment],
+    *,
+    location_of: Callable[[Assignment], Optional[Location]],
+    start_location: Optional[Location],
+) -> Tuple[List[Assignment], Optional[Location]]:
+    """Reorder same-level assignments by greedy nearest-neighbor over step target locations.
+
+    ``location_of(assignment) -> Location | None`` resolves each assignment's target
+    location. Starting at ``start_location``, repeatedly pick the remaining LOCATED
+    assignment minimizing ``Location.distance_to(...)`` (haversine) from the current
+    position, tie-break by ``(task_idx, step_idx)``, append it, and advance the current
+    position to that location. Unlocated assignments (``location_of`` returns ``None``, or
+    ``start_location`` is ``None`` so distance cannot be computed) are appended last in
+    ``(task_idx, step_idx)`` order and do not move the position.
+
+    Returns ``(ordered_assignments, end_location)`` where ``end_location`` is the position
+    after the last located pick (or ``start_location`` if none were located), so callers can
+    chain it as the start of the next level.
+    """
+    located: List[Assignment] = []
+    unlocated: List[Assignment] = []
+    for a in assignments:
+        loc = location_of(a)
+        if loc is not None:
+            located.append(a)
+        else:
+            unlocated.append(a)
+
+    ordered: List[Assignment] = []
+    current = start_location
+    remaining = list(located)
+
+    # If we have no anchor, distance is undefined: keep located steps in deterministic
+    # (task_idx, step_idx) order without advancing position.
+    if current is None:
+        ordered.extend(sorted(remaining, key=lambda x: (int(x[0]), int(x[1]))))
+        remaining = []
+
+    while remaining:
+        def _key(a: Assignment) -> Tuple[float, int, int]:
+            return (current.distance_to(location_of(a)), int(a[0]), int(a[1]))
+
+        nxt = min(remaining, key=_key)
+        ordered.append(nxt)
+        current = location_of(nxt)
+        remaining.remove(nxt)
+
+    ordered.extend(sorted(unlocated, key=lambda x: (int(x[0]), int(x[1]))))
+    return ordered, current
 
 
 # ----------------------------
@@ -154,18 +211,32 @@ class BladeExecutorMinimal:
         agents: Sequence[Agent],
         add_return_to_base: bool = False,
         arrival_threshold_km: float = 50.0,
+        nn_ordering: bool = True,
     ) -> None:
         self.tasks = tasks
         self.solution = {str(k): list(v) for k, v in solution.items()}
         self.agent_by_id = {str(a.id): a for a in agents}
         self.add_return_to_base = bool(add_return_to_base)
         self.arrival_threshold_km = float(arrival_threshold_km)
+        self.nn_ordering = bool(nn_ordering)
 
-        # per-agent queue sorted by (level, task, step)
-        self.queue: Dict[str, List[Assignment]] = {
-            aid: sorted(assigns, key=lambda x: (int(x[2]), int(x[0]), int(x[1])))
-            for aid, assigns in self.solution.items()
-        }
+        # Per-agent queue. PRIMARY ordering is always by level_order (topological order
+        # between levels is preserved). The SECONDARY (intra-level) ordering depends on the
+        # flag:
+        #   nn_ordering=True  -> greedy nearest-neighbor over step target locations
+        #                        (shorter flight paths; the SET of issued steps is unchanged).
+        #   nn_ordering=False -> exact legacy (level_order, task_idx, step_idx) sort,
+        #                        byte-for-byte recoverable.
+        if self.nn_ordering:
+            self.queue: Dict[str, List[Assignment]] = {
+                aid: self._build_nn_queue(aid, assigns)
+                for aid, assigns in self.solution.items()
+            }
+        else:
+            self.queue = {
+                aid: sorted(assigns, key=lambda x: (int(x[2]), int(x[0]), int(x[1])))
+                for aid, assigns in self.solution.items()
+            }
         self.agent_order = sorted(self.queue.keys())
         self.state: Dict[str, _AgentExec] = {aid: _AgentExec() for aid in self.agent_order}
 
@@ -180,6 +251,43 @@ class BladeExecutorMinimal:
         # acted this tick), and read by callers that have only the emitted BLADE string
         # (e.g. train_full's validation loop). Audit-only: never influences action selection.
         self.last_attack_target_id: Optional[str] = None
+
+    def _location_of(self, assignment: Assignment) -> Optional[Location]:
+        """Resolve the target location of an assignment's step, or None if out of range.
+
+        Mirrors the index validation in `_candidate_for_agent` so that invalid /
+        location-less assignments are treated as "unlocated" and ordered last — they remain
+        executable (the candidate loop emits an empty action and advances) exactly as before.
+        """
+        t_idx, s_idx, _level = assignment
+        if not (0 <= int(t_idx) < len(self.tasks)):
+            return None
+        steps = self.tasks[int(t_idx)].steps
+        if not (0 <= int(s_idx) < len(steps)):
+            return None
+        return getattr(steps[int(s_idx)], "location", None)
+
+    def _build_nn_queue(self, aid: str, assigns: Sequence[Assignment]) -> List[Assignment]:
+        """Build an agent's queue: levels in ascending order, each level greedily ordered by
+        nearest-neighbor over step target locations, chaining the start position level→level.
+
+        Level 0 starts at the agent's start location; each later level starts from the
+        end_location of the previous level (carried unchanged if a level had no located steps).
+        """
+        agent = self.agent_by_id.get(aid)
+        current: Optional[Location] = getattr(agent, "location", None) if agent is not None else None
+
+        by_level = sorted(assigns, key=lambda x: int(x[2]))  # stable sort by level_order
+        ordered_all: List[Assignment] = []
+        for _level, group in groupby(by_level, key=lambda x: int(x[2])):
+            ordered, end = nearest_neighbor_order(
+                list(group),
+                location_of=self._location_of,
+                start_location=current,
+            )
+            ordered_all.extend(ordered)
+            current = end  # carry forward (== previous position when the level had no located steps)
+        return ordered_all
 
     def is_done(self) -> bool:
         for aid in self.agent_order:
