@@ -51,7 +51,7 @@ The one **advisor-approved** change to the movement-budget constraint is the per
 - **Level gating** by `level_order` (precedence).
 - **FIFO launch validation** against the airbase inventory.
 
-Don't bypass any without a corresponding BLADE-side change.
+Don't bypass any without a corresponding BLADE-side change. *(Intra-level command **order** is a greedy nearest-neighbor optimization — see §4 — and may change freely; it does not affect these three invariants or which steps execute.)*
 
 **Domain/BLADE boundary:** domain objects (`Step`/`Task`) contain **no** BLADE command strings. `BladeExecutorMinimal` is the **sole** BLADE translation layer — it builds every command (move / launch / attack / RTB) from semantic `Step` data (`step_kind`, `target_id`, `location`) plus the solver's assignment. The attack string is built directly in the executor (no template, no placeholders); this is behavior-preserving and verified byte-identical.
 
@@ -110,6 +110,7 @@ The boundary between scenario content and MATCH-AOU object construction is **str
 | Create Agents from a BLADE scenario | `scenario_factory.py` → `create_agents_from_scenario` |
 | Generate Tasks from enemy units | `scenario_factory.py` → `generate_all_enemy_tasks` (default `probability=1.0`) |
 | Execute a MATCH-AOU plan in BLADE | `blade_executor_minimal.py` → `BladeExecutorMinimal.next_action` |
+| Change intra-level step ordering (nearest-neighbor) | `blade_executor_minimal.py` → `_build_nn_queue` / `nearest_neighbor_order` (`nn_ordering` flag) |
 | Schedule/resolve plan actions | `blade_plan_utils.py` |
 | Sync MATCH-AOU agents with BLADE observation | `observation_utils.py` → `update_agents_from_observation` |
 | Change per-episode variation (counts, zones, fleet mix) | `scenario_generator.py` (`VariationConfig`, `ScenarioGenerator`) |
@@ -141,6 +142,7 @@ The boundary between scenario content and MATCH-AOU object construction is **str
 - **Task `probability` defaults to `1.0`** in `generate_all_enemy_tasks` — intentional anti-stacking mechanism. Marginal utility of additional agents on a task is `≈ ε^m`, effectively zero, so the solver produces 1-to-1 allocations naturally. If a future experiment needs `p < 1.0`, the single-agent-per-target behavior must come from elsewhere (currently zone-based reachability provides it via fuel asymmetry).
 - **Movement budget charges an explicit per-target round-trip; `risk_factor = 0`.** The constraint adds `round_trip_cost(agent, step_loc) · x[i,j,k]` (outbound `start → step` + return `step → return_location`, or `start` if unset) and caps it at `budget × (1 − risk_factor)`. `round_trip_cost` lives in `match_aou_MINLP_solver.py` and is the **single source of truth**: the validation audit (`run_validation_episode`) imports the same helper for both reachability (`round_trip_cost ≤ budget`) and per-agent `used`, so the constraint and the audit compute the **same number for a given `(agent, target)` by construction**. `train_full.solve_match_aou()` passes `risk_factor = 0.0` and the audit's `RISK = 0.0` (so `cap = budget`); the solver's `risk_factor` parameter stays in place for a possible Phase-2 `σ > 0`. The audit's one-way `target_cost` is retained only for the informational `cheapest=` display — never for reach or `used`.
 - **Budget uses a star topology.** The movement-budget constraint charges each assigned target as an explicit **round-trip** (out + back, via `round_trip_cost`), summed **independently per target** — a star. (Earlier doc/code described this leg as one-way, which was inaccurate; the return leg is now charged explicitly.) No inter-target routing: conservative for multi-target chaining, exact for the current one-target-per-agent regime. Known conservative limitation, not a bug.
+- **Intra-level step order is greedy nearest-neighbor (WI-4).** `BladeExecutorMinimal` builds each agent's queue by sorting on `level_order` first (topological order *between* levels is preserved), then ordering the steps *within* each level greedily by nearest target location (`nearest_neighbor_order`, haversine via `Location.distance_to`, tie-break `(task_idx, step_idx)`), chaining the end position of one level into the start of the next (the lowest level starts at the agent's location). Controlled by the `nn_ordering` constructor flag (**default `True`**); `nn_ordering=False` reproduces the legacy `(level_order, task_idx, step_idx)` sort byte-for-byte. This is a flight-path/fuel optimization only — it **does not change which steps execute**: the set of issued `(task, step)` pairs, `completed_task_steps`, and `last_attack_target_id` are unchanged; only the *order* of same-agent, same-level commands differs (move/attack targets may be reissued in a different order, and an arrival-threshold-gated move may move to a different target).
 - **`top_k` is stuck at 1–3** because `ActionType` is a hand-enumerated enum. Extending beyond 3 requires edits in `action_config.py`, `action_utils.py`, `action_validation.py` — see docstring in `action_config.py`.
 - **Reward is MATCH-AOU-utility-based only** — no fuel bonuses, no coverage bonuses (advisor direction). Hybrid: per-step (weight 0.3) + episode-end utility ratio (weight 0.7, scaled 5.0). See `reward.py`.
 - **Critic is zero-padded to `MAX_AGENTS`.** Episodes run with variable agent counts (typically 2–3), but the critic input is always `obs_dim × MAX_AGENTS=5`. Missing slots are zeroed.
@@ -265,6 +267,8 @@ buffer.compute_gae(); trainer.update()  # PPO, K=4 epochs, clip=0.2, γ=0.99, λ
 ---
 
 ## 8. Open TODOs (priority only)
+
+**Phase 1 — static allocation: complete.** The solver's round-trip fuel/budget accounting with `risk_factor = 0` (WI-1), the `StepKind` + `target_id` domain refactor with `BladeExecutorMinimal` as the sole BLADE translation layer (WI-3), and greedy nearest-neighbor intra-level execution ordering (WI-4) are all merged and verified. The items below concern RL training/adaptation and remain open.
 
 - **Re-enable `FUEL_DAMAGE_ENABLED = True`** once a clean baseline of discovery-only behavior is established. Until then, RL learns one type of surprise at a time.
 - **Fresh baseline under canonical configuration.** The existing 1000-episode baseline (92.9% trigger rate, 30%→40% discovery accuracy) was performed under `probability=0.6` and the older single-graph discovery chain. Numbers will not be directly comparable to runs under the current configuration; archive the old baseline checkpoints under `training_output/models/archive_baseline_p06/` and produce a fresh baseline under the new canonical setup.
