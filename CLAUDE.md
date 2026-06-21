@@ -44,6 +44,10 @@ The one **advisor-approved** change to the movement-budget constraint is the per
 
 `fuel_damage.py` intentionally modifies **only the observation vector** (`obs.vector[0]` and `obs.self_state.fuel_norm`). It does **not** touch BLADE physics. This asymmetry is the learning signal: the oracle has full fuel in its plan, the RL sees reduced fuel and must learn to RTB. Do not "fix" by patching actual BLADE fuel values.
 
+### ⚠️ Flat observation path is the frozen baseline (Phase-2 graph in progress)
+
+The flat observation path (`observation_builder.py` + `observation_types.py` + `config.py`'s `ObservationConfig`) is the **active baseline** and is **frozen** while the Phase-2 graph path (`graph_builder.py`) is under construction. Don't modify the flat path to accommodate the graph work — the two live **side-by-side** until the graph path is wired into `train_full.py`. See sections 3 and 8.
+
 ### 🛑 BladeExecutorMinimal invariants
 
 `blade_executor_minimal.py` enforces three load-bearing rules:
@@ -85,7 +89,8 @@ Subpackages: `observation/`, `action/`, `agent/`, `training/`. `plan_editor.py` 
 
 | I want to… | Go to |
 |---|---|
-| Change what the agent sees (feature vector) | `observation/observation_builder.py` + `observation_types.py` + `self_features.py` + `target_extraction.py` + `plan_parsing.py` + `plan_context.py` |
+| Change what the agent sees (flat feature vector — active baseline) | `observation/observation_builder.py` + `observation_types.py` + `self_features.py` + `target_extraction.py` + `plan_parsing.py` + `plan_context.py` |
+| Change the Phase-2 GRAPH observation (nodes / edges / features) | `observation/graph_builder.py` → `build_graph_observation` (`GraphObservation` + `GraphObservationConfig` + `EdgeType`) |
 | Change obs dim / top_k / normalization | `observation/config.py` (`ObservationConfig`) |
 | Compute travel time / fuel needed | `observation/observation_utils.py` — fuel helpers only (`target_id` is an explicit `Step` field, read directly; no action-string parsing) |
 | Add / remove / change actions | `action/action_config.py` (`ActionType`), `action/action_utils.py`, `action/action_validation.py` |
@@ -97,6 +102,8 @@ Subpackages: `observation/`, `action/`, `agent/`, `training/`. `plan_editor.py` 
 | Change fuel damage events | `training/fuel_damage.py` |
 | Change the oracle signal (what RL imitates) | `training/oracle.py` |
 | Change per-episode setup (partial/full split, solve, auto-launch) | `training/episode_initializer.py` |
+
+> **Phase-2 graph observation:** `observation/graph_builder.py` is the Phase-2 **graph** representation (task/agent nodes + typed edges — `GraphObservation` with `task_features[k,5]`, `agent_features[a,2]`, COO `edge_index`/`edge_type` over the `EdgeType` IntEnum, plus `time_norm`; configured via `GraphObservationConfig`). It is built **side-by-side** with the flat builder above: the flat builder remains the **active baseline**, and the graph path is **not yet wired into `train_full.py`**. It ships with an in-file `_selftest()` (`env PYTHONPATH=src python -m match_aou.rl.observation.graph_builder` under `nlp_env`). See sections 2 and 8.
 
 ### BLADE integration (`src/match_aou/utils/blade_utils/`)
 
@@ -269,6 +276,11 @@ buffer.compute_gae(); trainer.update()  # PPO, K=4 epochs, clip=0.2, γ=0.99, λ
 ## 8. Open TODOs (priority only)
 
 **Phase 1 — static allocation: complete.** The solver's round-trip fuel/budget accounting with `risk_factor = 0` (WI-1), the `StepKind` + `target_id` domain refactor with `BladeExecutorMinimal` as the sole BLADE translation layer (WI-3), and greedy nearest-neighbor intra-level execution ordering (WI-4) are all merged and verified. The items below concern RL training/adaptation and remain open.
+
+**Phase 2 — graph + Transformer RL: in progress.** The RL layer is being rebuilt from the MATCH-AOU paper as a **graph + Transformer** architecture, replacing the flat observation vector. STATUS: `observation/graph_builder.py` is done (the observation layer — `GraphObservation` + `GraphObservationConfig`, built side-by-side with the flat baseline, not yet wired into `train_full.py`). Still to come: the action module, the encoder, and a variable-size PPO buffer.
+
+- **OPEN (Phase-2): `reachable_by_ego` model.** `graph_builder._reachable_by_ego` currently uses a full **round-trip from the current position** — a conservative placeholder that is wrong at runtime (a pop-up near base is always "reachable" even if diverting would starve already-assigned tasks). The intended model is **marginal**: the detour cost of inserting the target into the existing route, checked against the ego's remaining fuel slack. Resolve when building the action module — the action mask depends on it.
+- **OPEN (Phase-2): `assigned_to_peer`.** Currently derived from `ASSIGNMENT` edges, not exposed as a task feature; may be added later pending advisor input.
 
 - **Re-enable `FUEL_DAMAGE_ENABLED = True`** once a clean baseline of discovery-only behavior is established. Until then, RL learns one type of surprise at a time.
 - **Fresh baseline under canonical configuration.** The existing 1000-episode baseline (92.9% trigger rate, 30%→40% discovery accuracy) was performed under `probability=0.6` and the older single-graph discovery chain. Numbers will not be directly comparable to runs under the current configuration; archive the old baseline checkpoints under `training_output/models/archive_baseline_p06/` and produce a fresh baseline under the new canonical setup.
