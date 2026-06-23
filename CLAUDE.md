@@ -44,9 +44,9 @@ The one **advisor-approved** change to the movement-budget constraint is the per
 
 `fuel_damage.py` intentionally modifies **only the observation vector** (`obs.vector[0]` and `obs.self_state.fuel_norm`). It does **not** touch BLADE physics. This asymmetry is the learning signal: the oracle has full fuel in its plan, the RL sees reduced fuel and must learn to RTB. Do not "fix" by patching actual BLADE fuel values.
 
-### ⚠️ Flat observation path is the frozen baseline (Phase-2 graph in progress)
+### ⚠️ Flat observation path is the frozen baseline (Phase-2 graph side-by-side)
 
-The flat observation path (`observation_builder.py` + `observation_types.py` + `config.py`'s `ObservationConfig`) is the **active baseline** and is **frozen** while the Phase-2 graph path (`graph_builder.py`) is under construction. Don't modify the flat path to accommodate the graph work — the two live **side-by-side** until the graph path is wired into `train_full.py`. See sections 3 and 8.
+The flat observation path (`observation_builder.py` + `observation_types.py` + `config.py`'s `ObservationConfig`) is the **active baseline** and is **frozen** while the Phase-2 graph path is being built. The graph-side decision layers (`graph_builder.py`, `graph_action.py`, `graph_effect.py`) are implemented side-by-side and are **not wired into `train_full.py` yet**. Don't modify the flat path to accommodate graph work — keep the two paths separate until the graph training path is deliberately wired. See sections 3 and 8.
 
 ### 🛑 BladeExecutorMinimal invariants
 
@@ -58,6 +58,20 @@ The flat observation path (`observation_builder.py` + `observation_types.py` + `
 Don't bypass any without a corresponding BLADE-side change. *(Intra-level command **order** is a greedy nearest-neighbor optimization — see §4 — and may change freely; it does not affect these three invariants or which steps execute.)*
 
 **Domain/BLADE boundary:** domain objects (`Step`/`Task`) contain **no** BLADE command strings. `BladeExecutorMinimal` is the **sole** BLADE translation layer — it builds every command (move / launch / attack / RTB) from semantic `Step` data (`step_kind`, `target_id`, `location`) plus the solver's assignment. The attack string is built directly in the executor (no template, no placeholders); this is behavior-preserving and verified byte-identical.
+
+### ⚠️ Phase-2 executor rebuild target
+
+The next active layer is the **executor** that consumes an updated graph-RL `solution` after `graph_effect.apply_meta_action`. The effect layer deliberately stops at a pure plan edit: it does **not** mutate graph edges and does **not** issue BLADE commands. The executor must read the updated `solution` and translate it to BLADE commands.
+
+Load-bearing executor requirements for Phase-2:
+- Recompute executable levels after a mid-episode plan edit; `graph_effect` may insert `level = min(existing ego levels) - 1`, including negative levels.
+- Support dropping to a level below the executor's current level so CR/OE front-insertion becomes physically real.
+- Re-sync queues from the updated `solution` mid-episode while preserving already completed task steps (`completed_task_steps` / issued attacks) so the ego does not redo completed work.
+- Preserve original assignments after a CR/OE divert; the inserted target runs first, then the executor resumes the remaining original plan from `solution`.
+- Treat `SELF_PRESERVATION_ABORT` as a plan edit only. If the ego queue becomes empty, the executor is responsible for issuing RTB.
+- Guard RTB as single-issue: BLADE's `aircraft_return_to_base` is toggle-like, so issuing it twice can cancel RTB.
+- Prune destroyed targets only when confirmed by the agent's own observation/sensor view; do not use omniscient plan knowledge to violate no-communication.
+- Keep the executor as the sole BLADE translation layer. BLADE engine files remain generally frozen; any local BLADE change for executor work requires explicit discussion and justification.
 
 ### 🛑 Legacy DQN code
 
@@ -93,10 +107,11 @@ Subpackages: `observation/`, `action/`, `agent/`, `training/`. `plan_editor.py` 
 | Change the Phase-2 GRAPH observation (nodes / edges / features) | `observation/graph_builder.py` → `build_graph_observation` (`GraphObservation` with `task_features[k,5]` + `agent_features[a,3]` incl. `is_observed`; `GraphObservationConfig`; `EdgeType`) |
 | Change the Phase-2 GRAPH action / meta-action mask (decision core) | `action/graph_action.py` → `MetaAction`, `build_action_mask` (k×4 additive `{0,-inf}` mask), `ActionHead` (shared per-node MLP), `sample_action` |
 | Change the Phase-2 GRAPH effect (meta-action → plan edit) | `action/graph_effect.py` → `apply_meta_action` (pure plan editor; BLADE-free) |
+| Change the Phase-2 GRAPH executor / plan re-sync | current target: `utils/blade_utils/blade_executor_minimal.py` or a rebuilt executor; it must consume the updated `solution` from `graph_effect`, preserve completed steps, support front-inserted levels, and remain the sole BLADE translation layer |
 | Change obs dim / top_k / normalization | `observation/config.py` (`ObservationConfig`) |
 | Compute travel time / fuel needed | `observation/observation_utils.py` — fuel helpers only (`target_id` is an explicit `Step` field, read directly; no action-string parsing) |
 | Add / remove / change actions | `action/action_config.py` (`ActionType`), `action/action_utils.py`, `action/action_validation.py` |
-| Translate an action token into a BLADE command | `plan_editor.py` |
+| Translate a **flat-baseline** action token into a BLADE command | `plan_editor.py` (flat path only; not a reference for graph effect/executor work) |
 | Change the network | `agent/network.py` (`ActorCriticNetwork`) |
 | Change PPO hyperparameters | `training/ppo_trainer.py` (`PPOConfig`) — or override from `train_full.py` |
 | Change the reward function | `training/reward.py` |
@@ -175,6 +190,13 @@ python train_full.py --episodes 1 --validate-every 0 --record-every 0
 ```
 
 **Unit tests under `tests/`** — `test_action_space.py`, `test_observation.py`, `RL_test_end_to_end.py`. Not wired into CI. Run individually with `python tests/<file>.py` (or `pytest tests/` if/when a pytest config is added).
+
+**Phase-2 graph self-tests** (side-by-side graph path; run from repo root under `nlp_env`):
+```bash
+python -m match_aou.rl.observation.graph_builder
+python -m match_aou.rl.action.graph_action
+python -m match_aou.rl.action.graph_effect
+```
 
 **Standard baseline run (uses canonical defaults — see toggle table below):**
 ```bash
@@ -277,20 +299,35 @@ buffer.compute_gae(); trainer.update()  # PPO, K=4 epochs, clip=0.2, γ=0.99, λ
 
 ## 8. Open TODOs (priority only)
 
-**Phase 1 — static allocation: complete.** The solver's round-trip fuel/budget accounting with `risk_factor = 0` (WI-1), the `StepKind` + `target_id` domain refactor with `BladeExecutorMinimal` as the sole BLADE translation layer (WI-3), and greedy nearest-neighbor intra-level execution ordering (WI-4) are all merged and verified. The items below concern RL training/adaptation and remain open.
+**Phase 1 — static allocation: complete.** The solver's round-trip fuel/budget accounting with `risk_factor = 0` (WI-1), the `StepKind` + `target_id` domain refactor with the executor as the sole BLADE translation layer (WI-3), and greedy nearest-neighbor intra-level execution ordering (WI-4) are all merged and verified. The remaining items concern Phase-2 RL adaptation.
 
-**Phase 2 — graph + Transformer RL: in progress.** The RL layer is being rebuilt from the MATCH-AOU paper as a **graph + Transformer** architecture, replacing the flat observation vector. STATUS: three layers done, all **side-by-side** with the frozen flat path and **not yet wired into `train_full.py`**:
-- `observation/graph_builder.py` (observation layer) — `GraphObservation` + `GraphObservationConfig`. `agent_features` is `[a, 3]` (added `is_observed`; unsensed assigned peers carry `is_observed = 0` with fuel/dist masked to `0.0`), and agent nodes + `ASSIGNMENT` edges now cover the **complete static allocation** (not just sensed peers), so **"no `ASSIGNMENT` edge ⇒ genuine pop-up"** is reliable.
-- `action/graph_action.py` (decision core) — the node-wise **k×4** meta-action head: `MetaAction` (4-action set — `PLAN_COMPLIANCE`, `COOPERATIVE_RECOVERY`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT`; the paper's "Local Queue Optimization" deliberately dropped), `build_action_mask` (pure-numpy additive `{0, -inf}` k×4 mask from edges + task-feature columns — never recomputes reachability), `ActionHead` (shared per-node MLP; weights shared by construction → zero-shot over task count), and `sample_action` (joint masked softmax over the flattened k×4, version-independent masked-safe entropy). In-file `_selftest()` passes under `nlp_env`, including a regression node for the unsensed-peer-target case.
-- `action/graph_effect.py` (effect layer) — `apply_meta_action`: the pure-function semantic twin of `build_action_mask`. Maps ⟨meta_action m, node v⟩ to a plan edit on the `solution` dict (the single source of truth), **NOT** to graph edges and **NOT** to a BLADE command. `PLAN_COMPLIANCE` = no-op; `COOPERATIVE_RECOVERY` / `OPPORTUNISTIC_ENGAGEMENT` both append `(v, attack_step_idx, min_ego_level − 1)` — the negative level pushes the new target to the **FRONT** of the executor's `level_order` queue while the ego's original assignments stay in `solution` and resume afterward; `SELF_PRESERVATION_ABORT` drops the ego's tuple(s) to `v` (key retained, possibly empty). Returns a new dict (never mutates input); BLADE-free, torch-free; in-file `_selftest()` passes under `nlp_env`.
+**Phase 2 — graph + Transformer RL: in progress.** The RL layer is being rebuilt from the MATCH-AOU paper as a **graph + Transformer** architecture, replacing the flat observation vector. STATUS: three graph-side decision layers are done, all **side-by-side** with the frozen flat path and **not yet wired into `train_full.py`**:
 
-  **Next (NOT yet built):** the graph **encoder** (edge-aware Transformer → node embeddings; required for coordination), the **rebuilt executor** that consumes the updated `solution` and translates the plan edit into BLADE move/attack/RTB (the effect layer deliberately stops at the plan and does not build BLADE commands), a **variable-size PPO buffer** + `evaluate_action` path, **training wiring** into `train_full.py`, and the **reward rework** (utility-based).
+- `observation/graph_builder.py` (observation layer) — `GraphObservation` + `GraphObservationConfig`. Task nodes are stable `task_idx` nodes; agent nodes are `ego ∪ every same-side assigned agent ∪ currently sensed peers`. `agent_features` is `[a, 3]` (`fuel_norm`, `dist_to_ego_norm`, `is_observed`); assigned-but-unsensed peers carry `is_observed = 0` with fuel/dist masked to `0.0`. `ASSIGNMENT` edges cover the **complete static allocation**, so **"no `ASSIGNMENT` edge ⇒ genuine pop-up"** is reliable. `SPATIAL` edges are one-way agent→task and only from observed agents. The builder is stateless: graph = projection of `(world, solution)`.
 
-  **Executor forward note:** when the executor is rebuilt, it must recompute `current_level = min(...)` after a plan edit and be able to drop to a level *below* its current one (the `min − 1` front-insertion). Today's executor only advances levels upward and sets `current_level` once at construction.
+- `action/graph_action.py` (decision core) — the node-wise **k×4** meta-action mechanism. `MetaAction` is locked to `PLAN_COMPLIANCE`, `COOPERATIVE_RECOVERY`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT`; the paper's "Local Queue Optimization" is deliberately dropped. `build_action_mask` is pure-numpy additive `{0, -inf}` and reads `capable`/`reachable` from task-feature columns only — it never recomputes reachability. The mask encodes hard structural/physical constraints only: peer-failure inference is learned from graph/time, not hard-coded. `ActionHead` is a shared per-node MLP and `sample_action` uses a joint masked categorical over flattened `k*4` with masked-safe entropy.
 
-- **OPEN (Phase-2): `reachable_by_ego` model.** `graph_builder._reachable_by_ego` currently uses a full **round-trip from the current position** — a conservative placeholder that is wrong at runtime (a pop-up near base is always "reachable" even if diverting would starve already-assigned tasks). The intended model is **marginal**: the detour cost of inserting the target into the existing route, checked against the ego's remaining fuel slack. `build_action_mask` reads `reachable` straight from the task-feature column (never recomputes), so swapping this model is isolated to `graph_builder`.
-- **OPEN (Phase-2): `assigned_to_peer`.** Derived from `ASSIGNMENT` edges and consumed by `build_action_mask`; still not exposed as a task-feature column. May be added later pending advisor input.
+- `action/graph_effect.py` (effect layer) — `apply_meta_action` is the pure-function semantic twin of `build_action_mask`. It maps ⟨meta_action m, node v⟩ to a plan edit on the authoritative `solution` dict, **not** to graph-edge mutation and **not** to a BLADE command. `PLAN_COMPLIANCE` returns an equal-but-not-same copy; `COOPERATIVE_RECOVERY` / `OPPORTUNISTIC_ENGAGEMENT` both append `(task_idx=v, attack_step_idx, level=min(existing ego levels)-1 or 0)`; `SELF_PRESERVATION_ABORT` removes the ego's tuple(s) for task `v`. The function is BLADE-free, torch-free, never mutates input, normalizes solution keys to `str`, and makes CR/OE idempotent by `task_idx`.
 
-- **Re-enable `FUEL_DAMAGE_ENABLED = True`** once a clean baseline of discovery-only behavior is established. Until then, RL learns one type of surprise at a time.
-- **Fresh baseline under canonical configuration.** The existing 1000-episode baseline (92.9% trigger rate, 30%→40% discovery accuracy) was performed under `probability=0.6` and the older single-graph discovery chain. Numbers will not be directly comparable to runs under the current configuration; archive the old baseline checkpoints under `training_output/models/archive_baseline_p06/` and produce a fresh baseline under the new canonical setup.
-- **Reward function review** (advisor follow-up). Verify that the per-step (weight 0.3) + episode-end utility-ratio (weight 0.7, scaled 5.0) hybrid behaves well under `probability=1.0` task utilities, which differ in absolute magnitude from the earlier `p=0.6` regime.
+**Next active task: executor layer.** Build or refactor the executor that consumes the updated `solution` and translates it into BLADE move/attack/RTB commands. Important executor requirements:
+- mid-episode re-sync from updated `solution`;
+- preserve completed task steps and avoid redoing issued attacks;
+- recompute `current_level = min(...)` after plan edits and support front-inserted negative/lower levels;
+- resume original assignments after CR/OE divert because they stay in `solution`;
+- interpret empty ego queue after abort as RTB, but keep RTB single-issue guarded;
+- keep BLADE command generation out of `graph_effect` and inside the executor;
+- prune destroyed targets by sensor-confirmed absence, not omniscient global knowledge.
+
+**Executor design item: detection/attack range.** Graph detection currently uses `GraphObservationConfig.detection_range_km=150`; the executor historically has its own arrival/attack threshold (e.g. 50 km). The possible unification "see range == attack range" is open and must be discussed before touching locked graph-builder assumptions. Do not silently switch to BLADE `aircraft.range`.
+
+**OPEN (Phase-2): `reachable_by_ego` model.** `graph_builder._reachable_by_ego` currently uses a full **round-trip from the current position** — a conservative placeholder that is wrong at runtime (a pop-up near base may look reachable even if diverting starves already-assigned tasks). The intended model is **marginal**: detour cost of inserting the target into the existing route checked against remaining fuel slack. `build_action_mask` reads `reachable` straight from the task-feature column, so the swap is isolated to `graph_builder`.
+
+**OPEN (Phase-2): `assigned_to_peer`.** Currently derived from `ASSIGNMENT` edges and consumed by `build_action_mask`; not exposed as a task-feature column. May be added later pending advisor input.
+
+**Still open after the executor:**
+- graph **encoder** (edge-aware Transformer → node embeddings; required for implicit coordination);
+- variable-size PPO buffer and an `evaluate_action` path for stored graph actions during PPO update epochs;
+- training wiring into `train_full.py`;
+- reward review/rework under graph meta-actions and the current `probability=1.0` task regime;
+- re-enable `FUEL_DAMAGE_ENABLED = True` only after a clean discovery-only baseline;
+- archive old baselines/checkpoints that came from incompatible regimes (e.g. `probability=0.6`) and produce a fresh canonical baseline.
