@@ -125,13 +125,24 @@ class Game:
                 self.current_scenario.aircraft.append(aircraft)
                 return aircraft
 
-    def launch_aircraft_from_airbase(self, airbase_id: str) -> Aircraft | None:
+    def launch_aircraft_from_airbase(
+        self, airbase_id: str, aircraft_id: str | None = None
+    ) -> Aircraft | None:
         if not self.current_side_id:
             return None
 
         airbase = self.current_scenario.get_airbase(airbase_id)
         if airbase and len(airbase.aircraft) > 0:
-            aircraft = airbase.aircraft.pop(0)
+            if aircraft_id is None:
+                aircraft = airbase.aircraft.pop(0)
+            else:
+                aircraft = next(
+                    (ac for ac in airbase.aircraft if str(ac.id) == str(aircraft_id)),
+                    None,
+                )
+                if aircraft is None:
+                    return None
+                airbase.aircraft.remove(aircraft)
             if aircraft:
                 self.current_scenario.aircraft.append(aircraft)
                 return aircraft
@@ -233,7 +244,11 @@ class Game:
             return ship
 
     def handle_aircraft_attack(
-        self, aircraft_id: str, target_id: str, weapon_id: str, weapon_quantity: int
+        self,
+        aircraft_id: str,
+        target_id: str,
+        weapon_id: str | None = None,
+        weapon_quantity: int = 2,
     ) -> None:
         if weapon_quantity <= 0:
             return
@@ -245,7 +260,11 @@ class Game:
             and target.side_id != aircraft.side_id
             and target.id != aircraft.id
         ):
-            weapon = aircraft.get_weapon(weapon_id)
+            weapon = (
+                aircraft.get_weapon_with_highest_engagement_range()
+                if weapon_id is None
+                else aircraft.get_weapon(weapon_id)
+            )
             if weapon:
                 launch_weapon(
                     self.current_scenario, aircraft, target, weapon, weapon_quantity

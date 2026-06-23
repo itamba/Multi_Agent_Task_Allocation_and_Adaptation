@@ -28,6 +28,12 @@ Guidance for Claude Code when working in this repository.
 - `CHARACTER_LIMIT` override at the top of `train_full.py` (500MB recordings).
 - `game.current_scenario.name` set manually before `game.start_recording()` (e.g. `f"ep{N:03d}_rl"`) — otherwise recordings are named `"New Scenario"`.
 
+**Additive `Game.py` edits for the Phase-2 graph executor (backward-compatible):**
+- `Game.handle_aircraft_attack` now accepts an optional 2-arg form (`handle_aircraft_attack(aircraft_id, target_id)`): `weapon_id` defaults to the aircraft's highest-engagement-range weapon (`get_weapon_with_highest_engagement_range()`), `weapon_quantity` defaults to `2`. Existing 4-arg callers (`plan_editor.py`, `blade_executor_minimal.py`) are byte-identical in behavior.
+- `Game.launch_aircraft_from_airbase` now accepts an optional `aircraft_id` for targeted launch (find by `str(ac.id)`, `remove()` then append; id absent from inventory → `return None`, never launch the wrong aircraft). Omitting it preserves the existing FIFO `pop(0)` behavior exactly.
+- **Why:** the upcoming graph executor will be the **sole** BLADE translation layer and will call the 2-arg attack and targeted launch; defaulting `weapon_quantity = 2` keeps the flat path's "one ATTACK step ⇒ target destroyed" invariant. Dispatch is parser-free (`Game.handle_action` runs `exec(f"self.{action}")`), so optional params are sufficient — no parser change.
+- *Forward note (not an action):* the episode-start "launch all aircraft" workaround in `train_full.py` becomes removable once the executor uses targeted launch.
+
 ### 🛑 MATCH-AOU solver internals
 
 `match_aou_MINLP_solver.py` is in its **original, advisor-approved form**. The advisor's directive is: **address allocation pathologies through scenario design, not solver constraints.** Three solver-level workarounds were tried and explicitly rolled back:
