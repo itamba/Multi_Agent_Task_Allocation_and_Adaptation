@@ -13,20 +13,25 @@ The graph has two node types and three edge types:
         task  nodes : global indices [0 .. k-1]   (one per Task in ``tasks``)
         agent nodes : global indices [k .. k+a-1]
                       = ego  UNION  every same-side agent assigned in ``solution``
-                        UNION currently-sensed same-side peers. The static allocation
-                        A_init is a shared plan known to every agent pre-deployment, so
-                        the ego knows the full assignment even for unsensed peers; only
-                        RUNTIME state is subject to the no-communication constraint.
+                        (the static allocation A_init). A_init is a shared plan known to
+                        every agent pre-deployment, so the ego knows the full assignment;
+                        each peer node is therefore anchored by >=1 ASSIGNMENT edge by
+                        construction. Currently-sensed-but-unassigned peers are NOT added:
+                        peer RUNTIME state is unsensable under the no-communication
+                        constraint, so peer nodes carry no features and exist only to
+                        anchor the static-plan ASSIGNMENT edges.
         The ego agent is placed FIRST (``ego_index == k``); the remaining agents follow
         in deterministic id order.
         Task node index == ``task_idx`` (the stable order of ``tasks``), which keeps
         the solver's ``(task_idx, step_idx, level)`` tuples aligned with the graph.
 
     Edge types (over GLOBAL node indices, see :class:`EdgeType`):
-        SPATIAL    (0) : agent_node -> task_node, when a SENSED agent (is_observed == 1)
-                         is within the shared detection radius of the task target. SINGLE
-                         direction (agent senses task); documented choice. Unsensed
-                         assigned peers get NO spatial edges (no current sensor picture).
+        SPATIAL    (0) : ego_node -> task_node, when the EGO is within the shared
+                         detection radius of the task target. SINGLE direction (ego
+                         senses task) and EGO-ONLY: peers emit no SPATIAL edges, since a
+                         peer->task edge would encode peer runtime sensing (a
+                         no-communication leak). The ego's own sensors are the sole
+                         source of runtime information.
         ASSIGNMENT (1) : agent_node -> task_node, one per (task_idx, step_idx, level) in
                          ``solution`` (the static allocation A_init). Built over the
                          COMPLETE agent-node set, so every assignment maps to a node.
@@ -46,21 +51,26 @@ Feature column layouts (every value normalized to [0, 1]):
                                (==1.0) today; informative once protected / low-p
                                targets are enabled (drives the engage/skip decision).
 
-    AGENT feature columns -> agent_features[a, 3]
+    AGENT feature columns -> agent_features[a, 1]
         [0] fuel_norm        = current_fuel / max_fuel (self_features._compute_fuel_norm)
-                               when is_observed, else 0.0 (masked)
-        [1] dist_to_ego_norm = 0.0 for ego; haversine(ego, peer)/theater_scale_km
-                               (clipped) when is_observed, else 0.0 (masked)
-        [2] is_observed      = 1.0 if currently sensed by the ego (same-side AND within
-                               detection_range_km of the ego), else 0.0. The ego is always
-                               1.0. When 0.0, the live columns above are MASKED to 0.0: the
-                               ego knows the static assignment but not the peer's live state
-                               (no-communication applies at runtime, not to A_init).
+                               for the EGO row only; 0.0 for every peer row. Peers are
+                               featureless on purpose: peer fuel is unsensable (a true
+                               comms leak), and peer position / observation status are
+                               dropped too so the no-communication property is
+                               structurally auditable. Two information sources stay
+                               cleanly separated: the static plan A_init reaches the graph
+                               ONLY via ASSIGNMENT edges + the (featureless) peer nodes
+                               that anchor them; the ego's own live sensors reach it via
+                               the ego features, the ego->task SPATIAL edges, and the
+                               task-feature columns. No node-type / is_ego column is added
+                               here — node-typing is deferred to the (not-yet-built)
+                               encoder so the builder stays a pure projection of
+                               ``(world, solution)``.
 
 Detection range
 ---------------
-A single scenario-controlled radius (``config.detection_range_km``) is used for BOTH
-peer selection and SPATIAL edges, for every agent (ego and peers). We deliberately do
+A single scenario-controlled radius (``config.detection_range_km``) gates the ego's
+SPATIAL edges (ego -> task when the target is within the radius). We deliberately do
 NOT use the per-aircraft radar ``range``.
 
 Dropped ``is_done``
@@ -118,8 +128,8 @@ class GraphObservationConfig:
     while the graph builder lives side-by-side.
 
     Attributes:
-        detection_range_km: Single, scenario-controlled detection radius used for
-            BOTH peer selection and SPATIAL edges, for every agent (ego and peers).
+        detection_range_km: Single, scenario-controlled detection radius gating the
+            ego's SPATIAL edges (ego -> task when the target is within the radius).
             We intentionally do not use per-aircraft radar range.
         theater_scale_km: Distance normalizer for the ``dist_to_ego_norm`` columns
             (task and agent). Kept separate from ``detection_range_km``.
@@ -151,7 +161,7 @@ class GraphObservation:
     """
 
     task_features: np.ndarray          # [k, 5] float32, all values in [0, 1]
-    agent_features: np.ndarray         # [a, 3] float32, all values in [0, 1]
+    agent_features: np.ndarray         # [a, 1] float32: [0] fuel_norm (ego real, peers 0.0)
     ego_index: int                     # global node index of the ego agent (== k)
     edge_index: np.ndarray             # [2, E] int   COO over GLOBAL node indices
     edge_type: np.ndarray              # [E]    int   values from EdgeType
@@ -299,30 +309,22 @@ def build_graph_observation(
         )
 
     ego_pos = (ego_ac.latitude, ego_ac.longitude)
-    detection_km = config.detection_range_km  # shared by all agents (ego + peers)
+    detection_km = config.detection_range_km  # gates the ego's SPATIAL edges (ego-only)
     theater = config.theater_scale_km
 
     # =========================================================================
-    # Agent nodes = ego  UNION  every same-side agent assigned in A_init (`solution`)
-    #               UNION currently-sensed same-side peers.
+    # Agent nodes = ego  UNION  every same-side agent assigned in A_init (`solution`).
     #
     # A_init is a shared, globally-consistent plan known to every agent BEFORE
     # deployment, so the ego knows the full allocation — which agent is assigned to
-    # which target — even for peers it cannot currently sense. The no-communication
-    # constraint applies to RUNTIME state, not to this initial plan. We therefore give
-    # every assigned same-side agent a node (so its ASSIGNMENT edges exist) and mask its
-    # LIVE features unless it is actually sensed (the is_observed flag).
+    # which target. We give every assigned same-side agent a node so its ASSIGNMENT
+    # edges exist. We deliberately do NOT add currently-sensed-but-unassigned peers:
+    # a peer's RUNTIME state (fuel / position / being observed) is unsensable under the
+    # no-communication constraint, so peer nodes are featureless and exist only to anchor
+    # the static-plan ASSIGNMENT edges. As a result every peer node has >=1 ASSIGNMENT
+    # edge by construction.
     # =========================================================================
     ego_side_color = _normalize_side_color(getattr(ego_agent, "side_color", None))
-
-    # Currently-sensed same-side peers: airborne, within the shared detection radius.
-    sensed_ids = set()
-    for ac in getattr(scenario, "aircraft", []) or []:
-        aid = str(getattr(ac, "id", ""))
-        if aid == str(agent_id) or getattr(ac, "side_id", None) != ego_side:
-            continue
-        if haversine_distance(ego_pos, (ac.latitude, ac.longitude)) <= detection_km:
-            sensed_ids.add(aid)
 
     # Same-side agents holding at least one assignment in the static allocation. Side is
     # verified against the ego when the id resolves to a MATCH-AOU Agent; an unresolvable
@@ -339,39 +341,20 @@ def build_graph_observation(
             continue
         assigned_ids.add(aid)
 
-    # Ego FIRST; remaining nodes (assigned UNION sensed) in deterministic id order.
-    node_ids = [str(agent_id)] + sorted(assigned_ids | sensed_ids)
+    # Ego FIRST; remaining assigned peers in deterministic id order.
+    node_ids = [str(agent_id)] + sorted(assigned_ids)
 
     k = len(tasks)
     a = len(node_ids)
     ego_index = k  # ego is the first agent node
     agent_ids = node_ids
 
-    # agent_features [a, 3]: [0] fuel_norm, [1] dist_to_ego_norm, [2] is_observed.
-    # LIVE columns (0, 1) are MASKED to 0.0 for any agent that is not currently sensed —
-    # the ego knows the static assignment but not the peer's runtime state. node_pos caches
-    # the live position only for observed agents (used by the SPATIAL pass below).
-    agent_features = np.zeros((a, 3), dtype=np.float32)
-    node_pos: List[Optional[Tuple[float, float]]] = []
-    for i, aid in enumerate(node_ids):
-        observed = (aid == str(agent_id)) or (aid in sensed_ids)
-        ac = ego_ac if aid == str(agent_id) else (scenario.get_aircraft(aid) if observed else None)
-        if observed and ac is not None:
-            fuel_norm = clip_to_01(_compute_fuel_norm(ac))
-            dist_norm = 0.0 if aid == str(agent_id) else clip_to_01(
-                haversine_distance(ego_pos, (ac.latitude, ac.longitude)) / theater
-            )
-            node_pos.append((ac.latitude, ac.longitude))
-        else:
-            # Masked: assigned-but-not-sensed (or a sensed id with no live aircraft).
-            # Do NOT fabricate live values; is_observed = 0 marks them as unknown.
-            observed = False
-            fuel_norm = 0.0
-            dist_norm = 0.0
-            node_pos.append(None)
-        agent_features[i, 0] = fuel_norm
-        agent_features[i, 1] = dist_norm
-        agent_features[i, 2] = 1.0 if observed else 0.0
+    # agent_features [a, 1]: [0] fuel_norm. REAL for the ego (its own sensor); 0.0 for
+    # every peer row — peers are featureless (no peer runtime state under no-communication).
+    # The ego is the only node with a live position now, so the SPATIAL pass below uses
+    # ego_pos directly; peers contribute no SPATIAL edges.
+    agent_features = np.zeros((a, 1), dtype=np.float32)
+    agent_features[0, 0] = clip_to_01(_compute_fuel_norm(ego_ac))
 
     # =========================================================================
     # Task nodes: one per Task in `tasks` (stable, NOT restricted to in-range).
@@ -435,24 +418,18 @@ def build_graph_observation(
     dst: List[int] = []
     etype: List[int] = []
 
-    # SPATIAL: each SENSED agent node -> each task node within the shared detection
-    # radius. Single direction (agent senses task); geometric only. Unsensed assigned
-    # peers contribute no spatial edges (they have no current sensor picture here).
-    for i, aid in enumerate(node_ids):
-        if agent_features[i, 2] != 1.0:  # is_observed == 0 -> skip
+    # SPATIAL: ego node -> each task node within the shared detection radius. Single
+    # direction (ego senses task) and EGO-ONLY: peers emit no SPATIAL edges, since a
+    # peer->task edge would encode peer runtime sensing (a no-communication leak). The
+    # ego is the first agent node, so its global index is ``ego_index`` (== k).
+    for j in range(k):
+        tloc = task_locs[j]
+        if tloc is None:
             continue
-        pos = node_pos[i]
-        if pos is None:
-            continue
-        g = k + i
-        for j in range(k):
-            tloc = task_locs[j]
-            if tloc is None:
-                continue
-            if haversine_distance(pos, (tloc.latitude, tloc.longitude)) <= detection_km:
-                src.append(g)
-                dst.append(j)
-                etype.append(int(EdgeType.SPATIAL))
+        if haversine_distance(ego_pos, (tloc.latitude, tloc.longitude)) <= detection_km:
+            src.append(ego_index)
+            dst.append(j)
+            etype.append(int(EdgeType.SPATIAL))
 
     # ASSIGNMENT: agent node -> task node for each assignment tuple in the static
     # allocation. The node set now covers every assigned same-side agent, so every
@@ -593,10 +570,10 @@ def _selftest() -> None:
     tasks_g, solution_g = artifacts.tasks, artifacts.solution
 
     # --- Disperse the ego from the launch cluster ---
-    # Aircraft launch stacked at the base, so at trigger time they are all mutually
-    # sensed. Fly the ego toward a target for a short while so assigned peers fall
-    # OUTSIDE a small detection radius — this makes the is_observed masking path visible
-    # (assigned-but-unsensed peers still become nodes with their live features masked).
+    # Fly the ego toward a target for a short while. This used to exercise the
+    # is_observed masking path; peer features are gone now (peers are featureless), so
+    # the fly-out is harmless and no longer load-bearing — kept only to move the ego off
+    # the launch cluster and give the SPATIAL/dist geometry some genuine separation.
     far = _attack_step(tasks_g[0]).location if tasks_g else None
     if far is not None:
         obs, _, _, _, _ = env.step(
@@ -607,9 +584,9 @@ def _selftest() -> None:
     elapsed = max(0, int(getattr(obs, "current_time", 0)) - int(getattr(obs, "start_time", 0)))
 
     # --- Build the graph observation ---
-    # Small detection radius so assigned peers fall OUTSIDE the ego's sensor range,
-    # exercising the is_observed masking path: assigned-but-unsensed peers still get
-    # nodes + ASSIGNMENT edges, with their LIVE features masked to 0.0.
+    # Small detection radius: with ego-only SPATIAL edges this just keeps the ego's
+    # SPATIAL set tight. Assigned peers are nodes regardless (anchored by ASSIGNMENT
+    # edges) and carry no features, so the radius no longer drives any peer behavior.
     config = GraphObservationConfig(max_sim_ticks=max_sim_ticks, detection_range_km=1.0)
     go = build_graph_observation(
         scenario=obs,
@@ -631,7 +608,7 @@ def _selftest() -> None:
     print("=" * 64)
     print(f"ego_id                 : {ego_id}")
     print(f"task_features.shape    : {go.task_features.shape}  (k tasks x 5)")
-    print(f"agent_features.shape   : {go.agent_features.shape}  (a agents x 3)")
+    print(f"agent_features.shape   : {go.agent_features.shape}  (a agents x 1)")
     print(f"ego_index              : {go.ego_index}  (== k, ego is first agent node)")
     print(f"current_time (raw tick): {go.current_time}")
     print(f"time_norm              : {go.time_norm:.6f}  (= current_time / {max_sim_ticks})")
@@ -646,43 +623,44 @@ def _selftest() -> None:
     print("-" * 64)
     print("TASK feature index map : "
           "[0]utility [1]dist_to_ego [2]capable [3]reachable [4]probability")
-    print("AGENT feature index map: [0]fuel_norm [1]dist_to_ego [2]is_observed")
+    print("AGENT feature index map: [0]fuel_norm  (ego real; peers featureless = 0.0)")
     print("-" * 64)
     print("task_features:")
     print(np.array2string(go.task_features, precision=3, suppress_small=True))
     print("agent_features:")
     print(np.array2string(go.agent_features, precision=3, suppress_small=True))
-    print("per-agent-node (id | is_observed | fuel_norm | dist_to_ego):")
+    print("per-agent-node (id | fuel_norm):")
     for i, aid in enumerate(go.agent_ids):
-        obs_flag = go.agent_features[i, 2]
-        if i == 0:
-            tag = "EGO"
-        elif obs_flag == 1.0:
-            tag = "sensed"
-        else:
-            tag = "MASKED (assigned, not sensed)"
-        print(f"    {aid[:8]}  obs={obs_flag:.0f}  fuel={go.agent_features[i, 0]:.3f}  "
-              f"dist={go.agent_features[i, 1]:.3f}  [{tag}]")
+        tag = "EGO" if i == 0 else "peer (featureless, A_init anchor)"
+        print(f"    {aid[:8]}  fuel={go.agent_features[i, 0]:.3f}  [{tag}]")
     print(f"probability column     : {go.task_features[:, 4].tolist()}  "
           f"(all 1.0 expected — probability is degenerate until low-p targets exist)")
 
     # Lightweight invariant checks.
     assert go.task_features.shape == (len(tasks_g), 5)
-    assert go.agent_features.shape == (len(go.agent_ids), 3)
+    assert go.agent_features.shape == (len(go.agent_ids), 1)
     assert go.ego_index == len(tasks_g)
     assert go.edge_index.shape[0] == 2
     assert go.edge_index.shape[1] == go.edge_type.shape[0]
     assert float(go.task_features.min()) >= 0.0 and float(go.task_features.max()) <= 1.0
     assert float(go.agent_features.min()) >= 0.0 and float(go.agent_features.max()) <= 1.0
     assert 0.0 <= go.time_norm <= 1.0
-    # Ego is always observed and is the first agent node.
-    assert go.agent_features[0, 2] == 1.0
-    # Every assigned agent in A_init must be a node (the fix): no assignment is lost.
+    # Ego is the first agent node; its fuel_norm is a real, normalized value.
+    assert 0.0 <= float(go.agent_features[0, 0]) <= 1.0
+    # Peers are featureless: every NON-ego row is exactly 0.0 (no peer runtime state).
+    for i in range(1, len(go.agent_ids)):
+        assert float(go.agent_features[i, 0]) == 0.0
+    # Agent-node set == ego UNION assigned same-side peers; no sensed-but-unassigned peer
+    # leaked in. (All agents are blue here, so the builder's side filter is a no-op.)
+    expected_nodes = {ego_id} | {
+        str(sid) for sid, plan in solution_g.items() if str(sid) != ego_id and plan
+    }
+    assert set(go.agent_ids) == expected_nodes
+    # Every assigned agent in A_init must be a node: no assignment is lost.
     assert all(str(sid) in go.agent_ids for sid in solution_g.keys())
-    # Masked nodes (is_observed == 0) carry no fabricated live state.
-    for i in range(len(go.agent_ids)):
-        if go.agent_features[i, 2] == 0.0:
-            assert go.agent_features[i, 0] == 0.0 and go.agent_features[i, 1] == 0.0
+    # SPATIAL edges are EGO-ONLY: no spatial edge originates from a peer node.
+    spatial_mask = go.edge_type == int(EdgeType.SPATIAL)
+    assert all(int(s) == go.ego_index for s in go.edge_index[0, spatial_mask])
     # ASSIGNMENT edges cover every assignment tuple in the (filtered) solution.
     n_assignment_tuples = sum(len(v) for v in solution_g.values())
     assert n_assign == n_assignment_tuples
