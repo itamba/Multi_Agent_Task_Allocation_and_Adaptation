@@ -3,7 +3,7 @@ Graph Action Module (Phase-2 RL layer)
 =======================================
 
 The decision core of the Phase-2 graph + Transformer RL layer: the node-wise
-k x 4 meta-action mechanism. This module is **side-by-side** with the flat action
+k x 3 meta-action mechanism. This module is **side-by-side** with the flat action
 path (``action_config`` / ``action_utils`` / ``action_validation`` / ``plan_editor``),
 which stays the frozen baseline; nothing here is wired into ``train_full.py`` yet.
 
@@ -15,16 +15,16 @@ It consumes the :class:`GraphObservation` produced by
 
 The mechanism (FROM THE PAPER, MATCH-AOU paper §4.2.2)
 ------------------------------------------------------
-For each of the ``k`` task nodes the policy chooses one of four meta-actions: a
-node-wise **k x 4** decision head with weights SHARED across nodes, scored under
-a masked softmax with an ADDITIVE mask ``M in {0, -inf}^{k x 4}``. The joint
-``(node, meta-action)`` choice is a single Categorical over the flattened ``k*4``
+For each of the ``k`` task nodes the policy chooses one of three meta-actions: a
+node-wise **k x 3** decision head with weights SHARED across nodes, scored under
+a masked softmax with an ADDITIVE mask ``M in {0, -inf}^{k x 3}``. The joint
+``(node, meta-action)`` choice is a single Categorical over the flattened ``k*3``
 logits.
 
 What we KEEP / DROP relative to the paper
 -----------------------------------------
 - OUR CHOICE: we drop the paper's "Local Queue Optimization" meta-action and keep
-  §3.3's "Self-Preservation Abort", giving the locked 4-action set in
+  §3.3's "Self-Preservation Abort", giving the locked 3-action set in
   :class:`MetaAction`.
 - OUR CHOICE: Self-Preservation Abort is **node-indexed** (it targets the ego's own
   assigned task node), not a global action.
@@ -32,10 +32,6 @@ What we KEEP / DROP relative to the paper
 - OUR CHOICE: "sensed" means the EGO's own sensing only, read from the ego-only
   ``sensed`` task-feature column (``task_features[:, 5]``). Under no-communication the
   ego can act only on what IT senses.
-- EXTENDS: Cooperative Recovery is NOT conditioned on "the peer has failed". Under
-  no-comms the ego cannot observe peer failure; that inference is **learned** by the
-  policy (from ``time_norm`` / graph structure), not encoded in the mask. The mask
-  encodes hard physical / structural constraints only.
 
 Mask provenance boundary
 ------------------------
@@ -69,20 +65,22 @@ class MetaAction(IntEnum):
     """The locked per-node meta-action set.
 
     FROM THE PAPER (§4.2.2 / §3.3): the meta-action *names* below.
-    OUR CHOICE: we keep these four and drop the paper's "Local Queue Optimization".
+    OUR CHOICE: we keep three and drop the paper's "Local Queue Optimization";
+    Cooperative Recovery is also removed (4->3) — peer-failure recovery is handled
+    upstream by the trigger layer (a peer-overdue sensed target becomes a pop-up the
+    policy may OPPORTUNISTIC_ENGAGEMENT), so a CR column would be dead.
 
-    The integer value of each member IS its column index in the ``[k, 4]`` mask /
-    logit matrix (e.g. ``mask[v, MetaAction.COOPERATIVE_RECOVERY]``), so member value
+    The integer value of each member IS its column index in the ``[k, 3]`` mask /
+    logit matrix (e.g. ``mask[v, MetaAction.OPPORTUNISTIC_ENGAGEMENT]``), so member value
     and column index are one and the same by construction.
     """
 
     PLAN_COMPLIANCE = 0
-    COOPERATIVE_RECOVERY = 1
-    OPPORTUNISTIC_ENGAGEMENT = 2
-    SELF_PRESERVATION_ABORT = 3
+    OPPORTUNISTIC_ENGAGEMENT = 1
+    SELF_PRESERVATION_ABORT = 2
 
 
-NUM_META_ACTIONS = 4  # number of columns in the k x 4 head (== len(MetaAction))
+NUM_META_ACTIONS = 3  # number of columns in the k x 3 head (== len(MetaAction))
 
 
 # =============================================================================
@@ -95,7 +93,7 @@ def build_action_mask(
     reachable_threshold: float = 0.5,
     sensed_threshold: float = 0.5,
 ) -> np.ndarray:
-    """Build the additive per-node meta-action mask ``M in {0, -inf}^{k x 4}``.
+    """Build the additive per-node meta-action mask ``M in {0, -inf}^{k x 3}``.
 
     FROM THE PAPER (§4.2.2): masked softmax with an additive mask in
     ``{0, -inf}``, ready to add to the logits before the softmax. OUR CHOICE: the
@@ -122,9 +120,6 @@ def build_action_mask(
 
     - PLAN_COMPLIANCE          : ALWAYS valid. Invariant: guarantees >= 1 valid action
                                  per node, so the masked softmax is never all ``-inf``.
-    - COOPERATIVE_RECOVERY     : ``assigned_to_peer & sensed & capable & reachable``.
-                                 NOT conditioned on "peer is dead" — that is learned
-                                 by the policy (EXTENDS), not masked.
     - OPPORTUNISTIC_ENGAGEMENT : ``unassigned & sensed & capable & reachable``.
     - SELF_PRESERVATION_ABORT  : ``assigned_to_ego`` (reachability / capability
                                  irrelevant — abandoning an assignment to preserve
@@ -137,16 +132,16 @@ def build_action_mask(
         sensed_threshold: threshold on ``task_features[:, 5]`` for ``sensed``.
 
     Returns:
-        ``np.ndarray`` of shape ``[k, 4]``, dtype ``float32``, values in
+        ``np.ndarray`` of shape ``[k, 3]``, dtype ``float32``, values in
         ``{0.0, -inf}``. Column index == :class:`MetaAction` value.
 
     Edge cases:
-        ``k == 0`` -> ``np.zeros((0, 4), float32)``. No edges -> recovery / engagement
-        / abort all ``-inf`` while compliance stays valid.
+        ``k == 0`` -> ``np.zeros((0, 3), float32)``. No edges -> engagement / abort
+        all ``-inf`` while compliance stays valid.
     """
     k = int(obs.task_features.shape[0])
     if k == 0:
-        return np.zeros((0, 4), dtype=np.float32)
+        return np.zeros((0, 3), dtype=np.float32)
 
     ego_index = int(obs.ego_index)
 
@@ -179,14 +174,12 @@ def build_action_mask(
     sensed = obs.task_features[:, 5] >= sensed_threshold  # ego-only sensing column
 
     # --- Per-column validity -> additive mask ---
-    recovery_valid = assigned_to_peer & sensed & capable & reachable
     engagement_valid = unassigned & sensed & capable & reachable
     abort_valid = assigned_to_ego  # capability / reachability irrelevant
 
     neg_inf = np.float32(-np.inf)
-    mask = np.zeros((k, 4), dtype=np.float32)
+    mask = np.zeros((k, 3), dtype=np.float32)
     # PLAN_COMPLIANCE column stays 0.0 everywhere (always valid; the invariant).
-    mask[~recovery_valid, int(MetaAction.COOPERATIVE_RECOVERY)] = neg_inf
     mask[~engagement_valid, int(MetaAction.OPPORTUNISTIC_ENGAGEMENT)] = neg_inf
     mask[~abort_valid, int(MetaAction.SELF_PRESERVATION_ABORT)] = neg_inf
     return mask
@@ -209,9 +202,9 @@ def _layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0
 
 
 class ActionHead(nn.Module):
-    """Shared per-node policy MLP producing the k x 4 meta-action logits.
+    """Shared per-node policy MLP producing the k x 3 meta-action logits.
 
-    FROM THE PAPER (§4.2.2): a node-wise k x 4 head whose weights are SHARED across
+    FROM THE PAPER (§4.2.2): a node-wise k x 3 head whose weights are SHARED across
     task nodes. Here that sharing is by construction — the head is a plain MLP over
     the last (feature) dimension, so applying it to ``node_embeddings`` of shape
     ``[k, embed_dim]`` yields ``[k, num_meta_actions]`` with the same weights for
@@ -221,13 +214,13 @@ class ActionHead(nn.Module):
     embeddings as input and knows nothing about how they were produced.
     """
 
-    def __init__(self, embed_dim: int, hidden_dim: int = 64, num_meta_actions: int = 4):
+    def __init__(self, embed_dim: int, hidden_dim: int = 64, num_meta_actions: int = 3):
         """Build the shared head.
 
         Args:
             embed_dim: per-node embedding dimension (input).
             hidden_dim: hidden width of the shared MLP.
-            num_meta_actions: number of output columns (default 4, == len(MetaAction)).
+            num_meta_actions: number of output columns (default 3, == len(MetaAction)).
         """
         super().__init__()
         self.embed_dim = embed_dim
@@ -260,9 +253,9 @@ def sample_action(
 ) -> Tuple[int, int, torch.Tensor, torch.Tensor]:
     """Sample a joint ``(meta_action, node)`` decision under the additive mask.
 
-    FROM THE PAPER (§4.2.2): masked softmax over the k x 4 head. We flatten the
-    masked logits row-major to ``[k*4]`` (``flat = v*4 + m``, so ``node = flat // 4``
-    and ``meta_action = flat % 4``) and build a single Categorical over the joint
+    FROM THE PAPER (§4.2.2): masked softmax over the k x 3 head. We flatten the
+    masked logits row-major to ``[k*3]`` (``flat = v*3 + m``, so ``node = flat // 3``
+    and ``meta_action = flat % 3``) and build a single Categorical over the joint
     decision.
 
     Numerical safety: the additive ``{0, -inf}`` mask is exact for ``sample()`` and
@@ -274,8 +267,8 @@ def sample_action(
     a finite ``~0`` term. A NaN entropy would silently poison the PPO entropy bonus.
 
     Args:
-        logits: ``[k, 4]`` raw logits from :class:`ActionHead`.
-        mask_np: ``[k, 4]`` additive mask from :func:`build_action_mask`
+        logits: ``[k, 3]`` raw logits from :class:`ActionHead`.
+        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`
             (``{0.0, -inf}``).
         deterministic: if True, take the argmax cell instead of sampling.
 
@@ -291,7 +284,7 @@ def sample_action(
     """
     mask_t = torch.as_tensor(mask_np, dtype=logits.dtype, device=logits.device)
     masked = logits + mask_t                      # -inf in invalid cells
-    flat = masked.reshape(-1)                      # row-major: flat = v*4 + m
+    flat = masked.reshape(-1)                      # row-major: flat = v*3 + m
 
     # Guard on the RAW masked logits (before any clamp): the Plan-Compliance
     # invariant should make this unreachable, but failing loud beats NaNs.
@@ -388,19 +381,18 @@ def _selftest() -> None:
     NINF = float("-inf")
     expected = np.array(
         [
-            [0.0, NINF, NINF, 0.0],    # node0: PLAN_COMPLIANCE + SELF_PRESERVATION_ABORT
-            [0.0, 0.0, NINF, NINF],    # node1: PLAN_COMPLIANCE + COOPERATIVE_RECOVERY
-            [0.0, NINF, NINF, NINF],   # node2: PLAN_COMPLIANCE only (unreachable -> no engagement)
+            [0.0, NINF, 0.0],    # node0: PLAN_COMPLIANCE + SELF_PRESERVATION_ABORT
+            [0.0, NINF, NINF],   # node1: PLAN_COMPLIANCE only (peer-assigned+sensed, but CR removed 4->3)
+            [0.0, NINF, NINF],   # node2: PLAN_COMPLIANCE only (unreachable -> no engagement)
             # node3 REGRESSION: an unsensed in-plan peer target is NOT a pop-up. Engagement is
-            # masked because task3 HAS an ASSIGNMENT edge (-> not unassigned), and recovery is
-            # masked because the ego does not sense it (-> not sensed). Only PLAN_COMPLIANCE.
-            [0.0, NINF, NINF, NINF],   # node3: PLAN_COMPLIANCE only
+            # masked because task3 HAS an ASSIGNMENT edge (-> not unassigned). Only PLAN_COMPLIANCE.
+            [0.0, NINF, NINF],   # node3: PLAN_COMPLIANCE only
         ],
         dtype=np.float32,
     )
 
     # --- Print the mask with a column legend ---
-    col_names = ["PLAN_COMPLIANCE", "COOPERATIVE_RECOVERY",
+    col_names = ["PLAN_COMPLIANCE",
                  "OPPORTUNISTIC_ENGAGEMENT", "SELF_PRESERVATION_ABORT"]
     print("=" * 72)
     print("graph_action self-test")

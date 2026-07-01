@@ -31,14 +31,13 @@ Meta-action -> plan edit (these map onto ASSIGNMENT-edge deltas, expressed on th
 ``solution`` dict, NOT on edges):
 
 - PLAN_COMPLIANCE          : no edit. Return the plan unchanged.
-- COOPERATIVE_RECOVERY     : add ASSIGNMENT ego -> task v  (== append a tuple).
 - OPPORTUNISTIC_ENGAGEMENT : add ASSIGNMENT ego -> task v  (== append a tuple).
 - SELF_PRESERVATION_ABORT  : remove ASSIGNMENT ego -> task v (== drop the tuple(s)).
 
-OUR CHOICE: COOPERATIVE_RECOVERY and OPPORTUNISTIC_ENGAGEMENT collapse to the
-SAME plan edit. They differ only in mask validity (peer-assigned vs unassigned —
-see ``build_action_mask``) and, later, in reward; the plan-level effect of
-"the ego now also attacks v" is identical.
+OUR CHOICE: OPPORTUNISTIC_ENGAGEMENT is the sole "add assignment" meta-action.
+Peer-failure recovery is handled upstream by the trigger layer (a peer-overdue
+sensed target is converted to a pop-up), so there is no separate Cooperative
+Recovery meta-action; the plan-level effect is "the ego now also attacks v".
 
 OUR CHOICE: "push to front" is expressed purely through the plan. The inserted
 level is ``min(existing ego levels) - 1`` (or ``0`` if the ego is unassigned).
@@ -175,8 +174,8 @@ def apply_meta_action(
                      ego_key, node_v, target_id)
         return new_solution
 
-    # --- CR / OE: add an ego -> task v assignment (same plan edit) -----------
-    if action in (MetaAction.COOPERATIVE_RECOVERY, MetaAction.OPPORTUNISTIC_ENGAGEMENT):
+    # --- OE: add an ego -> task v assignment --------------------------------
+    if action is MetaAction.OPPORTUNISTIC_ENGAGEMENT:
         ego_assignments = new_solution.setdefault(ego_key, [])
 
         # Idempotent / anti-duplicate: keyed on task_idx, NOT the full tuple. A
@@ -267,12 +266,12 @@ def _selftest() -> None:
     assert out is not base and out["ego"] is not base["ego"]
     print("[1] PLAN_COMPLIANCE: equal-but-not-same copy   OK")
 
-    # (2) CR and OE both insert (v, attack_step_idx, min_level - 1).
-    out_cr = apply_meta_action(base, obs, "ego", MetaAction.COOPERATIVE_RECOVERY, 1, tasks)
-    assert out_cr["ego"] == [(0, 0, 0), (1, 0, -1)], out_cr["ego"]
+    # (2) OE inserts (v, attack_step_idx, min_level - 1) at step-0 and step-1 targets.
+    out_oe1 = apply_meta_action(base, obs, "ego", MetaAction.OPPORTUNISTIC_ENGAGEMENT, 1, tasks)
+    assert out_oe1["ego"] == [(0, 0, 0), (1, 0, -1)], out_oe1["ego"]
     out_oe = apply_meta_action(base, obs, "ego", MetaAction.OPPORTUNISTIC_ENGAGEMENT, 2, tasks)
     assert out_oe["ego"] == [(0, 0, 0), (2, 1, -1)], out_oe["ego"]   # step_idx 1, level -1
-    print("[2] CR -> (1,0,-1)  /  OE -> (2,1,-1)  (min_level-1, correct step_idx)  OK")
+    print("[2] OE -> (1,0,-1) [step0] / (2,1,-1) [step1]  (min_level-1, correct step_idx)  OK")
 
     # (3) ABORT removes the ego's tuple(s) to task v; peer untouched.
     out_ab = apply_meta_action(base, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
