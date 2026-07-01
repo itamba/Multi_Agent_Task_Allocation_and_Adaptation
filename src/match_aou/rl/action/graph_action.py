@@ -29,8 +29,9 @@ What we KEEP / DROP relative to the paper
 - OUR CHOICE: Self-Preservation Abort is **node-indexed** (it targets the ego's own
   assigned task node), not a global action.
 - OUR CHOICE: the exact per-cell mask rules in :func:`build_action_mask`.
-- OUR CHOICE: "sensed" means the EGO's own SPATIAL edges only (``src == ego_index``).
-  Under no-communication the ego can act only on what IT senses.
+- OUR CHOICE: "sensed" means the EGO's own sensing only, read from the ego-only
+  ``sensed`` task-feature column (``task_features[:, 5]``). Under no-communication the
+  ego can act only on what IT senses.
 - EXTENDS: Cooperative Recovery is NOT conditioned on "the peer has failed". Under
   no-comms the ego cannot observe peer failure; that inference is **learned** by the
   policy (from ``time_norm`` / graph structure), not encoded in the mask. The mask
@@ -38,10 +39,11 @@ What we KEEP / DROP relative to the paper
 
 Mask provenance boundary
 ------------------------
-``capable`` and ``reachable`` are read from the task-feature COLUMNS only
-(``task_features[:, 2]`` and ``[:, 3]``); reachability is NEVER recomputed here.
-When ``reachable_by_ego``'s model is later swapped (round-trip -> marginal-detour)
-that changes ONLY ``graph_builder``; this mask stays untouched.
+``capable``, ``reachable``, and ``sensed`` are read from the task-feature COLUMNS only
+(``task_features[:, 2]``, ``[:, 3]``, and ``[:, 5]``); reachability is NEVER recomputed
+here, and sensing is no longer derived from SPATIAL edges. When ``reachable_by_ego``'s
+model is later swapped (round-trip -> marginal-detour) that changes ONLY
+``graph_builder``; this mask stays untouched.
 
 Framework: PyTorch (same as ``agent/network.py``).
 """
@@ -91,6 +93,7 @@ def build_action_mask(
     obs: GraphObservation,
     capable_threshold: float = 0.5,
     reachable_threshold: float = 0.5,
+    sensed_threshold: float = 0.5,
 ) -> np.ndarray:
     """Build the additive per-node meta-action mask ``M in {0, -inf}^{k x 4}``.
 
@@ -108,9 +111,10 @@ def build_action_mask(
     - ``assigned_to_peer[v]`` : an ASSIGNMENT edge with ``dst == v`` and ``src`` an
                                 agent node (``src >= k``) that is NOT ``obs.ego_index``.
     - ``unassigned[v]``       : NO ASSIGNMENT edge has ``dst == v``.
-    - ``sensed[v]``           : a SPATIAL edge with ``src == obs.ego_index`` and
-                                ``dst == v`` (the EGO's own sensing only — under
-                                no-comms the ego can act only on what IT sees).
+    - ``sensed[v]``           : ``task_features[v, 5] >= sensed_threshold`` (the EGO's
+                                own sensing only — ego-only column, recomputed each build
+                                from the ego's current position; under no-comms the ego can
+                                act only on what IT sees).
     - ``capable[v]``          : ``task_features[v, 2] >= capable_threshold``.
     - ``reachable[v]``        : ``task_features[v, 3] >= reachable_threshold``.
 
@@ -130,6 +134,7 @@ def build_action_mask(
         obs: the :class:`GraphObservation` to mask.
         capable_threshold: threshold on ``task_features[:, 2]`` for ``capable``.
         reachable_threshold: threshold on ``task_features[:, 3]`` for ``reachable``.
+        sensed_threshold: threshold on ``task_features[:, 5]`` for ``sensed``.
 
     Returns:
         ``np.ndarray`` of shape ``[k, 4]``, dtype ``float32``, values in
@@ -149,7 +154,6 @@ def build_action_mask(
     assigned_to_ego = np.zeros(k, dtype=bool)
     has_assignment = np.zeros(k, dtype=bool)   # any ASSIGNMENT edge into v
     assigned_to_peer = np.zeros(k, dtype=bool)
-    sensed = np.zeros(k, dtype=bool)           # ego's own SPATIAL edges only
 
     edge_index = obs.edge_index
     edge_type = obs.edge_type
@@ -166,14 +170,13 @@ def build_action_mask(
                 assigned_to_ego[dst] = True
             elif src >= k:  # an agent node that is not the ego -> a peer
                 assigned_to_peer[dst] = True
-        elif etype == int(EdgeType.SPATIAL) and src == ego_index and 0 <= dst < k:
-            sensed[dst] = True
 
     unassigned = ~has_assignment
 
-    # --- Capability / reachability from the task-feature COLUMNS only ---
+    # --- Capability / reachability / sensing from the task-feature COLUMNS only ---
     capable = obs.task_features[:, 2] >= capable_threshold
     reachable = obs.task_features[:, 3] >= reachable_threshold
+    sensed = obs.task_features[:, 5] >= sensed_threshold  # ego-only sensing column
 
     # --- Per-column validity -> additive mask ---
     recovery_valid = assigned_to_peer & sensed & capable & reachable
@@ -328,42 +331,42 @@ def _selftest() -> None:
         env PYTHONPATH=src python -m match_aou.rl.action.graph_action
     """
     # --- Build a synthetic GraphObservation with a known topology ---
-    #   k = 4 task nodes, a = 3 agents (ego_index = 4, peer1 = 5 sensed, peer2 = 6 unsensed)
-    #   task 0: assigned to ego (4->0), sensed by ego (4->0), capable=1, reachable=1
-    #   task 1: assigned to peer1 (5->1), sensed by ego (4->1), capable=1, reachable=1
-    #   task 2: unassigned, sensed by ego (4->2), capable=1, reachable=0 (pop-up, out of fuel range)
-    #   task 3: assigned to peer2 (6->3), NO SPATIAL into it (ego does not sense it),
+    #   k = 4 task nodes, a = 3 agents (ego_index = 4, peer1 = 5, peer2 = 6)
+    #   task 0: assigned to ego (4->0), sensed by ego (col [5]=1), capable=1, reachable=1
+    #   task 1: assigned to peer1 (5->1), sensed by ego (col [5]=1), capable=1, reachable=1
+    #   task 2: unassigned, sensed by ego (col [5]=1), capable=1, reachable=0 (pop-up, out of fuel range)
+    #   task 3: assigned to peer2 (6->3), NOT sensed by ego (col [5]=0),
     #           capable=1, reachable=1 -> REGRESSION case (unsensed in-plan peer target).
+    # Sensing is now the ego-only `sensed` column [5] = [1, 1, 1, 0] (replaces the SPATIAL edges).
     task_features = np.array(
         [
-            # [utility, dist_to_ego, capable, reachable, probability]
-            [0.80, 0.20, 1.0, 1.0, 1.0],   # task 0
-            [0.60, 0.40, 1.0, 1.0, 1.0],   # task 1
-            [0.50, 0.90, 1.0, 0.0, 1.0],   # task 2 (unreachable)
-            [0.70, 0.50, 1.0, 1.0, 1.0],   # task 3 (assigned to the unsensed peer2)
+            # [utility, dist_to_ego, capable, reachable, probability, sensed]
+            [0.80, 0.20, 1.0, 1.0, 1.0, 1.0],   # task 0 (sensed)
+            [0.60, 0.40, 1.0, 1.0, 1.0, 1.0],   # task 1 (sensed)
+            [0.50, 0.90, 1.0, 0.0, 1.0, 1.0],   # task 2 (sensed, unreachable)
+            [0.70, 0.50, 1.0, 1.0, 1.0, 0.0],   # task 3 (assigned to peer2, NOT sensed)
         ],
         dtype=np.float32,
     )
+    # agent_features live contract is [a, 1] = [fuel_norm]: ego real, peers 0.0 (featureless).
     agent_features = np.array(
         [
-            # [fuel_norm, dist_to_ego_norm, is_observed]
-            [0.90, 0.00, 1.0],   # ego   (dist-to-ego is 0; ego always observed)
-            [0.70, 0.30, 1.0],   # peer1 (sensed -> observed, live fuel/dist)
-            [0.00, 0.00, 0.0],   # peer2 (unsensed -> is_observed=0; fuel/dist masked to 0)
+            [0.90],   # ego  (real fuel_norm)
+            [0.00],   # peer1 (featureless)
+            [0.00],   # peer2 (featureless)
         ],
         dtype=np.float32,
     )
     ego_index = 4  # == k, ego is the first agent node
-    # Edges: ASSIGNMENT 4->0, 5->1, 6->3 (complete static allocation, incl. unsensed peer2);
-    #        SPATIAL 4->0, 4->1, 4->2 (ego senses tasks 0-2 only; task 3 has NO SPATIAL edge).
+    # Edges: ASSIGNMENT only — 4->0, 5->1, 6->3 (complete static allocation, incl. peer2).
+    # SPATIAL edges are gone; ego sensing is carried by task_features[:, 5].
     edge_index = np.array(
-        [[4, 5, 6, 4, 4, 4],
-         [0, 1, 3, 0, 1, 2]],
+        [[4, 5, 6],
+         [0, 1, 3]],
         dtype=np.int64,
     )
     edge_type = np.array(
-        [int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT),
-         int(EdgeType.SPATIAL), int(EdgeType.SPATIAL), int(EdgeType.SPATIAL)],
+        [int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT)],
         dtype=np.int64,
     )
     obs = GraphObservation(

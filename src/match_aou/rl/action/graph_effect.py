@@ -245,7 +245,7 @@ def _selftest() -> None:
 
     # Minimal GraphObservation (only task_target_ids / agent_id are read here).
     obs = GraphObservation(
-        task_features=np.zeros((3, 5), dtype=np.float32),
+        task_features=np.zeros((3, 6), dtype=np.float32),
         agent_features=np.zeros((2, 3), dtype=np.float32),
         ego_index=3,
         edge_index=np.zeros((2, 0), dtype=np.int64),
