@@ -64,6 +64,9 @@ from ...models import Agent, Location, Task
 # module-level pure function, so reusing it neither couples us to the frozen
 # executor's class structure nor risks divergence.
 from .blade_executor_minimal import nearest_neighbor_order
+# Shared enemy-enumeration (single source of truth). sensed_target_ids reuses it so
+# executor sensing and generate_all_enemy_tasks agree on "which units are enemy targets".
+from .scenario_factory import iter_enemy_targets
 
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
 
@@ -301,6 +304,56 @@ class GraphPlanExecutor:
                 return False
         return True
 
+    # ---- sensing exposure (the trigger layer's eyes) --------------------------
+
+    def sensed_target_ids(self, observation: object, ego_id: str) -> Dict[str, object]:
+        """Enemy targets within the ego's OWN sensor range right now, as ``{id: unit}``.
+
+        Thin EXPOSURE of the sensing predicate the confirm-guard already uses: the
+        ego's live position (``_live_location``) and the unified ``arrival_threshold_km``
+        radius (== detection range). It scans the WORLD's enemy targets (via
+        ``iter_enemy_targets``), NOT ``self.tasks`` — a pop-up is by definition absent
+        from the plan, so a tasks-scan could never sense it.
+
+        No-communication: uses ONLY the ego's own live position + own sensor radius;
+        peer runtime state is never read. Only LIVE enemies count (the same
+        ``get_target`` liveness probe the confirm-guard uses). A grounded / dead ego
+        (no live location) senses nothing -> ``{}``.
+
+        Returns the ``{id: unit}`` MAP (values are the live BLADE units from
+        ``get_target``) rather than a bare id set: ``decide_triggers`` needs the unit to
+        build a pop-up Task via ``make_attack_task``, and we already resolved it for the
+        liveness check — so the map is free. This is the trigger layer's SOLE sensor
+        input; it is pure w.r.t. executor state (reads ``self.agent_by_id`` /
+        ``self.arrival_threshold_km``, mutates nothing).
+
+        Args:
+            observation: the live BLADE Scenario observation.
+            ego_id: the ego aircraft id.
+
+        Returns:
+            ``dict[str, unit]`` mapping each in-range, live enemy target-id to its live
+            BLADE unit (possibly empty).
+        """
+        ego_id = str(ego_id)
+        ego_loc = _live_location(observation, ego_id)
+        if ego_loc is None:
+            return {}  # grounded / dead: no live position -> senses nothing
+        agent = self.agent_by_id.get(ego_id)
+        if agent is None:
+            return {}  # unknown ego -> cannot determine "our side"
+        our_side = getattr(agent, "side_color", None)
+
+        sensed: Dict[str, object] = {}
+        for target_id, target_loc in iter_enemy_targets(observation, our_side):
+            # In the ego's own sensor range? Distance first (cheap) short-circuits
+            # get_target's scan, so we never probe liveness for out-of-range targets.
+            if ego_loc.distance_to(target_loc) <= self.arrival_threshold_km:
+                unit = observation.get_target(target_id)  # confirm-guard's liveness probe
+                if unit is not None:  # still alive
+                    sensed[str(target_id)] = unit
+        return sensed
+
     # ---- single-ego command (the whole decision lives here) -------------------
 
     def _command_for_ego(self, ego_id: str, scenario: object) -> Optional[str]:
@@ -445,3 +498,102 @@ class GraphPlanExecutor:
         except (TypeError, IndexError):
             return False
         return last_loc.distance_to(target_loc) <= 1.0
+
+
+# =============================================================================
+# Self-test (hand-built stubs; NO BLADE engine, NO torch, NO solver)
+# =============================================================================
+
+def _selftest() -> None:
+    """Exercise ``sensed_target_ids`` geometry / liveness / no-live-position paths.
+
+    Run under nlp_env from the repo, e.g.:
+        env PYTHONPATH=src python -m match_aou.utils.blade_utils.blade_graph_executor
+    """
+    from types import SimpleNamespace
+
+    def _agent(aid: str, side: str) -> Agent:
+        # Only .id / .side_color are read by sensed_target_ids; the rest are inert.
+        return Agent(
+            location=Location(32.0, 35.0),
+            capabilities=[],
+            budget=0.0,
+            move_cost_function=lambda s, d: 0.0,
+            agent_id=aid,
+            side_color=side,
+        )
+
+    def _unit(uid: str, lat: float, lon: float, side: str) -> SimpleNamespace:
+        return SimpleNamespace(id=uid, latitude=lat, longitude=lon, side_color=side, altitude=0)
+
+    # Ego at (32.0, 35.0). arrival_threshold = 50 km. 0.1 deg lat ~= 11.1 km.
+    ego_id = "ego1"
+    ego_ac = SimpleNamespace(id=ego_id, latitude=32.0, longitude=35.0)
+
+    # Enemy (red) targets:
+    fac_in = _unit("fac_in", 32.10, 35.0, "red")       # ~11 km  -> in range, live
+    fac_killed = _unit("fac_killed", 32.05, 35.0, "red")  # ~5.5 km -> in range but KILLED
+    fac_far = _unit("fac_far", 33.0, 35.0, "red")      # ~111 km -> out of range
+    ab_in = _unit("ab_in", 31.95, 35.0, "red")         # ~5.5 km -> in range, live
+    # Friendly (blue) unit close by -> excluded by side (not an enemy target).
+    fac_friend = _unit("fac_friend", 32.0, 35.02, "blue")
+
+    class StubScenario:
+        def __init__(self, aircraft):
+            self.aircraft = aircraft
+            self.facilities = [fac_in, fac_killed, fac_far, fac_friend]
+            self.airbases = [ab_in]
+            self.ships = []
+
+        def get_target(self, target_id):
+            # "fac_killed" is still enumerated but reads as dead (get_target -> None),
+            # so it exercises the liveness guard INDEPENDENTLY of enumeration.
+            if str(target_id) == "fac_killed":
+                return None
+            for u in (self.facilities + self.airbases + self.ships):
+                if str(u.id) == str(target_id):
+                    return u
+            return None
+
+    ex = GraphPlanExecutor(
+        tasks=[],
+        solution={},
+        agents=[_agent(ego_id, "blue")],
+        arrival_threshold_km=50.0,
+    )
+
+    print("=" * 72)
+    print("blade_graph_executor.sensed_target_ids self-test")
+    print("=" * 72)
+
+    # (1) Airborne ego: in-range live enemies only, returned as an {id: unit} map.
+    #     Out-of-range, killed, and friendly units are all excluded.
+    scenario = StubScenario(aircraft=[ego_ac])
+    sensed = ex.sensed_target_ids(scenario, ego_id)
+    assert set(sensed.keys()) == {"fac_in", "ab_in"}, sensed
+    # Values are the live BLADE units (identity-equal to the scenario's units).
+    assert sensed["fac_in"] is fac_in and sensed["ab_in"] is ab_in
+    print(f"[1] in-range live enemies only (id -> unit): {sorted(sensed)}   OK")
+    print("    (fac_far out-of-range, fac_killed dead, fac_friend friendly -> excluded)")
+
+    # (2) Grounded / dead ego (absent from scenario.aircraft) -> {}.
+    grounded = StubScenario(aircraft=[])
+    assert ex.sensed_target_ids(grounded, ego_id) == {}
+    print("[2] grounded / dead ego (no live location) -> {}   OK")
+
+    # (3) Unknown ego (airborne but not in agent_by_id -> side unknown) -> {}.
+    ghost = SimpleNamespace(id="ghost", latitude=32.0, longitude=35.0)
+    assert ex.sensed_target_ids(StubScenario(aircraft=[ghost]), "ghost") == {}
+    print("[3] unknown ego (no MATCH-AOU agent -> no side) -> {}   OK")
+
+    # (4) Scans the WORLD, not self.tasks: the executor has zero tasks yet still senses
+    #     both in-range enemies (proves pop-ups, absent from the plan, are sensable).
+    assert ex.tasks == [] and set(sensed.keys()) == {"fac_in", "ab_in"}
+    print("[4] scans world enemies (self.tasks empty) -> pop-ups are sensable   OK")
+
+    print("-" * 72)
+    print("All assertions passed.")
+
+
+if __name__ == "__main__":
+    _selftest()
