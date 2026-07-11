@@ -131,8 +131,12 @@ class GraphPlanExecutor:
         nn_ordering: bool = True,
         kill_confirm_ticks: int = 60,
     ) -> None:
-        # The list that solution tuples index into.
-        self.tasks: List[Task] = list(tasks)
+        # The list that solution tuples index into, PER-EGO (no-comms isolation).
+        # All egos start identical at t=0 (fan the provided list out to every agent);
+        # per-ego divergence happens ONLY via resync (e.g. a pop-up appended to one
+        # ego's belief). A single shared list would leak one ego's pop-up into a
+        # peer's task-view or collide indices -> a silent cross-agent information leak.
+        self.tasks: Dict[str, List[Task]] = {str(a.id): list(tasks) for a in agents}
         # The solution, per-ego slices. str-keyed to match graph_effect's output.
         self.plans: Dict[str, List[Assignment]] = {
             str(k): [tuple(t) for t in (v or [])] for k, v in solution.items()
@@ -190,16 +194,20 @@ class GraphPlanExecutor:
 
     # ---- assignment resolution ------------------------------------------------
 
-    def _resolve_step(self, assignment: Assignment) -> Optional[object]:
-        """Resolve an assignment's Step (carries .target_id and .location), or None.
+    def _resolve_step(self, ego_id: str, assignment: Assignment) -> Optional[object]:
+        """Resolve an assignment's Step against the EGO's OWN task list, or None.
 
-        Out-of-range task/step indices yield None and are treated as "nothing to
-        execute" (skipped), exactly like the frozen executor's index guards.
+        Reads the acting ego's PRIVATE task list (per-ego isolation): task indices
+        resolve against ``self.tasks[str(ego_id)]``, never a peer's list. An unknown
+        ego (absent key) is treated as an empty list, so its assignments resolve to
+        None. Out-of-range task/step indices likewise yield None and are treated as
+        "nothing to execute" (skipped), exactly like the frozen executor's guards.
         """
         t_idx, s_idx, _lv = assignment
-        if not (0 <= int(t_idx) < len(self.tasks)):
+        ego_tasks = self.tasks.get(str(ego_id), [])
+        if not (0 <= int(t_idx) < len(ego_tasks)):
             return None
-        steps = self.tasks[int(t_idx)].steps
+        steps = ego_tasks[int(t_idx)].steps
         if not (0 <= int(s_idx) < len(steps)):
             return None
         return steps[int(s_idx)]
@@ -217,7 +225,7 @@ class GraphPlanExecutor:
         """
         not_done: List[Assignment] = []
         for a in self.plans.get(ego_id, []):
-            step = self._resolve_step(a)
+            step = self._resolve_step(ego_id, a)
             if step is None:
                 continue  # invalid index -> not executable -> implicitly satisfied
             if (ego_id, str(step.target_id)) in self.done:
@@ -238,7 +246,7 @@ class GraphPlanExecutor:
         # ego is grounded (no live pos) the helper falls back to deterministic
         # (task_idx, step_idx) order.
         def _loc_of(a: Assignment) -> Optional[Location]:
-            step = self._resolve_step(a)
+            step = self._resolve_step(ego_id, a)
             return getattr(step, "location", None) if step is not None else None
 
         ordered, _end = nearest_neighbor_order(
@@ -276,11 +284,14 @@ class GraphPlanExecutor:
         Eligibility is derived fresh from ``(plans, done)`` every tick, so there
         is no positional state to fix here. ``done`` is deliberately NOT touched,
         so already-completed targets are not redone after the edit. Pass ``tasks``
-        if the task list changed (e.g. a pop-up added a task node).
+        if THIS ego's task list changed (e.g. a pop-up added a task node); only
+        this ego's slice is updated, so a peer's task-view is never touched (no-comms).
         """
         ego_key = str(ego_id)
         if tasks is not None:
-            self.tasks = list(tasks)
+            # Update ONLY the resynced ego's task slice — a pop-up appended to this
+            # ego's belief must NOT appear in any peer's task-view (no-comms).
+            self.tasks[ego_key] = list(tasks)
         slice_ = new_solution.get(ego_key, new_solution.get(ego_id, []))
         self.plans[ego_key] = [tuple(t) for t in (slice_ or [])]
 
@@ -295,7 +306,7 @@ class GraphPlanExecutor:
             if ego_id in self.dead:
                 continue  # crashed: assignments terminally unsatisfiable, RTB n/a
             for a in self.plans.get(ego_id, []):
-                step = self._resolve_step(a)
+                step = self._resolve_step(ego_id, a)
                 if step is None:
                     continue
                 if (ego_id, str(step.target_id)) not in self.done:
@@ -394,7 +405,7 @@ class GraphPlanExecutor:
             return None  # should not happen while airborne; be safe
 
         while eligible:
-            step = self._resolve_step(eligible[0])
+            step = self._resolve_step(ego_id, eligible[0])
             if step is None or getattr(step, "location", None) is None:
                 return None  # unexecutable head; skip this ego this tick
             target_id = str(step.target_id)
@@ -412,7 +423,7 @@ class GraphPlanExecutor:
         if not eligible:
             return self._rtb_or_latch(ego_id, airborne)
 
-        step = self._resolve_step(eligible[0])
+        step = self._resolve_step(ego_id, eligible[0])
         target_id = str(step.target_id)
         target_loc = step.location
         d = live.distance_to(target_loc)
@@ -511,6 +522,7 @@ def _selftest() -> None:
         env PYTHONPATH=src python -m match_aou.utils.blade_utils.blade_graph_executor
     """
     from types import SimpleNamespace
+    from ...models import Step, StepKind  # only the isolation section builds real Steps
 
     def _agent(aid: str, side: str) -> Agent:
         # Only .id / .side_color are read by sensed_target_ids; the rest are inert.
@@ -588,8 +600,87 @@ def _selftest() -> None:
 
     # (4) Scans the WORLD, not self.tasks: the executor has zero tasks yet still senses
     #     both in-range enemies (proves pop-ups, absent from the plan, are sensable).
-    assert ex.tasks == [] and set(sensed.keys()) == {"fac_in", "ab_in"}
+    #     self.tasks is now the per-ego dict shape: {ego_id: []} (fanned out to agents).
+    assert ex.tasks == {ego_id: []} and set(sensed.keys()) == {"fac_in", "ab_in"}
     print("[4] scans world enemies (self.tasks empty) -> pop-ups are sensable   OK")
+
+    # -------------------------------------------------------------------------
+    # PER-EGO TASK-LIST ISOLATION (no-comms RED LINE)
+    # -------------------------------------------------------------------------
+    # A 2-ego executor (A, B) with IDENTICAL initial tasks. A pop-up appended to
+    # one ego's belief (via resync) must never reach the peer's task-view, and an
+    # index collision between two egos' pop-ups must resolve to each ego's OWN task.
+    print("-" * 72)
+    print("per-ego task-list isolation (no-comms)")
+
+    def _iso_agent(aid: str) -> Agent:
+        return Agent(
+            location=Location(32.0, 35.0),
+            capabilities=[],
+            budget=0.0,
+            move_cost_function=lambda s, d: 0.0,
+            agent_id=aid,
+            side_color="blue",
+        )
+
+    def _iso_task(target_id: str, lat: float, lon: float) -> Task:
+        # One ATTACK step carrying .target_id and .location (all the executor reads).
+        step = Step(
+            location=Location(lat, lon),
+            target_id=target_id,
+            capabilities=[],
+            probability=1.0,
+            effort=1,
+            step_kind=StepKind.ATTACK,
+        )
+        return Task(steps=[step], utility=100.0)
+
+    # Identical initial tasks: task0 -> "t0", task1 -> "t1".
+    init_tasks = [_iso_task("t0", 32.10, 35.0), _iso_task("t1", 31.90, 35.0)]
+    # A owns task0, B owns task1 (both at level 0).
+    iso_solution = {"A": [(0, 0, 0)], "B": [(1, 0, 0)]}
+    iso_ex = GraphPlanExecutor(
+        tasks=init_tasks,
+        solution=iso_solution,
+        agents=[_iso_agent("A"), _iso_agent("B")],
+        arrival_threshold_km=50.0,
+    )
+    # Grounded scenario: both egos absent from .aircraft, so _eligible falls back to
+    # deterministic order (no live position needed for the isolation checks).
+    grounded_world = SimpleNamespace(aircraft=[], facilities=[], airbases=[], ships=[])
+
+    # Fanned-out identical lists at t=0 (distinct list objects, equal content).
+    assert iso_ex.tasks["A"] == init_tasks and iso_ex.tasks["B"] == init_tasks
+    assert iso_ex.tasks["A"] is not iso_ex.tasks["B"]
+
+    # Baselines captured BEFORE any resync.
+    b_tasks_before = list(iso_ex.tasks["B"])
+    b_eligible_before = iso_ex._eligible("B", grounded_world)
+
+    # (ISO-1) Append a pop-up to A ONLY. B's task list stays byte-identical; A's grows.
+    popup_a = _iso_task("popupA", 32.20, 35.0)
+    iso_ex.resync({"A": [(0, 0, 0), (2, 0, 0)]}, ego_id="A", tasks=init_tasks + [popup_a])
+    assert iso_ex.tasks["B"] == b_tasks_before, "ISO-1: B's task-view leaked A's pop-up!"
+    assert popup_a in iso_ex.tasks["A"] and len(iso_ex.tasks["A"]) == 3
+    print("[ISO-1] pop-up appended to A only; B's task-view unchanged   OK")
+
+    # (ISO-2) B resolves against its OWN list: index 2 is out-of-range for B (-> None),
+    #         never A's pop-up; and B's eligibility is identical to before A's resync.
+    assert iso_ex._resolve_step("B", (2, 0, 0)) is None, "ISO-2: B saw A's index-2 pop-up!"
+    assert iso_ex._eligible("B", grounded_world) == b_eligible_before
+    print("[ISO-2] B resolves via its own list; eligibility unchanged by A's resync   OK")
+
+    # (ISO-3) Index collision: give A and B DIFFERENT pop-ups at the SAME index (2),
+    #         each via its own resync. Each ego's index 2 resolves to ITS OWN task.
+    popup_b = _iso_task("popupB", 31.80, 35.0)
+    iso_ex.resync({"B": [(1, 0, 0), (2, 0, 0)]}, ego_id="B", tasks=init_tasks + [popup_b])
+    assert iso_ex.tasks["A"][2] is popup_a and iso_ex.tasks["B"][2] is popup_b
+    step_a = iso_ex._resolve_step("A", (2, 0, 0))
+    step_b = iso_ex._resolve_step("B", (2, 0, 0))
+    assert step_a is not None and str(step_a.target_id) == "popupA"
+    assert step_b is not None and str(step_b.target_id) == "popupB"
+    assert step_a is not step_b, "ISO-3: cross-bleed between A's and B's index-2 task!"
+    print("[ISO-3] same-index pop-ups resolve to each ego's OWN task (no cross-bleed)   OK")
 
     print("-" * 72)
     print("All assertions passed.")
