@@ -16,11 +16,14 @@ Mandatory properties (the design intent — these are not optional)
 (b) **Size-agnosticism**: native to any ``(k, a, E)`` with no retraining and no
     padding to fixed sizes. We never inherit the flat path's ``MAX_AGENTS``
     zero-padding — size-agnosticism is the whole point.
-(c) **Per-task-node output**, NOT a single pooled graph vector: the actor scores
-    the ``k x 4`` meta-action head independently per task node, so it needs one
-    embedding per task node. A pooled summary is wanted only later, for the future
-    centralized critic — hence the :meth:`GraphEncoder.pool` HOOK with NO value
-    head built now.
+(c) **Per-task-node output**, NOT a single pooled graph vector: this encoder emits
+    one ``[embed_dim]`` embedding per task node (output ``[k, embed_dim]``) and knows
+    NOTHING about meta-actions. The DOWNSTREAM ``ActionHead`` turns each per-task
+    embedding into the ``k x 3`` meta-action logits (3 after Cooperative Recovery was
+    removed) independently per task node — which is why the encoder must produce one
+    embedding per task node rather than a pooled summary. A pooled summary is wanted
+    only later, for the future centralized critic — hence the
+    :meth:`GraphEncoder.pool` HOOK with NO value head built now.
 
 What is prescribed vs. our engineering choice
 ---------------------------------------------
@@ -89,7 +92,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from ..observation.graph_builder import GraphObservation, EdgeType
+from ..observation.graph_builder import GraphObservation, EdgeType, TASK_FEATURE_DIM
 
 
 # =============================================================================
@@ -233,7 +236,7 @@ class GraphEncoder(nn.Module):
         embed_dim: int = 64,
         num_heads: int = 4,
         num_layers: int = 2,
-        task_feat_dim: int = 5,
+        task_feat_dim: int = TASK_FEATURE_DIM,
         agent_feat_dim: int = 1,
         edge_attr_dim: int = 1,
         ff_dim: Optional[int] = None,
@@ -470,30 +473,45 @@ def _selftest() -> None:
     print("=" * 72)
 
     EMBED_DIM = 32  # deliberately != model_dim to exercise the out_proj read-out
+    # NOTE: task_feat_dim is deliberately NOT overridden here — the default value is
+    # what we regression-guard, so the encoder must consume the builder's real column
+    # width (TASK_FEATURE_DIM == 6) with no help from the test.
     encoder = GraphEncoder(model_dim=64, embed_dim=EMBED_DIM, num_heads=4, num_layers=2)
     encoder.eval()  # deterministic forward (no dropout, but explicit for clarity)
 
+    # Contract pin: the default MUST track the builder's single source of truth. A
+    # future revert of the default back to a magic number breaks this immediately.
+    assert encoder.task_feat_dim == TASK_FEATURE_DIM, (
+        f"default task_feat_dim {encoder.task_feat_dim} != builder "
+        f"TASK_FEATURE_DIM {TASK_FEATURE_DIM}"
+    )
+    print(f"[contract] default task_feat_dim == TASK_FEATURE_DIM == {TASK_FEATURE_DIM}")
+
     # -------------------------------------------------------------------------
     # Topology A: k=4 tasks, a=2 agents (ego index 4 + one peer index 5).
-    #   ASSIGNMENT: ego(4)->0, peer(5)->1 ; SPATIAL: ego(4)->0, 4->2 ;
-    #   PRECEDENCE: none. Task 3 has NO SPATIAL and NO ASSIGNMENT in-edge -> the
-    #   attention-stress / regression node: self-loops alone must keep it finite.
+    #   Builder-faithful: ASSIGNMENT is the only constructed relation, and the ego's
+    #   sensing lives in the `sensed` COLUMN (task_features[:, 5]), NOT in edges.
+    #   ASSIGNMENT: ego(4)->0, peer(5)->1 ; PRECEDENCE: none. Tasks 2 and 3 have NO
+    #   ASSIGNMENT in-edge -> the pop-up-like attention-stress / regression nodes:
+    #   self-loops alone must keep them finite. task_features columns are 6-wide now
+    #   ([5] = sensed in {0.0, 1.0}); the encoder's default task_feat_dim must consume
+    #   them with no override.
     # -------------------------------------------------------------------------
     task_feats_A = np.array(
+        #    util  dist  cap  reach prob  sensed
         [
-            [0.80, 0.20, 1.0, 1.0, 1.0],
-            [0.60, 0.40, 1.0, 1.0, 1.0],
-            [0.50, 0.90, 1.0, 0.0, 1.0],
-            [0.70, 0.55, 1.0, 1.0, 1.0],   # isolated: no SPATIAL, no ASSIGNMENT
+            [0.80, 0.20, 1.0, 1.0, 1.0, 1.0],
+            [0.60, 0.40, 1.0, 1.0, 1.0, 0.0],
+            [0.50, 0.90, 1.0, 0.0, 1.0, 1.0],   # sensed pop-up (no ASSIGNMENT in-edge)
+            [0.70, 0.55, 1.0, 1.0, 1.0, 0.0],   # isolated: no ASSIGNMENT in-edge, unsensed
         ],
         dtype=np.float32,
     )
     agent_feats_A = np.array([[0.90], [0.0]], dtype=np.float32)  # ego real fuel, peer featureless
-    edge_index_A = np.array([[4, 5, 4, 4],
-                             [0, 1, 0, 2]], dtype=np.int64)
+    edge_index_A = np.array([[4, 5],
+                             [0, 1]], dtype=np.int64)
     edge_type_A = np.array(
-        [int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT),
-         int(EdgeType.SPATIAL), int(EdgeType.SPATIAL)],
+        [int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT)],
         dtype=np.int64,
     )
     obs_A = _make_obs(task_feats_A, agent_feats_A, edge_index_A, edge_type_A, ego_index=4)
@@ -504,7 +522,7 @@ def _selftest() -> None:
     assert emb_A.shape == (k_A, EMBED_DIM), emb_A.shape
     assert torch.isfinite(emb_A).all(), "encoder output has non-finite values (topology A)"
     print(f"[A] a=2  encoder(obs) -> {tuple(emb_A.shape)}  all-finite OK "
-          f"(task 3 isolated; self-loops kept it finite)")
+          f"(tasks 2,3 have no ASSIGNMENT in-edge; self-loops kept them finite)")
 
     head = ActionHead(embed_dim=encoder.embed_dim)
     logits_A = head(emb_A)
@@ -525,18 +543,19 @@ def _selftest() -> None:
 
     # -------------------------------------------------------------------------
     # Topology B: k=2 tasks, a=1 agent (EGO ONLY, index 2). No peers, no PRECEDENCE.
-    #   ASSIGNMENT: ego(2)->0 ; SPATIAL: ego(2)->1. Exercises a=1 + a task with
-    #   no SPATIAL in-edge (task 0) again proving self-loops prevent NaN.
+    #   Builder-faithful: ASSIGNMENT ego(2)->0 only (sensing is the `sensed` column,
+    #   not an edge). Task 1 has NO ASSIGNMENT in-edge -> a=1 + a no-in-edge task,
+    #   again proving self-loops prevent NaN. Columns are 6-wide ([5] = sensed).
     # -------------------------------------------------------------------------
     task_feats_B = np.array(
-        [[0.65, 0.30, 1.0, 1.0, 1.0],
-         [0.55, 0.70, 1.0, 1.0, 1.0]],
+        [[0.65, 0.30, 1.0, 1.0, 1.0, 1.0],
+         [0.55, 0.70, 1.0, 1.0, 1.0, 0.0]],   # no ASSIGNMENT in-edge, unsensed
         dtype=np.float32,
     )
     agent_feats_B = np.array([[0.80]], dtype=np.float32)
-    edge_index_B = np.array([[2, 2],
-                             [0, 1]], dtype=np.int64)
-    edge_type_B = np.array([int(EdgeType.ASSIGNMENT), int(EdgeType.SPATIAL)], dtype=np.int64)
+    edge_index_B = np.array([[2],
+                             [0]], dtype=np.int64)
+    edge_type_B = np.array([int(EdgeType.ASSIGNMENT)], dtype=np.int64)
     obs_B = _make_obs(task_feats_B, agent_feats_B, edge_index_B, edge_type_B, ego_index=2)
     emb_B = encoder(obs_B)
     assert emb_B.shape == (2, EMBED_DIM), emb_B.shape
@@ -554,6 +573,30 @@ def _selftest() -> None:
     emb_empty = encoder(obs_empty)
     assert torch.isfinite(emb_empty).all(), "encoder output non-finite with zero edges"
     print(f"[B'] zero original edges -> {tuple(emb_empty.shape)}  all-finite OK (self-loops only)")
+
+    # -------------------------------------------------------------------------
+    # Reserved-relation machinery ONLY (NOT builder-emitted). The builder no longer
+    # emits SPATIAL edges — sensing moved to the `sensed` COLUMN — but EdgeType.SPATIAL
+    # and its fwd/rev rows in the encoder's `type_bias` table are kept reserved. Feed a
+    # lone SPATIAL edge to prove the multi-relation attention path stays finite if that
+    # relation is ever re-introduced. This topology is DELIBERATELY not builder-faithful.
+    # -------------------------------------------------------------------------
+    task_feats_R = np.array(
+        [[0.60, 0.40, 1.0, 1.0, 1.0, 1.0],
+         [0.50, 0.60, 1.0, 1.0, 1.0, 0.0]],
+        dtype=np.float32,
+    )
+    agent_feats_R = np.array([[0.75]], dtype=np.float32)
+    edge_index_R = np.array([[2, 2],
+                             [0, 1]], dtype=np.int64)
+    edge_type_R = np.array(
+        [int(EdgeType.ASSIGNMENT), int(EdgeType.SPATIAL)], dtype=np.int64
+    )
+    obs_R = _make_obs(task_feats_R, agent_feats_R, edge_index_R, edge_type_R, ego_index=2)
+    emb_R = encoder(obs_R)
+    assert torch.isfinite(emb_R).all(), "encoder non-finite on reserved SPATIAL relation"
+    print(f"[R] reserved-relation (SPATIAL) machinery -> {tuple(emb_R.shape)}  "
+          f"all-finite OK (NOT builder-emitted)")
 
     # -------------------------------------------------------------------------
     # Gradient: every encoder parameter gets a finite grad. Run WITH edge_attr so
@@ -609,18 +652,19 @@ def _selftest() -> None:
     # -------------------------------------------------------------------------
     with torch.no_grad():
         task_feats_C = np.array(
-            [[0.7, 0.3, 1.0, 1.0, 1.0],
-             [0.6, 0.5, 1.0, 1.0, 1.0],
-             [0.5, 0.7, 1.0, 1.0, 1.0]],
+            [[0.7, 0.3, 1.0, 1.0, 1.0, 1.0],
+             [0.6, 0.5, 1.0, 1.0, 1.0, 0.0],
+             [0.5, 0.7, 1.0, 1.0, 1.0, 1.0]],
             dtype=np.float32,
         )
         agent_feats_C = np.array([[0.9], [0.0], [0.0]], dtype=np.float32)  # ego + 2 featureless peers
-        # ego=3, peer1=4, peer2=5 ; ASSIGN ego->0, peer1->1, peer2->2 ; SPATIAL ego->0
-        edge_index_C = np.array([[3, 4, 5, 3],
-                                 [0, 1, 2, 0]], dtype=np.int64)
+        # Builder-faithful: ASSIGNMENT only (sensing is the `sensed` column, not an edge).
+        # ego=3, peer1=4, peer2=5 ; ASSIGN ego->0, peer1->1, peer2->2
+        edge_index_C = np.array([[3, 4, 5],
+                                 [0, 1, 2]], dtype=np.int64)
         edge_type_C = np.array(
             [int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT),
-             int(EdgeType.ASSIGNMENT), int(EdgeType.SPATIAL)],
+             int(EdgeType.ASSIGNMENT)],
             dtype=np.int64,
         )
         obs_C = _make_obs(task_feats_C, agent_feats_C, edge_index_C, edge_type_C, ego_index=3)

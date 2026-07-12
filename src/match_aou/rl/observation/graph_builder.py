@@ -110,6 +110,12 @@ from ...utils.blade_utils.scenario_factory import create_agents_from_scenario, _
 logger = logging.getLogger(__name__)
 
 
+# task_features width: utility, dist, capable, reachable, probability, sensed.
+# Single source of truth for the task-feature vector width. The encoder imports
+# this constant for its ``task_feat_dim`` default so the two never desync.
+TASK_FEATURE_DIM = 6
+
+
 # =============================================================================
 # Edge types
 # =============================================================================
@@ -176,7 +182,7 @@ class GraphObservation:
     padding happens later at the buffer/batch level.
     """
 
-    task_features: np.ndarray          # [k, 6] float32, all values in [0, 1]
+    task_features: np.ndarray          # [k, TASK_FEATURE_DIM] float32, all values in [0, 1]
     agent_features: np.ndarray         # [a, 1] float32: [0] fuel_norm (ego real, peers 0.0)
     ego_index: int                     # global node index of the ego agent (== k)
     edge_index: np.ndarray             # [2, E] int   COO over GLOBAL node indices
@@ -375,7 +381,7 @@ def build_graph_observation(
     # =========================================================================
     # Task nodes: one per Task in `tasks` (stable, NOT restricted to in-range).
     # =========================================================================
-    task_features = np.zeros((k, 6), dtype=np.float32)
+    task_features = np.zeros((k, TASK_FEATURE_DIM), dtype=np.float32)
     task_target_ids: List[str] = []
     task_locs: List[Optional[Location]] = []  # cached for edge geometry
 
@@ -664,7 +670,7 @@ def _selftest() -> None:
           f"(all 1.0 expected — probability is degenerate until low-p targets exist)")
 
     # Lightweight invariant checks.
-    assert go.task_features.shape == (len(tasks_g), 6)
+    assert go.task_features.shape == (len(tasks_g), TASK_FEATURE_DIM)
     assert go.agent_features.shape == (len(go.agent_ids), 1)
     assert go.ego_index == len(tasks_g)
     assert go.edge_index.shape[0] == 2
