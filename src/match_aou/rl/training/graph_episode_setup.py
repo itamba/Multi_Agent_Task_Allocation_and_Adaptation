@@ -158,10 +158,17 @@ class EpisodeContext:
     executor were built from). It is exposed for the tick-loop / reward and so the
     two-independent-solves invariant (oracle is NOT A_init) is observable; the live
     authoritative plans are the per-ego ``beliefs`` and ``executor.plans``.
+
+    ``observation`` is the ``env.reset()`` observation captured here — the SEED the
+    tick-loop needs for its very first per-ego sense (before it has stepped BLADE even
+    once). The loop advances its own local ``obs`` from ``env.step`` thereafter and must
+    NEVER call ``env.reset()`` again (that would restart the episode and invalidate the
+    solve this context is built around); this field exists so it doesn't have to.
     """
 
     env: Any
     game: Any
+    observation: Any
     agents: List[Agent]
     agent_ids: List[str]
     beliefs: Dict[str, Belief]
@@ -275,6 +282,7 @@ def setup_episode(
     return EpisodeContext(
         env=env,
         game=game,
+        observation=obs,  # seed for the tick-loop's first sense; loop never re-resets
         agents=agents,
         agent_ids=agent_ids,
         beliefs=beliefs,
