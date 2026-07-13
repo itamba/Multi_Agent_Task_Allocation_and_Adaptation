@@ -23,15 +23,17 @@ NO-COMMUNICATION FOUNDATION (load-bearing) — enforced by construction here:
     (``solve_and_normalize`` output). Passing the raw ``all_tasks`` would seed an
     unallocated task with no ASSIGNMENT edge that the graph would misread as a pop-up.
   * The partial and full sets are solved TWICE, independently, so the oracle is
-    never an alias of A_init (holds even under the identity split stub).
+    never an alias of A_init (holds even when the split leaves partial == full).
   * ONE ``DETECTION_KM`` feeds the executor now and (later) the builder's
     ``detection_range_km`` — sensing == attack == arrival is a single radius.
 """
 
 from __future__ import annotations
 
+import logging
+import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from ...models import Agent, Task
 from ...solvers import MatchAou
@@ -43,6 +45,8 @@ from ...utils.blade_utils.scenario_factory import (
 from ...utils.blade_utils.blade_graph_executor import GraphPlanExecutor
 from .belief import Belief
 
+logger = logging.getLogger(__name__)
+
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
 
 # =============================================================================
@@ -53,7 +57,7 @@ Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
 # detection_range_km when the orchestrator wires the builder — keep them equal.
 DETECTION_KM: float = 50.0
 # Fraction of tasks the egos start knowing (the partial set). Mirrors train_full's
-# PARTIAL_RATIO default; consumed by split_tasks (a stub for now — identity split).
+# PARTIAL_RATIO default; consumed by split_tasks (the discovery-chain sampler).
 PARTIAL_RATIO: float = 2.0 / 3.0
 MAX_SIM_TICKS: int = 14400
 SOLVER_NAME: str = "bonmin"
@@ -114,36 +118,139 @@ def solve_and_normalize(
 
 
 # =============================================================================
-# 2. Partial / full split (STUB — real discovery-chain split is a separate task)
+# 2. Partial / full split (discovery-chain aware, single-radius)
 # =============================================================================
 
 def split_tasks(
     all_tasks: List[Task],
-    partial_ratio: float,
-    observation: Any,
-    **kw: Any,
+    partial_ratio: float = PARTIAL_RATIO,
+    *,
+    detection_km: float = DETECTION_KM,
+    max_attempts: int = 20,
 ) -> Tuple[List[Task], List[Task], Dict[str, Any]]:
     """Split the full task set into a partial (known) set and the full (oracle) set.
 
-    STUB: returns ``(all_tasks, all_tasks, {"stub": True})`` — identity, so partial
-    == full and there are no pop-ups. The return SHAPE is final: the real
-    rejection-sampling / discovery-chain split slots in behind this signature without
-    touching any caller.
+    Discovery-chain aware: every HIDDEN target keeps at least one KNOWN target
+    within ``detection_km`` (great-circle between ``task.steps[0].location``
+    points), so a masked target can in principle be discovered once an ego reaches
+    a known neighbour and senses it. ``detection_km`` is the SAME unified
+    sensing/attack/arrival radius the executor senses at (``arrival_threshold_km``)
+    and the generator now builds connectivity at — it is NOT BLADE ``aircraft.range``.
+    This is the fix for the old flat split, which measured adjacency at the (larger)
+    fleet *radar* range and so could mark a target discoverable at a radius the ego
+    never actually senses at, leaving hidden targets silently undiscoverable.
+
+    Algorithm (Layer 2 of the two-layer discovery chain; Layer 1 lives in
+    ``scenario_generator._ensure_discovery_chain``):
+
+    1. Build undirected adjacency between tasks: ``i`` and ``j`` are neighbours iff
+       ``locs[i].distance_to(locs[j]) <= detection_km``.
+    2. Pin "isolated" targets (no neighbour at all) into the known set — there is no
+       other path to discover them.
+    3. Rejection-sample the remaining known slots up to ``max_attempts`` times. A
+       draw is valid iff every hidden target has ≥1 known neighbour. ``clean`` on the
+       first attempt, ``resampled`` on a later one, ``warn-fallback`` on exhaustion
+       (last draw kept).
 
     Args:
-        all_tasks: every enemy task in the scenario.
-        partial_ratio: fraction of tasks in the partial set (ignored by the stub).
-        observation: the BLADE observation (needed by the real split for radar
-            adjacency; ignored by the stub).
-        **kw: forward-compat knobs for the real split (e.g. ``max_attempts``).
+        all_tasks: every enemy task (each with a ``steps[0].location``).
+        partial_ratio: fraction of tasks in the partial (known) set.
+        detection_km: the unified discovery radius (== the executor sensing radius).
+        max_attempts: cap on rejection-sampling retries before giving up.
 
     Returns:
-        ``(partial_tasks, full_tasks, split_meta)``.
+        ``(partial_tasks, full_tasks, split_meta)`` where ``full_tasks`` is a copy of
+        ``all_tasks`` and ``partial_tasks ⊆ full_tasks``. ``split_meta`` keys:
+        ``outcome`` (``"clean" | "resampled" | "exhaust" | "warn-fallback" |
+        "no-chain"``), ``attempt``, and the counts ``hidden, known, isolated_pinned,
+        partial, full``.
     """
-    # TODO(split): real rejection-sampling split — separate task. Must ensure every
-    # hidden target has a known same-zone radar neighbour (two-layer discovery chain);
-    # return the same (partial, full, meta) shape so callers stay untouched.
-    return all_tasks, all_tasks, {"stub": True}
+    full_tasks = list(all_tasks)
+    n = len(all_tasks)
+
+    # Degenerate: 0 or 1 task — nothing to hide, everything is known.
+    if n < 2:
+        meta = {
+            "outcome": "no-chain", "attempt": 1,
+            "hidden": 0, "known": n, "isolated_pinned": 0,
+            "partial": n, "full": n,
+        }
+        return full_tasks, full_tasks, meta
+
+    num_partial = max(1, int(n * partial_ratio))
+
+    # Build undirected adjacency between tasks (by index) at the discovery radius.
+    locs = [task.steps[0].location for task in all_tasks]
+    neighbors: Dict[int, Set[int]] = {i: set() for i in range(n)}
+    for i in range(n):
+        for j in range(i + 1, n):
+            if locs[i].distance_to(locs[j]) <= detection_km:
+                neighbors[i].add(j)
+                neighbors[j].add(i)
+
+    # Pin isolated tasks (no neighbour within the discovery radius) to the known set.
+    isolated = {i for i in range(n) if not neighbors[i]}
+
+    if len(isolated) > num_partial:
+        # More isolated targets than the partial budget: force as many as fit into
+        # known; the rest stay hidden and undiscoverable (there is no better draw).
+        forced = sorted(isolated)[:num_partial]
+        partial_tasks = [all_tasks[i] for i in forced]
+        logger.warning(
+            "Discovery chain (split): isolated=%d exceeds partial budget=%d; "
+            "%d isolated target(s) will be hidden and undiscoverable",
+            len(isolated), num_partial, len(isolated) - num_partial,
+        )
+        meta = {
+            "outcome": "exhaust", "attempt": 0,
+            "hidden": n - len(partial_tasks), "known": len(partial_tasks),
+            "isolated_pinned": min(len(isolated), num_partial),
+            "partial": len(partial_tasks), "full": n,
+        }
+        return partial_tasks, full_tasks, meta
+
+    pool = [i for i in range(n) if i not in isolated]
+    extra_needed = num_partial - len(isolated)
+
+    last_known_set: Set[int] = set()
+    for attempt in range(1, max_attempts + 1):
+        sampled = random.sample(pool, extra_needed) if extra_needed > 0 else []
+        known_set = isolated | set(sampled)
+        hidden_set = set(range(n)) - known_set
+
+        valid = all(bool(neighbors[h] & known_set) for h in hidden_set)
+        last_known_set = known_set
+        if valid:
+            partial_tasks = [all_tasks[i] for i in sorted(known_set)]
+            tag = "clean" if attempt == 1 else f"resampled (attempt {attempt})"
+            logger.debug(
+                "Discovery chain (split): %s (hidden=%d, known=%d, "
+                "isolated_pinned=%d, detection=%.0f km)",
+                tag, len(hidden_set), len(known_set), len(isolated), detection_km,
+            )
+            meta = {
+                "outcome": "clean" if attempt == 1 else "resampled",
+                "attempt": attempt,
+                "hidden": len(hidden_set), "known": len(known_set),
+                "isolated_pinned": len(isolated),
+                "partial": len(partial_tasks), "full": n,
+            }
+            return partial_tasks, full_tasks, meta
+
+    # Exhausted retries — keep the last draw and warn.
+    partial_tasks = [all_tasks[i] for i in sorted(last_known_set)]
+    logger.warning(
+        "Discovery chain (split): no valid split after %d attempts; some hidden "
+        "target(s) may have no known neighbour (detection=%.0f km)",
+        max_attempts, detection_km,
+    )
+    meta = {
+        "outcome": "warn-fallback", "attempt": max_attempts,
+        "hidden": n - len(partial_tasks), "known": len(partial_tasks),
+        "isolated_pinned": len(isolated),
+        "partial": len(partial_tasks), "full": n,
+    }
+    return partial_tasks, full_tasks, meta
 
 
 # =============================================================================
@@ -250,15 +357,21 @@ def setup_episode(
     if not all_tasks:
         raise RuntimeError("setup_episode: no enemy tasks in the scenario")
 
-    # --- 4. Partial / full split (identity stub for now) ----------------------
-    partial, full, split_meta = split_tasks(all_tasks, partial_ratio, obs)
+    # --- 4. Partial / full split (discovery-chain aware) ----------------------
+    # detection_km is the SAME radius fed to the executor below (arrival_threshold_km)
+    # and the generator's connectivity — so split-adjacency == runtime-sensing by
+    # construction. With a real split, partial ⊊ full: A_init covers only the known
+    # targets and the hidden ones become discoverable pop-ups.
+    partial, full, split_meta = split_tasks(
+        all_tasks, partial_ratio, detection_km=detection_km
+    )
 
     # --- 5. Solve the PARTIAL set -> A_init (the static plan egos start from) --
     a_init, belief_tasks, _ = solve_and_normalize(agents, partial)
 
     # --- 6. Solve the FULL set -> oracle (for the reward chat) ----------------
     # A SEPARATE, independent solve: oracle must never be an alias of a_init, even
-    # under the identity split stub (partial == full).
+    # in the degenerate case where the split leaves partial == full.
     oracle_solution, oracle_tasks, _ = solve_and_normalize(agents, full)
 
     # --- 7. N mutually-independent beliefs, one per ego id --------------------
@@ -331,11 +444,14 @@ def _selftest() -> None:
         max_sim_ticks=MAX_SIM_TICKS,
     )
     gen.recompute_time_feasible_cap(allowed_classes=None)
+    # detection_km=DETECTION_KM: the generator builds discovery connectivity at the
+    # SAME radius the split checks and the runtime senses at (single-radius invariant).
     cfg = VariationConfig(
         include_sams=False,
         num_red_airbases=(3, 3),
         randomize_red_airbase_positions=True,
         stretch_target_ratio=0.5,
+        detection_km=DETECTION_KM,
         seed=0,
     )
     scenario_path = str(gen.generate(episode=0, config=cfg))
@@ -439,6 +555,38 @@ def _selftest() -> None:
     assert ctx.executor.is_done() is False, "executor claims done at t=0 (no work?!)"
     print("[5] executor constructed; is_done() is False at t=0   OK")
 
+    # (6) REAL SPLIT (Test 2): partial ⊊ full, and A_init covers only KNOWN targets.
+    #     The full enemy set is recomputed from the SAME reset observation the setup
+    #     split ran on; the belief/A_init task universe must exclude every hidden id.
+    meta = ctx.split_meta
+    print(f"[split] meta: {meta}")
+    assert meta.get("outcome") in {"clean", "resampled", "exhaust", "warn-fallback",
+                                    "no-chain"}, meta
+    # counts are self-consistent: known + hidden == full == partial + hidden.
+    assert meta["known"] + meta["hidden"] == meta["full"], meta
+    assert meta["partial"] == meta["known"], meta
+    # With 3 airbases + stretch 0.5 the geometry always hides ≥1 target (num_partial=2).
+    assert meta["hidden"] >= 1, f"expected hidden>0 with this geometry, got {meta}"
+    assert meta["partial"] < meta["full"], f"partial not a strict subset of full: {meta}"
+
+    # A_init covers only known targets: belief/A_init target ids ⊊ the full enemy set.
+    full_ids = {
+        str(s.target_id)
+        for t in generate_all_enemy_tasks(
+            ctx.observation, attacking_side_color=ATTACKING_SIDE_COLOR, probability=1.0
+        )
+        for s in t.steps
+    }
+    belief_ids = {str(s.target_id) for t in belief_tasks for s in t.steps}
+    assert len(full_ids) == meta["full"], (len(full_ids), meta["full"])
+    assert belief_ids <= full_ids, (belief_ids - full_ids)
+    # allocated-only A_init sees at most the known targets, never all of them.
+    assert len(belief_ids) <= meta["known"], (len(belief_ids), meta["known"])
+    assert belief_ids != full_ids, "A_init covers ALL targets - hidden ones leaked in!"
+    print(f"[6] real split: partial={meta['partial']} < full={meta['full']} "
+          f"(hidden={meta['hidden']}); A_init sees {len(belief_ids)}/{len(full_ids)} "
+          f"targets, none hidden   OK")
+
     # --- Bonus: solve_and_normalize non-aliasing at the unit level -------------
     # Two calls on the same inputs must return DISTINCT objects (setup relies on this
     # for the two-independent-solves invariant above).
@@ -452,5 +600,163 @@ def _selftest() -> None:
     print("All assertions passed.")
 
 
+def _selftest_split() -> None:
+    """Test 1: the discovery-chain split in isolation (no BLADE, no bonmin).
+
+    Hand-builds tasks with known great-circle spacing and asserts the split's red
+    lines directly: hidden targets keep a known neighbour, isolated targets are
+    pinned, partial ⊆ full with consistent counts, and a tight radius that isolates
+    everything falls into the ``exhaust`` path.
+    """
+    from match_aou.models import Location, Step, StepKind, Task as _Task
+
+    print("=" * 72)
+    print("split_tasks unit test (Test 1 - no BLADE/bonmin)")
+    print("=" * 72)
+
+    def _mk(lon: float) -> _Task:
+        # lat=0 everywhere; at the equator Δlon deg ≈ Δlon * 111.32 km great-circle.
+        return _Task(
+            steps=[Step(Location(0.0, lon), f"T{lon:g}", [], 1.0, 1, StepKind.ATTACK)],
+            utility=80,
+        )
+
+    DET = 50.0
+
+    # Two well-separated pairs. Within a pair ≈33 km (≤DET); pairs ≈556 km apart.
+    # A naive random draw can hide a whole pair (both hidden, no known neighbour) —
+    # the rejection sampler must reject those draws.
+    two_pairs = [_mk(0.0), _mk(0.3), _mk(5.0), _mk(5.3)]  # P1={0,1}, P2={2,3}
+    L = [t.steps[0].location for t in two_pairs]
+    d01, d23, d02 = L[0].distance_to(L[1]), L[2].distance_to(L[3]), L[0].distance_to(L[2])
+    assert d01 <= DET and d23 <= DET and d02 > DET, (d01, d23, d02)
+
+    # (a) every hidden target keeps a known neighbour within DET — across many seeds.
+    last_meta = None
+    for seed in range(50):
+        random.seed(seed)
+        partial, full, meta = split_tasks(two_pairs, 2.0 / 3.0, detection_km=DET)
+        last_meta = meta
+        assert full == list(two_pairs) and len(full) == 4
+        assert all(any(p is f for f in full) for p in partial)  # partial subset-of full
+        known = {i for i, t in enumerate(two_pairs) if any(t is p for p in partial)}
+        hidden = set(range(4)) - known
+        for h in hidden:
+            hl = two_pairs[h].steps[0].location
+            assert any(two_pairs[k].steps[0].location.distance_to(hl) <= DET
+                       for k in known), \
+                f"seed {seed}: hidden {h} has no known neighbour within {DET} km"
+        assert meta["known"] == len(partial) == meta["partial"]
+        assert meta["hidden"] == 4 - len(partial)
+        assert meta["known"] + meta["hidden"] == meta["full"] == 4
+        assert meta["outcome"] in ("clean", "resampled")
+    print(f"[1a] hidden targets always keep a known neighbour within DET (50 seeds)  OK")
+    print(f"     last meta: {last_meta}")
+
+    # (b) isolated target is PINNED to known. Close pair + one far isolated (~2226 km).
+    with_isolated = [_mk(0.0), _mk(0.3), _mk(20.0)]
+    far = with_isolated[2]
+    for seed in range(20):
+        random.seed(seed)
+        partial, full, meta = split_tasks(with_isolated, 2.0 / 3.0, detection_km=DET)
+        assert any(far is p for p in partial), f"seed {seed}: isolated target not pinned"
+        assert meta["isolated_pinned"] == 1
+    print("[1b] isolated target pinned into the known set (20 seeds)  OK")
+
+    # (c) partial ⊆ full and meta counts consistent.
+    random.seed(0)
+    partial, full, meta = split_tasks(two_pairs, 2.0 / 3.0, detection_km=DET)
+    assert {id(t) for t in partial} <= {id(t) for t in full}
+    assert meta["partial"] + meta["hidden"] == meta["full"] == len(full)
+    print("[1c] partial subset-of full, meta counts consistent  OK")
+
+    # (d) a tight radius isolates EVERYTHING → exhaust path (isolated > partial budget).
+    random.seed(0)
+    partial, full, meta = split_tasks(two_pairs, 2.0 / 3.0, detection_km=1.0)
+    n = len(two_pairs)
+    num_partial = max(1, int(n * 2.0 / 3.0))
+    assert meta["outcome"] == "exhaust", meta
+    assert meta["isolated_pinned"] == num_partial == len(partial)
+    assert meta["hidden"] == n - num_partial
+    assert {id(t) for t in partial} <= {id(t) for t in full}
+    print(f"[1d] tight radius -> all isolated -> 'exhaust', {num_partial} pinned  OK")
+
+    # (e) degenerate n<2 → 'no-chain', nothing hidden.
+    p1, f1, m1 = split_tasks([_mk(0.0)], 2.0 / 3.0, detection_km=DET)
+    assert m1["outcome"] == "no-chain" and m1["hidden"] == 0 and len(p1) == 1
+    p0, f0, m0 = split_tasks([], 2.0 / 3.0, detection_km=DET)
+    assert m0["hidden"] == 0 and p0 == [] and f0 == []
+    print("[1e] degenerate n<2 -> 'no-chain', nothing hidden  OK")
+
+    print("-" * 72)
+    print("Test 1 (split unit) passed.")
+
+
+def _selftest_generator() -> None:
+    """Test 3: the generator builds discovery connectivity at DETECTION_KM (no bonmin).
+
+    Proves the connectivity-radius SOURCE switched: with ``detection_km`` set the
+    stat is exactly that radius; with it ``None`` the legacy ``aircraft.range`` value
+    is used (and differs). A geometric spot-check confirms real ≤DETECTION_KM pairs.
+    """
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from match_aou.utils.blade_utils.scenario_generator import (
+        ScenarioGenerator, VariationConfig,
+    )
+    from match_aou.models import Location
+
+    print("=" * 72)
+    print("generator connectivity radius test (Test 3 - no bonmin)")
+    print("=" * 72)
+
+    repo_root = Path(__file__).resolve().parents[4]
+    base_scenario = repo_root / "data" / "scenarios" / "strike_training_4v5.json"
+    out_dir = tempfile.mkdtemp(prefix="graph_gen_selftest_")
+
+    gen = ScenarioGenerator(
+        base_scenario_path=str(base_scenario), output_dir=out_dir,
+        max_sim_ticks=MAX_SIM_TICKS,
+    )
+    gen.recompute_time_feasible_cap(allowed_classes=None)
+    common = dict(include_sams=False, num_red_airbases=(4, 4),
+                  randomize_red_airbase_positions=True, stretch_target_ratio=0.5, seed=7)
+
+    # (a) detection_km=DETECTION_KM → connectivity built at exactly that radius.
+    gen.generate(episode=0, config=VariationConfig(detection_km=DETECTION_KM, **common))
+    stat50 = gen.last_generation_stats["min_radar_km"]
+    assert stat50 == DETECTION_KM, stat50
+    print(f"[3a] detection_km={DETECTION_KM} -> connectivity radius stat == {stat50}  OK")
+
+    # (b) detection_km=None → legacy aircraft.range-derived radius (and ≠ DETECTION_KM).
+    gen.generate(episode=1, config=VariationConfig(detection_km=None, **common))
+    legacy = gen.last_generation_stats["min_radar_km"]
+    assert legacy > 0 and legacy != DETECTION_KM, legacy
+    print(f"[3b] detection_km=None -> legacy radius {legacy:.1f} km (aircraft.range, != 50)  OK")
+
+    # (c) geometric spot-check: with detection_km=50 the generated same-zone targets
+    #     actually sit within 50 km of a neighbour (connectivity produced ≤50 km pairs).
+    path50 = gen.generate(episode=2, config=VariationConfig(detection_km=DETECTION_KM, **common))
+    with open(path50, "r", encoding="utf-8") as f:
+        sc = json.load(f)["currentScenario"]
+    airbases = gen._get_red_airbases(sc)
+    locs = [Location(ab["latitude"], ab["longitude"]) for ab in airbases]
+    assert len(locs) >= 2, len(locs)
+    # At least one ≤50 km pair must exist (2+2 zones ⇒ each zone is a connected pair).
+    close_pairs = sum(
+        1 for i in range(len(locs)) for j in range(i + 1, len(locs))
+        if locs[i].distance_to(locs[j]) <= DETECTION_KM
+    )
+    assert close_pairs >= 1, f"no <={DETECTION_KM} km neighbour pair among {len(locs)} targets"
+    print(f"[3c] generated targets have {close_pairs} neighbour pair(s) <={DETECTION_KM} km  OK")
+
+    print("-" * 72)
+    print("Test 3 (generator connectivity) passed.")
+
+
 if __name__ == "__main__":
-    _selftest()
+    _selftest_split()       # Test 1 — pure, no BLADE/bonmin
+    _selftest_generator()   # Test 3 — generation only, no bonmin
+    _selftest()             # existing self-test + Test 2 (bonmin)

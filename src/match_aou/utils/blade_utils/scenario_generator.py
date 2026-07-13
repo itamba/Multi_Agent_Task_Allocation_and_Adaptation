@@ -126,6 +126,17 @@ class VariationConfig:
     # --- Fuel safety margin (0.0 - 1.0) ---
     fuel_safety_margin: float = 0.2
 
+    # --- Discovery-chain connectivity radius (km) ---
+    # Radius used by `_ensure_discovery_chain` to decide whether two same-zone
+    # targets are radar/sensor neighbours (Layer 1 connectivity).
+    #   None = legacy behaviour: derive it from the fleet's min BLADE `aircraft.range`.
+    #   float = use this fixed radius instead (e.g. the graph model's unified
+    #           DETECTION_KM). Threaded IN so the graph training path can build
+    #           connectivity at the SAME radius the split checks and the runtime
+    #           senses at — closing the "discoverable at a radius never sensed"
+    #           gap. Does NOT change zone semantics; only the connectivity radius.
+    detection_km: Optional[float] = None
+
     # --- Random seed (None = random each time) ---
     seed: Optional[int] = None
 
@@ -939,13 +950,23 @@ class ScenarioGenerator:
         if not aircraft_list:
             return
 
-        radar_ranges_nm = [
-            float(ac.get("range", 0)) for ac in aircraft_list
-            if float(ac.get("range", 0)) > 0
-        ]
-        if not radar_ranges_nm:
-            return
-        min_radar_km = min(radar_ranges_nm) * 1.852
+        # Connectivity radius source. When the caller supplies `detection_km` (the
+        # graph model's unified sensing/attack/arrival radius) use it verbatim, so
+        # generator connectivity is built at the SAME radius the split checks and the
+        # runtime senses at. Otherwise fall back to the legacy min-fleet-radar radius
+        # derived from BLADE `aircraft.range`. Only the *source* of this radius
+        # changes — zone semantics below are untouched. (`min_radar_km` keeps its
+        # name to localise the diff; it is just "the connectivity radius".)
+        if config.detection_km is not None:
+            min_radar_km = float(config.detection_km)
+        else:
+            radar_ranges_nm = [
+                float(ac.get("range", 0)) for ac in aircraft_list
+                if float(ac.get("range", 0)) > 0
+            ]
+            if not radar_ranges_nm:
+                return
+            min_radar_km = min(radar_ranges_nm) * 1.852
 
         all_targets = (
             self._get_red_facilities(scenario)

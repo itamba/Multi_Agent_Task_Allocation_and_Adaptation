@@ -478,7 +478,7 @@ def _selftest() -> None:
         _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # match train_full's deliberate override
 
         from ...utils.blade_utils.scenario_generator import ScenarioGenerator, VariationConfig
-        from .graph_episode_setup import setup_episode, MAX_SIM_TICKS
+        from .graph_episode_setup import setup_episode, MAX_SIM_TICKS, DETECTION_KM
         from .graph_tick_loop import build_policy, run_episode
 
         repo_root = Path(__file__).resolve().parents[4]
@@ -490,7 +490,9 @@ def _selftest() -> None:
         gen.recompute_time_feasible_cap(allowed_classes=None)
         cfg_gen = VariationConfig(
             include_sams=False, num_red_airbases=(3, 3),
-            randomize_red_airbase_positions=True, stretch_target_ratio=0.5, seed=0,
+            randomize_red_airbase_positions=True, stretch_target_ratio=0.5,
+            detection_km=DETECTION_KM,  # single-radius: generator connectivity == split == sensing (50 km)
+            seed=0,
         )
         scenario_path = str(gen.generate(episode=0, config=cfg_gen))
         with open(scenario_path, "r", encoding="utf-8") as f:
@@ -501,13 +503,17 @@ def _selftest() -> None:
         ctx = setup_episode(scenario_json, recording_export_path=out_dir)
         policy = build_policy(embed_dim=64)
 
-        # PURITY on REAL objects: snapshot before the reward call.
+        result = run_episode(policy, ctx, deterministic=True, max_ticks=3000)
+        traj_len_before = len(result.trajectory)
+
+        # PURITY on REAL objects: snapshot the POST-run state right before the reward
+        # call, so the check below isolates compute_episode_reward. (run_episode itself
+        # legitimately edits beliefs/executor.plans on every wake — under the real
+        # discovery-chain split a pop-up wake mutates the woken ego's belief, so a
+        # pre-run snapshot would spuriously trip.)
         beliefs_before = {aid: (copy.deepcopy(b.tasks), copy.deepcopy(b.solution))
                           for aid, b in ctx.beliefs.items()}
         plans_before = copy.deepcopy(ctx.executor.plans)
-
-        result = run_episode(policy, ctx, deterministic=True, max_ticks=3000)
-        traj_len_before = len(result.trajectory)
 
         br = compute_episode_reward(ctx, result)
 
@@ -524,10 +530,11 @@ def _selftest() -> None:
         # U_oracle by ~U_oracle*1e-6 — allow a small relative slack.
         assert br.u_achieved <= br.u_oracle * (1.0 + 1e-5) + 1e-9, (br.u_achieved, br.u_oracle)
 
-        # Identity-split stub -> ~no organic wakes -> empty trajectory -> nothing attached.
+        # Real discovery-chain split -> organic pop-up wakes place a terminal reward on
+        # the last transition; an empty trajectory (no wake fired) attaches nothing.
         if traj_len_before == 0:
             assert result.trajectory == []
-            print("  [T7] identity-split stub -> empty trajectory, nothing attached   OK")
+            print("  [T7] empty trajectory -> nothing attached   OK")
         else:
             assert result.trajectory[-1].reward == br.reward
             print(f"  [T7] non-empty trajectory ({traj_len_before}) -> terminal reward placed   OK")
