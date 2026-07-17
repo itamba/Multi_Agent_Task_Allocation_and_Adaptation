@@ -44,6 +44,8 @@ training_output_*/
 runs/
 plots/
 eval_results/
+# graph_rollout harness output
+rollouts/
 
 # =============================================================================
 # Claude Code agent workspace (worktrees, local settings) — not source

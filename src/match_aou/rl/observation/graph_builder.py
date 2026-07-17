@@ -61,7 +61,7 @@ Feature column layouts (every value normalized to [0, 1]):
                                sensing under no-communication).
 
     AGENT feature columns -> agent_features[a, 1]
-        [0] fuel_norm        = current_fuel / max_fuel (self_features._compute_fuel_norm)
+        [0] fuel_norm        = current_fuel / max_fuel (_compute_fuel_norm, local)
                                for the EGO row only; 0.0 for every peer row. Peers are
                                featureless on purpose: peer fuel is unsensable (a true
                                comms leak), and peer position / observation status are
@@ -104,7 +104,6 @@ import numpy as np
 
 from ...models import Agent, Location, StepKind
 from ..shared_utils import clip_to_01, haversine_distance
-from .self_features import _compute_fuel_norm
 from ...utils.blade_utils.scenario_factory import create_agents_from_scenario, _normalize_side_color
 
 logger = logging.getLogger(__name__)
@@ -210,6 +209,22 @@ def _attack_step(task: Any):
         if getattr(step, "step_kind", None) == StepKind.ATTACK:
             return step
     return steps[0] if steps else None
+
+
+def _compute_fuel_norm(aircraft) -> float:
+    """
+    Compute normalized fuel: current_fuel / max_fuel.
+
+    Args:
+        aircraft: BLADE Aircraft object
+
+    Returns:
+        Fuel ratio [0, 1]
+    """
+    if aircraft.max_fuel <= 0:
+        return 0.0
+
+    return aircraft.current_fuel / aircraft.max_fuel
 
 
 def _find_match_agent(agents_by_side: Dict[str, List[Agent]], agent_id: str) -> Optional[Agent]:
