@@ -139,14 +139,16 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 
 ## 7. Build history (graph RL orchestrator)
 
+> **Hash convention:** a commit cannot cite its own SHA, so each lock's hash is recorded in the NEXT commit that touches this file — never in the lock itself. The amend route (commit → fill the hash → `--amend`) is **DEPRECATED**: amending shifts HEAD to a new SHA, leaving the recorded hash pointing at the dangling pre-amend commit (that is what produced the stale `f831e69`, fixed here to `95c3189`).
+
 - `777bd85` — executor per-ego private task lists (no-comms ISO-1..3).
 - `9a211ab` — encoder `task_feat_dim` derives from builder `TASK_FEATURE_DIM` (fix 5/6 desync).
 - `1ba583c` — Stage-0 episode setup + `Belief` (allocated-only baseline, independent per-ego beliefs).
 - `b4a29ba` — two-phase tick-loop + `Policy`/`Transition` seam.
 - `87cb17b` — terminal utility-regret reward.
 - `ae97d7d` — real discovery-chain split on unified `DETECTION_KM` (generator + split + executor).
-- `f831e69` — full-pipeline rollout harness (pure consumer; 20-ep validation).
-- `<SHA>` — BLADE playback recording wired (armed in setup via `EpisodeContext.record`, driven in `run_episode`; purity-proven, TEST 1b).
+- `95c3189` — full-pipeline rollout harness (pure consumer; 20-ep validation).
+- `f680710` — BLADE playback recording wired (armed in setup via `EpisodeContext.record`, driven in `run_episode`; purity-proven, TEST 1b).
 
 ---
 
