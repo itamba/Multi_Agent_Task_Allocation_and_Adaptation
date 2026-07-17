@@ -284,6 +284,9 @@ class EpisodeContext:
     oracle_solution: Dict[str, List[Assignment]]
     oracle_tasks: List[Task]
     split_meta: Dict[str, Any]
+    record: bool = False
+    """True iff recording was armed at setup (a ``recording_export_path`` was given);
+    the tick-loop drives the recorder (start / step / export) iff this is True."""
 
 
 # =============================================================================
@@ -308,8 +311,10 @@ def setup_episode(
         max_episode_steps: BLADE ``max_episode_steps`` (per-episode tick cap).
         attacking_side_color: our side (blue); selects agents and the blue side id.
         detection_km: the unified sensing/attack/arrival radius fed to the executor.
-        record_every_seconds / recording_export_path: passed to ``Game`` (setup does
-            NOT start recording — the tick-loop owns that).
+        record_every_seconds / recording_export_path: passed to ``Game``. Passing a
+            ``recording_export_path`` ARMS recording (sets ``EpisodeContext.record``);
+            setup itself does NOT start recording — the tick-loop starts / steps /
+            exports it. ``record_every_seconds`` throttles the per-tick frame cadence.
 
     Returns:
         An :class:`EpisodeContext` handoff object.
@@ -404,6 +409,8 @@ def setup_episode(
         oracle_solution=oracle_solution,
         oracle_tasks=oracle_tasks,
         split_meta=split_meta,
+        # Single source of truth: recording is armed iff an export path was given.
+        record=recording_export_path is not None,
     )
 
 

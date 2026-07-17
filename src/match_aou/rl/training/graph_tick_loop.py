@@ -250,6 +250,17 @@ def run_episode(
     it — the first sense uses ``ctx.observation`` (the reset snapshot) and every later
     tick uses the observation returned by ``env.step``.
 
+    Recording contract: recording is ARMED by :func:`setup_episode` (iff a
+    ``recording_export_path`` was given -> ``ctx.record``) and DRIVEN here. When
+    ``ctx.record`` is True this starts the recorder before the loop (a forced t=0
+    frame), records the post-step state each tick (the recorder's ``should_record``
+    throttles to a fixed sim-second cadence), and forces a terminal frame + exports on
+    exit. Recording is a pure READ of engine state (scenario serialization) — it never
+    mutates BLADE or alters control flow, and defaults to a no-op (``ctx.record`` False).
+    The artifact lands at ``{export_path}/{scenario_name} Recording {start} - {end}.jsonl``
+    (``scenario_name`` from the generator, e.g. ``episode_0000``). An episode that raises
+    mid-loop exports nothing — intentional (no ``try/finally``).
+
     Args:
         policy: the shared encoder + head (built once, lives across episodes).
         ctx: the :class:`EpisodeContext` from :func:`setup_episode`.
@@ -280,6 +291,12 @@ def run_episode(
     ended = "truncated"
     tick = -1  # so an empty loop (cap == 0) reports ticks == 0 honestly
 
+    # Recording (armed at setup): start once and stamp the t=0 layout. Reads
+    # game.current_scenario (already named by the generator) -> no "New Scenario" trap.
+    if ctx.record:
+        ctx.game.start_recording()
+        ctx.game.record_step(force=True)  # t=0 frame: initial layout, pre-launch
+
     for tick in range(cap):
         # --- Phase 1: per-ego sense + trigger + (on wake) RL. NO env.step here. ---
         for ego_id in ctx.agent_ids:
@@ -309,6 +326,11 @@ def run_episode(
         commands = ctx.executor.next_actions(obs)
         obs, _reward, terminated, truncated, _info = ctx.env.step(commands)
 
+        # Record the post-step state (unconditional per executed tick — before the exit
+        # checks). The recorder's should_record throttles to the sim-second cadence.
+        if ctx.record:
+            ctx.game.record_step()
+
         # Executor owns the lifecycle; the loop only READS is_done() to decide to stop.
         if ctx.executor.is_done():
             ended = "done"
@@ -319,6 +341,13 @@ def run_episode(
         if truncated:
             ended = "truncated"
             break
+
+    # Terminal frame + export (force so kills / RTB are visible even if the throttle
+    # would have skipped this tick; a possible duplicate final frame is harmless). An
+    # episode that raised mid-loop skips this entirely and exports nothing (intentional).
+    if ctx.record:
+        ctx.game.record_step(force=True)
+        ctx.game.export_recording()
 
     return EpisodeResult(
         trajectory=trajectory,
@@ -341,6 +370,9 @@ def _selftest() -> None:
         env PYTHONPATH=src python -m match_aou.rl.training.graph_tick_loop
     """
     import copy
+    import glob
+    import json
+    import random
     import tempfile
     from pathlib import Path
 
@@ -394,6 +426,9 @@ def _selftest() -> None:
     # =====================================================================
     print("-" * 72)
     print("[TEST 1] full-loop drive")
+    # Seed the GLOBAL random so split_tasks draws the SAME split TEST 1b re-draws below
+    # (split_tasks is the one global-random consumer; TEST 1b must reproduce this episode).
+    random.seed(1234)
     ctx = setup_episode(scenario_json, recording_export_path=out_dir)
 
     # Spies: count env.step calls and executor.next_actions calls, and capture whether
@@ -439,7 +474,41 @@ def _selftest() -> None:
     print("  [1b] exactly one env.step per tick (Phase 1 never stepped)      OK")
     print("  [1c] executor consulted once/tick; commands issued as lists     OK")
 
+    # [1d] recording was genuinely produced (armed via recording_export_path=out_dir).
+    rec_files = sorted(glob.glob(str(Path(out_dir) / "* Recording *.jsonl")))
+    assert len(rec_files) == 1, f"expected exactly ONE recording artifact, got {rec_files}"
+    rec_path = Path(rec_files[0])
+    assert not rec_path.name.startswith("New Scenario"), f"unnamed recording: {rec_path.name!r}"
+    rec_lines = rec_path.read_text(encoding="utf-8").splitlines()
+    assert len(rec_lines) >= 2, f"recording has <2 frames (forced t=0 + terminal): {len(rec_lines)}"
+    json.loads(rec_lines[0])  # first frame parses as JSON (raises if not)
+    print(f"  [1d] recording produced: {rec_path.name!r} ({len(rec_lines)} frames)   OK")
+
     ctx.env.close()
+
+    # =====================================================================
+    # TEST 1b — observational purity: recording OFF reproduces TEST 1 exactly
+    #           and leaves NO new artifact (proves recording changes nothing
+    #           observable, and the default path stays a no-op).
+    # =====================================================================
+    print("-" * 72)
+    print("[TEST 1b] recording-off purity")
+    rec_before = set(glob.glob(str(Path(out_dir) / "* Recording *.jsonl")))
+    random.seed(1234)  # SAME split as TEST 1 -> identical episode
+    ctx_norec = setup_episode(scenario_json, recording_export_path=None)
+    assert ctx_norec.record is False, "recording armed despite recording_export_path=None"
+    result_norec = run_episode(policy, ctx_norec, deterministic=True, max_ticks=2500)
+
+    got = (result_norec.ended, result_norec.ticks, result_norec.n_wakes)
+    want = (result.ended, result.ticks, result.n_wakes)
+    assert got == want, f"recording changed the episode: {got} != {want}"
+    rec_after = set(glob.glob(str(Path(out_dir) / "* Recording *.jsonl")))
+    assert rec_after == rec_before, \
+        f"recording-off produced a new artifact: {sorted(rec_after - rec_before)}"
+    print(f"  [1b'] record off: (ended,ticks,n_wakes)={got} matches TEST 1; "
+          f"no new artifact   OK")
+
+    ctx_norec.env.close()
 
     # =====================================================================
     # TEST 2 — wake helper in isolation: one ego senses an UNASSIGNED pop-up;
