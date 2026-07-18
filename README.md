@@ -105,9 +105,6 @@ Training outputs are saved to `training_output/` (models, logs, BLADE recordings
 ## Documentation
 
 - [BLADE API Reference](docs/BLADE_API_DOCUMENTATION.md)
-- [MATCH-AOU API Reference](docs/MATCH_AOU_API.md)
-- [Integration Guide](docs/INTEGRATION_GUIDE.md)
-- [RL Module Documentation](src/match_aou/rl/RL_MODULE_DOCUMENTATION.md)
 
 ## License
 
