@@ -2,7 +2,8 @@
 
 Guidance for Claude Code in this repository. This is the **Multi-Agent GRAPH RL** project
 (MATCH-AOU Phase-2): a no-communication multi-agent policy that adapts a static task
-allocation at runtime over a graph representation. The old flat RL path is being retired —
+allocation at runtime over a graph representation. The old flat RL path is **retired** — deleted
+from `main` in Step 3 of the cleanup, preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup` —
 **this document describes the graph model only.**
 
 ---
@@ -151,7 +152,8 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 - `f680710` — BLADE playback recording wired (armed in setup via `EpisodeContext.record`, driven in `run_episode`; purity-proven, TEST 1b).
 - `561b7cb` — docs: §7 hash-convention inline + recording-lock SHA fill.
 - `814734e` — graph_builder: inline `_compute_fuel_norm` (sever the flat observation seam; Step 1 of the flat-path cleanup).
-- `PENDING` — strip the five flat `__init__` re-export vectors + lock `tests/test_import_purity.py` (Step 2 of the flat-path cleanup).
+- `d9b8c17` — strip the five flat `__init__` re-export vectors + lock `tests/test_import_purity.py` (Step 2 of the flat-path cleanup).
+- `PENDING` — delete the retired flat path: 38 paths removed (Step 3 of the flat-path cleanup).
 
 ---
 
@@ -164,4 +166,4 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
 - **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` calibration** once p<1 lands, **re-enable fuel-damage** after a clean baseline.
-- **Delete the retired flat path** once the graph training loop is validated end-to-end (flat `train_full.py` loop, `observation_builder`/`observation_types`, `network.py`, flat `ppo_trainer`/`reward`/`oracle`/`rollout_buffer`/`episode_initializer`). Prerequisites (Phase-1 inventory, measured): (1) DONE — relocated `_compute_fuel_norm` into `graph_builder`, severing the graph's only **source-level** import from the flat observation package (`self_features`). Closure-neutral by itself — `rl/observation/__init__` still pins the flat chain via `observation_builder → self_features → observation_utils`; the runtime freeing happens in (2) below. (2) DONE — stripped the flat re-exports from all FIVE __init__ vectors (the four `rl/*/__init__.py` emptied to a docstring; `utils/blade_utils/__init__.py` lost its two dead re-exports, keeping the live `scenario_factory`/`scenario_generator` ones). The absolute import-purity criterion is LOCKED at `tests/test_import_purity.py`: each of the 12 graph entry modules is imported in a FRESH interpreter (subprocess, `PYTHONPATH=src`) and its `sys.modules` must contain ZERO of an explicit 19-module flat-only denylist, plus a positive control that the entry itself imported. Measured: 12/12 clean (pre-strip baseline leaked 17/19 via `graph_rollout` alone). The denylist stays valid after Step 3 deletes the files (absent modules trivially pass), so the test keeps guarding against future leaks. Side effect (expected): `tests/test_observation.py` now uncollects — it consumed the removed `rl/observation/__init__` re-exports and dies in Step 3.
+- **Delete the retired flat path — DONE (Step 3):** 38 paths deleted (flat RL modules + entry scripts + 2 flat-dependent tools + `legacy/` + dead orphans + flat tests + module doc); preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup`.
