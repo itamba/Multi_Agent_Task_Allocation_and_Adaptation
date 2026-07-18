@@ -3,9 +3,8 @@ Graph Action Module (Phase-2 RL layer)
 =======================================
 
 The decision core of the Phase-2 graph + Transformer RL layer: the node-wise
-k x 3 meta-action mechanism. This module is **side-by-side** with the flat action
-path (``action_config`` / ``action_utils`` / ``action_validation`` / ``plan_editor``),
-which stays the frozen baseline; nothing here is wired into ``train_full.py`` yet.
+k x 3 meta-action mechanism. It replaced the retired flat action path; its consumer
+is the graph tick-loop (``training/graph_tick_loop.py``).
 
 It consumes the :class:`GraphObservation` produced by
 ``observation/graph_builder.py``: a heterogeneous graph with ``k`` task nodes
@@ -41,7 +40,7 @@ here, and sensing is no longer derived from SPATIAL edges. When ``reachable_by_e
 model is later swapped (round-trip -> marginal-detour) that changes ONLY
 ``graph_builder``; this mask stays untouched.
 
-Framework: PyTorch (same as ``agent/network.py``).
+Framework: PyTorch.
 """
 
 from __future__ import annotations
@@ -190,11 +189,10 @@ def build_action_mask(
 # =============================================================================
 
 def _layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0.0) -> nn.Linear:
-    """Orthogonal init for a linear layer (mirrors ``agent/network.py``).
+    """Orthogonal init for a linear layer — the standard PPO scheme.
 
     std ``sqrt(2)`` for hidden layers, ``0.01`` for the policy output layer so the
-    initial policy is close to uniform — the standard PPO convention used by
-    ``ActorCriticNetwork``.
+    initial policy is close to uniform — the standard PPO convention.
     """
     nn.init.orthogonal_(layer.weight, std)
     nn.init.constant_(layer.bias, bias_const)

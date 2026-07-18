@@ -23,7 +23,7 @@ to get_target -> None), which calibrates GraphPlanExecutor.kill_confirm_ticks.
 
 NOTE: `blade` is the editable-installed vendored engine (the two committed edits
 are live in nlp_env), so there is NO sys.path hack — one engine for the executor
-and the eventual train_full wiring.
+and every downstream consumer.
 
 RUN (from repo root, under nlp_env so bonmin is on PATH):
     conda run -n nlp_env python tools/graph_executor_smoke.py
@@ -37,7 +37,7 @@ import tempfile
 import traceback
 from pathlib import Path
 
-# --- Make src/ importable when run as a plain script (mirrors train_full.py). ---
+# --- Make src/ importable when run as a plain script. ---
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
 if str(_SRC_DIR) not in sys.path:
@@ -47,7 +47,7 @@ import gymnasium
 from blade.Game import Game
 from blade.Scenario import Scenario
 import blade.utils.PlaybackRecorder as _pbr
-_pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # match train_full's deliberate override
+_pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # PlaybackRecorder CHARACTER_LIMIT override (historical flat-era convention)
 
 from match_aou.models import StepKind
 from match_aou.utils.blade_utils.scenario_factory import (

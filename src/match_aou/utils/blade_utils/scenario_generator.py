@@ -915,7 +915,7 @@ class ScenarioGenerator:
         Guarantee that within each placement zone (easy, stretch), every
         target has at least one radar-range neighbor in the *same zone*.
         This is the graph-level precondition that makes the downstream
-        split-time mask-aware sampler in `train_full.py` solvable: with
+        split-time mask-aware sampler (`split_tasks`) solvable: with
         every target connected to at least one same-zone peer, the
         sampler can almost always find a partition where every hidden
         target has at least one known same-zone neighbor.
@@ -937,7 +937,7 @@ class ScenarioGenerator:
         Why this isn't sufficient on its own:
         Even with per-zone connectivity, masking decided downstream may
         hide both members of a connected pair, leaving them invisible.
-        The split-time sampler in `train_full.py` is responsible for
+        The split-time sampler (`split_tasks`) is responsible for
         avoiding such partitions. This step's job is only to make a
         valid partition exist.
 

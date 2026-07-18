@@ -2,10 +2,9 @@
 Graph Observation Builder (Phase-2 RL layer)
 ============================================
 
-Builds a heterogeneous graph view of a BLADE scenario for one ego agent, as an
-alternative to the flat 30-feature vector produced by ``observation_builder``.
-This module is **side-by-side    **: the flat builder stays the baseline; nothing
-here is wired into ``train_full.py`` yet.
+Builds a heterogeneous graph view of a BLADE scenario for one ego agent — the
+replacement for the retired flat 30-feature observation vector. Its consumer is
+the graph tick-loop (``training/graph_tick_loop.py``).
 
 The graph has two node types and (currently) ONE constructed edge type:
 
@@ -286,7 +285,7 @@ def build_graph_observation(
 ) -> GraphObservation:
     """Build a :class:`GraphObservation` for ``agent_id``.
 
-    Inputs mirror ``observation_builder.build_observation_vector`` (scenario,
+    Inputs mirror the retired flat ``build_observation_vector`` (scenario,
     agent_id, current_plan, current_time, tasks, solution) plus
     ``precedence_relations`` (task_idx pairs, may be None/empty).
 
@@ -526,7 +525,7 @@ def _selftest() -> None:
     from blade.Game import Game
     from blade.Scenario import Scenario
     import blade.utils.PlaybackRecorder as _pbr
-    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # match train_full's deliberate override
+    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # PlaybackRecorder CHARACTER_LIMIT override (historical flat-era convention)
 
     from match_aou.solvers import MatchAou
     from match_aou.utils.scheduling_utils import post_solve_filter_and_level

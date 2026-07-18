@@ -15,7 +15,7 @@ Pipeline position (per WAKE, inside Phase 1):
     sensed_target_ids -> decide_triggers -> build_graph_observation -> GraphEncoder
       -> ActionHead -> sample_action -> apply_meta_action -> executor.resync
 
-This module is graph-native and imports NOTHING from the flat ``train_full.py``.
+This module is graph-native.
 
 SCOPE (what this file is / is NOT)
 ----------------------------------
@@ -377,7 +377,7 @@ def _selftest() -> None:
     from pathlib import Path
 
     import blade.utils.PlaybackRecorder as _pbr
-    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # match train_full's deliberate override
+    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # PlaybackRecorder CHARACTER_LIMIT override (historical flat-era convention)
 
     from ...models import Location, Step, StepKind, Task
     from ...utils.blade_utils.scenario_factory import _normalize_side_color

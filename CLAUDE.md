@@ -153,7 +153,8 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 - `561b7cb` — docs: §7 hash-convention inline + recording-lock SHA fill.
 - `814734e` — graph_builder: inline `_compute_fuel_norm` (sever the flat observation seam; Step 1 of the flat-path cleanup).
 - `d9b8c17` — strip the five flat `__init__` re-export vectors + lock `tests/test_import_purity.py` (Step 2 of the flat-path cleanup).
-- `PENDING` — delete the retired flat path: 38 paths removed (Step 3 of the flat-path cleanup).
+- `ab54ac3` — delete the retired flat path: 38 paths removed (Step 3 of the flat-path cleanup).
+- `PENDING` — doc hygiene + workspace pruning: **Step 4, the FINAL lock of the cleanup phase.** ~20 stale docstring/comment sites reworded across the nine graph modules + `blade_executor_minimal` + `graph_executor_smoke` (present-tense references to the deleted flat path → truthful today or past-tense provenance); README's two stale `train_full.py` sites fixed; `.gitignore` gains `generated_scenarios/`; workspace pruned to two worktrees (main + `../flat-baseline`) with the three stale `claude/*` branches deleted. Comment-only in code — zero code lines changed; all six layer selftests + 12/12 import-purity green.
 
 ---
 
@@ -166,4 +167,4 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
 - **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` calibration** once p<1 lands, **re-enable fuel-damage** after a clean baseline.
-- **Delete the retired flat path — DONE (Step 3):** 38 paths deleted (flat RL modules + entry scripts + 2 flat-dependent tools + `legacy/` + dead orphans + flat tests + module doc); preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup`.
+> **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, Step 4). The 38 deleted paths are preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup`. Nothing in `src/` or `tools/` references the flat path; the only surviving `train_full` mentions are historical prose in `LOGS_GUIDE.md` / `RUN_SUMMARY.md`, which are deliberately kept as run-log records. `README.md` is minimally truthful pending its own rewrite task.

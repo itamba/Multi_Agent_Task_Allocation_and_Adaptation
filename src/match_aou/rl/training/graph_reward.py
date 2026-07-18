@@ -475,7 +475,7 @@ def _selftest() -> None:
         from pathlib import Path
 
         import blade.utils.PlaybackRecorder as _pbr
-        _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # match train_full's deliberate override
+        _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # PlaybackRecorder CHARACTER_LIMIT override (historical flat-era convention)
 
         from ...utils.blade_utils.scenario_generator import ScenarioGenerator, VariationConfig
         from .graph_episode_setup import setup_episode, MAX_SIM_TICKS, DETECTION_KM

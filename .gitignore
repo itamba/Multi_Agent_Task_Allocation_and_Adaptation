@@ -46,6 +46,8 @@ plots/
 eval_results/
 # graph_rollout harness output
 rollouts/
+# scenario_generator default output dir
+generated_scenarios/
 
 # =============================================================================
 # Claude Code agent workspace (worktrees, local settings) — not source

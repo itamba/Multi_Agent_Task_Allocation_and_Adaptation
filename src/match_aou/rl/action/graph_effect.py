@@ -50,10 +50,9 @@ EXTENDS / OUR CHOICE: SELF_PRESERVATION_ABORT only removes the assignment. In th
 single-target regime this empties the ego's queue, which the FUTURE executor
 turns into RTB — but the effect layer does NOT issue RTB; it only edits the plan.
 
-This module is **side-by-side** with the frozen flat ``plan_editor.py`` and is
-NOT wired into ``train_full.py`` yet. The executor that consumes the updated
-``solution`` is being rebuilt in a separate effort; this layer is decoupled from
-it (no import of, or dependency on, ``blade_executor_minimal``).
+This module replaced the retired flat ``plan_editor.py``. The executor that consumes
+the updated ``solution`` is ``GraphPlanExecutor``; this layer stays decoupled from
+it (no import of, or dependency on, any BLADE executor).
 """
 
 from __future__ import annotations

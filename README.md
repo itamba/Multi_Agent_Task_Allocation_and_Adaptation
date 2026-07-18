@@ -20,7 +20,6 @@ Agents start a mission with a MATCH-AOU plan based on **partial** target informa
 
 ```
 Multi_Agent_Task_Allocation_and_Adaptation/
-├── train_full.py                    # Main training script (MAPPO + BLADE + MATCH-AOU)
 ├── requirements.txt
 ├── data/
 │   └── scenarios/                   # BLADE scenario JSON files
@@ -64,7 +63,7 @@ pip install -r requirements.txt
 ### Training
 
 ```bash
-python train_full.py --scenario data/scenarios/strike_training_2v3.json --episodes 50
+PYTHONPATH=src python -m match_aou.rl.training.graph_rollout   # under nlp_env
 ```
 
 Key arguments:

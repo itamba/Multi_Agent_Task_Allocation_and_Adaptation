@@ -10,8 +10,7 @@ Pipeline position:
       setup       execute                       -> graph_action -> graph_effect
                                                  -> executor.resync
 
-This module is graph-native and does NOT import from the old flat ``train_full.py``
-(which is being deleted). It reuses only the independent domain helpers:
+This module is graph-native. It reuses only the independent domain helpers:
 ``create_agents_from_scenario`` / ``generate_all_enemy_tasks`` (scenario_factory),
 ``MatchAou`` + ``post_solve_filter_and_level`` (solver + post-processing),
 ``GraphPlanExecutor`` (the sole BLADE translation layer), and ``Belief``.
@@ -50,14 +49,14 @@ logger = logging.getLogger(__name__)
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
 
 # =============================================================================
-# Module constants (single source of truth; NOT imported from train_full.py).
+# Module constants (single source of truth).
 # =============================================================================
 # Sensing == attack == arrival is a SINGLE physical radius (see CLAUDE.md). This
-# feeds the executor's arrival_threshold_km now and will feed the graph builder's
-# detection_range_km when the orchestrator wires the builder — keep them equal.
+# feeds both the executor's arrival_threshold_km and the graph builder's
+# detection_range_km — keep them equal.
 DETECTION_KM: float = 50.0
-# Fraction of tasks the egos start knowing (the partial set). Mirrors train_full's
-# PARTIAL_RATIO default; consumed by split_tasks (the discovery-chain sampler).
+# Fraction of tasks the egos start knowing (the partial set); consumed by
+# split_tasks (the discovery-chain sampler).
 PARTIAL_RATIO: float = 2.0 / 3.0
 MAX_SIM_TICKS: int = 14400
 SOLVER_NAME: str = "bonmin"
@@ -429,7 +428,7 @@ def _selftest() -> None:
     from pathlib import Path
 
     import blade.utils.PlaybackRecorder as _pbr
-    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # match train_full's deliberate override
+    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024  # PlaybackRecorder CHARACTER_LIMIT override (historical flat-era convention)
 
     from match_aou.utils.blade_utils.scenario_generator import (
         ScenarioGenerator, VariationConfig,

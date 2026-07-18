@@ -249,7 +249,7 @@ class BladeExecutorMinimal:
         # Target id of the most recent attack command actually emitted. Written in
         # _on_action_chosen for the chosen candidate only (so it reflects the agent that
         # acted this tick), and read by callers that have only the emitted BLADE string
-        # (e.g. train_full's validation loop). Audit-only: never influences action selection.
+        # (this was the flat-era validation loop). Audit-only: never influences action selection.
         self.last_attack_target_id: Optional[str] = None
 
     def _location_of(self, assignment: Assignment) -> Optional[Location]:

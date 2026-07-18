@@ -5,9 +5,8 @@ Graph Encoder (Phase-2 RL layer)
 The encoder of the Phase-2 graph + Transformer RL layer: an edge-aware,
 permutation-invariant, size-agnostic Transformer that turns a
 :class:`GraphObservation` into **per-task-node** embeddings the actor's
-``ActionHead`` consumes directly. This module is **side-by-side** with the flat
-``agent/network.py`` (the frozen baseline actor-critic); nothing here is wired
-into ``train_full.py`` yet.
+``ActionHead`` consumes directly. It replaced the retired flat actor-critic
+network; its consumer is the graph tick-loop (``training/graph_tick_loop.py``).
 
 Mandatory properties (the design intent — these are not optional)
 -----------------------------------------------------------------
@@ -104,7 +103,7 @@ def _layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0
 
     Re-defined LOCALLY (rather than imported from ``action/graph_action.py``) to
     avoid an ``agent -> action`` dependency; it is byte-identical to the action
-    layer's helper and to ``agent/network.py``'s. ``std=sqrt(2)`` for hidden layers
+    layer's helper. ``std=sqrt(2)`` for hidden layers
     is the established convention in this repo.
     """
     nn.init.orthogonal_(layer.weight, std)

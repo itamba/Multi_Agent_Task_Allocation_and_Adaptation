@@ -9,8 +9,8 @@ This module is that gate — upstream of the decision core:
     sensed_target_ids  ->  [THIS: decide_triggers]  ->  graph_builder  ->  graph_action
        (executor eyes)        (WHEN + belief edit)       (observation)      (decision)
 
-It is **side-by-side** with the frozen flat path and NOT wired into ``train_full.py``
-yet (there is no orchestrator). Like ``graph_action`` / ``graph_effect`` it is a pure,
+Its orchestrator is the graph tick-loop (``training/graph_tick_loop.py``). Like
+``graph_action`` / ``graph_effect`` it is a pure,
 hand-testable module (no BLADE engine, no torch).
 
 Two event kinds
