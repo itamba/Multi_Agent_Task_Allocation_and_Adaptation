@@ -14,21 +14,16 @@ Typical flow
 4) (Optional) Generate scenario variations for diverse RL training.
 """
 
-from .observation_utils import update_agents_from_observation
 from .scenario_factory import (
     create_agents_from_scenario,
     generate_all_enemy_tasks,
     _normalize_side_color,
 )
-from .blade_plan_utils import populate_blade_fields, BladePlanArtifacts
 from .scenario_generator import ScenarioGenerator, VariationConfig
 
 __all__ = [
     "create_agents_from_scenario",
     "generate_all_enemy_tasks",
-    "update_agents_from_observation",
-    "populate_blade_fields",
-    "BladePlanArtifacts",
     "_normalize_side_color",
     "ScenarioGenerator",
     "VariationConfig",
