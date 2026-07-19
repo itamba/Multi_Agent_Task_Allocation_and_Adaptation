@@ -155,7 +155,21 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 - `d9b8c17` — strip the five flat `__init__` re-export vectors + lock `tests/test_import_purity.py` (Step 2 of the flat-path cleanup).
 - `ab54ac3` — delete the retired flat path: 38 paths removed (Step 3 of the flat-path cleanup).
 - `7f324fd` — doc hygiene + workspace pruning: **Step 4, the FINAL lock of the cleanup phase.** ~20 stale docstring/comment sites reworded across the nine graph modules + `blade_executor_minimal` + `graph_executor_smoke` (present-tense references to the deleted flat path → truthful today or past-tense provenance); README's two stale `train_full.py` sites fixed; `.gitignore` gains `generated_scenarios/`; workspace pruned to two worktrees (main + `../flat-baseline`) with the three stale `claude/*` branches deleted. Comment-only in code — zero code lines changed; all six layer selftests + 12/12 import-purity green.
-- `PENDING` — **final doc sweep** (post-cleanup coda). Four flat-era docs deleted: `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/INTEGRATION_GUIDE.md`, `docs/MATCH_AOU_API.md` — the first three document deleted code; the fourth documents the live solver but through a dead API (`StepType`, removed in `5eeaf3c`) in every example. All four preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup`. README's Documentation section lost its three dead links (the two deleted `docs/` files + `RL_MODULE_DOCUMENTATION.md`, orphaned back in `ab54ac3`), leaving only the live `BLADE_API_DOCUMENTATION.md`. Untracked mid-cleanup snapshot `src/match_aou.zip` deleted. `training_output*/` added to `.git/info/exclude` — a local-only, never-tracked safety net shared by both worktrees, deliberately broader than `.gitignore`'s `training_output_*/`. Docs-only; 12/12 import-purity green.
+- `b96d29f` — **final doc sweep** (post-cleanup coda). Four flat-era docs deleted: `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/INTEGRATION_GUIDE.md`, `docs/MATCH_AOU_API.md` — the first three document deleted code; the fourth documents the live solver but through a dead API (`StepType`, removed in `5eeaf3c`) in every example. All four preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup`. README's Documentation section lost its three dead links (the two deleted `docs/` files + `RL_MODULE_DOCUMENTATION.md`, orphaned back in `ab54ac3`), leaving only the live `BLADE_API_DOCUMENTATION.md`. Untracked mid-cleanup snapshot `src/match_aou.zip` deleted. `training_output*/` added to `.git/info/exclude` — a local-only, never-tracked safety net shared by both worktrees, deliberately broader than `.gitignore`'s `training_output_*/`. Docs-only; 12/12 import-purity green.
+- `PENDING` — per-episode RNG reseed in `graph_rollout` (PPO-phase step 1).
+  Every episode now reseeds global `random` + torch with `base_seed+i` at the top
+  of its iteration (the generator already uses its own `random.Random(seed)`),
+  making episode i a pure function of its seed given the policy weights (still
+  pinned ONCE before the loop by `torch.manual_seed(base_seed)`). Records gain
+  `known_target_ids` — the t=0 known-split identity, snapshotted from
+  `ctx.beliefs` BEFORE `run_episode` (after wakes the N beliefs legitimately
+  diverge per ego; that divergence is the no-comms guarantee). Proven by a
+  throwaway two-part check: (T1) same-config double run ⇒ field-identical
+  records; (T2) episode-in-isolation reproduces the split of the same seed
+  inside a longer run, with scenario content per seed differing ONLY in the two
+  unseeded episode-tag fields (`/currentScenario/id` uuid4 + `/name` episode
+  index — a finding to remember: scenario ids are NOT seed-derived; unit ids
+  ARE template-stable). Regression: 15/15 pytest incl. 12/12 import purity.
 
 ---
 

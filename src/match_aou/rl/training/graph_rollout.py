@@ -30,6 +30,19 @@ WIRING (mirrors the sibling selftests EXACTLY -- this file adds no new pipeline 
   * every episode closes its env (``ctx.env.close()``), even on failure, so BLADE
     resources never leak across the loop.
 
+SEEDING / REPRODUCIBILITY
+------------------------
+``torch.manual_seed(base_seed)`` runs ONCE before ``build_policy()`` -- it pins the
+random policy weights for the whole rollout. Then EVERY episode reseeds both global
+``random`` and torch with ``base_seed + i`` at the top of its iteration. That second
+reseed is what makes an episode reproducible in isolation: the generator has its own
+``random.Random(seed)`` and never touches global ``random``, but ``split_tasks``
+draws from global ``random`` and the tick-loop's action sampling draws from torch's
+global RNG -- without the per-episode reseed, episode i would depend on how much RNG
+state episodes 0..i-1 happened to consume. Each record carries ``known_target_ids``
+(the t=0 known split) so that identity is externally checkable. The future PPO loop
+inherits this per-episode pattern.
+
 This module imports ONLY the locked public interfaces; it modifies no existing file.
 Windows-safe: pathlib paths and ASCII-only console output (cp1255 console).
 """
@@ -38,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import time
 import traceback
 from dataclasses import dataclass
@@ -55,6 +69,7 @@ from .graph_episode_setup import (
 from .graph_tick_loop import build_policy, run_episode
 from .graph_reward import compute_episode_reward
 from ..action.graph_action import MetaAction
+from ...models import StepKind
 from ...utils.blade_utils.scenario_generator import (
     ScenarioGenerator,
     VariationConfig,
@@ -86,7 +101,11 @@ class RolloutConfig:
     """
 
     n_episodes: int = 20
-    base_seed: int = 0                       # episode i uses VariationConfig(seed=base_seed+i)
+    # Episode i uses VariationConfig(seed=base_seed+i) AND reseeds global `random`
+    # + torch with that same base_seed+i at the top of the iteration, so the episode
+    # is a pure function of its seed given the policy weights (which are pinned once,
+    # before the loop, by torch.manual_seed(base_seed)).
+    base_seed: int = 0
     output_dir: Union[str, Path] = "rollouts"  # created if missing
     partial_ratio: float = PARTIAL_RATIO
     deterministic: bool = False              # stochastic by default (we WANT the distribution)
@@ -123,6 +142,45 @@ def _meta_action_counts(trajectory: List[Any]) -> Dict[str, int]:
     return counts
 
 
+def _known_target_ids(ctx: Any) -> List[str]:
+    """Sorted target ids of the t=0 KNOWN task set -- the episode's split identity.
+
+    Recorded so an external check can prove two runs produced the SAME split for a
+    given seed (the reproducibility claim the per-episode reseed makes). Small
+    strings, so this does not breach the scalar-only rule on the records.
+
+    Read from ``ctx.beliefs``: every ego's belief is minted from the same A_init
+    baseline, so all N lists are identical -- the cross-ego assert is a cheap
+    invariant check (<= ~4 egos x ~9 tasks). Extraction mirrors the builder's
+    canonical form (first ATTACK step -> ``target_id``, ``steps[0]`` fallback),
+    duplicated here rather than importing the builder's private helper.
+
+    CALL AT t=0 ONLY -- i.e. after ``setup_episode``, BEFORE ``run_episode``. The
+    beliefs are equal only at t=0; during a rollout the trigger layer appends
+    pop-ups and the effect layer edits assignments PER EGO, so the beliefs diverge
+    by design (that divergence IS the no-communication guarantee) and the assert
+    below would fire on any episode that woke.
+    """
+    per_ego: List[List[str]] = []
+    for belief in ctx.beliefs.values():
+        ids: List[str] = []
+        for task in belief.tasks:
+            steps = getattr(task, "steps", None) or []
+            step = next(
+                (s for s in steps
+                 if getattr(s, "step_kind", None) == StepKind.ATTACK),
+                steps[0] if steps else None,
+            )
+            target_id = getattr(step, "target_id", None) if step is not None else None
+            ids.append(str(target_id) if target_id is not None else "")
+        per_ego.append(sorted(ids))
+
+    assert per_ego and all(x == per_ego[0] for x in per_ego), (
+        "beliefs disagree on the t=0 known target set (all mint from one A_init)"
+    )
+    return per_ego[0]
+
+
 # =============================================================================
 # 3. The rollout
 # =============================================================================
@@ -132,8 +190,12 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
 
     One failed episode logs a traceback, counts as failed, and the loop CONTINUES
     (its env is still closed in the ``finally``). Per-episode SCALAR records are appended
-    to ``<output_dir>/rollout_records.jsonl`` (never gobs/tensors). Returns an aggregate
-    summary dict (also printed as an ASCII table).
+    to ``<output_dir>/rollout_records.jsonl`` (never gobs/tensors; ``known_target_ids``
+    is a short list of id strings, not a gob). Returns an aggregate summary dict (also
+    printed as an ASCII table).
+
+    Every episode reseeds global ``random`` + torch with ``base_seed + i`` -- see the
+    module docstring's SEEDING / REPRODUCIBILITY note.
     """
     out_dir = Path(cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -172,6 +234,13 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
         for i in range(cfg.n_episodes):
             ctx = None
             seed = cfg.base_seed + i
+            # Per-episode reseed: the generator already derives its variation from
+            # its own random.Random(seed), but split_tasks consumes GLOBAL `random`
+            # and run_episode's sampling consumes torch's global RNG. Reseeding both
+            # here makes episode i a pure function of `seed` (given the policy
+            # weights) -- independent of how much RNG state earlier episodes consumed.
+            random.seed(seed)
+            torch.manual_seed(seed)
             try:
                 # --- generate + setup (bonmin solves TWICE here) ---
                 t_setup = time.perf_counter()
@@ -194,6 +263,12 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                 )
                 setup_seconds = time.perf_counter() - t_setup
 
+                # Snapshot the split identity NOW, at t=0. This MUST happen before
+                # run_episode: the triggers append pop-ups and the effect layer edits
+                # assignments, so after the rollout the N beliefs have legitimately
+                # DIVERGED and the cross-ego agreement asserted below no longer holds.
+                known_tids = _known_target_ids(ctx)
+
                 # --- rollout + reward ---
                 t_ep = time.perf_counter()
                 result = run_episode(
@@ -214,6 +289,7 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     "n_tasks_full": int(meta["full"]),
                     "n_known": int(meta["known"]),
                     "n_hidden": int(meta["hidden"]),
+                    "known_target_ids": known_tids,
                     "ticks": int(result.ticks),
                     "ended": result.ended,
                     "n_wakes": int(result.n_wakes),
@@ -346,7 +422,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--episodes", type=int, default=d.n_episodes,
                    help="number of episodes (default: %(default)s)")
     p.add_argument("--seed", type=int, default=d.base_seed,
-                   help="base seed; episode i uses seed+i (default: %(default)s)")
+                   help="base seed; episode i generates with seed+i and reseeds "
+                        "global random + torch with it (default: %(default)s)")
     p.add_argument("--out", type=str, default=str(d.output_dir),
                    help="output directory (default: %(default)s)")
     p.add_argument("--deterministic", action="store_true",
