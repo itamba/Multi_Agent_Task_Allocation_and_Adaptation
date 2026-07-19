@@ -244,6 +244,60 @@ class ActionHead(nn.Module):
         return self.mlp(node_embeddings)
 
 
+def _masked_dist(
+    logits: torch.Tensor,
+    mask_np: np.ndarray,
+) -> Tuple[torch.Tensor, Categorical, torch.Tensor]:
+    """Build THE joint masked distribution over the flattened ``k*3`` decision.
+
+    THE single construction site. :func:`sample_action` (rollout, no-grad) and
+    :func:`evaluate_action` (PPO update, with grad) both route through here, so the
+    distribution they act on is identical BY CONSTRUCTION rather than by two code
+    paths agreeing. That identity is load-bearing: any drift between the rollout
+    distribution and the update distribution would corrupt the PPO ratio
+    ``pi_new / pi_old`` SILENTLY — no crash, just poisoned learning. Do not
+    reimplement any part of this in a caller.
+
+    Encapsulates exactly: mask -> tensor, additive masking, row-major flatten
+    (``flat = v*3 + m``), the all ``-inf`` guard, the Categorical, and the
+    clamped-logits entropy (see :func:`sample_action` for the entropy rationale).
+
+    Args:
+        logits: ``[k, 3]`` raw logits from :class:`ActionHead`. Grad-attached or not
+            — this helper never detaches and never touches grad mode.
+        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`
+            (``{0.0, -inf}``).
+
+    Returns:
+        ``(flat, dist, entropy)`` — the flattened masked logits ``[k*3]``, the
+        Categorical over them, and the masked-safe scalar entropy.
+
+    Raises:
+        ValueError: if EVERY entry is ``-inf`` after masking.
+    """
+    mask_t = torch.as_tensor(mask_np, dtype=logits.dtype, device=logits.device)
+    masked = logits + mask_t                      # -inf in invalid cells
+    flat = masked.reshape(-1)                      # row-major: flat = v*3 + m
+
+    # Guard on the RAW masked logits (before any clamp): the Plan-Compliance
+    # invariant should make this unreachable, but failing loud beats NaNs.
+    if not torch.isfinite(flat).any():
+        raise ValueError(
+            "build_action_mask produced an all -inf mask (no valid action); "
+            "the Plan-Compliance invariant should make this impossible"
+        )
+
+    # Exact distribution: -inf -> zero mass on invalid cells.
+    dist = Categorical(logits=flat)
+
+    # Entropy: version-independent masked-safe form (clamp -inf -> finfo.min so the
+    # masked cells contribute a finite ~0 term instead of 0 * -inf = NaN).
+    safe_flat = torch.clamp(flat, min=torch.finfo(flat.dtype).min)
+    entropy = Categorical(logits=safe_flat).entropy()
+
+    return flat, dist, entropy
+
+
 def sample_action(
     logits: torch.Tensor,
     mask_np: np.ndarray,
@@ -264,6 +318,11 @@ def sample_action(
     ``torch.finfo(dtype).min`` (a large finite negative), so masked cells contribute
     a finite ``~0`` term. A NaN entropy would silently poison the PPO entropy bonus.
 
+    The distribution itself is built by :func:`_masked_dist` — the SHARED
+    construction site this function and :func:`evaluate_action` both call, so the
+    PPO update re-scores an action under exactly the distribution it was sampled
+    from. Everything below the helper call is sampling + flat-index decode only.
+
     Args:
         logits: ``[k, 3]`` raw logits from :class:`ActionHead`.
         mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`
@@ -280,35 +339,103 @@ def sample_action(
             impossible given the Plan-Compliance invariant; we raise a clear error
             rather than produce NaNs.
     """
-    mask_t = torch.as_tensor(mask_np, dtype=logits.dtype, device=logits.device)
-    masked = logits + mask_t                      # -inf in invalid cells
-    flat = masked.reshape(-1)                      # row-major: flat = v*3 + m
+    flat, dist, entropy = _masked_dist(logits, mask_np)
 
-    # Guard on the RAW masked logits (before any clamp): the Plan-Compliance
-    # invariant should make this unreachable, but failing loud beats NaNs.
-    if not torch.isfinite(flat).any():
-        raise ValueError(
-            "build_action_mask produced an all -inf mask (no valid action); "
-            "the Plan-Compliance invariant should make this impossible"
-        )
-
-    # Sampling / log_prob: exact distribution with -inf -> zero mass on invalid cells.
-    dist = Categorical(logits=flat)
+    # Sampling / log_prob: -inf cells carry exactly zero mass, so a sampled cell is
+    # always a valid one.
     if deterministic:
         flat_action = torch.argmax(flat)
     else:
         flat_action = dist.sample()
     log_prob = dist.log_prob(flat_action)
 
-    # Entropy: version-independent masked-safe form (clamp -inf -> finfo.min so the
-    # masked cells contribute a finite ~0 term instead of 0 * -inf = NaN).
-    safe_flat = torch.clamp(flat, min=torch.finfo(flat.dtype).min)
-    entropy = Categorical(logits=safe_flat).entropy()
-
     flat_idx = int(flat_action.item())
     node_index = flat_idx // NUM_META_ACTIONS
     meta_action = flat_idx % NUM_META_ACTIONS
     return meta_action, node_index, log_prob, entropy
+
+
+def evaluate_action(
+    logits: torch.Tensor,
+    mask_np: np.ndarray,
+    meta_action: int,
+    node_v: int,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Re-score an ALREADY-CHOSEN ``(meta_action, node_v)`` — the PPO-ratio half.
+
+    Purpose (PPO). The rollout is inference-only: ``graph_tick_loop._wake_decision``
+    runs under ``torch.no_grad`` and stores each wake as a ``Transition`` holding the
+    ``GraphObservation``, the chosen ``(meta_action, node_v)``, and DETACHED
+    ``log_prob`` / ``entropy`` floats. The PPO update must recompute the log-prob WITH
+    grad to form the ratio ``exp(log_prob_new - log_prob_old) = pi_new / pi_old``. This
+    function is that recomputation: re-encode the stored ``gobs``, re-run the head, and
+    call this with the stored action.
+
+    Identity BY CONSTRUCTION. The distribution is built by the SAME
+    :func:`_masked_dist` helper :func:`sample_action` used at rollout time — same
+    additive masking, same row-major flatten (``flat = node_v*3 + meta_action``), same
+    Categorical, same clamped-logits entropy. So on the first PPO epoch (unchanged
+    weights) the returned ``log_prob`` is BITWISE equal to the stored one and the ratio
+    is exactly ``1.0``. This is not a coincidence to be re-verified per call — it holds
+    because there is only one construction path. Never reimplement the construction
+    here; that would reintroduce the drift this design exists to prevent (a drift that
+    fails SILENTLY — it only shows up as a corrupted policy gradient).
+
+    Grad contract: NO ``torch.no_grad`` anywhere inside. The CALLER controls grad mode.
+    Gradients flow from the returned tensors back through ``logits`` to whatever
+    produced them (head + encoder).
+
+    Args:
+        logits: ``[k, 3]`` raw logits from :class:`ActionHead`, normally grad-attached
+            (the PPO update re-runs the forward pass with grad enabled).
+        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`, rebuilt from
+            the STORED observation so it reproduces the rollout-time mask.
+        meta_action: the stored :class:`MetaAction` value (column, ``0..2``).
+        node_v: the stored task-node index (row, ``0..k-1``).
+
+    Returns:
+        ``(log_prob, entropy)`` — scalar tensors. ``log_prob`` is the joint log-prob of
+        the requested cell; ``entropy`` is the SAME masked-safe policy entropy
+        :func:`sample_action` would have reported for this state.
+
+    Raises:
+        ValueError: if the mask is all ``-inf`` (via :func:`_masked_dist`); if
+            ``(node_v, meta_action)`` is out of bounds; or if the requested cell is
+            MASKED. A masked stored action means the mask reconstructed at update time
+            diverged from the rollout-time mask (a stale/mismatched observation), which
+            would otherwise silently feed ``-inf`` into the ratio. We fail LOUD instead.
+    """
+    k = int(mask_np.shape[0])
+    node_v = int(node_v)
+    meta_action = int(meta_action)
+
+    if not (0 <= node_v < k) or not (0 <= meta_action < NUM_META_ACTIONS):
+        raise ValueError(
+            f"evaluate_action: action cell (node_v={node_v}, meta_action={meta_action}) "
+            f"is out of bounds for a [{k}, {NUM_META_ACTIONS}] mask"
+        )
+
+    # Guard BEFORE building the distribution: a masked stored action is a mask
+    # reconstruction bug, not a legitimate zero-probability action.
+    if not np.isfinite(mask_np[node_v, meta_action]):
+        raise ValueError(
+            f"evaluate_action: the stored action (node_v={node_v}, "
+            f"meta_action={MetaAction(meta_action).name}) is MASKED (-inf) in the "
+            "supplied mask. The rollout could not have sampled it, so the mask "
+            "rebuilt at update time diverged from the rollout-time mask; check that "
+            "the stored GraphObservation is the one the action was sampled on."
+        )
+
+    flat, dist, entropy = _masked_dist(logits, mask_np)
+
+    # Row-major flatten, identical to sample_action's decode (flat = v*3 + m).
+    flat_idx = node_v * NUM_META_ACTIONS + meta_action
+    # 0-dim long tensor: exactly the shape/dtype dist.sample() returns, so log_prob
+    # takes the same gather path and the result is bitwise identical.
+    flat_action = torch.as_tensor(flat_idx, dtype=torch.long, device=flat.device)
+    log_prob = dist.log_prob(flat_action)
+
+    return log_prob, entropy
 
 
 # =============================================================================
@@ -449,6 +576,74 @@ def _selftest() -> None:
         # log_prob / entropy must be finite (a NaN entropy would poison the PPO bonus).
         assert torch.isfinite(log_prob).all(), "log_prob is not finite"
         assert torch.isfinite(entropy).all(), "entropy is not finite"
+
+    # -------------------------------------------------------------------------
+    # evaluate_action (the PPO-ratio half) — the shared-construction identity.
+    # -------------------------------------------------------------------------
+    print("-" * 72)
+    print("evaluate_action (PPO re-scoring):")
+
+    # [E1] EXACT agreement with sample_action. Both route through _masked_dist, so
+    #      the two log-probs / entropies are BITWISE equal (torch.equal, not allclose).
+    #      This is the property the whole refactor exists to guarantee: if these ever
+    #      diverge, the PPO ratio pi_new/pi_old is wrong on epoch 0 and learning is
+    #      silently poisoned.
+    for deterministic in (False, True):
+        meta_s, node_s, lp_s, ent_s = sample_action(
+            logits, mask, deterministic=deterministic
+        )
+        lp_e, ent_e = evaluate_action(logits, mask, meta_s, node_s)
+        kind = "deterministic" if deterministic else "stochastic   "
+        assert torch.equal(lp_s, lp_e), (
+            f"log_prob drift ({kind}): sample={lp_s.item()!r} eval={lp_e.item()!r}"
+        )
+        assert torch.equal(ent_s, ent_e), (
+            f"entropy drift ({kind}): sample={ent_s.item()!r} eval={ent_e.item()!r}"
+        )
+        print(f"  [E1] {kind}: node={node_s} meta={MetaAction(meta_s).name} "
+              f"log_prob={lp_e.item():.6f} entropy={ent_e.item():.6f}  "
+              f"BITWISE == sample_action   OK")
+
+    # [E2] The ratio a PPO epoch-0 update would form is exactly 1.0.
+    ratio = torch.exp(lp_e - lp_s)
+    assert torch.equal(ratio, torch.ones_like(ratio)), f"ratio != 1: {ratio.item()!r}"
+    print(f"  [E2] exp(log_prob_new - log_prob_old) == {ratio.item():.1f} exactly   OK")
+
+    # [E3] Grad flows: NO no_grad inside evaluate_action, so the caller's grad mode
+    #      wins and every head parameter receives a finite grad. (The full
+    #      encoder+head sweep lives in tests/test_graph_action_evaluate.py.)
+    head.zero_grad(set_to_none=True)
+    logits_grad = head(embeddings)  # fresh forward, grad-attached
+    lp_g, ent_g = evaluate_action(logits_grad, mask, meta_s, node_s)
+    assert lp_g.requires_grad, "evaluate_action returned a detached log_prob"
+    lp_g.backward()
+    n_params = 0
+    for name, p in head.named_parameters():
+        assert p.grad is not None, f"parameter {name} has no grad"
+        assert torch.isfinite(p.grad).all(), f"parameter {name} has non-finite grad"
+        n_params += 1
+    print(f"  [E3] backward through evaluate_action: all {n_params} head params "
+          f"have finite grads   OK")
+
+    # [E4] A MASKED stored action fails LOUD (mask reconstruction diverged), rather
+    #      than quietly returning -inf and corrupting the ratio. node1/OE is -inf.
+    assert not np.isfinite(mask[1, int(MetaAction.OPPORTUNISTIC_ENGAGEMENT)]), \
+        "test setup: node1/OE was expected to be masked"
+    try:
+        evaluate_action(logits, mask, int(MetaAction.OPPORTUNISTIC_ENGAGEMENT), 1)
+    except ValueError as exc:
+        print(f"  [E4] masked cell (node1, OE) -> ValueError   OK\n"
+              f"       {str(exc).splitlines()[0][:96]}...")
+    else:
+        raise AssertionError("evaluate_action accepted a MASKED action cell")
+
+    # [E5] Out-of-bounds cells are rejected too (node index past k).
+    try:
+        evaluate_action(logits, mask, 0, mask.shape[0])
+    except ValueError:
+        print("  [E5] out-of-bounds node index -> ValueError   OK")
+    else:
+        raise AssertionError("evaluate_action accepted an out-of-bounds node index")
 
     print("-" * 72)
     print("All assertions passed.")
