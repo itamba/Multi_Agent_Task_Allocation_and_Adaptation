@@ -170,7 +170,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   unseeded episode-tag fields (`/currentScenario/id` uuid4 + `/name` episode
   index — a finding to remember: scenario ids are NOT seed-derived; unit ids
   ARE template-stable). Regression: 15/15 pytest incl. 12/12 import purity.
-- `PENDING` — `evaluate_action` + shared `_masked_dist` construction site in
+- `830bd32` — `evaluate_action` + shared `_masked_dist` construction site in
   `graph_action` (PPO-phase step 2). `sample_action` and `evaluate_action` now
   build the joint masked distribution through ONE private helper, so rollout and
   PPO-update distributions are identical BY CONSTRUCTION (drift there is a silent
@@ -183,12 +183,25 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   encoder+head param (edge_attr_proj legitimately unexercised, exact-name
   whitelisted); masked/out-of-bounds guards. Regression: 20/20 pytest incl.
   12/12 import purity; tick-loop selftest green end-to-end.
+- `PENDING` — `graph_ppo`: the PPO core, Phase A actor-only (PPO-phase step 3).
+  EpisodeRecord (per-ego chains — the Phase-B GAE seam contract) + PPOBuffer +
+  compute_returns_and_advantages (THE REPLACEABLE COMPONENT: return == episode R at
+  the dormant gamma=1.0; baseline = mean R over EPISODES incl. zero-wake;
+  advantages normalized with eps guard) + clipped_surrogate + PPOUpdater (one Adam
+  over encoder+head, per-transition re-encode -> rebuilt mask -> evaluate_action ->
+  clip, entropy bonus, one backward/epoch, grad-norm clip; empty batch = clean
+  no-op; NO value loss — PHASE-B SEAM comments mark where the critic joins).
+  Proven in _selftest + tests/test_graph_ppo.py (18 tests): epoch-0 ratio == 1 and
+  loss == -mean(A_norm); learning direction (positive-advantage action rises);
+  clip branches hand-checked + clip_fraction > 0 live; per-ego grouping order;
+  degenerate batches (all-same-R, empty, all-zero-wake) NaN-free; finite grads
+  (edge_attr_proj exact-name exempt); import purity green.
 
 ---
 
 ## 8. OPEN (not built)
 
-- **PPO training loop (next major piece):** variable-size buffer (the encoder is single-graph, batching is the buffer's concern; `evaluate_action` is BUILT — §7) + returns/GAE over the terminal-on-last-wake placement + the outer episode loop that wraps `setup_episode → run_episode → compute_episode_reward → update`.
+- **PPO training loop — REMAINING: the outer Trainer only** (buffer, returns/advantages, `evaluate_action`, and the update step are BUILT — §7): the loop that wraps generate → `setup_episode` → `run_episode` → `compute_episode_reward` → `EpisodeRecord` → `PPOUpdater.update`, inheriting the rollout harness skeleton incl. the per-episode reseed pattern, plus logging / checkpointing. Then the Phase-A baseline training run.
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
 - **Reward densification + p<1:** per-wake/dense regret (vs today's terminal scalar) and the operand-scale rework for `probability<1.0` (expected-oracle vs realized-achieved diverge below p=1).
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
