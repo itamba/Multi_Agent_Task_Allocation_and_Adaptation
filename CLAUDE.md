@@ -71,7 +71,8 @@ scenario_generator (clustered targets, per-zone discovery connectivity at DETECT
        Phase 2: env.step(executor.next_actions(obs))   # ONE step for the whole tick
      until is_done / terminated / truncated → EpisodeResult(trajectory)
   → compute_episode_reward(ctx, result): fills Transition.reward (terminal)
-  → [OPEN] PPO buffer + evaluate_action + critic (CTDE) + outer episode loop
+  → PPO buffer + evaluate_action + outer training loop  # BUILT (graph_ppo, graph_train)
+  → [OPEN] centralized critic (CTDE)  # Phase B
 ```
 
 A diagnostic rollout harness (`rl/training/graph_rollout.py`) wraps this exact
@@ -118,6 +119,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 | Change episode setup / split / solve+normalize / Belief | `rl/training/graph_episode_setup.py`, `rl/training/belief.py` |
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
+| Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`) |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -183,7 +185,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   encoder+head param (edge_attr_proj legitimately unexercised, exact-name
   whitelisted); masked/out-of-bounds guards. Regression: 20/20 pytest incl.
   12/12 import purity; tick-loop selftest green end-to-end.
-- `PENDING` — `graph_ppo`: the PPO core, Phase A actor-only (PPO-phase step 3).
+- `628e45f` — `graph_ppo`: the PPO core, Phase A actor-only (PPO-phase step 3).
   EpisodeRecord (per-ego chains — the Phase-B GAE seam contract) + PPOBuffer +
   compute_returns_and_advantages (THE REPLACEABLE COMPONENT: return == episode R at
   the dormant gamma=1.0; baseline = mean R over EPISODES incl. zero-wake;
@@ -196,12 +198,34 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   clip branches hand-checked + clip_fraction > 0 live; per-ego grouping order;
   degenerate batches (all-same-R, empty, all-zero-wake) NaN-free; finite grads
   (edge_attr_proj exact-name exempt); import purity green.
+- `PENDING` — `graph_train`: the outer PPO Trainer, Phase A (PPO-phase step 4 — the
+  LAST piece of Phase A). New leaf module `rl/training/graph_train.py`, purely
+  additive: no locked layer touched, and deliberately NOT in the import-purity
+  ENTRY_MODULES (it imports BLADE, like graph_rollout). Wraps the locked pipeline into
+  a real run: per iteration it collects `episodes_per_iteration` stochastic episodes
+  through the rollout skeleton (one generator, per-episode reseed, env.close in
+  finally) into a fresh PPOBuffer, runs ONE PPOUpdater.update built ONCE for the run,
+  clears, and appends a scalar record. Owns the seeding schedule: train seed =
+  base_seed + (iteration*eps + j); eval on a FIXED DISJOINT band (eval_base_seed + e),
+  enforced by TrainConfig.validate (overlap raises). Deterministic eval every N iters
+  on the held-out band (no buffer / no update). Save-only checkpoints
+  (encoder+head+optimizer+PPOConfig); resume DEFERRED. 3-panel plot (learning curve vs
+  R=0 oracle ceiling / meta-action mix / entropy) from the jsonl, drawn in a CHILD
+  process with KMP_DUPLICATE_LIB_OK — torch+matplotlib abort together on this
+  Windows/OpenMP stack, so the flag is confined to a numerics-free child and training
+  never depends on matplotlib. Proven: tests/test_graph_train.py (8 tests — checkpoint
+  round-trip incl. optimizer state, seed-schedule + band disjointness, plot-from-jsonl;
+  suite 38 -> 46, import purity 12/12) and _selftest under nlp_env (short real run;
+  EVAL PURITY — train records byte-identical eval-on vs eval-off; honest zero-wake via
+  max_ticks=5). FINDING (see §8): the Trainer is correct, but every episode returns
+  R ~ -1/3, so a baseline run as-is will NOT learn — a reward/scenario issue, not a
+  Trainer bug.
 
 ---
 
 ## 8. OPEN (not built)
 
-- **PPO training loop — REMAINING: the outer Trainer only** (buffer, returns/advantages, `evaluate_action`, and the update step are BUILT — §7): the loop that wraps generate → `setup_episode` → `run_episode` → `compute_episode_reward` → `EpisodeRecord` → `PPOUpdater.update`, inheriting the rollout harness skeleton incl. the per-episode reseed pattern, plus logging / checkpointing. Then the Phase-A baseline training run.
+- **Phase-A baseline run — BLOCKED on a flat-reward finding (the Trainer itself is BUILT — §7, `graph_train.py`).** The full PPO loop is done (generate → setup → run → reward → `EpisodeRecord` → `PPOUpdater.update`, with logging / eval / checkpointing). BUT a real short run shows **every episode returns R ~ -1/3 to ~12 dp, across all seeds, train and eval** → `adv_std_raw ~ 0` → advantages ~ 0 → the only gradient is the entropy bonus. So a baseline run as-is will NOT learn (the reward does not discriminate between episodes). Episodes end `done` with `kills_mean ~ 4.25` — systematic under-achievement (~2/3 of oracle utility every scenario), NOT the 2:1-stacking truncation path below. Mechanism TBD in `graph_reward` + scenario design; resolve BEFORE spending compute on the reported baseline. `adv_std_raw` sits in every train record precisely to keep this visible. (Note: this also gates Phase B — a critic predicting a scenario-constant R yields ~0 advantage too.)
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
 - **Reward densification + p<1:** per-wake/dense regret (vs today's terminal scalar) and the operand-scale rework for `probability<1.0` (expected-oracle vs realized-achieved diverge below p=1).
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
