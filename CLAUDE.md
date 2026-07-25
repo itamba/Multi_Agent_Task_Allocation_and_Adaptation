@@ -3,8 +3,9 @@
 Guidance for Claude Code in this repository. This is the **Multi-Agent GRAPH RL** project
 (MATCH-AOU Phase-2): a no-communication multi-agent policy that adapts a static task
 allocation at runtime over a graph representation. The old flat RL path is **retired** — deleted
-from `main` in Step 3 of the cleanup, preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup` —
-**this document describes the graph model only.**
+from `main` in Step 3 of the cleanup, preserved on TWO DISTINCT refs — branch `flat-final`
+(`4d44c34`) and the annotated tag `pre-cleanup` (commit `561b7cb`, the last commit before the
+cleanup began) — **this document describes the graph model only.**
 
 ---
 
@@ -17,6 +18,7 @@ from `main` in Step 3 of the cleanup, preserved on `flat-final` (`4d44c34`) + ta
 - **Minimal files.** Prefer extending a module over spawning `foo_utils.py` + `foo_config.py`.
 - **Git:** per-task commits, explicit staging of exactly the touched files, local-only unless told otherwise (no push). Respect "local-only" when stated.
 - **Environment:** Windows + PyCharm terminal + `nlp_env` conda env, Python 3.10+. Avoid POSIX-only idioms; use Python/PowerShell equivalents. Run from repo root.
+- **`pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env` so the environment that owns the editable `blade` install is actually exercised. **OPEN:** whether `import blade` resolves to the same editable fork in the base env is unverified — until it is, treat a base-env-only pass as partial.
 - **🛑 Solver/bonmin commands MUST run under `nlp_env`** (`conda run -n nlp_env ...`; add `--no-capture-output` to avoid Windows cp1255 re-encode crashes on Unicode prints). The base env lacks `bonmin` and fails **silently** (exits 0). **Never trust the exit code alone** — verify no `CRASH`/`Traceback` and that the run actually solved before claiming success.
 
 ---
@@ -120,6 +122,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`) |
+| Change the training scenario cell (target count / known-hidden split) | `rl/training/graph_train.py` (`TrainConfig.num_red_airbases`, `partial_ratio`, `derived_split`) |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -198,7 +201,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   clip branches hand-checked + clip_fraction > 0 live; per-ego grouping order;
   degenerate batches (all-same-R, empty, all-zero-wake) NaN-free; finite grads
   (edge_attr_proj exact-name exempt); import purity green.
-- `PENDING` — `graph_train`: the outer PPO Trainer, Phase A (PPO-phase step 4 — the
+- `21e4d14` — `graph_train`: the outer PPO Trainer, Phase A (PPO-phase step 4 — the
   LAST piece of Phase A). New leaf module `rl/training/graph_train.py`, purely
   additive: no locked layer touched, and deliberately NOT in the import-purity
   ENTRY_MODULES (it imports BLADE, like graph_rollout). Wraps the locked pipeline into
@@ -220,16 +223,110 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   max_ticks=5). FINDING (see §8): the Trainer is correct, but every episode returns
   R ~ -1/3, so a baseline run as-is will NOT learn — a reward/scenario issue, not a
   Trainer bug.
+- `PENDING` — **Phase-A baseline scenario cell + config visibility** (`graph_train`
+  only; no locked layer touched). Defaults retargeted from the measured-degenerate
+  `(3,3)` to the SELECTED cell: `num_red_airbases=(6,6)`, `partial_ratio=0.5` →
+  **known 3 / hidden 3**, `U_oracle=480`. Why this cell: 6 targets > the 4-agent fleet
+  (which comes from the base template `strike_training_4v5.json`, NOT a config knob)
+  removes the forced 2:1 stacking that pinned every episode at R = −1/3; `known ≥ 3`
+  keeps bonmin out of its B&B symmetry stall (~15 min/episode at `known ≤ 2`);
+  measured `std(R) = 0.1443`, split outcome clean 11/12, zero dominating-set breaks.
+  New in the module: **`derived_split`** — a MIRROR of `split_tasks`'
+  `max(1, int(n·partial_ratio))` and the single arithmetic site behind the startup
+  echo, `validate()`'s hazard warnings, and `run_config.json`; its equivalence to the
+  locked authority is test-enforced over an n × ratio grid that INCLUDES the degenerate
+  `n < 2` branch, asserted against real `split_tasks` returns rather than only its
+  `meta`. `TrainConfig.split_preview` previews both ends of a range. CLI gains
+  `--num-red-airbases` (`N` or `LO,HI`), `--partial-ratio`, `--stretch-target-ratio`,
+  every default read OFF `TrainConfig` (drift-guarded by test); `include_sams` and any
+  radius are deliberately NOT exposed. `validate()` now WARNS — never raises — on
+  `known < 3` and `hidden == 0`, judged at the range's LOW end (both quantities are
+  non-decreasing in n, so that is the worst case). Every run writes
+  `run_dir/run_config.json` (full resolved config incl. nested `PPOConfig`, the derived
+  split, the base-scenario name) and the startup header echoes `known/hidden` — the
+  standing defence against the truncation trap: `int()` truncates, so at n=6
+  `1.0/3.0` gives known 2 while the decimal `0.333` gives known 1. Never
+  auto-corrected: the config you type is the config you get, and the header tells you
+  what it is. Proven: suite 46 → 59, import purity 12/12, `--selftest` green
+  end-to-end under `nlp_env`. LIVE EVIDENCE the §8 blocker is lifted:
+  `adv_std_raw = 0.1197` (was ~0), per-episode R spanning −0.5 … −0.1667 (exact
+  multiples of 80/480), three distinct iteration means, and `OPPORTUNISTIC_ENGAGEMENT`
+  firing 7× in 12 episodes — matching the instrument's measurement for this cell
+  exactly.
 
 ---
 
 ## 8. OPEN (not built)
 
-- **Phase-A baseline run — BLOCKED on a flat-reward finding (the Trainer itself is BUILT — §7, `graph_train.py`).** The full PPO loop is done (generate → setup → run → reward → `EpisodeRecord` → `PPOUpdater.update`, with logging / eval / checkpointing). BUT a real short run shows **every episode returns R ~ -1/3 to ~12 dp, across all seeds, train and eval** → `adv_std_raw ~ 0` → advantages ~ 0 → the only gradient is the entropy bonus. So a baseline run as-is will NOT learn (the reward does not discriminate between episodes). Episodes end `done` with `kills_mean ~ 4.25` — systematic under-achievement (~2/3 of oracle utility every scenario), NOT the 2:1-stacking truncation path below. Mechanism TBD in `graph_reward` + scenario design; resolve BEFORE spending compute on the reported baseline. `adv_std_raw` sits in every train record precisely to keep this visible. (Note: this also gates Phase B — a critic predicting a scenario-constant R yields ~0 advantage too.)
+- **Phase-A baseline run — UNBLOCKED; not yet run.** The flat-reward blocker is
+  RESOLVED and was never a reward bug: `graph_reward` is correct and stays FROZEN. The
+  flat `R ≈ −1/3` was **scenario invariance at the retired `(3,3)` default** — 3 airbase
+  targets at utility 80 each (`U_oracle = 240`) against a 4-aircraft fleet that comes
+  from the base template and is not a config knob, so 4 agents > 3 targets forced 2:1
+  stacking, exactly 2 distinct targets died (`U_achieved ≈ 160`), and
+  `R = (160−240)/240 = −1/3` repeated on every episode, all seeds, train and eval.
+  `kills_mean ≈ 4.25` was never under-achievement: it counts `(ego, target)` PAIRS,
+  while DISTINCT killed was 2. Established by instrumentation (kept for the thesis, not
+  in the repo): every cell of a 3×3 `num_red_airbases × partial_ratio` grid has
+  `std(R)` in 0.079–0.190, and on a FIXED map varying ONLY the action-sampling RNG moves
+  R over a 0.75 range (`std ≈ 0.208`, exceeding the 0.190 measured across 12 different
+  maps) — so the spread is mostly the policy's own choices, not which map was drawn. The
+  cure was config, locked in §7. What remains is to RUN the baseline. **Gate check for
+  iteration 0:** in the short selftest, deterministic eval on the held-out band hit
+  `R = +0.0000` on 2/2 episodes. Two episodes is far too thin to conclude anything, but
+  if eval sits at or near the oracle ceiling from iteration 0 over the real 8-episode
+  band, an untrained policy is already saturating the cell and there is no headroom to
+  demonstrate learning — STOP and revisit the cell before spending compute.
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
 - **Reward densification + p<1:** per-wake/dense regret (vs today's terminal scalar) and the operand-scale rework for `probability<1.0` (expected-oracle vs realized-achieved diverge below p=1).
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
 - **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` calibration** once p<1 lands, **re-enable fuel-damage** after a clean baseline.
-> **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, `7f324fd`), plus a final doc sweep as a coda. The 38 deleted paths are preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup`. Nothing in `src/` or `tools/` references the flat path. `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/MATCH_AOU_API.md`, and `docs/INTEGRATION_GUIDE.md` were **deleted in the final sweep** (superseding the earlier decision to keep the first two as run-log records — the run logs live on the preserved refs, and `train_full` prose in `main` was more confusing than useful). **Kept, flagged for future passes:** `README.md` (minimally truthful — dead links pruned, but its MAPPO/flat architecture prose still awaits its own rewrite task) and `docs/BLADE_API_DOCUMENTATION.md` (documents the frozen vendored engine; unaudited against the current fork).
+- **`setup_episode` does not guard `split_meta["outcome"]`.** `split_tasks` can return
+  `warn-fallback` or `exhaust` — meaning a hidden target has NO known neighbour within
+  `DETECTION_KM` and is therefore undiscoverable at runtime — and `setup_episode`
+  proceeds SILENTLY. Measured: breaks appear only where KNOWN is small relative to
+  hidden (known 1 → 12/12 broke; known 2 with 6 hidden → 7/12; known 2 with 4 hidden →
+  clean), so the driver is the CONTROL RATIO, not target density. The locked cell
+  (known 3) avoids it, so a guard is a safety net rather than the primary fix. Options:
+  reject-and-reseed the episode, raise, or tie config to a control-ratio floor plus a
+  guard. Touches a §5 locked file → full recon→prompt→review→lock cycle.
+- **Added enemy airbases are not seed-stable by id.** `ScenarioGenerator` mints a FRESH
+  uuid for every red airbase it ADDS on each `generate()`, even at a fixed seed
+  (geometry and utility identical, id different). The base template holds 3 red
+  airbases, so at the locked `(6,6)` HALF the targets are minted per run. Consequence:
+  `graph_rollout`'s `known_target_ids` and any id-keyed cross-run comparison are
+  unreliable for added targets — compare by geometry fingerprint `(lat, lon, utility)`.
+  Scenario `/currentScenario/id` and `/name` are likewise unseeded; template unit ids
+  ARE stable.
+- **bonmin needs a solve timeout at `known ≤ 2`.** With ≤2 known tasks against the
+  4-agent fleet, branch-and-bound hits a symmetry stall — one measured episode took
+  ~15 min against ~45 s typical. The locked cell is clear of it and
+  `TrainConfig.validate` now WARNS, but a timeout is required before any low-known or
+  n-randomized config enters training.
+- **Single-radius invariant (§3) — RECON DONE, decision OPEN.** There is **no**
+  attack-vs-sensing pair in the code. `DETECTION_KM` is defined once in
+  `graph_episode_setup` and reaches FOUR separately-named parameters, all pinned to 50:
+  `VariationConfig.detection_km` (generator connectivity), `split_tasks(detection_km=…)`
+  (discovery adjacency), the executor's `arrival_threshold_km`, and
+  `GraphObservationConfig.detection_range_km` — the last not a free knob at all, since
+  the tick loop derives it from the executor's threshold so the two cannot disagree.
+  Inside the executor that ONE field serves FOUR roles: arrival, the attack gate,
+  `sensed_target_ids`, and the kill-confirm proximity check. A widen is priced: of the
+  hidden targets never sensed at runtime, 62/93 (67%) sat in the 50–80 km band and ZERO
+  within 50 km — every target an agent came within 50 km of WAS sensed; the >200 km tail
+  is orphaned-split cases, not a radar problem. ~80 km is also physically defensible:
+  the base fleet's BLADE `range` values are 92.6–222 km, so 80 km sits below the weakest
+  platform's own nominal range. Splitting sensing from attack therefore means splitting
+  that executor field, re-pointing the builder's `sensed` column at the SENSING radius
+  (the tick-loop derivation must change with it, or the OE mask and `decide_triggers`
+  would disagree — a silent research bug), and deciding the kill-confirm radius
+  separately. It is the HEAVY option: it needs a §3 red-line release plus isolation proof
+  tests. Note also that `graph_train` calls `setup_episode` WITHOUT `detection_km`, so
+  any new radius must be threaded through `TrainConfig`, not changed at one call site.
+- **`RolloutConfig` and `TrainConfig` defaults have DIVERGED.** `graph_rollout` still
+  carries `(3,3)` + `PARTIAL_RATIO` (2/3), so diagnostic rollouts now generate different
+  scenarios than training runs by default, making the two non-comparable. Deliberately
+  not changed in passing — decide whether the harness should follow the trainer.
+> **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, `7f324fd`), plus a final doc sweep as a coda. The 38 deleted paths are preserved on TWO DISTINCT refs — branch `flat-final` (`4d44c34`) and the annotated tag `pre-cleanup` (commit `561b7cb`; `git rev-parse pre-cleanup` returns the TAG OBJECT `cce4e1e`, so peel it with `pre-cleanup^{commit}`). Nothing in `src/` or `tools/` references the flat path. `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/MATCH_AOU_API.md`, and `docs/INTEGRATION_GUIDE.md` were **deleted in the final sweep** (superseding the earlier decision to keep the first two as run-log records — the run logs live on the preserved refs, and `train_full` prose in `main` was more confusing than useful). **Kept, flagged for future passes:** `README.md` (minimally truthful — dead links pruned, but its MAPPO/flat architecture prose still awaits its own rewrite task) and `docs/BLADE_API_DOCUMENTATION.md` (documents the frozen vendored engine; unaudited against the current fork).

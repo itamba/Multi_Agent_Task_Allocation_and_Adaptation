@@ -109,7 +109,6 @@ import torch
 from .graph_episode_setup import (
     setup_episode,
     DETECTION_KM,
-    PARTIAL_RATIO,
     MAX_SIM_TICKS,
 )
 from .graph_ppo import EpisodeRecord, PPOBuffer, PPOConfig, PPOUpdater
@@ -146,6 +145,45 @@ _TIMING_KEYS = frozenset({
 # 1. Config
 # =============================================================================
 
+def derived_split(n: int, partial_ratio: float) -> Tuple[int, int]:
+    """Preview ``(known, hidden)`` for ``n`` targets at ``partial_ratio``.
+
+    A MIRROR of the authority, ``graph_episode_setup.split_tasks``, which computes
+    ``num_partial = max(1, int(n * partial_ratio))`` and hides the rest. Nothing here
+    decides anything -- ``split_tasks`` remains the only site that performs the split;
+    this exists so the trainer can SHOW the researcher what that site will do before an
+    episode is generated. The equivalence is TEST-ENFORCED
+    (``tests/test_graph_train.py`` asserts this function's ``known`` against
+    ``meta["known"]`` from a real ``split_tasks`` call over a grid of ``n`` x ratios),
+    so the two arithmetics cannot silently diverge.
+
+    ``int()`` TRUNCATES toward zero -- it does not round. At ``n = 6`` that makes
+    ``1.0/3.0`` -> known 2 but the decimal ``0.333`` -> known 1: a different, hazardous
+    config. The truncation is deliberately NOT "cleaned up" into rounding here, because
+    mirroring the locked arithmetic exactly is the entire point.
+
+    ``n`` is the resolved target count. Under ``include_sams=False`` (the baseline)
+    facilities are forced to 0, so the enemy targets are exactly the red airbases and
+    ``n == num_red_airbases``.
+
+    Geometry can change WHICH tasks are known (isolated targets get pinned into the
+    known set), never HOW MANY -- every ``split_tasks`` return path yields
+    ``known == num_partial`` for ``n >= 2``.
+    """
+    n = int(n)
+    if n < 2:                       # split_tasks' degenerate branch: nothing to hide
+        return n, 0
+    known = max(1, int(n * float(partial_ratio)))
+    return known, n - known
+
+
+def _format_split_preview(preview: List[Dict[str, int]]) -> str:
+    """``[{n,known,hidden}, ...]`` -> ``"3/3   (n=6)"`` / ``"2/2   (n=4) ... 4/4   (n=8)"``."""
+    return " ... ".join(
+        "%d/%d   (n=%d)" % (p["known"], p["hidden"], p["n"]) for p in preview
+    )
+
+
 @dataclass
 class TrainConfig:
     """Knobs for one PPO training run.
@@ -167,10 +205,17 @@ class TrainConfig:
         eval_episodes: episodes per eval round. ``<= 0`` also disables evaluation.
         eval_base_seed: start of the FIXED, held-out eval seed band. Must sit beyond
             every training seed the run will reach (enforced by :meth:`validate`).
-        partial_ratio: fraction of tasks known at t=0 (pass-through to setup).
+        partial_ratio: fraction of tasks known at t=0 (pass-through to setup). The
+            derived known/hidden counts come from TRUNCATION, not rounding (see
+            :func:`derived_split`), so WRITE EXACT FRACTIONS: ``1.0/3.0``, never
+            ``0.333`` -- at n=6 the former gives known=2 and the latter known=1, a
+            different and hazardous config. The startup header echoes the resolved
+            split precisely so a mistyped ratio is caught before compute is spent.
         max_ticks: per-episode tick cap (``None`` -> the env's own ``MAX_SIM_TICKS``).
         include_sams / num_red_airbases / randomize_red_airbase_positions /
-        stretch_target_ratio: generator knobs, mirrored from ``RolloutConfig``.
+        stretch_target_ratio: generator knobs. ``num_red_airbases`` and
+            ``partial_ratio`` default to the Phase-A baseline cell and therefore NO
+            LONGER mirror ``RolloutConfig`` (see the field block below).
     """
 
     n_iterations: int
@@ -184,12 +229,22 @@ class TrainConfig:
     eval_episodes: int = 8
     eval_base_seed: int = 1_000_000
 
-    partial_ratio: float = PARTIAL_RATIO
+    partial_ratio: float = 0.5
     max_ticks: Optional[int] = None
 
-    # --- generator knobs (same defaults as the rollout harness) ---
+    # --- generator knobs: THE PHASE-A BASELINE CELL (selected by measurement) ---
+    # num_red_airbases=(6, 6) -> 6 targets > the 4-agent fleet -> no forced 2:1
+    # stacking. The retired (3, 3) default put 4 agents on 3 targets, so every
+    # episode stacked two agents per target and returned R = -1/3 to ~12 decimal
+    # places: zero variance, zero advantage, nothing to learn.
+    # partial_ratio=0.5 -> known 3 / hidden 3 at n=6. known >= 3 is the load-bearing
+    # half: at known <= 2 bonmin enters a branch-and-bound symmetry stall
+    # (~15 min/episode instead of ~45 s).
+    # These two fields therefore NO LONGER mirror ``RolloutConfig``, which still carries
+    # the old (3, 3) + PARTIAL_RATIO (2/3) pair -- whether the diagnostic harness should
+    # follow the trainer here is a separate decision, deliberately not taken in passing.
     include_sams: bool = False
-    num_red_airbases: Tuple[int, int] = (3, 3)
+    num_red_airbases: Tuple[int, int] = (6, 6)
     randomize_red_airbase_positions: bool = True
     stretch_target_ratio: float = 0.5
 
@@ -211,6 +266,32 @@ class TrainConfig:
         return self.eval_every > 0 and self.eval_episodes > 0
 
     # ------------------------------------------------------------------
+    def _airbase_bounds(self) -> Tuple[int, int]:
+        """``num_red_airbases`` as an inclusive ``(lo, hi)`` (a bare int -> ``(n, n)``)."""
+        v = self.num_red_airbases
+        if isinstance(v, (tuple, list)):
+            lo = int(v[0])
+            hi = int(v[-1])
+        else:
+            lo = hi = int(v)
+        return lo, hi
+
+    @property
+    def split_preview(self) -> List[Dict[str, int]]:
+        """The derived known/hidden split at each END of the ``num_red_airbases`` range.
+
+        One entry for a fixed count, two for a range -- the generator samples ``n``
+        uniformly inside it, so the two ends bracket every split the run can produce.
+        Computed ONLY through :func:`derived_split` (the one arithmetic site).
+        """
+        lo, hi = self._airbase_bounds()
+        out: List[Dict[str, int]] = []
+        for n in ([lo] if lo == hi else [lo, hi]):
+            known, hidden = derived_split(n, self.partial_ratio)
+            out.append({"n": int(n), "known": int(known), "hidden": int(hidden)})
+        return out
+
+    # ------------------------------------------------------------------
     def validate(self) -> None:
         """Refuse a self-inconsistent config BEFORE any expensive work starts.
 
@@ -220,6 +301,13 @@ class TrainConfig:
         would silently contain scenarios the policy had trained on and the learning
         curve would be measuring memorization. That is a research bug that produces
         plausible-looking numbers, so it fails LOUD here.
+
+        Two scenario HAZARDS are additionally reported -- PRINTED, never raised. A
+        researcher may deliberately probe a stalling or a pop-up-free cell, so refusing
+        them would be wrong; the point is that neither can be entered by ACCIDENT (a
+        mistyped ``partial_ratio`` is the realistic way in). Both are evaluated at the
+        LOW end of the ``num_red_airbases`` range -- fewest targets is the worst case for
+        each -- through :func:`derived_split`, the one split-arithmetic site.
         """
         if self.n_iterations < 1:
             raise ValueError(f"n_iterations must be >= 1, got {self.n_iterations}")
@@ -229,6 +317,21 @@ class TrainConfig:
             )
         if not (0.0 < float(self.partial_ratio) <= 1.0):
             raise ValueError(f"partial_ratio must be in (0, 1], got {self.partial_ratio}")
+
+        # --- scenario hazards: WARN, never raise (see the docstring) ---
+        lo_n = self._airbase_bounds()[0]
+        known, hidden = derived_split(lo_n, self.partial_ratio)
+        if known < 3:
+            print("[WARN] n=%d targets, partial_ratio=%r -> known/hidden = %d/%d: "
+                  "known < 3 is the bonmin branch-and-bound SYMMETRY-STALL region "
+                  "(~15 min per episode observed instead of ~45 s). Proceeding."
+                  % (lo_n, self.partial_ratio, known, hidden))
+        if hidden == 0:
+            print("[WARN] n=%d targets, partial_ratio=%r -> known/hidden = %d/%d: "
+                  "NO target is hidden, so no pop-up can occur, no "
+                  "OPPORTUNISTIC_ENGAGEMENT is reachable, and the episode is a "
+                  "degenerate learning target. Proceeding."
+                  % (lo_n, self.partial_ratio, known, hidden))
 
         if not self.eval_enabled:
             return
@@ -304,6 +407,31 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
             if line:
                 out.append(json.loads(line))
     return out
+
+
+def write_run_config(run_dir: Path, cfg: TrainConfig) -> Path:
+    """Write ``run_dir/run_config.json`` -- the full resolved config of THIS run.
+
+    Without this the run directory recorded no scenario config at all (the header only
+    echoed the PPO knobs), so once the scenario knobs became CLI-settable two runs could
+    no longer be compared after the fact. Contents:
+
+      * ``train_config``  -- ``asdict(cfg)``, including the nested :class:`PPOConfig`;
+      * ``derived_split`` -- :attr:`TrainConfig.split_preview` (the known/hidden the
+        run will actually get, from the one arithmetic site);
+      * ``base_scenario`` -- the template filename every variation derives from.
+
+    ``default=str`` covers ``output_dir`` when it is a ``Path``.
+    """
+    payload = {
+        "train_config": asdict(cfg),
+        "derived_split": cfg.split_preview,
+        "base_scenario": _BASE_SCENARIO.name,
+    }
+    path = Path(run_dir) / "run_config.json"
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, default=str)
+    return path
 
 
 def _build_generator(scen_dir: Path) -> ScenarioGenerator:
@@ -547,6 +675,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     ckpt_dir = run_dir / "checkpoints"
     train_records_path = run_dir / "train_records.jsonl"
     eval_records_path = run_dir / "eval_records.jsonl"
+    run_config_path = write_run_config(run_dir, cfg)
 
     # Match the rollout/selftest PlaybackRecorder override (harmless when recording is
     # off, which it always is here). Lazy import: engine boundary.
@@ -572,7 +701,15 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     else:
         print("eval: DISABLED")
     print("ppo: %s" % (asdict(cfg.ppo),))
+    # The scenario cell + the split it DERIVES. This is the primary defence against a
+    # mistyped partial_ratio: the operator sees the real known/hidden counts here,
+    # before any compute is spent (int() truncates -- see derived_split).
+    print("scenario: num_red_airbases=%r  partial_ratio=%s  stretch=%s  sams=%s"
+          % (cfg.num_red_airbases, cfg.partial_ratio, cfg.stretch_target_ratio,
+             cfg.include_sams))
+    print("          -> known/hidden = %s" % _format_split_preview(cfg.split_preview))
     print("run_dir=%s" % str(run_dir))
+    print("config:  %s" % str(run_config_path))
     print("=" * 78)
 
     train_records: List[Dict[str, Any]] = []
@@ -1023,6 +1160,17 @@ def _selftest() -> None:
             assert rec["n_episodes"] == 4 - rec["n_failed_episodes"], rec
         ckpts = sorted((run1 / "checkpoints").glob("ckpt_iter*.pt"))
         assert ckpts, "no checkpoint was written"
+
+        # The run's own config is recorded (pytest proves the CONTENT of the file from a
+        # config alone; this is the end-to-end proof that a REAL run emits it).
+        rc = json.loads((run1 / "run_config.json").read_text(encoding="utf-8"))
+        assert rc["train_config"]["num_red_airbases"] == list(cfg1.num_red_airbases), rc
+        assert rc["train_config"]["partial_ratio"] == cfg1.partial_ratio, rc
+        assert rc["derived_split"] == cfg1.split_preview, rc
+        assert rc["train_config"]["ppo"]["n_epochs"] == 2, rc
+        print("  run_config.json: n=%d known/hidden=%d/%d  (recorded)"
+              % (rc["derived_split"][0]["n"], rc["derived_split"][0]["known"],
+                 rc["derived_split"][0]["hidden"]))
         print("  train records=%d  eval rounds=%d  checkpoints=%d (%s)"
               % (len(train_recs1), len(eval_recs1), len(ckpts),
                  ", ".join(p.name for p in ckpts)))
@@ -1120,8 +1268,46 @@ def _selftest() -> None:
 # CLI
 # =============================================================================
 
+def _parse_airbase_range(text: str) -> Tuple[int, int]:
+    """``argparse`` type for ``--num-red-airbases``: ``"6"`` -> (6, 6); ``"6,8"`` -> (6, 8).
+
+    Raises :class:`argparse.ArgumentTypeError` on anything else -- a non-integer, an
+    empty string, ``lo < 1``, or ``hi < lo`` -- so a bad value produces argparse's usual
+    one-line usage error instead of a traceback from deep inside the generator.
+    """
+    raw = str(text).strip()
+    if not raw:
+        raise argparse.ArgumentTypeError(
+            "expected an integer N or a range LO,HI (e.g. 6 or 6,8), got an empty value"
+        )
+    parts = [part.strip() for part in raw.split(",")]
+    if len(parts) > 2:
+        raise argparse.ArgumentTypeError(
+            "expected an integer N or a range LO,HI (e.g. 6 or 6,8), got %r" % raw
+        )
+    try:
+        nums = [int(part) for part in parts]
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "target counts must be integers (e.g. 6 or 6,8), got %r" % raw
+        )
+    lo, hi = (nums[0], nums[0]) if len(nums) == 1 else (nums[0], nums[1])
+    if lo < 1:
+        raise argparse.ArgumentTypeError(
+            "the low end must be >= 1 (an episode needs at least one target), got %d" % lo
+        )
+    if hi < lo:
+        raise argparse.ArgumentTypeError(
+            "the range must be non-decreasing, got LO=%d > HI=%d" % (lo, hi)
+        )
+    return lo, hi
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     d_ppo = PPOConfig()
+    # Scenario defaults are READ OFF a default TrainConfig, never restated as literals,
+    # so the CLI cannot drift from the dataclass (test-enforced).
+    d_cfg = TrainConfig(n_iterations=1)
     p = argparse.ArgumentParser(
         description="PPO training loop for the graph-RL policy (Phase A, actor-only)."
     )
@@ -1150,6 +1336,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="start of the held-out eval seed band (default: %(default)s)")
     p.add_argument("--checkpoint-every", type=int, default=10,
                    help="checkpoint every N iterations (default: %(default)s)")
+    p.add_argument("--num-red-airbases", type=_parse_airbase_range,
+                   default=d_cfg.num_red_airbases, metavar="N|LO,HI",
+                   help="enemy target count: N for a fixed count, LO,HI to sample "
+                        "uniformly per episode (default: %(default)s)")
+    p.add_argument("--partial-ratio", type=float, default=d_cfg.partial_ratio,
+                   help="fraction of targets KNOWN at t=0 (default: %(default)s). "
+                        "TRUNCATED, not rounded: known = max(1, int(n * ratio)). At "
+                        "n=6, 0.3333333333 gives known=2 but 0.333 gives known=1 -- "
+                        "pass enough digits, and check the 'known/hidden' line the "
+                        "run prints at startup")
+    p.add_argument("--stretch-target-ratio", type=float,
+                   default=d_cfg.stretch_target_ratio,
+                   help="fraction of targets placed in the stretch zone, beyond the "
+                        "weakest aircraft's range (default: %(default)s)")
     p.add_argument("--plot", type=str, default=None, metavar="RUN_DIR",
                    help="plot an EXISTING run directory and exit (no training)")
     p.add_argument("--selftest", action="store_true",
@@ -1186,6 +1386,9 @@ def main(argv: Optional[List[str]] = None) -> None:
         eval_every=args.eval_every,
         eval_episodes=args.eval_episodes,
         eval_base_seed=args.eval_base_seed,
+        num_red_airbases=args.num_red_airbases,
+        partial_ratio=args.partial_ratio,
+        stretch_target_ratio=args.stretch_target_ratio,
     )
     summary = train(cfg)
     # This process has torch loaded, so the figure is drawn by a child (module docstring).
