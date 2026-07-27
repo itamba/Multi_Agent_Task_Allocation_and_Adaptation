@@ -23,34 +23,62 @@ cleanup began) — **this document describes the graph model only.**
   the repo. **A** — a research claim is at stake (no-communication isolation, route-prediction
   and placement fidelity, reproducibility of the geometry, source-of-truth / append-only):
   1–3 proof obligations declared up front, and the orchestrator must approve the exact
-  candidate SHA before merge; when the change touches cross-ego isolation or a §5 locked
-  layer, paste the diff for line-by-line review. Grade A is set by consequence, not by
-  difficulty — a wrong A is a silent false result, not a crash.
-- **Candidate commits are required.** Implement + run the required tests, then create a
-  candidate commit on the task branch and push it for orchestrator review through GitHub. A
-  push to the task branch is transport, not approval. For Grade A, stop in
-  `READY_FOR_REVIEW / UNREVIEWED`: do not merge, claim a lock, or begin dependent work
-  until the orchestrator (Claude or GPT — whichever the user is running) approves the exact
-  candidate SHA.
-- **No premature docs.** Don't spawn `README`/`SUMMARY`/per-file docs unasked. One consolidated doc per stable component.
-- **Minimal files.** Prefer extending a module over spawning `foo_utils.py` + `foo_config.py`.
-- **Git transport:** start each task branch from the packet's explicit base SHA; use
-  per-task commits and stage exactly the touched files. Push only to that task branch and
-  create / update its draft PR — never push directly to `main`. Do not force-push or
-  rebase after review begins. If the user explicitly marks a task `local-only`, do not push;
+  full SHA of the reviewed commit; when the change touches cross-ego isolation or a §5
+  locked layer it earns line-by-line review — GPT reads the exact GitHub `base...candidate`
+  comparison, Claude reads focused changed hunks it requests from CC. Grade A is set by
+  consequence, not by difficulty — a wrong A is a silent false result, not a crash.
+- **Candidate commits are required, and transport is MODE-DEPENDENT.** Implement + run the
+  required tests, then create the commit the orchestrator will review. Transport is never
+  approval: a commit stays `READY_FOR_REVIEW / UNREVIEWED` until the orchestrator approves
+  its exact full SHA — and that includes a commit already pushed to `main`. Exactly one of
+  the two modes below applies, and **the packet or the user must state which one**; never
+  silently infer that task branches or PRs are accessible. Shared by both modes: start from
+  the packet's verified full base SHA, stage exactly the declared files, and keep one
+  focused commit per task. If the user explicitly marks a task `local-only`, do not push;
   report that the orchestrator cannot independently review it until that restriction is
   lifted.
-- **Fix chain:** review corrections stay in the same named CC session and on the same task
-  branch, producing a new candidate SHA. Merge only the unchanged approved head. Prefer a
-  merge strategy that preserves the reviewed commit; if integration rewrites it, the
-  resulting tree must be verified before its SHA is recorded as a lock.
-- **Status block:** every task ends with: implementation status
-  (`READY_FOR_REVIEW` or `BLOCKED`); task branch; base SHA; candidate SHA; draft PR
-  number / URL; grade; test delta; deviations judged against the packet;
-  `NEW FACTS LEARNED` with `file:line` (mandatory, use `NONE` when empty); and
-  `CLAUDE.md` deltas needed.
-- **Output discipline:** never paste whole files or transcripts into chat. Return diffs,
-  targeted run output, and direct answers only; put a genuinely long report in the repo.
+- **No premature docs.** Don't spawn `README`/`SUMMARY`/per-file docs unasked. One consolidated doc per stable component.
+- **Minimal files.** Prefer extending a module over spawning `foo_utils.py` + `foo_config.py`.
+- **Transport mode `GPT_GITHUB`** — the GPT orchestrator inspects GitHub directly (branches,
+  PRs, files, exact SHAs):
+  - start the task branch from the packet's verified full base SHA;
+  - create and push a candidate commit on that task branch;
+  - open or update its draft PR;
+  - the GPT orchestrator reviews the exact `base...candidate` state before merge;
+  - do not push directly to `main`, merge, rebase, or force-push unless the user explicitly
+    changes the task's authorization.
+- **Transport mode `CLAUDE_MOUNTED_MAIN`** — the Claude orchestrator's shared repository view
+  is CC's synchronized mounted checkout, whose usable shared state is `main`; task branches
+  and PRs must **not** be assumed accessible:
+  - before editing, verify a clean checkout and exact equality between local `HEAD`,
+    `origin/main`, and the packet's full base SHA;
+  - stage only the declared files, create one focused commit, and push it directly to `main`
+    with a normal **non-force** push;
+  - the pushed commit stays `UNREVIEWED` until the Claude orchestrator approves that exact
+    full SHA. For Grade A work, do not claim a lock or begin dependent work until that
+    post-push exact-SHA approval occurs;
+  - if review finds a problem, correct it with a NEW follow-up commit on `main` — never
+    amend, rewrite history, reset published commits, or force-push;
+  - if `main` has advanced, the push is rejected, or the mounted checkout cannot prove its
+    state, stop and report `BLOCKED` (do not pull, merge, rebase, reset, stash, or delete).
+- **Fix chain:** review corrections stay in the same named CC session and produce a NEW
+  commit and a new SHA to review — never a rewrite of the reviewed one. In `GPT_GITHUB` they
+  land on the same task branch; merge only the unchanged approved head, prefer a merge
+  strategy that preserves the reviewed commit, and if integration rewrites it, verify the
+  resulting tree before recording its SHA as a lock. In `CLAUDE_MOUNTED_MAIN` they land as
+  follow-up commits on `main`, and the lock is the last approved pushed SHA.
+- **Status block (mode-aware):** every task ends with: state (`READY_FOR_REVIEW /
+  UNREVIEWED` or `BLOCKED`); transport mode; full base SHA; full review SHA; grade; files
+  changed; tests / checks run; proof-obligation evidence; deviations judged against the
+  packet; `NEW FACTS LEARNED` anchored by **file + symbol or exact string** (mandatory, use
+  `NONE` when empty); `CLAUDE.md` deltas needed; and final working-tree state. Task branch
+  and draft PR number / URL are required **only** in `GPT_GITHUB` mode; in
+  `CLAUDE_MOUNTED_MAIN`, report `main` plus the verified pushed `origin/main` SHA.
+- **Output discipline:** never paste whole files, full transcripts, or a large full diff into
+  chat. GPT inspects the exact GitHub `base...candidate` diff itself; Claude may request
+  focused changed hunks and targeted test evidence from CC when its mounted view is
+  insufficient. Otherwise return targeted run output and direct answers only, and put a
+  genuinely long report in the repo.
 - **Environment:** Windows + PyCharm terminal + `nlp_env` conda env, Python 3.10+. Avoid POSIX-only idioms; use Python/PowerShell equivalents. Run from repo root.
 - **`pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env` so the environment that owns the editable `blade` install is actually exercised. **OPEN:** whether `import blade` resolves to the same editable fork in the base env is unverified — until it is, treat a base-env-only pass as partial.
 - **🛑 Solver/bonmin commands MUST run under `nlp_env`** (`conda run -n nlp_env ...`; add `--no-capture-output` to avoid Windows cp1255 re-encode crashes on Unicode prints). The base env lacks `bonmin` and fails **silently** (exits 0). **Never trust the exit code alone** — verify no `CRASH`/`Traceback` and that the run actually solved before claiming success.
@@ -330,17 +358,24 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   coordinates and the rng stream ONLY, never of the aircraft's own position. **P5**
   proves the switch is a true skip by monkeypatching `_ensure_discovery_chain` to
   raise (`generate()` has no try/except, so the raise cannot be swallowed).
-- `PENDING` — **workflow + handoff migration** (documents only; no code touched, no test
-  delta). §1 moves from STOP-before-commit / local-only to Git transport: a task branch off
-  an explicit base SHA, a candidate commit, a draft PR, and a mandatory status block. Both
-  orchestrators (Claude and GPT) now read this repository directly through a Git connector,
-  so a pasted diff is no longer the primary review artifact — grade A still escalates to
-  one. Adds the **grade = trust policy** definition that §1 previously referenced without
-  defining. Fills the two SHAs the hash convention deferred (`95c09dd`, `384845b`; the
-  entries above carried `PENDING` until this commit). The continuing handoff
-  (`graph_rl_project_handoff.md`) lands in the SAME commit: it declares each task's grade,
-  so the two documents are only coherent together. This entry's own SHA is filled by the
-  next commit that touches this file.
+- `a5a4137` — **workflow + handoff migration** (documents only; no code touched, no test
+  delta). §1 moves from STOP-before-commit / local-only to Git transport: an explicit base
+  SHA, a reviewable candidate commit, and a mandatory status block. Adds the **grade = trust
+  policy** definition that §1 previously referenced without defining. Fills the two SHAs the
+  hash convention deferred (`95c09dd`, `384845b`; the entries above carried `PENDING` until
+  this commit). The continuing handoff (`graph_rl_project_handoff.md`) lands in the SAME
+  commit: it declares each task's grade, so the two documents are only coherent together.
+  **Corrected in place (docs-only, no separate history entry):** that entry asserted that
+  both orchestrators read this repository through equivalent direct Git connectors, and that
+  a task branch + draft PR is the one universal transport. Both claims are false. Access is
+  **capability-aware**, and §1 now carries two transport modes over ONE shared `CLAUDE.md`
+  and ONE shared handoff — no per-orchestrator forks of either document. `GPT_GITHUB`: the
+  GPT orchestrator resolves branches, PRs, files, and exact SHAs through GitHub and reviews
+  the exact `base...candidate` comparison. `CLAUDE_MOUNTED_MAIN`: the Claude orchestrator's
+  shared view is CC's synchronized mounted checkout of `main`, so the reviewable artifact is
+  an exact post-push `main` SHA plus focused hunks and targeted test evidence requested from
+  CC — task branches and PRs are not assumed reachable. The packet or the user declares the
+  mode; it is never inferred.
 
 ---
 

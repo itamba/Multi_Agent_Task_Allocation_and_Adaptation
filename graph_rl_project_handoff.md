@@ -12,34 +12,45 @@ drift.
 
 ## 0. How this workspace reads the repository
 
-- Both orchestrators (Claude and GPT) now read the repository directly through a Git
-  connector, so there is no mounted snapshot to distrust. But the connector is a **search**
-  interface, not a filesystem: it cannot list files, count occurrences, prove that something
-  is ABSENT, or run `git`. Two working consequences:
-  - Cite code by **file + symbol or exact string**, never by line number. This is the same
-    anchoring rule surgical OLD→NEW edits already require, so recon and dispatch now share
-    one convention.
-  - When the answer is a repository or run fact — HEAD, branch state, test output — ask the
-    user ONE focused question instead of inferring it.
-- Documents can lag code, and lag each other. Observed at this baseline: the code carried
-  all three scenario-construction preconditions while `CLAUDE.md` still showed the
-  pre-migration §1 and a `PENDING` §7 entry. Trust order: **the SHA the user names > the
-  connector's content > this handoff > anything remembered from a chat.**
+- Repository access is **capability-aware**, not shared. The two orchestrators see different
+  things and must resolve facts through what each actually has:
+  - **GPT** resolves repository facts through GitHub first — branches, PRs, files, and exact
+    SHAs. That access is a **search** interface, not a filesystem: it cannot list files,
+    count occurrences, prove that something is ABSENT, or run `git`.
+  - **Claude** uses the mounted `main` state and the Git evidence CC reports first. Task
+    branches and PRs must not be assumed accessible.
+  - Either orchestrator asks the user ONE focused question only when its own available
+    access cannot establish the required fact.
+- Every repository claim must be tied to an **explicit full SHA**. At that SHA, code and
+  tests are authoritative, followed by `CLAUDE.md` and this handoff read at the SAME SHA.
+  Project Sources, memory, chat summaries, and pasted reports are **not** evidence of current
+  repository state.
+- Cite code by **file + symbol or exact string**, never by line number. This is the same
+  anchoring rule surgical OLD→NEW edits already require, so recon and dispatch share one
+  convention.
+- Documents can lag code, and lag each other. Observed at the `384845b` baseline: the code
+  carried all three scenario-construction preconditions while `CLAUDE.md` still showed the
+  pre-migration §1 and a `PENDING` §7 entry.
 - `CLAUDE.md` §1 now defines the grade scale as a **trust policy** — C trusted with no
   review, B the orchestrator reads the changed files, A the orchestrator approves the exact
-  candidate SHA and a diff is pasted when cross-ego isolation or a §5 locked layer is
-  touched. This handoff declares only a grade per task; the definition belongs there.
+  full reviewed SHA, with line-by-line review when cross-ego isolation or a §5 locked layer
+  is touched: GPT reads the exact GitHub `base...candidate` comparison, and Claude receives
+  focused changed hunks or targeted evidence from CC. No full diff is pasted into chat. This
+  handoff declares only a grade per task; the definition belongs there.
 
 ## 1. Current state
 
-- Last reviewed code SHA: `384845b`. Active task branch / PR: none.
+- Last reviewed code SHA: `384845b19805a29920d26e495b88451ca2a5b900`. That is the last
+  reviewed **code baseline** — it is **not** the base SHA for the next task. Docs-only commits
+  have advanced `main` since, so every implementation task must resolve the current full
+  `main` SHA immediately before dispatch and declare THAT as its base. Active task branch /
+  PR: none.
 - Verified tests reported for that baseline: suite 64, import purity 12/12, module
   selftests, and the bonmin selftest under `nlp_env`.
 - Phase-A trainer exists, but **no full training run has ever been performed.** This is
   deliberate: close scenario construction first.
-- `CLAUDE.md` §7's last entry — the workflow + handoff migration — carries `PENDING`. Its
-  SHA is filled by the NEXT commit that touches `CLAUDE.md`, per the hash convention. Do not
-  amend.
+- `CLAUDE.md` §7's workflow + handoff migration entry carries its recorded SHA `a5a4137`; the
+  hash-convention duty for that entry is discharged.
 
 ## 2. Phase goal
 
@@ -313,7 +324,6 @@ before, and not later.
 
 | Trigger | Duty |
 |---|---|
-| next commit touching `CLAUDE.md` | fill the `PENDING` SHA of the workflow + handoff migration entry (§7 hash convention; do not amend) |
 | B1 lands | update `CLAUDE.md` §6's "change the training scenario cell" row — it still names `num_red_airbases` / `partial_ratio` / `derived_split` |
 | B1's parameterization closes | retire the `min_target_distance_km` item in `CLAUDE.md` §8 |
 | B3 lands | rewrite `CLAUDE.md` §4's pipeline diagram — it still shows `split_tasks (partial ⊊ full)`, which is correct until then; and mark the `split_meta["outcome"]` §8 item as legacy-path-only |
@@ -321,5 +331,7 @@ before, and not later.
 ## 9. Next action
 
 Close the B1 numerical decisions in §5.2 using the evidence in §3, then dispatch B1 as one
-bounded task under the Git-transport workflow: a task branch off the named base SHA, a
-candidate commit, a draft PR, and a status block.
+bounded task: resolve the fresh `main` HEAD and declare it as the base SHA, select the
+declared orchestrator transport mode (`GPT_GITHUB` or `CLAUDE_MOUNTED_MAIN`), and use the
+corresponding transport defined in `CLAUDE.md` §1. The procedure lives there — do not
+duplicate it here. A status block is required in either mode.
