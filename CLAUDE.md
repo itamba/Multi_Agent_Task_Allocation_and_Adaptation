@@ -16,18 +16,30 @@ cleanup began) — **this document describes the graph model only.**
   grade, and 1–3 proof obligations. Explain material implementation choices before making
   them; stop only for a blocking ambiguity, a red-line conflict, or a material deviation
   from the packet — not after every file.
+- **Grade = the trust policy, declared in the packet.** It states how much review the change
+  earns, not how hard it is. **C** — hygiene, wording, docs, unreachable fallbacks: trusted,
+  no review, no lock ceremony. **B** — "the pipeline runs or it does not": one test on the
+  main path, no branch coverage, no goldens; the orchestrator reads the changed files from
+  the repo. **A** — a research claim is at stake (no-communication isolation, route-prediction
+  and placement fidelity, reproducibility of the geometry, source-of-truth / append-only):
+  1–3 proof obligations declared up front, and the orchestrator must approve the exact
+  candidate SHA before merge; when the change touches cross-ego isolation or a §5 locked
+  layer, paste the diff for line-by-line review. Grade A is set by consequence, not by
+  difficulty — a wrong A is a silent false result, not a crash.
 - **Candidate commits are required.** Implement + run the required tests, then create a
-  candidate commit on the task branch and push it for GPT review through GitHub. A push to
-  the task branch is transport, not approval. For Grade A, stop in
+  candidate commit on the task branch and push it for orchestrator review through GitHub. A
+  push to the task branch is transport, not approval. For Grade A, stop in
   `READY_FOR_REVIEW / UNREVIEWED`: do not merge, claim a lock, or begin dependent work
-  until the GPT orchestrator approves the exact candidate SHA.
+  until the orchestrator (Claude or GPT — whichever the user is running) approves the exact
+  candidate SHA.
 - **No premature docs.** Don't spawn `README`/`SUMMARY`/per-file docs unasked. One consolidated doc per stable component.
 - **Minimal files.** Prefer extending a module over spawning `foo_utils.py` + `foo_config.py`.
 - **Git transport:** start each task branch from the packet's explicit base SHA; use
   per-task commits and stage exactly the touched files. Push only to that task branch and
   create / update its draft PR — never push directly to `main`. Do not force-push or
   rebase after review begins. If the user explicitly marks a task `local-only`, do not push;
-  report that GPT cannot independently review it until that restriction is lifted.
+  report that the orchestrator cannot independently review it until that restriction is
+  lifted.
 - **Fix chain:** review corrections stay in the same named CC session and on the same task
   branch, producing a new candidate SHA. Merge only the unchanged approved head. Prefer a
   merge strategy that preserves the reviewed commit; if integration rewrites it, the
@@ -318,6 +330,17 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   coordinates and the rng stream ONLY, never of the aircraft's own position. **P5**
   proves the switch is a true skip by monkeypatching `_ensure_discovery_chain` to
   raise (`generate()` has no try/except, so the raise cannot be swallowed).
+- `PENDING` — **workflow + handoff migration** (documents only; no code touched, no test
+  delta). §1 moves from STOP-before-commit / local-only to Git transport: a task branch off
+  an explicit base SHA, a candidate commit, a draft PR, and a mandatory status block. Both
+  orchestrators (Claude and GPT) now read this repository directly through a Git connector,
+  so a pasted diff is no longer the primary review artifact — grade A still escalates to
+  one. Adds the **grade = trust policy** definition that §1 previously referenced without
+  defining. Fills the two SHAs the hash convention deferred (`95c09dd`, `384845b`; the
+  entries above carried `PENDING` until this commit). The continuing handoff
+  (`graph_rl_project_handoff.md`) lands in the SAME commit: it declares each task's grade,
+  so the two documents are only coherent together. This entry's own SHA is filled by the
+  next commit that touches this file.
 
 ---
 
