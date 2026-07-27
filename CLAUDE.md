@@ -55,6 +55,16 @@ Everything derives from **NO-COMMUNICATION**: at runtime an ego acts only on its
 
 **Detection/attack range — ONE radius.** Sensing = attack = arrival = discovery = **`DETECTION_KM` (50 km)**, threaded from `graph_episode_setup` into the executor's `arrival_threshold_km`, the builder's `GraphObservationConfig.detection_range_km`, `split_tasks`' discovery adjacency, and the generator's connectivity (`VariationConfig.detection_km`). **Never** use BLADE `aircraft.range` for discovery (it varies per aircraft; we set the radius ourselves). No separate "detection > attack" radar range in the baseline.
 
+**Launch point == the BLUE airbase.** Each aircraft record carries its airbase's own
+coordinates, and `launch_aircraft_from_airbase` never repositions — so every ego goes
+airborne OVER its base. Two consequences the geometry depends on: all egos share ONE
+origin (route geometry is a star from that point, so a target placed near the origin
+is sensed by ALL egos, privately but simultaneously — placement must favour the far
+half of a route to preserve the asymmetry no-comms is about), and
+`Agent.location == Agent.return_location`, making the solver's `round_trip_cost` a
+symmetric out-and-back. Guarded by `tests/test_scenario_construction_preconditions.py`
+P1/P2 and by `_adjust_aircraft_count`'s base-anchored fallback.
+
 ---
 
 ## 4. The pipeline (end-to-end, all BUILT)
@@ -133,7 +143,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 | Expose the ego's own sensing | `blade_graph_executor.py` → `sensed_target_ids` |
 | Create Agents / Tasks from a scenario | `scenario_factory.py` → `create_agents_from_scenario` / `generate_all_enemy_tasks` (`probability=1.0`) / `iter_enemy_targets` + `make_attack_task` (utility: Facility 100 / Airbase 80 / Ship 95) |
 | Change scenario content / zones / fleet / fuel tiers | `scenario_generator.py` (`VariationConfig`, `ScenarioGenerator`, `CLASS_RANGE_TIERS`) |
-| Change generation-time discovery connectivity (Layer 1, at `DETECTION_KM`) | `scenario_generator.py` → `_ensure_discovery_chain` / `_compute_zone_bounds` / `_connect_zone_targets` |
+| Change generation-time discovery connectivity (Layer 1, at `DETECTION_KM`) | `scenario_generator.py` → `_ensure_discovery_chain` / `_compute_zone_bounds` / `_connect_zone_targets`; switch the whole pass OFF with `VariationConfig.ensure_discovery_chain=False` |
 | Change split-time discovery masking (Layer 2, at `DETECTION_KM`) | `rl/training/graph_episode_setup.py` → `split_tasks` |
 | Change the solver objective/constraints | `match_aou_MINLP_solver.py` (extreme caution — §2) |
 | Change post-solve scheduling / levels | `scheduling_utils.py`, `topology_utils.py` |
@@ -160,7 +170,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 - `d9b8c17` — strip the five flat `__init__` re-export vectors + lock `tests/test_import_purity.py` (Step 2 of the flat-path cleanup).
 - `ab54ac3` — delete the retired flat path: 38 paths removed (Step 3 of the flat-path cleanup).
 - `7f324fd` — doc hygiene + workspace pruning: **Step 4, the FINAL lock of the cleanup phase.** ~20 stale docstring/comment sites reworded across the nine graph modules + `blade_executor_minimal` + `graph_executor_smoke` (present-tense references to the deleted flat path → truthful today or past-tense provenance); README's two stale `train_full.py` sites fixed; `.gitignore` gains `generated_scenarios/`; workspace pruned to two worktrees (main + `../flat-baseline`) with the three stale `claude/*` branches deleted. Comment-only in code — zero code lines changed; all six layer selftests + 12/12 import-purity green.
-- `b96d29f` — **final doc sweep** (post-cleanup coda). Four flat-era docs deleted: `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/INTEGRATION_GUIDE.md`, `docs/MATCH_AOU_API.md` — the first three document deleted code; the fourth documents the live solver but through a dead API (`StepType`, removed in `5eeaf3c`) in every example. All four preserved on `flat-final` (`4d44c34`) + tag `pre-cleanup`. README's Documentation section lost its three dead links (the two deleted `docs/` files + `RL_MODULE_DOCUMENTATION.md`, orphaned back in `ab54ac3`), leaving only the live `BLADE_API_DOCUMENTATION.md`. Untracked mid-cleanup snapshot `src/match_aou.zip` deleted. `training_output*/` added to `.git/info/exclude` — a local-only, never-tracked safety net shared by both worktrees, deliberately broader than `.gitignore`'s `training_output_*/`. Docs-only; 12/12 import-purity green.
+- `b96d29f` — **final doc sweep** (post-cleanup coda). Four flat-era docs deleted: `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/INTEGRATION_GUIDE.md`, `docs/MATCH_AOU_API.md` — the first three document deleted code; the fourth documents the live solver but through a dead API (`StepType`, removed in `5eeaf3c`) in every example. All four preserved on `flat-final` (`4d44c34`) + the annotated tag `pre-cleanup` (peel it: `pre-cleanup^{commit}` → `561b7cb`). README's Documentation section lost its three dead links (the two deleted `docs/` files + `RL_MODULE_DOCUMENTATION.md`, orphaned back in `ab54ac3`), leaving only the live `BLADE_API_DOCUMENTATION.md`. Untracked mid-cleanup snapshot `src/match_aou.zip` deleted. `training_output*/` added to `.git/info/exclude` — a local-only, never-tracked safety net shared by both worktrees, deliberately broader than `.gitignore`'s `training_output_*/`. Docs-only; 12/12 import-purity green.
 - `be3729d` — per-episode RNG reseed in `graph_rollout` (PPO-phase step 1).
   Every episode now reseeds global `random` + torch with `base_seed+i` at the top
   of its iteration (the generator already uses its own `random.Random(seed)`),
@@ -223,7 +233,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   max_ticks=5). FINDING (see §8): the Trainer is correct, but every episode returns
   R ~ -1/3, so a baseline run as-is will NOT learn — a reward/scenario issue, not a
   Trainer bug.
-- `PENDING` — **Phase-A baseline scenario cell + config visibility** (`graph_train`
+- `95c09dd` — **Phase-A baseline scenario cell + config visibility** (`graph_train`
   only; no locked layer touched). Defaults retargeted from the measured-degenerate
   `(3,3)` to the SELECTED cell: `num_red_airbases=(6,6)`, `partial_ratio=0.5` →
   **known 3 / hidden 3**, `U_oracle=480`. Why this cell: 6 targets > the 4-agent fleet
@@ -253,6 +263,39 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   multiples of 80/480), three distinct iteration means, and `OPPORTUNISTIC_ENGAGEMENT`
   firing 7× in 12 episodes — matching the instrument's measurement for this cell
   exactly.
+- `PENDING` — **Scenario-construction preconditions** (step 1 of 3 of the offline
+  scenario-construction phase; no locked layer touched). Three fixes the inverted
+  build order depends on. (1) **LAUNCH POINT.** The base template parked the four
+  BLUE aircraft at `(32.35416…, 34.81240…)` while their own airbase sits at
+  `(32.85416…, 35.31240…)` — 72.7 km away — and `Game.launch_aircraft_from_airbase`
+  only moves the object between lists without repositioning it, so every episode
+  put the fleet airborne 72.7 km from its base. The four aircraft records now carry
+  the airbase's coordinates. The template JSON is **MINIFIED** (one line, no
+  newlines): edit it by exact string replacement and NEVER round-trip it through
+  `json.dump`. Intended consequence: `Agent.location == Agent.return_location`, so
+  the solver's `round_trip_cost` is now a symmetric out-and-back instead of a
+  launch→target→base triangle, and a given seed MAY now yield a different
+  allocation. (2) **The source of that skew** — `_adjust_aircraft_count`'s
+  empty-inventory branch placed a new aircraft at `base − 0.5°/0.5°`; it now anchors
+  to the base, making the defect unreproducible. (3) **`VariationConfig.
+  ensure_discovery_chain: bool = True`** gates Layer 1's CALL SITE (body untouched).
+  Default = today's behaviour; `False` skips the relocation pass, which the
+  construction path requires: with only the KNOWN targets generated, Layer 1 would
+  cluster them into ≤`DETECTION_KM` pairs and collapse the route diversity that
+  hidden-target placement is measured against. When `False`, the seven stats keys
+  Layer 1 stamps (`easy_relocated`/`_total`/`_isolated`, the three `stretch_*`,
+  `min_radar_km`) are ABSENT from `last_generation_stats` — read them with `.get`,
+  never `[...]` (`graph_episode_setup._selftest_generator` indexes `min_radar_km`
+  directly and is safe only because it runs with the chain ON). Verified: no seeded
+  rng consumer runs after Step 5.25, so gating the call does not shift the rng
+  stream. Proven: `tests/test_scenario_construction_preconditions.py`, suite 59 →
+  64, import purity 12/12, both module selftests + the bonmin selftest green under
+  `nlp_env`. The load-bearing test is **P6** — the four RED-airbase coordinates for
+  a fixed seed are byte-identical before and after, which makes the phase's
+  foundational claim falsifiable: target placement is a function of the BASE
+  coordinates and the rng stream ONLY, never of the aircraft's own position. **P5**
+  proves the switch is a true skip by monkeypatching `_ensure_discovery_chain` to
+  raise (`generate()` has no try/except, so the raise cannot be swallowed).
 
 ---
 
@@ -329,4 +372,14 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   carries `(3,3)` + `PARTIAL_RATIO` (2/3), so diagnostic rollouts now generate different
   scenarios than training runs by default, making the two non-comparable. Deliberately
   not changed in passing — decide whether the harness should follow the trainer.
+- **`min_target_distance_km` (50) is now measured from the LAUNCH POINT.** With the
+  launch point == the blue airbase, the easy-zone floor equals `DETECTION_KM`
+  exactly. Measured in the P6 fixture: the two easy targets landed **58.8 km** and
+  **63.2 km** from the base — 9–13 km outside the sensing radius at wheels-up, so an
+  ego can "discover" a target seconds after launch, which destroys the pop-up
+  semantics the construction phase is built on. The floor must rise, AND a minimum
+  pairwise separation between KNOWN targets must be introduced — Layer 1 currently
+  enforces the OPPOSITE: in the same fixture it pulled the easy pair to **13.7 km**
+  and the stretch pair to **28.9 km** apart. Decision pending in the construction
+  phase's parameterization step.
 > **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, `7f324fd`), plus a final doc sweep as a coda. The 38 deleted paths are preserved on TWO DISTINCT refs — branch `flat-final` (`4d44c34`) and the annotated tag `pre-cleanup` (commit `561b7cb`; `git rev-parse pre-cleanup` returns the TAG OBJECT `cce4e1e`, so peel it with `pre-cleanup^{commit}`). Nothing in `src/` or `tools/` references the flat path. `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/MATCH_AOU_API.md`, and `docs/INTEGRATION_GUIDE.md` were **deleted in the final sweep** (superseding the earlier decision to keep the first two as run-log records — the run logs live on the preserved refs, and `train_full` prose in `main` was more confusing than useful). **Kept, flagged for future passes:** `README.md` (minimally truthful — dead links pruned, but its MAPPO/flat architecture prose still awaits its own rewrite task) and `docs/BLADE_API_DOCUMENTATION.md` (documents the frozen vendored engine; unaudited against the current fork).

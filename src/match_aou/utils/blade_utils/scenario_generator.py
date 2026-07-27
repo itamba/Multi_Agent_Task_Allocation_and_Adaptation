@@ -137,6 +137,23 @@ class VariationConfig:
     #           gap. Does NOT change zone semantics; only the connectivity radius.
     detection_km: Optional[float] = None
 
+    # --- Discovery-chain Layer 1: on/off ---
+    # True (default, current behaviour): `_ensure_discovery_chain` runs and MOVES
+    #   targets so every target has a same-zone neighbour within the connectivity
+    #   radius. That is the precondition that makes the downstream `split_tasks`
+    #   rejection sampler solvable.
+    # False: skip Layer 1 entirely; target positions stay exactly where
+    #   `_randomize_target_positions` put them. Required by the offline
+    #   scenario-construction path, where hidden targets are placed relative to
+    #   SOLVED routes: there, clustering the KNOWN targets into ≤radius pairs
+    #   would collapse the route diversity placement depends on, to buy a
+    #   discovery guarantee placement already provides by construction.
+    # When False, the keys Layer 1 stamps into `last_generation_stats`
+    #   (`easy_relocated`, `easy_total`, `easy_isolated`, `stretch_relocated`,
+    #   `stretch_total`, `stretch_isolated`, `min_radar_km`) are ABSENT.
+    #   Callers must read them with `.get`, never `[...]`.
+    ensure_discovery_chain: bool = True
+
     # --- Random seed (None = random each time) ---
     seed: Optional[int] = None
 
@@ -667,7 +684,8 @@ class ScenarioGenerator:
         # target in a given zone can detect nearby masked targets in the
         # same zone (cross-zone discovery is impossible: zones are separated
         # by far more than radar range).
-        self._ensure_discovery_chain(scenario, reachability, config, rng)
+        if config.ensure_discovery_chain:
+            self._ensure_discovery_chain(scenario, reachability, config, rng)
 
         # Step 5.5: Reachability audit (read-only)
         base_lat, base_lon, _ = self._get_blue_base(scenario)
@@ -1290,8 +1308,12 @@ class ScenarioGenerator:
                     new_ac["longitude"] = ref["longitude"]
                     new_ac["altitude"] = ref["altitude"]
                 else:
-                    new_ac["latitude"] = base_lat - 0.5
-                    new_ac["longitude"] = base_lon - 0.5
+                    # Launch point == the blue airbase. The old `base - 0.5°`
+                    # offset is how the base template acquired a fleet parked
+                    # 72.7 km from its own airbase (fixed in the same change);
+                    # anchoring to the base makes that unreproducible.
+                    new_ac["latitude"] = base_lat
+                    new_ac["longitude"] = base_lon
                     new_ac["altitude"] = 10000
 
                 aircraft_list.append(new_ac)
