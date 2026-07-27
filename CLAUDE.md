@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code in this repository. This is the **Multi-Agent GRAPH RL** project
+Repository guidance for Claude Code. This is the **Multi-Agent GRAPH RL** project
 (MATCH-AOU Phase-2): a no-communication multi-agent policy that adapts a static task
 allocation at runtime over a graph representation. The old flat RL path is **retired** — deleted
 from `main` in Step 3 of the cleanup, preserved on TWO DISTINCT refs — branch `flat-final`
@@ -12,11 +12,33 @@ cleanup began) — **this document describes the graph model only.**
 ## 1. Communication & workflow (read first)
 
 - **User speaks Hebrew.** Code, comments, and docs stay in English.
-- **Step-by-step.** One file / one change at a time. Explain the reasoning *before* editing, then wait for feedback.
-- **STOP before committing.** Implement + run tests, then stop and report (diff + test output) for line-by-line review. Locking (CLAUDE.md update + commit) is a **separate** step, only after approval.
+- **Packet-driven scope.** One closed task at a time. Follow the packet's declared scope,
+  grade, and 1–3 proof obligations. Explain material implementation choices before making
+  them; stop only for a blocking ambiguity, a red-line conflict, or a material deviation
+  from the packet — not after every file.
+- **Candidate commits are required.** Implement + run the required tests, then create a
+  candidate commit on the task branch and push it for GPT review through GitHub. A push to
+  the task branch is transport, not approval. For Grade A, stop in
+  `READY_FOR_REVIEW / UNREVIEWED`: do not merge, claim a lock, or begin dependent work
+  until the GPT orchestrator approves the exact candidate SHA.
 - **No premature docs.** Don't spawn `README`/`SUMMARY`/per-file docs unasked. One consolidated doc per stable component.
 - **Minimal files.** Prefer extending a module over spawning `foo_utils.py` + `foo_config.py`.
-- **Git:** per-task commits, explicit staging of exactly the touched files, local-only unless told otherwise (no push). Respect "local-only" when stated.
+- **Git transport:** start each task branch from the packet's explicit base SHA; use
+  per-task commits and stage exactly the touched files. Push only to that task branch and
+  create / update its draft PR — never push directly to `main`. Do not force-push or
+  rebase after review begins. If the user explicitly marks a task `local-only`, do not push;
+  report that GPT cannot independently review it until that restriction is lifted.
+- **Fix chain:** review corrections stay in the same named CC session and on the same task
+  branch, producing a new candidate SHA. Merge only the unchanged approved head. Prefer a
+  merge strategy that preserves the reviewed commit; if integration rewrites it, the
+  resulting tree must be verified before its SHA is recorded as a lock.
+- **Status block:** every task ends with: implementation status
+  (`READY_FOR_REVIEW` or `BLOCKED`); task branch; base SHA; candidate SHA; draft PR
+  number / URL; grade; test delta; deviations judged against the packet;
+  `NEW FACTS LEARNED` with `file:line` (mandatory, use `NONE` when empty); and
+  `CLAUDE.md` deltas needed.
+- **Output discipline:** never paste whole files or transcripts into chat. Return diffs,
+  targeted run output, and direct answers only; put a genuinely long report in the repo.
 - **Environment:** Windows + PyCharm terminal + `nlp_env` conda env, Python 3.10+. Avoid POSIX-only idioms; use Python/PowerShell equivalents. Run from repo root.
 - **`pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env` so the environment that owns the editable `blade` install is actually exercised. **OPEN:** whether `import blade` resolves to the same editable fork in the base env is unverified — until it is, treat a base-env-only pass as partial.
 - **🛑 Solver/bonmin commands MUST run under `nlp_env`** (`conda run -n nlp_env ...`; add `--no-capture-output` to avoid Windows cp1255 re-encode crashes on Unicode prints). The base env lacks `bonmin` and fails **silently** (exits 0). **Never trust the exit code alone** — verify no `CRASH`/`Traceback` and that the run actually solved before claiming success.
@@ -263,7 +285,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   multiples of 80/480), three distinct iteration means, and `OPPORTUNISTIC_ENGAGEMENT`
   firing 7× in 12 episodes — matching the instrument's measurement for this cell
   exactly.
-- `PENDING` — **Scenario-construction preconditions** (step 1 of 3 of the offline
+- `384845b` — **Scenario-construction preconditions** (step 1 of 3 of the offline
   scenario-construction phase; no locked layer touched). Three fixes the inverted
   build order depends on. (1) **LAUNCH POINT.** The base template parked the four
   BLUE aircraft at `(32.35416…, 34.81240…)` while their own airbase sits at
@@ -301,25 +323,12 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 
 ## 8. OPEN (not built)
 
-- **Phase-A baseline run — UNBLOCKED; not yet run.** The flat-reward blocker is
-  RESOLVED and was never a reward bug: `graph_reward` is correct and stays FROZEN. The
-  flat `R ≈ −1/3` was **scenario invariance at the retired `(3,3)` default** — 3 airbase
-  targets at utility 80 each (`U_oracle = 240`) against a 4-aircraft fleet that comes
-  from the base template and is not a config knob, so 4 agents > 3 targets forced 2:1
-  stacking, exactly 2 distinct targets died (`U_achieved ≈ 160`), and
-  `R = (160−240)/240 = −1/3` repeated on every episode, all seeds, train and eval.
-  `kills_mean ≈ 4.25` was never under-achievement: it counts `(ego, target)` PAIRS,
-  while DISTINCT killed was 2. Established by instrumentation (kept for the thesis, not
-  in the repo): every cell of a 3×3 `num_red_airbases × partial_ratio` grid has
-  `std(R)` in 0.079–0.190, and on a FIXED map varying ONLY the action-sampling RNG moves
-  R over a 0.75 range (`std ≈ 0.208`, exceeding the 0.190 measured across 12 different
-  maps) — so the spread is mostly the policy's own choices, not which map was drawn. The
-  cure was config, locked in §7. What remains is to RUN the baseline. **Gate check for
-  iteration 0:** in the short selftest, deterministic eval on the held-out band hit
-  `R = +0.0000` on 2/2 episodes. Two episodes is far too thin to conclude anything, but
-  if eval sits at or near the oracle ceiling from iteration 0 over the real 8-episode
-  band, an untrained policy is already saturating the cell and there is no headroom to
-  demonstrate learning — STOP and revisit the cell before spending compute.
+- **Phase-A baseline run — DEFERRED until scenario construction closes.** The former
+  flat `R ≈ −1/3` blocker was scenario invariance at the retired `(3,3)` default, not a
+  reward bug; `graph_reward` remains FROZEN. Do not spend training compute before B1–B3
+  in the current handoff are merged and verified. At the first real run, inspect the
+  held-out evaluation band before continuing: near-ceiling performance at iteration 0
+  means the cell lacks learning headroom and must be revisited.
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
 - **Reward densification + p<1:** per-wake/dense regret (vs today's terminal scalar) and the operand-scale rework for `probability<1.0` (expected-oracle vs realized-achieved diverge below p=1).
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
@@ -348,26 +357,10 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   ~15 min against ~45 s typical. The locked cell is clear of it and
   `TrainConfig.validate` now WARNS, but a timeout is required before any low-known or
   n-randomized config enters training.
-- **Single-radius invariant (§3) — RECON DONE, decision OPEN.** There is **no**
-  attack-vs-sensing pair in the code. `DETECTION_KM` is defined once in
-  `graph_episode_setup` and reaches FOUR separately-named parameters, all pinned to 50:
-  `VariationConfig.detection_km` (generator connectivity), `split_tasks(detection_km=…)`
-  (discovery adjacency), the executor's `arrival_threshold_km`, and
-  `GraphObservationConfig.detection_range_km` — the last not a free knob at all, since
-  the tick loop derives it from the executor's threshold so the two cannot disagree.
-  Inside the executor that ONE field serves FOUR roles: arrival, the attack gate,
-  `sensed_target_ids`, and the kill-confirm proximity check. A widen is priced: of the
-  hidden targets never sensed at runtime, 62/93 (67%) sat in the 50–80 km band and ZERO
-  within 50 km — every target an agent came within 50 km of WAS sensed; the >200 km tail
-  is orphaned-split cases, not a radar problem. ~80 km is also physically defensible:
-  the base fleet's BLADE `range` values are 92.6–222 km, so 80 km sits below the weakest
-  platform's own nominal range. Splitting sensing from attack therefore means splitting
-  that executor field, re-pointing the builder's `sensed` column at the SENSING radius
-  (the tick-loop derivation must change with it, or the OE mask and `decide_triggers`
-  would disagree — a silent research bug), and deciding the kill-confirm radius
-  separately. It is the HEAVY option: it needs a §3 red-line release plus isolation proof
-  tests. Note also that `graph_train` calls `setup_episode` WITHOUT `detection_km`, so
-  any new radius must be threaded through `TrainConfig`, not changed at one call site.
+- **Single-radius invariant (§3) — CLOSED.** Sensing-radius expansion was cancelled.
+  Keep the unified `DETECTION_KM = 50` contract for sensing, arrival, attack,
+  kill-confirmation, generator connectivity, and split adjacency. Do not reopen this as
+  part of scenario construction.
 - **`RolloutConfig` and `TrainConfig` defaults have DIVERGED.** `graph_rollout` still
   carries `(3,3)` + `PARTIAL_RATIO` (2/3), so diagnostic rollouts now generate different
   scenarios than training runs by default, making the two non-comparable. Deliberately
