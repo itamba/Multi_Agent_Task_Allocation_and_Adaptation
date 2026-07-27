@@ -17,8 +17,11 @@ drift.
   - **GPT** resolves repository facts through GitHub first — branches, PRs, files, and exact
     SHAs. That access is a **search** interface, not a filesystem: it cannot list files,
     count occurrences, prove that something is ABSENT, or run `git`.
-  - **Claude** uses the mounted `main` state and the Git evidence CC reports first. Task
-    branches and PRs must not be assumed accessible.
+  - **Claude** resolves facts through a synchronized mounted snapshot of `main` plus the Git
+    evidence CC reports. It is the weaker of the two views: like GPT's it is a **search**
+    interface — it cannot list files, count occurrences, prove that something is ABSENT, or
+    run `git` — and in addition it cannot produce a diff and can lag the true `main` head.
+    Task branches and PRs must not be assumed accessible.
   - Either orchestrator asks the user ONE focused question only when its own available
     access cannot establish the required fact.
 - Every repository claim must be tied to an **explicit full SHA**. At that SHA, code and
@@ -36,7 +39,8 @@ drift.
   full reviewed SHA, with line-by-line review when cross-ego isolation or a §5 locked layer
   is touched: GPT reads the exact GitHub `base...candidate` comparison, and Claude receives
   focused changed hunks or targeted evidence from CC. No full diff is pasted into chat. This
-  handoff declares only a grade per task; the definition belongs there.
+  handoff declares only a grade per task; the definition, and the Grade-A routing default
+  between the two orchestrators, belong there.
 
 ## 1. Current state
 

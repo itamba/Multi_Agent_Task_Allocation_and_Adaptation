@@ -25,8 +25,9 @@ cleanup began) — **this document describes the graph model only.**
   1–3 proof obligations declared up front, and the orchestrator must approve the exact
   full SHA of the reviewed commit; when the change touches cross-ego isolation or a §5
   locked layer it earns line-by-line review — GPT reads the exact GitHub `base...candidate`
-  comparison, Claude reads focused changed hunks it requests from CC. Grade A is set by
-  consequence, not by difficulty — a wrong A is a silent false result, not a crash.
+  comparison; under `CLAUDE_MOUNTED_MAIN` the hunks come from CC (see Grade-A routing default
+  below). Grade A is set by consequence, not by difficulty — a wrong A is a silent false
+  result, not a crash.
 - **Candidate commits are required, and transport is MODE-DEPENDENT.** Implement + run the
   required tests, then create the commit the orchestrator will review. Transport is never
   approval: a commit stays `READY_FOR_REVIEW / UNREVIEWED` until the orchestrator approves
@@ -48,8 +49,11 @@ cleanup began) — **this document describes the graph model only.**
   - do not push directly to `main`, merge, rebase, or force-push unless the user explicitly
     changes the task's authorization.
 - **Transport mode `CLAUDE_MOUNTED_MAIN`** — the Claude orchestrator's shared repository view
-  is CC's synchronized mounted checkout, whose usable shared state is `main`; task branches
-  and PRs must **not** be assumed accessible:
+  is a synchronized mounted snapshot of `main`, exposed as a search interface: not a live
+  connector, not a filesystem, not `git`. It retrieves and quotes file content, but it cannot
+  list files, count occurrences, prove that something is ABSENT, produce a diff, read history,
+  or select an arbitrary SHA, and it can LAG the true `main` head — a stale read is sync lag,
+  not regression. Task branches and PRs must **not** be assumed accessible:
   - before editing, verify a clean checkout and exact equality between local `HEAD`,
     `origin/main`, and the packet's full base SHA;
   - stage only the declared files, create one focused commit, and push it directly to `main`
@@ -61,6 +65,15 @@ cleanup began) — **this document describes the graph model only.**
     amend, rewrite history, reset published commits, or force-push;
   - if `main` has advanced, the push is rejected, or the mounted checkout cannot prove its
     state, stop and report `BLOCKED` (do not pull, merge, rebase, reset, stash, or delete).
+- **Grade-A routing default.** `GPT_GITHUB` is the only mode that gates `main` behind a
+  reviewable branch, so Grade-A work is routed to the GPT orchestrator by default whenever it
+  is available. Grade A under `CLAUDE_MOUNTED_MAIN` is a declared exception — the packet must
+  say so explicitly — and carries two consequences. First, the candidate is reviewed only
+  AFTER it is pushed, so `main` knowingly carries an `UNREVIEWED` commit until its exact full
+  SHA is approved: no lock, and no dependent work, before that approval. Second, CC MUST
+  supply focused changed hunks plus targeted test evidence; this is mandatory rather than a
+  fallback, because a mounted snapshot shows current state and can never show
+  `base...candidate`.
 - **Fix chain:** review corrections stay in the same named CC session and produce a NEW
   commit and a new SHA to review — never a rewrite of the reviewed one. In `GPT_GITHUB` they
   land on the same task branch; merge only the unchanged approved head, prefer a merge
@@ -75,10 +88,10 @@ cleanup began) — **this document describes the graph model only.**
   and draft PR number / URL are required **only** in `GPT_GITHUB` mode; in
   `CLAUDE_MOUNTED_MAIN`, report `main` plus the verified pushed `origin/main` SHA.
 - **Output discipline:** never paste whole files, full transcripts, or a large full diff into
-  chat. GPT inspects the exact GitHub `base...candidate` diff itself; Claude may request
-  focused changed hunks and targeted test evidence from CC when its mounted view is
-  insufficient. Otherwise return targeted run output and direct answers only, and put a
-  genuinely long report in the repo.
+  chat. GPT inspects the exact GitHub `base...candidate` diff itself; under
+  `CLAUDE_MOUNTED_MAIN` CC supplies focused changed hunks and targeted test evidence on
+  request — required for Grade A. Otherwise return targeted run output and direct answers
+  only, and put a genuinely long report in the repo.
 - **Environment:** Windows + PyCharm terminal + `nlp_env` conda env, Python 3.10+. Avoid POSIX-only idioms; use Python/PowerShell equivalents. Run from repo root.
 - **`pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env` so the environment that owns the editable `blade` install is actually exercised. **OPEN:** whether `import blade` resolves to the same editable fork in the base env is unverified — until it is, treat a base-env-only pass as partial.
 - **🛑 Solver/bonmin commands MUST run under `nlp_env`** (`conda run -n nlp_env ...`; add `--no-capture-output` to avoid Windows cp1255 re-encode crashes on Unicode prints). The base env lacks `bonmin` and fails **silently** (exits 0). **Never trust the exit code alone** — verify no `CRASH`/`Traceback` and that the run actually solved before claiming success.
@@ -376,6 +389,15 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   an exact post-push `main` SHA plus focused hunks and targeted test evidence requested from
   CC — task branches and PRs are not assumed reachable. The packet or the user declares the
   mode; it is never inferred.
+- `PENDING` — **shared-document workflow correction** (documents only; no code, no test
+  delta). §1's `CLAUDE_MOUNTED_MAIN` description and handoff §0 now state that side's real
+  capability: a synchronized mounted snapshot of `main` as a **search** interface that cannot
+  diff, cannot prove absence, and can lag. Adds the **Grade-A routing default** — Grade A goes
+  to `GPT_GITHUB` when available because it is the only mode that gates `main` behind a
+  branch; Grade A under `CLAUDE_MOUNTED_MAIN` is a declared exception with mandatory hunks +
+  targeted evidence from CC, and no lock or dependent work before exact-SHA approval. The
+  grade-definition and output-discipline sites became pointers to that one bullet rather than
+  second copies.
 
 ---
 
