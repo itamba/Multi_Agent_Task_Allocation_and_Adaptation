@@ -93,7 +93,8 @@ cleanup began) — **this document describes the graph model only.**
   request — required for Grade A. Otherwise return targeted run output and direct answers
   only, and put a genuinely long report in the repo.
 - **Environment:** Windows + PyCharm terminal + `nlp_env` conda env, Python 3.10+. Avoid POSIX-only idioms; use Python/PowerShell equivalents. Run from repo root.
-- **`pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env` so the environment that owns the editable `blade` install is actually exercised. **OPEN:** whether `import blade` resolves to the same editable fork in the base env is unverified — until it is, treat a base-env-only pass as partial.
+- **`pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env`.
+- **`blade` and `gymnasium` DO resolve in the base env** (measured at `dd14ab4`): `import blade` returns the SAME vendored fork the editable install points at (`src/match_aou/integrations/panopticon-main/gym/blade/__init__.py`), and `gymnasium` imports cleanly. This CLOSES the former "is the base env the same fork?" question — a base-env test may build a `Game`, `gymnasium.make("blade/BLADE-v0", …)` and `env.reset()`, which is what lets `tests/test_graph_setup_seam.py`'s BLADE tier run under plain `pytest`. **The missing base-env dependency is BONMIN, not BLADE**: `shutil.which("bonmin")` is `None` in the base env and `…/envs/nlp_env/Library/bin/bonmin.EXE` under `nlp_env`. Nothing here relaxes the solver rule below — anything that SOLVES still runs under `nlp_env`.
 - **🛑 Solver/bonmin commands MUST run under `nlp_env`** (`conda run -n nlp_env ...`; add `--no-capture-output` to avoid Windows cp1255 re-encode crashes on Unicode prints). The base env lacks `bonmin` and fails **silently** (exits 0). **Never trust the exit code alone** — verify no `CRASH`/`Traceback` and that the run actually solved before claiming success.
 
 ---
@@ -144,12 +145,35 @@ P1/P2 and by `_adjust_aircraft_count`'s base-anchored fallback.
 
 ## 4. The pipeline (end-to-end, all BUILT)
 
+`setup_episode` has TWO explicit paths, selected by whether the
+`(n_hidden, placement_rng)` PAIR was supplied — never inferred from `partial_ratio`.
+Both end at the same `EpisodeContext` and both solve TWICE, independently.
+
 ```
+LEGACY SPLIT PATH  (both omitted — unchanged, still the default signature)
 scenario_generator (clustered targets, per-zone discovery connectivity at DETECTION_KM)
   → setup_episode: env.reset → extract (agents, tasks) → split_tasks (partial ⊊ full)
                    → solve_and_normalize ×2 (partial→A_init/belief_tasks; full→oracle)
-                   → N independent Beliefs → one GraphPlanExecutor
-                   → EpisodeContext
+                   → N independent Beliefs → one GraphPlanExecutor → EpisodeContext
+
+CONSTRUCTION PATH  (both supplied — what training and rollout use)
+scenario_generator (KNOWN-ONLY world: n_known targets, Layer 1 OFF, geometry STRICT)
+  → setup_episode: env-1.reset → extract (agents, known tasks)
+                   → solve_and_normalize (known → A_init/belief_tasks)
+                   → place_hidden_targets (LOCKED B2, one per non-empty ego route)
+                   → patch the scenario JSON (append n_hidden enemy airbases)
+                   → CLOSE env-1
+                   → env-2.reset on the patched JSON → RE-EXTRACT agents + all tasks
+                   → solve_and_normalize (ALL env-2 targets → oracle)
+                   → N independent Beliefs + one GraphPlanExecutor, built from
+                     ENV-2 OBJECTS ONLY → EpisodeContext
+                   # split_tasks is NOT called; discovery is guaranteed by geometry
+```
+
+From the `EpisodeContext` onward BOTH paths are identical:
+
+```
+EpisodeContext
   → run_episode(policy, ctx): per tick, TWO PHASES —
        Phase 1 (per ego, one obs snapshot, NO env.step):
          sensed_target_ids → decide_triggers → (on wake) _wake_decision:
@@ -162,17 +186,80 @@ scenario_generator (clustered targets, per-zone discovery connectivity at DETECT
   → [OPEN] centralized critic (CTDE)  # Phase B
 ```
 
-A diagnostic rollout harness (`rl/training/graph_rollout.py`) wraps this exact
-skeleton (generate -> setup -> run -> reward) for N episodes with a random-weight
-policy — the outer-loop seam the PPO task will inherit. Validated: 20/20 episodes,
-organic wakes (75% of episodes), rewards in [-1, ~0].
+Both `rl/training/graph_train.py` (`_run_one_episode`) and the diagnostic harness
+`rl/training/graph_rollout.py` (`run_rollout`) drive the CONSTRUCTION path: they
+generate the known-only world, then call `setup_episode(..., n_hidden=cfg.n_hidden,
+placement_rng=random.Random(seed))`. The placement rng is explicit and per-episode —
+it never rides on module-global `random` — so an episode's hidden geometry is a pure
+function of its seed. Neither harness passes `partial_ratio` any more; the legacy
+split surface is retained and tested but is not on this path.
+
+Reference evidence at the B3 lock (`dd14ab4`, ONE seed-0 episode through
+`graph_rollout --episodes 1 --seed 0`): 3 agents, 3 known + 3 hidden = 6 targets,
+`ended=done`, 4 organic wakes, reward `-0.3333`. That is a single reference episode,
+not a baseline sweep — no post-B3 multi-episode run has been performed.
 
 ---
 
 ## 5. The layers (BUILT & REVIEWED — locked interfaces)
 
 **Episode-setup (Stage 0) — `rl/training/graph_episode_setup.py` + `rl/training/belief.py`.**
-`setup_episode(scenario_json, ...) -> EpisodeContext`. Wires env (`gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=…)`, `obs,info = env.reset()`, blue side by `side.name=="BLUE"`) → extract (`create_agents_from_scenario` picks blue; `generate_all_enemy_tasks`) → `split_tasks` → `solve_and_normalize` twice → N `Belief`s → one `GraphPlanExecutor`. `EpisodeContext` carries `env, game, agents, agent_ids, beliefs, executor, a_init, oracle_solution, oracle_tasks, split_meta, observation` (the reset seed the loop reads first). `Belief.independent(tasks, solution)` mints an independent per-ego copy. `solve_and_normalize(agents, tasks) -> (solution, belief_tasks, unselected)` = `MatchAou(...).solve("bonmin")` → `post_solve_filter_and_level(...)` (allocated-only filter + `task_idx` remap + `level`); **never returns the raw pre-filter list**. `split_tasks(all_tasks, partial_ratio, *, detection_km, max_attempts) -> (partial, full, meta)` = discovery-chain rejection sampler: builds task adjacency at `detection_km`, pins isolated targets to known, resamples until every hidden target has a KNOWN neighbour within `detection_km` (so it's discoverable at runtime), `partial ⊊ full`. Graph-native; imports NOTHING from the flat path. Independence + allocated-only proven in `_selftest`. `EpisodeContext.record: bool = False` — recording is ARMED iff a `recording_export_path` was given; setup never starts the recorder (the tick-loop drives it).
+`setup_episode(scenario_json, ..., n_hidden=None, placement_rng=None) -> EpisodeContext`.
+Wires env via `_build_env` (`gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=…)`, `obs,info = env.reset()`, blue side by `side.name=="BLUE"`) → `_extract_world` (`create_agents_from_scenario` picks blue; `generate_all_enemy_tasks`) → `solve_and_normalize` twice → `_finish_context` (N `Belief`s + one `GraphPlanExecutor`). `EpisodeContext` carries `env, game, agents, agent_ids, beliefs, executor, a_init, oracle_solution, oracle_tasks, split_meta, observation` (the reset seed the loop reads first), `record`, and `placements`. `Belief.independent(tasks, solution)` mints an independent per-ego copy. `solve_and_normalize(agents, tasks) -> (solution, belief_tasks, unselected)` = `MatchAou(...).solve("bonmin")` → `post_solve_filter_and_level(...)` (allocated-only filter + `task_idx` remap + `level`); **never returns the raw pre-filter list**. Graph-native; imports NOTHING from the flat path. Independence + allocated-only proven in `_selftest`. `EpisodeContext.record: bool = False` — recording is ARMED iff a `recording_export_path` was given; setup never starts the recorder (the tick-loop drives it), and only the RETURNED env is ever armed.
+
+**PATH SELECTION (`_resolve_construction_mode`, runs BEFORE any BLADE object exists).**
+`n_hidden` and `placement_rng` are a PAIR. Both omitted → the LEGACY split path
+(`_setup_episode_legacy`), behaviourally unchanged. Both supplied → CONSTRUCTION mode
+(`_setup_episode_construction`). Exactly one supplied → `ValueError`. `n_hidden` must be a
+genuine non-negative `numbers.Integral` (`bool` rejected, mirroring B2's `_as_assignment`);
+`placement_rng` must be an explicit `random.Random`, never module-global randomness. The
+mode is NEVER inferred from `partial_ratio`. `n_hidden=0` is a legal construction probe: it
+places nothing, patches nothing, and still does not call `split_tasks`.
+
+**LEGACY PATH — `split_tasks(all_tasks, partial_ratio, *, detection_km, max_attempts) -> (partial, full, meta)`** = discovery-chain rejection sampler: builds task adjacency at `detection_km`, pins isolated targets to known, resamples until every hidden target has a KNOWN neighbour within `detection_km` (so it's discoverable at runtime), `partial ⊊ full`. Retained, tested, and reachable; the construction path simply never calls it.
+
+**CONSTRUCTION PATH — solve → place → patch → reload.** Env-1 is TEMPORARY: reset, extract,
+`_require_airbase_only_targets` (every enemy unit must be a BLADE `Airbase`; a SAM facility
+or ship raises — mixed target semantics are a separate design task, and `TrainConfig` /
+`RolloutConfig` `validate()` reject `include_sams=True` up front), `_shared_launch_point`
+(verifies ONE origin for every ego AND `Agent.location == Agent.return_location`),
+solve the known set → `a_init` + `belief_tasks`, then the LOCKED B2
+`place_hidden_targets(a_init, belief_tasks, launch_point, PlacementParameters(detection_km),
+placement_rng)`. **Cardinality is exact:** `len(placements) == n_hidden` or `RuntimeError` —
+never truncated, padded, duplicated, or redistributed across routes (B2's contract is one
+placement per non-empty ego route, so a solve that leaves an ego idle FAILS the episode).
+`build_patched_scenario` then patches ONCE — deep-copy a safe enemy-airbase prototype
+(`_select_hidden_prototype`: enemy-side, schema-complete, EMPTY aircraft inventory, single
+unambiguous `sideId`), fresh uuid4, deterministic unique name, the placement coordinates,
+empty `aircraft`, appended at the END of `currentScenario.airbases` so no known target
+moves. Env-1 is closed in a `finally` on EVERY success and failure path.
+
+**`_build_env` OWNS CLEANUP UNTIL IT RETURNS** (review fix, part of the lock): the window
+between `gymnasium.make` and its `return` is reachable by no caller guard — the callers'
+`finally`/`except` blocks are keyed on the value it hands back — so any `BaseException`
+there (a failing `env.reset()`, or the side-selection loop after it) closes the environment
+exactly once via `_close_quietly` and re-raises the ORIGINAL exception unchanged. Both
+environments are built through this one helper, so the guard covers both windows.
+
+**ENV-2 IS THE SOLE RUNTIME SOURCE OF TRUTH.** It is reset on the patched JSON, agents and
+tasks are RE-EXTRACTED from it, `_require_agent_ids_preserved` requires the ORDERED agent-id
+list to be identical across the reload (else A_init's keys no longer address the runtime
+egos), every known target must still be present, and the world must hold exactly
+`known + n_hidden` targets. `_rematerialize_known_tasks(world_tasks, known_target_ids)`
+re-looks-up the belief tasks as ENV-2 objects **by target id, in A_init's exact positional
+order**, so `task_idx` stays valid. The oracle is a SEPARATE solve over ALL env-2 targets
+(so every hidden target is in it). If anything after env-2's reset fails, env-2 is closed
+before the error propagates, and only env-2 is ever returned.
+**NO env-1 `Agent` or `Task` object may enter the returned context** — only pure data
+crosses (the normalized `a_init` assignments and the ordered known-target id strings).
+
+**`EpisodeContext.placements: Tuple[HiddenPlacement, ...]`** is the id-free placement audit
+(`()` on the legacy path and on an `n_hidden=0` probe). Construction `split_meta` is
+TRUTHFUL — it never claims `split_tasks` ran: `outcome`/`mode` are `"construction"`, and it
+carries `known`, `hidden`, `partial`, `full` (WORLD TARGETS EMITTED, keeping the legacy key
+names the training/rollout records read), plus `n_hidden_requested`, `allocated_known`, and
+`geometric_fingerprint` — coordinates only, because generated uuids are not seed-derived
+(§8). Reproducibility is judged by that fingerprint, never by id.
 
 **Execution (Stage 1) — `utils/blade_utils/blade_graph_executor.py`.**
 `GraphPlanExecutor` is the **sole** BLADE translation layer (move/launch/attack/RTB). `__init__(*, tasks, solution, agents, arrival_threshold_km=DETECTION_KM, add_return_to_base=True, nn_ordering=True, kill_confirm_ticks=60)`. **Per-ego private state:** `self.tasks: Dict[ego_id, List[Task]]` (fanned out at init; diverges only via `resync`), `self.plans` per-ego; `_resolve_step(ego_id, assignment)` is the sole reader of `self.tasks`. Key methods: `next_actions(obs) -> List[str]` (one command/ego/tick), `resync(new_solution, *, ego_id, tasks=None)` (swaps one ego's slice, **never resets `done`**), `is_done()` (skips `dead` egos, requires RTB latched), `sensed_target_ids(obs, ego_id) -> {id: unit}` (world-scan within `arrival_threshold_km`; the trigger's eyes). done-on-confirmed-kill, per-`(ego,target)` re-fire throttle, single-issue RTB latch (safe only while doctrine `AIRCRAFT_RTB_WHEN_OUT_OF_RANGE` is off — it is in `strike_training_4v5.json`), `dead` set for crashes. No-comms isolation proven in `_selftest` (ISO-1..3: a pop-up appended to ego A never enters ego B's task-view; same-index pop-ups resolve per-ego).
@@ -203,12 +290,14 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 
 | … | Go to |
 |---|---|
-| Change episode setup / split / solve+normalize / Belief | `rl/training/graph_episode_setup.py`, `rl/training/belief.py` |
+| Change episode setup / solve+normalize / Belief | `rl/training/graph_episode_setup.py`, `rl/training/belief.py` |
+| Change the CONSTRUCTION seam (solve → place → patch → reload) | `rl/training/graph_episode_setup.py` → `_setup_episode_construction`, plus its helpers `_resolve_construction_mode`, `_shared_launch_point`, `_require_airbase_only_targets`, `_select_hidden_prototype`, `build_patched_scenario`, `_require_agent_ids_preserved`, `_rematerialize_known_tasks`, `_build_env` / `_extract_world` / `_close_quietly` / `_finish_context` |
+| Change the LEGACY split path (retained, not deleted) | `rl/training/graph_episode_setup.py` → `_setup_episode_legacy`, `split_tasks` |
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`) |
-| Change the training scenario cell (target count / known-hidden split) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` survive but are NOT consulted by the construction path (B1, `d6758ac`). |
-| Place hidden targets along a predicted ego route (PURE geometry; **not** wired into `setup_episode` — that is B3) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`) |
+| Change the training scenario cell (target counts) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). The generator writes `n_known`; setup patches in `n_hidden`, so **emitted targets are `n_known + n_hidden`** (`TrainConfig.n_targets_emitted`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` / `split_preview` survive and are still tested but are NOT consulted by the construction path (B1, `d6758ac`). |
+| Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -462,33 +551,96 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   integrated merge: 18 focused B2 tests, 12/12 import purity, full suite 100 → **102**,
   `git diff --check` clean, plus all 18 B2 tests and all 12 import-purity entry modules
   green through the `nlp_env` `__main__` runners. No bonmin or live BLADE run is involved.
-  **Not wired into `setup_episode`** — solve → place → patch → reload is B3.
+  Consumed by construction-mode `setup_episode` from B3 (`dd14ab4`) onward.
+- `dd14ab4` — **B3: the setup seam — CLOSED / MERGED / LOCKED** (step 3 of 3 of the
+  offline scenario-construction phase; this closes the phase). Reviewed code SHA
+  `dd14ab418c71e3bd615f1198d0c612502642d29b`, integrated into `main` by merge commit
+  `14224531db9deb700f6e397203177eb8c701c6cc` (PR #4); the merged tree is byte-identical
+  to the approved one (`git diff --quiet dd14ab4 1422453`). `setup_episode` gains TWO
+  EXPLICIT PATHS chosen by the `(n_hidden, placement_rng)` PAIR — both omitted keeps the
+  unchanged legacy `split_tasks` path, both supplied runs CONSTRUCTION, exactly one
+  raises before any BLADE object exists, and the mode is never inferred from
+  `partial_ratio`. Construction is **solve → place → patch → reload**: a known-only env-1
+  is solved for `A_init`, the LOCKED B2 layer places one hidden target per non-empty ego
+  route, `build_patched_scenario` appends exactly that many enemy airbases to
+  `currentScenario.airbases` (deep-copied prototype, fresh uuid4, deterministic name,
+  empty inventory, known targets and their positions untouched), env-1 is closed, and
+  env-2 is reloaded on the patched JSON. **Env-2 is the sole runtime source of truth**:
+  agents and tasks are re-extracted from it, agent IDs must survive the reload as an
+  ORDERED list, known belief tasks are re-materialized from env-2 BY TARGET ID in A_init's
+  positional order (so `task_idx` stays valid), the oracle is an independent solve over
+  ALL env-2 targets, and no env-1 `Agent`/`Task` object reaches the returned context.
+  Guards fail LOUDLY and never repair: airbase-only cell (`TrainConfig` /
+  `RolloutConfig` `validate()` also reject `include_sams=True`), shared launch point plus
+  `Agent.location == Agent.return_location`, exact `len(placements) == n_hidden` (no
+  truncation, padding, duplication or redistribution), unsafe/ambiguous prototype, name/id
+  collision, agent-id drift, known-target loss, world cardinality. `n_hidden=0` is a legal
+  probe that never calls `split_tasks`. `EpisodeContext.placements` is the id-free
+  placement audit and construction `split_meta` reports truthful
+  `known/hidden/partial/full` plus a coordinates-only `geometric_fingerprint`;
+  `graph_train` / `graph_rollout` now pass `n_hidden` + a fresh `random.Random(seed)` and
+  report REAL emitted counts (`n_targets_emitted == n_known + n_hidden`). **Private-sensing
+  isolation is proven through the integrated setup/tick seam** (not by re-testing
+  `Belief.independent`): a setup-constructed hidden world target reported as sensed only by
+  ego A enters ONLY ego A's belief and executor slice through the unmodified `run_episode`
+  Phase-1 chain, while every peer belief and slice stays byte-unchanged and the target was
+  in NO belief at t=0. One review fix is part of the lock: **`_build_env` now owns cleanup
+  until it returns successfully** — a failure in `env.reset()` (or the side selection after
+  it) sits in a window no caller guard can reach, so it closes the environment exactly once
+  and re-raises the original exception unchanged; the regression test drives `_build_env`
+  directly and was verified to FAIL against the pre-fix body. Verified: base suite
+  **118 passed, 4 skipped** (102 → 121 collected), 12/12 import purity, `git diff --check`
+  clean; **19/19** `tests/test_graph_setup_seam.py` checks under `nlp_env`, plus the
+  placement, train, import-purity and legacy `graph_episode_setup` runners. Live seed-0
+  reference rollout: 3 agents, **3 known + 3 hidden = 6 full targets**,
+  `U_oracle = 479.99968` (the frozen solver EPSILON form of a raw 480), **4 organic wakes**,
+  `ended=done`, reward `-0.3333`, both bonmin solves successful, no `CRASH`/`Traceback`.
 
 ---
 
 ## 8. OPEN (not built)
 
-- **Phase-A baseline run — DEFERRED until scenario construction closes.** The former
-  flat `R ≈ −1/3` blocker was scenario invariance at the retired `(3,3)` default, not a
-  reward bug; `graph_reward` remains FROZEN. Do not spend training compute before B1–B3
-  in the current handoff are merged and verified. At the first real run, inspect the
-  held-out evaluation band before continuing: near-ceiling performance at iteration 0
-  means the cell lacks learning headroom and must be revisited.
+- **Phase-A baseline run — B4 PLANNING / RUN PREPARATION is the next task.** The
+  scenario-construction phase is CLOSED (B1 `d6758ac`, B2 `e22aee3`, B3 `dd14ab4`), so the
+  former "deferred until construction closes" blocker is lifted. **No training run has been
+  started, and none is authorized by this entry.** The former flat `R ≈ −1/3` was scenario
+  invariance at the retired `(3,3)` default, not a reward bug; `graph_reward` remains
+  FROZEN. Before a long run: add/verify a provenance manifest (code SHA, command/config,
+  seeds, environment, solver versions), decide the policy for exact-cardinality construction
+  failures (see the route-cardinality item below), re-measure iteration-0 held-out
+  performance on the post-B3 world, and watch the first two iterations before committing —
+  the loop has never run to completion. Near-ceiling held-out performance AT ITERATION 0
+  still means the cell lacks learning headroom and must be revisited before compute is spent.
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
 - **Reward densification + p<1:** per-wake/dense regret (vs today's terminal scalar) and the operand-scale rework for `probability<1.0` (expected-oracle vs realized-achieved diverge below p=1).
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
 - **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` calibration** once p<1 lands, **re-enable fuel-damage** after a clean baseline.
-- **`setup_episode` does not guard `split_meta["outcome"]`.** `split_tasks` can return
-  `warn-fallback` or `exhaust` — meaning a hidden target has NO known neighbour within
-  `DETECTION_KM` and is therefore undiscoverable at runtime — and `setup_episode`
-  proceeds SILENTLY. Measured: breaks appear only where KNOWN is small relative to
-  hidden (known 1 → 12/12 broke; known 2 with 6 hidden → 7/12; known 2 with 4 hidden →
-  clean), so the driver is the CONTROL RATIO, not target density. The locked cell
-  (known 3) avoids it, so a guard is a safety net rather than the primary fix. Options:
+- **`setup_episode` does not guard `split_meta["outcome"]` — LEGACY-PATH-ONLY since B3
+  (`dd14ab4`).** `split_tasks` can return `warn-fallback` or `exhaust` — meaning a hidden
+  target has NO known neighbour within `DETECTION_KM` and is therefore undiscoverable at
+  runtime — and the LEGACY path proceeds SILENTLY. Measured: breaks appear only where KNOWN
+  is small relative to hidden (known 1 → 12/12 broke; known 2 with 6 hidden → 7/12; known 2
+  with 4 hidden → clean), so the driver is the CONTROL RATIO, not target density. **The
+  construction path is immune by construction**: it never calls `split_tasks`, and
+  discoverability comes from the locked B2 geometry (the hidden target is placed on a leg
+  the ego is guaranteed to fly within `DETECTION_KM` of) rather than from an adjacency
+  chain. Since training and rollout both use the construction path, this is now a hazard of
+  the retained legacy surface only. Options if the legacy path is ever driven again:
   reject-and-reseed the episode, raise, or tie config to a control-ratio floor plus a
   guard. Touches a §5 locked file → full recon→prompt→review→lock cycle.
+- **Exact-cardinality construction failures — an OPEN B4 policy decision.** B2's locked
+  contract is ONE placement per non-empty ego route, and B3 requires
+  `len(placements) == n_hidden` exactly. When bonmin leaves an ego unassigned there are
+  fewer routes than `n_hidden` and `setup_episode` raises; `graph_train` / `graph_rollout`
+  log the traceback, count the episode failed, and continue. Measured on the default cell
+  over seeds 0–11: **10/12 gave 3 usable ego routes; seeds 2 and 8 gave only 2**, so those
+  two episodes fail loudly and are skipped. Seed 0 (the reference) is clean. Before a long
+  run, decide explicitly what a skipped seed means for the batch — accept the ~17% loss,
+  reseed past it, relax the cell, or design the general `n_hidden != usable ego routes`
+  distribution policy B2 named as a separate task. Do NOT resolve it by weakening the
+  cardinality check.
 - **Added enemy airbases are not seed-stable by id.** `ScenarioGenerator` mints a FRESH
   uuid for every red airbase it ADDS on each `generate()`, even at a fixed seed
   (geometry and utility identical, id different). The base template holds 3 red
@@ -525,16 +677,24 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   `strict_geometry` defaults to `False` and `min_target_separation_km` defaults to `0.0`
   (off), so every pre-B1 caller's placement and rng stream stay byte-identical (P9c, P11;
   `P6` unchanged).
-- **Pre-B3 zero-headroom (measured, expected — not a regression).** A live default-cell
-  rollout episode (`num_agents=3`, `n_known=3`, `n_hidden=0` emitted) completed with 0
-  wakes and `reward=+0.0000`: with one agent per known target and no hidden target to
-  discover, the static known-only plan already achieves the oracle, so there is nothing
-  for the policy to react to. **Still true after B2 (`e22aee3`):** B2 delivered the
-  reviewed PURE placement component, but nothing consumes it yet — it is not connected to
-  scenario patch/reload or to `setup_episode`, so the default rollout still emits ZERO
-  hidden targets and still measures 0 wakes at `+0.0000`. B3 is what makes hidden targets
-  actually reach the world. **B4 must NOT use this known-only result as its learning
-  baseline** — it measures the absence of a learning problem, not the presence of one.
+- **Post-B3 headroom exists — the zero-headroom item is CLOSED by `dd14ab4`.** The default
+  cell now emits `n_known + n_hidden` = 3 + 3 = 6 targets, and the ONE measured seed-0
+  reference episode (`graph_rollout --episodes 1 --seed 0`) completed `ended=done` with
+  **4 organic wakes** (ticks 147 / 183 / 1021 / 4244), 7 confirmed kills,
+  `u_achieved = 320`, `U_oracle = 479.99968`, and **reward `-0.3333`** — a real gap for the
+  policy to close. *Historical, pre-B3 only:* the same cell used to emit ZERO hidden
+  targets (B1 generated known-only and nothing consumed B2's placement layer) and measured
+  0 wakes at `reward=+0.0000` — one agent per known target, nothing to discover, the static
+  plan already at the oracle. **That old result must never be used as a learning baseline**;
+  it measured the absence of a learning problem. Nor is the new number a baseline: it is
+  ONE reference episode at one seed, not a sweep. B4 must measure iteration-0 held-out
+  performance itself.
+- **Raw utility 480 vs reward-side `U_oracle = 479.99968` — keep the distinction.** The
+  six airbase targets sum to exactly `6 × 80 = 480` raw utility, but `graph_reward.plan_value`
+  is bit-faithful to `MatchAou._add_objective` and carries the frozen anti-div-by-zero
+  `EPSILON = 1e-6`: a 1-agent task contributes `80·(1 − 1e-6)` and a 2-agent task
+  `80·(1 − 1e-12)`, giving `479.99968` for the measured seed-0 allocation. Both numbers are
+  correct for their own operand; do not "fix" either, and do not compare one to the other.
 - **`match_aou.*` inherits `pyomo` from the ROOT package (verified, not a B2 regression).**
   `src/match_aou/__init__.py` contains `from .solvers import MatchAou`, so importing ANY
   `match_aou.*` module eagerly pulls in the solver and therefore `pyomo` — including all
