@@ -439,5 +439,3 @@ so there is nothing to confirm with the user before dispatch. The next orchestra
    ego that privately sensed it — plus one end-to-end episode smoke test.
 
 B4 (training run) stays blocked until B3 closes and is verified.
-implementation. Do not begin B2 implementation, and do not pretend its parameters are
-already decided. A status block is required in either transport mode.
