@@ -208,6 +208,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`) |
 | Change the training scenario cell (target count / known-hidden split) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` survive but are NOT consulted by the construction path (B1, `d6758ac`). |
+| Place hidden targets along a predicted ego route (PURE geometry; **not** wired into `setup_episode` — that is B3) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`) |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -419,6 +420,49 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   `TrainConfig`/`RolloutConfig` divergence recorded in §8. Does NOT build hidden-target
   placement (B2/B3 work). Proven: suite 64 → 84, import purity 12/12, module selftests
   and the bonmin selftest green under `nlp_env`.
+- `e22aee3` — **B2: route-relative hidden-target placement — CLOSED / MERGED /
+  LOCKED** (step 2 of 3 of the offline scenario-construction phase). Reviewed code SHA
+  `e22aee359e06591bdb179ef06a566db90f83a558`, integrated into `main` by merge commit
+  `8db9428147b77e9432e7ad6b085dc5898c9062bb` (PR #3). New leaf module
+  `rl/training/graph_hidden_placement.py` + `tests/test_graph_hidden_placement.py`; no
+  existing file touched, so no locked layer moved. **PURE**: no BLADE, gym/gymnasium,
+  torch, solver, `setup_episode`, file I/O, or module-global randomness — `rng` is an
+  explicit required `random.Random`, and `detection_km` arrives through
+  `PlacementParameters` rather than being imported from `graph_episode_setup` (importing
+  it would drag the layer into the setup/solver/executor closure). Contract:
+  `place_hidden_targets(solution, belief_tasks, launch_point, parameters, rng) ->
+  Tuple[HiddenPlacement, ...]`, egos iterated in SORTED id order so the result never
+  depends on the solution dict's insertion order; reproducibility is judged by
+  `geometric_fingerprint` (coordinates only — **no UUIDs**, per §8's "Added enemy airbases
+  are not seed-stable by id"). **Route prediction reuses the frozen
+  `nearest_neighbor_order`** (imported, never reimplemented): ascending `level_order`, the
+  helper called separately inside each level, its returned end location chained into the
+  next, first level seeded from the shared launch point — so prediction cannot drift from
+  execution. **Cardinality: exactly ONE placement per non-empty ego route**; a general
+  `n_hidden != usable ego routes` distribution is a separate future design task and is NOT
+  solved here. **Geometry:** only `G = L - D` of a leg is guaranteed flown (inside `D` of
+  the target the ego attacks and issues no new movement); the perpendicular PROJECTION sits
+  at `s = f·G` with `f ~ Uniform[0.60, 0.85]`; sensing guard `10 km`; leg-1 max |offset| =
+  `D - guard` (40 km at `D = 50`); a later leg budgets residual origin uncertainty
+  `(1 - s/L)·D` and caps |offset| at `D - guard - origin_uncertainty`, and its whole
+  approved fraction interval must project beyond the uncertain origin vicinity. **Later
+  legs require the STRICT nearest-neighbor condition `gap > 2·D`** (equality rejected; one
+  remaining candidate passes trivially). Selection: uniform among eligible later legs,
+  else fall back to a valid leg 1, else raise. Everything fails LOUDLY —
+  `HiddenPlacementError`, no silent clamping and no weakened margin — and every returned
+  placement is re-measured by an INDEPENDENT bearing-based cross-track/along-track path
+  before it is returned. Two review fixes are part of the locked behaviour: **F1** —
+  `_as_assignment` never coerces; fields must be genuine `numbers.Integral` values (a numpy
+  integer still works, normalized to `int`), `bool` is rejected despite subclassing `int`,
+  and fractional floats, integral-VALUED floats and numeric strings all raise (`int(...)`
+  had silently accepted `(0.9, 0, 0)` AS `(0, 0, 0)`, quietly changing the predicted
+  route). **F2** — `validate_placement` checks the recorded `tie_margin_required_km` for
+  EVERY `leg_index > 1` BEFORE branching, so the `single_candidate` path can no longer skip
+  the requirement; missing, non-finite and incorrect values all raise. Verified on the
+  integrated merge: 18 focused B2 tests, 12/12 import purity, full suite 100 → **102**,
+  `git diff --check` clean, plus all 18 B2 tests and all 12 import-purity entry modules
+  green through the `nlp_env` `__main__` runners. No bonmin or live BLADE run is involved.
+  **Not wired into `setup_episode`** — solve → place → patch → reload is B3.
 
 ---
 
@@ -485,7 +529,22 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   rollout episode (`num_agents=3`, `n_known=3`, `n_hidden=0` emitted) completed with 0
   wakes and `reward=+0.0000`: with one agent per known target and no hidden target to
   discover, the static known-only plan already achieves the oracle, so there is nothing
-  for the policy to react to. This is the expected state before B2/B3 place hidden
-  targets. **B4 must NOT use this known-only result as its learning baseline** — it
-  measures the absence of a learning problem, not the presence of one.
+  for the policy to react to. **Still true after B2 (`e22aee3`):** B2 delivered the
+  reviewed PURE placement component, but nothing consumes it yet — it is not connected to
+  scenario patch/reload or to `setup_episode`, so the default rollout still emits ZERO
+  hidden targets and still measures 0 wakes at `+0.0000`. B3 is what makes hidden targets
+  actually reach the world. **B4 must NOT use this known-only result as its learning
+  baseline** — it measures the absence of a learning problem, not the presence of one.
+- **`match_aou.*` inherits `pyomo` from the ROOT package (verified, not a B2 regression).**
+  `src/match_aou/__init__.py` contains `from .solvers import MatchAou`, so importing ANY
+  `match_aou.*` module eagerly pulls in the solver and therefore `pyomo` — including all
+  twelve `tests/test_import_purity.py` `ENTRY_MODULES`. `test_import_purity.py` only denies
+  flat-only modules (`DENY_MODULES`), so it has never surfaced this. B2 did NOT introduce
+  the dependency: its own purity check
+  (`tests/test_graph_hidden_placement.py::test_module_has_no_blade_torch_or_solver_dependency`)
+  bans `blade` / `gymnasium` / `gym` / `torch` outright — all absent — and treats pyomo as
+  inherited root-package behaviour, proving that exemption with a control that imports
+  plain `match_aou` and asserts pyomo is already present, so the test fails if the root
+  package is ever made lazy. Recorded as a precise fact, NOT as authorization to refactor
+  the root package.
 > **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, `7f324fd`), plus a final doc sweep as a coda. The 38 deleted paths are preserved on TWO DISTINCT refs — branch `flat-final` (`4d44c34`) and the annotated tag `pre-cleanup` (commit `561b7cb`; `git rev-parse pre-cleanup` returns the TAG OBJECT `cce4e1e`, so peel it with `pre-cleanup^{commit}`). Nothing in `src/` or `tools/` references the flat path. `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/MATCH_AOU_API.md`, and `docs/INTEGRATION_GUIDE.md` were **deleted in the final sweep** (superseding the earlier decision to keep the first two as run-log records — the run logs live on the preserved refs, and `train_full` prose in `main` was more confusing than useful). **Kept, flagged for future passes:** `README.md` (minimally truthful — dead links pruned, but its MAPPO/flat architecture prose still awaits its own rewrite task) and `docs/BLADE_API_DOCUMENTATION.md` (documents the frozen vendored engine; unaudited against the current fork).
