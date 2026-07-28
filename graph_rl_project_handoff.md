@@ -2,8 +2,10 @@
 
 **Supersedes all earlier handoffs.**
 
-Written 2026-07-28. Baseline code SHA: `384845b19805a29920d26e495b88451ca2a5b900`
-(the commit that lands this document changes documents only — no code, no test delta).
+Written 2026-07-28. **B1 is CLOSED / MERGED / LOCKED.** Reviewed code SHA:
+`d6758ac1899621b2ceebcb63afb5e8577184cd91`, integrated into `main` by merge commit
+`bd087c3c18b96f1fe847b4987c73f394a43249c1` (PR #2, merged). The commit that lands this
+document changes documents only — no code, no test delta.
 
 This handoff describes the next phase only. Technical contracts and frozen layers live in
 `CLAUDE.md`; code and tests remain decisive. Where a fact is already in `CLAUDE.md` this
@@ -44,15 +46,22 @@ drift.
 
 ## 1. Current state
 
-- Last reviewed code SHA: `384845b19805a29920d26e495b88451ca2a5b900`. That is the last
-  reviewed **code baseline** — it is **not** the base SHA for the next task. Docs-only commits
-  have advanced `main` since, so every implementation task must resolve the current full
-  `main` SHA immediately before dispatch and declare THAT as its base. Active task branch /
-  PR: none.
-- Verified tests reported for that baseline: suite 64, import purity 12/12, module
-  selftests, and the bonmin selftest under `nlp_env`.
-- Phase-A trainer exists, but **no full training run has ever been performed.** This is
-  deliberate: close scenario construction first.
+- **B1 — CLOSED / MERGED / LOCKED.** Reviewed code SHA:
+  `d6758ac1899621b2ceebcb63afb5e8577184cd91`, integrated into `main` by merge commit
+  `bd087c3c18b96f1fe847b4987c73f394a43249c1` (PR #2, merged). `CLAUDE.md` §7 records the
+  lock under `d6758ac`. That reviewed SHA is the last reviewed **code baseline** — it is
+  **not** the base SHA for the next task. Docs-only commits may advance `main` further, so
+  every implementation task must resolve the current full `main` SHA immediately before
+  dispatch and declare THAT as its base. No active implementation task, candidate, or PR.
+  The old task branch `task/b1-generator-configuration` may still exist remotely; it is
+  not active. Ownership is released to the next orchestrator after this documentation
+  push.
+- Verified tests for the reviewed commit: suite 84 (incl. the P7–P12 construction
+  preconditions and the `graph_train` / `graph_rollout` construction tests), import
+  purity 12/12, module selftests, and the bonmin selftest under `nlp_env`.
+- Phase-A trainer exists, but **no full training run has ever been performed.** B1
+  closing does not by itself unblock one — B2 (hidden-target placement) and B3 (setup
+  seam) must still land first (§4).
 - `CLAUDE.md` §7's workflow + handoff migration entry carries its recorded SHA `a5a4137`; the
   hash-convention duty for that entry is discharged.
 
@@ -181,43 +190,53 @@ never edit the test or the generator to make it pass.
   11/12 split outcome on the wrong side of the fix. `U_oracle = 480` is unaffected (it is a
   sum of utilities, not an allocation), so the cell stays comparable — but any baseline
   expectation for B4 must be re-measured, not inherited.
-- The current easy-zone floor equals the sensing radius. In the fixed P6 fixture, easy
-  targets appeared only 58.8 km and 63.2 km from launch.
-- Layer 1 clustering pulled the fixture's target pairs to 13.7 km and 28.9 km separation,
-  which destroys route diversity. Known-only generation must disable that pass and add a
-  minimum pairwise separation. Both consequences are also recorded in `CLAUDE.md` §8.
+- **RESOLVED by B1 (`d6758ac`).** The pre-B1 50 km floor (== the sensing radius,
+  measured from the launch point) put the fixed P6 fixture's easy targets only 58.8 km
+  and 63.2 km out, and Layer 1 clustering pulled the same fixture's known pairs to 13.7
+  km and 28.9 km apart — both destroyed the mid-route pop-up semantics this phase
+  depends on. The strict B1 construction path now enforces a TRUE great-circle
+  `min_target_distance_km=200` km floor and `min_known_separation_km=100` km known-target
+  separation (`build_variation_config`, `VariationConfig.strict_geometry=True`), and
+  disables Layer 1 entirely on that path (`ensure_discovery_chain=False`). Legacy
+  non-strict generator callers are unaffected. Recorded in `CLAUDE.md` §7/§8.
+- **RESOLVED by B1.** `RolloutConfig` no longer diverges from `TrainConfig`: it mirrors
+  the same reference-cell fields field-for-field and validates them the same way, as
+  `run_rollout`'s first statement, before any directory, policy, generator, or BLADE
+  import. Diagnostic rollouts and training runs build the same default world.
+- **Measured pre-B3 (expected, not a regression).** A live default-cell rollout episode
+  completed with 0 wakes and `reward=+0.0000`: one agent per known target, no hidden
+  target to discover, so the static known-only plan already achieves the oracle. **B4
+  must NOT use this known-only result as its learning baseline.**
 - Solver runs with `known ≤ 2` can stall for roughly 15 minutes against a typical 45 s
   (`CLAUDE.md` §8). Do not use such training configurations without a timeout.
-- `graph_rollout.py` still carries `(3,3)` + `PARTIAL_RATIO` defaults that differ from
-  `TrainConfig`, and it is the SECOND caller of `setup_episode`; preserve its calling
-  contract when changing `setup_episode`. Whether the harness should follow the trainer is
-  an open decision (§5.4), not a silent fix.
 - With the discovery-chain pass disabled, its seven statistics keys are absent; access them
   with `.get`, never `[...]`.
 
 ## 4. Work sequence
 
-### B1 — generator and configuration
+### B1 — generator and configuration — **CLOSED / MERGED / LOCKED**
 
-Implement:
+Reviewed code SHA `d6758ac1899621b2ceebcb63afb5e8577184cd91`, integrated into `main` by
+merge commit `bd087c3c18b96f1fe847b4987c73f394a43249c1` (PR #2, merged).
 
-- explicit `n_known` and `n_hidden`;
-- configurable fleet size with `num_agents ≤ n_known`;
-- a higher minimum target distance;
-- minimum pairwise separation between known targets;
-- known-only emission with the discovery-chain pass disabled;
-- propagation through `TrainConfig` and CLI without hard-coded duplicate defaults.
+Delivered: explicit `num_agents` / `n_known` / `n_hidden` on `TrainConfig` (mirrored
+field-for-field on `RolloutConfig`); a configurable `min_target_distance_km` (200 km) and
+`min_known_separation_km` (100 km), both enforced as a TRUE great-circle floor via
+`VariationConfig.strict_geometry` / `min_target_separation_km`; known-only emission with
+Layer 1's discovery-chain pass disabled on the construction path only
+(`ensure_discovery_chain=False`); propagation through `TrainConfig`, `RolloutConfig`, and
+CLI without hard-coded duplicate defaults; `RolloutConfig.validate()` aligned with
+`TrainConfig.validate()`'s construction checks. `derived_split`, `split_preview`,
+`split_tasks`, and their tests are untouched and green — the construction path simply
+stops consulting them; retiring them is still a separate, later phase.
 
-**Scope boundary — read before dispatching.** This is not "add two integers". `derived_split`
-is woven through `graph_train` in roughly eight places: the function itself, `split_preview`,
-`validate()`'s hazard warnings, the startup echo, `run_config.json`, and several docstrings.
-B1 **adds** `n_known` / `n_hidden` and stops *using* the derived split on the construction
-path; it does **not** delete `derived_split`, `split_preview`, or the test that enforces
-`derived_split ≡ split_tasks`, all of which must stay green (§7). Retiring them is a separate
-phase.
+Deliberately NOT delivered: hidden-target placement. B1 emits ZERO hidden targets; that
+remains B2/B3 work.
 
-Grade B, except for any change that alters a research invariant. Require one main-path test
-and one test of the separation constraint.
+Evidence: suite 64 → 84, import purity 12/12, module selftests and the bonmin selftest
+green under `nlp_env`.
+
+**B2 is now the next phase (below).**
 
 ### B2 — route-relative hidden-target placement
 
@@ -242,7 +261,7 @@ Grade A. Proof obligations:
 1. Every placement lies within the sensing bound and its closest approach lies inside the
    guaranteed portion of its reference leg.
 2. Synthetic multi-target solutions prove legs 2 and 3 plus tie-margin rejection/fallback.
-   With a 1:1 first cell (§5.1) this path is never exercised at runtime, so the unit tests
+   With a 1:1 first cell (§6) this path is never exercised at runtime, so the unit tests
    are the only proof it works.
 3. Identical seeds produce identical geometric fingerprints.
 
@@ -275,28 +294,18 @@ ceiling **after training** is expected and intended in this phase: with guarante
 and no resistance, egos should collect nearly everything. Difficulty returns later through
 `p < 1`, `fuel_damage`, and targets that shoot back — not by weakening this phase's scenario.
 
-## 5. Decisions to close before implementation
+## 5. Decisions to close before B2 implementation
 
-1. Confirm the first reference cell. Recommendation: fleet 3, `n_known = 3`, `n_hidden = 3`
-   for comparability with `U_oracle = 480`; prove multi-target routes synthetically in B2
-   rather than changing the first run cell. Whatever is chosen is **a cell, not a law** —
-   never hard-code the counts, because a later phase varies them per episode.
-2. Choose numerical construction parameters:
-   - `min_target_distance_km`;
-   - minimum known-target separation;
-   - placement fraction range along a leg;
-   - perpendicular-offset guard;
-   - nearest-neighbor tie margin (order of `2 × DETECTION_KM` was the suggested starting
-     magnitude, not a decision).
-3. Confirm eligible legs. Recommendation: all legs that pass the margin, with leg 1 as the
-   fallback.
-4. Decide whether `graph_rollout`'s `RolloutConfig` follows `TrainConfig` once B1 changes the
-   configuration surface. Today they diverge, which makes diagnostic rollouts and training
-   runs non-comparable by default (`CLAUDE.md` §8). Deciding "not yet" is fine; deciding by
-   accident is not.
+The B1 reference cell and its construction geometry are closed (§6). These remain open:
 
-Do not dispatch B1 until the B1-relevant numerical values are closed. B2-only placement
-parameters may be closed after B1 if its interfaces do not hard-code them.
+1. Placement fraction range along a leg (relative, biased away from the common origin).
+2. Perpendicular-offset guard, no larger than `DETECTION_KM - guard`.
+3. Nearest-neighbor tie margin for legs 2+ (order of `2 × DETECTION_KM` was the suggested
+   starting magnitude, not a decision).
+4. Confirm eligible legs. Recommendation, still awaiting user confirmation: all legs that
+   pass the margin, with leg 1 as the fallback.
+
+Do not dispatch B2 until these are closed with the user.
 
 ## 6. Closed decisions
 
@@ -310,6 +319,17 @@ parameters may be closed after B1 if its interfaces do not hard-code them.
 - `round_trip_cost` and `graph_reward` remain unchanged and frozen. The flat `R ≈ −1/3` was
   scenario degeneracy, never a reward bug.
 - Random fleet class mix is acceptable; use relative placement parameters.
+- **B1 reference cell (`d6758ac`):** fleet 3, `n_known = 3`, `n_hidden = 3` planned
+  (comparable with `U_oracle = 480`) — a cell, not a law; a later phase varies the counts
+  per episode.
+- **B1 construction geometry (`d6758ac`):** `min_target_distance_km = 200` km and
+  `min_known_separation_km = 100` km, both enforced as a TRUE great-circle floor under
+  `strict_geometry`.
+- **Known-only emission during B1 (`d6758ac`):** exactly `n_known` targets generated,
+  `n_hidden` PLANNED only, Layer 1's discovery-chain relocation disabled on this path.
+- **`RolloutConfig` follows `TrainConfig`'s construction surface (`d6758ac`):** the same
+  reference-cell fields, field-for-field, validated the same way — no shared import
+  (structurally aligned, compared by an anti-drift test).
 
 ## 7. Out of scope
 
@@ -328,14 +348,16 @@ before, and not later.
 
 | Trigger | Duty |
 |---|---|
-| B1 lands | update `CLAUDE.md` §6's "change the training scenario cell" row — it still names `num_red_airbases` / `partial_ratio` / `derived_split` |
-| B1's parameterization closes | retire the `min_target_distance_km` item in `CLAUDE.md` §8 |
+| B1 lands — **DONE** | update `CLAUDE.md` §6's "change the training scenario cell" row — completed in the B1 documentation lock commit |
+| B1's parameterization closed — **DONE** | retire the `min_target_distance_km` item in `CLAUDE.md` §8 — completed in the B1 documentation lock commit |
 | B3 lands | rewrite `CLAUDE.md` §4's pipeline diagram — it still shows `split_tasks (partial ⊊ full)`, which is correct until then; and mark the `split_meta["outcome"]` §8 item as legacy-path-only |
 
 ## 9. Next action
 
-Close the B1 numerical decisions in §5.2 using the evidence in §3, then dispatch B1 as one
-bounded task: resolve the fresh `main` HEAD and declare it as the base SHA, select the
-declared orchestrator transport mode (`GPT_GITHUB` or `CLAUDE_MOUNTED_MAIN`), and use the
-corresponding transport defined in `CLAUDE.md` §1. The procedure lives there — do not
-duplicate it here. A status block is required in either mode.
+B1 is closed; B2 is next. The next orchestrator first performs exact-SHA initialization:
+resolve the fresh `main` HEAD and declare it as the base SHA, and select the declared
+orchestrator transport mode (`GPT_GITHUB` or `CLAUDE_MOUNTED_MAIN`) per `CLAUDE.md` §1 —
+the procedure lives there, do not duplicate it here. Then conduct focused B2 recon and
+close the remaining B2 numerical decisions (§5) with the user before dispatching B2
+implementation. Do not begin B2 implementation, and do not pretend its parameters are
+already decided. A status block is required in either transport mode.

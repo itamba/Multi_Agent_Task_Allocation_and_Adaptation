@@ -207,7 +207,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`) |
-| Change the training scenario cell (target count / known-hidden split) | `rl/training/graph_train.py` (`TrainConfig.num_red_airbases`, `partial_ratio`, `derived_split`) |
+| Change the training scenario cell (target count / known-hidden split) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` survive but are NOT consulted by the construction path (B1, `d6758ac`). |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -217,7 +217,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
 | Change BLADE execution / plan re-sync | `utils/blade_utils/blade_graph_executor.py` (`GraphPlanExecutor`) |
 | Expose the ego's own sensing | `blade_graph_executor.py` → `sensed_target_ids` |
 | Create Agents / Tasks from a scenario | `scenario_factory.py` → `create_agents_from_scenario` / `generate_all_enemy_tasks` (`probability=1.0`) / `iter_enemy_targets` + `make_attack_task` (utility: Facility 100 / Airbase 80 / Ship 95) |
-| Change scenario content / zones / fleet / fuel tiers | `scenario_generator.py` (`VariationConfig`, `ScenarioGenerator`, `CLASS_RANGE_TIERS`) |
+| Change scenario content / zones / fleet / fuel tiers | `scenario_generator.py` (`VariationConfig` incl. `strict_geometry` (raise instead of silently weakening requested geometry) and `min_target_separation_km` (pairwise known-target floor, default 0.0 = off); `ScenarioGenerator`, `CLASS_RANGE_TIERS`) |
 | Change generation-time discovery connectivity (Layer 1, at `DETECTION_KM`) | `scenario_generator.py` → `_ensure_discovery_chain` / `_compute_zone_bounds` / `_connect_zone_targets`; switch the whole pass OFF with `VariationConfig.ensure_discovery_chain=False` |
 | Change split-time discovery masking (Layer 2, at `DETECTION_KM`) | `rl/training/graph_episode_setup.py` → `split_tasks` |
 | Change the solver objective/constraints | `match_aou_MINLP_solver.py` (extreme caution — §2) |
@@ -389,7 +389,7 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   an exact post-push `main` SHA plus focused hunks and targeted test evidence requested from
   CC — task branches and PRs are not assumed reachable. The packet or the user declares the
   mode; it is never inferred.
-- `PENDING` — **shared-document workflow correction** (documents only; no code, no test
+- `f319095` — **shared-document workflow correction** (documents only; no code, no test
   delta). §1's `CLAUDE_MOUNTED_MAIN` description and handoff §0 now state that side's real
   capability: a synchronized mounted snapshot of `main` as a **search** interface that cannot
   diff, cannot prove absence, and can lag. Adds the **Grade-A routing default** — Grade A goes
@@ -398,6 +398,27 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   targeted evidence from CC, and no lock or dependent work before exact-SHA approval. The
   grade-definition and output-discipline sites became pointers to that one bullet rather than
   second copies.
+- `d6758ac` — **B1: offline scenario-construction configuration — CLOSED / MERGED /
+  LOCKED** (known-only cell, step 1 of 3 of the offline scenario-construction phase;
+  integrated into `main` by merge commit `bd087c3`, PR #2). States the reference cell
+  outright instead of deriving known/hidden from a ratio: `TrainConfig` gains
+  `num_agents=3` (`<= n_known`), `n_known=3`, `n_hidden=3` (PLANNED for B2/B3 — B1 emits
+  ZERO hidden targets), `min_target_distance_km=200.0`, `min_known_separation_km=100.0`.
+  `build_variation_config` is the ONE site turning a `TrainConfig` into the generator's
+  `VariationConfig`: exactly `n_known` targets, `ensure_discovery_chain=False` (Layer 1
+  disabled ONLY on this construction path — it would cluster known targets and flatten
+  route diversity), `strict_geometry=True` (the generator raises rather than silently
+  weakening the requested geometry). The review fix re-measures the ring-sampled
+  candidate with the real `_haversine_km` — the ring's flat-earth degree-conversion had
+  let true sub-floor targets through a 300-seed sweep — so `strict_geometry` now enforces
+  a TRUE great-circle `min_target_distance_km` / `min_target_separation_km` floor;
+  STRICT-only, so every legacy non-strict caller (incl. `P6`'s pinned fixture) is
+  byte-unchanged (P9c, P11). `RolloutConfig` (`graph_rollout.py`) mirrors the same
+  reference-cell fields field-for-field and now validates them as `run_rollout`'s FIRST
+  statement, before any directory, policy, generator, or BLADE import — closing the
+  `TrainConfig`/`RolloutConfig` divergence recorded in §8. Does NOT build hidden-target
+  placement (B2/B3 work). Proven: suite 64 → 84, import purity 12/12, module selftests
+  and the bonmin selftest green under `nlp_env`.
 
 ---
 
@@ -441,18 +462,30 @@ organic wakes (75% of episodes), rewards in [-1, ~0].
   Keep the unified `DETECTION_KM = 50` contract for sensing, arrival, attack,
   kill-confirmation, generator connectivity, and split adjacency. Do not reopen this as
   part of scenario construction.
-- **`RolloutConfig` and `TrainConfig` defaults have DIVERGED.** `graph_rollout` still
-  carries `(3,3)` + `PARTIAL_RATIO` (2/3), so diagnostic rollouts now generate different
-  scenarios than training runs by default, making the two non-comparable. Deliberately
-  not changed in passing — decide whether the harness should follow the trainer.
-- **`min_target_distance_km` (50) is now measured from the LAUNCH POINT.** With the
-  launch point == the blue airbase, the easy-zone floor equals `DETECTION_KM`
-  exactly. Measured in the P6 fixture: the two easy targets landed **58.8 km** and
-  **63.2 km** from the base — 9–13 km outside the sensing radius at wheels-up, so an
-  ego can "discover" a target seconds after launch, which destroys the pop-up
-  semantics the construction phase is built on. The floor must rise, AND a minimum
-  pairwise separation between KNOWN targets must be introduced — Layer 1 currently
-  enforces the OPPOSITE: in the same fixture it pulled the easy pair to **13.7 km**
-  and the stretch pair to **28.9 km** apart. Decision pending in the construction
-  phase's parameterization step.
+- **`RolloutConfig`/`TrainConfig` construction-default divergence — CLOSED by B1
+  (`d6758ac`).** `RolloutConfig` now mirrors `TrainConfig`'s reference-cell fields
+  field-for-field (`num_agents`, `n_known`, `n_hidden`, `min_target_distance_km`,
+  `min_known_separation_km`, `include_sams`, `randomize_red_airbase_positions`,
+  `stretch_target_ratio`) and validates them the same way, as `run_rollout`'s FIRST
+  statement. Diagnostic rollouts and training runs now build the same default world.
+- **`min_target_distance_km` — RESOLVED for the construction path by B1 (`d6758ac`).**
+  The pre-B1 50 km floor (== `DETECTION_KM`, measured from the launch point) put the P6
+  fixture's easy targets only **58.8 km** / **63.2 km** out — discoverable seconds after
+  wheels-up — while Layer 1 pulled the same fixture's known pairs to **13.7 km** /
+  **28.9 km** apart, both destroying the mid-route pop-up semantics this phase depends
+  on. The strict B1 construction path (`build_variation_config`,
+  `VariationConfig.strict_geometry=True`) now enforces a TRUE great-circle
+  `min_target_distance_km=200` km floor and a `min_known_separation_km=100` km
+  known-target separation, and disables Layer 1 entirely on that path
+  (`ensure_discovery_chain=False`). Legacy non-strict generator callers are unaffected —
+  `strict_geometry` defaults to `False` and `min_target_separation_km` defaults to `0.0`
+  (off), so every pre-B1 caller's placement and rng stream stay byte-identical (P9c, P11;
+  `P6` unchanged).
+- **Pre-B3 zero-headroom (measured, expected — not a regression).** A live default-cell
+  rollout episode (`num_agents=3`, `n_known=3`, `n_hidden=0` emitted) completed with 0
+  wakes and `reward=+0.0000`: with one agent per known target and no hidden target to
+  discover, the static known-only plan already achieves the oracle, so there is nothing
+  for the policy to react to. This is the expected state before B2/B3 place hidden
+  targets. **B4 must NOT use this known-only result as its learning baseline** — it
+  measures the absence of a learning problem, not the presence of one.
 > **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, `7f324fd`), plus a final doc sweep as a coda. The 38 deleted paths are preserved on TWO DISTINCT refs — branch `flat-final` (`4d44c34`) and the annotated tag `pre-cleanup` (commit `561b7cb`; `git rev-parse pre-cleanup` returns the TAG OBJECT `cce4e1e`, so peel it with `pre-cleanup^{commit}`). Nothing in `src/` or `tools/` references the flat path. `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/MATCH_AOU_API.md`, and `docs/INTEGRATION_GUIDE.md` were **deleted in the final sweep** (superseding the earlier decision to keep the first two as run-log records — the run logs live on the preserved refs, and `train_full` prose in `main` was more confusing than useful). **Kept, flagged for future passes:** `README.md` (minimally truthful — dead links pruned, but its MAPPO/flat architecture prose still awaits its own rewrite task) and `docs/BLADE_API_DOCUMENTATION.md` (documents the frozen vendored engine; unaudited against the current fork).
