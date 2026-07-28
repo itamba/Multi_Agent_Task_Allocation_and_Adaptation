@@ -9,6 +9,8 @@ Capabilities:
 - Add/remove/randomize RED airbases as targets
 - Add/remove facilities (SAM sites) from diverse pool
 - Full fuel-based reachability validation
+- Optional minimum pairwise target separation, and a strict mode in which an
+  explicitly requested geometry is never silently relaxed (it raises instead)
 - Traceability: each generated scenario is tagged with its episode number
 
 Usage:
@@ -49,6 +51,13 @@ CLASS_RANGE_TIERS: Dict[str, float] = {
     "B-2 Spirit": 1500.0,
     "KC-135R Stratotanker": 2100.0,
 }
+
+# Slack allowed when a placement is compared against a requested distance, in km.
+# 1e-6 km = 1 mm: orders of magnitude below any placement effect, and orders of
+# magnitude above the double-precision noise of a great-circle computation. It exists
+# so a candidate sitting EXACTLY on a bound is not rejected by float dust; it is never
+# large enough to admit a geometry a reader would call non-compliant.
+_GEOMETRY_TOLERANCE_KM: float = 1e-6
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +108,35 @@ class VariationConfig:
     # None = no upper cap; easy zone extends up to the shortest fleet range.
     max_target_distance_km: Optional[float] = None
     min_target_distance_km: float = 50.0
+
+    # --- Minimum pairwise separation between placed targets (km) ---
+    # 0.0 (default) = NO separation constraint. The accept predicate in
+    #   `_randomize_target_positions` is then exactly what it was before this field
+    #   existed, so the rng stream is unchanged and placement is byte-identical
+    #   (locked by the P6 regression in
+    #   tests/test_scenario_construction_preconditions.py).
+    # > 0 = every newly placed target must be at least this far from every target
+    #   ALREADY PLACED IN THE SAME PASS (facilities and RED airbases are randomized in
+    #   two separate passes, so the constraint is intra-pass). Required by the offline
+    #   scenario-construction path: with Layer 1 disabled nothing pulls targets
+    #   together any more, but nothing pushes them apart either, and route-relative
+    #   hidden-target placement needs the KNOWN routes to actually diverge.
+    min_target_separation_km: float = 0.0
+
+    # --- Strict geometry: the requested constraints are HARD, not advisory ---
+    # False (default, legacy behaviour): an unsatisfiable easy zone silently collapses
+    #   `min_target_distance_km` to `easy_max * 0.1`; the floor is enforced only as the
+    #   sampling ring's NOMINAL lower bound (a flat-earth approximation, see
+    #   `_random_point_in_ring`); and a target that cannot be placed within the attempt
+    #   budget silently keeps its template coordinate.
+    # True: `min_target_distance_km` is never lowered, it is enforced against the TRUE
+    #   `_haversine_km` distance from the blue base rather than the ring's nominal, and
+    #   an unplaceable target raises `TargetPlacementError`. Used by the offline
+    #   scenario-construction path, where
+    #   the 200 km base-distance floor and the 100 km known-target separation are a
+    #   declared research premise -- silently weakening either of them would produce a
+    #   plausible-looking scenario that no longer tests what it claims to test.
+    strict_geometry: bool = False
 
     # --- Stretch targets ---
     # Fraction of targets placed in the "stretch zone" — beyond the range
@@ -156,6 +194,22 @@ class VariationConfig:
 
     # --- Random seed (None = random each time) ---
     seed: Optional[int] = None
+
+
+# ---------------------------------------------------------------------------
+# Errors
+# ---------------------------------------------------------------------------
+
+class TargetPlacementError(RuntimeError):
+    """An EXPLICITLY REQUESTED target geometry could not be satisfied.
+
+    Only reachable under ``VariationConfig.strict_geometry=True``. The legacy path
+    degrades quietly in both of the situations that raise this: it lowers an
+    unsatisfiable ``min_target_distance_km`` floor, and it leaves an unplaceable target
+    on its template coordinate. Both are fine when the geometry is a preference; both
+    are silent research bugs when it is a premise, so strict callers get an exception
+    carrying the ring, the constraints, and how many targets were already placed.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -752,6 +806,18 @@ class ScenarioGenerator:
 
         When all aircraft have the same range (homogeneous fleet),
         the stretch zone is empty and all targets land in the easy zone.
+
+        Two constraints layer on top of the zones:
+        - ``config.min_target_separation_km`` (0.0 = off) rejects a candidate that
+          lands closer than that to a target already placed IN THIS PASS.
+        - ``config.strict_geometry`` (a) re-measures ``min_target_distance_km`` as a
+          TRUE great-circle distance rather than trusting the ring's flat-earth
+          nominal, and (b) turns the two legacy silent degradations (collapsing the
+          floor, leaving an unplaceable target on its template coordinate) into
+          :class:`TargetPlacementError`.
+
+        Raises:
+            TargetPlacementError: only when ``config.strict_geometry`` is set.
         """
         base_lat, base_lon, _ = self._get_blue_base(scenario)
         aircraft_list = self._get_blue_aircraft(scenario)
@@ -770,6 +836,19 @@ class ScenarioGenerator:
             easy_max = min(easy_max, config.max_target_distance_km)
         easy_min = config.min_target_distance_km
         if easy_min >= easy_max:
+            if config.strict_geometry:
+                raise TargetPlacementError(
+                    "strict_geometry: the requested min_target_distance_km=%.1f km is "
+                    "not below the easy-zone ceiling of %.1f km (the fleet's shortest "
+                    "one-way range%s). The legacy path silently collapses the floor to "
+                    "%.1f km; under an explicitly requested construction geometry that "
+                    "is a silent relaxation, so this raises instead. Lower the floor, "
+                    "or give the fleet more range."
+                    % (easy_min, easy_max,
+                       "" if config.max_target_distance_km is None
+                       else ", capped by max_target_distance_km",
+                       easy_max * 0.1)
+                )
             easy_min = easy_max * 0.1
 
         # Stretch zone: only some aircraft can reach
@@ -827,6 +906,52 @@ class ScenarioGenerator:
         shuffled_indices = list(range(len(targets)))
         rng.shuffle(shuffled_indices)
 
+        # Coordinates accepted SO FAR in this pass -- the separation constraint's
+        # reference set. Empty at 0.0 separation cost, and never consulted then.
+        separation_km = float(config.min_target_separation_km)
+
+        # STRICT ONLY: re-measure the base distance with `_haversine_km`.
+        # `_random_point_in_ring` samples a NOMINAL distance and converts it through a
+        # flat-earth approximation -- 111.0 km per degree, and cos(CENTRE latitude) for
+        # the longitude scale. Neither is exact, and the second one is wrong in a
+        # directional way: a candidate on a northerly bearing ends up at a HIGHER
+        # latitude, where a degree of longitude is shorter than the centre's, so its
+        # true great-circle distance comes out BELOW the nominal. Measured against this
+        # template's base, a nominal 200.0 km on a 45-degree bearing lands at 199.65 km
+        # -- inside a floor the construction path declares as a premise. The ring bound
+        # is therefore not the floor; this is. Legacy callers keep the ring-only
+        # behaviour untouched: `distance_floor_km` stays None unless strict_geometry.
+        distance_floor_km = (
+            float(config.min_target_distance_km) if config.strict_geometry else None
+        )
+        placed_coords: List[Tuple[float, float]] = []
+
+        def _accepts(lat: float, lon: float) -> bool:
+            """Reachable by someone, past the true floor, and clear of placed targets.
+
+            The last two checks are opt-in (`strict_geometry` / a positive separation).
+            With both off this is EXACTLY the pre-B1 predicate, down to the number of
+            rng draws it lets through -- which is what keeps default placement
+            byte-identical (P6, and P11's explicit-0.0 reproduction of it).
+
+            Both bounds are compared with `_GEOMETRY_TOLERANCE_KM` of slack so a
+            candidate sitting exactly on a bound is not rejected by float dust.
+            """
+            if not reachability.is_reachable_by_any(
+                aircraft_list, base_lat, base_lon, lat, lon
+            ):
+                return False
+            if distance_floor_km is not None:
+                d_base = _haversine_km(base_lat, base_lon, lat, lon)
+                if d_base < distance_floor_km - _GEOMETRY_TOLERANCE_KM:
+                    return False
+            if separation_km > 0.0:
+                for other_lat, other_lon in placed_coords:
+                    d = _haversine_km(lat, lon, other_lat, other_lon)
+                    if d < separation_km - _GEOMETRY_TOLERANCE_KM:
+                        return False
+            return True
+
         for i, target_idx in enumerate(shuffled_indices):
             target = targets[target_idx]
             is_stretch = (i >= n_easy)  # First n_easy are easy, rest stretch
@@ -841,29 +966,50 @@ class ScenarioGenerator:
                 new_lat, new_lon = _random_point_in_ring(
                     base_lat, base_lon, ring_min, ring_max, rng,
                 )
-                if reachability.is_reachable_by_any(
-                    aircraft_list, base_lat, base_lon, new_lat, new_lon
-                ):
+                if _accepts(new_lat, new_lon):
                     target["latitude"] = new_lat
                     target["longitude"] = new_lon
+                    placed_coords.append((new_lat, new_lon))
                     placed = True
                     break
 
-            # Fallback: if stretch target couldn't be placed, try easy zone
+            # Fallback: if stretch target couldn't be placed, try easy zone. The easy
+            # ring still starts at min_target_distance_km and the candidate still goes
+            # through `_accepts`, so this is a ZONE downgrade only -- it can never
+            # produce geometry that violates the requested floor or separation.
             if not placed and is_stretch:
                 for _ in range(max_attempts):
                     new_lat, new_lon = _random_point_in_ring(
                         base_lat, base_lon, easy_min, easy_max, rng,
                     )
-                    if reachability.is_reachable_by_any(
-                        aircraft_list, base_lat, base_lon, new_lat, new_lon
-                    ):
+                    if _accepts(new_lat, new_lon):
                         target["latitude"] = new_lat
                         target["longitude"] = new_lon
+                        placed_coords.append((new_lat, new_lon))
+                        placed = True
                         logger.debug(
                             f"  Stretch target fell back to easy zone"
                         )
                         break
+
+            if not placed and config.strict_geometry:
+                # The legacy path leaves this target on its TEMPLATE coordinate, which
+                # satisfies neither the floor nor the separation. Fail loudly instead.
+                raise TargetPlacementError(
+                    "strict_geometry: could not place target %r in the %s ring "
+                    "[%.1f, %.1f] km after %d attempt(s)%s while honouring "
+                    "min_target_distance_km=%.1f km and min_target_separation_km=%.1f "
+                    "km against %d already-placed target(s). The generator will NOT "
+                    "keep the stale template coordinate or weaken the requested "
+                    "geometry -- relax a constraint or ask for fewer targets."
+                    % (target.get("name", "?"),
+                       "stretch" if is_stretch else "easy",
+                       ring_min, ring_max, max_attempts,
+                       " (plus %d easy-zone retries)" % max_attempts if is_stretch
+                       else "",
+                       config.min_target_distance_km, separation_km,
+                       len(placed_coords))
+                )
 
     # ==================================================================
     # Discovery chain (radar-neighbor connectivity)

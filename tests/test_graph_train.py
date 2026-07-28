@@ -50,6 +50,21 @@ What these tests lock:
                              cells deliberately, so they must not be errors. The
                              approved default cell stays silent.
   T8 run_config.json       : every run records its own resolved config + derived split.
+  T9 the construction cell : B1's explicit surface. The DEFAULTS are the reference cell
+                             (3 agents, 3 known, 3 hidden PLANNED, 200/100 km);
+                             `build_variation_config` is the single site that turns a
+                             TrainConfig into a generator request and it asks for a
+                             KNOWN-ONLY world with Layer 1 off and the geometry strict;
+                             `num_agents > n_known` is REFUSED; the new CLI flags read
+                             their defaults off the dataclass and reject bad values at
+                             parse time; `run_config.json` separates the hidden targets
+                             PLANNED for B2/B3 from the zero it actually emits; and
+                             `RolloutConfig` is checked field-for-field against
+                             `TrainConfig` so the two harnesses cannot drift apart
+                             again (they were `(3,3)`/2-3 vs `(6,6)`/0.5 before B1),
+                             and it now carries the same validation -- enforced as the
+                             FIRST statement of `run_rollout`, proven by the run
+                             directory still not existing after the raise.
 
 WHY T3 GOES THROUGH A SUBPROCESS
 --------------------------------
@@ -103,10 +118,17 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
 )
 from match_aou.rl.training.graph_ppo import PPOConfig, PPOUpdater  # noqa: E402
 from match_aou.rl.training.graph_tick_loop import build_policy  # noqa: E402
+from match_aou.rl.training.graph_rollout import (  # noqa: E402
+    RolloutConfig,
+    run_rollout,
+    _ALL_KNOWN_PARTIAL_RATIO as _ROLLOUT_ALL_KNOWN_PARTIAL_RATIO,
+)
 from match_aou.rl.training.graph_train import (  # noqa: E402
     TrainConfig,
+    _ALL_KNOWN_PARTIAL_RATIO,
     _build_arg_parser,
     _parse_airbase_range,
+    build_variation_config,
     derived_split,
     eval_seed,
     global_episode_index,
@@ -116,6 +138,7 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     train_seed,
     write_run_config,
 )
+from match_aou.utils.blade_utils.scenario_generator import VariationConfig  # noqa: E402
 
 
 # =============================================================================
@@ -543,8 +566,11 @@ def test_cli_defaults_equal_the_dataclass_defaults() -> None:
 # T7 -- hazard warnings: printed, never raised
 # =============================================================================
 
-def _validate_capturing_stdout(cfg: TrainConfig) -> str:
+def _validate_capturing_stdout(cfg) -> str:
     """Run ``cfg.validate()`` and return what it printed.
+
+    Duck-typed: takes a ``TrainConfig`` or a ``RolloutConfig``, both of which expose a
+    ``validate()`` that raises on a bad cell and prints hazards.
 
     Uses ``redirect_stdout`` rather than pytest's ``capsys`` so these tests work in BOTH
     modes -- pytest and this file's own ``__main__`` runner (pytest is absent in
@@ -633,6 +659,269 @@ def test_write_run_config_records_the_scenario_knobs(tmp_path: Path) -> None:
     assert payload["base_scenario"] == "strike_training_4v5.json"
 
 
+# =============================================================================
+# T9 -- the B1 offline scenario-construction cell (explicit counts + geometry)
+# =============================================================================
+
+def test_construction_defaults_are_the_reference_cell() -> None:
+    """3 agents, 3 known, 3 hidden PLANNED, 200 km floor, 100 km separation.
+
+    `n_targets_emitted` is asserted separately from `n_hidden` on purpose: those two
+    numbers are the whole PLANNED-vs-EMITTED distinction. A B1 scenario has three
+    targets, not six, and a config surface that blurred that would let a run be
+    described as testing discovery when nothing in it is discoverable.
+    """
+    cfg = TrainConfig(n_iterations=1)
+    assert cfg.num_agents == 3, cfg.num_agents
+    assert cfg.n_known == 3, cfg.n_known
+    assert cfg.n_hidden == 3, cfg.n_hidden
+    assert cfg.min_target_distance_km == 200.0, cfg.min_target_distance_km
+    assert cfg.min_known_separation_km == 100.0, cfg.min_known_separation_km
+
+    assert cfg.n_targets_emitted == 3, cfg.n_targets_emitted
+    assert cfg.n_targets_emitted == cfg.n_known
+    # 200 km is comfortably outside the sensing bubble an ego launches inside of.
+    assert cfg.min_target_distance_km > DETECTION_KM
+
+
+def test_build_variation_config_requests_a_known_only_world() -> None:
+    """The ONE generator request: n_known targets, Layer 1 OFF, geometry STRICT.
+
+    Compared as a whole dataclass rather than field by field, so a field ADDED to the
+    request later cannot slip through unasserted.
+    """
+    cfg = TrainConfig(n_iterations=1)
+    var = build_variation_config(cfg, seed=7)
+
+    assert var == VariationConfig(
+        include_sams=False,
+        num_aircraft=3,
+        num_red_airbases=3,
+        randomize_red_airbase_positions=True,
+        stretch_target_ratio=0.5,
+        min_target_distance_km=200.0,
+        min_target_separation_km=100.0,
+        ensure_discovery_chain=False,
+        strict_geometry=True,
+        detection_km=DETECTION_KM,
+        seed=7,
+    ), var
+
+    # The legacy split surface reaches the generator NOWHERE: the request carries
+    # n_known, not num_red_airbases, and no ratio at all.
+    legacy = TrainConfig(n_iterations=1, num_red_airbases=(9, 9), partial_ratio=1.0 / 3.0)
+    assert build_variation_config(legacy, seed=7).num_red_airbases == legacy.n_known
+
+    # Only n_known drives emission; n_hidden is planned and never generated.
+    bigger = TrainConfig(n_iterations=1, num_agents=2, n_known=5, n_hidden=4)
+    assert build_variation_config(bigger, seed=0).num_red_airbases == 5
+    assert build_variation_config(bigger, seed=0).num_aircraft == 2
+
+
+def test_setup_is_called_all_known_until_b3() -> None:
+    """The pre-B3 compatibility value is 1.0 and both harnesses use the same one."""
+    assert _ALL_KNOWN_PARTIAL_RATIO == 1.0
+    assert _ROLLOUT_ALL_KNOWN_PARTIAL_RATIO == _ALL_KNOWN_PARTIAL_RATIO
+    # It must hide nothing for ANY emitted count, which is exactly derived_split at 1.0.
+    for n in (1, 3, 5, 8):
+        assert derived_split(n, _ALL_KNOWN_PARTIAL_RATIO) == (n, 0)
+
+
+def test_validate_rejects_more_agents_than_targets() -> None:
+    """num_agents > n_known RAISES -- it is the forced-stacking cell, not a hazard."""
+    try:
+        TrainConfig(n_iterations=1, num_agents=4, n_known=3).validate()
+    except ValueError as exc:
+        assert "num_agents" in str(exc) and "n_known" in str(exc), str(exc)
+    else:
+        raise AssertionError("validate() accepted num_agents > n_known")
+
+    # Equality is the reference cell and must stay legal.
+    TrainConfig(n_iterations=1, num_agents=3, n_known=3).validate()
+    TrainConfig(n_iterations=1, num_agents=2, n_known=3).validate()
+
+
+def test_validate_rejects_degenerate_construction_values() -> None:
+    """Non-positive counts / distances fail up front, not inside the generator."""
+    for kwargs in (
+        {"num_agents": 0},
+        {"n_known": 0},
+        {"n_hidden": -1},
+        {"min_target_distance_km": 0.0},
+        {"min_target_distance_km": -1.0},
+        {"min_known_separation_km": -1.0},
+    ):
+        try:
+            TrainConfig(n_iterations=1, **kwargs).validate()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"validate() accepted {kwargs}")
+
+    # 0 separation is legal: it means "no separation constraint", not a typo.
+    TrainConfig(n_iterations=1, min_known_separation_km=0.0).validate()
+
+
+def test_low_n_known_warns_about_the_bonmin_stall() -> None:
+    """The stall hazard now tracks n_known -- the count that actually reaches bonmin."""
+    out = _validate_capturing_stdout(TrainConfig(n_iterations=1, num_agents=2, n_known=2))
+    assert "[WARN]" in out, out
+    assert "SYMMETRY-STALL" in out, out
+    assert "n_known=2" in out, out
+
+
+def test_cli_exposes_the_construction_cell() -> None:
+    """The five flags parse, default off the dataclass, and reject bad values."""
+    parser = _build_arg_parser()
+
+    d = TrainConfig(n_iterations=1)
+    args = parser.parse_args(["--iterations", "1"])
+    assert args.num_agents == d.num_agents
+    assert args.n_known == d.n_known
+    assert args.n_hidden == d.n_hidden
+    assert args.min_target_distance_km == d.min_target_distance_km
+    assert args.min_known_separation_km == d.min_known_separation_km
+
+    args = parser.parse_args([
+        "--iterations", "1", "--num-agents", "2", "--n-known", "5", "--n-hidden", "0",
+        "--min-target-distance-km", "250.5", "--min-known-separation-km", "0",
+    ])
+    assert (args.num_agents, args.n_known, args.n_hidden) == (2, 5, 0)
+    assert args.min_target_distance_km == 250.5
+    assert args.min_known_separation_km == 0.0
+
+    # Bad values are argparse usage errors (SystemExit), never a later traceback.
+    for flag, bad in (
+        ("--num-agents", "0"), ("--num-agents", "abc"), ("--num-agents", "1.5"),
+        ("--n-known", "0"), ("--n-hidden", "-1"),
+        ("--min-target-distance-km", "0"), ("--min-target-distance-km", "-5"),
+        ("--min-target-distance-km", "abc"), ("--min-known-separation-km", "-1"),
+    ):
+        try:
+            parser.parse_args(["--iterations", "1", flag, bad])
+        except SystemExit:
+            pass
+        else:
+            raise AssertionError("the CLI accepted %s %r" % (flag, bad))
+
+
+def test_write_run_config_separates_planned_from_emitted(tmp_path: Path) -> None:
+    """`run_config.json` records the cell AND that B1 emitted zero hidden targets."""
+    cfg = TrainConfig(
+        n_iterations=1, output_dir=tmp_path / "run",
+        num_agents=2, n_known=5, n_hidden=4,
+        min_target_distance_km=250.0, min_known_separation_km=120.0,
+    )
+    run_dir = Path(cfg.output_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    payload = json.loads(
+        write_run_config(run_dir, cfg).read_text(encoding="utf-8")
+    )
+    con = payload["construction"]
+    assert con["num_agents"] == 2 and con["n_known"] == 5
+    assert con["n_hidden_planned"] == 4
+    assert con["n_hidden_emitted"] == 0
+    assert con["n_targets_emitted"] == 5 == cfg.n_targets_emitted
+    assert con["min_target_distance_km"] == 250.0
+    assert con["min_known_separation_km"] == 120.0
+    assert con["ensure_discovery_chain"] is False
+    assert con["strict_geometry"] is True
+    assert con["detection_km"] == DETECTION_KM
+    assert con["setup_partial_ratio"] == _ALL_KNOWN_PARTIAL_RATIO
+
+    # The construction block matches the request the generator will actually receive.
+    var = build_variation_config(cfg, seed=0)
+    assert con["n_targets_emitted"] == var.num_red_airbases
+    assert con["num_agents"] == var.num_aircraft
+    assert con["min_target_distance_km"] == var.min_target_distance_km
+    assert con["min_known_separation_km"] == var.min_target_separation_km
+
+    # The legacy split record survives untouched alongside it.
+    assert payload["derived_split"] == cfg.split_preview
+
+
+def test_rollout_config_mirrors_the_train_reference_cell() -> None:
+    """ANTI-DRIFT: `RolloutConfig` and `TrainConfig` agree on the whole cell.
+
+    They deliberately do NOT share an import -- `graph_train` is a torch/PPO leaf and
+    `graph_rollout` is an import-purity ENTRY module, so coupling them to share five
+    literals would be the wrong trade. This test is the seam instead: before B1 the two
+    silently disagreed ((3, 3) + 2/3 vs (6, 6) + 0.5), which made a diagnostic rollout
+    and a training run generate different worlds by default.
+    """
+    t = TrainConfig(n_iterations=1)
+    r = RolloutConfig()
+    for name in ("num_agents", "n_known", "n_hidden",
+                 "min_target_distance_km", "min_known_separation_km",
+                 "include_sams", "randomize_red_airbase_positions",
+                 "stretch_target_ratio"):
+        assert getattr(t, name) == getattr(r, name), (
+            "RolloutConfig.%s (%r) drifted from TrainConfig.%s (%r)"
+            % (name, getattr(r, name), name, getattr(t, name))
+        )
+
+    # The rollout no longer carries the retired split knobs at all.
+    assert not hasattr(r, "partial_ratio"), "RolloutConfig still carries partial_ratio"
+    assert not hasattr(r, "num_red_airbases"), "RolloutConfig still carries num_red_airbases"
+
+
+def test_rollout_config_validate_accepts_the_reference_cell() -> None:
+    """The default rollout cell is valid and quiet -- as the trainer's default is."""
+    out = _validate_capturing_stdout(RolloutConfig())     # must NOT raise
+    assert "[WARN]" not in out, out
+
+    # A legal non-default cell: fewer agents than targets is fine, 0 separation means
+    # "no separation constraint" rather than a typo.
+    RolloutConfig(num_agents=2, n_known=5, n_hidden=0, min_known_separation_km=0.0).validate()
+
+
+def test_rollout_config_validate_rejects_invalid_cells() -> None:
+    """Same verdicts as TrainConfig: bad counts, bad distances, agents > targets."""
+    for kwargs in (
+        {"n_episodes": 0},
+        {"num_agents": 0},
+        {"n_known": 0},
+        {"n_hidden": -1},
+        {"num_agents": 4, "n_known": 3},
+        {"min_target_distance_km": 0.0},
+        {"min_target_distance_km": -1.0},
+        {"min_known_separation_km": -1.0},
+    ):
+        try:
+            RolloutConfig(**kwargs).validate()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"RolloutConfig.validate() accepted {kwargs}")
+
+    # The agents-vs-targets message names both quantities, like the trainer's.
+    try:
+        RolloutConfig(num_agents=4, n_known=3).validate()
+    except ValueError as exc:
+        assert "num_agents" in str(exc) and "n_known" in str(exc), str(exc)
+
+
+def test_run_rollout_validates_before_touching_anything(tmp_path: Path) -> None:
+    """An impossible cell costs nothing: no directory, no policy, no generator, no BLADE.
+
+    Solver-free BY CONSTRUCTION -- `run_rollout` raises on its first statement, so this
+    test never reaches the engine import, the generator, or bonmin. The surviving
+    absence of the run directory is what proves the ORDERING, not merely the raise:
+    validation placed after `out_dir.mkdir` would still raise and would still leave a
+    half-built run behind.
+    """
+    out = tmp_path / "never_created"
+    try:
+        run_rollout(RolloutConfig(n_episodes=1, output_dir=out, num_agents=4, n_known=3))
+    except ValueError as exc:
+        assert "num_agents" in str(exc), str(exc)
+    else:
+        raise AssertionError("run_rollout accepted num_agents > n_known")
+
+    assert not out.exists(), "run_rollout created its run directory before validating"
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -677,6 +966,30 @@ if __name__ == "__main__":
          test_warnings_use_the_low_end_of_the_range, False),
         ("write_run_config_records_the_scenario_knobs",
          test_write_run_config_records_the_scenario_knobs, True),
+        ("construction_defaults_are_the_reference_cell",
+         test_construction_defaults_are_the_reference_cell, False),
+        ("build_variation_config_requests_a_known_only_world",
+         test_build_variation_config_requests_a_known_only_world, False),
+        ("setup_is_called_all_known_until_b3",
+         test_setup_is_called_all_known_until_b3, False),
+        ("validate_rejects_more_agents_than_targets",
+         test_validate_rejects_more_agents_than_targets, False),
+        ("validate_rejects_degenerate_construction_values",
+         test_validate_rejects_degenerate_construction_values, False),
+        ("low_n_known_warns_about_the_bonmin_stall",
+         test_low_n_known_warns_about_the_bonmin_stall, False),
+        ("cli_exposes_the_construction_cell",
+         test_cli_exposes_the_construction_cell, False),
+        ("write_run_config_separates_planned_from_emitted",
+         test_write_run_config_separates_planned_from_emitted, True),
+        ("rollout_config_mirrors_the_train_reference_cell",
+         test_rollout_config_mirrors_the_train_reference_cell, False),
+        ("rollout_config_validate_accepts_the_reference_cell",
+         test_rollout_config_validate_accepts_the_reference_cell, False),
+        ("rollout_config_validate_rejects_invalid_cells",
+         test_rollout_config_validate_rejects_invalid_cells, False),
+        ("run_rollout_validates_before_touching_anything",
+         test_run_rollout_validates_before_touching_anything, True),
     ]
     for name, fn, needs_tmp in tests:
         try:
