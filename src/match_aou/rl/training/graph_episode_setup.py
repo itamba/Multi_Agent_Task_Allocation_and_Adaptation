@@ -687,6 +687,15 @@ def _build_env(
     pointing at our side. Extracted so environment 1 and environment 2 are built by the
     SAME code — a construction path whose two envs were built differently could not
     claim the reload preserved anything.
+
+    OWNS THE ENVIRONMENT UNTIL IT RETURNS. Between ``gymnasium.make`` and the return
+    statement the new environment belongs to nobody else: the caller's ``finally`` /
+    ``except`` blocks are keyed on the value this function hands back, so a failure in
+    ``reset()`` (or in the side selection after it) would otherwise leave an engine
+    object that NO cleanup path can reach. The guard below closes it exactly once and
+    re-raises the ORIGINAL exception unchanged — a leaked environment must not become a
+    masked error. Because both environment 1 and environment 2 are built here, this one
+    guard covers both pre-return construction windows.
     """
     # BLADE / gymnasium imported lazily (engine boundary): importing Belief or the
     # solve helpers elsewhere must not drag in the engine.
@@ -694,21 +703,29 @@ def _build_env(
     from blade.Game import Game
     from blade.Scenario import Scenario
 
-    game = Game(
-        current_scenario=Scenario(),
-        record_every_seconds=record_every_seconds,
-        recording_export_path=recording_export_path or ".",
-    )
-    game.load_scenario(scenario_json)
-    env = gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=max_episode_steps)
-    obs, _info = env.reset()
+    env: Any = None
+    try:
+        game = Game(
+            current_scenario=Scenario(),
+            record_every_seconds=record_every_seconds,
+            recording_export_path=recording_export_path or ".",
+        )
+        game.load_scenario(scenario_json)
+        env = gymnasium.make(
+            "blade/BLADE-v0", game=game, max_episode_steps=max_episode_steps
+        )
+        obs, _info = env.reset()
 
-    side_name = attacking_side_color.upper()
-    for side in getattr(obs, "sides", []) or []:
-        if str(getattr(side, "name", "")).upper() == side_name:
-            game.current_side_id = side.id
-            break
-    return game, env, obs
+        side_name = attacking_side_color.upper()
+        for side in getattr(obs, "sides", []) or []:
+            if str(getattr(side, "name", "")).upper() == side_name:
+                game.current_side_id = side.id
+                break
+        return game, env, obs
+    except BaseException:
+        if env is not None:
+            _close_quietly(env)
+        raise
 
 
 def _extract_world(obs: Any, attacking_side_color: str) -> Tuple[List[Agent], List[Task]]:

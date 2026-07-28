@@ -12,8 +12,10 @@ cheap and the expensive ones are still reachable:
                selection, the JSON patch, agent-id preservation, and the known-task
                re-materialization are all plain functions on plain data, so every
                failure mode of the seam is provable without paying for a solve.
-  BLADE     -- needs the engine but NOT bonmin. Environment-1 ownership: an injected
-               failure between "env-1 is up" and "A_init exists" must still close it.
+  BLADE     -- needs the engine but NOT bonmin. Environment ownership, on both sides of
+               `_build_env`'s return: a `reset()` failure INSIDE the builder must close
+               the environment the builder had already created, and an injected failure
+               between "env-1 is up" and "A_init exists" must still close env-1.
   SOLVER    -- needs BLADE *and* bonmin, so it runs under `nlp_env` only (P1 / P2).
                `conda run -n nlp_env --no-capture-output python tests/test_graph_setup_seam.py`
 
@@ -470,6 +472,71 @@ def _known_only_scenario_json(tmp_dir: Path, seed: int = 0) -> str:
 
 
 @_needs_blade
+def test_build_env_closes_the_environment_when_reset_fails() -> None:
+    """P1 (env ownership): a `reset()` failure must not leak the environment it made.
+
+    `_build_env` OWNS the environment between `gymnasium.make` and its return: the
+    callers' `finally` / `except` blocks are keyed on the value it hands back, so an
+    exception raised before that return leaves an engine object no cleanup path can
+    reach. This drives `_build_env` DIRECTLY -- and because environment 1 and
+    environment 2 are both built through this single helper, the guard proven here
+    covers both pre-return construction windows.
+
+    Needs BLADE (a real `Game.load_scenario` runs before `gymnasium.make`) but NOT
+    bonmin: nothing is solved.
+    """
+    import gymnasium
+    from match_aou.rl.training import graph_episode_setup as ges
+
+    class _ResetBoom(RuntimeError):
+        """Sentinel: must reach the caller unwrapped and untranslated."""
+
+    sentinel = _ResetBoom("INJECTED: reset failed after the env was created")
+    closes: List[str] = []
+
+    class _ExplodingEnv:
+        def reset(self, *_a: Any, **_k: Any):
+            raise sentinel
+
+        def close(self) -> None:
+            closes.append("closed")
+
+    scenario_json = BASE_SCENARIO.read_text(encoding="utf-8")
+    build_kwargs = dict(
+        max_episode_steps=MAX_SIM_TICKS,
+        attacking_side_color=ATTACKING_SIDE_COLOR,
+        record_every_seconds=10,
+        recording_export_path=None,
+    )
+
+    real_make = gymnasium.make
+    gymnasium.make = lambda *_a, **_k: _ExplodingEnv()
+    try:
+        raised: Optional[BaseException] = None
+        try:
+            ges._build_env(scenario_json, **build_kwargs)  # type: ignore[arg-type]
+        except BaseException as exc:
+            raised = exc
+    finally:
+        gymnasium.make = real_make
+
+    # The ORIGINAL failure propagates -- not swallowed, not wrapped, not retranslated.
+    assert raised is sentinel, f"expected the sentinel itself, got {raised!r}"
+    # ...and the environment it had already created was closed exactly once.
+    assert closes == ["closed"], (
+        f"env closed {len(closes)} time(s) on the reset-failure path; it must be closed "
+        "exactly once"
+    )
+
+    # Successful construction is UNCHANGED: it returns a live env and closes nothing.
+    game, env, obs = ges._build_env(scenario_json, **build_kwargs)  # type: ignore[arg-type]
+    try:
+        assert obs is not None and env is not None and game is not None
+    finally:
+        env.close()
+
+
+@_needs_blade
 def test_environment_one_is_closed_on_an_injected_failure() -> None:
     """P1 (env ownership): a failure after env-1 is up must still close env-1.
 
@@ -810,7 +877,9 @@ def _run_all() -> None:
     ran = skipped = 0
     for name, fn in tests:
         needs_solver = name.startswith("test_p1") or name.startswith("test_p2")
-        needs_blade = needs_solver or "environment_one" in name
+        needs_blade = (
+            needs_solver or "environment_one" in name or "build_env" in name
+        )
         if needs_solver and not HAVE_SOLVER:
             print("[SKIP] %s (needs BLADE + bonmin)" % name)
             skipped += 1
