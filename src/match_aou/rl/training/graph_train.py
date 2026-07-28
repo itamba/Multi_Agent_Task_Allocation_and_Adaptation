@@ -58,6 +58,23 @@ The tag only names the file and the scenario (it is not seed-derived and does no
 affect scenario CONTENT), so a fixed tag per eval episode means each round rewrites
 the same content -- idempotent, not accumulating.
 
+SCENARIO SOURCE (B1: the offline construction path)
+---------------------------------------------------
+Episodes are built from an EXPLICIT reference cell -- ``num_agents``, ``n_known``,
+``n_hidden`` and the requested geometry -- not from a ratio applied to a target count.
+``build_variation_config`` is the only place that turns the config into a generator
+request, and it asks for a KNOWN-ONLY world: exactly ``n_known`` targets, Layer-1
+discovery-chain relocation OFF, and the geometry declared STRICT so the generator raises
+instead of quietly weakening it.
+
+``n_hidden`` is therefore PLANNED, not present. Until B2/B3 place hidden targets
+relative to solved routes, an episode has nothing to discover: setup runs all-known
+(``_ALL_KNOWN_PARTIAL_RATIO``) and a wake can only come from a target the solver left
+unallocated. Zero-wake iterations are the expected pre-B3 state, and no full training
+run is authorized before B1-B3 land. The pre-B1 split surface (``partial_ratio``,
+``num_red_airbases``, ``derived_split``, ``split_preview``) is retained and still tested,
+but the construction path does not consult it.
+
 SCOPE
 -----
 Checkpoints are SAVED here; loading / resuming a run is deliberately NOT implemented
@@ -140,6 +157,14 @@ _TIMING_KEYS = frozenset({
     "iteration_seconds", "episodes_seconds", "update_seconds", "eval_seconds",
 })
 
+# PRE-B3 COMPATIBILITY. The construction path (B1) emits a KNOWN-ONLY world: every
+# target the generator writes is known at t=0. `setup_episode` still routes through the
+# legacy `split_tasks`, so it must be told to hide NOTHING -- partial_ratio=1.0 gives
+# known == n, hidden == 0. Hidden targets arrive in B2/B3 by route-relative placement
+# into the solved world, never by re-splitting a known-only one. `graph_rollout` carries
+# the same constant for the same reason (they are compared by an anti-drift test).
+_ALL_KNOWN_PARTIAL_RATIO = 1.0
+
 
 # =============================================================================
 # 1. Config
@@ -147,6 +172,14 @@ _TIMING_KEYS = frozenset({
 
 def derived_split(n: int, partial_ratio: float) -> Tuple[int, int]:
     """Preview ``(known, hidden)`` for ``n`` targets at ``partial_ratio``.
+
+    LEGACY SPLIT SURFACE. The offline scenario-construction path no longer derives its
+    known/hidden counts from a ratio -- it states them outright as ``TrainConfig.n_known``
+    / ``n_hidden`` -- so this function and everything built on it
+    (:attr:`TrainConfig.split_preview`, the ``derived_split`` key in ``run_config.json``,
+    the legacy hazard warnings) now describe a surface the construction path does not
+    consult. They are kept, green and tested, because retiring the split is its own
+    phase; do not repurpose them to mean the construction counts.
 
     A MIRROR of the authority, ``graph_episode_setup.split_tasks``, which computes
     ``num_partial = max(1, int(n * partial_ratio))`` and hides the rest. Nothing here
@@ -205,17 +238,28 @@ class TrainConfig:
         eval_episodes: episodes per eval round. ``<= 0`` also disables evaluation.
         eval_base_seed: start of the FIXED, held-out eval seed band. Must sit beyond
             every training seed the run will reach (enforced by :meth:`validate`).
-        partial_ratio: fraction of tasks known at t=0 (pass-through to setup). The
-            derived known/hidden counts come from TRUNCATION, not rounding (see
-            :func:`derived_split`), so WRITE EXACT FRACTIONS: ``1.0/3.0``, never
-            ``0.333`` -- at n=6 the former gives known=2 and the latter known=1, a
-            different and hazardous config. The startup header echoes the resolved
-            split precisely so a mistyped ratio is caught before compute is spent.
+        num_agents: fleet size. Must be ``<= n_known`` -- more agents than targets is
+            the forced-stacking cell that pinned every Phase-A episode at R = -1/3.
+        n_known: targets the generator EMITS, all of them known at t=0.
+        n_hidden: hidden targets PLANNED for B2/B3. B1 emits none of them; the number
+            is carried so the reference cell is stated in one place, and
+            :attr:`n_targets_emitted` is the honest count of what a B1 run produces.
+        min_target_distance_km / min_known_separation_km: the requested construction
+            geometry, declared STRICT to the generator (see
+            :func:`build_variation_config`). 200 km keeps a target out of the
+            ``DETECTION_KM`` bubble an ego sits in at wheels-up; 100 km keeps the known
+            routes from collapsing onto each other now that Layer 1 is off.
+        partial_ratio: LEGACY. Once the fraction of tasks known at t=0; the construction
+            path passes ``_ALL_KNOWN_PARTIAL_RATIO`` to setup instead and derives
+            nothing from this. It survives only to keep :func:`derived_split` /
+            :attr:`split_preview` / the ``derived_split`` record green until the split
+            surface is retired. The truncation note still applies to that legacy
+            arithmetic: WRITE EXACT FRACTIONS (``1.0/3.0``, never ``0.333``).
         max_ticks: per-episode tick cap (``None`` -> the env's own ``MAX_SIM_TICKS``).
-        include_sams / num_red_airbases / randomize_red_airbase_positions /
-        stretch_target_ratio: generator knobs. ``num_red_airbases`` and
-            ``partial_ratio`` default to the Phase-A baseline cell and therefore NO
-            LONGER mirror ``RolloutConfig`` (see the field block below).
+        include_sams / randomize_red_airbase_positions / stretch_target_ratio:
+            generator knobs, live on the construction path.
+        num_red_airbases: LEGACY, like ``partial_ratio`` -- the construction path emits
+            ``n_known`` targets and never reads this.
     """
 
     n_iterations: int
@@ -229,24 +273,41 @@ class TrainConfig:
     eval_episodes: int = 8
     eval_base_seed: int = 1_000_000
 
-    partial_ratio: float = 0.5
     max_ticks: Optional[int] = None
 
-    # --- generator knobs: THE PHASE-A BASELINE CELL (selected by measurement) ---
-    # num_red_airbases=(6, 6) -> 6 targets > the 4-agent fleet -> no forced 2:1
-    # stacking. The retired (3, 3) default put 4 agents on 3 targets, so every
-    # episode stacked two agents per target and returned R = -1/3 to ~12 decimal
-    # places: zero variance, zero advantage, nothing to learn.
-    # partial_ratio=0.5 -> known 3 / hidden 3 at n=6. known >= 3 is the load-bearing
-    # half: at known <= 2 bonmin enters a branch-and-bound symmetry stall
-    # (~15 min/episode instead of ~45 s).
-    # These two fields therefore NO LONGER mirror ``RolloutConfig``, which still carries
-    # the old (3, 3) + PARTIAL_RATIO (2/3) pair -- whether the diagnostic harness should
-    # follow the trainer here is a separate decision, deliberately not taken in passing.
+    # --- THE OFFLINE SCENARIO-CONSTRUCTION REFERENCE CELL (B1) ---------------------
+    # Stated outright, never derived from a ratio. A CELL, NOT A LAW: a later phase
+    # varies these per episode, so nothing downstream may hard-code them.
+    #   num_agents = 3 <= n_known = 3   : one target per ego, no forced stacking.
+    #   n_hidden   = 3                  : PLANNED for B2/B3. B1 EMITS ZERO hidden
+    #                                     targets -- see `n_targets_emitted`.
+    #   min_target_distance_km = 200    : the old 50 km floor equalled DETECTION_KM, so
+    #                                     the measured fixture put targets 58.8 / 63.2 km
+    #                                     from launch -- discoverable seconds after
+    #                                     wheels-up, which destroys the mid-route
+    #                                     discovery event the phase studies.
+    #   min_known_separation_km = 100   : Layer 1 is OFF on this path (it used to pull
+    #                                     pairs to 13.7 / 28.9 km and flatten route
+    #                                     diversity); this is what pushes them apart.
+    num_agents: int = 3
+    n_known: int = 3
+    n_hidden: int = 3
+    min_target_distance_km: float = 200.0
+    min_known_separation_km: float = 100.0
+
+    # --- generator knobs live on the construction path ---
     include_sams: bool = False
-    num_red_airbases: Tuple[int, int] = (6, 6)
     randomize_red_airbase_positions: bool = True
     stretch_target_ratio: float = 0.5
+
+    # --- LEGACY split surface (see `derived_split`) -------------------------------
+    # The Phase-A baseline cell, kept so `derived_split` / `split_preview` / the
+    # `derived_split` record / the hazard warnings stay green and testable. The
+    # construction path emits `n_known` targets and passes
+    # `_ALL_KNOWN_PARTIAL_RATIO` to setup, so NEITHER of these reaches the generator
+    # or the split any more. Retiring them is a separate phase.
+    num_red_airbases: Tuple[int, int] = (6, 6)
+    partial_ratio: float = 0.5
 
     # ------------------------------------------------------------------
     def __post_init__(self) -> None:
@@ -264,6 +325,17 @@ class TrainConfig:
     def eval_enabled(self) -> bool:
         """True iff evaluation rounds run at all (both knobs must be positive)."""
         return self.eval_every > 0 and self.eval_episodes > 0
+
+    @property
+    def n_targets_emitted(self) -> int:
+        """Targets a B1 run actually puts in the world: exactly ``n_known``.
+
+        The one place that distinguishes what is GENERATED from what is PLANNED.
+        ``n_hidden`` is a B2/B3 input; until route-relative placement exists, claiming
+        a B1 scenario contains ``n_known + n_hidden`` targets would be false. The
+        startup header and ``run_config.json`` both report through this property.
+        """
+        return int(self.n_known)
 
     # ------------------------------------------------------------------
     def _airbase_bounds(self) -> Tuple[int, int]:
@@ -302,12 +374,16 @@ class TrainConfig:
         curve would be measuring memorization. That is a research bug that produces
         plausible-looking numbers, so it fails LOUD here.
 
-        Two scenario HAZARDS are additionally reported -- PRINTED, never raised. A
+        The construction cell is checked here too, and ``num_agents > n_known`` RAISES:
+        it is not a hazard a researcher probes, it is the forced-stacking configuration
+        that made every Phase-A episode return the same reward.
+
+        Scenario HAZARDS are additionally reported -- PRINTED, never raised. A
         researcher may deliberately probe a stalling or a pop-up-free cell, so refusing
-        them would be wrong; the point is that neither can be entered by ACCIDENT (a
-        mistyped ``partial_ratio`` is the realistic way in). Both are evaluated at the
-        LOW end of the ``num_red_airbases`` range -- fewest targets is the worst case for
-        each -- through :func:`derived_split`, the one split-arithmetic site.
+        them would be wrong; the point is that none can be entered by ACCIDENT. The two
+        legacy ones are evaluated at the LOW end of the ``num_red_airbases`` range --
+        fewest targets is the worst case for each -- through :func:`derived_split`, the
+        one split-arithmetic site, and they judge the LEGACY surface only.
         """
         if self.n_iterations < 1:
             raise ValueError(f"n_iterations must be >= 1, got {self.n_iterations}")
@@ -318,16 +394,52 @@ class TrainConfig:
         if not (0.0 < float(self.partial_ratio) <= 1.0):
             raise ValueError(f"partial_ratio must be in (0, 1], got {self.partial_ratio}")
 
-        # --- scenario hazards: WARN, never raise (see the docstring) ---
+        # --- the construction cell: shape errors RAISE, before any compute ---
+        if int(self.num_agents) < 1:
+            raise ValueError(f"num_agents must be >= 1, got {self.num_agents}")
+        if int(self.n_known) < 1:
+            raise ValueError(
+                f"n_known must be >= 1 (an episode needs a target), got {self.n_known}"
+            )
+        if int(self.n_hidden) < 0:
+            raise ValueError(f"n_hidden must be >= 0, got {self.n_hidden}")
+        if int(self.num_agents) > int(self.n_known):
+            raise ValueError(
+                "num_agents (%d) must be <= n_known (%d): more agents than targets "
+                "forces the stacking cell in which several egos share one target, "
+                "every episode returns the same reward, and there is no advantage "
+                "signal to learn from."
+                % (int(self.num_agents), int(self.n_known))
+            )
+        if float(self.min_target_distance_km) <= 0.0:
+            raise ValueError(
+                f"min_target_distance_km must be > 0, got {self.min_target_distance_km}"
+            )
+        if float(self.min_known_separation_km) < 0.0:
+            raise ValueError(
+                "min_known_separation_km must be >= 0 (0 disables the constraint), "
+                f"got {self.min_known_separation_km}"
+            )
+
+        # --- construction hazard: the bonmin symmetry stall is driven by n_known ---
+        if int(self.n_known) < 3:
+            print("[WARN] n_known=%d: fewer than 3 known tasks is the bonmin "
+                  "branch-and-bound SYMMETRY-STALL region (~15 min per episode "
+                  "observed instead of ~45 s). Proceeding."
+                  % int(self.n_known))
+
+        # --- legacy split-surface hazards: WARN, never raise (see the docstring) ---
         lo_n = self._airbase_bounds()[0]
         known, hidden = derived_split(lo_n, self.partial_ratio)
         if known < 3:
-            print("[WARN] n=%d targets, partial_ratio=%r -> known/hidden = %d/%d: "
+            print("[WARN] legacy split surface: n=%d targets, partial_ratio=%r -> "
+                  "known/hidden = %d/%d: "
                   "known < 3 is the bonmin branch-and-bound SYMMETRY-STALL region "
                   "(~15 min per episode observed instead of ~45 s). Proceeding."
                   % (lo_n, self.partial_ratio, known, hidden))
         if hidden == 0:
-            print("[WARN] n=%d targets, partial_ratio=%r -> known/hidden = %d/%d: "
+            print("[WARN] legacy split surface: n=%d targets, partial_ratio=%r -> "
+                  "known/hidden = %d/%d: "
                   "NO target is hidden, so no pop-up can occur, no "
                   "OPPORTUNISTIC_ENGAGEMENT is reachable, and the episode is a "
                   "degenerate learning target. Proceeding."
@@ -417,14 +529,32 @@ def write_run_config(run_dir: Path, cfg: TrainConfig) -> Path:
     no longer be compared after the fact. Contents:
 
       * ``train_config``  -- ``asdict(cfg)``, including the nested :class:`PPOConfig`;
-      * ``derived_split`` -- :attr:`TrainConfig.split_preview` (the known/hidden the
-        run will actually get, from the one arithmetic site);
+      * ``construction``  -- the resolved reference cell and geometry, and above all
+        the PLANNED/EMITTED distinction: ``n_hidden`` is a B2/B3 input, and a B1 run
+        emits ``n_targets_emitted == n_known`` targets and no hidden ones. Recording
+        ``n_hidden`` without that distinction would leave a record claiming a world
+        this phase does not build;
+      * ``derived_split`` -- LEGACY. :attr:`TrainConfig.split_preview`, kept for
+        continuity with pre-B1 runs; the construction path does not consult it;
       * ``base_scenario`` -- the template filename every variation derives from.
 
     ``default=str`` covers ``output_dir`` when it is a ``Path``.
     """
     payload = {
         "train_config": asdict(cfg),
+        "construction": {
+            "num_agents": int(cfg.num_agents),
+            "n_known": int(cfg.n_known),
+            "n_hidden_planned": int(cfg.n_hidden),
+            "n_hidden_emitted": 0,
+            "n_targets_emitted": cfg.n_targets_emitted,
+            "min_target_distance_km": float(cfg.min_target_distance_km),
+            "min_known_separation_km": float(cfg.min_known_separation_km),
+            "detection_km": float(DETECTION_KM),
+            "ensure_discovery_chain": False,
+            "strict_geometry": True,
+            "setup_partial_ratio": float(_ALL_KNOWN_PARTIAL_RATIO),
+        },
         "derived_split": cfg.split_preview,
         "base_scenario": _BASE_SCENARIO.name,
     }
@@ -432,6 +562,44 @@ def write_run_config(run_dir: Path, cfg: TrainConfig) -> Path:
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2, default=str)
     return path
+
+
+def build_variation_config(cfg: TrainConfig, seed: int) -> VariationConfig:
+    """The ONE site that turns a :class:`TrainConfig` into the generator's input.
+
+    This is the B1 construction request, and every part of it is deliberate:
+
+      * ``num_aircraft=num_agents`` / ``num_red_airbases=n_known`` -- the explicit cell.
+        ``n_hidden`` is absent ON PURPOSE: B1 emits KNOWN targets only, and hidden
+        targets are placed relative to SOLVED routes in B2/B3, which cannot happen
+        inside the generator.
+      * ``ensure_discovery_chain=False`` -- Layer 1 exists to guarantee that a hidden
+        target has a known neighbour within ``DETECTION_KM``. On the construction path
+        discovery is guaranteed by placement instead, and leaving Layer 1 on would pull
+        the known targets into <= ``DETECTION_KM`` pairs and flatten exactly the route
+        diversity B2 places against.
+      * ``strict_geometry=True`` -- the 200/100 geometry is a premise, not a
+        preference: the generator must raise rather than quietly weaken it.
+      * ``detection_km=DETECTION_KM`` -- the single-radius invariant. Layer 1 is off, so
+        this only pins the radius the rest of the pipeline agrees on; there is no
+        second sensing radius anywhere.
+
+    ``VariationConfig`` is a dataclass, so a test can compare the whole request for
+    equality instead of re-listing the fields.
+    """
+    return VariationConfig(
+        include_sams=cfg.include_sams,
+        num_aircraft=int(cfg.num_agents),
+        num_red_airbases=int(cfg.n_known),
+        randomize_red_airbase_positions=cfg.randomize_red_airbase_positions,
+        stretch_target_ratio=float(cfg.stretch_target_ratio),
+        min_target_distance_km=float(cfg.min_target_distance_km),
+        min_target_separation_km=float(cfg.min_known_separation_km),
+        ensure_discovery_chain=False,
+        strict_geometry=True,
+        detection_km=DETECTION_KM,
+        seed=int(seed),
+    )
 
 
 def _build_generator(scen_dir: Path) -> ScenarioGenerator:
@@ -501,21 +669,17 @@ def _run_one_episode(
     torch.manual_seed(seed)
 
     t0 = time.perf_counter()
-    var = VariationConfig(
-        include_sams=cfg.include_sams,
-        num_red_airbases=cfg.num_red_airbases,
-        randomize_red_airbase_positions=cfg.randomize_red_airbase_positions,
-        stretch_target_ratio=cfg.stretch_target_ratio,
-        detection_km=DETECTION_KM,  # single-radius: gen connectivity == split == sensing
-        seed=seed,
-    )
+    var = build_variation_config(cfg, seed)
     scenario_path = gen.generate(episode=int(episode_tag), config=var)
 
     ctx = None
     try:
         ctx = setup_episode(
             scenario_path.read_text(encoding="utf-8"),
-            partial_ratio=cfg.partial_ratio,
+            # KNOWN-ONLY world -> the legacy split must hide nothing. See
+            # _ALL_KNOWN_PARTIAL_RATIO; `cfg.partial_ratio` is the legacy surface and is
+            # deliberately NOT consulted here.
+            partial_ratio=_ALL_KNOWN_PARTIAL_RATIO,
         )
         result = run_episode(
             policy, ctx,
@@ -701,13 +865,22 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     else:
         print("eval: DISABLED")
     print("ppo: %s" % (asdict(cfg.ppo),))
-    # The scenario cell + the split it DERIVES. This is the primary defence against a
-    # mistyped partial_ratio: the operator sees the real known/hidden counts here,
-    # before any compute is spent (int() truncates -- see derived_split).
-    print("scenario: num_red_airbases=%r  partial_ratio=%s  stretch=%s  sams=%s"
-          % (cfg.num_red_airbases, cfg.partial_ratio, cfg.stretch_target_ratio,
-             cfg.include_sams))
-    print("          -> known/hidden = %s" % _format_split_preview(cfg.split_preview))
+    # The construction cell as the run will really build it. This is the standing
+    # defence against a config that reads plausibly and generates something else: the
+    # operator sees the EMITTED target count, not a derived one, before compute is spent.
+    print("scenario (construction): num_agents=%d  n_known=%d  -> %d target(s) EMITTED"
+          % (cfg.num_agents, cfg.n_known, cfg.n_targets_emitted))
+    print("          n_hidden=%d PLANNED for B2/B3 -- B1 emits NO hidden target; setup "
+          "runs all-known (partial_ratio=%.1f)"
+          % (cfg.n_hidden, _ALL_KNOWN_PARTIAL_RATIO))
+    print("          geometry: min_target_distance=%.1f km  min_known_separation=%.1f km"
+          "  detection=%.1f km  discovery_chain=OFF  strict=ON"
+          % (cfg.min_target_distance_km, cfg.min_known_separation_km, DETECTION_KM))
+    print("          stretch=%s  sams=%s" % (cfg.stretch_target_ratio, cfg.include_sams))
+    print("legacy split surface (NOT used by the construction path): "
+          "num_red_airbases=%r partial_ratio=%s -> known/hidden = %s"
+          % (cfg.num_red_airbases, cfg.partial_ratio,
+             _format_split_preview(cfg.split_preview)))
     print("run_dir=%s" % str(run_dir))
     print("config:  %s" % str(run_config_path))
     print("=" * 78)
@@ -1117,7 +1290,10 @@ def _selftest() -> None:
     TEST 3  ZERO-WAKE handling: an iteration in which no ego woke is logged with
             n_epochs_run == 0 and the loop continues. Produced HONESTLY -- real episodes
             with a tick budget too short for any ego to sense anything, never a
-            fabricated trajectory.
+            fabricated trajectory. NOTE (pre-B3): the construction path emits a
+            KNOWN-ONLY world, so a wake now requires a target the solver left
+            unallocated; zero-wake iterations are the NORM until B2/B3 place hidden
+            targets, and the short tick budget is no longer the only cause.
     """
     import shutil
     import tempfile
@@ -1168,9 +1344,14 @@ def _selftest() -> None:
         assert rc["train_config"]["partial_ratio"] == cfg1.partial_ratio, rc
         assert rc["derived_split"] == cfg1.split_preview, rc
         assert rc["train_config"]["ppo"]["n_epochs"] == 2, rc
-        print("  run_config.json: n=%d known/hidden=%d/%d  (recorded)"
-              % (rc["derived_split"][0]["n"], rc["derived_split"][0]["known"],
-                 rc["derived_split"][0]["hidden"]))
+        con = rc["construction"]
+        assert con["n_targets_emitted"] == cfg1.n_known, con
+        assert con["n_hidden_emitted"] == 0, con
+        assert con["ensure_discovery_chain"] is False and con["strict_geometry"], con
+        print("  run_config.json: construction cell agents=%d known=%d emitted=%d "
+              "hidden_planned=%d hidden_emitted=%d  (recorded)"
+              % (con["num_agents"], con["n_known"], con["n_targets_emitted"],
+                 con["n_hidden_planned"], con["n_hidden_emitted"]))
         print("  train records=%d  eval rounds=%d  checkpoints=%d (%s)"
               % (len(train_recs1), len(eval_recs1), len(ckpts),
                  ", ".join(p.name for p in ckpts)))
@@ -1303,6 +1484,31 @@ def _parse_airbase_range(text: str) -> Tuple[int, int]:
     return lo, hi
 
 
+def _bounded_type(cast: Any, minimum: float, *, inclusive: bool, what: str) -> Any:
+    """Build an ``argparse`` type that casts and enforces a lower bound.
+
+    ONE construction site for every numeric construction flag, so a bad count or a
+    non-positive distance is an argparse USAGE ERROR at parse time -- never a traceback
+    from deep inside the generator, and never something discovered after a 45 s bonmin
+    solve has already been paid for.
+    """
+    def _parse(text: str) -> Any:
+        raw = str(text).strip()
+        try:
+            value = cast(raw)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                "%s must be %s, got %r" % (what, cast.__name__, text)
+            )
+        if (value < minimum) if inclusive else (value <= minimum):
+            raise argparse.ArgumentTypeError(
+                "%s must be %s %s, got %r"
+                % (what, ">=" if inclusive else ">", minimum, text)
+            )
+        return value
+    return _parse
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     d_ppo = PPOConfig()
     # Scenario defaults are READ OFF a default TrainConfig, never restated as literals,
@@ -1336,16 +1542,44 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="start of the held-out eval seed band (default: %(default)s)")
     p.add_argument("--checkpoint-every", type=int, default=10,
                    help="checkpoint every N iterations (default: %(default)s)")
+    # --- the construction cell ---
+    p.add_argument("--num-agents",
+                   type=_bounded_type(int, 1, inclusive=True, what="--num-agents"),
+                   default=d_cfg.num_agents,
+                   help="fleet size; must be <= --n-known (default: %(default)s)")
+    p.add_argument("--n-known",
+                   type=_bounded_type(int, 1, inclusive=True, what="--n-known"),
+                   default=d_cfg.n_known,
+                   help="targets EMITTED per episode, all known at t=0 "
+                        "(default: %(default)s)")
+    p.add_argument("--n-hidden",
+                   type=_bounded_type(int, 0, inclusive=True, what="--n-hidden"),
+                   default=d_cfg.n_hidden,
+                   help="hidden targets PLANNED for B2/B3; B1 emits none of them "
+                        "(default: %(default)s)")
+    p.add_argument("--min-target-distance-km",
+                   type=_bounded_type(float, 0.0, inclusive=False,
+                                      what="--min-target-distance-km"),
+                   default=d_cfg.min_target_distance_km,
+                   help="minimum distance from the BLUE launch base to any target; "
+                        "requested STRICTLY -- the generator raises rather than "
+                        "lower it (default: %(default)s)")
+    p.add_argument("--min-known-separation-km",
+                   type=_bounded_type(float, 0.0, inclusive=True,
+                                      what="--min-known-separation-km"),
+                   default=d_cfg.min_known_separation_km,
+                   help="minimum pairwise distance between known targets; 0 disables "
+                        "the constraint (default: %(default)s)")
+    # --- LEGACY split surface: parsed and recorded, NOT used to build a scenario ---
     p.add_argument("--num-red-airbases", type=_parse_airbase_range,
                    default=d_cfg.num_red_airbases, metavar="N|LO,HI",
-                   help="enemy target count: N for a fixed count, LO,HI to sample "
-                        "uniformly per episode (default: %(default)s)")
+                   help="LEGACY split surface -- the construction path emits --n-known "
+                        "targets and never reads this (default: %(default)s)")
     p.add_argument("--partial-ratio", type=float, default=d_cfg.partial_ratio,
-                   help="fraction of targets KNOWN at t=0 (default: %(default)s). "
-                        "TRUNCATED, not rounded: known = max(1, int(n * ratio)). At "
-                        "n=6, 0.3333333333 gives known=2 but 0.333 gives known=1 -- "
-                        "pass enough digits, and check the 'known/hidden' line the "
-                        "run prints at startup")
+                   help="LEGACY split surface (default: %(default)s). The construction "
+                        "path runs setup all-known and derives nothing from this; it "
+                        "still feeds derived_split/run_config. TRUNCATED, not rounded: "
+                        "known = max(1, int(n * ratio))")
     p.add_argument("--stretch-target-ratio", type=float,
                    default=d_cfg.stretch_target_ratio,
                    help="fraction of targets placed in the stretch zone, beyond the "
@@ -1386,10 +1620,18 @@ def main(argv: Optional[List[str]] = None) -> None:
         eval_every=args.eval_every,
         eval_episodes=args.eval_episodes,
         eval_base_seed=args.eval_base_seed,
+        num_agents=args.num_agents,
+        n_known=args.n_known,
+        n_hidden=args.n_hidden,
+        min_target_distance_km=args.min_target_distance_km,
+        min_known_separation_km=args.min_known_separation_km,
         num_red_airbases=args.num_red_airbases,
         partial_ratio=args.partial_ratio,
         stretch_target_ratio=args.stretch_target_ratio,
     )
+    # Fail on an impossible cell (e.g. num_agents > n_known) HERE, before train()
+    # touches the filesystem or the solver. train() validates again; validate() is pure.
+    cfg.validate()
     summary = train(cfg)
     # This process has torch loaded, so the figure is drawn by a child (module docstring).
     plot_training_subprocess(summary["run_dir"])

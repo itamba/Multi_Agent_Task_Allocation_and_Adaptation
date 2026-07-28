@@ -22,9 +22,13 @@ so this harness de-risks that task.
 WIRING (mirrors the sibling selftests EXACTLY -- this file adds no new pipeline logic)
 -------------------------------------------------------------------------------------
   * generate -> setup: ScenarioGenerator + VariationConfig(detection_km=DETECTION_KM)
-    on the same base scenario JSON the selftests use (single-radius invariant: the
-    generator builds discovery connectivity at the SAME radius the split checks and
-    the runtime senses at).
+    on the same base scenario JSON the selftests use (single-radius invariant: one
+    radius for sensing, arrival, attack and split adjacency).
+  * the world is KNOWN-ONLY (B1 construction path): exactly ``n_known`` targets, no
+    hidden ones, Layer-1 discovery-chain relocation off, geometry requested strictly,
+    and setup run all-known. Hidden targets arrive in B2/B3, so a rollout episode has
+    nothing to discover unless the solver leaves a target unallocated -- expect few
+    wakes until then, and read a low wake rate as the phase, not as a regression.
   * setup takes the scenario JSON *CONTENT* (str), not a path -- the generator returns
     a Path, so we ``read_text()`` it.
   * every episode closes its env (``ctx.env.close()``), even on failure, so BLADE
@@ -56,14 +60,13 @@ import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 
 from .graph_episode_setup import (
     setup_episode,
     DETECTION_KM,
-    PARTIAL_RATIO,
     MAX_SIM_TICKS,
 )
 from .graph_tick_loop import build_policy, run_episode
@@ -84,6 +87,11 @@ _BASE_SCENARIO = _REPO_ROOT / "data" / "scenarios" / "strike_training_4v5.json"
 # The three meta-action columns, in enum order (0..2). Fixed key set for the counts.
 _META_NAMES = [MetaAction(i).name for i in range(len(MetaAction))]
 
+# PRE-B3 COMPATIBILITY, identical in intent to ``graph_train``'s constant of the same
+# name (an anti-drift test asserts the two are equal). The construction path emits a
+# KNOWN-ONLY world, so the legacy `split_tasks` must hide nothing.
+_ALL_KNOWN_PARTIAL_RATIO = 1.0
+
 
 # =============================================================================
 # 1. Config
@@ -95,9 +103,16 @@ class RolloutConfig:
 
     ``deterministic`` defaults to False on purpose: a stochastic policy is what makes
     the per-episode action distribution meaningful (an argmax random-weight policy
-    would pick the same column every wake). The generator knobs mirror the tick-loop
-    selftest's ``VariationConfig`` defaults; ``detection_km`` is pinned to
+    would pick the same column every wake). ``detection_km`` is pinned to
     ``DETECTION_KM`` per episode (not exposed) to hold the single-radius invariant.
+
+    THE SCENARIO CELL MIRRORS ``graph_train.TrainConfig`` FIELD FOR FIELD. It used to
+    diverge -- ``(3, 3)`` targets at ``PARTIAL_RATIO`` against the trainer's ``(6, 6)``
+    at 0.5 -- which meant a diagnostic rollout and a training run generated different
+    worlds by default and were not comparable. B1 closes that: both build the same
+    explicit known-only construction cell, and an anti-drift test compares the two
+    dataclasses' defaults directly (they stay STRUCTURALLY aligned rather than sharing
+    an import: the trainer is a torch/PPO leaf and this harness must not depend on it).
     """
 
     n_episodes: int = 20
@@ -107,14 +122,21 @@ class RolloutConfig:
     # before the loop, by torch.manual_seed(base_seed)).
     base_seed: int = 0
     output_dir: Union[str, Path] = "rollouts"  # created if missing
-    partial_ratio: float = PARTIAL_RATIO
     deterministic: bool = False              # stochastic by default (we WANT the distribution)
     max_ticks: Optional[int] = None          # pass-through to run_episode (None -> MAX_SIM_TICKS)
     record_first_episode: bool = False       # BLADE PlaybackRecorder for episode 0 only
 
-    # --- generator knobs (same defaults as the tick-loop selftest's VariationConfig) ---
+    # --- the offline scenario-construction reference cell (mirrors TrainConfig) ---
+    # n_hidden is PLANNED for B2/B3: a rollout episode emits n_known targets and no
+    # hidden ones, so `n_hidden` in a record (read off split_meta) is legitimately 0.
+    num_agents: int = 3
+    n_known: int = 3
+    n_hidden: int = 3
+    min_target_distance_km: float = 200.0
+    min_known_separation_km: float = 100.0
+
+    # --- generator knobs (mirrors TrainConfig) ---
     include_sams: bool = False
-    num_red_airbases: Tuple[int, int] = (3, 3)
     randomize_red_airbase_positions: bool = True
     stretch_target_ratio: float = 0.5
 
@@ -244,11 +266,21 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
             try:
                 # --- generate + setup (bonmin solves TWICE here) ---
                 t_setup = time.perf_counter()
+                # The B1 construction request -- structurally identical to
+                # `graph_train.build_variation_config` (anti-drift test): a KNOWN-ONLY
+                # world of exactly n_known targets, Layer 1 OFF (it would cluster the
+                # known targets and flatten route diversity), and the requested geometry
+                # declared STRICT so the generator raises instead of weakening it.
                 var = VariationConfig(
                     include_sams=cfg.include_sams,
-                    num_red_airbases=cfg.num_red_airbases,
+                    num_aircraft=int(cfg.num_agents),
+                    num_red_airbases=int(cfg.n_known),
                     randomize_red_airbase_positions=cfg.randomize_red_airbase_positions,
-                    stretch_target_ratio=cfg.stretch_target_ratio,
+                    stretch_target_ratio=float(cfg.stretch_target_ratio),
+                    min_target_distance_km=float(cfg.min_target_distance_km),
+                    min_target_separation_km=float(cfg.min_known_separation_km),
+                    ensure_discovery_chain=False,
+                    strict_geometry=True,
                     detection_km=DETECTION_KM,  # single-radius: gen connectivity == split == sensing
                     seed=seed,
                 )
@@ -258,7 +290,8 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                 )
                 ctx = setup_episode(
                     scenario_path.read_text(encoding="utf-8"),
-                    partial_ratio=cfg.partial_ratio,
+                    # KNOWN-ONLY world -> the legacy split must hide nothing.
+                    partial_ratio=_ALL_KNOWN_PARTIAL_RATIO,
                     recording_export_path=rec_path,
                 )
                 setup_seconds = time.perf_counter() - t_setup
