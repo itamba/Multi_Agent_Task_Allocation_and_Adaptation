@@ -87,6 +87,7 @@ import math
 import random
 from dataclasses import dataclass
 from itertools import groupby
+from numbers import Integral
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ...models import Location, Task
@@ -398,6 +399,16 @@ def _check_location(loc: object, what: str) -> Location:
 
 
 def _as_assignment(raw: object, *, ego_id: str) -> Assignment:
+    """Normalize one assignment to a plain int triple, rejecting anything non-integral.
+
+    Deliberately NOT ``int(...)``: coercion would silently rewrite malformed semantic
+    input -- ``(0.9, 0, 0)`` would be accepted as task 0 and the predicted route this
+    layer measures against would quietly become a different route. Only genuine integral
+    values are accepted (``numbers.Integral``, so a numpy integer still works), and they
+    are normalized to built-in ``int``. ``bool`` is rejected explicitly despite
+    subclassing ``int``: ``True`` is not a task index. Fractional floats, integral-valued
+    floats and numeric strings all raise.
+    """
     try:
         parts = tuple(raw)  # type: ignore[arg-type]
     except TypeError:
@@ -406,10 +417,15 @@ def _as_assignment(raw: object, *, ego_id: str) -> Assignment:
         raise HiddenPlacementError(
             f"ego {ego_id}: assignment {raw!r} must be (task_idx, step_idx, level_order)"
         )
-    try:
-        return (int(parts[0]), int(parts[1]), int(parts[2]))
-    except (TypeError, ValueError):
-        raise HiddenPlacementError(f"ego {ego_id}: assignment {raw!r} has non-integer fields")
+    fields: List[int] = []
+    for name, value in zip(("task_idx", "step_idx", "level_order"), parts):
+        if isinstance(value, bool) or not isinstance(value, Integral):
+            raise HiddenPlacementError(
+                f"ego {ego_id}: assignment {raw!r} has a non-integral {name} "
+                f"({value!r} of type {type(value).__name__}); it is never coerced"
+            )
+        fields.append(int(value))
+    return (fields[0], fields[1], fields[2])
 
 
 def _step_location(belief_tasks: Sequence[Task], assignment: Assignment) -> Location:
@@ -668,7 +684,9 @@ def validate_placement(placement: HiddenPlacement, params: PlacementParameters) 
         (``detection_km - guard_km``) and within the leg's own recorded cap;
       * the closest-approach PROJECTION lies inside the guaranteed portion, and beyond the
         uncertain origin region on legs 2+;
-      * legs 2+ record either a passing strict tie margin or the single-candidate case.
+      * legs 2+ record the required tie margin (always, single-candidate included) and
+        then either a passing strict gap or the single-candidate case; leg 1 records
+        neither tie field.
     """
     params.validate()
     detection = float(params.detection_km)
@@ -784,6 +802,27 @@ def validate_placement(placement: HiddenPlacement, params: PlacementParameters) 
         if placement.tie_gap_km is not None or placement.tie_margin_required_km is not None:
             raise HiddenPlacementError("leg 1 must not record a tie margin")
         return
+
+    # EVERY later leg must record the requirement it was judged against, whichever branch
+    # it then takes -- including the single-candidate one. Checked BEFORE the branch, so a
+    # record cannot claim "no competitor" and thereby skip the requirement entirely.
+    required = placement.tie_margin_required_km
+    if required is None:
+        raise HiddenPlacementError(
+            f"leg {placement.leg_index} records no required tie margin "
+            f"(expected {params.tie_margin_km})"
+        )
+    required = float(required)
+    if not math.isfinite(required):
+        raise HiddenPlacementError(
+            f"tie_margin_required_km {placement.tie_margin_required_km} is not finite"
+        )
+    if abs(required - params.tie_margin_km) > 1e-9:
+        raise HiddenPlacementError(
+            f"tie_margin_required_km {placement.tie_margin_required_km} != "
+            f"{params.tie_margin_km}"
+        )
+
     if placement.single_candidate:
         if placement.tie_gap_km is not None:
             raise HiddenPlacementError(
@@ -792,14 +831,12 @@ def validate_placement(placement: HiddenPlacement, params: PlacementParameters) 
         return
     if placement.tie_gap_km is None:
         raise HiddenPlacementError(f"leg {placement.leg_index} records no tie gap")
-    if abs(float(placement.tie_margin_required_km or 0.0) - params.tie_margin_km) > 1e-9:
+    gap = float(placement.tie_gap_km)
+    if not math.isfinite(gap):
+        raise HiddenPlacementError(f"tie_gap_km {placement.tie_gap_km} is not finite")
+    if not (gap > params.tie_margin_km):
         raise HiddenPlacementError(
-            f"tie_margin_required_km {placement.tie_margin_required_km} != "
-            f"{params.tie_margin_km}"
-        )
-    if not (float(placement.tie_gap_km) > params.tie_margin_km):
-        raise HiddenPlacementError(
-            f"nearest-neighbor margin {placement.tie_gap_km:.6f} km does not exceed "
+            f"nearest-neighbor margin {gap:.6f} km does not exceed "
             f"the required {params.tie_margin_km:.6f} km"
         )
 

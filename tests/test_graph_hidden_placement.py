@@ -500,6 +500,81 @@ def test_validation_rejects_malformed_inputs() -> None:
     _raises(HiddenPlacementError, _call, {"ego": plan}, good_tasks, Location(120.0, 35.0, 0))
 
 
+def test_f1_assignment_fields_must_be_integral() -> None:
+    """Review fix F1: assignment fields are never coerced.
+
+    `int((0.9, 0, 0)[0])` used to accept a malformed assignment AS task 0, silently
+    changing the predicted route this layer measures against.
+    """
+    tasks = _tasks(_dest(LAUNCH, 75.0, 300.0))
+
+    def _call(assignment):
+        return place_hidden_targets(
+            {"ego": [assignment]}, tasks, LAUNCH, PARAMS, random.Random(0)
+        )
+
+    # positive control: a normal integer tuple still works and is unchanged
+    control = _call((0, 0, 0))[0]
+    _assert(control.target_assignment == (0, 0, 0),
+            f"valid tuples must survive untouched, got {control.target_assignment}")
+    validate_placement(control, PARAMS)
+
+    # Rejected in every field position: fractional float, bool, numeric string, and an
+    # integral-VALUED float (0.0 / 1.0 are not integers either -- no coercion at all).
+    for bad in ((0.9, 0, 0), (True, 0, 0), ("0", 0, 0),
+                (0, 0.5, 0), (0, 0, "0"), (0.0, 0, 0), (0, 0, 1.0)):
+        exc = _raises(HiddenPlacementError, _call, bad)
+        _assert("non-integral" in str(exc), f"{bad!r}: unexpected message: {exc}")
+
+
+def test_f2_later_leg_requires_the_recorded_tie_margin() -> None:
+    """Review fix F2: `tie_margin_required_km` is validated before the branch.
+
+    A single-candidate later leg used to return early, so a record could drop the
+    requirement entirely and still be accepted.
+    """
+    # A legitimate single-candidate later leg (leg 2 of a 2-target route).
+    t1 = _dest(LAUNCH, 90.0, 200.0)
+    t2 = _dest(t1, 90.0, 400.0)
+    single = place_hidden_targets(
+        {"ego": _plan(0, 1)}, _tasks(t1, t2), LAUNCH, PARAMS, random.Random(11)
+    )[0]
+    _assert(single.leg_index == 2 and single.single_candidate and single.tie_gap_km is None,
+            "fixture must be a single-candidate later leg")
+    _assert(single.tie_margin_required_km == PARAMS.tie_margin_km,
+            "control: the requirement is recorded")
+    validate_placement(single, PARAMS)  # still passes with tie_gap_km None
+
+    for tampered, why in (
+        (None, "missing"),
+        (float("nan"), "non-finite"),
+        (55.0, "incorrect finite"),
+        (PARAMS.tie_margin_km + 1.0, "off-by-one"),
+    ):
+        _raises(HiddenPlacementError, validate_placement,
+                dataclasses.replace(single, tie_margin_required_km=tampered), PARAMS)
+
+    # A later leg WITH a competitor is held to the same requirement, plus a real gap.
+    t3 = _dest(t2, 0.0, 520.0)
+    t4 = _dest(t3, 0.0, 40.0)
+    contested = place_hidden_targets(
+        {"ego": _plan(0, 1, 2, 3)}, _tasks(t1, t2, t3, t4), LAUNCH, PARAMS, random.Random(0)
+    )[0]
+    _assert(contested.leg_index == 2 and not contested.single_candidate
+            and contested.tie_gap_km is not None, "fixture must be a contested later leg")
+    validate_placement(contested, PARAMS)
+    _raises(HiddenPlacementError, validate_placement,
+            dataclasses.replace(contested, tie_margin_required_km=None), PARAMS)
+    _raises(HiddenPlacementError, validate_placement,
+            dataclasses.replace(contested, tie_gap_km=float("nan")), PARAMS)
+    # a gap exactly ON the margin is not a passing gap
+    _raises(HiddenPlacementError, validate_placement,
+            dataclasses.replace(contested, tie_gap_km=PARAMS.tie_margin_km), PARAMS)
+    # claiming "no competitor" while still carrying a gap is incoherent
+    _raises(HiddenPlacementError, validate_placement,
+            dataclasses.replace(contested, single_candidate=True), PARAMS)
+
+
 def test_parameters_validation_rejects_bad_geometry() -> None:
     _raises(HiddenPlacementError, PlacementParameters(detection_km=0.0).validate)
     _raises(HiddenPlacementError, PlacementParameters(detection_km=-1.0).validate)
@@ -621,6 +696,10 @@ if __name__ == "__main__":
          test_po3_insertion_order_does_not_change_the_result),
         ("validation_rejects_malformed_inputs",
          test_validation_rejects_malformed_inputs),
+        ("f1_assignment_fields_must_be_integral",
+         test_f1_assignment_fields_must_be_integral),
+        ("f2_later_leg_requires_the_recorded_tie_margin",
+         test_f2_later_leg_requires_the_recorded_tie_margin),
         ("parameters_validation_rejects_bad_geometry",
          test_parameters_validation_rejects_bad_geometry),
         ("rng_must_be_explicit_random",
