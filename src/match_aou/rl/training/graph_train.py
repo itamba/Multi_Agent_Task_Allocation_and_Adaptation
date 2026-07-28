@@ -58,8 +58,8 @@ The tag only names the file and the scenario (it is not seed-derived and does no
 affect scenario CONTENT), so a fixed tag per eval episode means each round rewrites
 the same content -- idempotent, not accumulating.
 
-SCENARIO SOURCE (B1: the offline construction path)
----------------------------------------------------
+SCENARIO SOURCE (the offline construction path: B1 generation + B3 setup seam)
+-----------------------------------------------------------------------------
 Episodes are built from an EXPLICIT reference cell -- ``num_agents``, ``n_known``,
 ``n_hidden`` and the requested geometry -- not from a ratio applied to a target count.
 ``build_variation_config`` is the only place that turns the config into a generator
@@ -67,11 +67,12 @@ request, and it asks for a KNOWN-ONLY world: exactly ``n_known`` targets, Layer-
 discovery-chain relocation OFF, and the geometry declared STRICT so the generator raises
 instead of quietly weakening it.
 
-``n_hidden`` is therefore PLANNED, not present. Until B2/B3 place hidden targets
-relative to solved routes, an episode has nothing to discover: setup runs all-known
-(``_ALL_KNOWN_PARTIAL_RATIO``) and a wake can only come from a target the solver left
-unallocated. Zero-wake iterations are the expected pre-B3 state, and no full training
-run is authorized before B1-B3 land. The pre-B1 split surface (``partial_ratio``,
+The hidden half is built AFTER the known-only solve, inside ``setup_episode``'s
+construction path (B3): solve A_init -> place route-relative hidden targets -> patch the
+scenario JSON -> reload. This module therefore hands setup the ``n_hidden`` count and a
+fresh per-episode ``random.Random(seed)``, and the world an episode really runs on holds
+``n_known + n_hidden`` targets (:attr:`TrainConfig.n_targets_emitted`). ``split_tasks``
+is not called at all on this path. The pre-B1 split surface (``partial_ratio``,
 ``num_red_airbases``, ``derived_split``, ``split_preview``) is retained and still tested,
 but the construction path does not consult it.
 
@@ -157,13 +158,6 @@ _TIMING_KEYS = frozenset({
     "iteration_seconds", "episodes_seconds", "update_seconds", "eval_seconds",
 })
 
-# PRE-B3 COMPATIBILITY. The construction path (B1) emits a KNOWN-ONLY world: every
-# target the generator writes is known at t=0. `setup_episode` still routes through the
-# legacy `split_tasks`, so it must be told to hide NOTHING -- partial_ratio=1.0 gives
-# known == n, hidden == 0. Hidden targets arrive in B2/B3 by route-relative placement
-# into the solved world, never by re-splitting a known-only one. `graph_rollout` carries
-# the same constant for the same reason (they are compared by an anti-drift test).
-_ALL_KNOWN_PARTIAL_RATIO = 1.0
 
 
 # =============================================================================
@@ -241,20 +235,20 @@ class TrainConfig:
         num_agents: fleet size. Must be ``<= n_known`` -- more agents than targets is
             the forced-stacking cell that pinned every Phase-A episode at R = -1/3.
         n_known: targets the generator EMITS, all of them known at t=0.
-        n_hidden: hidden targets PLANNED for B2/B3. B1 emits none of them; the number
-            is carried so the reference cell is stated in one place, and
-            :attr:`n_targets_emitted` is the honest count of what a B1 run produces.
+        n_hidden: hidden targets ``setup_episode``'s construction path places against the
+            solved routes and patches into the world. Passed to setup with a fresh
+            per-episode rng; :attr:`n_targets_emitted` is the resulting world size.
         min_target_distance_km / min_known_separation_km: the requested construction
             geometry, declared STRICT to the generator (see
             :func:`build_variation_config`). 200 km keeps a target out of the
             ``DETECTION_KM`` bubble an ego sits in at wheels-up; 100 km keeps the known
             routes from collapsing onto each other now that Layer 1 is off.
         partial_ratio: LEGACY. Once the fraction of tasks known at t=0; the construction
-            path passes ``_ALL_KNOWN_PARTIAL_RATIO`` to setup instead and derives
-            nothing from this. It survives only to keep :func:`derived_split` /
-            :attr:`split_preview` / the ``derived_split`` record green until the split
-            surface is retired. The truncation note still applies to that legacy
-            arithmetic: WRITE EXACT FRACTIONS (``1.0/3.0``, never ``0.333``).
+            path never reaches ``split_tasks`` and derives nothing from this. It survives
+            only to keep :func:`derived_split` / :attr:`split_preview` / the
+            ``derived_split`` record green until the split surface is retired. The
+            truncation note still applies to that legacy arithmetic: WRITE EXACT
+            FRACTIONS (``1.0/3.0``, never ``0.333``).
         max_ticks: per-episode tick cap (``None`` -> the env's own ``MAX_SIM_TICKS``).
         include_sams / randomize_red_airbase_positions / stretch_target_ratio:
             generator knobs, live on the construction path.
@@ -279,8 +273,8 @@ class TrainConfig:
     # Stated outright, never derived from a ratio. A CELL, NOT A LAW: a later phase
     # varies these per episode, so nothing downstream may hard-code them.
     #   num_agents = 3 <= n_known = 3   : one target per ego, no forced stacking.
-    #   n_hidden   = 3                  : PLANNED for B2/B3. B1 EMITS ZERO hidden
-    #                                     targets -- see `n_targets_emitted`.
+    #   n_hidden   = 3                  : placed route-relative by setup_episode's
+    #                                     construction path, one per ego route.
     #   min_target_distance_km = 200    : the old 50 km floor equalled DETECTION_KM, so
     #                                     the measured fixture put targets 58.8 / 63.2 km
     #                                     from launch -- discoverable seconds after
@@ -303,9 +297,9 @@ class TrainConfig:
     # --- LEGACY split surface (see `derived_split`) -------------------------------
     # The Phase-A baseline cell, kept so `derived_split` / `split_preview` / the
     # `derived_split` record / the hazard warnings stay green and testable. The
-    # construction path emits `n_known` targets and passes
-    # `_ALL_KNOWN_PARTIAL_RATIO` to setup, so NEITHER of these reaches the generator
-    # or the split any more. Retiring them is a separate phase.
+    # construction path emits `n_known` targets and runs setup in construction mode, so
+    # NEITHER of these reaches the generator or the split any more (`split_tasks` is not
+    # called at all). Retiring them is a separate phase.
     num_red_airbases: Tuple[int, int] = (6, 6)
     partial_ratio: float = 0.5
 
@@ -328,14 +322,15 @@ class TrainConfig:
 
     @property
     def n_targets_emitted(self) -> int:
-        """Targets a B1 run actually puts in the world: exactly ``n_known``.
+        """Targets an episode's world really holds: ``n_known + n_hidden``.
 
-        The one place that distinguishes what is GENERATED from what is PLANNED.
-        ``n_hidden`` is a B2/B3 input; until route-relative placement exists, claiming
-        a B1 scenario contains ``n_known + n_hidden`` targets would be false. The
-        startup header and ``run_config.json`` both report through this property.
+        The one place that distinguishes what the GENERATOR writes (``n_known``, a
+        known-only world) from what the episode finally RUNS ON: ``setup_episode``'s
+        construction path patches ``n_hidden`` route-relative targets into the scenario
+        between the two solves, so the executed world is the sum. The startup header and
+        ``run_config.json`` both report through this property.
         """
-        return int(self.n_known)
+        return int(self.n_known) + int(self.n_hidden)
 
     # ------------------------------------------------------------------
     def _airbase_bounds(self) -> Tuple[int, int]:
@@ -419,6 +414,13 @@ class TrainConfig:
             raise ValueError(
                 "min_known_separation_km must be >= 0 (0 disables the constraint), "
                 f"got {self.min_known_separation_km}"
+            )
+        if bool(self.include_sams):
+            raise ValueError(
+                "include_sams=True is not supported on the construction path: hidden "
+                "targets are patched in as enemy AIRBASES, and setup_episode refuses a "
+                "world whose enemy units are not all airbases. Mixed SAM / facility / "
+                "ship target semantics are a separate design task."
             )
 
         # --- construction hazard: the bonmin symmetry stall is driven by n_known ---
@@ -529,11 +531,11 @@ def write_run_config(run_dir: Path, cfg: TrainConfig) -> Path:
     no longer be compared after the fact. Contents:
 
       * ``train_config``  -- ``asdict(cfg)``, including the nested :class:`PPOConfig`;
-      * ``construction``  -- the resolved reference cell and geometry, and above all
-        the PLANNED/EMITTED distinction: ``n_hidden`` is a B2/B3 input, and a B1 run
-        emits ``n_targets_emitted == n_known`` targets and no hidden ones. Recording
-        ``n_hidden`` without that distinction would leave a record claiming a world
-        this phase does not build;
+      * ``construction``  -- the resolved reference cell and geometry, plus the
+        GENERATED/EXECUTED distinction: the generator writes ``n_known`` targets, and
+        ``setup_episode``'s construction path patches ``n_hidden`` route-relative
+        targets in between the two solves, so the executed world holds
+        ``n_targets_emitted == n_known + n_hidden``;
       * ``derived_split`` -- LEGACY. :attr:`TrainConfig.split_preview`, kept for
         continuity with pre-B1 runs; the construction path does not consult it;
       * ``base_scenario`` -- the template filename every variation derives from.
@@ -545,15 +547,15 @@ def write_run_config(run_dir: Path, cfg: TrainConfig) -> Path:
         "construction": {
             "num_agents": int(cfg.num_agents),
             "n_known": int(cfg.n_known),
-            "n_hidden_planned": int(cfg.n_hidden),
-            "n_hidden_emitted": 0,
+            "n_hidden": int(cfg.n_hidden),
+            "n_targets_generated": int(cfg.n_known),
             "n_targets_emitted": cfg.n_targets_emitted,
             "min_target_distance_km": float(cfg.min_target_distance_km),
             "min_known_separation_km": float(cfg.min_known_separation_km),
             "detection_km": float(DETECTION_KM),
             "ensure_discovery_chain": False,
             "strict_geometry": True,
-            "setup_partial_ratio": float(_ALL_KNOWN_PARTIAL_RATIO),
+            "setup_mode": "construction",
         },
         "derived_split": cfg.split_preview,
         "base_scenario": _BASE_SCENARIO.name,
@@ -570,9 +572,9 @@ def build_variation_config(cfg: TrainConfig, seed: int) -> VariationConfig:
     This is the B1 construction request, and every part of it is deliberate:
 
       * ``num_aircraft=num_agents`` / ``num_red_airbases=n_known`` -- the explicit cell.
-        ``n_hidden`` is absent ON PURPOSE: B1 emits KNOWN targets only, and hidden
-        targets are placed relative to SOLVED routes in B2/B3, which cannot happen
-        inside the generator.
+        ``n_hidden`` is absent ON PURPOSE: the generator emits KNOWN targets only, and
+        hidden targets are placed relative to SOLVED routes inside ``setup_episode``,
+        which cannot happen inside the generator.
       * ``ensure_discovery_chain=False`` -- Layer 1 exists to guarantee that a hidden
         target has a known neighbour within ``DETECTION_KM``. On the construction path
         discovery is guaranteed by placement instead, and leaving Layer 1 on would pull
@@ -659,8 +661,10 @@ def _run_one_episode(
 
     The reseed of global ``random`` + torch happens HERE, at the episode head, so an
     episode's RNG state is a pure function of ``seed`` regardless of what ran before it
-    (the generator has its own ``random.Random(seed)``, but ``split_tasks`` draws from
-    global ``random`` and action sampling draws from torch's global RNG).
+    (the generator has its own ``random.Random(seed)``, and action sampling draws from
+    torch's global RNG). Hidden placement does NOT ride on global ``random``: it gets its
+    own explicit ``random.Random(seed)``, so it is reproducible even if a future change
+    adds or removes a global-random consumer earlier in the episode.
 
     Raises whatever the pipeline raises -- the caller decides whether a failure aborts
     (it does not: see :func:`train`).
@@ -676,10 +680,12 @@ def _run_one_episode(
     try:
         ctx = setup_episode(
             scenario_path.read_text(encoding="utf-8"),
-            # KNOWN-ONLY world -> the legacy split must hide nothing. See
-            # _ALL_KNOWN_PARTIAL_RATIO; `cfg.partial_ratio` is the legacy surface and is
-            # deliberately NOT consulted here.
-            partial_ratio=_ALL_KNOWN_PARTIAL_RATIO,
+            # CONSTRUCTION PATH: the generated world is known-only, and setup builds the
+            # hidden half from the solved routes (solve -> place -> patch -> reload).
+            # `cfg.partial_ratio` is the legacy split surface and is deliberately NOT
+            # passed -- `split_tasks` never runs here.
+            n_hidden=int(cfg.n_hidden),
+            placement_rng=random.Random(seed),
         )
         result = run_episode(
             policy, ctx,
@@ -868,11 +874,12 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     # The construction cell as the run will really build it. This is the standing
     # defence against a config that reads plausibly and generates something else: the
     # operator sees the EMITTED target count, not a derived one, before compute is spent.
-    print("scenario (construction): num_agents=%d  n_known=%d  -> %d target(s) EMITTED"
-          % (cfg.num_agents, cfg.n_known, cfg.n_targets_emitted))
-    print("          n_hidden=%d PLANNED for B2/B3 -- B1 emits NO hidden target; setup "
-          "runs all-known (partial_ratio=%.1f)"
-          % (cfg.n_hidden, _ALL_KNOWN_PARTIAL_RATIO))
+    print("scenario (construction): num_agents=%d  n_known=%d + n_hidden=%d "
+          "-> %d target(s) in the executed world"
+          % (cfg.num_agents, cfg.n_known, cfg.n_hidden, cfg.n_targets_emitted))
+    print("          the generator writes the %d known target(s); setup_episode places "
+          "the %d hidden one(s) route-relative and patches them in (split_tasks NOT run)"
+          % (cfg.n_known, cfg.n_hidden))
     print("          geometry: min_target_distance=%.1f km  min_known_separation=%.1f km"
           "  detection=%.1f km  discovery_chain=OFF  strict=ON"
           % (cfg.min_target_distance_km, cfg.min_known_separation_km, DETECTION_KM))
@@ -1290,10 +1297,9 @@ def _selftest() -> None:
     TEST 3  ZERO-WAKE handling: an iteration in which no ego woke is logged with
             n_epochs_run == 0 and the loop continues. Produced HONESTLY -- real episodes
             with a tick budget too short for any ego to sense anything, never a
-            fabricated trajectory. NOTE (pre-B3): the construction path emits a
-            KNOWN-ONLY world, so a wake now requires a target the solver left
-            unallocated; zero-wake iterations are the NORM until B2/B3 place hidden
-            targets, and the short tick budget is no longer the only cause.
+            fabricated trajectory. The construction path does put discoverable hidden
+            targets in the world, so a zero-wake iteration is once again caused by the
+            short tick budget rather than by an empty-by-construction world.
     """
     import shutil
     import tempfile
@@ -1345,13 +1351,14 @@ def _selftest() -> None:
         assert rc["derived_split"] == cfg1.split_preview, rc
         assert rc["train_config"]["ppo"]["n_epochs"] == 2, rc
         con = rc["construction"]
-        assert con["n_targets_emitted"] == cfg1.n_known, con
-        assert con["n_hidden_emitted"] == 0, con
+        assert con["n_targets_emitted"] == cfg1.n_known + cfg1.n_hidden, con
+        assert con["n_targets_generated"] == cfg1.n_known, con
+        assert con["setup_mode"] == "construction", con
         assert con["ensure_discovery_chain"] is False and con["strict_geometry"], con
-        print("  run_config.json: construction cell agents=%d known=%d emitted=%d "
-              "hidden_planned=%d hidden_emitted=%d  (recorded)"
-              % (con["num_agents"], con["n_known"], con["n_targets_emitted"],
-                 con["n_hidden_planned"], con["n_hidden_emitted"]))
+        print("  run_config.json: construction cell agents=%d known=%d hidden=%d "
+              "generated=%d executed=%d  (recorded)"
+              % (con["num_agents"], con["n_known"], con["n_hidden"],
+                 con["n_targets_generated"], con["n_targets_emitted"]))
         print("  train records=%d  eval rounds=%d  checkpoints=%d (%s)"
               % (len(train_recs1), len(eval_recs1), len(ckpts),
                  ", ".join(p.name for p in ckpts)))
@@ -1555,8 +1562,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-hidden",
                    type=_bounded_type(int, 0, inclusive=True, what="--n-hidden"),
                    default=d_cfg.n_hidden,
-                   help="hidden targets PLANNED for B2/B3; B1 emits none of them "
-                        "(default: %(default)s)")
+                   help="hidden targets placed route-relative by setup_episode and "
+                        "patched into the world (default: %(default)s)")
     p.add_argument("--min-target-distance-km",
                    type=_bounded_type(float, 0.0, inclusive=False,
                                       what="--min-target-distance-km"),

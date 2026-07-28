@@ -24,11 +24,12 @@ WIRING (mirrors the sibling selftests EXACTLY -- this file adds no new pipeline 
   * generate -> setup: ScenarioGenerator + VariationConfig(detection_km=DETECTION_KM)
     on the same base scenario JSON the selftests use (single-radius invariant: one
     radius for sensing, arrival, attack and split adjacency).
-  * the world is KNOWN-ONLY (B1 construction path): exactly ``n_known`` targets, no
-    hidden ones, Layer-1 discovery-chain relocation off, geometry requested strictly,
-    and setup run all-known. Hidden targets arrive in B2/B3, so a rollout episode has
-    nothing to discover unless the solver leaves a target unallocated -- expect few
-    wakes until then, and read a low wake rate as the phase, not as a regression.
+  * the GENERATED world is known-only (B1): exactly ``n_known`` targets, Layer-1
+    discovery-chain relocation off, geometry requested strictly. The hidden half is
+    built by ``setup_episode``'s construction path (B3) from the solved routes --
+    solve A_init -> place -> patch the scenario JSON -> reload -> solve the oracle --
+    so the executed world holds ``n_known + n_hidden`` targets and a rollout episode
+    has real, discoverable pop-ups. ``split_tasks`` is not called on this path.
   * setup takes the scenario JSON *CONTENT* (str), not a path -- the generator returns
     a Path, so we ``read_text()`` it.
   * every episode closes its env (``ctx.env.close()``), even on failure, so BLADE
@@ -40,12 +41,15 @@ SEEDING / REPRODUCIBILITY
 random policy weights for the whole rollout. Then EVERY episode reseeds both global
 ``random`` and torch with ``base_seed + i`` at the top of its iteration. That second
 reseed is what makes an episode reproducible in isolation: the generator has its own
-``random.Random(seed)`` and never touches global ``random``, but ``split_tasks``
-draws from global ``random`` and the tick-loop's action sampling draws from torch's
-global RNG -- without the per-episode reseed, episode i would depend on how much RNG
-state episodes 0..i-1 happened to consume. Each record carries ``known_target_ids``
-(the t=0 known split) so that identity is externally checkable. The future PPO loop
-inherits this per-episode pattern.
+``random.Random(seed)`` and never touches global ``random``, but the tick-loop's action
+sampling draws from torch's global RNG -- without the per-episode reseed, episode i
+would depend on how much RNG state episodes 0..i-1 happened to consume. Hidden-target
+placement deliberately does NOT ride on global ``random``: setup gets its own explicit
+``random.Random(seed)``, so the placement geometry of episode i is a pure function of
+its seed no matter what else consumes global randomness. Each record carries
+``known_target_ids`` (the t=0 known set) so that identity is externally checkable, and
+``ctx.placements`` carries the id-free geometric fingerprint of the hidden half. The
+PPO loop inherits this per-episode pattern.
 
 This module imports ONLY the locked public interfaces; it modifies no existing file.
 Windows-safe: pathlib paths and ASCII-only console output (cp1255 console).
@@ -87,11 +91,6 @@ _BASE_SCENARIO = _REPO_ROOT / "data" / "scenarios" / "strike_training_4v5.json"
 # The three meta-action columns, in enum order (0..2). Fixed key set for the counts.
 _META_NAMES = [MetaAction(i).name for i in range(len(MetaAction))]
 
-# PRE-B3 COMPATIBILITY, identical in intent to ``graph_train``'s constant of the same
-# name (an anti-drift test asserts the two are equal). The construction path emits a
-# KNOWN-ONLY world, so the legacy `split_tasks` must hide nothing.
-_ALL_KNOWN_PARTIAL_RATIO = 1.0
-
 
 # =============================================================================
 # 1. Config
@@ -127,8 +126,9 @@ class RolloutConfig:
     record_first_episode: bool = False       # BLADE PlaybackRecorder for episode 0 only
 
     # --- the offline scenario-construction reference cell (mirrors TrainConfig) ---
-    # n_hidden is PLANNED for B2/B3: a rollout episode emits n_known targets and no
-    # hidden ones, so `n_hidden` in a record (read off split_meta) is legitimately 0.
+    # The generator writes n_known targets; setup_episode's construction path places
+    # n_hidden route-relative targets and patches them in, so an episode's world holds
+    # n_known + n_hidden and a record's `n_hidden` (read off split_meta) is real.
     num_agents: int = 3
     n_known: int = 3
     n_hidden: int = 3
@@ -185,6 +185,13 @@ class RolloutConfig:
                 "min_known_separation_km must be >= 0 (0 disables the constraint), "
                 f"got {self.min_known_separation_km}"
             )
+        if bool(self.include_sams):
+            raise ValueError(
+                "include_sams=True is not supported on the construction path: hidden "
+                "targets are patched in as enemy AIRBASES, and setup_episode refuses a "
+                "world whose enemy units are not all airbases. Mixed SAM / facility / "
+                "ship target semantics are a separate design task."
+            )
 
         # Hazard, not an error: a researcher may probe the stalling cell deliberately.
         # Same solver, same stall, so the same warning the trainer prints.
@@ -219,7 +226,7 @@ def _meta_action_counts(trajectory: List[Any]) -> Dict[str, int]:
 
 
 def _known_target_ids(ctx: Any) -> List[str]:
-    """Sorted target ids of the t=0 KNOWN task set -- the episode's split identity.
+    """Sorted target ids of the t=0 KNOWN task set -- the episode's known-set identity.
 
     Recorded so an external check can prove two runs produced the SAME split for a
     given seed (the reproducibility claim the per-episode reseed makes). Small
@@ -324,6 +331,9 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
             # weights) -- independent of how much RNG state earlier episodes consumed.
             random.seed(seed)
             torch.manual_seed(seed)
+            # Hidden placement gets its OWN explicit rng (never global `random`), so the
+            # constructed geometry of episode i is a pure function of `seed`.
+            placement_rng = random.Random(seed)
             try:
                 # --- generate + setup (bonmin solves TWICE here) ---
                 t_setup = time.perf_counter()
@@ -351,8 +361,12 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                 )
                 ctx = setup_episode(
                     scenario_path.read_text(encoding="utf-8"),
-                    # KNOWN-ONLY world -> the legacy split must hide nothing.
-                    partial_ratio=_ALL_KNOWN_PARTIAL_RATIO,
+                    # CONSTRUCTION PATH: the generated world is known-only, and setup
+                    # builds the hidden half from the solved routes (solve -> place ->
+                    # patch -> reload). `partial_ratio` is the legacy split surface and
+                    # is deliberately NOT passed -- `split_tasks` never runs here.
+                    n_hidden=int(cfg.n_hidden),
+                    placement_rng=placement_rng,
                     recording_export_path=rec_path,
                 )
                 setup_seconds = time.perf_counter() - t_setup
@@ -384,6 +398,11 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     "n_known": int(meta["known"]),
                     "n_hidden": int(meta["hidden"]),
                     "known_target_ids": known_tids,
+                    # Id-free geometric identity of the constructed hidden half -- the
+                    # ONLY sound cross-run comparison key (uuids are not seed-derived).
+                    "hidden_fingerprint": [
+                        list(pair) for pair in meta.get("geometric_fingerprint", ())
+                    ],
                     "ticks": int(result.ticks),
                     "ended": result.ended,
                     "n_wakes": int(result.n_wakes),
