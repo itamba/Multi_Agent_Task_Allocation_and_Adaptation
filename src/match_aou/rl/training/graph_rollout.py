@@ -140,6 +140,60 @@ class RolloutConfig:
     randomize_red_airbase_positions: bool = True
     stretch_target_ratio: float = 0.5
 
+    # ------------------------------------------------------------------
+    def validate(self) -> None:
+        """Refuse an impossible construction cell BEFORE any expensive work starts.
+
+        The construction half of ``graph_train.TrainConfig.validate``, with the same
+        verdicts, because this harness drives the SAME generator and the SAME solver: a
+        cell that is invalid for a training run is invalid for a diagnostic rollout, and
+        a harness that discovered it 45 seconds into bonmin (or, at ``num_agents >
+        n_known``, only in the shape of a reward that never moves) would be the reason
+        the two surfaces drifted apart in the first place.
+
+        ``run_rollout`` calls this as its FIRST statement -- before it creates a
+        directory, builds a policy, constructs a generator, or touches BLADE -- so a bad
+        config leaves nothing behind.
+
+        Raises:
+            ValueError: on a non-positive count or distance, a negative ``n_hidden`` or
+                separation, or ``num_agents > n_known``.
+        """
+        if int(self.n_episodes) < 1:
+            raise ValueError(f"n_episodes must be >= 1, got {self.n_episodes}")
+        if int(self.num_agents) < 1:
+            raise ValueError(f"num_agents must be >= 1, got {self.num_agents}")
+        if int(self.n_known) < 1:
+            raise ValueError(
+                f"n_known must be >= 1 (an episode needs a target), got {self.n_known}"
+            )
+        if int(self.n_hidden) < 0:
+            raise ValueError(f"n_hidden must be >= 0, got {self.n_hidden}")
+        if int(self.num_agents) > int(self.n_known):
+            raise ValueError(
+                "num_agents (%d) must be <= n_known (%d): more agents than targets "
+                "forces the stacking cell in which several egos share one target and "
+                "every episode returns the same reward."
+                % (int(self.num_agents), int(self.n_known))
+            )
+        if float(self.min_target_distance_km) <= 0.0:
+            raise ValueError(
+                f"min_target_distance_km must be > 0, got {self.min_target_distance_km}"
+            )
+        if float(self.min_known_separation_km) < 0.0:
+            raise ValueError(
+                "min_known_separation_km must be >= 0 (0 disables the constraint), "
+                f"got {self.min_known_separation_km}"
+            )
+
+        # Hazard, not an error: a researcher may probe the stalling cell deliberately.
+        # Same solver, same stall, so the same warning the trainer prints.
+        if int(self.n_known) < 3:
+            print("[WARN] n_known=%d: fewer than 3 known tasks is the bonmin "
+                  "branch-and-bound SYMMETRY-STALL region (~15 min per episode "
+                  "observed instead of ~45 s). Proceeding."
+                  % int(self.n_known))
+
 
 # =============================================================================
 # 2. Small helpers (stdlib only)
@@ -218,7 +272,14 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
 
     Every episode reseeds global ``random`` + torch with ``base_seed + i`` -- see the
     module docstring's SEEDING / REPRODUCIBILITY note.
+
+    Raises:
+        ValueError: from :meth:`RolloutConfig.validate`, which runs FIRST -- before any
+            directory, policy, generator or engine import -- so an impossible cell costs
+            nothing and leaves nothing behind.
     """
+    cfg.validate()
+
     out_dir = Path(cfg.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     scen_dir = out_dir / "scenarios"

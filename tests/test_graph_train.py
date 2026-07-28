@@ -61,7 +61,10 @@ What these tests lock:
                              PLANNED for B2/B3 from the zero it actually emits; and
                              `RolloutConfig` is checked field-for-field against
                              `TrainConfig` so the two harnesses cannot drift apart
-                             again (they were `(3,3)`/2-3 vs `(6,6)`/0.5 before B1).
+                             again (they were `(3,3)`/2-3 vs `(6,6)`/0.5 before B1),
+                             and it now carries the same validation -- enforced as the
+                             FIRST statement of `run_rollout`, proven by the run
+                             directory still not existing after the raise.
 
 WHY T3 GOES THROUGH A SUBPROCESS
 --------------------------------
@@ -117,6 +120,7 @@ from match_aou.rl.training.graph_ppo import PPOConfig, PPOUpdater  # noqa: E402
 from match_aou.rl.training.graph_tick_loop import build_policy  # noqa: E402
 from match_aou.rl.training.graph_rollout import (  # noqa: E402
     RolloutConfig,
+    run_rollout,
     _ALL_KNOWN_PARTIAL_RATIO as _ROLLOUT_ALL_KNOWN_PARTIAL_RATIO,
 )
 from match_aou.rl.training.graph_train import (  # noqa: E402
@@ -562,8 +566,11 @@ def test_cli_defaults_equal_the_dataclass_defaults() -> None:
 # T7 -- hazard warnings: printed, never raised
 # =============================================================================
 
-def _validate_capturing_stdout(cfg: TrainConfig) -> str:
+def _validate_capturing_stdout(cfg) -> str:
     """Run ``cfg.validate()`` and return what it printed.
+
+    Duck-typed: takes a ``TrainConfig`` or a ``RolloutConfig``, both of which expose a
+    ``validate()`` that raises on a bad cell and prints hazards.
 
     Uses ``redirect_stdout`` rather than pytest's ``capsys`` so these tests work in BOTH
     modes -- pytest and this file's own ``__main__`` runner (pytest is absent in
@@ -859,6 +866,62 @@ def test_rollout_config_mirrors_the_train_reference_cell() -> None:
     assert not hasattr(r, "num_red_airbases"), "RolloutConfig still carries num_red_airbases"
 
 
+def test_rollout_config_validate_accepts_the_reference_cell() -> None:
+    """The default rollout cell is valid and quiet -- as the trainer's default is."""
+    out = _validate_capturing_stdout(RolloutConfig())     # must NOT raise
+    assert "[WARN]" not in out, out
+
+    # A legal non-default cell: fewer agents than targets is fine, 0 separation means
+    # "no separation constraint" rather than a typo.
+    RolloutConfig(num_agents=2, n_known=5, n_hidden=0, min_known_separation_km=0.0).validate()
+
+
+def test_rollout_config_validate_rejects_invalid_cells() -> None:
+    """Same verdicts as TrainConfig: bad counts, bad distances, agents > targets."""
+    for kwargs in (
+        {"n_episodes": 0},
+        {"num_agents": 0},
+        {"n_known": 0},
+        {"n_hidden": -1},
+        {"num_agents": 4, "n_known": 3},
+        {"min_target_distance_km": 0.0},
+        {"min_target_distance_km": -1.0},
+        {"min_known_separation_km": -1.0},
+    ):
+        try:
+            RolloutConfig(**kwargs).validate()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"RolloutConfig.validate() accepted {kwargs}")
+
+    # The agents-vs-targets message names both quantities, like the trainer's.
+    try:
+        RolloutConfig(num_agents=4, n_known=3).validate()
+    except ValueError as exc:
+        assert "num_agents" in str(exc) and "n_known" in str(exc), str(exc)
+
+
+def test_run_rollout_validates_before_touching_anything(tmp_path: Path) -> None:
+    """An impossible cell costs nothing: no directory, no policy, no generator, no BLADE.
+
+    Solver-free BY CONSTRUCTION -- `run_rollout` raises on its first statement, so this
+    test never reaches the engine import, the generator, or bonmin. The surviving
+    absence of the run directory is what proves the ORDERING, not merely the raise:
+    validation placed after `out_dir.mkdir` would still raise and would still leave a
+    half-built run behind.
+    """
+    out = tmp_path / "never_created"
+    try:
+        run_rollout(RolloutConfig(n_episodes=1, output_dir=out, num_agents=4, n_known=3))
+    except ValueError as exc:
+        assert "num_agents" in str(exc), str(exc)
+    else:
+        raise AssertionError("run_rollout accepted num_agents > n_known")
+
+    assert not out.exists(), "run_rollout created its run directory before validating"
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -921,6 +984,12 @@ if __name__ == "__main__":
          test_write_run_config_separates_planned_from_emitted, True),
         ("rollout_config_mirrors_the_train_reference_cell",
          test_rollout_config_mirrors_the_train_reference_cell, False),
+        ("rollout_config_validate_accepts_the_reference_cell",
+         test_rollout_config_validate_accepts_the_reference_cell, False),
+        ("rollout_config_validate_rejects_invalid_cells",
+         test_rollout_config_validate_rejects_invalid_cells, False),
+        ("run_rollout_validates_before_touching_anything",
+         test_run_rollout_validates_before_touching_anything, True),
     ]
     for name, fn, needs_tmp in tests:
         try:

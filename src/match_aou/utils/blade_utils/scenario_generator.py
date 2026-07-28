@@ -52,6 +52,13 @@ CLASS_RANGE_TIERS: Dict[str, float] = {
     "KC-135R Stratotanker": 2100.0,
 }
 
+# Slack allowed when a placement is compared against a requested distance, in km.
+# 1e-6 km = 1 mm: orders of magnitude below any placement effect, and orders of
+# magnitude above the double-precision noise of a great-circle computation. It exists
+# so a candidate sitting EXACTLY on a bound is not rejected by float dust; it is never
+# large enough to admit a geometry a reader would call non-compliant.
+_GEOMETRY_TOLERANCE_KM: float = 1e-6
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -118,10 +125,14 @@ class VariationConfig:
 
     # --- Strict geometry: the requested constraints are HARD, not advisory ---
     # False (default, legacy behaviour): an unsatisfiable easy zone silently collapses
-    #   `min_target_distance_km` to `easy_max * 0.1`, and a target that cannot be placed
-    #   within the attempt budget silently keeps its template coordinate.
-    # True: `min_target_distance_km` is never lowered and an unplaceable target raises
-    #   `TargetPlacementError`. Used by the offline scenario-construction path, where
+    #   `min_target_distance_km` to `easy_max * 0.1`; the floor is enforced only as the
+    #   sampling ring's NOMINAL lower bound (a flat-earth approximation, see
+    #   `_random_point_in_ring`); and a target that cannot be placed within the attempt
+    #   budget silently keeps its template coordinate.
+    # True: `min_target_distance_km` is never lowered, it is enforced against the TRUE
+    #   `_haversine_km` distance from the blue base rather than the ring's nominal, and
+    #   an unplaceable target raises `TargetPlacementError`. Used by the offline
+    #   scenario-construction path, where
     #   the 200 km base-distance floor and the 100 km known-target separation are a
     #   declared research premise -- silently weakening either of them would produce a
     #   plausible-looking scenario that no longer tests what it claims to test.
@@ -799,9 +810,11 @@ class ScenarioGenerator:
         Two constraints layer on top of the zones:
         - ``config.min_target_separation_km`` (0.0 = off) rejects a candidate that
           lands closer than that to a target already placed IN THIS PASS.
-        - ``config.strict_geometry`` turns the two legacy silent degradations
-          (collapsing the ``min_target_distance_km`` floor, leaving an unplaceable
-          target on its template coordinate) into :class:`TargetPlacementError`.
+        - ``config.strict_geometry`` (a) re-measures ``min_target_distance_km`` as a
+          TRUE great-circle distance rather than trusting the ring's flat-earth
+          nominal, and (b) turns the two legacy silent degradations (collapsing the
+          floor, leaving an unplaceable target on its template coordinate) into
+          :class:`TargetPlacementError`.
 
         Raises:
             TargetPlacementError: only when ``config.strict_geometry`` is set.
@@ -896,22 +909,46 @@ class ScenarioGenerator:
         # Coordinates accepted SO FAR in this pass -- the separation constraint's
         # reference set. Empty at 0.0 separation cost, and never consulted then.
         separation_km = float(config.min_target_separation_km)
+
+        # STRICT ONLY: re-measure the base distance with `_haversine_km`.
+        # `_random_point_in_ring` samples a NOMINAL distance and converts it through a
+        # flat-earth approximation -- 111.0 km per degree, and cos(CENTRE latitude) for
+        # the longitude scale. Neither is exact, and the second one is wrong in a
+        # directional way: a candidate on a northerly bearing ends up at a HIGHER
+        # latitude, where a degree of longitude is shorter than the centre's, so its
+        # true great-circle distance comes out BELOW the nominal. Measured against this
+        # template's base, a nominal 200.0 km on a 45-degree bearing lands at 199.65 km
+        # -- inside a floor the construction path declares as a premise. The ring bound
+        # is therefore not the floor; this is. Legacy callers keep the ring-only
+        # behaviour untouched: `distance_floor_km` stays None unless strict_geometry.
+        distance_floor_km = (
+            float(config.min_target_distance_km) if config.strict_geometry else None
+        )
         placed_coords: List[Tuple[float, float]] = []
 
         def _accepts(lat: float, lon: float) -> bool:
-            """Reachable by someone AND (if requested) clear of every placed target.
+            """Reachable by someone, past the true floor, and clear of placed targets.
 
-            At ``separation_km == 0.0`` this is EXACTLY the pre-separation predicate,
-            down to the number of rng draws it lets through -- which is what keeps the
-            default behaviour byte-identical (P6).
+            The last two checks are opt-in (`strict_geometry` / a positive separation).
+            With both off this is EXACTLY the pre-B1 predicate, down to the number of
+            rng draws it lets through -- which is what keeps default placement
+            byte-identical (P6, and P11's explicit-0.0 reproduction of it).
+
+            Both bounds are compared with `_GEOMETRY_TOLERANCE_KM` of slack so a
+            candidate sitting exactly on a bound is not rejected by float dust.
             """
             if not reachability.is_reachable_by_any(
                 aircraft_list, base_lat, base_lon, lat, lon
             ):
                 return False
+            if distance_floor_km is not None:
+                d_base = _haversine_km(base_lat, base_lon, lat, lon)
+                if d_base < distance_floor_km - _GEOMETRY_TOLERANCE_KM:
+                    return False
             if separation_km > 0.0:
                 for other_lat, other_lon in placed_coords:
-                    if _haversine_km(lat, lon, other_lat, other_lon) < separation_km:
+                    d = _haversine_km(lat, lon, other_lat, other_lon)
+                    if d < separation_km - _GEOMETRY_TOLERANCE_KM:
                         return False
             return True
 

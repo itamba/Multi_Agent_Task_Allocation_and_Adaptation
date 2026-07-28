@@ -36,6 +36,13 @@ about the generator's new `min_target_separation_km` / `strict_geometry` request
                              0.0 separation explicitly reproduces P6's coordinates
                              exactly -- the separation feature costs no rng draw when
                              it is not requested.
+  P12    TRUE FLOOR        : the sampling ring's nominal distance is NOT the floor.
+                             `_random_point_in_ring` scales longitude by the CENTRE
+                             latitude's cosine, so a northerly bearing lands where a
+                             degree of longitude is shorter and the real great-circle
+                             distance comes out below the nominal. Strict mode
+                             re-measures with `_haversine_km` and rejects; the legacy
+                             path still accepts the same point.
 
 The `_B1_CFG_KWARGS` below mirror what `graph_train.build_variation_config` builds from
 the default `TrainConfig`; that mirroring is asserted on the trainer side, in
@@ -54,7 +61,9 @@ Run:
 
 from __future__ import annotations
 
+import copy
 import json
+import math
 import random
 import sys
 import tempfile
@@ -70,11 +79,15 @@ SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))  # so match_aou.* imports resolve
 
 from match_aou.rl.training.graph_episode_setup import DETECTION_KM  # noqa: E402
+from match_aou.utils.blade_utils import scenario_generator as sg  # noqa: E402
 from match_aou.utils.blade_utils.scenario_generator import (  # noqa: E402
+    ReachabilityCalculator,
     ScenarioGenerator,
     TargetPlacementError,
     VariationConfig,
+    _GEOMETRY_TOLERANCE_KM,
     _haversine_km,
+    _random_point_in_ring,
 )
 
 BASE_SCENARIO = ROOT / "data" / "scenarios" / "strike_training_4v5.json"
@@ -490,6 +503,99 @@ def test_p11_separation_defaults_are_behaviour_preserving(tmp_path: Path) -> Non
     assert coords == _P6_EXPECTED_RED_AIRBASE_COORDS, (coords, _P6_EXPECTED_RED_AIRBASE_COORDS)
 
 
+# =============================================================================
+# P12 -- the RING is not the FLOOR: strict mode re-measures with haversine.
+# =============================================================================
+
+class _ScriptedRng:
+    """A `random.Random` stand-in whose `uniform` replays a fixed script.
+
+    `_random_point_in_ring` draws exactly twice -- bearing, then nominal distance -- so
+    a two-element script pins one exact candidate. Using the REAL sampler (rather than
+    inventing a coordinate) is the point: it proves the generator can actually emit the
+    offending point, not merely that `_accepts` rejects an arbitrary one.
+    """
+
+    def __init__(self, script: list) -> None:
+        self._script = list(script)
+
+    def uniform(self, _a: float, _b: float) -> float:
+        return self._script.pop(0)
+
+
+def _one_target_scenario(gen: ScenarioGenerator):
+    """A deep copy of the template with fuel tiers applied, plus its first RED base.
+
+    Mirrors `generate()`'s order (aircraft/fuel first, placement later) so the fleet
+    ranges -- and therefore the easy-zone ceiling -- are the ones a real run would see.
+    """
+    scenario = copy.deepcopy(gen._base_data["currentScenario"])
+    gen._apply_fuel_tiers(scenario, 0.2)
+    return scenario, gen._get_red_airbases(scenario)[:1]
+
+
+def test_p12_strict_rejects_an_in_ring_candidate_below_the_true_floor(tmp_path: Path) -> None:
+    """A nominal-200 km draw whose real distance is 199.65 km is REJECTED, and the
+    next compliant draw is accepted -- while the legacy path still accepts the first.
+
+    `_random_point_in_ring` converts a nominal distance with 111.0 km per degree and
+    `cos(CENTRE latitude)` for longitude. On a northerly bearing the candidate ends up
+    at a higher latitude, where a degree of longitude is shorter than the centre's, so
+    its true great-circle distance falls BELOW the nominal -- inside a floor the
+    construction path declares as a premise. Enforcing the floor as the ring's lower
+    bound alone therefore does not enforce it at all.
+
+    Deterministic end to end: both candidates are produced by the real sampler under a
+    scripted rng, then replayed in order through a patched sampler.
+    """
+    gen = ScenarioGenerator(base_scenario_path=str(BASE_SCENARIO), output_dir=str(tmp_path))
+    scenario, targets = _one_target_scenario(gen)
+    base_lat, base_lon, _ = gen._get_blue_base(scenario)
+
+    # Easy ring for this fleet: [200 km, 400 km] (the F-16 tier is the ceiling).
+    ring = (base_lat, base_lon, _B1_MIN_TARGET_DISTANCE_KM, 400.0)
+    bad = _random_point_in_ring(*ring, _ScriptedRng([math.pi / 4, 200.0]))
+    good = _random_point_in_ring(*ring, _ScriptedRng([math.pi / 4, 250.0]))
+
+    d_bad = _haversine_km(base_lat, base_lon, *bad)
+    d_good = _haversine_km(base_lat, base_lon, *good)
+    # The premise of this test: the sampler really does emit a sub-floor point from a
+    # nominal draw that sits exactly ON the ring's lower bound.
+    assert d_bad < _B1_MIN_TARGET_DISTANCE_KM - _GEOMETRY_TOLERANCE_KM, d_bad
+    assert d_good >= _B1_MIN_TARGET_DISTANCE_KM, d_good
+
+    def _place(strict: bool):
+        script = [bad, good]
+
+        def _scripted(*_args: object, **_kwargs: object):
+            return script.pop(0)
+
+        original = sg._random_point_in_ring
+        sg._random_point_in_ring = _scripted  # type: ignore[assignment]
+        try:
+            scen, tgts = _one_target_scenario(gen)
+            cfg = _b1_config(seed=0, stretch_target_ratio=0.0, strict_geometry=strict)
+            gen._randomize_target_positions(
+                tgts, scen,
+                ReachabilityCalculator(safety_margin=cfg.fuel_safety_margin),
+                cfg, random.Random(0),
+            )
+            return (tgts[0]["latitude"], tgts[0]["longitude"])
+        finally:
+            sg._random_point_in_ring = original  # type: ignore[assignment]
+
+    assert _place(strict=True) == good, (
+        "strict mode accepted a candidate %.4f km from base, below the %.1f km floor"
+        % (d_bad, _B1_MIN_TARGET_DISTANCE_KM)
+    )
+    # LEGACY UNCHANGED: without strict_geometry the same point is still accepted, so
+    # the new check cannot have moved any pre-B1 caller's placement.
+    assert _place(strict=False) == bad, (
+        "the true-distance floor leaked into the legacy path"
+    )
+    assert targets  # the fixture really produced a target to place
+
+
 if __name__ == "__main__":
     failures = 0
     tests = [
@@ -518,6 +624,8 @@ if __name__ == "__main__":
          test_p10_same_seed_reproduces_the_geometric_fingerprint, True),
         ("p11_separation_defaults_are_behaviour_preserving",
          test_p11_separation_defaults_are_behaviour_preserving, True),
+        ("p12_strict_rejects_an_in_ring_candidate_below_the_true_floor",
+         test_p12_strict_rejects_an_in_ring_candidate_below_the_true_floor, True),
     ]
     for name, fn, needs_tmp in tests:
         try:
