@@ -50,15 +50,16 @@ What these tests lock:
                              cells deliberately, so they must not be errors. The
                              approved default cell stays silent.
   T8 run_config.json       : every run records its own resolved config + derived split.
-  T9 the construction cell : B1's explicit surface. The DEFAULTS are the reference cell
-                             (3 agents, 3 known, 3 hidden PLANNED, 200/100 km);
-                             `build_variation_config` is the single site that turns a
-                             TrainConfig into a generator request and it asks for a
-                             KNOWN-ONLY world with Layer 1 off and the geometry strict;
-                             `num_agents > n_known` is REFUSED; the new CLI flags read
+  T9 the construction cell : the explicit surface. The DEFAULTS are the reference cell
+                             (3 agents, 3 known, 3 hidden, 200/100 km -> a 6-target
+                             executed world); `build_variation_config` is the single
+                             site that turns a TrainConfig into a generator request and
+                             it asks for a KNOWN-ONLY world with Layer 1 off and the
+                             geometry strict; `num_agents > n_known` and
+                             `include_sams=True` are REFUSED; the new CLI flags read
                              their defaults off the dataclass and reject bad values at
-                             parse time; `run_config.json` separates the hidden targets
-                             PLANNED for B2/B3 from the zero it actually emits; and
+                             parse time; `run_config.json` separates what the GENERATOR
+                             writes from what the episode EXECUTES; and
                              `RolloutConfig` is checked field-for-field against
                              `TrainConfig` so the two harnesses cannot drift apart
                              again (they were `(3,3)`/2-3 vs `(6,6)`/0.5 before B1),
@@ -92,6 +93,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import inspect
 import json
 import random
 import subprocess
@@ -114,18 +116,18 @@ from match_aou.models.step import Step, StepKind  # noqa: E402
 from match_aou.models.task import Task  # noqa: E402
 from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     DETECTION_KM,
+    _resolve_construction_mode,
     split_tasks,
 )
 from match_aou.rl.training.graph_ppo import PPOConfig, PPOUpdater  # noqa: E402
 from match_aou.rl.training.graph_tick_loop import build_policy  # noqa: E402
+from match_aou.rl.training import graph_rollout, graph_train  # noqa: E402
 from match_aou.rl.training.graph_rollout import (  # noqa: E402
     RolloutConfig,
     run_rollout,
-    _ALL_KNOWN_PARTIAL_RATIO as _ROLLOUT_ALL_KNOWN_PARTIAL_RATIO,
 )
 from match_aou.rl.training.graph_train import (  # noqa: E402
     TrainConfig,
-    _ALL_KNOWN_PARTIAL_RATIO,
     _build_arg_parser,
     _parse_airbase_range,
     build_variation_config,
@@ -664,12 +666,12 @@ def test_write_run_config_records_the_scenario_knobs(tmp_path: Path) -> None:
 # =============================================================================
 
 def test_construction_defaults_are_the_reference_cell() -> None:
-    """3 agents, 3 known, 3 hidden PLANNED, 200 km floor, 100 km separation.
+    """3 agents, 3 known, 3 hidden, 200 km floor, 100 km separation -> a 6-target world.
 
-    `n_targets_emitted` is asserted separately from `n_hidden` on purpose: those two
-    numbers are the whole PLANNED-vs-EMITTED distinction. A B1 scenario has three
-    targets, not six, and a config surface that blurred that would let a run be
-    described as testing discovery when nothing in it is discoverable.
+    `n_targets_emitted` is asserted separately from `n_known` on purpose: those two
+    numbers are the whole GENERATED-vs-EXECUTED distinction. The generator writes three
+    targets; `setup_episode` patches three more in from the solved routes, so an episode
+    runs on six -- `U_oracle = 6 * 80 = 480` for the reference cell.
     """
     cfg = TrainConfig(n_iterations=1)
     assert cfg.num_agents == 3, cfg.num_agents
@@ -678,8 +680,10 @@ def test_construction_defaults_are_the_reference_cell() -> None:
     assert cfg.min_target_distance_km == 200.0, cfg.min_target_distance_km
     assert cfg.min_known_separation_km == 100.0, cfg.min_known_separation_km
 
-    assert cfg.n_targets_emitted == 3, cfg.n_targets_emitted
-    assert cfg.n_targets_emitted == cfg.n_known
+    assert cfg.n_targets_emitted == 6, cfg.n_targets_emitted
+    assert cfg.n_targets_emitted == cfg.n_known + cfg.n_hidden
+    # The generator itself still writes ONLY the known half.
+    assert build_variation_config(cfg, seed=0).num_red_airbases == cfg.n_known
     # 200 km is comfortably outside the sensing bubble an ego launches inside of.
     assert cfg.min_target_distance_km > DETECTION_KM
 
@@ -718,13 +722,37 @@ def test_build_variation_config_requests_a_known_only_world() -> None:
     assert build_variation_config(bigger, seed=0).num_aircraft == 2
 
 
-def test_setup_is_called_all_known_until_b3() -> None:
-    """The pre-B3 compatibility value is 1.0 and both harnesses use the same one."""
-    assert _ALL_KNOWN_PARTIAL_RATIO == 1.0
-    assert _ROLLOUT_ALL_KNOWN_PARTIAL_RATIO == _ALL_KNOWN_PARTIAL_RATIO
-    # It must hide nothing for ANY emitted count, which is exactly derived_split at 1.0.
+def test_both_harnesses_call_setup_in_construction_mode() -> None:
+    """Both callers hand setup the `(n_hidden, placement_rng)` pair and no partial_ratio.
+
+    Read off the SOURCE rather than executed, because executing either caller needs
+    BLADE + bonmin. The claim being locked is the one that replaced the pre-B3
+    `partial_ratio=1.0` compatibility call: the legacy split surface must not reach
+    `setup_episode` from either harness, and the rng must be an explicit per-episode
+    `random.Random(seed)` rather than module-global randomness.
+    """
+    for module in (graph_train, graph_rollout):
+        source = Path(inspect.getsourcefile(module)).read_text(encoding="utf-8")
+        assert "n_hidden=int(cfg.n_hidden)" in source, module.__name__
+        assert "random.Random(seed)" in source, module.__name__
+        # The pre-B3 constant is gone from both harnesses.
+        assert "_ALL_KNOWN_PARTIAL_RATIO" not in source, module.__name__
+
+    # `setup_episode` refuses a half-supplied pair, so neither caller can drift into
+    # passing only one half without failing loudly.
+    for kwargs in ({"n_hidden": 3}, {"placement_rng": random.Random(0)}):
+        try:
+            _resolve_construction_mode(
+                kwargs.get("n_hidden"), kwargs.get("placement_rng")
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"a half-supplied construction pair was accepted: {kwargs}")
+
+    # The legacy split arithmetic is untouched and still hides nothing at ratio 1.0.
     for n in (1, 3, 5, 8):
-        assert derived_split(n, _ALL_KNOWN_PARTIAL_RATIO) == (n, 0)
+        assert derived_split(n, 1.0) == (n, 0)
 
 
 def test_validate_rejects_more_agents_than_targets() -> None:
@@ -760,6 +788,31 @@ def test_validate_rejects_degenerate_construction_values() -> None:
 
     # 0 separation is legal: it means "no separation constraint", not a typo.
     TrainConfig(n_iterations=1, min_known_separation_km=0.0).validate()
+
+
+def test_both_configs_reject_sams_on_the_construction_path() -> None:
+    """include_sams=True RAISES in BOTH harnesses, before any generation or setup.
+
+    Hidden targets are patched in as enemy AIRBASES and `setup_episode` refuses a world
+    whose enemy units are not all airbases. Catching that in `validate()` turns a
+    45-second bonmin solve followed by a RuntimeError into an instant, explained refusal
+    -- and it must be refused identically in both harnesses, since they drive the same
+    generator and the same seam.
+    """
+    for cfg in (TrainConfig(n_iterations=1, include_sams=True),
+                RolloutConfig(include_sams=True)):
+        try:
+            cfg.validate()
+        except ValueError as exc:
+            assert "include_sams" in str(exc), str(exc)
+        else:
+            raise AssertionError(
+                f"{type(cfg).__name__}.validate() accepted include_sams=True"
+            )
+
+    # The airbase-only default stays legal in both.
+    TrainConfig(n_iterations=1).validate()
+    RolloutConfig().validate()
 
 
 def test_low_n_known_warns_about_the_bonmin_stall() -> None:
@@ -805,8 +858,14 @@ def test_cli_exposes_the_construction_cell() -> None:
             raise AssertionError("the CLI accepted %s %r" % (flag, bad))
 
 
-def test_write_run_config_separates_planned_from_emitted(tmp_path: Path) -> None:
-    """`run_config.json` records the cell AND that B1 emitted zero hidden targets."""
+def test_write_run_config_separates_generated_from_executed(tmp_path: Path) -> None:
+    """`run_config.json` records the cell AND the generated-vs-executed world size.
+
+    Post-B3 the two numbers no longer differ by "what this phase has not built yet" but
+    by WHERE each target comes from: the generator writes the known ones, and
+    `setup_episode`'s construction path patches the hidden ones in between the two
+    solves. A record that blurred them would describe a 5-target world where 9 run.
+    """
     cfg = TrainConfig(
         n_iterations=1, output_dir=tmp_path / "run",
         num_agents=2, n_known=5, n_hidden=4,
@@ -820,19 +879,20 @@ def test_write_run_config_separates_planned_from_emitted(tmp_path: Path) -> None
     )
     con = payload["construction"]
     assert con["num_agents"] == 2 and con["n_known"] == 5
-    assert con["n_hidden_planned"] == 4
-    assert con["n_hidden_emitted"] == 0
-    assert con["n_targets_emitted"] == 5 == cfg.n_targets_emitted
+    assert con["n_hidden"] == 4
+    assert con["n_targets_generated"] == 5
+    assert con["n_targets_emitted"] == 9 == cfg.n_targets_emitted
     assert con["min_target_distance_km"] == 250.0
     assert con["min_known_separation_km"] == 120.0
     assert con["ensure_discovery_chain"] is False
     assert con["strict_geometry"] is True
     assert con["detection_km"] == DETECTION_KM
-    assert con["setup_partial_ratio"] == _ALL_KNOWN_PARTIAL_RATIO
+    assert con["setup_mode"] == "construction"
 
-    # The construction block matches the request the generator will actually receive.
+    # The construction block matches the request the generator will actually receive:
+    # the GENERATED count, not the executed one (the generator never writes a hidden target).
     var = build_variation_config(cfg, seed=0)
-    assert con["n_targets_emitted"] == var.num_red_airbases
+    assert con["n_targets_generated"] == var.num_red_airbases
     assert con["num_agents"] == var.num_aircraft
     assert con["min_target_distance_km"] == var.min_target_distance_km
     assert con["min_known_separation_km"] == var.min_target_separation_km
@@ -970,18 +1030,20 @@ if __name__ == "__main__":
          test_construction_defaults_are_the_reference_cell, False),
         ("build_variation_config_requests_a_known_only_world",
          test_build_variation_config_requests_a_known_only_world, False),
-        ("setup_is_called_all_known_until_b3",
-         test_setup_is_called_all_known_until_b3, False),
+        ("both_harnesses_call_setup_in_construction_mode",
+         test_both_harnesses_call_setup_in_construction_mode, False),
         ("validate_rejects_more_agents_than_targets",
          test_validate_rejects_more_agents_than_targets, False),
         ("validate_rejects_degenerate_construction_values",
          test_validate_rejects_degenerate_construction_values, False),
+        ("both_configs_reject_sams_on_the_construction_path",
+         test_both_configs_reject_sams_on_the_construction_path, False),
         ("low_n_known_warns_about_the_bonmin_stall",
          test_low_n_known_warns_about_the_bonmin_stall, False),
         ("cli_exposes_the_construction_cell",
          test_cli_exposes_the_construction_cell, False),
-        ("write_run_config_separates_planned_from_emitted",
-         test_write_run_config_separates_planned_from_emitted, True),
+        ("write_run_config_separates_generated_from_executed",
+         test_write_run_config_separates_generated_from_executed, True),
         ("rollout_config_mirrors_the_train_reference_cell",
          test_rollout_config_mirrors_the_train_reference_cell, False),
         ("rollout_config_validate_accepts_the_reference_cell",
