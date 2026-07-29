@@ -76,6 +76,48 @@ is not called at all on this path. The pre-B1 split surface (``partial_ratio``,
 ``num_red_airbases``, ``derived_split``, ``split_preview``) is retained and still tested,
 but the construction path does not consult it.
 
+RUN ARTIFACTS (what makes a run auditable after the fact)
+---------------------------------------------------------
+A run directory is the record; nothing about a run should have to be reconstructed from
+a console scrollback:
+
+  * ``run_config.json``        -- the resolved config PLUS a ``provenance`` block: code
+                                 SHA and dirty state, the exact argv, interpreter and
+                                 platform, targeted package versions/paths, the BONMIN
+                                 executable and a bounded version probe, both seed bands
+                                 as half-open ranges with their formulas, and the
+                                 exact-cardinality policy id. Collected FIRST, before
+                                 the engine, the policy or the solver are touched.
+  * ``train_records.jsonl``    -- one scalar record per iteration.
+  * ``eval_records.jsonl``     -- one record per eval round, the first being the
+                                 ``pre_update`` measurement of the initial policy.
+  * ``episode_failures.jsonl`` -- append-only, flushed per record: every failed attempt
+                                 with its phase, seed, pipeline stage and traceback.
+  * ``run_summary.json``       -- derived from the three jsonl files at completion.
+  * ``training_plot.png``      -- 4 panels, derived from the jsonl files alone.
+
+EXACT-CARDINALITY FAILURES: SKIP AND ACCOUNT (``skip_and_account_v1``)
+---------------------------------------------------------------------
+B2's locked contract places one hidden target per non-empty ego route and B3 requires
+``len(placements) == n_hidden`` exactly, so a solve that leaves an ego idle FAILS the
+episode. That is a property of the cell, not a bug, and it is measurable: on the default
+cell, seeds 2 and 8 of 0..11 produced only 2 usable routes.
+
+The approved policy is to let those seeds fail and ACCOUNT for them. Every scheduled
+seed is attempted at most once; a failed seed is never retried, never replaced by
+another seed, and never shifts the band, so the training and held-out bands stay exactly
+what the config declares. Failures never enter a PPO buffer or a reward aggregate, and
+every one is recorded once in the ledger. Consequently every reward statistic in this
+module describes the exact-cardinality-FEASIBLE SUBSET, and is always reported next to
+``n_attempted`` / ``n_successful`` / ``n_failed`` -- a held-out mean without its
+denominator is not a result.
+
+Two things that are NOT failures, and are never counted as such: a successful zero-wake
+episode (a real episode in which nothing was sensed) and a zero-wake iteration.
+Conversely, an all-failed batch or eval round reports its reward as ``null``, never as
+``0.0`` -- the reward is oracle-normalized regret, so 0 is the OPTIMUM, and rendering a
+total data loss as a perfect score is the specific research bug this avoids.
+
 SCOPE
 -----
 Checkpoints are SAVED here; loading / resuming a run is deliberately NOT implemented
@@ -110,9 +152,13 @@ Windows-safe: pathlib paths, ASCII-only console output (cp1255 console).
 from __future__ import annotations
 
 import argparse
+import importlib
+import importlib.metadata
 import json
 import os
+import platform
 import random
+import shutil
 import subprocess
 import sys
 import time
@@ -157,6 +203,43 @@ _EVAL_EPISODE_TAG_BASE = 900_000
 _TIMING_KEYS = frozenset({
     "iteration_seconds", "episodes_seconds", "update_seconds", "eval_seconds",
 })
+
+# --- B4 auditability constants ------------------------------------------------
+# The schema version of the `provenance` block in run_config.json. Bump it if a field
+# is REMOVED or its meaning changes; adding a field does not require a bump.
+_PROVENANCE_VERSION = 1
+
+# The approved exact-cardinality failure policy, recorded verbatim in every run's
+# provenance so an artifact states which policy produced it. SKIP AND ACCOUNT: every
+# scheduled seed is attempted at most once, a failed seed is NEVER replaced, retried
+# under another seed, or shifted, the seed bands never move, failures never enter a
+# PPO buffer or a reward aggregate, and every failure is recorded once in the ledger.
+_EXACT_CARDINALITY_POLICY = "skip_and_account_v1"
+
+# The four pipeline stages one episode attempt can fail in, in execution order. An
+# attempt is attributed to exactly one of them (see `EpisodeAttemptError`).
+_PIPELINE_STAGES = ("generation", "setup", "run", "reward")
+
+# The two evaluation stages. `pre_update` is the held-out measurement of the INITIAL
+# policy (updates_completed == 0); `post_update` is every later round.
+_EVAL_STAGE_PRE_UPDATE = "pre_update"
+_EVAL_STAGE_POST_UPDATE = "post_update"
+
+# Provenance sub-probes are BOUNDED: a hung `git` or `bonmin` must not stall a run
+# that has not even built its policy yet.
+_GIT_PROBE_TIMEOUT_S = 15.0
+_BONMIN_PROBE_TIMEOUT_S = 10.0
+
+# Third-party / project modules whose version + on-disk path are recorded. Deliberately
+# a SHORT targeted list, not a `pip freeze`: these are the four whose identity can
+# change a result (the engine fork in particular is vendored, so its PATH is the fact
+# that matters, not a version string it does not carry).
+_PROVENANCE_MODULES = ("torch", "gymnasium", "blade", "match_aou")
+
+# Keys holding the full record lists inside a run summary. They are returned in-process
+# but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
+# them into the summary would create a second, divergeable metric path.
+_SUMMARY_RECORD_KEYS = ("train_records", "eval_records", "failure_records")
 
 
 
@@ -484,11 +567,123 @@ def eval_seed(cfg: TrainConfig, e: int) -> int:
 # 3. Small helpers (stdlib only)
 # =============================================================================
 
-def _stats(values: List[float]) -> Dict[str, float]:
-    """(mean, min, max) of a list, safe on empty (returns zeros)."""
+def _stats_or_none(values: List[float]) -> Dict[str, Optional[float]]:
+    """(mean, min, max), or ``None`` for each on an EMPTY population.
+
+    THE anti-false-zero helper. It replaced a zero-filling variant outright rather than
+    sitting next to one, because two aggregators differing only in what they do with an
+    empty list is exactly the pair that gets mixed up. The reward is oracle-normalized
+    regret, so ``0.0`` is the perfect-information OPTIMUM -- the single best value an
+    episode can report. A batch or an eval round in which every scheduled attempt FAILED
+    has no reward population at all, and summarizing that absence as ``0.0`` would plot
+    a total data loss as a perfect score.
+
+    ``None`` (JSON ``null``) says "not measured" and cannot be confused with a number.
+    A SUCCESSFUL zero-wake episode is a different thing entirely: it has a real reward
+    and is part of the population here.
+    """
     if not values:
-        return {"mean": 0.0, "min": 0.0, "max": 0.0}
+        return {"mean": None, "min": None, "max": None}
     return {"mean": sum(values) / len(values), "min": min(values), "max": max(values)}
+
+
+def _fraction(numerator: int, denominator: int) -> Optional[float]:
+    """``numerator / denominator``, or ``None`` when the denominator is 0.
+
+    Same rule as :func:`_stats_or_none`: an undefined fraction is reported as missing,
+    never as ``0.0`` (which would read as "0% succeeded" where nothing was attempted).
+    """
+    if int(denominator) <= 0:
+        return None
+    return float(numerator) / float(denominator)
+
+
+def _fmt_opt(value: Optional[float], spec: str = "%+.4f") -> str:
+    """Format an optional number for the ASCII console: ``None`` -> ``"n/a"``."""
+    return "n/a" if value is None else (spec % float(value))
+
+
+# =============================================================================
+# 3b. Episode-attempt failures: attribution + the durable ledger
+# =============================================================================
+
+class EpisodeAttemptError(RuntimeError):
+    """One episode attempt failed, tagged with the PIPELINE STAGE it failed in.
+
+    A thin attribution wrapper, not a new failure mode. ``_run_one_episode`` drives four
+    stages in order -- ``generation`` -> ``setup`` -> ``run`` -> ``reward`` -- and the
+    ledger is only useful if it says WHICH one broke: an exact-cardinality construction
+    failure (``setup``) and an engine edge case (``run``) are different findings about
+    the run, and a summary that lumped them together would hide the one B4 exists to
+    account for.
+
+    The original exception is preserved BOTH as ``__cause__`` (``raise ... from``) and as
+    :attr:`original`, so the ledger records the real type and message rather than this
+    wrapper's. Callers that only ever caught ``Exception`` are unaffected.
+    """
+
+    def __init__(self, stage: str, original: BaseException) -> None:
+        super().__init__("%s failed: %s: %s"
+                         % (stage, type(original).__name__, original))
+        self.stage = str(stage)
+        self.original = original
+
+
+def _failure_record(
+    *,
+    phase: str,
+    evaluation_stage: Optional[str],
+    updates_completed: int,
+    iteration: Optional[int],
+    attempt_ordinal: int,
+    episode_index: Optional[int],
+    eval_tag: Optional[str],
+    seed: int,
+    exc: BaseException,
+) -> Dict[str, Any]:
+    """Build ONE ledger record for a failed attempt (see :func:`_append_failure_record`).
+
+    Every field a post-hoc audit needs to place the attempt exactly: which phase and
+    (for eval) which stage, how much learning had happened when it was attempted, its
+    position in the SCHEDULE, its identity, its exact seed, the stage it died in, and the
+    original exception with its traceback.
+
+    ``seed`` is the scheduled seed, recorded even though it produced nothing -- a failed
+    seed stays part of the attempted population and must remain visible.
+    """
+    original = getattr(exc, "original", exc)
+    stage = getattr(exc, "stage", "unknown")
+    return {
+        "phase": str(phase),
+        "evaluation_stage": evaluation_stage,
+        "updates_completed": int(updates_completed),
+        "iteration": None if iteration is None else int(iteration),
+        "attempt_ordinal": int(attempt_ordinal),
+        "episode_index": None if episode_index is None else int(episode_index),
+        "eval_tag": eval_tag,
+        "seed": int(seed),
+        "pipeline_stage": str(stage),
+        "error_type": type(original).__name__,
+        "error_message": str(original),
+        "traceback": "".join(
+            traceback.format_exception(type(exc), exc, exc.__traceback__)
+        ),
+    }
+
+
+def _append_failure_record(path: Optional[Path], record: Dict[str, Any]) -> None:
+    """Append ONE record to ``episode_failures.jsonl`` and flush it immediately.
+
+    Opened in append mode per record and flushed before returning, so the ledger is
+    durable at the moment of the failure: a run killed by the next episode still leaves a
+    complete account of everything that failed before it. ``path=None`` disables the
+    ledger (used by callers that have no run directory).
+    """
+    if path is None:
+        return
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+        fh.flush()
 
 
 def _empty_meta_counts() -> Dict[str, int]:
@@ -523,7 +718,276 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     return out
 
 
-def write_run_config(run_dir: Path, cfg: TrainConfig) -> Path:
+# =============================================================================
+# 3c. Provenance -- what code, on what machine, with which seeds
+# =============================================================================
+
+def _truncate(text: str, *, max_lines: int = 3, max_chars: int = 400) -> str:
+    """First few lines of a probe's output, hard-capped -- provenance, not a transcript."""
+    lines = [line.strip() for line in str(text).splitlines() if line.strip()]
+    joined = " | ".join(lines[:max_lines])
+    return joined if len(joined) <= max_chars else joined[:max_chars] + "..."
+
+
+def _probe_command(
+    args: List[str],
+    *,
+    timeout: float,
+    cwd: Union[str, Path, None] = None,
+) -> Tuple[int, str, str]:
+    """Run a short provenance probe and return ``(returncode, stdout, stderr)``.
+
+    Output is captured as BYTES and decoded leniently, NOT via ``text=True``. This is
+    not defensive styling -- it is a measured failure on this stack. ``bonmin -v`` under
+    ``nlp_env`` emits byte ``0x81`` (a cp1252/cp1255 byte), and with ``text=True``
+    subprocess decodes on a READER THREAD: the ``UnicodeDecodeError`` kills that thread,
+    prints a traceback to stderr, and hands back an EMPTY stdout with returncode 0. The
+    probe would then have reported ``ok`` with no output -- a silent loss of the exact
+    fact it exists to record, plus a spurious traceback on every real run.
+
+    ``stdin`` is closed so a probe can never sit waiting for input, and ``timeout`` is
+    the caller's hard bound. Raises only what the caller already handles
+    (``OSError`` / ``SubprocessError``, including ``TimeoutExpired``).
+    """
+    proc = subprocess.run(
+        args, capture_output=True, cwd=None if cwd is None else str(cwd),
+        stdin=subprocess.DEVNULL, timeout=timeout,
+    )
+    return (
+        proc.returncode,
+        (proc.stdout or b"").decode("utf-8", errors="replace"),
+        (proc.stderr or b"").decode("utf-8", errors="replace"),
+    )
+
+
+def _git_provenance(repo_root: Union[str, Path]) -> Dict[str, Any]:
+    """The code identity of a run: full commit SHA + whether the tree was dirty.
+
+    THE load-bearing provenance field. A research result is attributable only if the
+    exact code that produced it can be named, and "dirty" is half of that statement: a
+    SHA plus uncommitted edits describes a tree that exists nowhere but that machine.
+
+    Every failure mode is reported EXPLICITLY rather than omitted -- no repository, no
+    ``git`` on PATH, a timeout -- because a silently absent key is indistinguishable from
+    a key nobody thought to collect. ``available`` is the single flag a reader checks;
+    ``reason`` says why when it is ``False``.
+
+    ``repo_root`` is a parameter (not always :data:`_REPO_ROOT`) so this is testable
+    against a directory whose Git state is CHOSEN by the test rather than inherited from
+    whatever the developer's checkout happens to look like.
+    """
+    root = Path(repo_root)
+    info: Dict[str, Any] = {
+        "repo_root": str(root),
+        "available": False,
+        "commit": None,
+        "branch": None,
+        "dirty": None,
+        "dirty_path_count": None,
+        "reason": None,
+    }
+
+    def _git(args: List[str]) -> Optional[Tuple[int, str, str]]:
+        try:
+            return _probe_command(["git"] + args, timeout=_GIT_PROBE_TIMEOUT_S,
+                                  cwd=root)
+        except (OSError, subprocess.SubprocessError) as exc:
+            info["reason"] = "%s: %s" % (type(exc).__name__, exc)
+            return None
+
+    head = _git(["rev-parse", "HEAD"])
+    if head is None:
+        return info
+    if head[0] != 0:
+        info["reason"] = _truncate(head[2] or "git rev-parse HEAD failed")
+        return info
+    info["commit"] = head[1].strip()
+    info["available"] = True
+
+    status = _git(["status", "--porcelain"])
+    if status is not None and status[0] == 0:
+        changed = [line for line in status[1].splitlines() if line.strip()]
+        info["dirty"] = bool(changed)
+        info["dirty_path_count"] = len(changed)
+
+    branch = _git(["rev-parse", "--abbrev-ref", "HEAD"])
+    if branch is not None and branch[0] == 0:
+        info["branch"] = branch[1].strip()
+    return info
+
+
+def _module_provenance(name: str) -> Dict[str, Any]:
+    """Version + on-disk path of one importable module, with failures made explicit.
+
+    Both halves are recorded because neither alone identifies the code. The vendored
+    BLADE fork carries no version string at all, so its PATH is the fact that matters
+    (it is what proves an editable install resolved to the fork in this repository and
+    not to some other copy); conversely a wheel's version is the fact and its path is
+    noise. A module that cannot be imported yields ``available: false`` plus the error --
+    never a missing key.
+    """
+    out: Dict[str, Any] = {
+        "available": False, "version": None, "path": None, "error": None,
+    }
+    try:
+        module = importlib.import_module(name)
+    except Exception as exc:  # noqa: BLE001 - any import failure is just "unavailable"
+        out["error"] = "%s: %s" % (type(exc).__name__, exc)
+        return out
+    out["available"] = True
+    out["path"] = getattr(module, "__file__", None)
+    version = getattr(module, "__version__", None)
+    if version is None:
+        try:
+            version = importlib.metadata.version(name)
+        except Exception:  # noqa: BLE001 - no distribution metadata is normal here
+            version = None
+    out["version"] = None if version is None else str(version)
+    return out
+
+
+def _bonmin_provenance() -> Dict[str, Any]:
+    """Where BONMIN resolves from, plus a BOUNDED version probe.
+
+    The solver is part of a result's identity -- every episode's ``A_init`` and oracle
+    come out of it -- and it is also the one dependency this project has repeatedly
+    found in the WRONG environment (the base env has no ``bonmin`` at all and fails
+    silently). Recording the resolved executable path makes "which solver produced this
+    run" answerable after the fact instead of inferred from which shell was used.
+
+    The probe is bounded three ways: ``stdin`` is closed so it can never sit waiting for
+    input, it is killed after :data:`_BONMIN_PROBE_TIMEOUT_S`, and its output is
+    truncated. It is a VERSION probe -- it solves nothing. ``probe`` is always one of
+    ``not_found`` / ``ok`` / ``rc=<n>`` / ``timeout`` / ``error``.
+
+    The output is decoded leniently by :func:`_probe_command`; this binary is one of the
+    measured non-UTF-8 emitters that made that necessary.
+    """
+    executable = shutil.which("bonmin")
+    out: Dict[str, Any] = {
+        "executable": executable,
+        "available": executable is not None,
+        "probe": "not_found" if executable is None else None,
+        "probe_output": None,
+    }
+    if executable is None:
+        return out
+    try:
+        returncode, stdout, stderr = _probe_command(
+            [executable, "-v"], timeout=_BONMIN_PROBE_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        out["probe"] = "timeout"
+        return out
+    except (OSError, subprocess.SubprocessError) as exc:
+        out["probe"] = "error"
+        out["probe_output"] = "%s: %s" % (type(exc).__name__, exc)
+        return out
+    out["probe"] = "ok" if returncode == 0 else "rc=%d" % returncode
+    out["probe_output"] = _truncate(stdout + "\n" + stderr)
+    return out
+
+
+def seed_bands(cfg: TrainConfig) -> Dict[str, Any]:
+    """The run's two seed bands as HALF-OPEN ranges, plus the derivation formulas.
+
+    Recorded rather than left implicit because "held out" is a claim about these two
+    intervals: :meth:`TrainConfig.validate` refuses a config whose bands overlap, and
+    this block is the artifact that lets a reviewer re-check that refusal without
+    re-deriving the arithmetic. Half-open is stated in the payload
+    (``stop`` EXCLUSIVE) so an off-by-one reading is not available.
+
+    Computed from the same three pure functions the loop itself uses
+    (:func:`global_episode_index`, :func:`train_seed`, :func:`eval_seed`), so this
+    cannot describe a schedule other than the one that runs.
+    """
+    train_start = int(cfg.base_seed)
+    band: Dict[str, Any] = {
+        "train_band": {
+            "start": train_start,
+            "stop": train_start + int(cfg.total_episodes),
+            "half_open": True,
+            "count": int(cfg.total_episodes),
+        },
+        "train_seed_formula":
+            "train_seed = base_seed + (iteration * episodes_per_iteration + j)",
+        "eval_enabled": bool(cfg.eval_enabled),
+        "eval_band": None,
+        "eval_seed_formula": "eval_seed = eval_base_seed + e",
+        "eval_band_is_fixed_across_rounds": True,
+    }
+    if cfg.eval_enabled:
+        eval_start = int(cfg.eval_base_seed)
+        band["eval_band"] = {
+            "start": eval_start,
+            "stop": eval_start + int(cfg.eval_episodes),
+            "half_open": True,
+            "count": int(cfg.eval_episodes),
+        }
+    return band
+
+
+def collect_provenance(
+    cfg: TrainConfig,
+    *,
+    argv: Optional[List[str]] = None,
+    repo_root: Union[str, Path, None] = None,
+) -> Dict[str, Any]:
+    """Everything needed to attribute a run, collected BEFORE any solver-heavy work.
+
+    Written into ``run_config.json`` as its ``provenance`` block rather than into a
+    competing manifest: a run already records its config there, and two files that both
+    claim to describe a run are two files that can disagree.
+
+    Ordering matters. This runs at the very top of :func:`train`, before the policy, the
+    generator, the engine or bonmin are touched, so a run that dies in its first episode
+    still leaves a complete statement of what was attempted and with what.
+
+    Nothing here is a ``pip freeze``: the package list is the four modules whose identity
+    can change a result (:data:`_PROVENANCE_MODULES`). Everything that could not be
+    determined is present with an explicit ``null`` / ``available: false`` / ``reason``,
+    because an omitted key and an unavailable fact are indistinguishable to a reader.
+
+    ``argv`` and ``repo_root`` are injectable so this is testable without depending on
+    how the test process happened to be invoked or on the developer checkout's live Git
+    state. The complete resolved :class:`TrainConfig` is NOT duplicated here -- it is the
+    top-level ``train_config`` key of the same file, named by ``train_config_location``.
+    """
+    return {
+        "provenance_version": _PROVENANCE_VERSION,
+        "collected_at": datetime.now().isoformat(timespec="seconds"),
+        "exact_cardinality_policy": _EXACT_CARDINALITY_POLICY,
+        "git": _git_provenance(_REPO_ROOT if repo_root is None else repo_root),
+        "invocation": {
+            "argv": [str(a) for a in (sys.argv if argv is None else argv)],
+            "cwd": os.getcwd(),
+            "python_executable": sys.executable,
+        },
+        "python": {
+            "version": sys.version,
+            "version_info": list(sys.version_info[:3]),
+            "implementation": platform.python_implementation(),
+        },
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+            "machine": platform.machine(),
+            "node": platform.node(),
+        },
+        "packages": {name: _module_provenance(name) for name in _PROVENANCE_MODULES},
+        "solver": {"bonmin": _bonmin_provenance()},
+        "seeds": seed_bands(cfg),
+        "train_config_location": "run_config.json:/train_config",
+    }
+
+
+def write_run_config(
+    run_dir: Path,
+    cfg: TrainConfig,
+    *,
+    provenance: Optional[Dict[str, Any]] = None,
+) -> Path:
     """Write ``run_dir/run_config.json`` -- the full resolved config of THIS run.
 
     Without this the run directory recorded no scenario config at all (the header only
@@ -538,12 +1002,23 @@ def write_run_config(run_dir: Path, cfg: TrainConfig) -> Path:
         ``n_targets_emitted == n_known + n_hidden``;
       * ``derived_split`` -- LEGACY. :attr:`TrainConfig.split_preview`, kept for
         continuity with pre-B1 runs; the construction path does not consult it;
-      * ``base_scenario`` -- the template filename every variation derives from.
+      * ``base_scenario`` -- the template filename every variation derives from;
+      * ``provenance``    -- :func:`collect_provenance`: code SHA + dirty state,
+        invocation, interpreter, platform, targeted package versions and paths, the
+        BONMIN executable and its bounded version probe, the two seed bands with their
+        formulas, and the exact-cardinality policy identifier. Collected here rather
+        than in a separate manifest so a run is described by ONE file.
+
+    ``provenance`` may be passed in (already collected, so a caller can inspect it and
+    warn before writing); omitted, it is collected now.
 
     ``default=str`` covers ``output_dir`` when it is a ``Path``.
     """
     payload = {
         "train_config": asdict(cfg),
+        "provenance": (
+            collect_provenance(cfg) if provenance is None else provenance
+        ),
         "construction": {
             "num_agents": int(cfg.num_agents),
             "n_known": int(cfg.n_known),
@@ -666,33 +1141,49 @@ def _run_one_episode(
     own explicit ``random.Random(seed)``, so it is reproducible even if a future change
     adds or removes a global-random consumer earlier in the episode.
 
-    Raises whatever the pipeline raises -- the caller decides whether a failure aborts
-    (it does not: see :func:`train`).
+    Raises :class:`EpisodeAttemptError` -- the original exception wrapped with the
+    PIPELINE STAGE it came from, and preserved as ``__cause__`` / ``.original``. Every
+    stage is wrapped, so a ledger entry can always name where an attempt died
+    (:data:`_PIPELINE_STAGES`); ``setup`` in particular is where an exact-cardinality
+    construction failure lands. The caller decides whether a failure aborts (it does
+    not: see :func:`train`), and this function NEVER retries or substitutes a seed.
     """
     random.seed(seed)
     torch.manual_seed(seed)
 
     t0 = time.perf_counter()
-    var = build_variation_config(cfg, seed)
-    scenario_path = gen.generate(episode=int(episode_tag), config=var)
+    try:
+        var = build_variation_config(cfg, seed)
+        scenario_path = gen.generate(episode=int(episode_tag), config=var)
+    except Exception as exc:
+        raise EpisodeAttemptError("generation", exc) from exc
 
     ctx = None
     try:
-        ctx = setup_episode(
-            scenario_path.read_text(encoding="utf-8"),
-            # CONSTRUCTION PATH: the generated world is known-only, and setup builds the
-            # hidden half from the solved routes (solve -> place -> patch -> reload).
-            # `cfg.partial_ratio` is the legacy split surface and is deliberately NOT
-            # passed -- `split_tasks` never runs here.
-            n_hidden=int(cfg.n_hidden),
-            placement_rng=random.Random(seed),
-        )
-        result = run_episode(
-            policy, ctx,
-            deterministic=deterministic,
-            max_ticks=cfg.max_ticks,
-        )
-        ep_reward = compute_episode_reward(ctx, result)
+        try:
+            ctx = setup_episode(
+                scenario_path.read_text(encoding="utf-8"),
+                # CONSTRUCTION PATH: the generated world is known-only, and setup builds
+                # the hidden half from the solved routes (solve -> place -> patch ->
+                # reload). `cfg.partial_ratio` is the legacy split surface and is
+                # deliberately NOT passed -- `split_tasks` never runs here.
+                n_hidden=int(cfg.n_hidden),
+                placement_rng=random.Random(seed),
+            )
+        except Exception as exc:
+            raise EpisodeAttemptError("setup", exc) from exc
+        try:
+            result = run_episode(
+                policy, ctx,
+                deterministic=deterministic,
+                max_ticks=cfg.max_ticks,
+            )
+        except Exception as exc:
+            raise EpisodeAttemptError("run", exc) from exc
+        try:
+            ep_reward = compute_episode_reward(ctx, result)
+        except Exception as exc:
+            raise EpisodeAttemptError("reward", exc) from exc
         return _EpisodeOutcome(
             trajectory=list(result.trajectory),
             reward=float(ep_reward.reward),
@@ -720,13 +1211,30 @@ def evaluate(
     gen: ScenarioGenerator,
     cfg: TrainConfig,
     *,
-    iteration: int,
+    iteration: Optional[int],
+    stage: str = _EVAL_STAGE_POST_UPDATE,
+    updates_completed: int = 0,
+    failures_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Run ``cfg.eval_episodes`` deterministic episodes on the FIXED eval seed band.
 
     Touches NO optimizer, NO buffer and no weights -- ``run_episode`` is inference-only
     under its own ``torch.no_grad``. The same seeds are used on every round, so
     round-to-round differences in the returned mean are attributable to the policy.
+
+    ``stage`` is ``pre_update`` for the ONE round measured on the initial policy before
+    any training episode or optimizer step, and ``post_update`` for every later round;
+    ``updates_completed`` is how many PPO updates had actually run when the round
+    started (0 for ``pre_update``). Together they are what stops a post-update result
+    from being read as "iteration 0" -- and ``iteration`` is ``None`` for the pre-update
+    round precisely because no training iteration has happened yet.
+
+    SKIP AND ACCOUNT. Each of the ``cfg.eval_episodes`` scheduled seeds is attempted
+    exactly ONCE; a failure is recorded in the ledger and skipped, never retried and
+    never replaced by another seed, so the band stays the declared held-out band. The
+    returned aggregates therefore describe the exact-cardinality-FEASIBLE SUBSET, which
+    is why they are reported next to ``n_attempted`` / ``n_successful`` / ``n_failed``
+    and are ``None`` (not ``0.0``) when that subset is empty.
 
     Returns a scalar-only record (also written to ``eval_records.jsonl``).
     """
@@ -736,21 +1244,34 @@ def evaluate(
     meta_counts = _empty_meta_counts()
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
     n_failed = 0
+    n_attempted = int(cfg.eval_episodes)
     t0 = time.perf_counter()
 
     for e in range(cfg.eval_episodes):
         seed = eval_seed(cfg, e)
+        tag = _EVAL_EPISODE_TAG_BASE + e
         try:
             out = _run_one_episode(
                 policy, gen, cfg,
                 seed=seed,
-                episode_tag=_EVAL_EPISODE_TAG_BASE + e,
+                episode_tag=tag,
                 deterministic=True,
             )
         except Exception as exc:  # an eval failure must not abort training either
             n_failed += 1
-            print("  [eval e%d] FAILED (seed=%d): %s: %s"
-                  % (e, seed, type(exc).__name__, exc))
+            _append_failure_record(failures_path, _failure_record(
+                phase="eval",
+                evaluation_stage=stage,
+                updates_completed=updates_completed,
+                iteration=iteration,
+                attempt_ordinal=e,
+                episode_index=None,
+                eval_tag="eval_e%d_tag%d" % (e, tag),
+                seed=seed,
+                exc=exc,
+            ))
+            print("  [eval %s e%d] FAILED (seed=%d): %s: %s"
+                  % (stage, e, seed, type(exc).__name__, exc))
             traceback.print_exc()
             continue
         rewards.append(out.reward)
@@ -760,20 +1281,38 @@ def evaluate(
         if out.ended in ended_counts:
             ended_counts[out.ended] += 1
 
-    r = _stats(rewards)
+    n_successful = len(rewards)
+    episodes_with_wakes = sum(1 for w in wakes if w > 0)
+    r = _stats_or_none(rewards)
     return {
-        "iteration": int(iteration),
-        "n_episodes": int(cfg.eval_episodes),
-        "n_ok": len(rewards),
+        "evaluation_stage": str(stage),
+        "updates_completed": int(updates_completed),
+        "iteration": None if iteration is None else int(iteration),
+        # --- attempt accounting: the AUTHORITATIVE names ---
+        "n_attempted": n_attempted,
+        "n_successful": n_successful,
         "n_failed": n_failed,
+        "success_fraction": _fraction(n_successful, n_attempted),
+        "episodes_with_wakes": int(episodes_with_wakes),
+        "wake_fraction_of_successful": _fraction(episodes_with_wakes, n_successful),
+        # --- aggregates over the SUCCESSFUL subset only (None when it is empty) ---
         "eval_reward_mean": r["mean"],
         "eval_reward_min": r["min"],
         "eval_reward_max": r["max"],
-        "eval_kills_mean": _stats(kills)["mean"],
-        "eval_wakes_mean": _stats(wakes)["mean"],
+        "eval_kills_mean": _stats_or_none(kills)["mean"],
+        "eval_wakes_mean": _stats_or_none(wakes)["mean"],
+        "aggregates_over": "successful_episodes",
         "meta_action_counts": dict(meta_counts),
         "meta_action_fractions": _meta_fractions(meta_counts),
         "ended_counts": dict(ended_counts),
+        "seed_band": {
+            "start": int(cfg.eval_base_seed),
+            "stop": int(cfg.eval_base_seed) + n_attempted,
+            "half_open": True,
+        },
+        # --- compatibility names kept so pre-B4 readers still parse a record ---
+        "n_episodes": n_attempted,
+        "n_ok": n_successful,
         "eval_seconds": time.perf_counter() - t0,
     }
 
@@ -826,13 +1365,24 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     ONE scalar record to ``train_records.jsonl``.
 
     Two failure modes are NORMAL and are logged rather than raised:
-      * a failed EPISODE (solver hiccup, engine edge case) is logged with a traceback,
-        counted, and skipped -- it never enters the buffer, so it cannot distort the
-        baseline, and the run continues;
+      * a failed EPISODE (solver hiccup, engine edge case, an exact-cardinality
+        construction failure) is recorded in ``episode_failures.jsonl`` with its
+        pipeline stage and traceback, counted, and skipped -- it never enters the
+        buffer, so it cannot distort the baseline, and the run continues. Its seed is
+        NOT retried and NOT replaced (:data:`_EXACT_CARDINALITY_POLICY`);
       * a ZERO-WAKE iteration (no ego woke in any episode) yields an empty batch, and
         ``update`` documents that as a clean no-op with ``n_epochs_run == 0``. It is
         logged like any other iteration -- an iteration in which nothing was sensed is
-        a legitimate outcome of the event-triggered design, not an error to swallow.
+        a legitimate outcome of the event-triggered design, not an error to swallow. A
+        successful zero-wake episode is a REAL episode and is counted as one; only a
+        raised attempt counts as failed.
+
+    EVALUATION TIMING. When evaluation is enabled, ONE ``pre_update`` round runs after
+    the initial policy is built and before the first training episode, the first buffer
+    insert and the first optimizer step -- ``updates_completed == 0``. That is the
+    held-out measurement of the UNTRAINED policy, and without it there is nothing to
+    compare a trained curve against. ``updates_completed`` counts updates that actually
+    ran epochs, so a zero-wake iteration (a no-op update) does not inflate it.
 
     The updater (hence its Adam moments) is built ONCE for the whole run.
     """
@@ -845,7 +1395,25 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     ckpt_dir = run_dir / "checkpoints"
     train_records_path = run_dir / "train_records.jsonl"
     eval_records_path = run_dir / "eval_records.jsonl"
-    run_config_path = write_run_config(run_dir, cfg)
+    failures_path = run_dir / "episode_failures.jsonl"
+    # Truncate the ledger up front: it describes THIS run, and appending to a previous
+    # run's failures in a reused directory would silently corrupt the accounting.
+    with open(failures_path, "w", encoding="utf-8"):
+        pass
+
+    # Provenance FIRST -- before the engine, the policy, the generator or bonmin are
+    # touched -- so even a run that dies in its first episode is attributable.
+    provenance = collect_provenance(cfg)
+    run_config_path = write_run_config(run_dir, cfg, provenance=provenance)
+    git_info = provenance["git"]
+    if not git_info["available"]:
+        print("[WARN] provenance: no Git commit SHA (%s). This run is NOT attributable "
+              "to a code state and must not be reported as a research result."
+              % (git_info["reason"],))
+    elif git_info["dirty"]:
+        print("[WARN] provenance: the working tree is DIRTY at %s (%s uncommitted "
+              "path(s)). The exact code that produced this run exists only on this "
+              "machine." % (git_info["commit"], git_info["dirty_path_count"]))
 
     # Match the rollout/selftest PlaybackRecorder override (harmless when recording is
     # off, which it always is here). Lazy import: engine boundary.
@@ -890,17 +1458,41 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
              _format_split_preview(cfg.split_preview)))
     print("run_dir=%s" % str(run_dir))
     print("config:  %s" % str(run_config_path))
+    print("code:    %s%s"
+          % (git_info["commit"] or "UNKNOWN",
+             "  [DIRTY]" if git_info["dirty"] else ""))
+    print("policy:  exact-cardinality failures = %s (a failed seed is skipped and "
+          "accounted, never replaced)" % _EXACT_CARDINALITY_POLICY)
     print("=" * 78)
 
     train_records: List[Dict[str, Any]] = []
     eval_records: List[Dict[str, Any]] = []
-    n_failed_total = 0
     last_eval_iteration = -1
     last_ckpt_iteration = -1
+    # Updates that actually ran epochs. This is the learning-curve x-axis: it is the
+    # amount of LEARNING behind a measurement, which an iteration counter is not (a
+    # zero-wake iteration completes but performs no gradient step).
+    updates_completed = 0
     t_run = time.perf_counter()
 
     with open(train_records_path, "w", encoding="utf-8") as train_fh, \
             open(eval_records_path, "w", encoding="utf-8") as eval_fh:
+
+        # ---- PRE-UPDATE held-out measurement of the INITIAL policy ----
+        # Deliberately here: after build_policy/PPOUpdater, before the first training
+        # episode, the first PPOBuffer insert and the first optimizer step. Anything
+        # measured later is a trained policy, and a curve without this point has no
+        # origin to be compared against.
+        if cfg.eval_enabled:
+            ev = evaluate(policy, gen, cfg, iteration=None,
+                          stage=_EVAL_STAGE_PRE_UPDATE, updates_completed=0,
+                          failures_path=failures_path)
+            eval_records.append(ev)
+            eval_fh.write(json.dumps(ev) + "\n")
+            eval_fh.flush()
+            print("  [eval PRE-UPDATE, updates_completed=0] mean=%s ok=%d/%d  %5.1fs"
+                  % (_fmt_opt(ev["eval_reward_mean"]), ev["n_successful"],
+                     ev["n_attempted"], ev["eval_seconds"]))
 
         for iteration in range(cfg.n_iterations):
             t_iter = time.perf_counter()
@@ -911,6 +1503,10 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             kills: List[float] = []
             ticks: List[float] = []
             n_failed_iter = 0
+            n_attempted_iter = int(cfg.episodes_per_iteration)
+            # How much learning stands behind the episodes collected BELOW -- they are
+            # generated by the policy as it is now, before this iteration's update.
+            updates_before = updates_completed
 
             # ---- collect the batch ----
             t_eps = time.perf_counter()
@@ -923,10 +1519,25 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                         seed=seed, episode_tag=g, deterministic=False,
                     )
                 except Exception as exc:  # never abort the run on one episode
+                    # SKIP AND ACCOUNT: record it and move to the NEXT scheduled seed.
+                    # This seed is spent -- no retry, no substitute, no shift of the
+                    # band. `j` continues, so the schedule is untouched.
                     n_failed_iter += 1
-                    n_failed_total += 1
-                    print("  [iter %d ep %d] FAILED (seed=%d): %s: %s"
-                          % (iteration, g, seed, type(exc).__name__, exc))
+                    _append_failure_record(failures_path, _failure_record(
+                        phase="train",
+                        evaluation_stage=None,
+                        updates_completed=updates_before,
+                        iteration=iteration,
+                        attempt_ordinal=j,
+                        episode_index=g,
+                        eval_tag=None,
+                        seed=seed,
+                        exc=exc,
+                    ))
+                    print("  [iter %d ep %d] FAILED (seed=%d, stage=%s): %s: %s"
+                          % (iteration, g, seed, getattr(exc, "stage", "unknown"),
+                             type(getattr(exc, "original", exc)).__name__,
+                             getattr(exc, "original", exc)))
                     traceback.print_exc()
                     continue
 
@@ -940,22 +1551,50 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                 if out.ended in ended_counts:
                     ended_counts[out.ended] += 1
             episodes_seconds = time.perf_counter() - t_eps
+            n_successful_iter = len(rewards)
 
             # ---- ONE update over the batch (empty batch -> documented no-op) ----
             t_upd = time.perf_counter()
             diag = updater.update(buf)
             update_seconds = time.perf_counter() - t_upd
             buf.clear()
+            if int(diag["n_epochs_run"]) > 0:
+                updates_completed += 1
+
+            # The batch mean over the SUCCESSFUL episodes -- or None when every
+            # scheduled attempt failed. Never 0.0: 0 is the oracle optimum (see
+            # `_stats_or_none`), and `diag["baseline"]` is defined as 0.0 on an empty
+            # batch, which is exactly the value that must not reach a record.
+            train_reward_mean = (
+                float(diag["baseline"]) if n_successful_iter > 0 else None
+            )
 
             # ---- the per-iteration SCALAR record (no per_epoch lists, no tensors) ----
             record = {
                 "iteration": iteration,
+                # --- attempt accounting: the AUTHORITATIVE names ---
+                "n_attempted": n_attempted_iter,
+                "n_successful": n_successful_iter,
+                "n_failed": n_failed_iter,
+                "success_fraction": _fraction(n_successful_iter, n_attempted_iter),
+                "wake_fraction_of_successful": _fraction(
+                    int(diag["episodes_with_wakes"]), n_successful_iter
+                ),
+                # --- where this measurement sits on the learning axis ---
+                # `updates_completed_before` is the x of the TRAINING curve: it is how
+                # many updates the policy that GENERATED these episodes had received.
+                # It makes iteration 0 land at x=0, alongside the pre-update eval.
+                "updates_completed_before": int(updates_before),
+                "updates_completed": int(updates_completed),
+                # --- compatibility names kept so pre-B4 readers still parse a record --
                 "episodes_per_iteration": cfg.episodes_per_iteration,
                 "n_failed_episodes": n_failed_iter,
                 # The training learning-curve value IS diag["baseline"]: the mean
-                # episode R over the iteration's episodes, zero-wake episodes included.
-                # Recorded from the update, never recomputed a second way.
-                "baseline": float(diag["baseline"]),
+                # episode R over the iteration's SUCCESSFUL episodes, zero-wake episodes
+                # included. Recorded from the update, never recomputed a second way.
+                "train_reward_mean": train_reward_mean,
+                "aggregates_over": "successful_episodes",
+                "baseline": train_reward_mean,
                 "policy_loss": float(diag["policy_loss"]),
                 "total_loss": float(diag["total_loss"]),
                 "entropy": float(diag["entropy"]),
@@ -972,10 +1611,10 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                 "meta_action_counts": dict(meta_counts),
                 "meta_action_fractions": _meta_fractions(meta_counts),
                 "ended_counts": dict(ended_counts),
-                "reward_min": _stats(rewards)["min"],
-                "reward_max": _stats(rewards)["max"],
-                "kills_mean": _stats(kills)["mean"],
-                "ticks_mean": _stats(ticks)["mean"],
+                "reward_min": _stats_or_none(rewards)["min"],
+                "reward_max": _stats_or_none(rewards)["max"],
+                "kills_mean": _stats_or_none(kills)["mean"],
+                "ticks_mean": _stats_or_none(ticks)["mean"],
                 "iteration_seconds": time.perf_counter() - t_iter,
                 "episodes_seconds": episodes_seconds,
                 "update_seconds": update_seconds,
@@ -985,26 +1624,36 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             train_fh.flush()
 
             flag = "" if record["n_epochs_run"] else "  [ZERO-WAKE: update skipped]"
-            print("[iter %3d] R=%+.4f trans=%3d wake_eps=%d/%d loss=%+.4f ent=%.3f "
-                  "kl=%+.4f clip=%.2f gn=%.3f  %5.1fs%s"
-                  % (iteration, record["baseline"], record["n_transitions"],
-                     record["episodes_with_wakes"], record["n_episodes"],
+            if not record["n_successful"]:
+                flag += "  [ALL %d ATTEMPTS FAILED]" % record["n_attempted"]
+            print("[iter %3d] R=%s ok=%d/%d trans=%3d wake_eps=%d/%d loss=%+.4f "
+                  "ent=%.3f kl=%+.4f clip=%.2f gn=%.3f  %5.1fs%s"
+                  % (iteration, _fmt_opt(record["train_reward_mean"]),
+                     record["n_successful"], record["n_attempted"],
+                     record["n_transitions"], record["episodes_with_wakes"],
+                     record["n_episodes"],
                      record["total_loss"], record["entropy"], record["approx_kl"],
                      record["clip_fraction"], record["grad_norm"],
                      record["iteration_seconds"], flag))
 
             # ---- periodic eval ----
             if cfg.eval_enabled and ((iteration + 1) % cfg.eval_every == 0):
-                ev = evaluate(policy, gen, cfg, iteration=iteration)
+                ev = evaluate(policy, gen, cfg, iteration=iteration,
+                              stage=_EVAL_STAGE_POST_UPDATE,
+                              updates_completed=updates_completed,
+                              failures_path=failures_path)
                 eval_records.append(ev)
                 eval_fh.write(json.dumps(ev) + "\n")
                 eval_fh.flush()
                 last_eval_iteration = iteration
-                print("  [eval @iter %d] mean=%+.4f min=%+.4f max=%+.4f "
-                      "kills=%.1f ok=%d/%d  %5.1fs"
-                      % (iteration, ev["eval_reward_mean"], ev["eval_reward_min"],
-                         ev["eval_reward_max"], ev["eval_kills_mean"],
-                         ev["n_ok"], ev["n_episodes"], ev["eval_seconds"]))
+                print("  [eval @iter %d, updates=%d] mean=%s min=%s max=%s "
+                      "kills=%s ok=%d/%d  %5.1fs"
+                      % (iteration, ev["updates_completed"],
+                         _fmt_opt(ev["eval_reward_mean"]),
+                         _fmt_opt(ev["eval_reward_min"]),
+                         _fmt_opt(ev["eval_reward_max"]),
+                         _fmt_opt(ev["eval_kills_mean"], "%.1f"),
+                         ev["n_successful"], ev["n_attempted"], ev["eval_seconds"]))
 
             # ---- periodic checkpoint ----
             if cfg.checkpoint_every > 0 and ((iteration + 1) % cfg.checkpoint_every == 0):
@@ -1015,23 +1664,30 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
         # ---- final eval + final checkpoint (skipped if this iteration just did one) ----
         final_iteration = cfg.n_iterations - 1
         if cfg.eval_enabled and last_eval_iteration != final_iteration:
-            ev = evaluate(policy, gen, cfg, iteration=final_iteration)
+            ev = evaluate(policy, gen, cfg, iteration=final_iteration,
+                          stage=_EVAL_STAGE_POST_UPDATE,
+                          updates_completed=updates_completed,
+                          failures_path=failures_path)
             eval_records.append(ev)
             eval_fh.write(json.dumps(ev) + "\n")
             eval_fh.flush()
-            print("  [eval @iter %d, final] mean=%+.4f ok=%d/%d  %5.1fs"
-                  % (final_iteration, ev["eval_reward_mean"], ev["n_ok"],
-                     ev["n_episodes"], ev["eval_seconds"]))
+            print("  [eval @iter %d, final, updates=%d] mean=%s ok=%d/%d  %5.1fs"
+                  % (final_iteration, ev["updates_completed"],
+                     _fmt_opt(ev["eval_reward_mean"]), ev["n_successful"],
+                     ev["n_attempted"], ev["eval_seconds"]))
 
     if last_ckpt_iteration != cfg.n_iterations - 1:
         path = save_checkpoint(policy, updater, cfg.n_iterations - 1, ckpt_dir)
         print("  [ckpt @iter %d, final] %s" % (cfg.n_iterations - 1, path.name))
 
-    summary = _summarize(
-        cfg, train_records, eval_records, n_failed_total,
-        run_dir, train_records_path, eval_records_path,
-        time.perf_counter() - t_run,
-    )
+    # Re-read the jsonl artifacts rather than summarizing the in-memory lists: the
+    # summary must be DERIVED from what was durably recorded, so it cannot describe a
+    # run the files do not. This also makes `build_run_summary` usable on any run
+    # directory, which is what the tests exercise.
+    summary = build_run_summary(run_dir, cfg=cfg,
+                                run_seconds=time.perf_counter() - t_run)
+    summary_path = write_run_summary(run_dir, summary)
+    print("  [summary] %s" % str(summary_path))
     _print_summary(summary)
     return summary
 
@@ -1040,78 +1696,271 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
 # 8. Aggregate + print
 # =============================================================================
 
+def _count_by(records: List[Dict[str, Any]], key: str) -> Dict[str, int]:
+    """Group-count records by one string field (missing -> ``"unknown"``)."""
+    out: Dict[str, int] = {}
+    for rec in records:
+        name = str(rec.get(key) or "unknown")
+        out[name] = out.get(name, 0) + 1
+    return out
+
+
+def _sum_field(records: List[Dict[str, Any]], key: str, fallback: str) -> int:
+    """Sum an integer field over records, falling back to a pre-B4 field name."""
+    return sum(int(rec.get(key, rec.get(fallback, 0)) or 0) for rec in records)
+
+
+def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The reportable core of one eval round -- ALWAYS carrying its denominator.
+
+    A held-out mean is not interpretable without the population it was taken over: a
+    "-0.12" over 2 of 8 feasible seeds is a different claim from the same number over
+    8 of 8. The two are therefore inseparable in every place this appears.
+    """
+    if record is None:
+        return None
+    return {
+        "evaluation_stage": record.get("evaluation_stage"),
+        "updates_completed": record.get("updates_completed"),
+        "iteration": record.get("iteration"),
+        "n_attempted": record.get("n_attempted", record.get("n_episodes")),
+        "n_successful": record.get("n_successful", record.get("n_ok")),
+        "n_failed": record.get("n_failed"),
+        "success_fraction": record.get("success_fraction"),
+        "eval_reward_mean": record.get("eval_reward_mean"),
+        "eval_reward_min": record.get("eval_reward_min"),
+        "eval_reward_max": record.get("eval_reward_max"),
+        "aggregates_over": "successful_episodes",
+    }
+
+
 def _summarize(
-    cfg: TrainConfig,
     train_records: List[Dict[str, Any]],
     eval_records: List[Dict[str, Any]],
-    n_failed_total: int,
+    failure_records: List[Dict[str, Any]],
+    *,
+    cfg: Optional[TrainConfig] = None,
     run_dir: Path,
-    train_records_path: Path,
-    eval_records_path: Path,
-    run_seconds: float,
+    run_seconds: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Aggregate the run into a summary dict (scalars + the record lists)."""
-    baselines = [r["baseline"] for r in train_records]
-    eval_means = [r["eval_reward_mean"] for r in eval_records]
+    """Aggregate the three record streams into one summary dict.
+
+    PURE: every number here is derived from the records passed in, so the summary cannot
+    describe a run the durable artifacts do not. ``cfg`` supplies only the SCHEDULED
+    shape (how many episodes were planned), which the records themselves cannot know.
+
+    Attempt accounting is the point. Training and evaluation are reported as
+    attempted / successful / failed rather than as a single count, the failures are
+    grouped by phase, by pipeline stage and by exception type, and
+    ``accounting_reconciled`` cross-checks the per-record failure counts against the
+    independent ledger -- if those two ever disagree, some failure was double-counted or
+    lost, and the summary says so instead of quietly presenting a plausible total.
+
+    Reward aggregates skip ``None`` entries (all-failed batches / rounds) rather than
+    treating them as ``0.0``; ``n_iterations_without_reward`` reports how many were
+    skipped, so a mean is never silently taken over a smaller population than it appears.
+    """
+    means = [r.get("train_reward_mean", r.get("baseline")) for r in train_records]
+    measured = [float(m) for m in means if m is not None]
+
     meta_totals = _empty_meta_counts()
     for r in train_records:
         for name in _META_NAMES:
-            meta_totals[name] += int(r["meta_action_counts"].get(name, 0))
+            meta_totals[name] += int(r.get("meta_action_counts", {}).get(name, 0))
 
-    return {
-        "n_iterations": cfg.n_iterations,
-        "episodes_per_iteration": cfg.episodes_per_iteration,
-        "total_train_episodes": cfg.total_episodes,
-        "n_failed_episodes": n_failed_total,
-        "train_baseline_first": baselines[0] if baselines else 0.0,
-        "train_baseline_last": baselines[-1] if baselines else 0.0,
-        "train_baseline_mean": _stats(baselines)["mean"],
-        "n_zero_wake_iterations": sum(
-            1 for r in train_records if r["n_epochs_run"] == 0
+    train_attempted = _sum_field(train_records, "n_attempted", "episodes_per_iteration")
+    train_ok = _sum_field(train_records, "n_successful", "n_episodes")
+    train_failed = _sum_field(train_records, "n_failed", "n_failed_episodes")
+    eval_attempted = _sum_field(eval_records, "n_attempted", "n_episodes")
+    eval_ok = _sum_field(eval_records, "n_successful", "n_ok")
+    eval_failed = _sum_field(eval_records, "n_failed", "n_failed")
+
+    by_phase = _count_by(failure_records, "phase")
+    ledger_train = by_phase.get("train", 0)
+    ledger_eval = by_phase.get("eval", 0)
+
+    pre_update = next(
+        (r for r in eval_records
+         if r.get("evaluation_stage") == _EVAL_STAGE_PRE_UPDATE),
+        None,
+    )
+    eval_means = [
+        float(r["eval_reward_mean"]) for r in eval_records
+        if r.get("eval_reward_mean") is not None
+    ]
+    wake_episodes = sum(
+        int(r.get("episodes_with_wakes", 0) or 0) for r in train_records
+    )
+
+    run_path = Path(run_dir)
+    summary: Dict[str, Any] = {
+        # --- shape ---
+        "n_iterations": len(train_records),
+        "n_iterations_scheduled": None if cfg is None else int(cfg.n_iterations),
+        "episodes_per_iteration": (
+            None if cfg is None else int(cfg.episodes_per_iteration)
         ),
-        "total_transitions": sum(int(r["n_transitions"]) for r in train_records),
-        "meta_action_totals": meta_totals,
+        "exact_cardinality_policy": _EXACT_CARDINALITY_POLICY,
+        "updates_completed": (
+            int(train_records[-1].get("updates_completed", 0)) if train_records else 0
+        ),
+        # --- training attempt accounting ---
+        "train_episodes_attempted": train_attempted,
+        "train_episodes_successful": train_ok,
+        "train_episodes_failed": train_failed,
+        "train_success_fraction": _fraction(train_ok, train_attempted),
+        "train_episodes_with_wakes": wake_episodes,
+        "train_wake_fraction_of_successful": _fraction(wake_episodes, train_ok),
+        "train_zero_wake_episodes": max(train_ok - wake_episodes, 0),
+        "n_zero_wake_iterations": sum(
+            1 for r in train_records if int(r.get("n_epochs_run", 0)) == 0
+        ),
+        "total_transitions": sum(
+            int(r.get("n_transitions", 0)) for r in train_records
+        ),
+        # --- evaluation attempt accounting ---
+        "eval_episodes_attempted": eval_attempted,
+        "eval_episodes_successful": eval_ok,
+        "eval_episodes_failed": eval_failed,
+        "eval_success_fraction": _fraction(eval_ok, eval_attempted),
         "n_eval_rounds": len(eval_records),
-        "eval_reward_first": eval_means[0] if eval_means else 0.0,
-        "eval_reward_last": eval_means[-1] if eval_means else 0.0,
-        "eval_reward_best": max(eval_means) if eval_means else 0.0,
+        # --- failures, grouped ---
+        "failures_recorded": len(failure_records),
+        "failures_by_phase": by_phase,
+        "failures_by_pipeline_stage": _count_by(failure_records, "pipeline_stage"),
+        "failures_by_error_type": _count_by(failure_records, "error_type"),
+        "accounting_reconciled": (
+            ledger_train == train_failed and ledger_eval == eval_failed
+        ),
+        # --- held-out results, each with its denominator ---
+        "initial_pre_update_eval": _eval_digest(pre_update),
+        "final_eval": _eval_digest(eval_records[-1] if eval_records else None),
+        "eval_reward_best": max(eval_means) if eval_means else None,
+        # --- training reward over the MEASURED iterations only ---
+        "train_reward_first": measured[0] if measured else None,
+        "train_reward_last": measured[-1] if measured else None,
+        "train_reward_mean": _stats_or_none(measured)["mean"],
+        "n_iterations_without_reward": len(means) - len(measured),
+        "aggregates_over": "successful_episodes",
+        "meta_action_totals": meta_totals,
+        # --- artifacts ---
         "run_seconds": run_seconds,
-        "run_dir": str(run_dir),
-        "train_records_path": str(train_records_path),
-        "eval_records_path": str(eval_records_path),
-        "train_records": train_records,
-        "eval_records": eval_records,
+        "run_dir": str(run_path),
+        "train_records_path": str(run_path / "train_records.jsonl"),
+        "eval_records_path": str(run_path / "eval_records.jsonl"),
+        "failures_path": str(run_path / "episode_failures.jsonl"),
+        "run_config_path": str(run_path / "run_config.json"),
+        "run_summary_path": str(run_path / "run_summary.json"),
+        "plot_path": str(run_path / "training_plot.png"),
     }
+    # Pre-B4 names, kept so an existing reader of a summary still resolves.
+    summary["total_train_episodes"] = train_attempted
+    summary["n_failed_episodes"] = train_failed
+    summary["train_baseline_first"] = summary["train_reward_first"]
+    summary["train_baseline_last"] = summary["train_reward_last"]
+    summary["train_baseline_mean"] = summary["train_reward_mean"]
+    summary["eval_reward_first"] = (eval_means[0] if eval_means else None)
+    summary["eval_reward_last"] = (eval_means[-1] if eval_means else None)
+    # The full record streams, for in-process callers ONLY (see _SUMMARY_RECORD_KEYS:
+    # they are stripped before the summary is written, because the jsonl files are the
+    # record and a copy of them inside the summary could diverge from it).
+    summary["train_records"] = train_records
+    summary["eval_records"] = eval_records
+    summary["failure_records"] = failure_records
+    return summary
+
+
+def build_run_summary(
+    run_dir: Union[str, Path],
+    *,
+    cfg: Optional[TrainConfig] = None,
+    run_seconds: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Read a run directory's three jsonl artifacts and summarize them.
+
+    The ONE metric path: :func:`train` calls this on the files it has just written
+    rather than aggregating its own in-memory lists, so ``run_summary.json`` can only
+    ever state what the durable records state. It works on any run directory -- finished
+    or in progress -- which is also what makes it testable from synthetic fixtures with
+    no training involved.
+    """
+    run_path = Path(run_dir)
+    return _summarize(
+        _read_jsonl(run_path / "train_records.jsonl"),
+        _read_jsonl(run_path / "eval_records.jsonl"),
+        _read_jsonl(run_path / "episode_failures.jsonl"),
+        cfg=cfg,
+        run_dir=run_path,
+        run_seconds=run_seconds,
+    )
+
+
+def write_run_summary(run_dir: Union[str, Path], summary: Dict[str, Any]) -> Path:
+    """Persist ``run_dir/run_summary.json`` (without the embedded record lists).
+
+    The record lists are stripped (:data:`_SUMMARY_RECORD_KEYS`) so the summary stays a
+    SUMMARY: the jsonl files remain the single record, and there is no second copy of
+    them that could drift out of agreement with the first.
+    """
+    payload = {k: v for k, v in summary.items() if k not in _SUMMARY_RECORD_KEYS}
+    path = Path(run_dir) / "run_summary.json"
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, default=str)
+    return path
 
 
 def _print_summary(s: Dict[str, Any]) -> None:
     """Print the run summary as an ASCII table (no unicode -- cp1255 console)."""
     print("-" * 78)
-    print("TRAINING SUMMARY (%d iteration(s) x %d episode(s))"
-          % (s["n_iterations"], s["episodes_per_iteration"]))
+    print("TRAINING SUMMARY (%d iteration(s) recorded, %s update(s) completed)"
+          % (s["n_iterations"], s["updates_completed"]))
     print("-" * 78)
-    print("episodes:   train=%d  failed=%d  transitions=%d"
-          % (s["total_train_episodes"], s["n_failed_episodes"],
-             s["total_transitions"]))
-    print("train R:    first=%+.4f  last=%+.4f  mean=%+.4f"
-          % (s["train_baseline_first"], s["train_baseline_last"],
-             s["train_baseline_mean"]))
-    print("zero-wake:  %d iteration(s) with no transitions (update skipped)"
-          % s["n_zero_wake_iterations"])
+    print("train eps:  attempted=%d  ok=%d  failed=%d  success=%s"
+          % (s["train_episodes_attempted"], s["train_episodes_successful"],
+             s["train_episodes_failed"],
+             _fmt_opt(s["train_success_fraction"], "%.3f")))
+    print("            transitions=%d  wake-bearing=%d  zero-wake eps=%d  "
+          "zero-wake iters=%d"
+          % (s["total_transitions"], s["train_episodes_with_wakes"],
+             s["train_zero_wake_episodes"], s["n_zero_wake_iterations"]))
+    print("train R:    first=%s  last=%s  mean=%s   (over SUCCESSFUL episodes; "
+          "%d iteration(s) had none)"
+          % (_fmt_opt(s["train_reward_first"]), _fmt_opt(s["train_reward_last"]),
+             _fmt_opt(s["train_reward_mean"]), s["n_iterations_without_reward"]))
     mt = s["meta_action_totals"]
     print("meta-acts:  PLAN_COMPLIANCE=%d  OPPORTUNISTIC_ENGAGEMENT=%d  "
           "SELF_PRESERVATION_ABORT=%d"
           % (mt["PLAN_COMPLIANCE"], mt["OPPORTUNISTIC_ENGAGEMENT"],
              mt["SELF_PRESERVATION_ABORT"]))
     if s["n_eval_rounds"]:
-        print("eval R:     rounds=%d  first=%+.4f  last=%+.4f  best=%+.4f"
-              % (s["n_eval_rounds"], s["eval_reward_first"],
-                 s["eval_reward_last"], s["eval_reward_best"]))
+        print("eval eps:   attempted=%d  ok=%d  failed=%d  success=%s"
+              % (s["eval_episodes_attempted"], s["eval_episodes_successful"],
+                 s["eval_episodes_failed"],
+                 _fmt_opt(s["eval_success_fraction"], "%.3f")))
+        for label, digest in (("pre-update ", s["initial_pre_update_eval"]),
+                              ("final      ", s["final_eval"])):
+            if digest is None:
+                print("eval R:     %s (not recorded)" % label)
+                continue
+            print("eval R:     %s R=%s over %s/%s seed(s)  [updates=%s]"
+                  % (label, _fmt_opt(digest["eval_reward_mean"]),
+                     digest["n_successful"], digest["n_attempted"],
+                     digest["updates_completed"]))
+        print("            rounds=%d  best=%s"
+              % (s["n_eval_rounds"], _fmt_opt(s["eval_reward_best"])))
     else:
         print("eval R:     (disabled)")
-    print("timing:     total=%.1fs" % s["run_seconds"])
+    print("failures:   %d recorded  by phase=%s  by stage=%s%s"
+          % (s["failures_recorded"], s["failures_by_phase"],
+             s["failures_by_pipeline_stage"],
+             "" if s["accounting_reconciled"]
+             else "   [!] LEDGER DISAGREES WITH THE RECORD COUNTS"))
+    if s["run_seconds"] is not None:
+        print("timing:     total=%.1fs" % s["run_seconds"])
     print("records:    %s" % s["train_records_path"])
     print("            %s" % s["eval_records_path"])
+    print("            %s" % s["failures_path"])
+    print("            %s" % s["run_summary_path"])
     print("-" * 78)
 
 
@@ -1119,8 +1968,37 @@ def _print_summary(s: Dict[str, Any]) -> None:
 # 9. Plotting (lazy matplotlib -- training never hard-depends on it)
 # =============================================================================
 
+def _xy(
+    records: List[Dict[str, Any]],
+    x_key: str,
+    y_key: str,
+    *,
+    x_fallback: str = "iteration",
+) -> Tuple[List[float], List[float]]:
+    """Paired (x, y) series, DROPPING points whose y is missing.
+
+    A ``None`` reward means "this batch or round produced no measurement at all"
+    (:func:`_stats_or_none`). Such a point is omitted from the curve rather than drawn:
+    plotting it as 0 would show a total data loss AT THE ORACLE OPTIMUM, and plotting it
+    as some other number would invent one. Its attempts are still visible -- panel 4
+    shows the success fraction that caused the gap.
+    """
+    xs: List[float] = []
+    ys: List[float] = []
+    for rec in records:
+        y = rec.get(y_key)
+        if y is None:
+            continue
+        x = rec.get(x_key, rec.get(x_fallback))
+        if x is None:
+            continue
+        xs.append(float(x))
+        ys.append(float(y))
+    return xs, ys
+
+
 def plot_training(run_dir: Union[str, Path]) -> Optional[Path]:
-    """Render the 3-panel training figure from a run directory's jsonl files.
+    """Render the 4-panel training figure from a run directory's jsonl files.
 
     Works purely from ``train_records.jsonl`` + ``eval_records.jsonl`` -- no retraining,
     no policy, no torch -- so it can be pointed at any finished (or in-progress) run via
@@ -1132,24 +2010,38 @@ def plot_training(run_dir: Union[str, Path]) -> Optional[Path]:
     read BEFORE matplotlib is touched, so the "nothing to plot" path stays safe
     everywhere.
 
-    Panels (stacked, sharing the iteration x-axis):
-      1. LEARNING CURVE: per-iteration training ``baseline`` (faint) + eval mean reward
-         (bold), with a dashed reference at ``R = 0``. The reward is oracle-normalized
-         regret, so 0 is the perfect-information optimum -- the ceiling, not an
-         arbitrary gridline.
+    THE X-AXIS IS ``updates_completed``, NOT the iteration index. Two reasons, both
+    about honesty rather than taste: the ``pre_update`` held-out point measures the
+    initial policy and belongs at x=0, which an iteration index has no room for; and a
+    zero-wake iteration completes without performing a gradient step, so iteration
+    number over-states how much learning stands behind a later point. Training points
+    are placed at ``updates_completed_before`` -- the updates the policy that GENERATED
+    those episodes had received -- so training iteration 0 and the pre-update eval sit
+    at the same origin. Records from before B4 fall back to their iteration index.
+
+    Panels (stacked, sharing the x-axis):
+      1. LEARNING CURVE: per-iteration training mean R (faint) + eval mean R (bold),
+         with a dashed reference at ``R = 0``. The reward is oracle-normalized regret,
+         so 0 is the perfect-information optimum -- the ceiling, not an arbitrary
+         gridline, which is exactly why a batch with NO successful episode is dropped
+         from the curve instead of drawn at 0 (see :func:`_xy`).
       2. META-ACTION MIX: the fraction of each meta-action per iteration.
       3. POLICY ENTROPY per iteration -- the collapse detector for panel 2.
+      4. DATA YIELD: training success fraction, the fraction of SUCCESSFUL training
+         episodes that contained wakes, and eval success fraction at each eval point.
+         Panel 1 without panel 4 is unreadable: a mean over 2 of 8 feasible seeds and a
+         mean over 8 of 8 look identical there and are not the same claim.
 
     Returns the PNG path, or ``None`` if matplotlib is missing (a friendly notice is
     printed and NO exception is raised: matplotlib is optional).
     """
     run_path = Path(run_dir)
     train_records = _read_jsonl(run_path / "train_records.jsonl")
-    if not train_records:
-        print("plot_training: no train_records.jsonl in %s -- nothing to plot."
-              % str(run_path))
-        return None
     eval_records = _read_jsonl(run_path / "eval_records.jsonl")
+    if not train_records and not eval_records:
+        print("plot_training: no train_records.jsonl / eval_records.jsonl in %s -- "
+              "nothing to plot." % str(run_path))
+        return None
 
     try:
         import matplotlib
@@ -1160,37 +2052,50 @@ def plot_training(run_dir: Union[str, Path]) -> Optional[Path]:
               "(the jsonl records are complete and can be plotted later).")
         return None
 
-    iters = [int(r["iteration"]) for r in train_records]
-    baselines = [float(r["baseline"]) for r in train_records]
-    entropies = [float(r["entropy"]) for r in train_records]
+    # Training points sit at the updates the GENERATING policy had received; eval points
+    # at the updates completed when the round ran (0 for the pre-update round).
+    train_x = [
+        float(r.get("updates_completed_before", r.get("iteration", 0)))
+        for r in train_records
+    ]
+    entropies = [float(r.get("entropy", 0.0)) for r in train_records]
     fractions = {
         name: [float(r.get("meta_action_fractions", {}).get(name, 0.0))
                for r in train_records]
         for name in _META_NAMES
     }
-    eval_iters = [int(r["iteration"]) for r in eval_records]
-    eval_means = [float(r["eval_reward_mean"]) for r in eval_records]
 
-    fig, axes = plt.subplots(3, 1, figsize=(10, 11), sharex=True)
+    curve_x, curve_y = _xy(
+        train_records, "updates_completed_before", "train_reward_mean"
+    )
+    if not curve_y:  # pre-B4 records carry the value under its old name
+        curve_x, curve_y = _xy(
+            train_records, "updates_completed_before", "baseline"
+        )
+    eval_x, eval_y = _xy(eval_records, "updates_completed", "eval_reward_mean")
+
+    fig, axes = plt.subplots(4, 1, figsize=(10, 14), sharex=True)
 
     # --- Panel 1: learning curve ---
     ax = axes[0]
     ax.axhline(0.0, linestyle="--", linewidth=1.0, color="0.4",
                label="oracle optimum (R = 0)")
-    ax.plot(iters, baselines, color="tab:blue", alpha=0.35, linewidth=1.2,
-            marker=".", markersize=4, label="train mean R (stochastic)")
-    if eval_iters:
-        ax.plot(eval_iters, eval_means, color="tab:red", linewidth=2.2,
+    if curve_y:
+        ax.plot(curve_x, curve_y, color="tab:blue", alpha=0.35, linewidth=1.2,
+                marker=".", markersize=4, label="train mean R (stochastic)")
+    if eval_y:
+        ax.plot(eval_x, eval_y, color="tab:red", linewidth=2.2,
                 marker="o", markersize=5, label="eval mean R (deterministic)")
     ax.set_ylabel("episode reward R")
-    ax.set_title("Learning curve -- oracle-normalized regret (0 = optimum)")
+    ax.set_title("Learning curve -- oracle-normalized regret (0 = optimum); "
+                 "means over SUCCESSFUL episodes only")
     ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
     # --- Panel 2: meta-action mix ---
     ax = axes[1]
     for name, color in zip(_META_NAMES, ("tab:green", "tab:orange", "tab:purple")):
-        ax.plot(iters, fractions[name], color=color, linewidth=1.6,
+        ax.plot(train_x, fractions[name], color=color, linewidth=1.6,
                 marker=".", markersize=4, label=name)
     ax.set_ylabel("fraction of decisions")
     ax.set_ylim(-0.05, 1.05)
@@ -1200,11 +2105,35 @@ def plot_training(run_dir: Union[str, Path]) -> Optional[Path]:
 
     # --- Panel 3: entropy ---
     ax = axes[2]
-    ax.plot(iters, entropies, color="tab:brown", linewidth=1.6,
+    ax.plot(train_x, entropies, color="tab:brown", linewidth=1.6,
             marker=".", markersize=4)
     ax.set_ylabel("policy entropy (nats)")
-    ax.set_xlabel("PPO iteration")
     ax.set_title("Policy entropy per iteration (collapse detector)")
+    ax.grid(alpha=0.25)
+
+    # --- Panel 4: data yield (the denominator behind panel 1) ---
+    ax = axes[3]
+    ok_x, ok_y = _xy(train_records, "updates_completed_before", "success_fraction")
+    if ok_y:
+        ax.plot(ok_x, ok_y, color="tab:blue", linewidth=1.8, marker=".",
+                markersize=5, label="train episodes: successful / attempted")
+    wake_x, wake_y = _xy(
+        train_records, "updates_completed_before", "wake_fraction_of_successful"
+    )
+    if wake_y:
+        ax.plot(wake_x, wake_y, color="tab:cyan", linewidth=1.4, marker=".",
+                markersize=4, linestyle="--",
+                label="successful train episodes with wakes")
+    ev_ok_x, ev_ok_y = _xy(eval_records, "updates_completed", "success_fraction")
+    if ev_ok_y:
+        ax.plot(ev_ok_x, ev_ok_y, color="tab:red", linewidth=1.8, marker="o",
+                markersize=5, label="eval episodes: successful / attempted")
+    ax.set_ylabel("fraction")
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xlabel("PPO updates completed")
+    ax.set_title("Data yield -- exact-cardinality feasibility (%s) and wake coverage"
+                 % _EXACT_CARDINALITY_POLICY)
+    ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
     fig.tight_layout()
@@ -1333,15 +2262,49 @@ def _selftest() -> None:
         train_recs1 = _read_jsonl(run1 / "train_records.jsonl")
         eval_recs1 = _read_jsonl(run1 / "eval_records.jsonl")
         assert len(train_recs1) == 3, len(train_recs1)
-        assert len(eval_recs1) >= 1, len(eval_recs1)
+        # The FIRST eval round is the pre-update measurement of the initial policy.
+        assert len(eval_recs1) >= 2, len(eval_recs1)
+        assert eval_recs1[0]["evaluation_stage"] == _EVAL_STAGE_PRE_UPDATE, eval_recs1[0]
+        assert eval_recs1[0]["updates_completed"] == 0, eval_recs1[0]
+        assert eval_recs1[0]["iteration"] is None, eval_recs1[0]
         for rec in train_recs1:
             for key in ("baseline", "policy_loss", "total_loss", "entropy",
                         "mean_ratio", "clip_fraction", "approx_kl", "grad_norm"):
+                if rec[key] is None:      # only legal when EVERY attempt failed
+                    assert key == "baseline" and rec["n_successful"] == 0, rec
+                    continue
                 value = float(rec[key])
                 assert value == value and abs(value) != float("inf"), (key, value)
+            assert rec["n_attempted"] == rec["n_successful"] + rec["n_failed"], rec
             assert rec["n_episodes"] == 4 - rec["n_failed_episodes"], rec
         ckpts = sorted((run1 / "checkpoints").glob("ckpt_iter*.pt"))
         assert ckpts, "no checkpoint was written"
+
+        # The B4 artifacts: the failure ledger exists (empty is the good case) and the
+        # summary is persisted and reconciles with it.
+        assert (run1 / "episode_failures.jsonl").exists(), "no failure ledger"
+        rs = json.loads((run1 / "run_summary.json").read_text(encoding="utf-8"))
+        assert rs["accounting_reconciled"], rs
+        assert rs["train_episodes_attempted"] == \
+            rs["train_episodes_successful"] + rs["train_episodes_failed"], rs
+        assert rs["initial_pre_update_eval"]["updates_completed"] == 0, rs
+        assert rs["exact_cardinality_policy"] == _EXACT_CARDINALITY_POLICY, rs
+        print("  run_summary.json: train %d/%d ok, eval %d/%d ok, %d failure(s) "
+              "recorded, accounting reconciled"
+              % (rs["train_episodes_successful"], rs["train_episodes_attempted"],
+                 rs["eval_episodes_successful"], rs["eval_episodes_attempted"],
+                 rs["failures_recorded"]))
+
+        # Provenance is recorded before anything solver-heavy runs.
+        prov = json.loads(
+            (run1 / "run_config.json").read_text(encoding="utf-8")
+        )["provenance"]
+        assert prov["exact_cardinality_policy"] == _EXACT_CARDINALITY_POLICY, prov
+        assert prov["seeds"]["eval_band"]["start"] == cfg1.eval_base_seed, prov
+        print("  provenance: commit=%s dirty=%s bonmin=%s torch=%s"
+              % (prov["git"]["commit"], prov["git"]["dirty"],
+                 prov["solver"]["bonmin"]["executable"],
+                 prov["packages"]["torch"]["version"]))
 
         # The run's own config is recorded (pytest proves the CONTENT of the file from a
         # config alone; this is the end-to-end proof that a REAL run emits it).
@@ -1363,8 +2326,9 @@ def _selftest() -> None:
               % (len(train_recs1), len(eval_recs1), len(ckpts),
                  ", ".join(p.name for p in ckpts)))
         print("  all logged diagnostics finite; solver ran (episodes produced "
-              "u_oracle-normalized rewards: first R=%+.4f last R=%+.4f)"
-              % (summary1["train_baseline_first"], summary1["train_baseline_last"]))
+              "u_oracle-normalized rewards: first R=%s last R=%s)"
+              % (_fmt_opt(summary1["train_reward_first"]),
+                 _fmt_opt(summary1["train_reward_last"])))
 
         # Plot via the CHILD process -- this process has torch loaded (see the module
         # docstring), and this is the exact path `main()` uses after a real run.
@@ -1414,7 +2378,7 @@ def _selftest() -> None:
               "for any ego to sense) -- logged, update skipped, loop continues")
         organic = [r for r in train_recs1 if r["n_epochs_run"] == 0]
         organic_eps = sum(
-            r["n_episodes"] - r["episodes_with_wakes"] for r in train_recs1
+            r["n_successful"] - r["episodes_with_wakes"] for r in train_recs1
         )
         print("  organic in TEST 1: %d zero-wake ITERATION(s), %d zero-wake EPISODE(s)"
               % (len(organic), organic_eps))
@@ -1437,13 +2401,20 @@ def _selftest() -> None:
         assert zero, "expected at least one zero-wake iteration with max_ticks=5"
         for rec in zero:
             assert rec["n_transitions"] == 0 and rec["episodes_with_wakes"] == 0, rec
-            assert rec["n_episodes"] > 0, rec   # episodes DID run; nobody woke
+            # A zero-wake episode SUCCEEDED -- it is a real episode with a real reward,
+            # and must never be conflated with a failed attempt.
+            assert rec["n_successful"] > 0 and rec["n_failed"] == 0, rec
             assert rec["policy_loss"] == 0.0 and rec["grad_norm"] == 0.0, rec
-            assert rec["baseline"] == rec["baseline"], rec  # not NaN
+            assert rec["train_reward_mean"] is not None, rec
+            assert rec["train_reward_mean"] == rec["train_reward_mean"], rec  # not NaN
+            # No epochs ran, so no update was completed -- the learning axis stands still.
+            assert rec["updates_completed"] == rec["updates_completed_before"], rec
         assert summary3["n_iterations"] == 2, summary3
+        assert summary3["updates_completed"] == 0, summary3
         print("  %d/%d iterations were zero-wake: n_epochs_run=0, n_transitions=0, "
-              "baseline=%+.4f (finite), loop completed all %d iterations   OK"
-              % (len(zero), len(train_recs3), zero[0]["baseline"],
+              "R=%s (finite, successful episodes), updates_completed stayed 0, "
+              "loop completed all %d iterations   OK"
+              % (len(zero), len(train_recs3), _fmt_opt(zero[0]["train_reward_mean"]),
                  summary3["n_iterations"]))
 
         print("-" * 78)

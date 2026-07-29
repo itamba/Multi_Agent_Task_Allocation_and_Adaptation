@@ -127,18 +127,31 @@ from match_aou.rl.training.graph_rollout import (  # noqa: E402
     run_rollout,
 )
 from match_aou.rl.training.graph_train import (  # noqa: E402
+    EpisodeAttemptError,
     TrainConfig,
+    _EpisodeOutcome,
+    _EVAL_STAGE_POST_UPDATE,
+    _EVAL_STAGE_PRE_UPDATE,
+    _EXACT_CARDINALITY_POLICY,
+    _PIPELINE_STAGES,
     _build_arg_parser,
+    _git_provenance,
     _parse_airbase_range,
+    _probe_command,
+    _xy,
+    build_run_summary,
     build_variation_config,
+    collect_provenance,
     derived_split,
     eval_seed,
     global_episode_index,
     plot_training,
     plot_training_subprocess,
     save_checkpoint,
+    seed_bands,
     train_seed,
     write_run_config,
+    write_run_summary,
 )
 from match_aou.utils.blade_utils.scenario_generator import VariationConfig  # noqa: E402
 
@@ -303,19 +316,37 @@ def test_validate_rejects_degenerate_shapes() -> None:
 # T3 -- plotting from jsonl alone
 # =============================================================================
 
-def _write_synthetic_run(run_dir: Path, *, with_eval: bool = True) -> None:
-    """Write train/eval jsonl in EXACTLY the shape `train()` emits (scalar-only)."""
+def _write_synthetic_run(
+    run_dir: Path,
+    *,
+    with_eval: bool = True,
+    legacy: bool = False,
+    all_failed_iteration: bool = False,
+) -> None:
+    """Write train/eval jsonl in EXACTLY the shape `train()` emits (scalar-only).
+
+    ``legacy`` writes PRE-B4 records instead -- no ``updates_completed*``, no attempt
+    accounting, the reward under its old ``baseline`` name. The plotter must still
+    render those (a run started before this change is still a run), which is the only
+    thing that flag is for.
+
+    ``all_failed_iteration`` inserts one iteration in which every scheduled attempt
+    FAILED: reward ``null``, 0 successes, 4 failures. That is the record shape the
+    "never plot a total data loss as R = 0" rule exists for.
+    """
     run_dir.mkdir(parents=True, exist_ok=True)
     with open(run_dir / "train_records.jsonl", "w", encoding="utf-8") as fh:
         for it in range(6):
-            fh.write(json.dumps({
+            failed_all = all_failed_iteration and it == 3
+            record = {
                 "iteration": it,
-                "baseline": -0.9 + 0.1 * it,
+                "baseline": None if failed_all else -0.9 + 0.1 * it,
                 "entropy": 1.7 - 0.05 * it,
                 "policy_loss": 0.01 * it,
                 "total_loss": 0.01 * it - 0.017,
-                "n_transitions": 10 + it,
-                "n_epochs_run": 2,
+                "n_transitions": 0 if failed_all else 10 + it,
+                "n_epochs_run": 0 if failed_all else 2,
+                "episodes_with_wakes": 0 if failed_all else 3,
                 "meta_action_counts": {
                     "PLAN_COMPLIANCE": 6, "OPPORTUNISTIC_ENGAGEMENT": 3,
                     "SELF_PRESERVATION_ABORT": 1,
@@ -324,15 +355,48 @@ def _write_synthetic_run(run_dir: Path, *, with_eval: bool = True) -> None:
                     "PLAN_COMPLIANCE": 0.6, "OPPORTUNISTIC_ENGAGEMENT": 0.3,
                     "SELF_PRESERVATION_ABORT": 0.1,
                 },
-            }) + "\n")
+            }
+            if not legacy:
+                record.update({
+                    "updates_completed_before": it,
+                    "updates_completed": it if failed_all else it + 1,
+                    "n_attempted": 4,
+                    "n_successful": 0 if failed_all else 4,
+                    "n_failed": 4 if failed_all else 0,
+                    "success_fraction": 0.0 if failed_all else 1.0,
+                    "wake_fraction_of_successful": None if failed_all else 0.75,
+                    "train_reward_mean": None if failed_all else -0.9 + 0.1 * it,
+                    "aggregates_over": "successful_episodes",
+                })
+            fh.write(json.dumps(record) + "\n")
     if with_eval:
         with open(run_dir / "eval_records.jsonl", "w", encoding="utf-8") as fh:
-            for it in (1, 3, 5):
-                fh.write(json.dumps({
+            # The pre-update round measures the INITIAL policy: 0 updates completed,
+            # no training iteration yet.
+            rounds = [(None, 0, _EVAL_STAGE_PRE_UPDATE),
+                      (1, 2, _EVAL_STAGE_POST_UPDATE),
+                      (3, 4, _EVAL_STAGE_POST_UPDATE),
+                      (5, 6, _EVAL_STAGE_POST_UPDATE)]
+            for it, updates, stage in rounds:
+                record = {
                     "iteration": it,
                     "n_episodes": 4,
-                    "eval_reward_mean": -0.8 + 0.1 * it,
-                }) + "\n")
+                    "eval_reward_mean": -0.8 + 0.05 * updates,
+                }
+                if not legacy:
+                    record.update({
+                        "evaluation_stage": stage,
+                        "updates_completed": updates,
+                        "n_attempted": 4,
+                        "n_successful": 3,
+                        "n_failed": 1,
+                        "success_fraction": 0.75,
+                        "n_ok": 3,
+                        "aggregates_over": "successful_episodes",
+                    })
+                elif it is None:      # a legacy run has no pre-update round at all
+                    continue
+                fh.write(json.dumps(record) + "\n")
 
 
 def _matplotlib_available() -> bool:
@@ -982,6 +1046,727 @@ def test_run_rollout_validates_before_touching_anything(tmp_path: Path) -> None:
     assert not out.exists(), "run_rollout created its run directory before validating"
 
 
+# =============================================================================
+# T10 -- provenance: a run states what code, machine and seeds produced it
+# =============================================================================
+
+def test_provenance_block_is_complete_and_explicit() -> None:
+    """Every required field is PRESENT -- unavailable facts say so, never vanish.
+
+    The distinction this locks is the whole point of the block: a key that is absent
+    and a key whose value could not be determined look identical to a reader six months
+    later. So `available`/`error`/`reason`/`probe` are asserted to exist even in the
+    cases where the underlying fact does not.
+
+    `argv` and `repo_root` are injected so the assertion is about the COLLECTOR, not
+    about how this test process happened to be invoked.
+    """
+    cfg = TrainConfig(n_iterations=3, episodes_per_iteration=4, base_seed=0,
+                      eval_episodes=8, eval_base_seed=1_000_000)
+    prov = collect_provenance(cfg, argv=["prog", "--iterations", "3"], repo_root=ROOT)
+
+    assert prov["provenance_version"] >= 1
+    assert prov["exact_cardinality_policy"] == _EXACT_CARDINALITY_POLICY
+    assert prov["exact_cardinality_policy"] == "skip_and_account_v1"
+    assert prov["collected_at"]
+
+    # The invocation is recorded verbatim as an argv ARRAY (not a re-quoted string,
+    # which could not be replayed).
+    assert prov["invocation"]["argv"] == ["prog", "--iterations", "3"]
+    assert prov["invocation"]["cwd"] and prov["invocation"]["python_executable"]
+    assert prov["python"]["version"] and len(prov["python"]["version_info"]) == 3
+    for key in ("system", "release", "machine"):
+        assert key in prov["platform"], prov["platform"]
+
+    # Targeted packages only -- never a pip freeze -- and each with an explicit verdict.
+    assert set(prov["packages"]) == {"torch", "gymnasium", "blade", "match_aou"}
+    for name, info in prov["packages"].items():
+        assert set(info) == {"available", "version", "path", "error"}, (name, info)
+        assert isinstance(info["available"], bool), (name, info)
+        if info["available"]:
+            assert info["path"], name          # the vendored fork carries no version
+        else:
+            assert info["error"], name         # ... but must then say why
+
+    bonmin = prov["solver"]["bonmin"]
+    assert set(bonmin) == {"executable", "available", "probe", "probe_output"}
+    assert bonmin["probe"] is not None, bonmin
+    if not bonmin["available"]:
+        assert bonmin["executable"] is None and bonmin["probe"] == "not_found", bonmin
+
+    git = prov["git"]
+    assert isinstance(git["available"], bool)
+    if git["available"]:
+        assert len(git["commit"]) == 40 and int(git["commit"], 16) >= 0, git
+        assert isinstance(git["dirty"], bool), git
+    else:
+        assert git["reason"], git
+
+    assert prov["seeds"] == seed_bands(cfg)
+    assert prov["train_config_location"] == "run_config.json:/train_config"
+
+
+def test_git_provenance_reports_absence_explicitly(tmp_path: Path) -> None:
+    """A directory that is not a repository yields available=False PLUS a reason.
+
+    This is what makes provenance collection testable without depending on the
+    developer machine's live Git state: the outcome is chosen by the test, not
+    inherited from whatever the checkout looks like today.
+    """
+    info = _git_provenance(tmp_path)
+    assert info["available"] is False, info
+    assert info["commit"] is None, info
+    assert info["reason"], "an unavailable commit SHA must say why"
+    assert info["repo_root"] == str(tmp_path)
+
+
+def test_probe_command_survives_non_utf8_output() -> None:
+    """A probe that emits non-UTF-8 bytes is captured, not silently lost.
+
+    MEASURED, not hypothetical: `bonmin -v` under nlp_env emits byte 0x81. With
+    subprocess's `text=True` the decode happens on a reader THREAD, so the
+    UnicodeDecodeError kills that thread, prints a traceback, and returns an EMPTY
+    stdout with returncode 0 -- the probe would record "ok" with no output, losing the
+    one fact it exists to capture, on every real training run.
+
+    Driven through a child that writes the offending byte directly, so the regression is
+    reproducible on any machine rather than only where bonmin is installed.
+    """
+    code = "import sys; sys.stdout.buffer.write(b'bonmin \\x81 v1.8')"
+    returncode, stdout, stderr = _probe_command(
+        [sys.executable, "-c", code], timeout=60,
+    )
+    assert returncode == 0, (returncode, stderr)
+    assert "bonmin" in stdout and "v1.8" in stdout, repr(stdout)
+
+
+def test_seed_bands_are_half_open_and_match_the_schedule() -> None:
+    """The recorded bands are exactly the seeds the pure schedule functions produce."""
+    cfg = TrainConfig(n_iterations=3, episodes_per_iteration=4, base_seed=100,
+                      eval_episodes=5, eval_base_seed=1_000_000)
+    bands = seed_bands(cfg)
+
+    train = bands["train_band"]
+    assert train["half_open"] is True
+    real_train = [train_seed(cfg, it, j)
+                  for it in range(cfg.n_iterations)
+                  for j in range(cfg.episodes_per_iteration)]
+    assert min(real_train) == train["start"]
+    assert max(real_train) == train["stop"] - 1      # stop is EXCLUSIVE
+    assert train["count"] == len(real_train) == 12
+
+    ev = bands["eval_band"]
+    assert ev["half_open"] is True and ev["count"] == 5
+    assert [eval_seed(cfg, e) for e in range(cfg.eval_episodes)] == \
+        list(range(ev["start"], ev["stop"]))
+    assert bands["eval_band_is_fixed_across_rounds"] is True
+
+    # Disabled eval records the absence explicitly rather than a phantom band.
+    off = seed_bands(TrainConfig(n_iterations=1, eval_every=0))
+    assert off["eval_enabled"] is False and off["eval_band"] is None
+
+
+def test_write_run_config_embeds_the_provenance_block(tmp_path: Path) -> None:
+    """One file describes a run: the config AND its provenance, never two manifests."""
+    cfg = TrainConfig(n_iterations=1, output_dir=tmp_path / "run")
+    run_dir = Path(cfg.output_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    injected = collect_provenance(cfg, argv=["stub"], repo_root=ROOT)
+    payload = json.loads(
+        write_run_config(run_dir, cfg, provenance=injected).read_text(encoding="utf-8")
+    )
+    assert payload["provenance"] == json.loads(json.dumps(injected, default=str))
+    # The resolved config still lives at the documented top-level key.
+    assert payload["train_config"]["n_iterations"] == 1
+    assert payload["provenance"]["train_config_location"] == \
+        "run_config.json:/train_config"
+
+    # Omitted, it is collected rather than skipped.
+    auto = json.loads(
+        write_run_config(run_dir, cfg).read_text(encoding="utf-8")
+    )["provenance"]
+    assert auto["exact_cardinality_policy"] == _EXACT_CARDINALITY_POLICY
+
+
+# =============================================================================
+# T11 -- the stub-driven trainer: skip-and-account + true pre-update evaluation
+# =============================================================================
+
+class _RecordingUpdater(PPOUpdater):
+    """A REAL PPOUpdater whose `update` is observed and short-circuited.
+
+    Real, not a mock, because `train()` also checkpoints it -- `save_checkpoint` needs a
+    genuine optimizer state_dict and a genuine PPOConfig. Only `update` is replaced, so
+    no gradient work (and no BLADE, no solver) happens while the loop's ORDERING and
+    ACCOUNTING are under test.
+
+    The returned diagnostics keep the REAL contract, which the loop's learning axis
+    depends on: the batch shape is read off the buffer, and `n_epochs_run` is 0 when the
+    batch holds no TRANSITIONS -- an all-zero-wake batch is a documented no-op even
+    though it holds real episodes. Getting that backwards would let a batch that ran no
+    gradient step advance `updates_completed`.
+    """
+
+    def __init__(self, policy, cfg, *, log):
+        super().__init__(policy, cfg)
+        self._log = log
+
+    def update(self, buffer):
+        rewards = [rec.episode_reward for rec in buffer.records]
+        self._log.append(("update", len(rewards)))
+        return {
+            "baseline": (sum(rewards) / len(rewards)) if rewards else 0.0,
+            "policy_loss": -0.01, "total_loss": -0.02, "entropy": 1.5,
+            "mean_ratio": 1.0, "clip_fraction": 0.0, "approx_kl": 0.0,
+            "max_ratio_dev": 0.0, "grad_norm": 0.5, "adv_std_raw": 0.1,
+            "n_transitions": buffer.n_transitions,
+            "n_episodes": buffer.n_episodes,
+            "episodes_with_wakes": buffer.episodes_with_wakes,
+            "n_epochs_run": 2 if buffer.n_transitions else 0,
+        }
+
+
+class _StubTransition:
+    """The two fields the trainer reads off a wake: the acting ego and its meta-action.
+
+    `EpisodeRecord.from_trajectory` groups on `ego_id` and `_add_meta_action_counts`
+    reads `meta_action`; nothing else in the stubbed path touches a transition (the
+    re-encode lives inside the update, which is replaced). Building a genuine
+    `Transition` would require a real `GraphObservation`, i.e. BLADE -- the very thing
+    these tests exist to avoid.
+    """
+
+    def __init__(self, ego_id: str, meta_action: int = 0):
+        self.ego_id = ego_id
+        self.meta_action = meta_action
+
+
+def _weight_snapshot(policy) -> dict:
+    """A detached copy of every encoder + head parameter, for equality comparison."""
+    snap = {}
+    for prefix, module in (("encoder", policy.encoder), ("head", policy.head)):
+        for key, value in module.state_dict().items():
+            snap["%s.%s" % (prefix, key)] = value.detach().clone()
+    return snap
+
+
+def _assert_weights_unchanged(before: dict, after: dict, what: str) -> None:
+    assert set(before) == set(after), f"{what}: parameter set changed"
+    for key in before:
+        assert torch.equal(before[key], after[key]), f"{what}: {key} changed"
+
+
+def _run_stub_training(cfg: TrainConfig, *, failures=None, wakes_per_episode: int = 0):
+    """Drive the REAL `train()` with the BLADE+solver episode body replaced by a stub.
+
+    Everything under test is real: the loop, the seed schedule, the ledger, the record
+    writers, the summary and a real policy + optimizer. Only three seams are stubbed --
+    the episode body, the scenario generator and the gradient step -- because those are
+    exactly the parts that need BLADE and bonmin, and none of them decides WHICH seed is
+    attempted, WHEN evaluation happens, or HOW a failure is accounted for.
+
+    `failures` maps ``seed -> (pipeline_stage, message)``; that seed raises an
+    `EpisodeAttemptError` from the given stage, which is precisely what
+    `_run_one_episode` raises for a real exact-cardinality construction failure.
+    `wakes_per_episode` gives every SUCCESSFUL episode that many wakes -- 0 models the
+    zero-wake case (real episodes, no gradient step, so no completed update).
+
+    Patched by hand with try/finally rather than via pytest's `monkeypatch` fixture, so
+    these tests also run through this file's `__main__` runner (pytest is absent in
+    nlp_env).
+
+    Returns ``(summary, events, state)``. ``events`` is ONE ordered list mixing policy
+    construction, every episode attempt and every update -- an interleaved log is the
+    only way to assert that evaluation happened BEFORE training rather than merely that
+    both happened.
+    """
+    failures = dict(failures or {})
+    n_wakes = int(wakes_per_episode)
+    events: list = []
+    state: dict = {"weights_at_build": None, "at_first_train": None}
+
+    saved = {
+        "_run_one_episode": graph_train._run_one_episode,
+        "_build_generator": graph_train._build_generator,
+        "PPOUpdater": graph_train.PPOUpdater,
+        "build_policy": graph_train.build_policy,
+    }
+
+    def fake_build_policy():
+        policy = saved["build_policy"]()
+        state["weights_at_build"] = _weight_snapshot(policy)
+        events.append(("policy_built", None))
+        return policy
+
+    def fake_build_generator(scen_dir):
+        events.append(("generator_built", None))
+        return object()          # the stub episode body never touches it
+
+    def fake_run_one_episode(policy, gen, cfg_, *, seed, episode_tag, deterministic):
+        phase = "eval" if deterministic else "train"
+        events.append(("episode", phase, int(seed)))
+        if phase == "train" and state["at_first_train"] is None:
+            state["at_first_train"] = {
+                "weights": _weight_snapshot(policy),
+                "n_updates": sum(1 for e in events if e[0] == "update"),
+                "n_eval_episodes": sum(
+                    1 for e in events if e[0] == "episode" and e[1] == "eval"
+                ),
+            }
+        if seed in failures:
+            stage, message = failures[seed]
+            raise EpisodeAttemptError(stage, ValueError(message))
+        return _EpisodeOutcome(
+            trajectory=[_StubTransition("ego_%d" % (k % 2), k % 3)
+                        for k in range(n_wakes)],
+            reward=-0.5 + 0.01 * (seed % 7), ticks=42,
+            ended="done", n_wakes=n_wakes,
+            confirmed_kills=2, n_dead=0, seconds=0.01,
+        )
+
+    graph_train._run_one_episode = fake_run_one_episode
+    graph_train._build_generator = fake_build_generator
+    graph_train.PPOUpdater = lambda policy, ppo: _RecordingUpdater(
+        policy, ppo, log=events
+    )
+    graph_train.build_policy = fake_build_policy
+    try:
+        summary = graph_train.train(cfg)
+    finally:
+        for name, original in saved.items():
+            setattr(graph_train, name, original)
+    return summary, events, state
+
+
+def _episode_seeds(events, phase: str) -> list:
+    return [e[2] for e in events if e[0] == "episode" and e[1] == phase]
+
+
+def test_failed_seeds_are_skipped_and_accounted(tmp_path: Path) -> None:
+    """PO1. Every scheduled seed is attempted ONCE; failures are recorded, not replaced.
+
+    The policy under test is `skip_and_account_v1`, and the failure it is written for is
+    real: B2 places one hidden target per non-empty ego route and B3 demands
+    `len(placements) == n_hidden` exactly, so a solve that leaves an ego idle fails the
+    episode (measured: 2 of seeds 0..11 on the default cell). The tempting repairs --
+    draw a replacement seed, retry, or slide the band -- all silently change the
+    population a result is reported over, so what is locked here is that NONE of them
+    happens: the attempted seed set is exactly the scheduled seed set, and the shortfall
+    shows up as accounting instead.
+    """
+    cfg = TrainConfig(
+        n_iterations=2, episodes_per_iteration=3, base_seed=0,
+        output_dir=tmp_path / "run",
+        eval_every=2, eval_episodes=2, eval_base_seed=1_000_000,
+        checkpoint_every=0,
+    )
+    failures = {
+        1: ("setup", "exact cardinality: 2 usable routes for 3 hidden targets"),
+        4: ("run", "engine edge case"),
+        1_000_001: ("generation", "strict geometry unsatisfiable"),
+    }
+    summary, events, _ = _run_stub_training(cfg, failures=failures,
+                                            wakes_per_episode=2)
+
+    # --- every ORIGINAL seed attempted exactly once, nothing else attempted ---
+    scheduled_train = [train_seed(cfg, it, j)
+                       for it in range(cfg.n_iterations)
+                       for j in range(cfg.episodes_per_iteration)]
+    assert _episode_seeds(events, "train") == scheduled_train == [0, 1, 2, 3, 4, 5]
+
+    # Two eval ROUNDS (pre-update + the one at iteration 1), each attempting the FIXED
+    # band once. A failed eval seed is re-attempted on the next round -- that is the
+    # band being fixed, not a retry of a spent attempt.
+    eval_seeds_seen = _episode_seeds(events, "eval")
+    assert eval_seeds_seen == [1_000_000, 1_000_001] * 2, eval_seeds_seen
+    assert set(eval_seeds_seen) <= {1_000_000, 1_000_001}
+
+    # --- the ledger: one record per failed attempt, with stage and reason ---
+    ledger = [json.loads(line) for line in
+              (Path(cfg.output_dir) / "episode_failures.jsonl")
+              .read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(ledger) == 4, ledger      # 2 train + 1 eval seed x 2 rounds
+
+    train_failures = [r for r in ledger if r["phase"] == "train"]
+    assert sorted(r["seed"] for r in train_failures) == [1, 4]
+    assert {r["seed"]: r["pipeline_stage"] for r in train_failures} == \
+        {1: "setup", 4: "run"}
+    assert {r["seed"]: r["iteration"] for r in train_failures} == {1: 0, 4: 1}
+    assert {r["seed"]: r["attempt_ordinal"] for r in train_failures} == {1: 1, 4: 1}
+    assert {r["seed"]: r["episode_index"] for r in train_failures} == {1: 1, 4: 4}
+
+    eval_failures = [r for r in ledger if r["phase"] == "eval"]
+    assert [r["seed"] for r in eval_failures] == [1_000_001, 1_000_001]
+    assert [r["evaluation_stage"] for r in eval_failures] == \
+        [_EVAL_STAGE_PRE_UPDATE, _EVAL_STAGE_POST_UPDATE]
+    assert [r["updates_completed"] for r in eval_failures] == [0, 2]
+    assert all(r["pipeline_stage"] == "generation" for r in eval_failures)
+
+    for record in ledger:
+        # The ORIGINAL exception survives the attribution wrapper.
+        assert record["error_type"] == "ValueError", record
+        assert record["error_message"], record
+        assert "ValueError" in record["traceback"], record
+        assert record["pipeline_stage"] in _PIPELINE_STAGES, record
+
+    # --- attempts = successes + failures, in every artifact ---
+    train_records = _read_records(cfg.output_dir, "train_records.jsonl")
+    assert [r["n_attempted"] for r in train_records] == [3, 3]
+    for record in train_records:
+        assert record["n_attempted"] == record["n_successful"] + record["n_failed"]
+    assert [r["n_failed"] for r in train_records] == [1, 1]
+
+    eval_records = _read_records(cfg.output_dir, "eval_records.jsonl")
+    for record in eval_records:
+        assert record["n_attempted"] == record["n_successful"] + record["n_failed"] == 2
+        assert record["n_failed"] == 1
+        assert record["success_fraction"] == 0.5
+        assert record["aggregates_over"] == "successful_episodes"
+
+    assert summary["train_episodes_attempted"] == 6
+    assert summary["train_episodes_successful"] == 4
+    assert summary["train_episodes_failed"] == 2
+    assert summary["eval_episodes_attempted"] == 4
+    assert summary["eval_episodes_successful"] == 2
+    assert summary["eval_episodes_failed"] == 2
+    assert summary["failures_recorded"] == 4
+    assert summary["failures_by_phase"] == {"train": 2, "eval": 2}
+    assert summary["failures_by_pipeline_stage"] == \
+        {"setup": 1, "run": 1, "generation": 2}
+    assert summary["failures_by_error_type"] == {"ValueError": 4}
+    assert summary["accounting_reconciled"] is True
+    assert summary["exact_cardinality_policy"] == "skip_and_account_v1"
+
+    # And it is persisted, derived from those same records.
+    persisted = json.loads(
+        (Path(cfg.output_dir) / "run_summary.json").read_text(encoding="utf-8")
+    )
+    assert persisted["train_episodes_attempted"] == 6
+    assert persisted["failures_by_pipeline_stage"] == \
+        summary["failures_by_pipeline_stage"]
+
+
+def test_pre_update_evaluation_precedes_all_training(tmp_path: Path) -> None:
+    """PO2. The held-out round at updates_completed=0 runs before ANY training work.
+
+    "Before" is asserted against an interleaved event log rather than against the
+    records, because the records cannot distinguish "evaluated first" from "evaluated
+    later and written first". Three things must all be true at the moment the FIRST
+    training episode starts: the policy exists, the whole eval band has already been
+    attempted, and zero updates have run.
+
+    The other half is that adding this round changes nothing else: the weights are
+    untouched, and the training seed schedule is exactly what the pure functions say.
+    """
+    cfg = TrainConfig(
+        n_iterations=2, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run",
+        eval_every=5, eval_episodes=3, eval_base_seed=1_000_000,
+        checkpoint_every=0,
+    )
+    summary, events, state = _run_stub_training(cfg, wakes_per_episode=2)
+
+    kinds = [e[0] if e[0] != "episode" else "episode:" + e[1] for e in events]
+    first_train = kinds.index("episode:train")
+    first_eval = kinds.index("episode:eval")
+    assert kinds.index("policy_built") < first_eval < first_train
+    assert "update" not in kinds[:first_train], kinds[:first_train]
+    assert kinds.index("update") > first_train
+
+    # The pre-update round used the FIXED held-out band, once each, in order.
+    assert _episode_seeds(events, "eval")[:3] == [1_000_000, 1_000_001, 1_000_002]
+
+    snapshot = state["at_first_train"]
+    assert snapshot is not None, "no training episode ran"
+    assert snapshot["n_updates"] == 0, "an optimizer update ran before training"
+    assert snapshot["n_eval_episodes"] == cfg.eval_episodes
+    _assert_weights_unchanged(
+        state["weights_at_build"], snapshot["weights"],
+        "the pre-update evaluation modified the policy",
+    )
+
+    # The training seed schedule is untouched by the extra round.
+    assert _episode_seeds(events, "train") == [
+        train_seed(cfg, it, j)
+        for it in range(cfg.n_iterations)
+        for j in range(cfg.episodes_per_iteration)
+    ] == [0, 1, 2, 3]
+
+    eval_records = _read_records(cfg.output_dir, "eval_records.jsonl")
+    first = eval_records[0]
+    assert first["evaluation_stage"] == _EVAL_STAGE_PRE_UPDATE
+    assert first["updates_completed"] == 0
+    assert first["iteration"] is None, "a pre-update round is not iteration 0"
+    assert first["n_attempted"] == 3 and first["n_successful"] == 3
+    assert first["seed_band"] == {
+        "start": 1_000_000, "stop": 1_000_003, "half_open": True,
+    }
+
+    # A post-update round states its REAL number of completed updates.
+    last = eval_records[-1]
+    assert last["evaluation_stage"] == _EVAL_STAGE_POST_UPDATE
+    assert last["updates_completed"] == 2 and last["iteration"] == 1
+
+    assert summary["initial_pre_update_eval"]["updates_completed"] == 0
+    assert summary["initial_pre_update_eval"]["n_attempted"] == 3
+    assert summary["final_eval"]["updates_completed"] == 2
+    assert summary["updates_completed"] == 2
+
+    # Training iteration 0 shares the origin with the pre-update point.
+    train_records = _read_records(cfg.output_dir, "train_records.jsonl")
+    assert [r["updates_completed_before"] for r in train_records] == [0, 1]
+    assert [r["updates_completed"] for r in train_records] == [1, 2]
+
+
+def test_an_all_failed_batch_reports_a_missing_reward_not_zero(tmp_path: Path) -> None:
+    """PO1/PO3. Zero successful episodes -> null reward, never 0.0 (the oracle optimum).
+
+    The reward is oracle-normalized regret, so 0 is the best value an episode can
+    report. An iteration whose every attempt failed measured nothing at all, and
+    recording that as 0.0 would put a total data loss at the top of the learning curve.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=0, checkpoint_every=0,
+    )
+    summary, _, _ = _run_stub_training(cfg, failures={
+        0: ("setup", "exact cardinality"), 1: ("setup", "exact cardinality"),
+    })
+
+    record = _read_records(cfg.output_dir, "train_records.jsonl")[0]
+    assert record["n_attempted"] == 2 and record["n_successful"] == 0
+    assert record["n_failed"] == 2 and record["success_fraction"] == 0.0
+    assert record["train_reward_mean"] is None, record
+    assert record["baseline"] is None, record          # compat field lies about nothing
+    assert record["wake_fraction_of_successful"] is None, record
+    assert record["reward_min"] is None and record["kills_mean"] is None, record
+    # No epochs ran, so the learning axis did not advance.
+    assert record["updates_completed"] == record["updates_completed_before"] == 0
+
+    assert summary["train_reward_first"] is None
+    assert summary["train_reward_last"] is None
+    assert summary["train_reward_mean"] is None
+    assert summary["n_iterations_without_reward"] == 1
+    assert summary["train_success_fraction"] == 0.0
+    assert summary["train_episodes_failed"] == 2
+    assert summary["accounting_reconciled"] is True
+
+
+def test_a_successful_zero_wake_episode_is_not_a_failure(tmp_path: Path) -> None:
+    """A real episode in which nobody woke is a SUCCESS with a real reward.
+
+    The two are easy to collapse into one "nothing happened" bucket and they are
+    opposite findings: a zero-wake episode says the event-triggered policy was never
+    invoked, a failed attempt says the episode never existed. Only the second belongs
+    in the ledger.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=3, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=0, checkpoint_every=0,
+    )
+    summary, _, _ = _run_stub_training(cfg)      # every episode succeeds, no wakes
+
+    record = _read_records(cfg.output_dir, "train_records.jsonl")[0]
+    assert record["n_attempted"] == record["n_successful"] == 3
+    assert record["n_failed"] == 0 and record["success_fraction"] == 1.0
+    assert record["episodes_with_wakes"] == 0 and record["n_transitions"] == 0
+    assert record["train_reward_mean"] is not None, "a real episode has a real reward"
+    assert record["wake_fraction_of_successful"] == 0.0
+
+    assert (Path(cfg.output_dir) / "episode_failures.jsonl").read_text(
+        encoding="utf-8").strip() == "", "a zero-wake success was logged as a failure"
+    assert summary["failures_recorded"] == 0
+    assert summary["train_zero_wake_episodes"] == 3
+    assert summary["n_zero_wake_iterations"] == 1
+    assert summary["updates_completed"] == 0, "an empty batch is not a completed update"
+
+
+# =============================================================================
+# T12 -- derived artifacts: run_summary.json and the 4-panel plot
+# =============================================================================
+
+def _read_records(run_dir, name: str) -> list:
+    """Read one jsonl artifact out of a run directory."""
+    path = Path(run_dir) / name
+    return [json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _write_failure_ledger(run_dir: Path, entries) -> None:
+    """Write a synthetic `episode_failures.jsonl` from (phase, stage, error) triples."""
+    with open(run_dir / "episode_failures.jsonl", "w", encoding="utf-8") as fh:
+        for i, (phase, stage, error) in enumerate(entries):
+            fh.write(json.dumps({
+                "phase": phase, "evaluation_stage": None, "updates_completed": 0,
+                "iteration": 0, "attempt_ordinal": i, "episode_index": i,
+                "eval_tag": None, "seed": 1000 + i, "pipeline_stage": stage,
+                "error_type": error, "error_message": "synthetic",
+                "traceback": "synthetic traceback",
+            }) + "\n")
+
+
+def test_run_summary_is_derived_from_the_jsonl_records(tmp_path: Path) -> None:
+    """PO3. The summary is a pure function of the recorded files -- no second path.
+
+    Built from fixtures written by hand, with no training involved at all: if the
+    summary could only be produced by a live run, then "the summary agrees with the
+    records" would be an assumption rather than a checked property.
+    """
+    run_dir = tmp_path / "run"
+    _write_synthetic_run(run_dir, all_failed_iteration=True)
+    _write_failure_ledger(run_dir, [
+        ("train", "setup", "RuntimeError"),
+        ("train", "setup", "RuntimeError"),
+        ("train", "setup", "RuntimeError"),
+        ("train", "setup", "RuntimeError"),
+        ("eval", "generation", "ValueError"),
+        ("eval", "run", "KeyError"),
+        ("eval", "run", "KeyError"),
+        ("eval", "run", "KeyError"),
+    ])
+
+    summary = build_run_summary(run_dir)
+
+    # 6 iterations x 4 attempts; iteration 3 lost all four.
+    assert summary["train_episodes_attempted"] == 24
+    assert summary["train_episodes_successful"] == 20
+    assert summary["train_episodes_failed"] == 4
+    assert summary["train_success_fraction"] == 20 / 24
+    # 4 eval rounds x 4 attempts, 1 failure each.
+    assert summary["eval_episodes_attempted"] == 16
+    assert summary["eval_episodes_successful"] == 12
+    assert summary["eval_episodes_failed"] == 4
+    assert summary["n_eval_rounds"] == 4
+
+    assert summary["failures_by_phase"] == {"train": 4, "eval": 4}
+    assert summary["failures_by_pipeline_stage"] == \
+        {"setup": 4, "generation": 1, "run": 3}
+    assert summary["failures_by_error_type"] == \
+        {"RuntimeError": 4, "ValueError": 1, "KeyError": 3}
+    assert summary["accounting_reconciled"] is True
+
+    # The pre-update result is exposed AS SUCH, with its denominator attached.
+    pre = summary["initial_pre_update_eval"]
+    assert pre["evaluation_stage"] == _EVAL_STAGE_PRE_UPDATE
+    assert pre["updates_completed"] == 0 and pre["iteration"] is None
+    assert pre["n_attempted"] == 4 and pre["n_successful"] == 3
+    assert summary["final_eval"]["updates_completed"] == 6
+
+    # The all-failed iteration is EXCLUDED from the reward aggregates, and counted.
+    assert summary["n_iterations_without_reward"] == 1
+    assert summary["train_reward_first"] == -0.9
+    assert abs(summary["train_reward_last"] - (-0.4)) < 1e-9
+    assert summary["aggregates_over"] == "successful_episodes"
+    assert summary["total_transitions"] == 10 + 11 + 12 + 0 + 14 + 15
+
+    for key in ("run_dir", "train_records_path", "eval_records_path",
+                "failures_path", "run_config_path", "run_summary_path", "plot_path"):
+        assert summary[key], key
+
+
+def test_run_summary_flags_a_ledger_that_disagrees(tmp_path: Path) -> None:
+    """A lost or double-counted failure is REPORTED, not silently smoothed over.
+
+    Two independent counts of the same thing -- the per-record `n_failed` fields and the
+    ledger -- are only useful if a disagreement is surfaced. Negative control for
+    `accounting_reconciled` in the test above.
+    """
+    run_dir = tmp_path / "run"
+    _write_synthetic_run(run_dir, all_failed_iteration=True)
+    _write_failure_ledger(run_dir, [("train", "setup", "RuntimeError")])  # 1, not 4+4
+
+    summary = build_run_summary(run_dir)
+    assert summary["train_episodes_failed"] == 4      # what the records say
+    assert summary["failures_by_phase"] == {"train": 1}   # what the ledger says
+    assert summary["accounting_reconciled"] is False
+
+
+def test_run_summary_json_omits_the_embedded_record_lists(tmp_path: Path) -> None:
+    """The persisted summary is a summary: the jsonl files stay the single record."""
+    run_dir = tmp_path / "run"
+    _write_synthetic_run(run_dir)
+    summary = build_run_summary(run_dir)
+    assert "train_records" in summary and "eval_records" in summary   # in process
+
+    payload = json.loads(
+        write_run_summary(run_dir, summary).read_text(encoding="utf-8")
+    )
+    for key in ("train_records", "eval_records", "failure_records"):
+        assert key not in payload, key
+    assert payload["train_episodes_attempted"] == summary["train_episodes_attempted"]
+
+
+def test_xy_drops_missing_rewards_and_anchors_pre_update_at_zero() -> None:
+    """PO3. The plot's data path skips nulls and puts the pre-update point at x=0.
+
+    Asserted on the pure series builder rather than on pixels: what must never happen is
+    an all-failed batch being DRAWN, and at x=0 a missing point and a perfect score
+    would be visually indistinguishable.
+    """
+    train = [
+        {"updates_completed_before": 0, "train_reward_mean": -0.9},
+        {"updates_completed_before": 1, "train_reward_mean": None},   # all failed
+        {"updates_completed_before": 1, "train_reward_mean": -0.7},
+    ]
+    xs, ys = _xy(train, "updates_completed_before", "train_reward_mean")
+    assert xs == [0.0, 1.0] and ys == [-0.9, -0.7]
+    assert 0.0 not in ys, "a missing reward was drawn at the oracle optimum"
+
+    ev = [
+        {"updates_completed": 0, "evaluation_stage": _EVAL_STAGE_PRE_UPDATE,
+         "eval_reward_mean": -0.8},
+        {"updates_completed": 4, "evaluation_stage": _EVAL_STAGE_POST_UPDATE,
+         "eval_reward_mean": None},
+        {"updates_completed": 6, "evaluation_stage": _EVAL_STAGE_POST_UPDATE,
+         "eval_reward_mean": -0.4},
+    ]
+    ex, ey = _xy(ev, "updates_completed", "eval_reward_mean")
+    assert ex == [0.0, 6.0] and ey == [-0.8, -0.4]
+    assert ex[0] == 0.0, "the pre-update held-out point must anchor the curve at x=0"
+
+    # Pre-B4 records have no `updates_completed*` key and fall back to `iteration`.
+    legacy = [{"iteration": 2, "baseline": -0.5}]
+    assert _xy(legacy, "updates_completed_before", "baseline") == ([2.0], [-0.5])
+
+
+def test_plot_declares_four_panels_on_the_updates_axis() -> None:
+    """The figure is 4 panels keyed to completed updates -- read off the source.
+
+    Structural rather than pixel-based: a PNG cannot be asked how many axes it has, and
+    the two facts worth locking (panel COUNT and the x-axis QUANTITY) are both visible
+    in the construction site. The panels' data is proven separately, from jsonl.
+    """
+    source = Path(inspect.getsourcefile(graph_train)).read_text(encoding="utf-8")
+    assert "plt.subplots(4, 1" in source, "the figure is no longer 4 panels"
+    assert 'ax.set_xlabel("PPO updates completed")' in source
+    assert "training_plot.png" in source
+    # Exactly one figure file: no second plot artifact was introduced.
+    assert source.count("fig.savefig(") == 1
+
+
+def test_plot_renders_the_four_panel_figure_from_jsonl(tmp_path: Path) -> None:
+    """PO3. The whole figure, including an all-failed iteration, renders from records."""
+    if _skip_without_matplotlib():
+        return
+    run_dir = tmp_path / "run"
+    _write_synthetic_run(run_dir, all_failed_iteration=True)
+    out = plot_training_subprocess(run_dir)
+    assert out is not None and out.exists()
+    assert out.name == "training_plot.png"
+    assert out.stat().st_size > 1000, "PNG is suspiciously small"
+
+
+def test_plot_still_renders_pre_b4_records(tmp_path: Path) -> None:
+    """A run started before this change is still a run -- its records still plot."""
+    if _skip_without_matplotlib():
+        return
+    run_dir = tmp_path / "run_legacy"
+    _write_synthetic_run(run_dir, legacy=True)
+    out = plot_training_subprocess(run_dir)
+    assert out is not None and out.exists()
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -1052,6 +1837,39 @@ if __name__ == "__main__":
          test_rollout_config_validate_rejects_invalid_cells, False),
         ("run_rollout_validates_before_touching_anything",
          test_run_rollout_validates_before_touching_anything, True),
+        # --- B4: provenance, skip-and-account, pre-update eval, derived artifacts ---
+        ("provenance_block_is_complete_and_explicit",
+         test_provenance_block_is_complete_and_explicit, False),
+        ("git_provenance_reports_absence_explicitly",
+         test_git_provenance_reports_absence_explicitly, True),
+        ("probe_command_survives_non_utf8_output",
+         test_probe_command_survives_non_utf8_output, False),
+        ("seed_bands_are_half_open_and_match_the_schedule",
+         test_seed_bands_are_half_open_and_match_the_schedule, False),
+        ("write_run_config_embeds_the_provenance_block",
+         test_write_run_config_embeds_the_provenance_block, True),
+        ("failed_seeds_are_skipped_and_accounted",
+         test_failed_seeds_are_skipped_and_accounted, True),
+        ("pre_update_evaluation_precedes_all_training",
+         test_pre_update_evaluation_precedes_all_training, True),
+        ("an_all_failed_batch_reports_a_missing_reward_not_zero",
+         test_an_all_failed_batch_reports_a_missing_reward_not_zero, True),
+        ("a_successful_zero_wake_episode_is_not_a_failure",
+         test_a_successful_zero_wake_episode_is_not_a_failure, True),
+        ("run_summary_is_derived_from_the_jsonl_records",
+         test_run_summary_is_derived_from_the_jsonl_records, True),
+        ("run_summary_flags_a_ledger_that_disagrees",
+         test_run_summary_flags_a_ledger_that_disagrees, True),
+        ("run_summary_json_omits_the_embedded_record_lists",
+         test_run_summary_json_omits_the_embedded_record_lists, True),
+        ("xy_drops_missing_rewards_and_anchors_pre_update_at_zero",
+         test_xy_drops_missing_rewards_and_anchors_pre_update_at_zero, False),
+        ("plot_declares_four_panels_on_the_updates_axis",
+         test_plot_declares_four_panels_on_the_updates_axis, False),
+        ("plot_renders_the_four_panel_figure_from_jsonl",
+         test_plot_renders_the_four_panel_figure_from_jsonl, True),
+        ("plot_still_renders_pre_b4_records",
+         test_plot_still_renders_pre_b4_records, True),
     ]
     for name, fn, needs_tmp in tests:
         try:
