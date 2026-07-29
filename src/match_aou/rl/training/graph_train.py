@@ -86,8 +86,10 @@ a console scrollback:
                                  platform, targeted package versions/paths, the BONMIN
                                  executable and a bounded version probe, both seed bands
                                  as half-open ranges with their formulas, and the
-                                 exact-cardinality policy id. Collected FIRST, before
-                                 the engine, the policy or the solver are touched.
+                                 exact-cardinality policy id. Collected FIRST -- before
+                                 the run directory exists, let alone the engine, the
+                                 policy or the solver -- and INCOMPLETE Git provenance
+                                 refuses the run outright.
   * ``train_records.jsonl``    -- one scalar record per iteration.
   * ``eval_records.jsonl``     -- one record per eval round, the first being the
                                  ``pre_update`` measurement of the initial policy.
@@ -767,6 +769,13 @@ def _git_provenance(repo_root: Union[str, Path]) -> Dict[str, Any]:
     exact code that produced it can be named, and "dirty" is half of that statement: a
     SHA plus uncommitted edits describes a tree that exists nowhere but that machine.
 
+    ``available=True`` therefore means BOTH facts were determined -- the full HEAD SHA
+    *and* the clean/dirty verdict. A SHA on its own is not attribution: it names a
+    commit the run may or may not have actually executed, and reporting that as
+    available provenance is the failure this guards. When the status probe fails the
+    recovered ``commit`` is still returned (it is useful for debugging) but
+    ``available`` stays ``False``, ``dirty`` stays ``None``, and ``reason`` says why.
+
     Every failure mode is reported EXPLICITLY rather than omitted -- no repository, no
     ``git`` on PATH, a timeout -- because a silently absent key is indistinguishable from
     a key nobody thought to collect. ``available`` is the single flag a reader checks;
@@ -787,29 +796,43 @@ def _git_provenance(repo_root: Union[str, Path]) -> Dict[str, Any]:
         "reason": None,
     }
 
+    # The last transport-level error, kept out of `info` so a LATER optional probe
+    # (the branch name) cannot overwrite the reason an earlier required one failed.
+    errors: List[str] = []
+
     def _git(args: List[str]) -> Optional[Tuple[int, str, str]]:
         try:
             return _probe_command(["git"] + args, timeout=_GIT_PROBE_TIMEOUT_S,
                                   cwd=root)
         except (OSError, subprocess.SubprocessError) as exc:
-            info["reason"] = "%s: %s" % (type(exc).__name__, exc)
+            errors.append("git %s: %s: %s" % (args[0], type(exc).__name__, exc))
             return None
 
     head = _git(["rev-parse", "HEAD"])
     if head is None:
+        info["reason"] = errors[-1]
         return info
     if head[0] != 0:
         info["reason"] = _truncate(head[2] or "git rev-parse HEAD failed")
         return info
     info["commit"] = head[1].strip()
-    info["available"] = True
 
+    # REQUIRED, not best-effort: without the clean/dirty verdict the commit alone does
+    # not describe what ran, so `available` must not be set until this succeeds.
     status = _git(["status", "--porcelain"])
-    if status is not None and status[0] == 0:
-        changed = [line for line in status[1].splitlines() if line.strip()]
-        info["dirty"] = bool(changed)
-        info["dirty_path_count"] = len(changed)
+    if status is None:
+        info["reason"] = errors[-1]
+        return info
+    if status[0] != 0:
+        info["reason"] = _truncate(status[2] or "git status --porcelain failed")
+        return info
+    changed = [line for line in status[1].splitlines() if line.strip()]
+    info["dirty"] = bool(changed)
+    info["dirty_path_count"] = len(changed)
+    info["available"] = True          # both required facts are now known
 
+    # The branch name is a convenience, not part of attribution -- its failure must not
+    # demote provenance that is already complete.
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"])
     if branch is not None and branch[0] == 0:
         info["branch"] = branch[1].strip()
@@ -939,9 +962,13 @@ def collect_provenance(
     competing manifest: a run already records its config there, and two files that both
     claim to describe a run are two files that can disagree.
 
-    Ordering matters. This runs at the very top of :func:`train`, before the policy, the
-    generator, the engine or bonmin are touched, so a run that dies in its first episode
-    still leaves a complete statement of what was attempted and with what.
+    Ordering matters twice over. This runs at the very top of :func:`train`, before the
+    policy, the generator, the engine or bonmin are touched, so a run that dies in its
+    first episode still leaves a complete statement of what was attempted and with what.
+    It also runs before the run DIRECTORY is created: ``output_dir`` may sit inside the
+    repository, and files this run creates are untracked, so collecting afterwards would
+    let the run's own scenarios and ledger be reported as pre-existing dirty source
+    state. Provenance must describe the tree as it was BEFORE the run touched it.
 
     Nothing here is a ``pip freeze``: the package list is the four modules whose identity
     can change a result (:data:`_PROVENANCE_MODULES`). Everything that could not be
@@ -1377,6 +1404,18 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
         successful zero-wake episode is a REAL episode and is counted as one; only a
         raised attempt counts as failed.
 
+    Those two are DISJOINT states (:func:`_iteration_outcome`) even though both end with
+    ``n_epochs_run == 0``, and both the console flag and the summary counters keep them
+    apart: an all-failed batch measured nothing, a zero-wake batch measured episodes in
+    which nobody sensed anything.
+
+    PROVENANCE IS A PRECONDITION, not a log line. It is collected before this function
+    creates the run directory (so the run's own artifacts cannot register as dirty
+    source state), and a run whose Git provenance is INCOMPLETE -- no SHA, or a SHA
+    without a clean/dirty verdict -- raises before the policy, the generator or any
+    episode exists. The attempted ``run_config.json`` is written first so the refusal is
+    inspectable. A dirty tree only WARNS: that is a hazard a researcher may choose.
+
     EVALUATION TIMING. When evaluation is enabled, ONE ``pre_update`` round runs after
     the initial policy is built and before the first training episode, the first buffer
     insert and the first optimizer step -- ``updates_completed == 0``. That is the
@@ -1388,6 +1427,15 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     """
     cfg.validate()
 
+    # PROVENANCE FIRST -- before this run creates ANYTHING. Not merely before the
+    # engine, the policy, the generator or bonmin: before the run directory itself.
+    # `output_dir` may point inside the repository, and a directory this run created is
+    # untracked, so collecting after `mkdir` would let the run's own scenarios and
+    # ledger show up as pre-existing dirty SOURCE state -- provenance contaminated by
+    # the act of recording it.
+    provenance = collect_provenance(cfg)
+    git_info = provenance["git"]
+
     run_dir = Path(cfg.output_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     scen_dir = run_dir / "scenarios"
@@ -1396,24 +1444,32 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     train_records_path = run_dir / "train_records.jsonl"
     eval_records_path = run_dir / "eval_records.jsonl"
     failures_path = run_dir / "episode_failures.jsonl"
-    # Truncate the ledger up front: it describes THIS run, and appending to a previous
-    # run's failures in a reused directory would silently corrupt the accounting.
-    with open(failures_path, "w", encoding="utf-8"):
-        pass
 
-    # Provenance FIRST -- before the engine, the policy, the generator or bonmin are
-    # touched -- so even a run that dies in its first episode is attributable.
-    provenance = collect_provenance(cfg)
+    # Written BEFORE the completeness gate below, so a refused run still leaves an
+    # inspectable record of what was attempted and why it was refused.
     run_config_path = write_run_config(run_dir, cfg, provenance=provenance)
-    git_info = provenance["git"]
+
     if not git_info["available"]:
-        print("[WARN] provenance: no Git commit SHA (%s). This run is NOT attributable "
-              "to a code state and must not be reported as a research result."
-              % (git_info["reason"],))
-    elif git_info["dirty"]:
+        raise RuntimeError(
+            "provenance: complete Git provenance is UNAVAILABLE (%s). A training run "
+            "must be attributable to an exact code state -- a commit SHA without a "
+            "clean/dirty verdict does not say what actually ran -- so this stops here "
+            "rather than spending compute on records nobody can tie to a revision. The "
+            "attempted run_config.json was written to %s."
+            % (git_info["reason"], str(run_config_path))
+        )
+    if git_info["dirty"]:
+        # A dirty tree is a RESEARCH HAZARD, not an error: a researcher may deliberately
+        # run an uncommitted experiment. It is reported loudly and never normalized.
         print("[WARN] provenance: the working tree is DIRTY at %s (%s uncommitted "
               "path(s)). The exact code that produced this run exists only on this "
               "machine." % (git_info["commit"], git_info["dirty_path_count"]))
+
+    # Truncate the ledger: it describes THIS run, and appending to a previous run's
+    # failures in a reused directory would silently corrupt the accounting. After the
+    # gate, so a refused run never destroys an earlier run's ledger.
+    with open(failures_path, "w", encoding="utf-8"):
+        pass
 
     # Match the rollout/selftest PlaybackRecorder override (harmless when recording is
     # off, which it always is here). Lazy import: engine boundary.
@@ -1623,9 +1679,16 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             train_fh.write(json.dumps(record) + "\n")
             train_fh.flush()
 
-            flag = "" if record["n_epochs_run"] else "  [ZERO-WAKE: update skipped]"
-            if not record["n_successful"]:
-                flag += "  [ALL %d ATTEMPTS FAILED]" % record["n_attempted"]
+            # Exactly ONE of the three states, never two at once: an all-failed batch
+            # used to print both flags and so read as "episodes ran, nobody woke".
+            outcome = _iteration_outcome(record)
+            if outcome == "all_failed":
+                flag = ("  [ALL %d ATTEMPTS FAILED: no episode completed, nothing "
+                        "measured]" % record["n_attempted"])
+            elif outcome == "zero_wake":
+                flag = "  [ZERO-WAKE: episodes ran, no ego woke; update skipped]"
+            else:
+                flag = ""
             print("[iter %3d] R=%s ok=%d/%d trans=%3d wake_eps=%d/%d loss=%+.4f "
                   "ent=%.3f kl=%+.4f clip=%.2f gn=%.3f  %5.1fs%s"
                   % (iteration, _fmt_opt(record["train_reward_mean"]),
@@ -1695,6 +1758,39 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
 # =============================================================================
 # 8. Aggregate + print
 # =============================================================================
+
+def _iteration_outcome(record: Dict[str, Any]) -> str:
+    """Classify one training iteration: ``all_failed`` / ``zero_wake`` / ``productive``.
+
+    THE THREE STATES ARE DISJOINT, and keeping them so is the point of this function.
+    They were previously conflated because both an all-failed batch and a zero-wake
+    batch end with ``n_epochs_run == 0``, so an iteration in which NO episode completed
+    was being counted as "zero-wake" -- a claim that episodes ran and nobody sensed
+    anything. They are opposite findings:
+
+      * ``all_failed``  -- not one scheduled attempt produced an episode. Nothing was
+        measured; this is a DATA-YIELD failure (on this cell, an exact-cardinality
+        construction failure).
+      * ``zero_wake``   -- episodes really ran and really finished, and no ego ever
+        woke. That is a legitimate outcome of the event-triggered design and a
+        statement about the POLICY's world, not about the pipeline.
+      * ``productive``  -- at least one successful episode carried at least one wake.
+
+    Judged on episode counts rather than on ``n_epochs_run`` so the classification is a
+    property of the collected batch, independent of what the updater did with it.
+    Pre-B4 records fall back to their old field names.
+    """
+    attempted = int(
+        record.get("n_attempted", record.get("episodes_per_iteration", 0)) or 0
+    )
+    successful = int(record.get("n_successful", record.get("n_episodes", 0)) or 0)
+    wake_bearing = int(record.get("episodes_with_wakes", 0) or 0)
+    if attempted > 0 and successful == 0:
+        return "all_failed"
+    if successful > 0 and wake_bearing == 0:
+        return "zero_wake"
+    return "productive"
+
 
 def _count_by(records: List[Dict[str, Any]], key: str) -> Dict[str, int]:
     """Group-count records by one string field (missing -> ``"unknown"``)."""
@@ -1791,6 +1887,7 @@ def _summarize(
     wake_episodes = sum(
         int(r.get("episodes_with_wakes", 0) or 0) for r in train_records
     )
+    outcomes = [_iteration_outcome(r) for r in train_records]
 
     run_path = Path(run_dir)
     summary: Dict[str, Any] = {
@@ -1812,9 +1909,12 @@ def _summarize(
         "train_episodes_with_wakes": wake_episodes,
         "train_wake_fraction_of_successful": _fraction(wake_episodes, train_ok),
         "train_zero_wake_episodes": max(train_ok - wake_episodes, 0),
-        "n_zero_wake_iterations": sum(
-            1 for r in train_records if int(r.get("n_epochs_run", 0)) == 0
-        ),
+        # DISJOINT by construction (see `_iteration_outcome`): an iteration in which
+        # every attempt failed is a data-yield failure, NOT an iteration in which
+        # episodes ran and nobody woke.
+        "n_zero_wake_iterations": outcomes.count("zero_wake"),
+        "n_all_failed_iterations": outcomes.count("all_failed"),
+        "n_productive_iterations": outcomes.count("productive"),
         "total_transitions": sum(
             int(r.get("n_transitions", 0)) for r in train_records
         ),
@@ -1919,10 +2019,13 @@ def _print_summary(s: Dict[str, Any]) -> None:
           % (s["train_episodes_attempted"], s["train_episodes_successful"],
              s["train_episodes_failed"],
              _fmt_opt(s["train_success_fraction"], "%.3f")))
-    print("            transitions=%d  wake-bearing=%d  zero-wake eps=%d  "
-          "zero-wake iters=%d"
+    print("            transitions=%d  wake-bearing=%d  zero-wake eps=%d"
           % (s["total_transitions"], s["train_episodes_with_wakes"],
-             s["train_zero_wake_episodes"], s["n_zero_wake_iterations"]))
+             s["train_zero_wake_episodes"]))
+    print("iterations: productive=%d  zero-wake=%d  all-failed=%d   (disjoint: an "
+          "all-failed iteration measured nothing)"
+          % (s["n_productive_iterations"], s["n_zero_wake_iterations"],
+             s["n_all_failed_iterations"]))
     print("train R:    first=%s  last=%s  mean=%s   (over SUCCESSFUL episodes; "
           "%d iteration(s) had none)"
           % (_fmt_opt(s["train_reward_first"]), _fmt_opt(s["train_reward_last"]),

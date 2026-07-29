@@ -1257,7 +1257,31 @@ def _assert_weights_unchanged(before: dict, after: dict, what: str) -> None:
         assert torch.equal(before[key], after[key]), f"{what}: {key} changed"
 
 
-def _run_stub_training(cfg: TrainConfig, *, failures=None, wakes_per_episode: int = 0):
+# A COMPLETE Git provenance verdict: both the SHA and the clean/dirty state known.
+# The stub trainer installs this by default so that driving `train()` does not depend on
+# the developer checkout's live state -- and so that the run-refusal gate is exercised
+# only where a test asks for it.
+_FAKE_GIT_OK = {
+    "repo_root": "<stub>", "available": True, "commit": "a" * 40,
+    "branch": "stub", "dirty": False, "dirty_path_count": 0, "reason": None,
+}
+
+# A SHA was recovered but the clean/dirty verdict was NOT -- incomplete provenance.
+_FAKE_GIT_INCOMPLETE = {
+    "repo_root": "<stub>", "available": False, "commit": "b" * 40,
+    "branch": None, "dirty": None, "dirty_path_count": None,
+    "reason": "git status --porcelain failed",
+}
+
+
+def _run_stub_training(
+    cfg: TrainConfig,
+    *,
+    failures=None,
+    wakes_per_episode: int = 0,
+    git=None,
+    events=None,
+):
     """Drive the REAL `train()` with the BLADE+solver episode body replaced by a stub.
 
     Everything under test is real: the loop, the seed schedule, the ledger, the record
@@ -1272,6 +1296,13 @@ def _run_stub_training(cfg: TrainConfig, *, failures=None, wakes_per_episode: in
     `wakes_per_episode` gives every SUCCESSFUL episode that many wakes -- 0 models the
     zero-wake case (real episodes, no gradient step, so no completed update).
 
+    `git` replaces `_git_provenance`'s verdict; it defaults to `_FAKE_GIT_OK` so these
+    tests neither depend on the developer checkout's live state nor trip the
+    incomplete-provenance gate by accident. Pass `_FAKE_GIT_INCOMPLETE` to exercise it.
+
+    `events` may be supplied by the caller so the log survives a `train()` that RAISES
+    -- which is exactly what the provenance-gate test needs to inspect.
+
     Patched by hand with try/finally rather than via pytest's `monkeypatch` fixture, so
     these tests also run through this file's `__main__` runner (pytest is absent in
     nlp_env).
@@ -1283,7 +1314,8 @@ def _run_stub_training(cfg: TrainConfig, *, failures=None, wakes_per_episode: in
     """
     failures = dict(failures or {})
     n_wakes = int(wakes_per_episode)
-    events: list = []
+    git_verdict = dict(_FAKE_GIT_OK if git is None else git)
+    events = [] if events is None else events
     state: dict = {"weights_at_build": None, "at_first_train": None}
 
     saved = {
@@ -1291,6 +1323,7 @@ def _run_stub_training(cfg: TrainConfig, *, failures=None, wakes_per_episode: in
         "_build_generator": graph_train._build_generator,
         "PPOUpdater": graph_train.PPOUpdater,
         "build_policy": graph_train.build_policy,
+        "_git_provenance": graph_train._git_provenance,
     }
 
     def fake_build_policy():
@@ -1325,6 +1358,7 @@ def _run_stub_training(cfg: TrainConfig, *, failures=None, wakes_per_episode: in
             confirmed_kills=2, n_dead=0, seconds=0.01,
         )
 
+    graph_train._git_provenance = lambda repo_root: dict(git_verdict)
     graph_train._run_one_episode = fake_run_one_episode
     graph_train._build_generator = fake_build_generator
     graph_train.PPOUpdater = lambda policy, ppo: _RecordingUpdater(
@@ -1552,6 +1586,12 @@ def test_an_all_failed_batch_reports_a_missing_reward_not_zero(tmp_path: Path) -
     assert summary["train_episodes_failed"] == 2
     assert summary["accounting_reconciled"] is True
 
+    # An iteration in which NOTHING completed is not an iteration in which episodes ran
+    # and nobody woke. The two used to collide on `n_epochs_run == 0`.
+    assert summary["n_all_failed_iterations"] == 1
+    assert summary["n_zero_wake_iterations"] == 0
+    assert summary["n_productive_iterations"] == 0
+
 
 def test_a_successful_zero_wake_episode_is_not_a_failure(tmp_path: Path) -> None:
     """A real episode in which nobody woke is a SUCCESS with a real reward.
@@ -1578,8 +1618,188 @@ def test_a_successful_zero_wake_episode_is_not_a_failure(tmp_path: Path) -> None
         encoding="utf-8").strip() == "", "a zero-wake success was logged as a failure"
     assert summary["failures_recorded"] == 0
     assert summary["train_zero_wake_episodes"] == 3
-    assert summary["n_zero_wake_iterations"] == 1
     assert summary["updates_completed"] == 0, "an empty batch is not a completed update"
+
+    # The mirror image of the all-failed case: episodes DID complete, nobody woke.
+    assert summary["n_zero_wake_iterations"] == 1
+    assert summary["n_all_failed_iterations"] == 0
+    assert summary["n_productive_iterations"] == 0
+
+
+def test_console_flag_never_reports_both_failure_states(tmp_path: Path) -> None:
+    """An iteration prints AT MOST ONE of the two flags -- they are different findings.
+
+    The regression: an all-failed batch printed `[ZERO-WAKE: update skipped]` AND
+    `[ALL n ATTEMPTS FAILED]` on the same line, telling the operator both that episodes
+    ran and nobody woke and that no episode ran at all.
+    """
+    def _run(name, **kwargs):
+        cfg = TrainConfig(
+            n_iterations=1, episodes_per_iteration=2, base_seed=0,
+            output_dir=tmp_path / name, eval_every=0, checkpoint_every=0,
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _run_stub_training(cfg, **kwargs)
+        return buf.getvalue()
+
+    all_failed = _run("all_failed", failures={
+        0: ("setup", "exact cardinality"), 1: ("setup", "exact cardinality"),
+    })
+    assert "[ALL 2 ATTEMPTS FAILED" in all_failed, all_failed
+    assert "[ZERO-WAKE" not in all_failed, all_failed
+
+    zero_wake = _run("zero_wake")            # every episode succeeds, none wakes
+    assert "[ZERO-WAKE" in zero_wake, zero_wake
+    assert "ATTEMPTS FAILED" not in zero_wake, zero_wake
+
+    productive = _run("productive", wakes_per_episode=2)
+    assert "[ZERO-WAKE" not in productive and "ATTEMPTS FAILED" not in productive
+
+
+# =============================================================================
+# T11b -- provenance is a precondition, not a log line
+# =============================================================================
+
+def test_provenance_is_collected_before_any_run_artifact_exists(tmp_path: Path) -> None:
+    """PO2. The tree is inspected BEFORE this run creates its own files.
+
+    `output_dir` may legitimately point inside the repository. Anything the run creates
+    there is untracked, so collecting provenance after `mkdir` would let the run's own
+    scenario files and ledger be reported as pre-existing DIRTY SOURCE STATE -- a run
+    contaminating the record of what produced it.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=1, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=0, checkpoint_every=0,
+    )
+    seen: dict = {}
+    real_collect = graph_train.collect_provenance
+
+    def spy(cfg_, **kwargs):
+        run_dir = Path(cfg_.output_dir)
+        seen["existed"] = run_dir.exists()
+        seen["contents"] = (
+            sorted(p.name for p in run_dir.iterdir()) if run_dir.exists() else []
+        )
+        return real_collect(cfg_, **kwargs)
+
+    graph_train.collect_provenance = spy
+    try:
+        _run_stub_training(cfg)
+    finally:
+        graph_train.collect_provenance = real_collect
+
+    assert seen["existed"] is False, (
+        "the run directory already existed when provenance was collected: %r"
+        % (seen["contents"],)
+    )
+    assert seen["contents"] == []
+    # The run really did produce those artifacts afterwards -- the check above is about
+    # ORDER, not about the artifacts being absent altogether.
+    assert (Path(cfg.output_dir) / "run_config.json").exists()
+    assert (Path(cfg.output_dir) / "episode_failures.jsonl").exists()
+
+
+def test_git_provenance_requires_both_the_sha_and_the_dirty_state(tmp_path: Path) -> None:
+    """PO2. A recovered SHA with an UNKNOWN clean/dirty verdict is not available.
+
+    A commit alone names a revision the run may or may not have executed; without the
+    dirty verdict it cannot be said that the run used it. So the failure mode being
+    locked out is `available=True` alongside `dirty=None`.
+
+    Driven by replacing the probe transport, so the outcome is chosen here rather than
+    inherited from the developer checkout.
+    """
+    real_probe = graph_train._probe_command
+
+    def fake_probe(args, *, timeout, cwd=None):
+        if args[1:] == ["rev-parse", "HEAD"]:
+            return 0, "c" * 40 + "\n", ""
+        if args[1:] == ["status", "--porcelain"]:
+            return 128, "", "fatal: unable to read index\n"
+        return 0, "stub\n", ""
+
+    graph_train._probe_command = fake_probe
+    try:
+        info = _git_provenance(tmp_path)
+    finally:
+        graph_train._probe_command = real_probe
+
+    assert info["available"] is False, info
+    assert info["dirty"] is None, info
+    assert info["commit"] == "c" * 40, "the recovered SHA should still be reported"
+    assert "unable to read index" in info["reason"], info
+
+    # A status probe that RAISES (timeout / no git) is the same verdict, not a crash.
+    def raising_probe(args, *, timeout, cwd=None):
+        if args[1:] == ["rev-parse", "HEAD"]:
+            return 0, "d" * 40 + "\n", ""
+        raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
+
+    graph_train._probe_command = raising_probe
+    try:
+        info = _git_provenance(tmp_path)
+    finally:
+        graph_train._probe_command = real_probe
+    assert info["available"] is False and info["dirty"] is None, info
+    assert info["reason"], info
+
+
+def test_training_stops_when_git_provenance_is_incomplete(tmp_path: Path) -> None:
+    """PO2. Incomplete provenance refuses the run before any policy/generator/episode.
+
+    Compute is not the point -- attributability is. A run that cannot name the code that
+    produced it yields records nobody can tie to a revision, so it must not start rather
+    than finish and be discovered unusable. The attempted `run_config.json` is still
+    written, so the refusal itself is inspectable.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=2, eval_episodes=2,
+        eval_base_seed=1_000_000, checkpoint_every=0,
+    )
+    events: list = []
+    try:
+        _run_stub_training(cfg, git=_FAKE_GIT_INCOMPLETE, events=events)
+    except RuntimeError as exc:
+        assert "provenance" in str(exc), str(exc)
+        assert "run_config.json" in str(exc), str(exc)
+    else:
+        raise AssertionError("train() ran with incomplete Git provenance")
+
+    # Nothing expensive happened: no policy, no generator, no episode, no update.
+    assert events == [], events
+
+    run_dir = Path(cfg.output_dir)
+    payload = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+    assert payload["provenance"]["git"]["available"] is False
+    assert payload["provenance"]["git"]["dirty"] is None
+    # The refused attempt did not write, truncate or fabricate any record stream.
+    for name in ("train_records.jsonl", "eval_records.jsonl",
+                 "episode_failures.jsonl", "run_summary.json"):
+        assert not (run_dir / name).exists(), name
+
+
+def test_a_dirty_tree_warns_but_still_runs(tmp_path: Path) -> None:
+    """A dirty tree is a hazard a researcher may choose -- warned about, never blocked.
+
+    The counterpart to the refusal above: complete provenance that happens to say
+    "dirty" is still complete. Hiding or normalizing it would be the real failure.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=1, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=0, checkpoint_every=0,
+    )
+    dirty = dict(_FAKE_GIT_OK, dirty=True, dirty_path_count=3)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        summary, _, _ = _run_stub_training(cfg, git=dirty)
+    out = buf.getvalue()
+
+    assert "[WARN]" in out and "DIRTY" in out, out
+    assert summary["train_episodes_attempted"] == 1
+    assert (Path(cfg.output_dir) / "run_summary.json").exists()
 
 
 # =============================================================================
@@ -1655,6 +1875,13 @@ def test_run_summary_is_derived_from_the_jsonl_records(tmp_path: Path) -> None:
 
     # The all-failed iteration is EXCLUDED from the reward aggregates, and counted.
     assert summary["n_iterations_without_reward"] == 1
+    # ... and classified as all-failed, not as zero-wake. Same distinction as the live
+    # trainer makes, proven here on a derived summary built from files alone.
+    assert summary["n_all_failed_iterations"] == 1
+    assert summary["n_zero_wake_iterations"] == 0
+    assert summary["n_productive_iterations"] == 5
+    assert (summary["n_all_failed_iterations"] + summary["n_zero_wake_iterations"]
+            + summary["n_productive_iterations"]) == summary["n_iterations"] == 6
     assert summary["train_reward_first"] == -0.9
     assert abs(summary["train_reward_last"] - (-0.4)) < 1e-9
     assert summary["aggregates_over"] == "successful_episodes"
@@ -1856,6 +2083,16 @@ if __name__ == "__main__":
          test_an_all_failed_batch_reports_a_missing_reward_not_zero, True),
         ("a_successful_zero_wake_episode_is_not_a_failure",
          test_a_successful_zero_wake_episode_is_not_a_failure, True),
+        ("console_flag_never_reports_both_failure_states",
+         test_console_flag_never_reports_both_failure_states, True),
+        ("provenance_is_collected_before_any_run_artifact_exists",
+         test_provenance_is_collected_before_any_run_artifact_exists, True),
+        ("git_provenance_requires_both_the_sha_and_the_dirty_state",
+         test_git_provenance_requires_both_the_sha_and_the_dirty_state, True),
+        ("training_stops_when_git_provenance_is_incomplete",
+         test_training_stops_when_git_provenance_is_incomplete, True),
+        ("a_dirty_tree_warns_but_still_runs",
+         test_a_dirty_tree_warns_but_still_runs, True),
         ("run_summary_is_derived_from_the_jsonl_records",
          test_run_summary_is_derived_from_the_jsonl_records, True),
         ("run_summary_flags_a_ledger_that_disagrees",
