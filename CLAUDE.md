@@ -284,6 +284,48 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 **The two-phase tick (Stages 2–6) — `rl/training/graph_tick_loop.py`.**
 `run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`. Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`). **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
 
+**Trainer + run auditability (B4) — `rl/training/graph_train.py`.**
+The outer PPO loop's *research-validity* contract. It changed NO pipeline layer: PPO
+objectives/hyperparameters/checkpoint payload, reward and oracle normalization, the
+solver, construction/geometry/exact cardinality, the seed formulas and the fixed
+held-out band are all exactly as B1–B3 (§5, §7) left them.
+
+- **Exact-cardinality policy = `skip_and_account_v1`.** Every scheduled train/eval seed
+  is attempted **at most once**; a failure is never retried, never replaced by another
+  seed, and never shifts a band. Failures never enter a PPO buffer or a reward
+  aggregate, and each is recorded exactly once. Attempts, successes, failures and
+  denominators stay explicit, so every reward statistic describes the SUCCESSFUL /
+  exact-cardinality-feasible subset — and says so (`aggregates_over`).
+- **Git provenance is a training PRECONDITION.** `collect_provenance` runs before the
+  run creates ANY artifact (not merely before the engine/policy/solver) — `output_dir`
+  may sit inside the repo and its own untracked files would otherwise read as dirty
+  source state. `_git_provenance` sets `available=True` only when BOTH the full commit
+  SHA and the clean/dirty verdict were determined (a SHA alone does not say what ran).
+  Incomplete provenance writes the attempted `run_config.json`, then `train` REFUSES
+  before policy, generator, episode or optimizer work. A KNOWN-dirty tree warns loudly
+  and may run.
+- **Run artifacts** (a run directory is the record): `run_config.json` carrying the
+  versioned `provenance` block, `train_records.jsonl`, `eval_records.jsonl`, the
+  append-only immediately-flushed `episode_failures.jsonl` (phase, eval stage, updates
+  completed, iteration, attempt ordinal, episode index / eval tag, exact seed, pipeline
+  stage `generation|setup|run|reward`, original exception + traceback), the derived
+  `run_summary.json` (`build_run_summary` reads the jsonl — ONE metric path, with
+  `accounting_reconciled` cross-checking record counts against the ledger), and ONE
+  four-panel `training_plot.png` (`plot_training`, jsonl-only, torch-free child).
+- **Evaluation timing.** A deterministic held-out `pre_update` round runs after the
+  initial policy is built and BEFORE the first training episode, buffer insert and
+  optimizer step, recorded with `updates_completed = 0` and `iteration = null`. Later
+  rounds carry their REAL completed-update count, so none can be read as "iteration 0".
+- **Classification (`_iteration_outcome`) — three DISJOINT states:** `all_failed`
+  (nothing completed; measured nothing), `zero_wake` (episodes completed, no ego woke)
+  and `productive`. Both of the first two end at `n_epochs_run == 0`, so the classifier
+  judges episode counts, not the updater. An all-failed batch or eval round reports its
+  reward as `null`, **never `0.0`** — the reward is oracle-normalized regret, so 0 is
+  the OPTIMUM. A successful zero-wake episode is a real successful episode.
+- `TrainConfig` gains no scenario semantics here; `evaluate` gained `stage` /
+  `updates_completed` / `failures_path`. `updates_completed` counts only updates that
+  actually ran epochs, and is the learning-curve x-axis.
+
 ---
 
 ## 6. File map — "I want to…"
@@ -295,7 +337,7 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 | Change the LEGACY split path (retained, not deleted) | `rl/training/graph_episode_setup.py` → `_setup_episode_legacy`, `split_tasks` |
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
-| Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`) |
+| Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json` and one 4-panel `training_plot.png`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` |
 | Change the training scenario cell (target counts) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). The generator writes `n_known`; setup patches in `n_hidden`, so **emitted targets are `n_known + n_hidden`** (`TrainConfig.n_targets_emitted`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` / `split_preview` survive and are still tested but are NOT consulted by the construction path (B1, `d6758ac`). |
 | Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
@@ -595,22 +637,66 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
   reference rollout: 3 agents, **3 known + 3 hidden = 6 full targets**,
   `U_oracle = 479.99968` (the frozen solver EPSILON form of a raw 480), **4 organic wakes**,
   `ended=done`, reward `-0.3333`, both bonmin solves successful, no `CRASH`/`Traceback`.
+- `1b48145` — **B4: auditable training-run instrumentation — CLOSED / MERGED / LOCKED.**
+  Reviewed code SHA `1b48145f4ba6ed542c27ab6ed7a9ea3e6f6ab12c`, integrated into `main` by
+  merge commit `ba936606deada050ed9298600ee9041fc330af6c` (PR #6); the merged tree is
+  byte-identical to the approved one (`git diff --quiet 1b48145 ba93660`). **PREPARATION,
+  NOT A MEASURED BASELINE — no training run was performed.** Two files only
+  (`rl/training/graph_train.py`, `tests/test_graph_train.py`); the full contract is in §5
+  ("Trainer + run auditability"). Grade A under `GPT_GITHUB`: the first candidate
+  (`dc2142627dc40886667170fc2121fe50336329cd`) was REQUEST-FIXES, and the fix chain landed
+  as a NEW commit on the same branch — the reviewed commit was never amended, rebased or
+  force-pushed, and `1b48145` is the approved head. **Review fixes, both now part of the
+  lock:** (F1) an all-failed iteration was being counted as ZERO-WAKE because both states
+  end at `n_epochs_run == 0` — `_iteration_outcome` now classifies `all_failed` /
+  `zero_wake` / `productive` as three disjoint states from episode counts, the summary
+  carries all three counters, and the console prints at most one flag instead of both;
+  (F2) provenance was collected AFTER the run directory existed, so a run's own untracked
+  artifacts under an in-repo `output_dir` could register as dirty source state — collection
+  now precedes every artifact, `available=True` requires the SHA **and** the clean/dirty
+  verdict (a failed `git status` no longer leaves `available=True` with `dirty=None`; the
+  recovered SHA is still reported with an explicit reason), and `train` refuses incomplete
+  provenance after writing the attempted `run_config.json`. A third requested fix
+  (a duplicate `seed = train_seed(...)`) was NOT APPLIED: it is not present at the reviewed
+  SHA — the assignment occurs once, and a whole-file consecutive-duplicate scan found only
+  the intentional nested `try:` in `_run_one_episode` (the outer owns the env-closing
+  `finally`, the inner attributes the `setup` stage). **Incidental measured fix:**
+  `bonmin -v` emits byte `0x81`, and `subprocess` `text=True` decodes on a reader THREAD —
+  the `UnicodeDecodeError` killed that thread, printed a traceback on every run and returned
+  an EMPTY stdout with rc 0, so the probe would have recorded `ok` with no output; probes
+  now capture bytes and decode leniently (`_probe_command`). `_stats` was removed as
+  orphaned by this change (`graph_rollout` keeps its own separate copy). Verified:
+  `tests/test_graph_train.py` **55 passed** (34 → 55), base suite **139 passed, 4 skipped**
+  (118 → 139), 12/12 import purity, `git diff --check` clean, and all **55** green through
+  the standalone `__main__` runner under `nlp_env`. **No `graph_train --selftest`, no live
+  BONMIN training probe and no real training run were executed** — the tests are
+  solver-free, driving `train` through stubbed episode/generator/update seams and an
+  injected Git verdict.
 
 ---
 
 ## 8. OPEN (not built)
 
-- **Phase-A baseline run — B4 PLANNING / RUN PREPARATION is the next task.** The
-  scenario-construction phase is CLOSED (B1 `d6758ac`, B2 `e22aee3`, B3 `dd14ab4`), so the
-  former "deferred until construction closes" blocker is lifted. **No training run has been
-  started, and none is authorized by this entry.** The former flat `R ≈ −1/3` was scenario
-  invariance at the retired `(3,3)` default, not a reward bug; `graph_reward` remains
-  FROZEN. Before a long run: add/verify a provenance manifest (code SHA, command/config,
-  seeds, environment, solver versions), decide the policy for exact-cardinality construction
-  failures (see the route-cardinality item below), re-measure iteration-0 held-out
-  performance on the post-B3 world, and watch the first two iterations before committing —
-  the loop has never run to completion. Near-ceiling held-out performance AT ITERATION 0
-  still means the cell lacks learning headroom and must be revisited before compute is spent.
+- **Phase-A baseline run — B4 PREPARATION IS CLOSED (`1b48145`); the RUN is still OPEN.**
+  Instrumentation, provenance, skip-and-account accounting and true pre-update evaluation
+  are BUILT and locked (§5, §7). **No training run has been started, no post-B3 held-out
+  performance has been measured, and none is authorized by this entry.** The next action is
+  a SEPARATELY AUTHORIZED SHORT INSTRUMENTED PROBE, not a long run: confirm complete
+  provenance and the resolved config, obtain the true `pre_update` held-out measurement,
+  read the failure denominators and data yield, and watch the first two iterations before
+  a long run is even proposed — the loop has never run to completion. Interpretation rules
+  that survive unchanged: near-ceiling held-out performance AT `updates_completed = 0` means
+  the cell lacks learning headroom and must be revisited before compute is spent (saturation
+  AFTER training is the intended outcome); a held-out mean is never read without its
+  denominator; and the former flat `R ≈ −1/3` was scenario invariance at the retired `(3,3)`
+  default, not a reward bug — `graph_reward` remains FROZEN.
+- **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
+  raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
+  and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
+  where `git` is unavailable, times out, or cannot read the index. A dirty tree is a
+  hazard, not a blocker: it WARNS and runs. Consequence for tooling: anything driving
+  `train` outside a working checkout must inject the verdict (the tests patch
+  `_git_provenance`) rather than expect it to be optional.
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
 - **Reward densification + p<1:** per-wake/dense regret (vs today's terminal scalar) and the operand-scale rework for `probability<1.0` (expected-oracle vs realized-achieved diverge below p=1).
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
@@ -630,17 +716,21 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
   the retained legacy surface only. Options if the legacy path is ever driven again:
   reject-and-reseed the episode, raise, or tie config to a control-ratio floor plus a
   guard. Touches a §5 locked file → full recon→prompt→review→lock cycle.
-- **Exact-cardinality construction failures — an OPEN B4 policy decision.** B2's locked
-  contract is ONE placement per non-empty ego route, and B3 requires
-  `len(placements) == n_hidden` exactly. When bonmin leaves an ego unassigned there are
-  fewer routes than `n_hidden` and `setup_episode` raises; `graph_train` / `graph_rollout`
-  log the traceback, count the episode failed, and continue. Measured on the default cell
-  over seeds 0–11: **10/12 gave 3 usable ego routes; seeds 2 and 8 gave only 2**, so those
-  two episodes fail loudly and are skipped. Seed 0 (the reference) is clean. Before a long
-  run, decide explicitly what a skipped seed means for the batch — accept the ~17% loss,
-  reseed past it, relax the cell, or design the general `n_hidden != usable ego routes`
-  distribution policy B2 named as a separate task. Do NOT resolve it by weakening the
-  cardinality check.
+- **Exact-cardinality construction failures — RESOLVED as `skip_and_account_v1` by B4
+  (`1b48145`).** B2's locked contract is ONE placement per non-empty ego route, and B3
+  requires `len(placements) == n_hidden` exactly, so when bonmin leaves an ego unassigned
+  there are fewer routes than `n_hidden` and `setup_episode` raises. Measured on the default
+  cell over seeds 0–11: **10/12 gave 3 usable ego routes; seeds 2 and 8 gave only 2**; seed
+  0 (the reference) is clean. **The decision is to ACCEPT the loss and account for it**: the
+  seed is attempted once, its failure is recorded once in `episode_failures.jsonl` with the
+  pipeline stage, and the batch simply carries a smaller successful population that every
+  statistic reports next to its denominator (§5). The rejected alternatives stay rejected —
+  no reseeding past a failure, no retry, no band shift, and above all no weakening of the
+  cardinality check, the B2 geometry, or the loud failure. The general
+  `n_hidden != usable ego routes` distribution policy B2 named remains a SEPARATE, still-open
+  design task; `skip_and_account_v1` is how the current cell behaves until it exists. The
+  ~17% figure is a pre-B4 measurement over 12 seeds, not a run-time rate — the first real
+  probe measures the actual yield.
 - **Added enemy airbases are not seed-stable by id.** `ScenarioGenerator` mints a FRESH
   uuid for every red airbase it ADDS on each `generate()`, even at a fixed seed
   (geometry and utility identical, id different). The base template holds 3 red
@@ -687,8 +777,10 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
   0 wakes at `reward=+0.0000` — one agent per known target, nothing to discover, the static
   plan already at the oracle. **That old result must never be used as a learning baseline**;
   it measured the absence of a learning problem. Nor is the new number a baseline: it is
-  ONE reference episode at one seed, not a sweep. B4 must measure iteration-0 held-out
-  performance itself.
+  ONE reference episode at one seed, not a sweep. **No post-B3 training run or held-out
+  sweep has been performed** — B4 (`1b48145`) built the instrument that will measure it; the
+  first separately authorized probe reads the `pre_update` (`updates_completed = 0`) held-out
+  value from `eval_records.jsonl`, and until then there is no post-B3 baseline to cite.
 - **Raw utility 480 vs reward-side `U_oracle = 479.99968` — keep the distinction.** The
   six airbase targets sum to exactly `6 × 80 = 480` raw utility, but `graph_reward.plan_value`
   is bit-faithful to `MatchAou._add_objective` and carries the frozen anti-div-by-zero
