@@ -52,11 +52,44 @@ SEEDING SCHEDULE (this module owns it -- the two bands are DISJOINT BY VALIDATIO
     update and holds no buffer, so it cannot touch the weights. Proven empirically in
     ``_selftest`` TEST 2 (train records byte-identical with eval on vs off).
 
+EVAL EPISODE TAGS: ONE NAMESPACE PER ROUND (the seeds stay fixed)
+-----------------------------------------------------------------
 Eval scenarios are generated under a disjoint episode TAG namespace
-(``_EVAL_EPISODE_TAG_BASE``) so they can never overwrite a training scenario artifact.
-The tag only names the file and the scenario (it is not seed-derived and does not
-affect scenario CONTENT), so a fixed tag per eval episode means each round rewrites
-the same content -- idempotent, not accumulating.
+(:func:`eval_episode_tag`, based at ``_EVAL_EPISODE_TAG_BASE``) so they can never
+overwrite a training scenario artifact. Each eval ROUND additionally gets its own
+sub-namespace, ``round_ordinal`` strides of ``_EVAL_ROUND_TAG_STRIDE`` above the base:
+the ``pre_update`` round is ordinal 0 and every later ``post_update`` round takes the
+next ordinal. Previously every round reused one fixed tag per episode index, which was
+described here as "idempotent, not accumulating" -- and it was not: the rounds share
+the seed band but NOT the policy, so round 2 silently overwrote the scenario JSON of
+round 1 and a finished run could no longer show which world any but the last round had
+actually run on.
+
+The tag is NAMING ONLY. ``ScenarioGenerator.generate`` consumes ``episode`` after every
+rng draw, in one step that sets ``scenario["name"]`` and the output filename; it is not
+seed-derived and enters neither the geometry, the policy input, the action sampling nor
+the reward. The held-out band is therefore untouched: eval episode ``e`` runs seed
+``eval_base_seed + e`` on EVERY round, exactly as before -- only the file it is written
+to now says which round wrote it.
+
+PER-EPISODE OBSERVABILITY (what a run prints while it is running)
+-----------------------------------------------------------------
+Every successful attempt -- training and evaluation alike -- prints one ``OK`` block
+immediately on return, before the next attempt starts (:func:`_format_episode_block`),
+mirroring the pre-existing ``FAILED`` line so the two are never confused. The block
+names the phase, the indices and the exact seed, the reward / wakes / ending / ticks /
+dead / elapsed time, and the episode's TARGET ROSTER by BLADE ``name`` -- known and
+hidden, listed against the subsets that were confirmed killed. Ids never appear: a
+uuid tells a reader nothing, and generated target ids are not even seed-stable.
+
+Confirmation counts are UNIQUE OVER TARGET ID. ``GraphPlanExecutor.done`` holds
+``(ego_id, target_id)`` pairs, so ``EpisodeResult.confirmed_kills`` counts CONFIRMATIONS
+and can exceed the number of targets in the world when two egos confirm the same kill.
+That is correct for what it measures and is left untouched; this module simply stops
+aggregating it. ``targets_confirmed_unique_mean`` / ``eval_targets_confirmed_unique_mean``
+are the authoritative aggregates, ``target_confirmation_count_semantics`` states the
+convention in the record itself, and ``kills_mean`` / ``eval_kills_mean`` survive as
+compatibility aliases fed from the same corrected number.
 
 SCENARIO SOURCE (the offline construction path: B1 generation + B3 setup seam)
 -----------------------------------------------------------------------------
@@ -181,6 +214,7 @@ from .graph_ppo import EpisodeRecord, PPOBuffer, PPOConfig, PPOUpdater
 from .graph_reward import compute_episode_reward
 from .graph_tick_loop import build_policy, run_episode
 from ..action.graph_action import MetaAction
+from ...models import StepKind
 from ...utils.blade_utils.scenario_generator import (
     ScenarioGenerator,
     VariationConfig,
@@ -199,6 +233,22 @@ _META_NAMES = [MetaAction(i).name for i in range(len(MetaAction))]
 # collide with a training episode's global index g. Purely a NAMING offset: the tag is
 # not seed-derived and does not enter scenario content.
 _EVAL_EPISODE_TAG_BASE = 900_000
+
+# Width of ONE eval round's tag sub-namespace (see `eval_episode_tag`). Round ordinal r
+# owns [base + r*stride, base + (r+1)*stride), so no two rounds can name the same
+# scenario file. `TrainConfig.validate` refuses an `eval_episodes` that would not fit.
+_EVAL_ROUND_TAG_STRIDE = 1_000
+
+# What a target-confirmation COUNT means in every record this module writes. Stated in
+# the record rather than left to the reader because the executor's own `done` set is
+# keyed `(ego_id, target_id)` -- a different, also-correct quantity that this module
+# deliberately no longer aggregates.
+_TARGET_CONFIRMATION_SEMANTICS = "unique_target_id"
+
+# Shown instead of a target's BLADE name when the scenario cannot supply one. NEVER the
+# target's id: ids are uuids, they are not seed-stable for generated targets, and a
+# success block that printed one would be unreadable rather than merely incomplete.
+_UNNAMED_TARGET = "<unnamed target>"
 
 # Wall-clock fields -- excluded when two runs' records are compared for equality
 # (see _selftest TEST 2: timing legitimately differs run to run).
@@ -534,6 +584,24 @@ class TrainConfig:
 
         if not self.eval_enabled:
             return
+
+        # --- the eval scenario-TAG namespace must stay disjoint (see eval_episode_tag)
+        # These are artifact-NAMING bounds, not seed bounds, but a violation is the same
+        # class of silent loss: one round's scenario JSON overwriting another's.
+        if int(self.eval_episodes) > _EVAL_ROUND_TAG_STRIDE:
+            raise ValueError(
+                "eval_episodes (%d) exceeds one eval round's scenario-tag namespace "
+                "(%d): consecutive eval rounds would write over each other's scenario "
+                "files. Raise _EVAL_ROUND_TAG_STRIDE or shorten the eval band."
+                % (int(self.eval_episodes), _EVAL_ROUND_TAG_STRIDE)
+            )
+        if self.total_episodes > _EVAL_EPISODE_TAG_BASE:
+            raise ValueError(
+                "total training episodes (%d) reaches the eval scenario-tag base (%d): "
+                "training and eval scenarios would collide by filename."
+                % (self.total_episodes, _EVAL_EPISODE_TAG_BASE)
+            )
+
         train_lo = int(self.base_seed)
         train_hi = train_lo + self.total_episodes            # exclusive
         eval_lo = int(self.eval_base_seed)
@@ -563,6 +631,46 @@ def train_seed(cfg: TrainConfig, iteration: int, j: int) -> int:
 def eval_seed(cfg: TrainConfig, e: int) -> int:
     """Seed of eval episode ``e``: ``eval_base_seed + e`` -- FIXED across rounds."""
     return int(cfg.eval_base_seed) + int(e)
+
+
+def eval_episode_tag(*, round_ordinal: int, e: int) -> int:
+    """Scenario TAG for eval episode ``e`` of eval round ``round_ordinal``.
+
+    A NAME, NOT A SEED, and the distinction is the whole point of this function. The
+    held-out band is fixed: eval episode ``e`` runs :func:`eval_seed` on every round, so
+    the same world is re-measured as the policy changes. What must NOT be fixed is the
+    FILE that world is written to -- with one tag per episode index, every round wrote
+    ``episode_900000_scenario.json`` again and the earlier rounds' scenario artifacts
+    were destroyed as the run progressed. A finished run could then no longer show which
+    world any round but the last had actually run on.
+
+    Round ordinal ``r`` therefore owns the half-open tag band
+    ``[base + r*stride, base + (r+1)*stride)``: ``pre_update`` is ordinal 0 and each
+    later ``post_update`` round takes the next ordinal, so the three tag sets (training,
+    pre-update, post-update round k) are pairwise DISJOINT by construction.
+
+    ``ScenarioGenerator.generate`` consumes ``episode`` only after every rng draw, in the
+    single step that sets ``scenario["name"]`` and the output filename. Nothing here can
+    reach seed derivation, the generated geometry, the policy input, action sampling or
+    the reward.
+
+    Raises:
+        ValueError: on a negative ordinal, or on ``e`` outside one round's stride --
+            which would let round ``r`` reach into round ``r+1``'s band and reintroduce
+            exactly the overwrite this exists to prevent. :meth:`TrainConfig.validate`
+            refuses such a config up front; this is the second, local guard.
+    """
+    r = int(round_ordinal)
+    i = int(e)
+    if r < 0:
+        raise ValueError("round_ordinal must be >= 0, got %d" % r)
+    if not (0 <= i < _EVAL_ROUND_TAG_STRIDE):
+        raise ValueError(
+            "eval episode index %d does not fit one round's tag namespace of %d: "
+            "rounds would overwrite each other's scenario files."
+            % (i, _EVAL_ROUND_TAG_STRIDE)
+        )
+    return _EVAL_EPISODE_TAG_BASE + r * _EVAL_ROUND_TAG_STRIDE + i
 
 
 # =============================================================================
@@ -1124,6 +1232,212 @@ def _build_generator(scen_dir: Path) -> ScenarioGenerator:
 
 
 # =============================================================================
+# 3d. Per-episode observability -- the target roster and the OK block
+# =============================================================================
+#
+# Everything in this section is READ-ONLY with respect to the pipeline. It inspects an
+# `EpisodeContext` and the executor's confirmed-kill set and formats text; it never
+# mutates a belief, a solution, an executor, a reward or a scenario. It also never
+# raises: an episode that really ran must not be lost because its console line could
+# not be built, so every lookup degrades to a placeholder instead of an exception.
+
+def _ascii(text: Any) -> str:
+    """Render a value for the cp1255 Windows console -- non-ASCII becomes ``?``.
+
+    Target names come out of a scenario JSON, which is not this module's to constrain.
+    A stray non-ASCII byte in one target's name must not take down a training run with a
+    ``UnicodeEncodeError`` from ``print``.
+    """
+    return str(text).encode("ascii", errors="replace").decode("ascii")
+
+
+def _format_names(names: Tuple[str, ...]) -> str:
+    """A name list as a compact JSON array: ``["Enemy Airbase #1", ...]``, ``[]`` if empty."""
+    return json.dumps([_ascii(n) for n in names])
+
+
+def _task_target_id(task: Any) -> Optional[str]:
+    """The target id a task attacks -- first ATTACK step, else ``steps[0]``.
+
+    The builder's canonical form, duplicated here rather than imported: the builder's
+    version is private to a locked layer, and ``graph_rollout`` already carries its own
+    copy for the same reason. Returns ``None`` for a step-less or target-less task
+    instead of raising.
+    """
+    steps = getattr(task, "steps", None) or []
+    step = next(
+        (s for s in steps if getattr(s, "step_kind", None) == StepKind.ATTACK),
+        steps[0] if steps else None,
+    )
+    if step is None:
+        return None
+    target_id = getattr(step, "target_id", None)
+    return None if target_id is None else str(target_id)
+
+
+def _unique_confirmed_target_ids(done: Any) -> set:
+    """``{target_id}`` from the executor's ``(ego_id, target_id)`` confirmed-kill set.
+
+    THE deduplication this task exists for. ``GraphPlanExecutor.done`` records one entry
+    per (ego, target) CONFIRMATION, so two egos that both close on the same wreck put two
+    entries in it and ``EpisodeResult.confirmed_kills == len(done)`` can exceed the number
+    of targets in the world. Reported as "kills" that reads as an impossible result --
+    the approved first probe surfaced exactly that.
+
+    The executor's set is correct for what it measures and is NOT changed (nor is the
+    reward, which has always deduplicated the same way in
+    ``graph_reward.realized_utility``). This is the one place that converts it into a
+    count of TARGETS, and every aggregate and every printed count goes through here.
+    """
+    return {str(target_id) for _ego_id, target_id in (done or set())}
+
+
+@dataclass(frozen=True)
+class _TargetRoster:
+    """The episode's target roster, snapshotted at t=0 and resolved to BLADE names.
+
+    Ordered, not set-valued: known targets keep A_init's positional order and hidden
+    targets keep the oracle task order, so two runs of the same seed print the same
+    lists in the same order.
+
+    ``known_ids`` / ``hidden_ids`` are kept because the confirmation split is computed by
+    id; they are never printed (see :data:`_UNNAMED_TARGET`).
+    """
+
+    known_ids: Tuple[str, ...]
+    known_names: Tuple[str, ...]
+    hidden_ids: Tuple[str, ...]
+    hidden_names: Tuple[str, ...]
+
+    @property
+    def total(self) -> int:
+        """Targets in the executed world: the denominator of every confirmation count."""
+        return len(self.known_ids) + len(self.hidden_ids)
+
+    def confirmed(self, confirmed_ids: set) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+        """Split a unique confirmed-target-id set into ``(known_names, hidden_names)``.
+
+        Roster order is preserved, and because the roster's two halves are disjoint and
+        cover every executed target, ``len(known) + len(hidden)`` IS the unique
+        confirmation total -- the two reported numbers cannot disagree.
+        """
+        known = tuple(
+            name for tid, name in zip(self.known_ids, self.known_names)
+            if tid in confirmed_ids
+        )
+        hidden = tuple(
+            name for tid, name in zip(self.hidden_ids, self.hidden_names)
+            if tid in confirmed_ids
+        )
+        return known, hidden
+
+
+_EMPTY_ROSTER = _TargetRoster((), (), (), ())
+
+
+def _resolve_target_name(ctx: Any, target_id: str) -> str:
+    """One target's BLADE ``name`` via ``scenario.get_target``; never raises, never a uuid.
+
+    CALL BEFORE THE EPISODE RUNS. ``get_target`` scans the LIVE scenario, and a killed
+    unit is removed from it -- resolving names afterwards would silently blank out
+    exactly the targets the block is reporting as confirmed.
+    """
+    try:
+        target = ctx.game.current_scenario.get_target(str(target_id))
+    except Exception:  # noqa: BLE001 - a name lookup must never cost an episode
+        return _UNNAMED_TARGET
+    name = getattr(target, "name", None) if target is not None else None
+    return _UNNAMED_TARGET if not name else str(name)
+
+
+def _episode_target_roster(ctx: Any) -> _TargetRoster:
+    """Snapshot the known / hidden target roster of a freshly set-up episode.
+
+    CALL AFTER ``setup_episode`` AND BEFORE ``run_episode``, for two independent reasons:
+    the names are read out of the live scenario, which loses units as they are killed;
+    and the known set is read from ``ctx.beliefs``, which are byte-equal at t=0 and
+    legitimately DIVERGE per ego afterwards (that divergence is the no-communication
+    guarantee, not a defect).
+
+      * KNOWN   -- the t=0 belief task list, in A_init's positional order.
+      * FULL    -- ``ctx.oracle_tasks``: the oracle is an independent solve over ALL
+        env-2 targets (B3), so this is the executed world, hidden half included.
+      * HIDDEN  -- full minus known, in oracle order. Derived by SUBTRACTION rather than
+        from ``ctx.placements``, which is deliberately id-free.
+
+    Degrades instead of raising: a missing field yields an empty roster and one warning
+    line, because losing a real episode to a diagnostic would corrupt the data yield that
+    ``skip_and_account_v1`` exists to report honestly.
+    """
+    try:
+        beliefs = list(getattr(ctx, "beliefs", {}).values())
+        known_ids: List[str] = []
+        if beliefs:
+            known_ids = [
+                tid for tid in (_task_target_id(t) for t in beliefs[0].tasks)
+                if tid is not None
+            ]
+            # Cheap no-comms invariant check (<= ~4 egos x ~9 tasks). All N beliefs are
+            # minted from one A_init, so a disagreement at t=0 would be a real defect --
+            # reported, never silently averaged over and never fatal to the episode.
+            for other in beliefs[1:]:
+                other_ids = [
+                    tid for tid in (_task_target_id(t) for t in other.tasks)
+                    if tid is not None
+                ]
+                if other_ids != known_ids:
+                    print("  [WARN] beliefs disagree on the t=0 known target set; "
+                          "the roster reports the first ego's view")
+                    break
+
+        known_set = set(known_ids)
+        hidden_ids = [
+            tid for tid in (
+                _task_target_id(t) for t in (getattr(ctx, "oracle_tasks", None) or [])
+            )
+            if tid is not None and tid not in known_set
+        ]
+        # The oracle may list a target twice only if two tasks share it; keep first use.
+        hidden_ids = list(dict.fromkeys(hidden_ids))
+
+        return _TargetRoster(
+            known_ids=tuple(known_ids),
+            known_names=tuple(_resolve_target_name(ctx, t) for t in known_ids),
+            hidden_ids=tuple(hidden_ids),
+            hidden_names=tuple(_resolve_target_name(ctx, t) for t in hidden_ids),
+        )
+    except Exception as exc:  # noqa: BLE001 - see the docstring: never cost an episode
+        print("  [WARN] could not snapshot the episode target roster (%s: %s); "
+              "the success block will report an empty roster"
+              % (type(exc).__name__, exc))
+        return _EMPTY_ROSTER
+
+
+def _format_episode_block(header: str, out: "_EpisodeOutcome") -> str:
+    """The multi-line ``OK`` block for ONE completed episode.
+
+    ``OK`` means the attempt COMPLETED -- generation, setup, run and reward all returned.
+    It is not a verdict on the episode: ``ended`` still reports ``done`` /
+    ``terminated`` / ``truncated``, and a successful zero-wake episode prints ``OK`` too.
+    It exists so a completed attempt is never mistaken for the ``FAILED`` line, which is
+    unchanged.
+
+    Pure and separate from ``print`` so a test can assert on the exact text.
+    """
+    return "\n".join([
+        "%s OK" % header,
+        "  reward=%+.4f wakes=%d targets_confirmed_unique=%d/%d"
+        % (out.reward, out.n_wakes, out.targets_confirmed_unique, out.targets_total),
+        "  known_targets=%s" % _format_names(out.known_target_names),
+        "  known_confirmed=%s" % _format_names(out.known_confirmed_names),
+        "  hidden_targets=%s" % _format_names(out.hidden_target_names),
+        "  hidden_confirmed=%s" % _format_names(out.hidden_confirmed_names),
+        "  ended=%s ticks=%d dead=%d elapsed=%.1fs"
+        % (_ascii(out.ended), out.ticks, out.n_dead, out.seconds),
+    ])
+
+
+# =============================================================================
 # 4. One episode (shared by training and evaluation)
 # =============================================================================
 
@@ -1134,6 +1448,20 @@ class _EpisodeOutcome:
     ``trajectory`` survives the env close by construction: a ``Transition`` holds a
     ``GraphObservation`` (numpy arrays + id strings) and detached floats -- no BLADE
     handle -- so the buffer can outlive the episode it came from.
+
+    The observability fields are the same story: plain ints and name STRINGS, resolved
+    while the env was still open, so a block can be printed (and an aggregate taken)
+    after the environment is gone. They default to an empty roster so a caller that
+    builds an outcome without one still constructs.
+
+    TWO COUNTS, DELIBERATELY BOTH PRESENT:
+      * ``confirmed_kills`` is ``EpisodeResult.confirmed_kills`` verbatim -- the number
+        of ``(ego_id, target_id)`` CONFIRMATIONS in ``GraphPlanExecutor.done``. It is
+        kept so this record stays a faithful mirror of what the tick loop reported, and
+        it is what could exceed the world's target count when two egos confirm one kill.
+      * ``targets_confirmed_unique`` counts TARGETS (deduplicated over ego, see
+        :func:`_unique_confirmed_target_ids`) out of ``targets_total``. It is the only
+        one that is printed or aggregated.
     """
 
     trajectory: List[Any]
@@ -1144,6 +1472,14 @@ class _EpisodeOutcome:
     confirmed_kills: int
     n_dead: int
     seconds: float
+
+    # --- observability (see the class docstring) ---
+    targets_confirmed_unique: int = 0
+    targets_total: int = 0
+    known_target_names: Tuple[str, ...] = ()
+    hidden_target_names: Tuple[str, ...] = ()
+    known_confirmed_names: Tuple[str, ...] = ()
+    hidden_confirmed_names: Tuple[str, ...] = ()
 
 
 def _run_one_episode(
@@ -1174,6 +1510,13 @@ def _run_one_episode(
     (:data:`_PIPELINE_STAGES`); ``setup`` in particular is where an exact-cardinality
     construction failure lands. The caller decides whether a failure aborts (it does
     not: see :func:`train`), and this function NEVER retries or substitutes a seed.
+
+    OBSERVABILITY is collected inside this function because it is the only scope that
+    still holds the context: the target roster is snapshotted between ``setup_episode``
+    and ``run_episode`` (t=0 beliefs, and a scenario that has not lost a unit yet), the
+    unique confirmed-target set is read off the executor after the run, and both survive
+    the ``finally`` that closes the env because they are ints and strings. None of it is
+    a new pipeline stage -- it cannot fail an attempt (:func:`_episode_target_roster`).
     """
     random.seed(seed)
     torch.manual_seed(seed)
@@ -1199,6 +1542,13 @@ def _run_one_episode(
             )
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
+
+        # The roster is snapshotted HERE -- after setup, before a single tick -- because
+        # both of its sources are t=0 facts: the N beliefs are byte-equal only now, and
+        # the live scenario still holds every target it is about to lose to a kill.
+        # Read-only and non-raising (see `_episode_target_roster`).
+        roster = _episode_target_roster(ctx)
+
         try:
             result = run_episode(
                 policy, ctx,
@@ -1211,6 +1561,15 @@ def _run_one_episode(
             ep_reward = compute_episode_reward(ctx, result)
         except Exception as exc:
             raise EpisodeAttemptError("reward", exc) from exc
+
+        # Deduplicated over ego: `ctx.executor.done` holds (ego, target) pairs, so a
+        # target both egos confirmed is ONE target here (and `result.confirmed_kills`
+        # below still reports the raw confirmation count, unchanged).
+        confirmed_ids = _unique_confirmed_target_ids(
+            getattr(ctx.executor, "done", None)
+        )
+        known_confirmed, hidden_confirmed = roster.confirmed(confirmed_ids)
+
         return _EpisodeOutcome(
             trajectory=list(result.trajectory),
             reward=float(ep_reward.reward),
@@ -1220,6 +1579,12 @@ def _run_one_episode(
             confirmed_kills=int(result.confirmed_kills),
             n_dead=int(result.n_dead),
             seconds=time.perf_counter() - t0,
+            targets_confirmed_unique=len(known_confirmed) + len(hidden_confirmed),
+            targets_total=roster.total,
+            known_target_names=roster.known_names,
+            hidden_target_names=roster.hidden_names,
+            known_confirmed_names=known_confirmed,
+            hidden_confirmed_names=hidden_confirmed,
         )
     finally:
         if ctx is not None:
@@ -1241,6 +1606,7 @@ def evaluate(
     iteration: Optional[int],
     stage: str = _EVAL_STAGE_POST_UPDATE,
     updates_completed: int = 0,
+    round_ordinal: int = 0,
     failures_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Run ``cfg.eval_episodes`` deterministic episodes on the FIXED eval seed band.
@@ -1263,10 +1629,17 @@ def evaluate(
     is why they are reported next to ``n_attempted`` / ``n_successful`` / ``n_failed``
     and are ``None`` (not ``0.0``) when that subset is empty.
 
-    Returns a scalar-only record (also written to ``eval_records.jsonl``).
+    ``round_ordinal`` names this round's SCENARIO-TAG namespace (:func:`eval_episode_tag`)
+    and nothing else. The seeds are unchanged -- episode ``e`` is ``eval_seed(cfg, e)`` on
+    every round -- so successive rounds re-measure the same held-out worlds; they just
+    stop overwriting each other's scenario JSON while doing it. ``pre_update`` is
+    ordinal 0 and each later ``post_update`` round takes the next.
+
+    Returns a scalar-only record (also written to ``eval_records.jsonl``), plus one
+    printed ``OK`` block per successful episode.
     """
     rewards: List[float] = []
-    kills: List[float] = []
+    unique_confirmed: List[float] = []
     wakes: List[float] = []
     meta_counts = _empty_meta_counts()
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
@@ -1276,7 +1649,7 @@ def evaluate(
 
     for e in range(cfg.eval_episodes):
         seed = eval_seed(cfg, e)
-        tag = _EVAL_EPISODE_TAG_BASE + e
+        tag = eval_episode_tag(round_ordinal=round_ordinal, e=e)
         try:
             out = _run_one_episode(
                 policy, gen, cfg,
@@ -1301,8 +1674,13 @@ def evaluate(
                   % (stage, e, seed, type(exc).__name__, exc))
             traceback.print_exc()
             continue
+        # Printed BEFORE the next attempt starts, so a long eval round is readable while
+        # it runs rather than only in the round's summary line.
+        print(_format_episode_block(
+            "[eval stage=%s ep=%d seed=%d]" % (_ascii(stage), e, seed), out
+        ))
         rewards.append(out.reward)
-        kills.append(float(out.confirmed_kills))
+        unique_confirmed.append(float(out.targets_confirmed_unique))
         wakes.append(float(out.n_wakes))
         _add_meta_action_counts(meta_counts, out.trajectory)
         if out.ended in ended_counts:
@@ -1311,10 +1689,17 @@ def evaluate(
     n_successful = len(rewards)
     episodes_with_wakes = sum(1 for w in wakes if w > 0)
     r = _stats_or_none(rewards)
+    # ONE arithmetic site behind BOTH the authoritative key and its legacy alias, so the
+    # two can never drift apart and the alias can never revert to the (ego,target) count.
+    unique_confirmed_mean = _stats_or_none(unique_confirmed)["mean"]
     return {
         "evaluation_stage": str(stage),
         "updates_completed": int(updates_completed),
         "iteration": None if iteration is None else int(iteration),
+        # Which scenario-tag namespace this round's worlds were written under -- the
+        # link from a record back to the `episode_<tag>_scenario.json` files it ran on.
+        "eval_round_ordinal": int(round_ordinal),
+        "episode_tag_start": eval_episode_tag(round_ordinal=round_ordinal, e=0),
         # --- attempt accounting: the AUTHORITATIVE names ---
         "n_attempted": n_attempted,
         "n_successful": n_successful,
@@ -1326,7 +1711,10 @@ def evaluate(
         "eval_reward_mean": r["mean"],
         "eval_reward_min": r["min"],
         "eval_reward_max": r["max"],
-        "eval_kills_mean": _stats_or_none(kills)["mean"],
+        # AUTHORITATIVE: mean number of distinct TARGETS confirmed killed per successful
+        # episode. Bounded by the world's target count by construction.
+        "eval_targets_confirmed_unique_mean": unique_confirmed_mean,
+        "target_confirmation_count_semantics": _TARGET_CONFIRMATION_SEMANTICS,
         "eval_wakes_mean": _stats_or_none(wakes)["mean"],
         "aggregates_over": "successful_episodes",
         "meta_action_counts": dict(meta_counts),
@@ -1340,6 +1728,11 @@ def evaluate(
         # --- compatibility names kept so pre-B4 readers still parse a record ---
         "n_episodes": n_attempted,
         "n_ok": n_successful,
+        # ALIAS of `eval_targets_confirmed_unique_mean`, not a second measurement. It
+        # used to average `len(executor.done)` -- (ego, target) CONFIRMATIONS, which can
+        # exceed the number of targets in the world -- and now carries the corrected
+        # unique-target count under its old name.
+        "eval_kills_mean": unique_confirmed_mean,
         "eval_seconds": time.perf_counter() - t0,
     }
 
@@ -1422,6 +1815,13 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     held-out measurement of the UNTRAINED policy, and without it there is nothing to
     compare a trained curve against. ``updates_completed`` counts updates that actually
     ran epochs, so a zero-wake iteration (a no-op update) does not inflate it.
+
+    Each eval round is given the NEXT scenario-tag namespace (``eval_round_ordinal`` ->
+    :func:`eval_episode_tag`), so every round's generated worlds survive the run instead
+    of the next round overwriting them. The held-out SEEDS are untouched.
+
+    Every successful attempt prints one ``OK`` block on return
+    (:func:`_format_episode_block`), before the next attempt starts.
 
     The updater (hence its Adam moments) is built ONCE for the whole run.
     """
@@ -1525,6 +1925,11 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     eval_records: List[Dict[str, Any]] = []
     last_eval_iteration = -1
     last_ckpt_iteration = -1
+    # Which eval round is next, and therefore which SCENARIO-TAG namespace it writes into
+    # (see `eval_episode_tag`). 0 is the pre-update round; every later round takes the
+    # next ordinal so no round can overwrite an earlier round's scenario artifacts. It
+    # names files only -- the held-out seeds are the same on every round.
+    eval_round_ordinal = 0
     # Updates that actually ran epochs. This is the learning-curve x-axis: it is the
     # amount of LEARNING behind a measurement, which an iteration counter is not (a
     # zero-wake iteration completes but performs no gradient step).
@@ -1542,7 +1947,9 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
         if cfg.eval_enabled:
             ev = evaluate(policy, gen, cfg, iteration=None,
                           stage=_EVAL_STAGE_PRE_UPDATE, updates_completed=0,
+                          round_ordinal=eval_round_ordinal,
                           failures_path=failures_path)
+            eval_round_ordinal += 1
             eval_records.append(ev)
             eval_fh.write(json.dumps(ev) + "\n")
             eval_fh.flush()
@@ -1556,7 +1963,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             meta_counts = _empty_meta_counts()
             ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
             rewards: List[float] = []
-            kills: List[float] = []
+            unique_confirmed: List[float] = []
             ticks: List[float] = []
             n_failed_iter = 0
             n_attempted_iter = int(cfg.episodes_per_iteration)
@@ -1597,11 +2004,18 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                     traceback.print_exc()
                     continue
 
+                # Printed BEFORE the next attempt starts: a batch of long episodes is
+                # then readable as it runs, and a completed attempt is visibly distinct
+                # from the FAILED line above.
+                print(_format_episode_block(
+                    "[train iter=%d ep=%d seed=%d]" % (iteration, g, seed), out
+                ))
+
                 buf.add(EpisodeRecord.from_trajectory(
                     out.trajectory, out.reward, seed=seed, episode_index=g,
                 ))
                 rewards.append(out.reward)
-                kills.append(float(out.confirmed_kills))
+                unique_confirmed.append(float(out.targets_confirmed_unique))
                 ticks.append(float(out.ticks))
                 _add_meta_action_counts(meta_counts, out.trajectory)
                 if out.ended in ended_counts:
@@ -1624,6 +2038,8 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             train_reward_mean = (
                 float(diag["baseline"]) if n_successful_iter > 0 else None
             )
+            # ONE arithmetic site behind BOTH the authoritative key and its legacy alias.
+            unique_confirmed_mean = _stats_or_none(unique_confirmed)["mean"]
 
             # ---- the per-iteration SCALAR record (no per_epoch lists, no tensors) ----
             record = {
@@ -1669,7 +2085,15 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                 "ended_counts": dict(ended_counts),
                 "reward_min": _stats_or_none(rewards)["min"],
                 "reward_max": _stats_or_none(rewards)["max"],
-                "kills_mean": _stats_or_none(kills)["mean"],
+                # AUTHORITATIVE: mean number of distinct TARGETS confirmed killed per
+                # successful episode, deduplicated over ego.
+                "targets_confirmed_unique_mean": unique_confirmed_mean,
+                "target_confirmation_count_semantics":
+                    _TARGET_CONFIRMATION_SEMANTICS,
+                # ALIAS of the key above, not a second measurement. It used to average
+                # `len(executor.done)` -- (ego, target) CONFIRMATIONS, which can exceed
+                # the number of targets in the world.
+                "kills_mean": unique_confirmed_mean,
                 "ticks_mean": _stats_or_none(ticks)["mean"],
                 "iteration_seconds": time.perf_counter() - t_iter,
                 "episodes_seconds": episodes_seconds,
@@ -1704,18 +2128,20 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                 ev = evaluate(policy, gen, cfg, iteration=iteration,
                               stage=_EVAL_STAGE_POST_UPDATE,
                               updates_completed=updates_completed,
+                              round_ordinal=eval_round_ordinal,
                               failures_path=failures_path)
+                eval_round_ordinal += 1
                 eval_records.append(ev)
                 eval_fh.write(json.dumps(ev) + "\n")
                 eval_fh.flush()
                 last_eval_iteration = iteration
                 print("  [eval @iter %d, updates=%d] mean=%s min=%s max=%s "
-                      "kills=%s ok=%d/%d  %5.1fs"
+                      "targets_unique=%s ok=%d/%d  %5.1fs"
                       % (iteration, ev["updates_completed"],
                          _fmt_opt(ev["eval_reward_mean"]),
                          _fmt_opt(ev["eval_reward_min"]),
                          _fmt_opt(ev["eval_reward_max"]),
-                         _fmt_opt(ev["eval_kills_mean"], "%.1f"),
+                         _fmt_opt(ev["eval_targets_confirmed_unique_mean"], "%.1f"),
                          ev["n_successful"], ev["n_attempted"], ev["eval_seconds"]))
 
             # ---- periodic checkpoint ----
@@ -1730,7 +2156,9 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             ev = evaluate(policy, gen, cfg, iteration=final_iteration,
                           stage=_EVAL_STAGE_POST_UPDATE,
                           updates_completed=updates_completed,
+                          round_ordinal=eval_round_ordinal,
                           failures_path=failures_path)
+            eval_round_ordinal += 1
             eval_records.append(ev)
             eval_fh.write(json.dumps(ev) + "\n")
             eval_fh.flush()
