@@ -96,6 +96,7 @@ import io
 import inspect
 import json
 import random
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -128,6 +129,7 @@ from match_aou.rl.training.graph_rollout import (  # noqa: E402
 )
 from match_aou.rl.training.graph_train import (  # noqa: E402
     EpisodeAttemptError,
+    EpisodeRosterError,
     TrainConfig,
     _EpisodeOutcome,
     _EVAL_STAGE_POST_UPDATE,
@@ -1274,6 +1276,64 @@ _FAKE_GIT_INCOMPLETE = {
 }
 
 
+# The target roster every stubbed SUCCESSFUL episode reports, shaped like the reference
+# cell: 3 known + 3 hidden = 6 executed targets, of which 3 distinct ones are confirmed
+# (2 known + 1 hidden). Names only -- ids never reach a success block.
+#
+# `_STUB_CONFIRMED_KILLS` is deliberately LARGER than the 3 unique targets: it models the
+# (ego, target) confirmation count that `EpisodeResult.confirmed_kills` reports, so any
+# aggregate that silently reverted to it would read 4.0 instead of 3.0 and the tests
+# would catch it.
+_STUB_KNOWN_TARGETS = ("Enemy Airbase #1", "Enemy Airbase #2", "Enemy Airbase #3")
+_STUB_HIDDEN_TARGETS = ("Hidden Airbase #001", "Hidden Airbase #002",
+                        "Hidden Airbase #003")
+_STUB_KNOWN_CONFIRMED = ("Enemy Airbase #1", "Enemy Airbase #2")
+_STUB_HIDDEN_CONFIRMED = ("Hidden Airbase #002",)
+_STUB_UNIQUE_CONFIRMED = len(_STUB_KNOWN_CONFIRMED) + len(_STUB_HIDDEN_CONFIRMED)  # 3
+_STUB_TARGETS_TOTAL = len(_STUB_KNOWN_TARGETS) + len(_STUB_HIDDEN_TARGETS)         # 6
+_STUB_CONFIRMED_KILLS = 4          # (ego, target) PAIRS -- must never be aggregated
+
+
+# A SECOND valid roster with a different world and a different unique count. It replaces
+# the former `empty_roster=True` variant, which encoded the false zero the review
+# rejected: a degraded roster is no longer a successful measurement at all, so it cannot
+# be used to show that the reward is independent of the roster. Two DIFFERENT VALID
+# rosters make the same point without asserting that a broken one is fine.
+_STUB_ALT_KNOWN_TARGETS = ("Floridistan AFB #11", "Floridistan AFB #22")
+_STUB_ALT_HIDDEN_TARGETS = ("Hidden Airbase #009",)
+_STUB_ALT_KNOWN_CONFIRMED = ("Floridistan AFB #22",)
+_STUB_ALT_HIDDEN_CONFIRMED = ()
+_STUB_ALT_UNIQUE_CONFIRMED = 1
+_STUB_ALT_TARGETS_TOTAL = 3
+
+
+def _stub_roster_fields(*, variant: str = "default") -> dict:
+    """The observability fields a stubbed `_EpisodeOutcome` carries.
+
+    Both variants are VALID rosters whose confirmed-name subsets reconcile with their
+    unique count; they differ in world size, names and count. There is deliberately no
+    "degraded" variant: a roster that cannot be established now fails the attempt, so a
+    zero-roster success is not a state the trainer can be in.
+    """
+    if variant == "alt":
+        return {
+            "targets_confirmed_unique": _STUB_ALT_UNIQUE_CONFIRMED,
+            "targets_total": _STUB_ALT_TARGETS_TOTAL,
+            "known_target_names": _STUB_ALT_KNOWN_TARGETS,
+            "hidden_target_names": _STUB_ALT_HIDDEN_TARGETS,
+            "known_confirmed_names": _STUB_ALT_KNOWN_CONFIRMED,
+            "hidden_confirmed_names": _STUB_ALT_HIDDEN_CONFIRMED,
+        }
+    return {
+        "targets_confirmed_unique": _STUB_UNIQUE_CONFIRMED,
+        "targets_total": _STUB_TARGETS_TOTAL,
+        "known_target_names": _STUB_KNOWN_TARGETS,
+        "hidden_target_names": _STUB_HIDDEN_TARGETS,
+        "known_confirmed_names": _STUB_KNOWN_CONFIRMED,
+        "hidden_confirmed_names": _STUB_HIDDEN_CONFIRMED,
+    }
+
+
 def _run_stub_training(
     cfg: TrainConfig,
     *,
@@ -1281,6 +1341,8 @@ def _run_stub_training(
     wakes_per_episode: int = 0,
     git=None,
     events=None,
+    roster_variant: str = "default",
+    capture_stdout: bool = False,
 ):
     """Drive the REAL `train()` with the BLADE+solver episode body replaced by a stub.
 
@@ -1303,6 +1365,17 @@ def _run_stub_training(
     `events` may be supplied by the caller so the log survives a `train()` that RAISES
     -- which is exactly what the provenance-gate test needs to inspect.
 
+    Every successful stub episode reports the reference-cell target roster
+    (`_stub_roster_fields`); pass `roster_variant="alt"` for a DIFFERENT valid roster.
+    `capture_stdout=True` returns everything the run printed as ``state["stdout"]``,
+    which is how the per-episode OK blocks are asserted.
+
+    The stub episode body also TOUCHES the scenario file the real generator would have
+    written for its `episode_tag` (`ScenarioGenerator.generate` names it
+    ``episode_%04d_scenario.json``). Nothing is generated -- the point is only that the
+    tag namespace is observable as filenames, so "a later eval round overwrote an earlier
+    round's scenario" is testable without BLADE.
+
     Patched by hand with try/finally rather than via pytest's `monkeypatch` fixture, so
     these tests also run through this file's `__main__` runner (pytest is absent in
     nlp_env).
@@ -1310,13 +1383,17 @@ def _run_stub_training(
     Returns ``(summary, events, state)``. ``events`` is ONE ordered list mixing policy
     construction, every episode attempt and every update -- an interleaved log is the
     only way to assert that evaluation happened BEFORE training rather than merely that
-    both happened.
+    both happened. Each episode event carries its `episode_tag` as a fourth element.
     """
     failures = dict(failures or {})
     n_wakes = int(wakes_per_episode)
     git_verdict = dict(_FAKE_GIT_OK if git is None else git)
     events = [] if events is None else events
-    state: dict = {"weights_at_build": None, "at_first_train": None}
+    roster_fields = _stub_roster_fields(variant=roster_variant)
+    state: dict = {
+        "weights_at_build": None, "at_first_train": None,
+        "scen_dir": None, "stdout": "",
+    }
 
     saved = {
         "_run_one_episode": graph_train._run_one_episode,
@@ -1334,11 +1411,20 @@ def _run_stub_training(
 
     def fake_build_generator(scen_dir):
         events.append(("generator_built", None))
+        state["scen_dir"] = Path(scen_dir)
         return object()          # the stub episode body never touches it
 
     def fake_run_one_episode(policy, gen, cfg_, *, seed, episode_tag, deterministic):
         phase = "eval" if deterministic else "train"
-        events.append(("episode", phase, int(seed)))
+        events.append(("episode", phase, int(seed), int(episode_tag)))
+        # Stand in for the file the real generator would have written under this tag.
+        if state["scen_dir"] is not None:
+            state["scen_dir"].mkdir(parents=True, exist_ok=True)
+            (state["scen_dir"]
+             / ("episode_%04d_scenario.json" % int(episode_tag))).write_text(
+                json.dumps({"tag": int(episode_tag), "seed": int(seed)}),
+                encoding="utf-8",
+            )
         if phase == "train" and state["at_first_train"] is None:
             state["at_first_train"] = {
                 "weights": _weight_snapshot(policy),
@@ -1355,7 +1441,8 @@ def _run_stub_training(
                         for k in range(n_wakes)],
             reward=-0.5 + 0.01 * (seed % 7), ticks=42,
             ended="done", n_wakes=n_wakes,
-            confirmed_kills=2, n_dead=0, seconds=0.01,
+            confirmed_kills=_STUB_CONFIRMED_KILLS, n_dead=0, seconds=0.01,
+            **roster_fields,
         )
 
     graph_train._git_provenance = lambda repo_root: dict(git_verdict)
@@ -1365,9 +1452,15 @@ def _run_stub_training(
         policy, ppo, log=events
     )
     graph_train.build_policy = fake_build_policy
+    buf = io.StringIO()
     try:
-        summary = graph_train.train(cfg)
+        if capture_stdout:
+            with contextlib.redirect_stdout(buf):
+                summary = graph_train.train(cfg)
+        else:
+            summary = graph_train.train(cfg)
     finally:
+        state["stdout"] = buf.getvalue()
         for name, original in saved.items():
             setattr(graph_train, name, original)
     return summary, events, state
@@ -1375,6 +1468,10 @@ def _run_stub_training(
 
 def _episode_seeds(events, phase: str) -> list:
     return [e[2] for e in events if e[0] == "episode" and e[1] == phase]
+
+
+def _episode_tags(events, phase: str) -> list:
+    return [e[3] for e in events if e[0] == "episode" and e[1] == phase]
 
 
 def test_failed_seeds_are_skipped_and_accounted(tmp_path: Path) -> None:
@@ -1655,6 +1752,776 @@ def test_console_flag_never_reports_both_failure_states(tmp_path: Path) -> None:
 
     productive = _run("productive", wakes_per_episode=2)
     assert "[ZERO-WAKE" not in productive and "ATTEMPTS FAILED" not in productive
+
+
+# =============================================================================
+# T12 -- P1: one truthful OK block per successful episode
+# =============================================================================
+
+# Any RFC-4122-shaped id. A success block naming targets by uuid would be technically
+# complete and practically unreadable, and generated target ids are not even seed-stable
+# across runs (CLAUDE.md section 8), so a uuid there is never the right answer.
+_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+
+
+def _ok_blocks(stdout: str) -> list:
+    """Every printed OK block as a list of its 7 lines, keyed off the ``] OK`` header."""
+    lines = stdout.splitlines()
+    blocks = []
+    for i, line in enumerate(lines):
+        if line.endswith("] OK"):
+            blocks.append(lines[i:i + 7])
+    return blocks
+
+
+def _assert_block_is_complete(block: list) -> None:
+    """Every field P1 requires is present, with the stub roster's exact values."""
+    header, body = block[0], block[1:]
+    assert header.endswith("] OK"), header
+    text = "\n".join(block)
+
+    assert "reward=" in body[0] and "wakes=" in body[0], body[0]
+    assert ("targets_confirmed_unique=%d/%d"
+            % (_STUB_UNIQUE_CONFIRMED, _STUB_TARGETS_TOTAL)) in body[0], body[0]
+    for label, names in (
+        ("known_targets", _STUB_KNOWN_TARGETS),
+        ("known_confirmed", _STUB_KNOWN_CONFIRMED),
+        ("hidden_targets", _STUB_HIDDEN_TARGETS),
+        ("hidden_confirmed", _STUB_HIDDEN_CONFIRMED),
+    ):
+        line = next(l for l in body if l.strip().startswith(label + "="))
+        assert json.loads(line.split("=", 1)[1]) == list(names), line
+
+    assert body[-1].strip().startswith("ended="), body[-1]
+    assert "ticks=" in body[-1] and "dead=" in body[-1], body[-1]
+    assert "elapsed=" in body[-1] and body[-1].rstrip().endswith("s"), body[-1]
+    assert not _UUID_RE.search(text), "a target uuid reached a success block:\n" + text
+    # cp1255 console: the block must survive being written to it.
+    text.encode("ascii")
+
+
+def test_every_successful_episode_prints_one_labelled_ok_block(tmp_path: Path) -> None:
+    """P1. Train, pre-update eval and post-update eval each emit ONE correct OK block.
+
+    The finding this closes: a run printed one aggregate line per ITERATION and one per
+    eval ROUND, so while a batch of multi-minute episodes was collecting there was no way
+    to tell what any individual episode had done -- or whether anything was happening at
+    all. The block is emitted on RETURN from each attempt, before the next one starts.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run",
+        eval_every=1, eval_episodes=2, eval_base_seed=1_000_000,
+        checkpoint_every=0,
+    )
+    _, _, state = _run_stub_training(cfg, wakes_per_episode=2, capture_stdout=True)
+    out = state["stdout"]
+
+    blocks = _ok_blocks(out)
+    headers = [b[0] for b in blocks]
+    # 2 pre-update eval + 2 train + 2 post-update eval, in that order.
+    assert headers == [
+        "[eval stage=pre_update ep=0 seed=1000000] OK",
+        "[eval stage=pre_update ep=1 seed=1000001] OK",
+        "[train iter=0 ep=0 seed=0] OK",
+        "[train iter=0 ep=1 seed=1] OK",
+        "[eval stage=post_update ep=0 seed=1000000] OK",
+        "[eval stage=post_update ep=1 seed=1000001] OK",
+    ], headers
+    for block in blocks:
+        _assert_block_is_complete(block)
+
+
+def test_a_failed_attempt_prints_no_ok_block_and_still_accounts(tmp_path: Path) -> None:
+    """P1. A failure keeps its FAILED line and its ledger entry -- and gains no OK block.
+
+    `OK` must mean "this attempt completed", so exactly the attempts that completed may
+    print one. The existing failure reporting is unchanged.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=3, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=0, checkpoint_every=0,
+    )
+    summary, _, state = _run_stub_training(
+        cfg, failures={1: ("setup", "exact cardinality: 2 usable routes")},
+        wakes_per_episode=1, capture_stdout=True,
+    )
+    out = state["stdout"]
+
+    headers = [b[0] for b in _ok_blocks(out)]
+    assert headers == ["[train iter=0 ep=0 seed=0] OK",
+                       "[train iter=0 ep=2 seed=2] OK"], headers
+    assert "seed=1] OK" not in out, out
+    assert "[iter 0 ep 1] FAILED (seed=1, stage=setup)" in out, out
+
+    # Accounting is untouched by the new output.
+    assert summary["train_episodes_attempted"] == 3
+    assert summary["train_episodes_successful"] == 2
+    assert summary["train_episodes_failed"] == 1
+    assert summary["accounting_reconciled"]
+    ledger = _read_records(cfg.output_dir, "episode_failures.jsonl")
+    assert [r["seed"] for r in ledger] == [1], ledger
+
+
+def test_ok_block_reports_the_real_ending_not_a_verdict() -> None:
+    """P1. `OK` is "the attempt completed"; `ended` still states how the episode ended."""
+    out = _EpisodeOutcome(
+        trajectory=[], reward=-0.25, ticks=7, ended="truncated", n_wakes=0,
+        confirmed_kills=0, n_dead=1, seconds=3.25,
+        **_stub_roster_fields(),
+    )
+    block = graph_train._format_episode_block("[train iter=2 ep=9 seed=9]", out)
+    lines = block.splitlines()
+    assert lines[0] == "[train iter=2 ep=9 seed=9] OK"
+    assert "reward=-0.2500" in lines[1] and "wakes=0" in lines[1]
+    assert lines[-1] == "  ended=truncated ticks=7 dead=1 elapsed=3.2s", lines[-1]
+    _assert_block_is_complete(lines)
+
+
+def test_ok_block_survives_a_non_ascii_target_name() -> None:
+    """P1. A stray non-ASCII target name is transliterated, never a UnicodeEncodeError.
+
+    Target names come out of a scenario JSON this module does not own, and the Windows
+    console this project runs on is cp1255. A print that raised would abort a run whose
+    episode had already completed successfully.
+    """
+    out = _EpisodeOutcome(
+        trajectory=[], reward=0.0, ticks=1, ended="done", n_wakes=0,
+        confirmed_kills=0, n_dead=0, seconds=0.5,
+        targets_confirmed_unique=0, targets_total=1,
+        known_target_names=("Enemy Airbase ÅÜ",), hidden_target_names=(),
+        known_confirmed_names=(), hidden_confirmed_names=(),
+    )
+    block = graph_train._format_episode_block("[train iter=0 ep=0 seed=0]", out)
+    block.encode("ascii")            # would raise if a raw name had leaked through
+    assert "Enemy Airbase" in block
+
+
+# =============================================================================
+# T13 -- P2: confirmations are counted UNIQUELY over target id
+# =============================================================================
+
+def test_unique_confirmed_target_ids_deduplicates_over_ego() -> None:
+    """P2. Two egos confirming ONE target is ONE target.
+
+    `GraphPlanExecutor.done` is a set of (ego_id, target_id) pairs, so its length counts
+    CONFIRMATIONS. The approved first probe reported more "kills" than the world had
+    targets because that length was being aggregated as a target count. The executor's
+    set is correct and unchanged; this is the conversion that was missing.
+    """
+    done = {("ego-a", "target-1"), ("ego-b", "target-1"), ("ego-a", "target-2")}
+    unique = graph_train._unique_confirmed_target_ids(done)
+    assert unique == {"target-1", "target-2"}
+    assert len(unique) == 2 and len(done) == 3
+
+    # The empty / absent cases are the ones a degraded episode hits.
+    assert graph_train._unique_confirmed_target_ids(set()) == set()
+    assert graph_train._unique_confirmed_target_ids(None) == set()
+
+    # Ids are stringified, so a non-str target id cannot split one target into two.
+    assert graph_train._unique_confirmed_target_ids(
+        {("ego-a", 7), ("ego-b", "7")}
+    ) == {"7"}
+
+
+def test_roster_split_totals_the_unique_count() -> None:
+    """P2. total == known confirmed + hidden confirmed, over the executed denominator."""
+    roster = graph_train._TargetRoster(
+        known_ids=("k1", "k2", "k3"),
+        known_names=("Enemy Airbase #1", "Enemy Airbase #2", "Enemy Airbase #3"),
+        hidden_ids=("h1", "h2", "h3"),
+        hidden_names=("Hidden Airbase #001", "Hidden Airbase #002",
+                      "Hidden Airbase #003"),
+    )
+    assert roster.total == 6
+
+    done = {("ego-a", "k1"), ("ego-b", "k1"), ("ego-a", "k3"), ("ego-c", "h2")}
+    known, hidden = roster.confirmed(graph_train._unique_confirmed_target_ids(done))
+    assert known == ("Enemy Airbase #1", "Enemy Airbase #3")
+    assert hidden == ("Hidden Airbase #002",)
+    # The two halves are disjoint and cover the world, so the split IS the total.
+    assert len(known) + len(hidden) == 3 <= roster.total
+
+    # Roster ORDER is preserved regardless of the set's iteration order.
+    all_known, all_hidden = roster.confirmed(set(roster.known_ids) | set(roster.hidden_ids))
+    assert all_known == roster.known_names and all_hidden == roster.hidden_names
+    assert len(all_known) + len(all_hidden) == roster.total
+
+
+def test_trainer_aggregates_use_the_unique_target_count(tmp_path: Path) -> None:
+    """P2. Authoritative keys and compatibility aliases carry the SAME unique count.
+
+    `kills_mean` / `eval_kills_mean` are kept so a pre-B4 reader still resolves, but they
+    are aliases now -- fed from the unique-target count, never from the (ego, target)
+    confirmation count the stub also reports.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run",
+        eval_every=1, eval_episodes=2, eval_base_seed=1_000_000,
+        checkpoint_every=0,
+    )
+    _run_stub_training(cfg, wakes_per_episode=2)
+
+    train_recs = _read_records(cfg.output_dir, "train_records.jsonl")
+    eval_recs = _read_records(cfg.output_dir, "eval_records.jsonl")
+    assert train_recs and eval_recs
+
+    for rec in train_recs:
+        assert rec["targets_confirmed_unique_mean"] == float(_STUB_UNIQUE_CONFIRMED)
+        assert rec["kills_mean"] == rec["targets_confirmed_unique_mean"]
+        assert rec["target_confirmation_count_semantics"] == "unique_target_id"
+        # The (ego, target) pair count must not be what got aggregated.
+        assert rec["kills_mean"] != float(_STUB_CONFIRMED_KILLS)
+        # The reference cell can never confirm more than its 6 executed targets.
+        assert rec["targets_confirmed_unique_mean"] <= _STUB_TARGETS_TOTAL
+
+    for rec in eval_recs:
+        assert rec["eval_targets_confirmed_unique_mean"] == float(_STUB_UNIQUE_CONFIRMED)
+        assert rec["eval_kills_mean"] == rec["eval_targets_confirmed_unique_mean"]
+        assert rec["target_confirmation_count_semantics"] == "unique_target_id"
+        assert rec["eval_kills_mean"] != float(_STUB_CONFIRMED_KILLS)
+        assert rec["eval_targets_confirmed_unique_mean"] <= _STUB_TARGETS_TOTAL
+
+
+def test_observability_does_not_touch_reward_or_ppo_diagnostics(tmp_path: Path) -> None:
+    """P2. Two DIFFERENT valid rosters leave reward, PPO, seeds and eval tags identical.
+
+    The roster is a read-only projection of the context; if the reward or the update
+    could see it, this observability task would have changed the experiment.
+
+    This used to compare a populated roster against a DEGRADED one and assert the
+    degraded run recorded `targets_confirmed_unique_mean == 0.0` -- i.e. it codified the
+    false zero the review rejected. A degraded roster is no longer a successful
+    measurement, so the invariance is now shown between two valid worlds instead.
+    """
+    reward_and_ppo = (
+        "train_reward_mean", "baseline", "reward_min", "reward_max",
+        "policy_loss", "total_loss", "entropy", "mean_ratio", "clip_fraction",
+        "approx_kl", "max_ratio_dev", "grad_norm", "adv_std_raw",
+        "n_transitions", "n_episodes", "episodes_with_wakes", "n_epochs_run",
+        "meta_action_counts", "meta_action_fractions", "ended_counts", "ticks_mean",
+    )
+
+    def _run(name, *, variant):
+        cfg = TrainConfig(
+            n_iterations=2, episodes_per_iteration=2, base_seed=0,
+            output_dir=tmp_path / name,
+            eval_every=1, eval_episodes=2, eval_base_seed=1_000_000,
+            checkpoint_every=0,
+        )
+        _, events, _ = _run_stub_training(cfg, wakes_per_episode=2,
+                                          roster_variant=variant)
+        return (_read_records(cfg.output_dir, "train_records.jsonl"),
+                _read_records(cfg.output_dir, "eval_records.jsonl"),
+                events)
+
+    a_train, a_eval, a_events = _run("roster_default", variant="default")
+    b_train, b_eval, b_events = _run("roster_alt", variant="alt")
+
+    assert len(a_train) == len(b_train) == 2
+    for x, y in zip(a_train, b_train):
+        for key in reward_and_ppo:
+            assert x[key] == y[key], (key, x[key], y[key])
+    for x, y in zip(a_eval, b_eval):
+        for key in ("eval_reward_mean", "eval_reward_min", "eval_reward_max",
+                    "eval_wakes_mean", "meta_action_counts", "ended_counts",
+                    "n_attempted", "n_successful", "n_failed"):
+            assert x[key] == y[key], (key, x[key], y[key])
+
+    # Seeds and eval scenario tags are unaffected too.
+    for phase in ("train", "eval"):
+        assert _episode_seeds(a_events, phase) == _episode_seeds(b_events, phase)
+        assert _episode_tags(a_events, phase) == _episode_tags(b_events, phase)
+
+    # ... and the only thing that DID change is the confirmation count itself, which in
+    # both cases is a REAL count, never a degraded zero.
+    assert a_train[0]["targets_confirmed_unique_mean"] == float(_STUB_UNIQUE_CONFIRMED)
+    assert b_train[0]["targets_confirmed_unique_mean"] == float(
+        _STUB_ALT_UNIQUE_CONFIRMED)
+    assert a_train[0]["targets_confirmed_unique_mean"] != \
+        b_train[0]["targets_confirmed_unique_mean"]
+
+
+# =============================================================================
+# T13b -- the FALSE-ZERO regression, at the seam that sees both inputs
+# =============================================================================
+#
+# The rejected candidate computed the authoritative count as
+# `len(known_confirmed) + len(hidden_confirmed)` -- i.e. from the names the roster
+# managed to CLASSIFY -- while `_episode_target_roster` swallowed every structural
+# exception and returned an empty roster. An episode with real confirmations was
+# therefore recorded as a SUCCESSFUL `0/0`, and that zero flowed into
+# `targets_confirmed_unique_mean` and its aliases.
+#
+# These tests drive the real `_run_one_episode`, which is the only place that receives
+# BOTH the roster and the executor's `done` pairs. Constructing an `_EpisodeOutcome` by
+# hand cannot reach the defect, because the defect was in how that outcome's count was
+# derived. The BLADE/solver seams around it (`setup_episode`, `run_episode`,
+# `compute_episode_reward`, the generator) are stubbed; everything between them is real.
+
+class _FakeStep:
+    def __init__(self, target_id):
+        self.step_kind = StepKind.ATTACK
+        self.target_id = target_id
+
+
+class _FakeTask:
+    """The only shape `_task_target_id` reads: `.steps[*].step_kind` / `.target_id`."""
+
+    def __init__(self, target_id=None, *, steps=None):
+        self.steps = [_FakeStep(target_id)] if steps is None else steps
+
+
+class _FakeBelief:
+    def __init__(self, tasks):
+        self.tasks = tasks
+
+
+class _FakeUnit:
+    def __init__(self, name):
+        self.name = name
+
+
+class _FakeScenario:
+    """`get_target` over a fixed id -> name map; `raise_for` models a broken lookup."""
+
+    def __init__(self, names, *, raise_for=()):
+        self._names = dict(names)
+        self._raise_for = set(raise_for)
+
+    def get_target(self, target_id):
+        if target_id in self._raise_for:
+            raise RuntimeError("simulated scenario lookup failure for %s" % target_id)
+        name = self._names.get(target_id)
+        return None if name is None else _FakeUnit(name)
+
+
+class _FakeGame:
+    def __init__(self, scenario):
+        self.current_scenario = scenario
+
+
+class _FakeExecutor:
+    def __init__(self, done):
+        self.done = set(done)
+
+
+class _FakeEnv:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeCtx:
+    """The five `EpisodeContext` attributes the observability path actually reads."""
+
+    def __init__(self, *, beliefs, oracle_tasks, scenario, done):
+        self.beliefs = beliefs
+        self.oracle_tasks = oracle_tasks
+        self.game = _FakeGame(scenario)
+        self.executor = _FakeExecutor(done)
+        self.env = _FakeEnv()
+
+
+class _FakeResult:
+    def __init__(self, *, confirmed_kills):
+        self.trajectory = []
+        self.ticks = 11
+        self.ended = "done"
+        self.n_wakes = 0
+        self.confirmed_kills = confirmed_kills
+        self.n_dead = 0
+
+
+class _FakeReward:
+    reward = -0.25
+
+
+class _FakeScenarioPath:
+    @staticmethod
+    def read_text(encoding=None):
+        return "{}"
+
+
+class _FakeGenerator:
+    @staticmethod
+    def generate(episode, config):
+        return _FakeScenarioPath()
+
+
+def _reference_ctx(*, done, raise_names=(), known=3, hidden=3, extra_oracle=()):
+    """A valid reference-cell context: `known` known + `hidden` hidden targets.
+
+    Ids are `k0..`/`h0..` (never uuids, so a leak into a success block is unmistakable);
+    names mimic the real generator's `Floridistan AFB #N` / `Hidden Airbase #NNN`.
+    """
+    known_ids = ["k%d" % i for i in range(known)]
+    hidden_ids = ["h%d" % i for i in range(hidden)]
+    names = {t: "Floridistan AFB #%d" % (i + 1) for i, t in enumerate(known_ids)}
+    names.update({t: "Hidden Airbase #%03d" % (i + 1)
+                  for i, t in enumerate(hidden_ids)})
+    belief_tasks = [_FakeTask(t) for t in known_ids]
+    return _FakeCtx(
+        beliefs={"ego_%d" % i: _FakeBelief(list(belief_tasks)) for i in range(3)},
+        oracle_tasks=[_FakeTask(t) for t in known_ids + hidden_ids + list(extra_oracle)],
+        scenario=_FakeScenario(names, raise_for=raise_names),
+        done=done,
+    )
+
+
+def _run_one_episode_against(ctx, *, confirmed_kills=0):
+    """Drive the REAL `_run_one_episode` against a fake context; returns its outcome.
+
+    Only the BLADE / solver seams are replaced. The roster snapshot, the unique-id
+    computation, the name split, the failure attribution and the outcome construction
+    are the production code paths.
+    """
+    cfg = TrainConfig(n_iterations=1, episodes_per_iteration=1, base_seed=0,
+                      eval_every=0, checkpoint_every=0)
+    saved = {
+        "setup_episode": graph_train.setup_episode,
+        "run_episode": graph_train.run_episode,
+        "compute_episode_reward": graph_train.compute_episode_reward,
+    }
+    graph_train.setup_episode = lambda *a, **k: ctx
+    graph_train.run_episode = lambda *a, **k: _FakeResult(
+        confirmed_kills=confirmed_kills)
+    graph_train.compute_episode_reward = lambda *a, **k: _FakeReward()
+    try:
+        return graph_train._run_one_episode(
+            None, _FakeGenerator(), cfg,
+            seed=0, episode_tag=0, deterministic=False,
+        )
+    finally:
+        for name, original in saved.items():
+            setattr(graph_train, name, original)
+
+
+def test_unique_count_is_taken_directly_from_the_executor_done_set() -> None:
+    """P2/P1. The count is `len(unique ids)`, and the names only have to agree with it.
+
+    Duplicate `(ego, target)` pairs collapse; the raw pair count is larger and is not
+    what is reported.
+    """
+    done = {
+        ("ego_0", "k0"), ("ego_1", "k0"),        # one target, two confirmations
+        ("ego_1", "k2"), ("ego_2", "h1"), ("ego_0", "h1"),
+    }
+    out = _run_one_episode_against(_reference_ctx(done=done), confirmed_kills=len(done))
+
+    confirmed_ids = graph_train._unique_confirmed_target_ids(done)
+    assert len(confirmed_ids) == 3 and len(done) == 5
+    assert out.targets_confirmed_unique == len(confirmed_ids) == 3
+    assert out.targets_total == 6
+    # The names reconcile with the count rather than producing it.
+    assert out.known_confirmed_names == ("Floridistan AFB #1", "Floridistan AFB #3")
+    assert out.hidden_confirmed_names == ("Hidden Airbase #002",)
+    assert (len(out.known_confirmed_names) + len(out.hidden_confirmed_names)
+            == out.targets_confirmed_unique)
+    # The raw pair count is preserved separately and is NOT the reported one.
+    assert out.confirmed_kills == 5 != out.targets_confirmed_unique
+
+
+def test_a_broken_name_lookup_keeps_the_id_the_count_and_the_denominator() -> None:
+    """P1/P2. A display failure degrades TEXT only -- never an id, a count or a total.
+
+    This is the one degradation that stays nonfatal, and the point is that it is
+    inert: the target keeps its roster slot and its contribution to every number.
+    """
+    done = {("ego_0", "k1"), ("ego_1", "h0")}
+    ctx = _reference_ctx(done=done, raise_names=("k1", "h0"))
+    out = _run_one_episode_against(ctx, confirmed_kills=2)
+
+    assert out.targets_confirmed_unique == 2          # unchanged by the failed lookups
+    assert out.targets_total == 6                     # denominator unchanged
+    assert len(out.known_target_names) == 3 and len(out.hidden_target_names) == 3
+    # The two unresolvable targets are still present -- as placeholders, not as gaps.
+    assert out.known_target_names[1] == "<unnamed target>"
+    assert out.hidden_target_names[0] == "<unnamed target>"
+    assert out.known_confirmed_names == ("<unnamed target>",)
+    assert out.hidden_confirmed_names == ("<unnamed target>",)
+    assert (len(out.known_confirmed_names) + len(out.hidden_confirmed_names)
+            == out.targets_confirmed_unique)
+
+    # A target the scenario simply does not know is the same story.
+    ctx2 = _reference_ctx(done={("ego_0", "k0")})
+    ctx2.game.current_scenario = _FakeScenario({})       # every lookup returns None
+    out2 = _run_one_episode_against(ctx2, confirmed_kills=1)
+    assert out2.targets_confirmed_unique == 1 and out2.targets_total == 6
+    assert set(out2.known_target_names) == {"<unnamed target>"}
+
+
+def test_a_structural_roster_failure_is_an_accounted_setup_failure() -> None:
+    """P1/P2. THE regression: a broken roster fails the attempt, never measures zero.
+
+    Each case below used to be swallowed into `_EMPTY_ROSTER`, which -- combined with a
+    count derived from classified names -- reported an episode holding real confirmations
+    as a successful `0/0`.
+    """
+    done = {("ego_0", "k0"), ("ego_1", "h0")}
+
+    # 1. no beliefs at all
+    no_beliefs = _reference_ctx(done=done)
+    no_beliefs.beliefs = {}
+
+    # 2. a belief task that names no target
+    malformed = _reference_ctx(done=done)
+    malformed.beliefs["ego_0"] = _FakeBelief([_FakeTask(steps=[])])
+
+    # 3. the t=0 beliefs disagree -- a real no-communication defect
+    disagree = _reference_ctx(done=done)
+    disagree.beliefs["ego_2"] = _FakeBelief([_FakeTask("k0"), _FakeTask("k1")])
+
+    # 4. no oracle tasks -> the executed world is unknown
+    no_oracle = _reference_ctx(done=done)
+    no_oracle.oracle_tasks = []
+
+    # 5. a known target the executed world does not contain
+    uncovered = _reference_ctx(done=done)
+    uncovered.oracle_tasks = [_FakeTask("h0")]
+
+    for label, ctx in (("no beliefs", no_beliefs), ("malformed task", malformed),
+                       ("beliefs disagree", disagree), ("no oracle", no_oracle),
+                       ("known not executed", uncovered)):
+        try:
+            _run_one_episode_against(ctx, confirmed_kills=2)
+        except EpisodeAttemptError as exc:
+            # Existing taxonomy, existing accounting path -- no new pipeline stage.
+            assert exc.stage == "setup", (label, exc.stage)
+            assert exc.stage in _PIPELINE_STAGES, (label, exc.stage)
+            assert isinstance(exc.original, graph_train.EpisodeRosterError), (
+                label, type(exc.original))
+        else:
+            raise AssertionError("%s produced a successful measurement" % label)
+        # The env is still closed on the failing path.
+        assert ctx.env.closed, label
+
+
+def test_a_confirmed_id_outside_the_roster_cannot_produce_a_record() -> None:
+    """P2. An unaccountable confirmation fails loudly instead of being dropped.
+
+    Silently discarding it would leave a block whose printed names no longer sum to its
+    own total, and an aggregate quietly counting fewer targets than were confirmed.
+    """
+    ctx = _reference_ctx(done={("ego_0", "k0"), ("ego_1", "ghost-target")})
+    try:
+        _run_one_episode_against(ctx, confirmed_kills=2)
+    except EpisodeAttemptError as exc:
+        assert exc.stage == "setup", exc.stage
+        assert isinstance(exc.original, graph_train.EpisodeRosterError)
+        assert "ghost-target" in str(exc.original), str(exc.original)
+    else:
+        raise AssertionError("an out-of-roster confirmation produced a record")
+    assert ctx.env.closed
+
+    # The roster helper says the same thing on its own.
+    roster = graph_train._TargetRoster(("k0",), ("A",), ("h0",), ("B",))
+    try:
+        roster.confirmed({"k0", "ghost-target"})
+    except graph_train.EpisodeRosterError:
+        pass
+    else:
+        raise AssertionError("_TargetRoster.confirmed accepted an unknown id")
+
+
+def test_a_roster_failure_contributes_no_false_zero_to_the_aggregates(
+    tmp_path: Path,
+) -> None:
+    """P1/P2. A roster-failed attempt is a FAILURE, not a zero in the mean.
+
+    Two scheduled episodes, one of which fails on roster structure. The authoritative
+    aggregate must be the successful episode's real count -- not the average of that
+    count and a fabricated 0.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=0, checkpoint_every=0,
+    )
+    summary, _, state = _run_stub_training(
+        cfg,
+        failures={1: ("setup", "roster: the t=0 beliefs disagree")},
+        wakes_per_episode=1, capture_stdout=True,
+    )
+    out = state["stdout"]
+
+    # No OK block for the failed attempt.
+    assert [b[0] for b in _ok_blocks(out)] == ["[train iter=0 ep=0 seed=0] OK"]
+    assert "seed=1] OK" not in out
+
+    record = _read_records(cfg.output_dir, "train_records.jsonl")[0]
+    assert record["n_attempted"] == 2 and record["n_successful"] == 1
+    assert record["n_failed"] == 1
+    # THE assertion: the mean is over the one SUCCESSFUL episode, undiluted.
+    assert record["targets_confirmed_unique_mean"] == float(_STUB_UNIQUE_CONFIRMED)
+    assert record["kills_mean"] == record["targets_confirmed_unique_mean"]
+    assert record["targets_confirmed_unique_mean"] != float(_STUB_UNIQUE_CONFIRMED) / 2
+    assert summary["train_episodes_failed"] == 1 and summary["accounting_reconciled"]
+
+    ledger = _read_records(cfg.output_dir, "episode_failures.jsonl")
+    assert [r["pipeline_stage"] for r in ledger] == ["setup"], ledger
+
+
+def test_an_episode_outcome_cannot_omit_what_it_measured() -> None:
+    """P2. `_EpisodeOutcome` has no roster defaults, so a silent `0/0` is unconstructible.
+
+    The defaults were how an unmeasured episode could look like a measured one.
+    """
+    try:
+        _EpisodeOutcome(
+            trajectory=[], reward=-0.5, ticks=1, ended="done", n_wakes=0,
+            confirmed_kills=0, n_dead=0, seconds=0.1,
+        )
+    except TypeError:
+        pass
+    else:
+        raise AssertionError(
+            "_EpisodeOutcome still constructs without stating what it measured"
+        )
+
+
+# =============================================================================
+# T14 -- P3: every eval round keeps its own scenario artifacts
+# =============================================================================
+
+def test_eval_episode_tag_is_deterministic_and_round_disjoint() -> None:
+    """P3. Round ordinal r owns [base + r*stride, base + (r+1)*stride), and only that."""
+    stride = graph_train._EVAL_ROUND_TAG_STRIDE
+    base = graph_train._EVAL_EPISODE_TAG_BASE
+
+    assert graph_train.eval_episode_tag(round_ordinal=0, e=0) == base
+    assert graph_train.eval_episode_tag(round_ordinal=0, e=3) == base + 3
+    assert graph_train.eval_episode_tag(round_ordinal=2, e=1) == base + 2 * stride + 1
+
+    # Deterministic: the same (round, e) is always the same tag.
+    assert (graph_train.eval_episode_tag(round_ordinal=5, e=7)
+            == graph_train.eval_episode_tag(round_ordinal=5, e=7))
+
+    # No two rounds share a tag over any plausible eval band.
+    bands = [
+        {graph_train.eval_episode_tag(round_ordinal=r, e=e) for e in range(8)}
+        for r in range(6)
+    ]
+    for i, first in enumerate(bands):
+        for second in bands[i + 1:]:
+            assert not (first & second), (first & second)
+
+    # Out-of-band indices RAISE rather than silently reach into the next round.
+    for bad in (stride, stride + 1, -1):
+        try:
+            graph_train.eval_episode_tag(round_ordinal=0, e=bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("eval_episode_tag accepted e=%r" % (bad,))
+    try:
+        graph_train.eval_episode_tag(round_ordinal=-1, e=0)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("eval_episode_tag accepted a negative round_ordinal")
+
+
+def test_validate_refuses_an_eval_band_wider_than_one_tag_namespace() -> None:
+    """P3. A config whose rounds could collide by FILENAME is refused up front."""
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=1, base_seed=0,
+        eval_every=1, eval_episodes=graph_train._EVAL_ROUND_TAG_STRIDE + 1,
+        eval_base_seed=1_000_000,
+    )
+    try:
+        cfg.validate()
+    except ValueError as exc:
+        assert "scenario-tag namespace" in str(exc), str(exc)
+    else:
+        raise AssertionError("validate() accepted an eval band wider than one namespace")
+
+
+def test_eval_rounds_reuse_the_seeds_but_not_the_tags(tmp_path: Path) -> None:
+    """P3. Same held-out seeds every round; a fresh tag namespace every round.
+
+    Both halves matter and they pull in opposite directions. Fixing the seeds is what
+    makes round-to-round differences attributable to the POLICY; fixing the tags is what
+    destroyed the earlier rounds' scenario JSONs, because the tag names the file.
+    """
+    cfg = TrainConfig(
+        n_iterations=2, episodes_per_iteration=1, base_seed=0,
+        output_dir=tmp_path / "run",
+        eval_every=1, eval_episodes=2, eval_base_seed=1_000_000,
+        checkpoint_every=0,
+    )
+    _, events, state = _run_stub_training(cfg, wakes_per_episode=1)
+
+    eval_seeds = _episode_seeds(events, "eval")
+    eval_tags = _episode_tags(events, "eval")
+    train_tags = _episode_tags(events, "train")
+
+    # 3 rounds (pre_update + 2 post_update) x 2 episodes, the SAME seeds each round.
+    assert eval_seeds == [1_000_000, 1_000_001] * 3, eval_seeds
+    # ... and 6 DISTINCT tags.
+    assert len(set(eval_tags)) == len(eval_tags) == 6, eval_tags
+
+    rounds = [set(eval_tags[i:i + 2]) for i in range(0, 6, 2)]
+    pre_update, post_1, post_2 = rounds
+    assert not (pre_update & post_1) and not (pre_update & post_2)
+    assert not (post_1 & post_2)
+    assert not (set(train_tags) & set(eval_tags)), (train_tags, eval_tags)
+
+    # The eval records say which namespace each round wrote into.
+    recs = _read_records(cfg.output_dir, "eval_records.jsonl")
+    assert [r["eval_round_ordinal"] for r in recs] == [0, 1, 2], recs
+    assert [r["episode_tag_start"] for r in recs] == [
+        graph_train.eval_episode_tag(round_ordinal=r, e=0) for r in range(3)
+    ], recs
+    assert recs[0]["evaluation_stage"] == _EVAL_STAGE_PRE_UPDATE
+    assert all(r["evaluation_stage"] == _EVAL_STAGE_POST_UPDATE for r in recs[1:])
+
+
+def test_pre_and_post_update_scenario_files_coexist(tmp_path: Path) -> None:
+    """P3. Every round's scenario artifact is still on disk when the run finishes.
+
+    The stub episode body writes the file `ScenarioGenerator.generate` would have written
+    for its tag (`episode_%04d_scenario.json`), so the FILENAME consequence of the tag
+    namespace is testable without BLADE or a solver. Before this change every round wrote
+    `episode_900000_scenario.json` and only the last round's world survived the run.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=1, base_seed=0,
+        output_dir=tmp_path / "run",
+        eval_every=1, eval_episodes=2, eval_base_seed=1_000_000,
+        checkpoint_every=0,
+    )
+    _run_stub_training(cfg, wakes_per_episode=1)
+
+    scen_dir = Path(cfg.output_dir) / "scenarios"
+    names = sorted(p.name for p in scen_dir.glob("episode_*_scenario.json"))
+
+    def _expected(round_ordinal):
+        return {
+            "episode_%04d_scenario.json"
+            % graph_train.eval_episode_tag(round_ordinal=round_ordinal, e=e)
+            for e in range(cfg.eval_episodes)
+        }
+
+    pre_update, post_update = _expected(0), _expected(1)
+    assert pre_update <= set(names), (pre_update, names)
+    assert post_update <= set(names), (post_update, names)
+    assert not (pre_update & post_update)
+    # 2 pre-update + 1 training + 2 post-update, all present SIMULTANEOUSLY.
+    assert len(names) == 5, names
+
+    # Each file still records the seed it was written for -- the seeds really are reused.
+    for round_files in (pre_update, post_update):
+        seeds = sorted(
+            json.loads((scen_dir / n).read_text(encoding="utf-8"))["seed"]
+            for n in round_files
+        )
+        assert seeds == [1_000_000, 1_000_001], seeds
 
 
 # =============================================================================
@@ -2085,6 +2952,46 @@ if __name__ == "__main__":
          test_a_successful_zero_wake_episode_is_not_a_failure, True),
         ("console_flag_never_reports_both_failure_states",
          test_console_flag_never_reports_both_failure_states, True),
+        # --- P1: one truthful OK block per successful episode ---
+        ("every_successful_episode_prints_one_labelled_ok_block",
+         test_every_successful_episode_prints_one_labelled_ok_block, True),
+        ("a_failed_attempt_prints_no_ok_block_and_still_accounts",
+         test_a_failed_attempt_prints_no_ok_block_and_still_accounts, True),
+        ("ok_block_reports_the_real_ending_not_a_verdict",
+         test_ok_block_reports_the_real_ending_not_a_verdict, False),
+        ("ok_block_survives_a_non_ascii_target_name",
+         test_ok_block_survives_a_non_ascii_target_name, False),
+        # --- P2: confirmations counted UNIQUELY over target id ---
+        ("unique_confirmed_target_ids_deduplicates_over_ego",
+         test_unique_confirmed_target_ids_deduplicates_over_ego, False),
+        ("roster_split_totals_the_unique_count",
+         test_roster_split_totals_the_unique_count, False),
+        ("trainer_aggregates_use_the_unique_target_count",
+         test_trainer_aggregates_use_the_unique_target_count, True),
+        ("observability_does_not_touch_reward_or_ppo_diagnostics",
+         test_observability_does_not_touch_reward_or_ppo_diagnostics, True),
+        # --- the false-zero regression, at the seam that sees both inputs ---
+        ("unique_count_is_taken_directly_from_the_executor_done_set",
+         test_unique_count_is_taken_directly_from_the_executor_done_set, False),
+        ("a_broken_name_lookup_keeps_the_id_the_count_and_the_denominator",
+         test_a_broken_name_lookup_keeps_the_id_the_count_and_the_denominator, False),
+        ("a_structural_roster_failure_is_an_accounted_setup_failure",
+         test_a_structural_roster_failure_is_an_accounted_setup_failure, False),
+        ("a_confirmed_id_outside_the_roster_cannot_produce_a_record",
+         test_a_confirmed_id_outside_the_roster_cannot_produce_a_record, False),
+        ("a_roster_failure_contributes_no_false_zero_to_the_aggregates",
+         test_a_roster_failure_contributes_no_false_zero_to_the_aggregates, True),
+        ("an_episode_outcome_cannot_omit_what_it_measured",
+         test_an_episode_outcome_cannot_omit_what_it_measured, False),
+        # --- P3: every eval round keeps its own scenario artifacts ---
+        ("eval_episode_tag_is_deterministic_and_round_disjoint",
+         test_eval_episode_tag_is_deterministic_and_round_disjoint, False),
+        ("validate_refuses_an_eval_band_wider_than_one_tag_namespace",
+         test_validate_refuses_an_eval_band_wider_than_one_tag_namespace, False),
+        ("eval_rounds_reuse_the_seeds_but_not_the_tags",
+         test_eval_rounds_reuse_the_seeds_but_not_the_tags, True),
+        ("pre_and_post_update_scenario_files_coexist",
+         test_pre_and_post_update_scenario_files_coexist, True),
         ("provenance_is_collected_before_any_run_artifact_exists",
          test_provenance_is_collected_before_any_run_artifact_exists, True),
         ("git_provenance_requires_both_the_sha_and_the_dirty_state",
