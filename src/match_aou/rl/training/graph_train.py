@@ -91,6 +91,15 @@ are the authoritative aggregates, ``target_confirmation_count_semantics`` states
 convention in the record itself, and ``kills_mean`` / ``eval_kills_mean`` survive as
 compatibility aliases fed from the same corrected number.
 
+The authoritative count is ``len(_unique_confirmed_target_ids(executor.done))`` and
+NOTHING ELSE. It is never derived from how many targets the roster managed to name --
+that dependency is what let a degraded roster report an episode with real confirmations
+as a successful ``0/0``. The roster is required measurement structure, not a
+best-effort label source: a structural failure (no beliefs, malformed task lists, t=0
+beliefs that disagree, or a confirmed target the roster does not contain) fails the
+attempt at the ``setup`` stage and is skipped and accounted like any other, while an
+unresolvable NAME degrades to ``<unnamed target>`` and changes no id and no count.
+
 SCENARIO SOURCE (the offline construction path: B1 generation + B3 setup seam)
 -----------------------------------------------------------------------------
 Episodes are built from an EXPLICIT reference cell -- ``num_agents``, ``n_known``,
@@ -1237,9 +1246,28 @@ def _build_generator(scen_dir: Path) -> ScenarioGenerator:
 #
 # Everything in this section is READ-ONLY with respect to the pipeline. It inspects an
 # `EpisodeContext` and the executor's confirmed-kill set and formats text; it never
-# mutates a belief, a solution, an executor, a reward or a scenario. It also never
-# raises: an episode that really ran must not be lost because its console line could
-# not be built, so every lookup degrades to a placeholder instead of an exception.
+# mutates a belief, a solution, an executor, a reward or a scenario.
+#
+# TWO KINDS OF FAILURE, DELIBERATELY TREATED DIFFERENTLY -- the distinction is what
+# keeps the metric honest:
+#
+#   * A DISPLAY failure -- one target's BLADE name cannot be resolved -- is nonfatal.
+#     The target keeps its id, its place in the roster and its contribution to every
+#     count; only the printed text degrades, to `_UNNAMED_TARGET`.
+#   * A STRUCTURAL failure -- absent or malformed beliefs / oracle tasks, t=0 beliefs
+#     that disagree, or a roster that does not cover the executed world -- FAILS THE
+#     ATTEMPT through the existing `skip_and_account_v1` machinery, attributed to the
+#     `setup` stage.
+#
+# The second rule exists because of a real defect in the first version of this section:
+# it swallowed every structural exception and returned an empty roster, and the
+# authoritative count was derived from the names it had managed to classify. A degraded
+# roster therefore turned an episode with real confirmations into a SUCCESSFUL
+# `0/0` measurement, and that false zero flowed straight into
+# `targets_confirmed_unique_mean` and its aliases. A research metric must never depend on
+# whether a name diagnostic worked: the authoritative count is now
+# `len(_unique_confirmed_target_ids(executor.done))` and nothing else, and a roster that
+# cannot describe the world that ran is a failed attempt, never a measured zero.
 
 def _ascii(text: Any) -> str:
     """Render a value for the cp1255 Windows console -- non-ASCII becomes ``?``.
@@ -1254,6 +1282,20 @@ def _ascii(text: Any) -> str:
 def _format_names(names: Tuple[str, ...]) -> str:
     """A name list as a compact JSON array: ``["Enemy Airbase #1", ...]``, ``[]`` if empty."""
     return json.dumps([_ascii(n) for n in names])
+
+
+class EpisodeRosterError(RuntimeError):
+    """The episode's target roster could not be built, or does not describe what ran.
+
+    A STRUCTURAL failure of the measurement, not a display problem. It is raised, wrapped
+    as an ``EpisodeAttemptError("setup", ...)`` and accounted like any other failed
+    attempt, because the alternative -- reporting the episode as a successful zero -- is
+    the exact false-zero defect this class exists to prevent. It is NOT a new pipeline
+    stage: the roster is a t=0 fact about the context ``setup_episode`` produced, so a
+    roster that is missing, self-contradictory, or too small to cover the executed world
+    is a ``setup`` finding, and it appears in ``episode_failures.jsonl`` under its own
+    ``error_type`` so an audit can tell it apart from an exact-cardinality failure.
+    """
 
 
 def _task_target_id(task: Any) -> Optional[str]:
@@ -1301,7 +1343,15 @@ class _TargetRoster:
     lists in the same order.
 
     ``known_ids`` / ``hidden_ids`` are kept because the confirmation split is computed by
-    id; they are never printed (see :data:`_UNNAMED_TARGET`).
+    id; they are never printed (see :data:`_UNNAMED_TARGET`). They are UNIQUE within each
+    half, DISJOINT across the halves, and together they cover the executed world exactly
+    -- :func:`_episode_target_roster` refuses to build anything else. That is what lets
+    the printed name subsets be reconciled against the authoritative count instead of
+    substituting for it.
+
+    A name is a LABEL for its id, never a stand-in: ``known_names[i]`` describes
+    ``known_ids[i]``, and an unresolvable name becomes :data:`_UNNAMED_TARGET` without
+    the id leaving the roster or any count changing.
     """
 
     known_ids: Tuple[str, ...]
@@ -1317,9 +1367,18 @@ class _TargetRoster:
     def confirmed(self, confirmed_ids: set) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
         """Split a unique confirmed-target-id set into ``(known_names, hidden_names)``.
 
-        Roster order is preserved, and because the roster's two halves are disjoint and
-        cover every executed target, ``len(known) + len(hidden)`` IS the unique
-        confirmation total -- the two reported numbers cannot disagree.
+        A PRESENTATION of the authoritative count, never its source. The caller has
+        already computed ``len(confirmed_ids)``; this only says which names sit behind it,
+        in roster order.
+
+        Every confirmed id must therefore land in exactly one half. An id the roster does
+        not contain means the roster does not describe the world that ran -- the executor
+        confirmed a target the t=0 snapshot never listed -- so it RAISES rather than
+        quietly dropping the target from the printed subsets, which would leave a block
+        whose names no longer add up to its own total.
+
+        Raises:
+            EpisodeRosterError: if any confirmed id is outside the roster.
         """
         known = tuple(
             name for tid, name in zip(self.known_ids, self.known_names)
@@ -1329,14 +1388,28 @@ class _TargetRoster:
             name for tid, name in zip(self.hidden_ids, self.hidden_names)
             if tid in confirmed_ids
         )
+        if len(known) + len(hidden) != len(confirmed_ids):
+            unknown = sorted(
+                set(confirmed_ids) - set(self.known_ids) - set(self.hidden_ids)
+            )
+            raise EpisodeRosterError(
+                "%d confirmed target id(s) are not in the episode's executed roster "
+                "(%d known + %d hidden): the t=0 snapshot does not describe the world "
+                "that ran. First: %s"
+                % (len(unknown), len(self.known_ids), len(self.hidden_ids),
+                   ", ".join(unknown[:3]) or "<none>")
+            )
         return known, hidden
-
-
-_EMPTY_ROSTER = _TargetRoster((), (), (), ())
 
 
 def _resolve_target_name(ctx: Any, target_id: str) -> str:
     """One target's BLADE ``name`` via ``scenario.get_target``; never raises, never a uuid.
+
+    A DISPLAY lookup, and the only nonfatal degradation in this section: an unresolvable
+    name yields :data:`_UNNAMED_TARGET` while the target keeps its id, its roster slot and
+    its full contribution to every count and denominator. Losing an episode because one
+    label could not be rendered would be the wrong trade; losing a COUNT because of it
+    would be worse, and cannot happen -- no count is computed from names.
 
     CALL BEFORE THE EPISODE RUNS. ``get_target`` scans the LIVE scenario, and a killed
     unit is removed from it -- resolving names afterwards would silently blank out
@@ -1344,10 +1417,40 @@ def _resolve_target_name(ctx: Any, target_id: str) -> str:
     """
     try:
         target = ctx.game.current_scenario.get_target(str(target_id))
-    except Exception:  # noqa: BLE001 - a name lookup must never cost an episode
+    except Exception:  # noqa: BLE001 - a display lookup must never cost an episode
         return _UNNAMED_TARGET
     name = getattr(target, "name", None) if target is not None else None
     return _UNNAMED_TARGET if not name else str(name)
+
+
+def _ordered_target_ids(tasks: Any, what: str) -> List[str]:
+    """Target ids of ``tasks`` in order, DEDUPLICATED, or raise on a malformed task.
+
+    Deduplication is normalization, not tolerance: the roster is a statement about
+    TARGETS, and two tasks may legitimately name one target, so first use wins and order
+    is preserved. A task that names NO target is different -- it means the structure this
+    roster is derived from is not what it is assumed to be, and the count derived from it
+    would be quietly short.
+
+    Raises:
+        EpisodeRosterError: on a non-iterable task list or a task with no target.
+    """
+    try:
+        task_list = list(tasks)
+    except TypeError as exc:
+        raise EpisodeRosterError(
+            "%s is not a task list (%s)" % (what, type(tasks).__name__)
+        ) from exc
+    ids: List[str] = []
+    for index, task in enumerate(task_list):
+        target_id = _task_target_id(task)
+        if target_id is None:
+            raise EpisodeRosterError(
+                "%s task %d names no target: the roster cannot be derived from it"
+                % (what, index)
+            )
+        ids.append(target_id)
+    return list(dict.fromkeys(ids))
 
 
 def _episode_target_roster(ctx: Any) -> _TargetRoster:
@@ -1365,52 +1468,70 @@ def _episode_target_roster(ctx: Any) -> _TargetRoster:
       * HIDDEN  -- full minus known, in oracle order. Derived by SUBTRACTION rather than
         from ``ctx.placements``, which is deliberately id-free.
 
-    Degrades instead of raising: a missing field yields an empty roster and one warning
-    line, because losing a real episode to a diagnostic would corrupt the data yield that
-    ``skip_and_account_v1`` exists to report honestly.
+    REQUIRED MEASUREMENT STRUCTURE, not a best-effort diagnostic. Every structural
+    problem raises :class:`EpisodeRosterError`, which the caller accounts as a failed
+    ``setup`` attempt: no beliefs, a malformed belief or oracle task list, t=0 beliefs
+    that disagree (they are all minted from one A_init, so a disagreement is a real
+    no-communication defect and must never be averaged over or reported as one ego's
+    view), no oracle tasks, or a known target the executed world does not contain. The
+    earlier version swallowed all of these and returned an empty roster; that turned a
+    structural failure into a successful ``0/0`` measurement.
+
+    Only name RESOLUTION degrades (:func:`_resolve_target_name`), and it changes no id
+    and no count.
     """
-    try:
-        beliefs = list(getattr(ctx, "beliefs", {}).values())
-        known_ids: List[str] = []
-        if beliefs:
-            known_ids = [
-                tid for tid in (_task_target_id(t) for t in beliefs[0].tasks)
-                if tid is not None
-            ]
-            # Cheap no-comms invariant check (<= ~4 egos x ~9 tasks). All N beliefs are
-            # minted from one A_init, so a disagreement at t=0 would be a real defect --
-            # reported, never silently averaged over and never fatal to the episode.
-            for other in beliefs[1:]:
-                other_ids = [
-                    tid for tid in (_task_target_id(t) for t in other.tasks)
-                    if tid is not None
-                ]
-                if other_ids != known_ids:
-                    print("  [WARN] beliefs disagree on the t=0 known target set; "
-                          "the roster reports the first ego's view")
-                    break
-
-        known_set = set(known_ids)
-        hidden_ids = [
-            tid for tid in (
-                _task_target_id(t) for t in (getattr(ctx, "oracle_tasks", None) or [])
-            )
-            if tid is not None and tid not in known_set
-        ]
-        # The oracle may list a target twice only if two tasks share it; keep first use.
-        hidden_ids = list(dict.fromkeys(hidden_ids))
-
-        return _TargetRoster(
-            known_ids=tuple(known_ids),
-            known_names=tuple(_resolve_target_name(ctx, t) for t in known_ids),
-            hidden_ids=tuple(hidden_ids),
-            hidden_names=tuple(_resolve_target_name(ctx, t) for t in hidden_ids),
+    beliefs_map = getattr(ctx, "beliefs", None) or {}
+    if not beliefs_map:
+        raise EpisodeRosterError(
+            "the episode context carries no beliefs, so the t=0 known target set "
+            "cannot be established"
         )
-    except Exception as exc:  # noqa: BLE001 - see the docstring: never cost an episode
-        print("  [WARN] could not snapshot the episode target roster (%s: %s); "
-              "the success block will report an empty roster"
-              % (type(exc).__name__, exc))
-        return _EMPTY_ROSTER
+
+    # Compared BEFORE deduplication so a divergence in order is caught too. This is a
+    # cheap invariant check (<= ~4 egos x ~9 tasks) on the guarantee that every belief is
+    # minted from one A_init.
+    per_ego = [
+        (str(ego_id), _ordered_target_ids(getattr(belief, "tasks", None),
+                                          "belief of ego %s" % ego_id))
+        for ego_id, belief in beliefs_map.items()
+    ]
+    known_ids = per_ego[0][1]
+    for ego_id, ids in per_ego[1:]:
+        if ids != known_ids:
+            raise EpisodeRosterError(
+                "the t=0 beliefs disagree on the known target set (ego %s vs ego %s): "
+                "all beliefs are minted from one A_init, so this is a real defect and "
+                "not something to report as one ego's view"
+                % (per_ego[0][0], ego_id)
+            )
+
+    executed_ids = _ordered_target_ids(getattr(ctx, "oracle_tasks", None),
+                                       "oracle")
+    if not executed_ids:
+        raise EpisodeRosterError(
+            "the oracle names no targets, so the executed world is unknown"
+        )
+
+    executed_set = set(executed_ids)
+    unmatched = [tid for tid in known_ids if tid not in executed_set]
+    if unmatched:
+        raise EpisodeRosterError(
+            "%d t=0 known target(s) are absent from the executed world: the roster "
+            "would not cover what runs" % len(unmatched)
+        )
+
+    known_set = set(known_ids)
+    hidden_ids = [tid for tid in executed_ids if tid not in known_set]
+
+    # known + hidden now partitions the executed target set exactly: unique within each
+    # half (both deduplicated), disjoint (hidden excludes known), and complete (known is
+    # a subset of executed, hidden is the rest).
+    return _TargetRoster(
+        known_ids=tuple(known_ids),
+        known_names=tuple(_resolve_target_name(ctx, t) for t in known_ids),
+        hidden_ids=tuple(hidden_ids),
+        hidden_names=tuple(_resolve_target_name(ctx, t) for t in hidden_ids),
+    )
 
 
 def _format_episode_block(header: str, out: "_EpisodeOutcome") -> str:
@@ -1451,17 +1572,23 @@ class _EpisodeOutcome:
 
     The observability fields are the same story: plain ints and name STRINGS, resolved
     while the env was still open, so a block can be printed (and an aggregate taken)
-    after the environment is gone. They default to an empty roster so a caller that
-    builds an outcome without one still constructs.
+    after the environment is gone.
+
+    NONE OF THEM HAS A DEFAULT, deliberately. They used to default to an empty roster so
+    that a caller could build an outcome without one -- which is precisely how a degraded
+    roster produced a SUCCESSFUL ``0/0`` measurement. An outcome now cannot be
+    constructed without stating what was measured, so the false zero is not expressible
+    here at all.
 
     TWO COUNTS, DELIBERATELY BOTH PRESENT:
       * ``confirmed_kills`` is ``EpisodeResult.confirmed_kills`` verbatim -- the number
         of ``(ego_id, target_id)`` CONFIRMATIONS in ``GraphPlanExecutor.done``. It is
         kept so this record stays a faithful mirror of what the tick loop reported, and
         it is what could exceed the world's target count when two egos confirm one kill.
-      * ``targets_confirmed_unique`` counts TARGETS (deduplicated over ego, see
-        :func:`_unique_confirmed_target_ids`) out of ``targets_total``. It is the only
-        one that is printed or aggregated.
+      * ``targets_confirmed_unique`` is ``len(_unique_confirmed_target_ids(done))`` --
+        TARGETS, deduplicated over ego -- out of ``targets_total``. It is the only one
+        printed or aggregated, and it is computed DIRECTLY from the id set, never from
+        how many names the roster managed to classify.
     """
 
     trajectory: List[Any]
@@ -1473,13 +1600,13 @@ class _EpisodeOutcome:
     n_dead: int
     seconds: float
 
-    # --- observability (see the class docstring) ---
-    targets_confirmed_unique: int = 0
-    targets_total: int = 0
-    known_target_names: Tuple[str, ...] = ()
-    hidden_target_names: Tuple[str, ...] = ()
-    known_confirmed_names: Tuple[str, ...] = ()
-    hidden_confirmed_names: Tuple[str, ...] = ()
+    # --- observability (see the class docstring; no defaults, on purpose) ---
+    targets_confirmed_unique: int
+    targets_total: int
+    known_target_names: Tuple[str, ...]
+    hidden_target_names: Tuple[str, ...]
+    known_confirmed_names: Tuple[str, ...]
+    hidden_confirmed_names: Tuple[str, ...]
 
 
 def _run_one_episode(
@@ -1515,8 +1642,14 @@ def _run_one_episode(
     still holds the context: the target roster is snapshotted between ``setup_episode``
     and ``run_episode`` (t=0 beliefs, and a scenario that has not lost a unit yet), the
     unique confirmed-target set is read off the executor after the run, and both survive
-    the ``finally`` that closes the env because they are ints and strings. None of it is
-    a new pipeline stage -- it cannot fail an attempt (:func:`_episode_target_roster`).
+    the ``finally`` that closes the env because they are ints and strings.
+
+    The roster is REQUIRED measurement structure. A structural failure -- it cannot be
+    built, or it does not account for every confirmed target -- raises
+    :class:`EpisodeRosterError` and is wrapped as a ``setup`` attempt failure, so it is
+    skipped and accounted like any other. No new pipeline stage is introduced, and no
+    such attempt reaches a reward aggregate. Only NAME resolution degrades, and it
+    changes nothing but the printed text.
     """
     random.seed(seed)
     torch.manual_seed(seed)
@@ -1546,8 +1679,13 @@ def _run_one_episode(
         # The roster is snapshotted HERE -- after setup, before a single tick -- because
         # both of its sources are t=0 facts: the N beliefs are byte-equal only now, and
         # the live scenario still holds every target it is about to lose to a kill.
-        # Read-only and non-raising (see `_episode_target_roster`).
-        roster = _episode_target_roster(ctx)
+        # Read-only, but REQUIRED: a roster that cannot be established describes a
+        # context `setup_episode` should not have produced, so it fails the attempt at
+        # the `setup` stage rather than degrading into a successful zero measurement.
+        try:
+            roster = _episode_target_roster(ctx)
+        except Exception as exc:
+            raise EpisodeAttemptError("setup", exc) from exc
 
         try:
             result = run_episode(
@@ -1562,13 +1700,24 @@ def _run_one_episode(
         except Exception as exc:
             raise EpisodeAttemptError("reward", exc) from exc
 
-        # Deduplicated over ego: `ctx.executor.done` holds (ego, target) pairs, so a
-        # target both egos confirmed is ONE target here (and `result.confirmed_kills`
-        # below still reports the raw confirmation count, unchanged).
+        # THE AUTHORITATIVE COUNT, and the one line the review finding is about. It is
+        # `len()` of the deduplicated id set taken straight off the executor -- a target
+        # both egos confirmed is ONE target here -- and it is NOT derived from how many
+        # of those ids the roster managed to name. `result.confirmed_kills` below still
+        # reports the raw (ego, target) confirmation count, unchanged.
         confirmed_ids = _unique_confirmed_target_ids(
             getattr(ctx.executor, "done", None)
         )
-        known_confirmed, hidden_confirmed = roster.confirmed(confirmed_ids)
+        targets_confirmed_unique = len(confirmed_ids)
+
+        # The name subsets are a PRESENTATION of that number. If they cannot account for
+        # every confirmed id, the roster does not describe the world that ran, and the
+        # attempt fails as a `setup` finding instead of printing a block whose names
+        # contradict its own total.
+        try:
+            known_confirmed, hidden_confirmed = roster.confirmed(confirmed_ids)
+        except Exception as exc:
+            raise EpisodeAttemptError("setup", exc) from exc
 
         return _EpisodeOutcome(
             trajectory=list(result.trajectory),
@@ -1579,7 +1728,7 @@ def _run_one_episode(
             confirmed_kills=int(result.confirmed_kills),
             n_dead=int(result.n_dead),
             seconds=time.perf_counter() - t0,
-            targets_confirmed_unique=len(known_confirmed) + len(hidden_confirmed),
+            targets_confirmed_unique=targets_confirmed_unique,
             targets_total=roster.total,
             known_target_names=roster.known_names,
             hidden_target_names=roster.hidden_names,
