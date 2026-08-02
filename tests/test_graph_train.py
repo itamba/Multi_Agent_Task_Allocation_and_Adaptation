@@ -120,6 +120,12 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     _resolve_construction_mode,
     split_tasks,
 )
+from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
+    CONDITION_CLEAN,
+    CONDITION_DAMAGED,
+    FuelDamageMode,
+    resolve_condition,
+)
 from match_aou.rl.training.graph_ppo import PPOConfig, PPOUpdater  # noqa: E402
 from match_aou.rl.training.graph_tick_loop import build_policy  # noqa: E402
 from match_aou.rl.training import graph_rollout, graph_train  # noqa: E402
@@ -145,6 +151,7 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     build_variation_config,
     collect_provenance,
     derived_split,
+    eval_member_tag,
     eval_seed,
     global_episode_index,
     plot_training,
@@ -1334,6 +1341,37 @@ def _stub_roster_fields(*, variant: str = "default") -> dict:
     }
 
 
+# A CLEAN fuel-damage record, for outcomes built by hand where the condition is not what
+# is under test. Clean is the inert case: no ego, no window, no event.
+_STUB_CLEAN_FUEL_DAMAGE = {
+    "fuel_damage_plan": {"condition": CONDITION_CLEAN, "ego_id": None},
+    "fuel_damage_outcome": {"condition": CONDITION_CLEAN, "fired": False,
+                            "wake_occurred": False, "wake_meta_action": None},
+    "selected_ego_rtb_issued": None,
+}
+
+
+def _stub_fuel_damage_fields(cfg, seed: int, mode) -> dict:
+    """The FD-BASELINE-v1 fields a stubbed `_EpisodeOutcome` must now carry.
+
+    The condition is resolved through the REAL `resolve_condition`, so a stubbed episode
+    reports the same clean/damaged label the trainer scheduled for that seed -- otherwise
+    the per-condition accounting these tests exercise would be checking the stub's
+    opinion rather than the loop's.
+    """
+    condition = resolve_condition(
+        episode_seed=int(seed), params=cfg.fuel_damage_parameters(mode)
+    )
+    damaged = condition == CONDITION_DAMAGED
+    return {
+        "fuel_damage_plan": {"condition": condition,
+                             "ego_id": "ego_0" if damaged else None},
+        "fuel_damage_outcome": {"condition": condition, "fired": damaged,
+                                "wake_occurred": damaged, "wake_meta_action": None},
+        "selected_ego_rtb_issued": True if damaged else None,
+    }
+
+
 def _run_stub_training(
     cfg: TrainConfig,
     *,
@@ -1414,9 +1452,13 @@ def _run_stub_training(
         state["scen_dir"] = Path(scen_dir)
         return object()          # the stub episode body never touches it
 
-    def fake_run_one_episode(policy, gen, cfg_, *, seed, episode_tag, deterministic):
+    def fake_run_one_episode(policy, gen, cfg_, *, seed, episode_tag, deterministic,
+                             fuel_damage_mode=None):
         phase = "eval" if deterministic else "train"
-        events.append(("episode", phase, int(seed), int(episode_tag)))
+        # FD-BASELINE-v1: evaluation attempts each held-out seed once per matched pair
+        # member, passing the forced mode; training passes none. The mode is recorded on
+        # the event so a pairing assertion can read it.
+        events.append(("episode", phase, int(seed), int(episode_tag), fuel_damage_mode))
         # Stand in for the file the real generator would have written under this tag.
         if state["scen_dir"] is not None:
             state["scen_dir"].mkdir(parents=True, exist_ok=True)
@@ -1443,6 +1485,7 @@ def _run_stub_training(
             ended="done", n_wakes=n_wakes,
             confirmed_kills=_STUB_CONFIRMED_KILLS, n_dead=0, seconds=0.01,
             **roster_fields,
+            **_stub_fuel_damage_fields(cfg_, seed, fuel_damage_mode),
         )
 
     graph_train._git_provenance = lambda repo_root: dict(git_verdict)
@@ -1507,17 +1550,21 @@ def test_failed_seeds_are_skipped_and_accounted(tmp_path: Path) -> None:
     assert _episode_seeds(events, "train") == scheduled_train == [0, 1, 2, 3, 4, 5]
 
     # Two eval ROUNDS (pre-update + the one at iteration 1), each attempting the FIXED
-    # band once. A failed eval seed is re-attempted on the next round -- that is the
-    # band being fixed, not a retry of a spent attempt.
+    # band once PER MATCHED PAIR MEMBER (FD-BASELINE-v1: forced clean, then forced
+    # damaged, on the same seed). A failed eval seed is re-attempted on the next round --
+    # that is the band being fixed, not a retry of a spent attempt.
     eval_seeds_seen = _episode_seeds(events, "eval")
-    assert eval_seeds_seen == [1_000_000, 1_000_001] * 2, eval_seeds_seen
+    assert eval_seeds_seen == [1_000_000, 1_000_000, 1_000_001, 1_000_001] * 2, \
+        eval_seeds_seen
     assert set(eval_seeds_seen) <= {1_000_000, 1_000_001}
 
     # --- the ledger: one record per failed attempt, with stage and reason ---
     ledger = [json.loads(line) for line in
               (Path(cfg.output_dir) / "episode_failures.jsonl")
               .read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert len(ledger) == 4, ledger      # 2 train + 1 eval seed x 2 rounds
+    # 2 train + 1 eval seed x 2 pair members x 2 rounds. The failure is keyed by SEED in
+    # this stub, so both members of that seed's pair fail -- and each is recorded once.
+    assert len(ledger) == 6, ledger
 
     train_failures = [r for r in ledger if r["phase"] == "train"]
     assert sorted(r["seed"] for r in train_failures) == [1, 4]
@@ -1528,11 +1575,16 @@ def test_failed_seeds_are_skipped_and_accounted(tmp_path: Path) -> None:
     assert {r["seed"]: r["episode_index"] for r in train_failures} == {1: 1, 4: 4}
 
     eval_failures = [r for r in ledger if r["phase"] == "eval"]
-    assert [r["seed"] for r in eval_failures] == [1_000_001, 1_000_001]
+    assert [r["seed"] for r in eval_failures] == [1_000_001] * 4
     assert [r["evaluation_stage"] for r in eval_failures] == \
-        [_EVAL_STAGE_PRE_UPDATE, _EVAL_STAGE_POST_UPDATE]
-    assert [r["updates_completed"] for r in eval_failures] == [0, 2]
+        [_EVAL_STAGE_PRE_UPDATE] * 2 + [_EVAL_STAGE_POST_UPDATE] * 2
+    assert [r["updates_completed"] for r in eval_failures] == [0, 0, 2, 2]
     assert all(r["pipeline_stage"] == "generation" for r in eval_failures)
+    # Both members of the pair are accounted, under their own conditions and their own
+    # attempt ordinals -- a half-failed pair is never collapsed into one record.
+    assert [r["condition"] for r in eval_failures] == \
+        [CONDITION_CLEAN, CONDITION_DAMAGED] * 2
+    assert [r["attempt_ordinal"] for r in eval_failures] == [2, 3, 2, 3]
 
     for record in ledger:
         # The ORIGINAL exception survives the attribution wrapper.
@@ -1550,22 +1602,26 @@ def test_failed_seeds_are_skipped_and_accounted(tmp_path: Path) -> None:
 
     eval_records = _read_records(cfg.output_dir, "eval_records.jsonl")
     for record in eval_records:
-        assert record["n_attempted"] == record["n_successful"] + record["n_failed"] == 2
-        assert record["n_failed"] == 1
+        # 2 held-out seeds x 2 matched pair members = 4 episode attempts per round.
+        assert record["n_attempted"] == record["n_successful"] + record["n_failed"] == 4
+        assert record["n_failed"] == 2
         assert record["success_fraction"] == 0.5
         assert record["aggregates_over"] == "successful_episodes"
+        # Seed 1_000_001 lost BOTH members, so it contributes no complete pair.
+        assert record["n_pairs_attempted"] == 2
+        assert record["n_pairs_successful"] == 1
 
     assert summary["train_episodes_attempted"] == 6
     assert summary["train_episodes_successful"] == 4
     assert summary["train_episodes_failed"] == 2
-    assert summary["eval_episodes_attempted"] == 4
-    assert summary["eval_episodes_successful"] == 2
-    assert summary["eval_episodes_failed"] == 2
-    assert summary["failures_recorded"] == 4
-    assert summary["failures_by_phase"] == {"train": 2, "eval": 2}
+    assert summary["eval_episodes_attempted"] == 8
+    assert summary["eval_episodes_successful"] == 4
+    assert summary["eval_episodes_failed"] == 4
+    assert summary["failures_recorded"] == 6
+    assert summary["failures_by_phase"] == {"train": 2, "eval": 4}
     assert summary["failures_by_pipeline_stage"] == \
-        {"setup": 1, "run": 1, "generation": 2}
-    assert summary["failures_by_error_type"] == {"ValueError": 4}
+        {"setup": 1, "run": 1, "generation": 4}
+    assert summary["failures_by_error_type"] == {"ValueError": 6}
     assert summary["accounting_reconciled"] is True
     assert summary["exact_cardinality_policy"] == "skip_and_account_v1"
 
@@ -1605,13 +1661,16 @@ def test_pre_update_evaluation_precedes_all_training(tmp_path: Path) -> None:
     assert "update" not in kinds[:first_train], kinds[:first_train]
     assert kinds.index("update") > first_train
 
-    # The pre-update round used the FIXED held-out band, once each, in order.
-    assert _episode_seeds(events, "eval")[:3] == [1_000_000, 1_000_001, 1_000_002]
+    # The pre-update round used the FIXED held-out band, in order, once per MATCHED
+    # PAIR MEMBER (FD-BASELINE-v1: each seed is run forced-clean then forced-damaged).
+    assert _episode_seeds(events, "eval")[:6] == [
+        1_000_000, 1_000_000, 1_000_001, 1_000_001, 1_000_002, 1_000_002,
+    ]
 
     snapshot = state["at_first_train"]
     assert snapshot is not None, "no training episode ran"
     assert snapshot["n_updates"] == 0, "an optimizer update ran before training"
-    assert snapshot["n_eval_episodes"] == cfg.eval_episodes
+    assert snapshot["n_eval_episodes"] == cfg.eval_episodes * 2  # one pair per seed
     _assert_weights_unchanged(
         state["weights_at_build"], snapshot["weights"],
         "the pre-update evaluation modified the policy",
@@ -1629,7 +1688,8 @@ def test_pre_update_evaluation_precedes_all_training(tmp_path: Path) -> None:
     assert first["evaluation_stage"] == _EVAL_STAGE_PRE_UPDATE
     assert first["updates_completed"] == 0
     assert first["iteration"] is None, "a pre-update round is not iteration 0"
-    assert first["n_attempted"] == 3 and first["n_successful"] == 3
+    assert first["n_attempted"] == 6 and first["n_successful"] == 6   # 3 seeds x 2
+    assert first["n_pairs_attempted"] == 3 and first["n_pairs_successful"] == 3
     assert first["seed_band"] == {
         "start": 1_000_000, "stop": 1_000_003, "half_open": True,
     }
@@ -1640,7 +1700,7 @@ def test_pre_update_evaluation_precedes_all_training(tmp_path: Path) -> None:
     assert last["updates_completed"] == 2 and last["iteration"] == 1
 
     assert summary["initial_pre_update_eval"]["updates_completed"] == 0
-    assert summary["initial_pre_update_eval"]["n_attempted"] == 3
+    assert summary["initial_pre_update_eval"]["n_attempted"] == 6   # 3 seeds x 2
     assert summary["final_eval"]["updates_completed"] == 2
     assert summary["updates_completed"] == 2
 
@@ -1768,12 +1828,24 @@ _UUID_RE = re.compile(
 
 
 def _ok_blocks(stdout: str) -> list:
-    """Every printed OK block as a list of its 7 lines, keyed off the ``] OK`` header."""
+    """Every printed OK block, keyed off the ``] OK`` header and its ``ended=`` footer.
+
+    The block is no longer a fixed line count: FD-BASELINE-v1 adds one ``fuel_damage=``
+    line for a clean episode and three for a damaged one. It is delimited instead, which
+    is also what makes "the footer is always last" an assertion rather than an index.
+    """
     lines = stdout.splitlines()
     blocks = []
     for i, line in enumerate(lines):
-        if line.endswith("] OK"):
-            blocks.append(lines[i:i + 7])
+        if not line.endswith("] OK"):
+            continue
+        end = next(
+            (j for j in range(i + 1, len(lines))
+             if lines[j].strip().startswith("ended=")),
+            None,
+        )
+        assert end is not None, "an OK block has no ended= footer: %r" % (lines[i:],)
+        blocks.append(lines[i:end + 1])
     return blocks
 
 
@@ -1794,6 +1866,17 @@ def _assert_block_is_complete(block: list) -> None:
     ):
         line = next(l for l in body if l.strip().startswith(label + "="))
         assert json.loads(line.split("=", 1)[1]) == list(names), line
+
+    # FD-BASELINE-v1: every block states the episode's condition, and a damaged one
+    # states what the event did. A block that stopped reporting the difficulty factor
+    # would leave an operator unable to tell the two halves of a mixture apart.
+    fd_line = next(l for l in body if l.strip().startswith("fuel_damage="))
+    if "fuel_damage=damaged" in fd_line:
+        assert "ego=" in fd_line and "fired=" in fd_line, fd_line
+        assert any("fuel_before=" in l and "rtb_floor=" in l for l in body), body
+        assert any("fd_wake=" in l and "rtb_issued=" in l for l in body), body
+    else:
+        assert fd_line.strip() == "fuel_damage=clean ego=none", fd_line
 
     assert body[-1].strip().startswith("ended="), body[-1]
     assert "ticks=" in body[-1] and "dead=" in body[-1], body[-1]
@@ -1822,14 +1905,20 @@ def test_every_successful_episode_prints_one_labelled_ok_block(tmp_path: Path) -
 
     blocks = _ok_blocks(out)
     headers = [b[0] for b in blocks]
-    # 2 pre-update eval + 2 train + 2 post-update eval, in that order.
+    # 2 pre-update eval SEEDS x 2 matched pair members, then 2 train, then the same 4
+    # post-update eval members -- in that order. The eval headers name the condition, so
+    # the two members of one seed's pair are never confused with each other.
     assert headers == [
-        "[eval stage=pre_update ep=0 seed=1000000] OK",
-        "[eval stage=pre_update ep=1 seed=1000001] OK",
+        "[eval stage=pre_update ep=0 clean seed=1000000] OK",
+        "[eval stage=pre_update ep=0 damaged seed=1000000] OK",
+        "[eval stage=pre_update ep=1 clean seed=1000001] OK",
+        "[eval stage=pre_update ep=1 damaged seed=1000001] OK",
         "[train iter=0 ep=0 seed=0] OK",
         "[train iter=0 ep=1 seed=1] OK",
-        "[eval stage=post_update ep=0 seed=1000000] OK",
-        "[eval stage=post_update ep=1 seed=1000001] OK",
+        "[eval stage=post_update ep=0 clean seed=1000000] OK",
+        "[eval stage=post_update ep=0 damaged seed=1000000] OK",
+        "[eval stage=post_update ep=1 clean seed=1000001] OK",
+        "[eval stage=post_update ep=1 damaged seed=1000001] OK",
     ], headers
     for block in blocks:
         _assert_block_is_complete(block)
@@ -1855,7 +1944,7 @@ def test_a_failed_attempt_prints_no_ok_block_and_still_accounts(tmp_path: Path) 
     assert headers == ["[train iter=0 ep=0 seed=0] OK",
                        "[train iter=0 ep=2 seed=2] OK"], headers
     assert "seed=1] OK" not in out, out
-    assert "[iter 0 ep 1] FAILED (seed=1, stage=setup)" in out, out
+    assert "[iter 0 ep 1] FAILED (seed=1, cond=damaged, stage=setup)" in out, out
 
     # Accounting is untouched by the new output.
     assert summary["train_episodes_attempted"] == 3
@@ -1872,6 +1961,7 @@ def test_ok_block_reports_the_real_ending_not_a_verdict() -> None:
         trajectory=[], reward=-0.25, ticks=7, ended="truncated", n_wakes=0,
         confirmed_kills=0, n_dead=1, seconds=3.25,
         **_stub_roster_fields(),
+        **_STUB_CLEAN_FUEL_DAMAGE,
     )
     block = graph_train._format_episode_block("[train iter=2 ep=9 seed=9]", out)
     lines = block.splitlines()
@@ -1894,6 +1984,7 @@ def test_ok_block_survives_a_non_ascii_target_name() -> None:
         targets_confirmed_unique=0, targets_total=1,
         known_target_names=("Enemy Airbase ÅÜ",), hidden_target_names=(),
         known_confirmed_names=(), hidden_confirmed_names=(),
+        **_STUB_CLEAN_FUEL_DAMAGE,
     )
     block = graph_train._format_episode_block("[train iter=0 ep=0 seed=0]", out)
     block.encode("ascii")            # would raise if a raw name had leaked through
@@ -2461,12 +2552,13 @@ def test_eval_rounds_reuse_the_seeds_but_not_the_tags(tmp_path: Path) -> None:
     eval_tags = _episode_tags(events, "eval")
     train_tags = _episode_tags(events, "train")
 
-    # 3 rounds (pre_update + 2 post_update) x 2 episodes, the SAME seeds each round.
-    assert eval_seeds == [1_000_000, 1_000_001] * 3, eval_seeds
-    # ... and 6 DISTINCT tags.
-    assert len(set(eval_tags)) == len(eval_tags) == 6, eval_tags
+    # 3 rounds (pre_update + 2 post_update) x 2 held-out seeds x 2 matched pair
+    # members, the SAME seeds each round.
+    assert eval_seeds == [1_000_000, 1_000_000, 1_000_001, 1_000_001] * 3, eval_seeds
+    # ... and 12 DISTINCT tags (each member of each pair of each round gets its own).
+    assert len(set(eval_tags)) == len(eval_tags) == 12, eval_tags
 
-    rounds = [set(eval_tags[i:i + 2]) for i in range(0, 6, 2)]
+    rounds = [set(eval_tags[i:i + 4]) for i in range(0, 12, 4)]
     pre_update, post_1, post_2 = rounds
     assert not (pre_update & post_1) and not (pre_update & post_2)
     assert not (post_1 & post_2)
@@ -2476,7 +2568,7 @@ def test_eval_rounds_reuse_the_seeds_but_not_the_tags(tmp_path: Path) -> None:
     recs = _read_records(cfg.output_dir, "eval_records.jsonl")
     assert [r["eval_round_ordinal"] for r in recs] == [0, 1, 2], recs
     assert [r["episode_tag_start"] for r in recs] == [
-        graph_train.eval_episode_tag(round_ordinal=r, e=0) for r in range(3)
+        eval_member_tag(round_ordinal=r, e=0, member=0) for r in range(3)
     ], recs
     assert recs[0]["evaluation_stage"] == _EVAL_STAGE_PRE_UPDATE
     assert all(r["evaluation_stage"] == _EVAL_STAGE_POST_UPDATE for r in recs[1:])
@@ -2504,24 +2596,26 @@ def test_pre_and_post_update_scenario_files_coexist(tmp_path: Path) -> None:
     def _expected(round_ordinal):
         return {
             "episode_%04d_scenario.json"
-            % graph_train.eval_episode_tag(round_ordinal=round_ordinal, e=e)
-            for e in range(cfg.eval_episodes)
+            % eval_member_tag(round_ordinal=round_ordinal, e=e, member=m)
+            for e in range(cfg.eval_episodes) for m in (0, 1)
         }
 
     pre_update, post_update = _expected(0), _expected(1)
     assert pre_update <= set(names), (pre_update, names)
     assert post_update <= set(names), (post_update, names)
     assert not (pre_update & post_update)
-    # 2 pre-update + 1 training + 2 post-update, all present SIMULTANEOUSLY.
-    assert len(names) == 5, names
+    # 4 pre-update + 1 training + 4 post-update, all present SIMULTANEOUSLY: both
+    # members of every matched pair keep their own world.
+    assert len(names) == 9, names
 
-    # Each file still records the seed it was written for -- the seeds really are reused.
+    # Each file still records the seed it was written for -- the seeds really are reused,
+    # and BOTH members of a pair record the SAME one (that is what makes it a pair).
     for round_files in (pre_update, post_update):
         seeds = sorted(
             json.loads((scen_dir / n).read_text(encoding="utf-8"))["seed"]
             for n in round_files
         )
-        assert seeds == [1_000_000, 1_000_001], seeds
+        assert seeds == [1_000_000, 1_000_000, 1_000_001, 1_000_001], seeds
 
 
 # =============================================================================

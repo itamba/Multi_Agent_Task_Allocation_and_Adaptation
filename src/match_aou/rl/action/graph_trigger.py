@@ -13,13 +13,20 @@ Its orchestrator is the graph tick-loop (``training/graph_tick_loop.py``). Like
 ``graph_action`` / ``graph_effect`` it is a pure,
 hand-testable module (no BLADE engine, no torch).
 
-Two event kinds
----------------
+Three event kinds
+-----------------
 - POP-UP: the ego senses an enemy target that is NOT in its plan (a target it did
   not know about). It becomes a new task node the policy MAY engage.
 - PEER-OVERDUE: the ego senses a target that A_init assigned to a PEER, and the peer's
   expected completion time (an ETA model) has passed. The ego INFERS the peer may have
   failed (from A_init + clock, NEVER from observing the peer) and may take it over.
+- FUEL-DAMAGE: an EXOGENOUS, ego-local event (FD-BASELINE-v1) has just changed THIS
+  ego's own fuel state. Unlike the other two it is not derived from sensing, so it
+  cannot be detected here -- the orchestrator passes it in as the ``fuel_damage`` flag.
+  It edits NOTHING (no task is appended, no assignment is removed): the ego's own fuel
+  is already in the world, and the graph builder reads it from the live aircraft on the
+  next build. All this branch does is WAKE the policy, which is exactly this layer's
+  job -- deciding WHEN to ask, never WHAT to answer.
 
 NO-COMMUNICATION (research-critical, structurally enforced here)
 ----------------------------------------------------------------
@@ -34,6 +41,10 @@ NO-COMMUNICATION (research-critical, structurally enforced here)
    (an A_init-based model), never from observing the peer. It is a deterministic GATE
    on WHEN to ask the policy — the policy still freely decides whether to engage
    (via ``graph_action`` / ``graph_effect``).
+4. FUEL-DAMAGE IS EGO-LOCAL. ``fuel_damage`` is set for AT MOST ONE ego per tick, by
+   the orchestrator that applied the event to that ego's own aircraft. It carries no
+   information about any peer, and it is passed per call — one ego's flag can never
+   reach another ego's ``decide_triggers`` invocation.
 
 Belief edits (what a trigger DOES, before the policy runs)
 ----------------------------------------------------------
@@ -46,6 +57,10 @@ Belief edits (what a trigger DOES, before the policy runs)
                 ``belief_solution`` copy, so the sensed target reads as unassigned+sensed
                 — identical to a pop-up from the policy's view. The ego's own tuples and
                 every other peer's tuples are untouched.
+- FUEL-DAMAGE:  NO belief edit at all. The changed quantity is the ego's own live fuel,
+                which is not part of ``(belief_tasks, belief_solution)`` — the builder
+                reads it straight off the aircraft — so there is nothing here to copy or
+                rewrite. The event only sets ``wake``.
 
 Relationship to ``graph_effect``
 --------------------------------
@@ -77,10 +92,22 @@ Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
 # =============================================================================
 
 class TriggerKind(IntEnum):
-    """Kind of event that woke the policy, paired with a task-node index in ``events``."""
+    """Kind of event that woke the policy, paired with a task-node index in ``events``.
+
+    ``FUEL_DAMAGE`` is the one member with no task node: it is an exogenous change to the
+    ego's OWN platform state, not an observation about a target, so its ``events`` entry
+    carries :data:`NO_TASK_INDEX` rather than a task index that would not mean anything.
+    """
 
     POP_UP = 0
     PEER_OVERDUE = 1
+    FUEL_DAMAGE = 2
+
+
+# The task-node index paired with a NON-TASK event (today only ``FUEL_DAMAGE``).
+# Deliberately a sentinel rather than ``0``: ``0`` is a perfectly valid task index, and an
+# event that appeared to point at task 0 would be indistinguishable from one that does.
+NO_TASK_INDEX: int = -1
 
 
 # =============================================================================
@@ -144,6 +171,7 @@ def decide_triggers(
     *,
     ego_id: str,
     clock: float,
+    fuel_damage: bool = False,
 ) -> Tuple[List[Task], Dict[str, List[Assignment]], bool, List[Tuple[TriggerKind, int]]]:
     """Decide whether the ego's sensing warrants waking the policy, editing its belief.
 
@@ -170,6 +198,14 @@ def decide_triggers(
         ego_id: the deciding ego's id (keyword-only).
         clock: current simulation tick (keyword-only). A peer is overdue iff
             ``clock > eta(peer_id, task_idx)``.
+        fuel_damage: True iff an EXOGENOUS fuel-damage event was applied to THIS ego on
+            THIS tick (FD-BASELINE-v1). Defaults to False, so every pre-existing caller
+            is byte-unchanged. It cannot be detected here -- it is not an observation --
+            so the orchestrator that applied it passes it in, for at most one ego per
+            tick. Setting it wakes the policy and appends a
+            ``(FUEL_DAMAGE, NO_TASK_INDEX)`` event; it edits NEITHER the task list NOR
+            the solution, because the changed quantity is the ego's own live fuel, which
+            the graph builder reads off the aircraft rather than out of the belief.
 
     Returns:
         ``(new_belief_tasks, new_belief_solution, wake, events)`` where ``events`` is a
@@ -184,6 +220,17 @@ def decide_triggers(
     wake = False
 
     ego_key = str(ego_id)
+
+    # --- FUEL-DAMAGE (exogenous, ego-local) -----------------------------------------
+    # Evaluated FIRST because it is the tick's cause, not one of its observations, so it
+    # heads the event list on a tick where the ego also senses something. It edits
+    # nothing: the whole event is "wake this ego". A tick that carries both a fuel-damage
+    # event and a pop-up still produces exactly ONE wake (and therefore one decision) --
+    # `wake` is a single boolean by design.
+    if fuel_damage:
+        events.append((TriggerKind.FUEL_DAMAGE, NO_TASK_INDEX))
+        wake = True
+        logger.debug("FUEL_DAMAGE ego=%s clock=%s", ego_key, clock)
 
     # Existing belief target-id -> task_idx (first occurrence). Doubles as the
     # "already known?" membership test for pop-up classification.
@@ -336,6 +383,32 @@ def _selftest() -> None:
     assert _task_target_id(nt6[0]) == "t0" and _task_target_id(nt6[1]) == "t1"  # unchanged
     assert {_task_target_id(nt6[2]), _task_target_id(nt6[3])} == {"popA", "popB"}
     print("[6] APPEND-ONLY: two pop-ups -> idx 2,3; earlier idx 0,1 unchanged   OK")
+
+    # (7) FUEL-DAMAGE: wakes with NO belief edit, and is off by default.
+    nt7, ns7, wake7, events7 = decide_triggers(
+        belief_tasks, belief_solution, {}, ego_id="ego", clock=100.0, fuel_damage=True,
+    )
+    assert wake7 is True and events7 == [(TriggerKind.FUEL_DAMAGE, NO_TASK_INDEX)], events7
+    assert nt7 == belief_tasks and nt7 is not belief_tasks   # no task appended
+    assert ns7 == belief_solution and ns7 is not belief_solution  # no assignment removed
+    assert belief_tasks == tasks_snapshot and belief_solution == solution_snapshot
+    # Default is False -- every pre-FD caller is byte-unchanged.
+    _nt, _ns, wake_off, events_off = decide_triggers(
+        belief_tasks, belief_solution, {}, ego_id="ego", clock=100.0,
+    )
+    assert wake_off is False and events_off == []
+    print("[7] FUEL_DAMAGE: wakes, edits NOTHING, sentinel task index, default off   OK")
+
+    # (8) A fuel-damage tick that ALSO senses a pop-up: both events, still ONE wake,
+    #     and the exogenous cause is listed first.
+    nt8, _ns8, wake8, events8 = decide_triggers(
+        belief_tasks, belief_solution, {"pop_fd": Airbase("pop_fd", 1.0, 1.0)},
+        ego_id="ego", clock=100.0, fuel_damage=True,
+    )
+    assert wake8 is True
+    assert events8 == [(TriggerKind.FUEL_DAMAGE, NO_TASK_INDEX), (TriggerKind.POP_UP, 2)]
+    assert len(nt8) == 3  # the pop-up branch still appended exactly one task
+    print("[8] fuel-damage + pop-up on one tick: both events, one wake, cause first   OK")
 
     print("-" * 72)
     print("All assertions passed.")

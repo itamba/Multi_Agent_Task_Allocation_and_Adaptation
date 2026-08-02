@@ -42,6 +42,20 @@ later ego senses, i.e. an implicit communication channel.
 Each belief edit is confined to the acting ego's belief (``ctx.beliefs[ego_id]``),
 which is mutually independent from every peer's (``Belief.independent`` — see
 ``belief.py`` / ``graph_episode_setup``), so no edit can leak across egos.
+
+EXOGENOUS EVENTS ENTER AT THE TOP OF A TICK, NEVER INSIDE PHASE 1
+-----------------------------------------------------------------
+FD-BASELINE-v1's fuel-damage event (``graph_fuel_damage``) is the first thing a tick
+does, BEFORE the per-ego Phase-1 loop begins. That placement is the whole no-comms
+argument for it: the event mutates one live BLADE aircraft's ``current_fuel``, and every
+ego — the damaged one included — then senses and decides against the SAME post-event
+snapshot. Applying it partway through the ego loop would make some egos see the
+pre-damage world and others the post-damage world, i.e. the outcome would depend on
+Phase-1 ego ITERATION ORDER, which is precisely the implicit communication channel the
+two-phase split exists to close. The event is ego-local twice over: only the selected ego
+receives ``fuel_damage=True``, and a peer's graph row carries no fuel at all (the builder
+gives peers ``fuel_norm = 0.0`` by construction). The feature is OFF by default
+(``fuel_damage=None``), so a loop without it is byte-unchanged.
 """
 
 from __future__ import annotations
@@ -61,6 +75,7 @@ from ..action.graph_effect import apply_meta_action
 from ..action.graph_trigger import decide_triggers, never_overdue
 from ..agent.graph_encoder import GraphEncoder
 from .graph_episode_setup import EpisodeContext, MAX_SIM_TICKS
+from .graph_fuel_damage import FuelDamageController
 from .belief import Belief
 
 # Default per-episode tick cap. Equal to the env's TimeLimit (setup passes
@@ -240,6 +255,7 @@ def run_episode(
     *,
     deterministic: bool = False,
     max_ticks: Optional[int] = None,
+    fuel_damage: Optional[FuelDamageController] = None,
 ) -> EpisodeResult:
     """Play ONE episode of the graph-RL pipeline and return its rollout.
 
@@ -271,9 +287,18 @@ def run_episode(
         deterministic: pass argmax (evaluation) down to every wake.
         max_ticks: per-episode tick cap. Defaults to the env's TimeLimit
             (``MAX_SIM_TICKS``) so the loop and BLADE expire together.
+        fuel_damage: optional FD-BASELINE-v1 :class:`FuelDamageController`. ``None``
+            (the default) leaves the loop byte-identical to the pre-FD behaviour. When
+            supplied it is consulted ONCE per tick, at the top, before any ego is
+            processed (see the module docstring); a CLEAN controller is a no-op on every
+            call, so there is one code path rather than two.
 
     Returns:
-        An :class:`EpisodeResult` with the wake ``trajectory`` and diagnostics.
+        An :class:`EpisodeResult` with the wake ``trajectory`` and diagnostics. The
+        fuel-damage event's own record (whether it fired, when, the observed fuel before
+        and after, and which meta-action its wake produced) lives on the controller the
+        caller passed in, not here -- this loop reports the EPISODE, and the controller
+        reports the event.
     """
     if cfg is None:
         # Detection radius == the executor's arrival/attack threshold (the ONE unified
@@ -298,12 +323,22 @@ def run_episode(
         ctx.game.record_step(force=True)  # t=0 frame: initial layout, pre-launch
 
     for tick in range(cap):
+        # --- EXOGENOUS EVENTS: applied BEFORE the per-ego loop, never inside it. ---
+        # One live-aircraft mutation, at most once per episode, so that every ego below
+        # reasons from the identical post-event snapshot and Phase-1 iteration order
+        # stays irrelevant (module docstring). `damaged_ego` is the ONLY ego that may be
+        # told about it, and only on this one tick.
+        damaged_ego: Optional[str] = None
+        if fuel_damage is not None:
+            damaged_ego = fuel_damage.maybe_apply(obs, tick)
+
         # --- Phase 1: per-ego sense + trigger + (on wake) RL. NO env.step here. ---
         for ego_id in ctx.agent_ids:
             if ego_id in ctx.executor.dead:
                 continue  # crashed ego senses {} anyway; cheap early-out
             belief = ctx.beliefs[ego_id]
             sensed = ctx.executor.sensed_target_ids(obs, ego_id)
+            ego_fuel_damage = damaged_ego is not None and str(ego_id) == damaged_ego
             new_tasks, new_sol, wake, _events = decide_triggers(
                 belief.tasks,
                 belief.solution,
@@ -311,16 +346,23 @@ def run_episode(
                 eta=never_overdue,  # ETA dormant for first runs (PEER-OVERDUE off)
                 ego_id=ego_id,
                 clock=tick,
+                fuel_damage=ego_fuel_damage,
             )
             # Persist the trigger's belief edit (pop-up append / peer-overdue removal).
             belief.tasks, belief.solution = new_tasks, new_sol
             if wake:
-                trajectory.append(
-                    _wake_decision(
-                        policy, ego_id, obs, belief, ctx.executor, cfg, tick,
-                        deterministic=deterministic,
-                    )
+                transition = _wake_decision(
+                    policy, ego_id, obs, belief, ctx.executor, cfg, tick,
+                    deterministic=deterministic,
                 )
+                trajectory.append(transition)
+                if ego_fuel_damage and fuel_damage is not None:
+                    # Attribute the decision to the event that caused this wake. Latched
+                    # inside the controller, so a later organic wake of the same ego
+                    # cannot overwrite what the fuel-damage wake actually chose.
+                    fuel_damage.note_wake(
+                        ego_id=ego_id, meta_action=transition.meta_action
+                    )
 
         # --- Phase 2: deterministic execution. ONE env.step for the whole tick. ---
         commands = ctx.executor.next_actions(obs)

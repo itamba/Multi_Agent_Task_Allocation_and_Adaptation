@@ -100,6 +100,31 @@ beliefs that disagree, or a confirmed target the roster does not contain) fails 
 attempt at the ``setup`` stage and is skipped and accounted like any other, while an
 unresolvable NAME degrades to ``<unnamed target>`` and changes no id and no count.
 
+THE DIFFICULTY FACTOR (FD-BASELINE-v1) -- ONE FACTOR, MEASURED IN PAIRS
+------------------------------------------------------------------------
+The scenario cell is unchanged; what this module adds is the seeded, ego-local, one-shot
+fuel-damage event of ``graph_fuel_damage`` plus the reward coefficient that gives it
+teeth. Three consequences live here:
+
+  * TRAINING draws the condition from the episode seed
+    (``fuel_damage_mode = seeded_mixture``, ``P(damaged) = 0.5``), so a batch contains
+    both conditions and every record reports its clean/damaged split next to the
+    per-condition mean.
+  * EVALUATION runs MATCHED PAIRS. Each held-out seed is attempted twice, forced clean
+    and forced damaged, on the SAME seed -- therefore the same generated world, the same
+    ``A_init`` and the same hidden geometry. The paired delta is averaged over pairs whose
+    BOTH members completed and is reported with that pair denominator; an unpaired
+    clean-vs-damaged comparison across different seeds would be confounded by scenario
+    variance and is not computed anywhere.
+  * THE REWARD FORMULA IS UNTOUCHED. ``compute_episode_reward`` is simply called with an
+    explicit ``RewardConfig(aircraft_penalty_coeff=...)`` instead of falling through to
+    the module default of ``0.0``, and the resolved coefficient is recorded in
+    ``run_config.json`` and in every training record.
+
+A damaged episode with no valid strict fuel window fails at the ``setup`` stage and is
+skipped and accounted like any other -- never silently downgraded to a clean episode,
+which would move the population a per-condition statistic is reported over.
+
 SCENARIO SOURCE (the offline construction path: B1 generation + B3 setup seam)
 -----------------------------------------------------------------------------
 Episodes are built from an EXPLICIT reference cell -- ``num_agents``, ``n_known``,
@@ -219,8 +244,18 @@ from .graph_episode_setup import (
     DETECTION_KM,
     MAX_SIM_TICKS,
 )
+from .graph_fuel_damage import (
+    CONDITION_CLEAN,
+    CONDITION_DAMAGED,
+    CONDITIONS,
+    FuelDamageMode,
+    FuelDamageOutcome,
+    FuelDamageParameters,
+    build_fuel_damage_controller,
+    resolve_condition,
+)
 from .graph_ppo import EpisodeRecord, PPOBuffer, PPOConfig, PPOUpdater
-from .graph_reward import compute_episode_reward
+from .graph_reward import RewardConfig, compute_episode_reward
 from .graph_tick_loop import build_policy, run_episode
 from ..action.graph_action import MetaAction
 from ...models import StepKind
@@ -296,6 +331,22 @@ _BONMIN_PROBE_TIMEOUT_S = 10.0
 # change a result (the engine fork in particular is vendored, so its PATH is the fact
 # that matters, not a version string it does not carry).
 _PROVENANCE_MODULES = ("torch", "gymnasium", "blade", "match_aou")
+
+# --- FD-BASELINE-v1 constants -------------------------------------------------
+# The two members of a matched evaluation pair, in the order they are attempted. Both
+# members of a pair use the SAME held-out seed (so the same generator world and the same
+# hidden-placement geometry) and differ ONLY in the fuel-damage condition -- that is what
+# makes their reward difference attributable to the event rather than to the scenario.
+_EVAL_PAIR_MEMBERS = (
+    (CONDITION_CLEAN, FuelDamageMode.FORCED_CLEAN),
+    (CONDITION_DAMAGED, FuelDamageMode.FORCED_DAMAGED),
+)
+
+# Eval scenario tags are allocated per PAIR MEMBER, not per seed: member m of held-out
+# episode e takes tag slot `e * _EVAL_PAIR_SIZE + m` inside the round's namespace, so the
+# clean and damaged worlds of one seed are written to two distinct files and neither
+# overwrites the other. `TrainConfig.validate` sizes the namespace against this.
+_EVAL_PAIR_SIZE = len(_EVAL_PAIR_MEMBERS)
 
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
@@ -438,6 +489,30 @@ class TrainConfig:
     randomize_red_airbase_positions: bool = True
     stretch_target_ratio: float = 0.5
 
+    # --- FD-BASELINE-v1: THE difficulty factor of the final Phase-A baseline cell ----
+    # The scenario cell above is UNCHANGED -- same counts, same geometry, same p = 1,
+    # same weapon lethality, no SAMs. The only added difficulty is a seeded, ego-local,
+    # one-shot fuel-damage event (`graph_fuel_damage`), which turns
+    # SELF_PRESERVATION_ABORT from a never-correct action into a live alternative.
+    #   fuel_damage_mode        : `seeded_mixture` -> the condition is a deterministic
+    #                             function of the episode seed. Evaluation overrides it
+    #                             per pair member and never uses this value.
+    #   fuel_damage_probability : half of the scheduled TRAINING episodes are damaged.
+    #   fuel_damage_leg_progress: the event fires at ~30% of the ego's first planned leg.
+    #   fuel_damage_rtb_margin  : the engine's own 1.10 reserve, applied to both ends of
+    #                             the strict window.
+    fuel_damage_mode: str = FuelDamageMode.SEEDED_MIXTURE
+    fuel_damage_probability: float = 0.5
+    fuel_damage_leg_progress: float = 0.30
+    fuel_damage_rtb_margin: float = 1.10
+
+    # The death penalty coefficient `c`, ACTIVATED here (graph_reward's default is 0.0 and
+    # its FORMULA is untouched). At 2.25 a lost airframe costs 2.25 max-utility targets,
+    # so on a 6 x 80 cell flying the tank dry to reach one more target is decisively
+    # net-negative and RTB strictly beats suicide-on-best. Passed as an explicit
+    # `RewardConfig` at the reward call site rather than by mutating a shared default.
+    aircraft_penalty_coeff: float = 2.25
+
     # --- LEGACY split surface (see `derived_split`) -------------------------------
     # The Phase-A baseline cell, kept so `derived_split` / `split_preview` / the
     # `derived_split` record / the hazard warnings stay green and testable. The
@@ -475,6 +550,33 @@ class TrainConfig:
         ``run_config.json`` both report through this property.
         """
         return int(self.n_known) + int(self.n_hidden)
+
+    # ------------------------------------------------------------------
+    def fuel_damage_parameters(
+        self, mode: Optional[str] = None
+    ) -> FuelDamageParameters:
+        """The ONE site that turns this config into a :class:`FuelDamageParameters`.
+
+        ``mode`` overrides only the mode -- evaluation forces ``forced_clean`` /
+        ``forced_damaged`` per pair member while keeping the threshold and the margin
+        identical to training, which is what makes an eval measurement describe the same
+        event the training episodes contained.
+        """
+        return FuelDamageParameters(
+            mode=str(self.fuel_damage_mode if mode is None else mode),
+            probability=float(self.fuel_damage_probability),
+            leg_progress_threshold=float(self.fuel_damage_leg_progress),
+            rtb_safety_margin=float(self.fuel_damage_rtb_margin),
+        )
+
+    def reward_config(self) -> RewardConfig:
+        """The ONE site that turns this config into a :class:`RewardConfig`.
+
+        The reward FORMULA is untouched (``graph_reward`` stays frozen); this only
+        supplies the death-penalty coefficient the formula already accepted, instead of
+        letting the call site fall through to the module default of ``0.0``.
+        """
+        return RewardConfig(aircraft_penalty_coeff=float(self.aircraft_penalty_coeff))
 
     # ------------------------------------------------------------------
     def _airbase_bounds(self) -> Tuple[int, int]:
@@ -567,6 +669,43 @@ class TrainConfig:
                 "ship target semantics are a separate design task."
             )
 
+        # --- FD-BASELINE-v1: the difficulty factor's own knobs ---
+        # Shape errors RAISE (the parameter object owns the verdicts, so the trainer, the
+        # rollout harness and the component itself cannot disagree about what is legal).
+        # `fuel_damage_mode` is a TRAINING mode: the forced modes belong to an evaluation
+        # pair member and would make every training episode identically conditioned.
+        if self.fuel_damage_mode not in (
+            FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE
+        ):
+            raise ValueError(
+                "fuel_damage_mode must be %r or %r for a TRAINING run -- %r forces every "
+                "training episode into one condition, which is an evaluation pair "
+                "member, not a mixture."
+                % (FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE,
+                   self.fuel_damage_mode)
+            )
+        self.fuel_damage_parameters().validate()
+        if float(self.aircraft_penalty_coeff) < 0.0:
+            raise ValueError(
+                "aircraft_penalty_coeff must be >= 0 (it is a PENALTY subtracted from the "
+                "reward numerator), got %r" % (self.aircraft_penalty_coeff,)
+            )
+
+        # --- FD hazard: a cell in which the added difficulty cannot be measured ---
+        if self.fuel_damage_mode == FuelDamageMode.OFF:
+            print("[WARN] fuel_damage_mode=off: FD-BASELINE-v1's difficulty factor is "
+                  "DISABLED, so this run reproduces the easy pre-FD cell that was "
+                  "learned in two updates. Proceeding.")
+        elif float(self.fuel_damage_probability) in (0.0, 1.0):
+            print("[WARN] fuel_damage_probability=%r: every training episode gets the "
+                  "SAME condition, so the run carries no clean/damaged contrast to "
+                  "learn the abort decision from. Proceeding."
+                  % float(self.fuel_damage_probability))
+        if float(self.aircraft_penalty_coeff) == 0.0:
+            print("[WARN] aircraft_penalty_coeff=0.0: losing an aircraft costs NOTHING, "
+                  "so flying the tank dry is never worse than aborting and the "
+                  "fuel-damage event creates no decision. Proceeding.")
+
         # --- construction hazard: the bonmin symmetry stall is driven by n_known ---
         if int(self.n_known) < 3:
             print("[WARN] n_known=%d: fewer than 3 known tasks is the bonmin "
@@ -597,12 +736,16 @@ class TrainConfig:
         # --- the eval scenario-TAG namespace must stay disjoint (see eval_episode_tag)
         # These are artifact-NAMING bounds, not seed bounds, but a violation is the same
         # class of silent loss: one round's scenario JSON overwriting another's.
-        if int(self.eval_episodes) > _EVAL_ROUND_TAG_STRIDE:
+        # Each held-out seed is now attempted TWICE per round (a matched clean/damaged
+        # pair), and each member needs its own tag so the two worlds coexist as files.
+        if int(self.eval_episodes) * _EVAL_PAIR_SIZE > _EVAL_ROUND_TAG_STRIDE:
             raise ValueError(
-                "eval_episodes (%d) exceeds one eval round's scenario-tag namespace "
-                "(%d): consecutive eval rounds would write over each other's scenario "
-                "files. Raise _EVAL_ROUND_TAG_STRIDE or shorten the eval band."
-                % (int(self.eval_episodes), _EVAL_ROUND_TAG_STRIDE)
+                "eval_episodes (%d) x %d matched pair members (%d tags) exceeds one eval "
+                "round's scenario-tag namespace (%d): consecutive eval rounds would write "
+                "over each other's scenario files. Raise _EVAL_ROUND_TAG_STRIDE or "
+                "shorten the eval band."
+                % (int(self.eval_episodes), _EVAL_PAIR_SIZE,
+                   int(self.eval_episodes) * _EVAL_PAIR_SIZE, _EVAL_ROUND_TAG_STRIDE)
             )
         if self.total_episodes > _EVAL_EPISODE_TAG_BASE:
             raise ValueError(
@@ -682,6 +825,30 @@ def eval_episode_tag(*, round_ordinal: int, e: int) -> int:
     return _EVAL_EPISODE_TAG_BASE + r * _EVAL_ROUND_TAG_STRIDE + i
 
 
+def eval_member_tag(*, round_ordinal: int, e: int, member: int) -> int:
+    """Scenario TAG for ONE member of held-out episode ``e``'s matched pair.
+
+    FD-BASELINE-v1 evaluates every held-out geometry TWICE per round -- once forced clean
+    and once forced damaged -- on the SAME seed, so that the reward difference is
+    attributable to the event and not to the world. Both members would therefore be
+    written to the same ``episode_<tag>_scenario.json`` and the second would destroy the
+    first's artifact, which is the same silent loss :func:`eval_episode_tag` exists to
+    prevent one level up.
+
+    So each member takes its own slot inside the round's namespace: episode ``e``'s
+    members occupy ``e * 2`` and ``e * 2 + 1``. The SEEDS are untouched -- both members
+    run :func:`eval_seed` of ``e`` -- and that is the entire point: identical geometry,
+    disjoint artifacts. :meth:`TrainConfig.validate` sizes the namespace for the doubling
+    up front; :func:`eval_episode_tag`'s own range guard is the second line of defence.
+    """
+    m = int(member)
+    if not (0 <= m < _EVAL_PAIR_SIZE):
+        raise ValueError(
+            "eval pair member must be in [0, %d), got %d" % (_EVAL_PAIR_SIZE, m)
+        )
+    return eval_episode_tag(round_ordinal=round_ordinal, e=int(e) * _EVAL_PAIR_SIZE + m)
+
+
 # =============================================================================
 # 3. Small helpers (stdlib only)
 # =============================================================================
@@ -758,6 +925,7 @@ def _failure_record(
     episode_index: Optional[int],
     eval_tag: Optional[str],
     seed: int,
+    condition: str,
     exc: BaseException,
 ) -> Dict[str, Any]:
     """Build ONE ledger record for a failed attempt (see :func:`_append_failure_record`).
@@ -769,6 +937,13 @@ def _failure_record(
 
     ``seed`` is the scheduled seed, recorded even though it produced nothing -- a failed
     seed stays part of the attempted population and must remain visible.
+
+    ``condition`` is the SCHEDULED fuel-damage condition (``clean`` / ``damaged``). It is
+    resolvable without a world -- :func:`resolve_condition` is a pure function of the seed
+    and the mode -- which is exactly why it can be recorded for an attempt that never
+    produced an episode. Without it, "failed counts by condition" would be unanswerable
+    and a per-condition mean could quietly be taken over a different denominator than it
+    appears to have.
     """
     original = getattr(exc, "original", exc)
     stage = getattr(exc, "stage", "unknown")
@@ -781,6 +956,7 @@ def _failure_record(
         "episode_index": None if episode_index is None else int(episode_index),
         "eval_tag": eval_tag,
         "seed": int(seed),
+        "condition": str(condition),
         "pipeline_stage": str(stage),
         "error_type": type(original).__name__,
         "error_message": str(original),
@@ -822,6 +998,77 @@ def _meta_fractions(counts: Dict[str, int]) -> Dict[str, float]:
     if total <= 0:
         return {name: 0.0 for name in _META_NAMES}
     return {name: counts[name] / total for name in _META_NAMES}
+
+
+class _ConditionTally:
+    """Per-condition attempt accounting + FD event counters for ONE batch or eval round.
+
+    ONE site behind every clean/damaged number a record carries, so the training loop and
+    the evaluation round cannot drift into counting the same thing two ways. It holds
+    ATTEMPTS (which include failures, and are therefore the denominators) separately from
+    the reward population (successes only) -- the distinction :func:`_stats_or_none`
+    exists to protect, applied per condition.
+
+    The FD counters answer the questions an operator needs in order to trust a damaged
+    batch at all: did the events actually fire (``events_applied``), did they actually
+    wake the intended ego (``wakes``), and did anything come of it (``rtb_issued``,
+    ``deaths``). A damaged round with zero applied events would produce clean-looking
+    numbers under a damaged label, and these counters are what makes that visible.
+    """
+
+    def __init__(self) -> None:
+        self.attempted: Dict[str, int] = {c: 0 for c in CONDITIONS}
+        self.failed: Dict[str, int] = {c: 0 for c in CONDITIONS}
+        self.rewards: Dict[str, List[float]] = {c: [] for c in CONDITIONS}
+        self.events_applied = 0
+        self.wakes = 0
+        self.rtb_issued = 0
+        self.deaths = 0
+
+    def attempt(self, condition: str) -> None:
+        """Count one SCHEDULED attempt, before it is known whether it will succeed."""
+        self.attempted[str(condition)] = self.attempted.get(str(condition), 0) + 1
+
+    def failure(self, condition: str) -> None:
+        self.failed[str(condition)] = self.failed.get(str(condition), 0) + 1
+
+    def success(self, out: "_EpisodeOutcome") -> str:
+        """Fold one successful episode in; returns the condition it was counted under."""
+        plan = out.fuel_damage_plan or {}
+        outcome = out.fuel_damage_outcome or {}
+        condition = str(plan.get("condition", CONDITION_CLEAN))
+        self.rewards.setdefault(condition, []).append(float(out.reward))
+        if outcome.get("fired"):
+            self.events_applied += 1
+        if outcome.get("wake_occurred"):
+            self.wakes += 1
+        if out.selected_ego_rtb_issued:
+            self.rtb_issued += 1
+        self.deaths += int(out.n_dead)
+        return condition
+
+    def successful(self, condition: str) -> int:
+        return len(self.rewards.get(str(condition), []))
+
+    def mean(self, condition: str) -> Optional[float]:
+        """Mean reward over that condition's SUCCESSFUL episodes, ``None`` if none."""
+        return _stats_or_none(self.rewards.get(str(condition), []))["mean"]
+
+    def to_record(self, prefix: str = "") -> Dict[str, Any]:
+        """The tally as flat scalars. ``prefix`` namespaces the eval copy of the keys."""
+        out: Dict[str, Any] = {}
+        for condition in CONDITIONS:
+            out["%sn_%s_attempted" % (prefix, condition)] = int(
+                self.attempted.get(condition, 0))
+            out["%sn_%s_successful" % (prefix, condition)] = self.successful(condition)
+            out["%sn_%s_failed" % (prefix, condition)] = int(
+                self.failed.get(condition, 0))
+            out["%sreward_mean_%s" % (prefix, condition)] = self.mean(condition)
+        out["%sfuel_damage_events_applied" % prefix] = int(self.events_applied)
+        out["%sfuel_damage_wakes" % prefix] = int(self.wakes)
+        out["%sfuel_damage_rtb_issued" % prefix] = int(self.rtb_issued)
+        out["%sdeaths" % prefix] = int(self.deaths)
+        return out
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -1175,6 +1422,21 @@ def write_run_config(
             "ensure_discovery_chain": False,
             "strict_geometry": True,
             "setup_mode": "construction",
+        },
+        # FD-BASELINE-v1: the run's ONE difficulty factor and the reward coefficient that
+        # gives it teeth, recorded next to the cell they modify. `resolved_*` names the
+        # exact objects the run built, so a reader never has to re-derive them from the
+        # flat config fields above.
+        "difficulty": {
+            "factor": "fuel_damage_baseline_v1",
+            "fuel_damage": cfg.fuel_damage_parameters().to_record(),
+            "eval_pair_conditions": [c for c, _mode in _EVAL_PAIR_MEMBERS],
+            "eval_pair_members_per_seed": _EVAL_PAIR_SIZE,
+            "reward": {
+                "aircraft_penalty_coeff": float(cfg.reward_config().aircraft_penalty_coeff),
+                "regret_epsilon": float(cfg.reward_config().regret_epsilon),
+                "formula_changed": False,
+            },
         },
         "derived_split": cfg.split_preview,
         "base_scenario": _BASE_SCENARIO.name,
@@ -1534,6 +1796,46 @@ def _episode_target_roster(ctx: Any) -> _TargetRoster:
     )
 
 
+def _fuel_damage_lines(out: "_EpisodeOutcome") -> List[str]:
+    """The FD-BASELINE-v1 half of the per-episode ``OK`` block.
+
+    Two lines for a damaged episode, one for a clean one -- the difficulty factor is the
+    thing this baseline is about, so an operator watching a run must be able to see, per
+    episode and without opening an artifact, whether the event fired, what it did to the
+    tank, which window it landed in, and what the policy did about it.
+
+    Every number is printed straight from the component's own records
+    (:meth:`FuelDamagePlan.to_record` / :meth:`FuelDamageOutcome.to_record`); nothing is
+    recomputed here, so the block cannot disagree with the record it summarizes. Missing
+    values print as ``n/a`` rather than as ``0`` -- an event that never fired has no fuel
+    reading, and a zero would read as an empty tank.
+    """
+    plan = out.fuel_damage_plan or {}
+    outcome = out.fuel_damage_outcome or {}
+    condition = str(plan.get("condition", CONDITION_CLEAN))
+    if condition != CONDITION_DAMAGED:
+        return ["  fuel_damage=clean ego=none"]
+
+    meta = outcome.get("wake_meta_action")
+    meta_name = "n/a" if meta is None else MetaAction(int(meta)).name
+    rtb = out.selected_ego_rtb_issued
+    return [
+        "  fuel_damage=damaged ego=%s fired=%s tick=%s progress=%s"
+        % (_ascii(plan.get("ego_id")), outcome.get("fired"),
+           _fmt_opt(outcome.get("event_tick"), "%d"),
+           _fmt_opt(outcome.get("observed_progress"), "%.3f")),
+        "  fuel_before=%s fuel_after=%s factor=%s rtb_floor=%s continue_req=%s"
+        % (_fmt_opt(outcome.get("fuel_before"), "%.1f"),
+           _fmt_opt(outcome.get("fuel_after"), "%.1f"),
+           _fmt_opt(outcome.get("damage_factor"), "%.4f"),
+           _fmt_opt(plan.get("rtb_fuel_floor"), "%.1f"),
+           _fmt_opt(plan.get("continue_fuel_requirement"), "%.1f")),
+        "  fd_wake=%s fd_meta=%s rtb_issued=%s"
+        % (outcome.get("wake_occurred"), meta_name,
+           "n/a" if rtb is None else rtb),
+    ]
+
+
 def _format_episode_block(header: str, out: "_EpisodeOutcome") -> str:
     """The multi-line ``OK`` block for ONE completed episode.
 
@@ -1553,6 +1855,7 @@ def _format_episode_block(header: str, out: "_EpisodeOutcome") -> str:
         "  known_confirmed=%s" % _format_names(out.known_confirmed_names),
         "  hidden_targets=%s" % _format_names(out.hidden_target_names),
         "  hidden_confirmed=%s" % _format_names(out.hidden_confirmed_names),
+    ] + _fuel_damage_lines(out) + [
         "  ended=%s ticks=%d dead=%d elapsed=%.1fs"
         % (_ascii(out.ended), out.ticks, out.n_dead, out.seconds),
     ])
@@ -1608,6 +1911,18 @@ class _EpisodeOutcome:
     known_confirmed_names: Tuple[str, ...]
     hidden_confirmed_names: Tuple[str, ...]
 
+    # --- FD-BASELINE-v1 (no defaults either, for the same reason) ---
+    # `fuel_damage_plan` / `fuel_damage_outcome` are the component's own frozen records,
+    # carried whole rather than flattened into a dozen fields: they are what the component
+    # is contracted to expose, and copying a subset here would create a second, drifting
+    # description of the same event.
+    fuel_damage_plan: Dict[str, Any]
+    fuel_damage_outcome: Dict[str, Any]
+    # Did the SELECTED ego return to base? Read off `executor.rtb_issued` after the run.
+    # `None` on a clean episode -- there is no selected ego, and `False` would read as
+    # "the ego did not RTB", a claim about an ego that does not exist.
+    selected_ego_rtb_issued: Optional[bool]
+
 
 def _run_one_episode(
     policy: Any,
@@ -1617,6 +1932,7 @@ def _run_one_episode(
     seed: int,
     episode_tag: int,
     deterministic: bool,
+    fuel_damage_mode: Optional[str] = None,
 ) -> _EpisodeOutcome:
     """Generate -> setup -> run -> reward for ONE episode; always closes its env.
 
@@ -1650,9 +1966,21 @@ def _run_one_episode(
     skipped and accounted like any other. No new pipeline stage is introduced, and no
     such attempt reaches a reward aggregate. Only NAME resolution degrades, and it
     changes nothing but the printed text.
+
+    FD-BASELINE-v1. ``fuel_damage_mode`` overrides ``cfg.fuel_damage_mode`` for this one
+    attempt; evaluation passes a forced mode per matched-pair member and training passes
+    nothing. The damage plan is prepared BETWEEN setup and run -- it needs the solved
+    ``a_init``, the t=0 beliefs and an aircraft that has not burned a tick, and it must
+    exist before the first tick can fire it. A DAMAGED episode with no valid strict fuel
+    window raises there and is attributed to ``setup``, so ``skip_and_account_v1`` records
+    it once; it is never silently downgraded to a clean episode, which would change the
+    population every per-condition statistic is reported over. A FORCED-CLEAN member
+    computes no window at all and therefore cannot fail for this reason -- the two members
+    of a pair fail independently or not at all.
     """
     random.seed(seed)
     torch.manual_seed(seed)
+    fd_params = cfg.fuel_damage_parameters(fuel_damage_mode)
 
     t0 = time.perf_counter()
     try:
@@ -1687,16 +2015,31 @@ def _run_one_episode(
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
 
+        # The damage plan is a t=0 fact about the context setup produced -- the solved
+        # routes, the untouched fuel -- so a plan that cannot be built (no eligible ego,
+        # no valid strict window) is a `setup` finding, accounted exactly like an
+        # exact-cardinality construction failure and never repaired into a clean episode.
+        try:
+            fuel_damage = build_fuel_damage_controller(
+                ctx, episode_seed=int(seed), params=fd_params
+            )
+        except Exception as exc:
+            raise EpisodeAttemptError("setup", exc) from exc
+
         try:
             result = run_episode(
                 policy, ctx,
                 deterministic=deterministic,
                 max_ticks=cfg.max_ticks,
+                fuel_damage=fuel_damage,
             )
         except Exception as exc:
             raise EpisodeAttemptError("run", exc) from exc
         try:
-            ep_reward = compute_episode_reward(ctx, result)
+            # EXPLICIT RewardConfig: `graph_reward`'s own default is c = 0.0, so without
+            # this the death penalty FD-BASELINE-v1 depends on would silently be off.
+            # The formula is unchanged -- only the coefficient it already accepted.
+            ep_reward = compute_episode_reward(ctx, result, cfg.reward_config())
         except Exception as exc:
             raise EpisodeAttemptError("reward", exc) from exc
 
@@ -1719,6 +2062,13 @@ def _run_one_episode(
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
 
+        # Read while the executor is still in scope; a plain bool survives the env close.
+        selected_ego = fuel_damage.plan.ego_id
+        selected_ego_rtb = (
+            None if selected_ego is None
+            else bool(getattr(ctx.executor, "rtb_issued", {}).get(str(selected_ego), False))
+        )
+
         return _EpisodeOutcome(
             trajectory=list(result.trajectory),
             reward=float(ep_reward.reward),
@@ -1734,6 +2084,9 @@ def _run_one_episode(
             hidden_target_names=roster.hidden_names,
             known_confirmed_names=known_confirmed,
             hidden_confirmed_names=hidden_confirmed,
+            fuel_damage_plan=fuel_damage.plan.to_record(),
+            fuel_damage_outcome=fuel_damage.outcome.to_record(),
+            selected_ego_rtb_issued=selected_ego_rtb,
         )
     finally:
         if ctx is not None:
@@ -1778,11 +2131,28 @@ def evaluate(
     is why they are reported next to ``n_attempted`` / ``n_successful`` / ``n_failed``
     and are ``None`` (not ``0.0``) when that subset is empty.
 
-    ``round_ordinal`` names this round's SCENARIO-TAG namespace (:func:`eval_episode_tag`)
+    ``round_ordinal`` names this round's SCENARIO-TAG namespace (:func:`eval_member_tag`)
     and nothing else. The seeds are unchanged -- episode ``e`` is ``eval_seed(cfg, e)`` on
     every round -- so successive rounds re-measure the same held-out worlds; they just
     stop overwriting each other's scenario JSON while doing it. ``pre_update`` is
     ordinal 0 and each later ``post_update`` round takes the next.
+
+    MATCHED CLEAN/DAMAGED PAIRS (FD-BASELINE-v1). Every held-out seed is attempted TWICE
+    -- once ``forced_clean`` and once ``forced_damaged`` -- and the two members share
+    EVERYTHING except the event: the same ``eval_seed``, hence the same generator world,
+    the same solved ``A_init`` and the same hidden-placement geometry (the placement rng
+    is derived from the episode seed, not from the mode). Their reward difference is
+    therefore attributable to the fuel-damage event rather than to scenario variance,
+    which an unpaired clean-vs-damaged comparison across different seeds could never
+    claim. Only the artifact TAGS differ (:func:`eval_member_tag`), so the two worlds
+    coexist as files.
+
+    Three denominators are reported and none substitutes for another: ``n_attempted``
+    counts EPISODE attempts (two per seed), ``n_clean_attempted`` / ``n_damaged_attempted``
+    split that by condition, and ``n_pairs_successful`` counts the seeds where BOTH
+    members completed. ``eval_paired_reward_delta`` is averaged over that last population
+    ALONE -- a pair with a failed member contributes to no delta, is never repaired with
+    the surviving member, and is still visible in the attempt counts.
 
     Returns a scalar-only record (also written to ``eval_records.jsonl``), plus one
     printed ``OK`` block per successful episode.
@@ -1792,48 +2162,71 @@ def evaluate(
     wakes: List[float] = []
     meta_counts = _empty_meta_counts()
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
+    tally = _ConditionTally()
+    pair_deltas: List[float] = []
     n_failed = 0
-    n_attempted = int(cfg.eval_episodes)
+    n_pairs = int(cfg.eval_episodes)
+    n_attempted = n_pairs * _EVAL_PAIR_SIZE
     t0 = time.perf_counter()
 
-    for e in range(cfg.eval_episodes):
+    for e in range(n_pairs):
         seed = eval_seed(cfg, e)
-        tag = eval_episode_tag(round_ordinal=round_ordinal, e=e)
-        try:
-            out = _run_one_episode(
-                policy, gen, cfg,
-                seed=seed,
-                episode_tag=tag,
-                deterministic=True,
-            )
-        except Exception as exc:  # an eval failure must not abort training either
-            n_failed += 1
-            _append_failure_record(failures_path, _failure_record(
-                phase="eval",
-                evaluation_stage=stage,
-                updates_completed=updates_completed,
-                iteration=iteration,
-                attempt_ordinal=e,
-                episode_index=None,
-                eval_tag="eval_e%d_tag%d" % (e, tag),
-                seed=seed,
-                exc=exc,
+        # Both members of this pair, keyed by condition; a member that failed is simply
+        # absent, which is what makes the "both succeeded" test below a membership test
+        # rather than a sentinel comparison.
+        member_rewards: Dict[str, float] = {}
+
+        for member, (condition, mode) in enumerate(_EVAL_PAIR_MEMBERS):
+            tag = eval_member_tag(round_ordinal=round_ordinal, e=e, member=member)
+            tally.attempt(condition)
+            try:
+                out = _run_one_episode(
+                    policy, gen, cfg,
+                    seed=seed,
+                    episode_tag=tag,
+                    deterministic=True,
+                    fuel_damage_mode=mode,
+                )
+            except Exception as exc:  # an eval failure must not abort training either
+                n_failed += 1
+                tally.failure(condition)
+                _append_failure_record(failures_path, _failure_record(
+                    phase="eval",
+                    evaluation_stage=stage,
+                    updates_completed=updates_completed,
+                    iteration=iteration,
+                    attempt_ordinal=e * _EVAL_PAIR_SIZE + member,
+                    episode_index=None,
+                    eval_tag="eval_e%d_%s_tag%d" % (e, condition, tag),
+                    seed=seed,
+                    condition=condition,
+                    exc=exc,
+                ))
+                print("  [eval %s e%d %s] FAILED (seed=%d): %s: %s"
+                      % (stage, e, condition, seed, type(exc).__name__, exc))
+                traceback.print_exc()
+                continue
+            # Printed BEFORE the next attempt starts, so a long eval round is readable
+            # while it runs rather than only in the round's summary line.
+            print(_format_episode_block(
+                "[eval stage=%s ep=%d %s seed=%d]"
+                % (_ascii(stage), e, condition, seed), out
             ))
-            print("  [eval %s e%d] FAILED (seed=%d): %s: %s"
-                  % (stage, e, seed, type(exc).__name__, exc))
-            traceback.print_exc()
-            continue
-        # Printed BEFORE the next attempt starts, so a long eval round is readable while
-        # it runs rather than only in the round's summary line.
-        print(_format_episode_block(
-            "[eval stage=%s ep=%d seed=%d]" % (_ascii(stage), e, seed), out
-        ))
-        rewards.append(out.reward)
-        unique_confirmed.append(float(out.targets_confirmed_unique))
-        wakes.append(float(out.n_wakes))
-        _add_meta_action_counts(meta_counts, out.trajectory)
-        if out.ended in ended_counts:
-            ended_counts[out.ended] += 1
+            member_rewards[tally.success(out)] = out.reward
+            rewards.append(out.reward)
+            unique_confirmed.append(float(out.targets_confirmed_unique))
+            wakes.append(float(out.n_wakes))
+            _add_meta_action_counts(meta_counts, out.trajectory)
+            if out.ended in ended_counts:
+                ended_counts[out.ended] += 1
+
+        # A COMPLETE pair only. A half-pair is not a paired measurement, and filling the
+        # gap with the surviving member would report a within-seed difference that was
+        # never measured.
+        if CONDITION_CLEAN in member_rewards and CONDITION_DAMAGED in member_rewards:
+            pair_deltas.append(
+                member_rewards[CONDITION_DAMAGED] - member_rewards[CONDITION_CLEAN]
+            )
 
     n_successful = len(rewards)
     episodes_with_wakes = sum(1 for w in wakes if w > 0)
@@ -1848,15 +2241,30 @@ def evaluate(
         # Which scenario-tag namespace this round's worlds were written under -- the
         # link from a record back to the `episode_<tag>_scenario.json` files it ran on.
         "eval_round_ordinal": int(round_ordinal),
-        "episode_tag_start": eval_episode_tag(round_ordinal=round_ordinal, e=0),
+        "episode_tag_start": eval_member_tag(round_ordinal=round_ordinal, e=0, member=0),
         # --- attempt accounting: the AUTHORITATIVE names ---
+        # `n_attempted` counts EPISODE attempts, which is `n_pairs * 2` since FD-BASELINE
+        # evaluates each held-out seed forced-clean and forced-damaged.
         "n_attempted": n_attempted,
         "n_successful": n_successful,
         "n_failed": n_failed,
         "success_fraction": _fraction(n_successful, n_attempted),
         "episodes_with_wakes": int(episodes_with_wakes),
         "wake_fraction_of_successful": _fraction(episodes_with_wakes, n_successful),
+        # --- FD-BASELINE-v1: matched-pair accounting, with its OWN denominator ---
+        "n_pairs_attempted": n_pairs,
+        "n_pairs_successful": len(pair_deltas),
+        "pair_success_fraction": _fraction(len(pair_deltas), n_pairs),
+        # mean(R_damaged - R_clean) over pairs whose BOTH members completed. None (never
+        # 0.0) when no pair did: 0.0 would say "the event changed nothing", which is a
+        # measurement, not an absence of one.
+        "eval_paired_reward_delta": _stats_or_none(pair_deltas)["mean"],
+        "eval_paired_reward_delta_min": _stats_or_none(pair_deltas)["min"],
+        "eval_paired_reward_delta_max": _stats_or_none(pair_deltas)["max"],
+        "paired_delta_over": "pairs_with_both_members_successful",
         # --- aggregates over the SUCCESSFUL subset only (None when it is empty) ---
+        # `eval_reward_mean` spans BOTH conditions; the per-condition means below are the
+        # ones to read when the question is about the difficulty factor.
         "eval_reward_mean": r["mean"],
         "eval_reward_min": r["min"],
         "eval_reward_max": r["max"],
@@ -1867,11 +2275,17 @@ def evaluate(
         "eval_wakes_mean": _stats_or_none(wakes)["mean"],
         "aggregates_over": "successful_episodes",
         "meta_action_counts": dict(meta_counts),
+        # Per-condition attempt counts, per-condition reward means, and the FD event
+        # counters (applied / wakes / RTBs / deaths) -- all through the ONE tally site.
+        **tally.to_record(prefix="eval_"),
         "meta_action_fractions": _meta_fractions(meta_counts),
         "ended_counts": dict(ended_counts),
         "seed_band": {
+            # SEEDS, not attempts: the band is `eval_episodes` wide however many times
+            # each of its seeds is run. Doubling the attempts (matched pairs) must not
+            # look like a widened held-out band.
             "start": int(cfg.eval_base_seed),
-            "stop": int(cfg.eval_base_seed) + n_attempted,
+            "stop": int(cfg.eval_base_seed) + n_pairs,
             "half_open": True,
         },
         # --- compatibility names kept so pre-B4 readers still parse a record ---
@@ -1889,6 +2303,27 @@ def evaluate(
 # =============================================================================
 # 6. Checkpointing (SAVE only -- resume is deliberately out of scope)
 # =============================================================================
+
+def _print_eval_pair_line(ev: Dict[str, Any]) -> None:
+    """One line summarizing an eval round's MATCHED-PAIR result.
+
+    Printed next to every eval summary because the round's headline
+    ``eval_reward_mean`` spans both conditions and therefore answers no question about
+    the difficulty factor. The paired delta always appears with its own denominator --
+    a delta over 1 of 4 complete pairs is a different claim from the same number over
+    4 of 4, and the two must never be printed as if they were the same.
+    """
+    print("            fd pairs: clean R=%s | damaged R=%s | delta=%s over %s/%s pair(s) "
+          "| applied=%s wakes=%s rtb=%s dead=%s"
+          % (_fmt_opt(ev.get("eval_reward_mean_clean")),
+             _fmt_opt(ev.get("eval_reward_mean_damaged")),
+             _fmt_opt(ev.get("eval_paired_reward_delta")),
+             ev.get("n_pairs_successful"), ev.get("n_pairs_attempted"),
+             ev.get("eval_fuel_damage_events_applied"),
+             ev.get("eval_fuel_damage_wakes"),
+             ev.get("eval_fuel_damage_rtb_issued"),
+             ev.get("eval_deaths")))
+
 
 def save_checkpoint(
     policy: Any,
@@ -2038,8 +2473,10 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     print("base_seed=%d  train seeds [%d, %d)"
           % (cfg.base_seed, cfg.base_seed, cfg.base_seed + cfg.total_episodes))
     if cfg.eval_enabled:
-        print("eval: every %d iter, %d episode(s), FIXED seeds [%d, %d)"
-              % (cfg.eval_every, cfg.eval_episodes, cfg.eval_base_seed,
+        print("eval: every %d iter, %d held-out seed(s) x %d matched member(s) = %d "
+              "episode(s), FIXED seeds [%d, %d)"
+              % (cfg.eval_every, cfg.eval_episodes, _EVAL_PAIR_SIZE,
+                 cfg.eval_episodes * _EVAL_PAIR_SIZE, cfg.eval_base_seed,
                  cfg.eval_base_seed + cfg.eval_episodes))
     else:
         print("eval: DISABLED")
@@ -2057,6 +2494,15 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
           "  detection=%.1f km  discovery_chain=OFF  strict=ON"
           % (cfg.min_target_distance_km, cfg.min_known_separation_km, DETECTION_KM))
     print("          stretch=%s  sams=%s" % (cfg.stretch_target_ratio, cfg.include_sams))
+    # The ONE difficulty factor, echoed before compute is spent -- an operator who meant
+    # to run the hard cell and typed the easy one sees it here, not in the results.
+    print("difficulty (FD-BASELINE-v1): fuel_damage mode=%s p(damaged)=%.2f "
+          "leg_progress=%.2f rtb_margin=%.2f"
+          % (cfg.fuel_damage_mode, cfg.fuel_damage_probability,
+             cfg.fuel_damage_leg_progress, cfg.fuel_damage_rtb_margin))
+    print("          reward aircraft_penalty_coeff=%.2f (graph_reward formula UNCHANGED); "
+          "eval uses matched forced-clean / forced-damaged pairs on the SAME seed"
+          % cfg.aircraft_penalty_coeff)
     print("legacy split surface (NOT used by the construction path): "
           "num_red_airbases=%r partial_ratio=%s -> known/hidden = %s"
           % (cfg.num_red_airbases, cfg.partial_ratio,
@@ -2105,6 +2551,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             print("  [eval PRE-UPDATE, updates_completed=0] mean=%s ok=%d/%d  %5.1fs"
                   % (_fmt_opt(ev["eval_reward_mean"]), ev["n_successful"],
                      ev["n_attempted"], ev["eval_seconds"]))
+            _print_eval_pair_line(ev)
 
         for iteration in range(cfg.n_iterations):
             t_iter = time.perf_counter()
@@ -2114,6 +2561,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             rewards: List[float] = []
             unique_confirmed: List[float] = []
             ticks: List[float] = []
+            tally = _ConditionTally()
             n_failed_iter = 0
             n_attempted_iter = int(cfg.episodes_per_iteration)
             # How much learning stands behind the episodes collected BELOW -- they are
@@ -2125,6 +2573,13 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             for j in range(cfg.episodes_per_iteration):
                 g = global_episode_index(cfg, iteration, j)
                 seed = train_seed(cfg, iteration, j)
+                # The SCHEDULED condition, resolved from the seed and the mode alone.
+                # Known before the episode is built and still known if it never builds,
+                # which is what lets a failure be accounted under its own condition.
+                condition = resolve_condition(
+                    episode_seed=seed, params=cfg.fuel_damage_parameters()
+                )
+                tally.attempt(condition)
                 try:
                     out = _run_one_episode(
                         policy, gen, cfg,
@@ -2135,6 +2590,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                     # This seed is spent -- no retry, no substitute, no shift of the
                     # band. `j` continues, so the schedule is untouched.
                     n_failed_iter += 1
+                    tally.failure(condition)
                     _append_failure_record(failures_path, _failure_record(
                         phase="train",
                         evaluation_stage=None,
@@ -2144,10 +2600,12 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                         episode_index=g,
                         eval_tag=None,
                         seed=seed,
+                        condition=condition,
                         exc=exc,
                     ))
-                    print("  [iter %d ep %d] FAILED (seed=%d, stage=%s): %s: %s"
-                          % (iteration, g, seed, getattr(exc, "stage", "unknown"),
+                    print("  [iter %d ep %d] FAILED (seed=%d, cond=%s, stage=%s): %s: %s"
+                          % (iteration, g, seed, condition,
+                             getattr(exc, "stage", "unknown"),
                              type(getattr(exc, "original", exc)).__name__,
                              getattr(exc, "original", exc)))
                     traceback.print_exc()
@@ -2160,6 +2618,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                     "[train iter=%d ep=%d seed=%d]" % (iteration, g, seed), out
                 ))
 
+                tally.success(out)
                 buf.add(EpisodeRecord.from_trajectory(
                     out.trajectory, out.reward, seed=seed, episode_index=g,
                 ))
@@ -2244,6 +2703,14 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                 # the number of targets in the world.
                 "kills_mean": unique_confirmed_mean,
                 "ticks_mean": _stats_or_none(ticks)["mean"],
+                # --- FD-BASELINE-v1: per-condition accounting + event counters ---
+                # The scheduled mixture is deterministic per seed, so `n_clean_attempted`
+                # + `n_damaged_attempted` == `n_attempted` by construction; the per-
+                # condition means are over that condition's SUCCESSFUL episodes and are
+                # None (never 0.0) when it had none.
+                **tally.to_record(),
+                "fuel_damage_mode": str(cfg.fuel_damage_mode),
+                "aircraft_penalty_coeff": float(cfg.aircraft_penalty_coeff),
                 "iteration_seconds": time.perf_counter() - t_iter,
                 "episodes_seconds": episodes_seconds,
                 "update_seconds": update_seconds,
@@ -2271,6 +2738,17 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                      record["total_loss"], record["entropy"], record["approx_kl"],
                      record["clip_fraction"], record["grad_norm"],
                      record["iteration_seconds"], flag))
+            # The difficulty factor's own line: the clean/damaged split of the batch, the
+            # two conditional means, and whether the scheduled events actually happened.
+            print("           fd: clean %d/%d R=%s | damaged %d/%d R=%s | "
+                  "applied=%d wakes=%d rtb=%d dead=%d"
+                  % (record["n_clean_successful"], record["n_clean_attempted"],
+                     _fmt_opt(record["reward_mean_clean"]),
+                     record["n_damaged_successful"], record["n_damaged_attempted"],
+                     _fmt_opt(record["reward_mean_damaged"]),
+                     record["fuel_damage_events_applied"],
+                     record["fuel_damage_wakes"], record["fuel_damage_rtb_issued"],
+                     record["deaths"]))
 
             # ---- periodic eval ----
             if cfg.eval_enabled and ((iteration + 1) % cfg.eval_every == 0):
@@ -2292,6 +2770,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                          _fmt_opt(ev["eval_reward_max"]),
                          _fmt_opt(ev["eval_targets_confirmed_unique_mean"], "%.1f"),
                          ev["n_successful"], ev["n_attempted"], ev["eval_seconds"]))
+                _print_eval_pair_line(ev)
 
             # ---- periodic checkpoint ----
             if cfg.checkpoint_every > 0 and ((iteration + 1) % cfg.checkpoint_every == 0):
@@ -2315,6 +2794,7 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                   % (final_iteration, ev["updates_completed"],
                      _fmt_opt(ev["eval_reward_mean"]), ev["n_successful"],
                      ev["n_attempted"], ev["eval_seconds"]))
+            _print_eval_pair_line(ev)
 
     if last_ckpt_iteration != cfg.n_iterations - 1:
         path = save_checkpoint(policy, updater, cfg.n_iterations - 1, ckpt_dir)
@@ -2404,6 +2884,16 @@ def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         "eval_reward_min": record.get("eval_reward_min"),
         "eval_reward_max": record.get("eval_reward_max"),
         "aggregates_over": "successful_episodes",
+        # FD-BASELINE-v1: the conditional means and the paired delta travel WITH their
+        # own denominator, for the same reason the round mean does.
+        "eval_reward_mean_clean": record.get("eval_reward_mean_clean"),
+        "eval_reward_mean_damaged": record.get("eval_reward_mean_damaged"),
+        "n_clean_successful": record.get("eval_n_clean_successful"),
+        "n_damaged_successful": record.get("eval_n_damaged_successful"),
+        "eval_paired_reward_delta": record.get("eval_paired_reward_delta"),
+        "n_pairs_successful": record.get("n_pairs_successful"),
+        "n_pairs_attempted": record.get("n_pairs_attempted"),
+        "paired_delta_over": record.get("paired_delta_over"),
     }
 
 
@@ -2466,6 +2956,39 @@ def _summarize(
     )
     outcomes = [_iteration_outcome(r) for r in train_records]
 
+    # --- FD-BASELINE-v1 roll-up ---------------------------------------------------
+    # Counts sum; MEANS do not. A per-condition mean is only ever taken over that
+    # condition's successful episodes, and averaging per-iteration means would silently
+    # weight a 1-episode iteration like an 8-episode one -- so the summary reports the
+    # per-condition counts (which are exact) and leaves the conditional means to the
+    # per-iteration records and to the eval digests, where their denominators travel
+    # with them.
+    fd_totals: Dict[str, int] = {}
+    for key in ("fuel_damage_events_applied", "fuel_damage_wakes",
+                "fuel_damage_rtb_issued", "deaths"):
+        fd_totals["train_%s" % key] = sum(
+            int(r.get(key, 0) or 0) for r in train_records
+        )
+        fd_totals["eval_%s" % key] = sum(
+            int(r.get("eval_%s" % key, 0) or 0) for r in eval_records
+        )
+    for condition in CONDITIONS:
+        for suffix in ("attempted", "successful", "failed"):
+            fd_totals["train_%s_%s" % (condition, suffix)] = sum(
+                int(r.get("n_%s_%s" % (condition, suffix), 0) or 0)
+                for r in train_records
+            )
+            fd_totals["eval_%s_%s" % (condition, suffix)] = sum(
+                int(r.get("eval_n_%s_%s" % (condition, suffix), 0) or 0)
+                for r in eval_records
+            )
+    fd_totals["eval_pairs_attempted"] = sum(
+        int(r.get("n_pairs_attempted", 0) or 0) for r in eval_records
+    )
+    fd_totals["eval_pairs_successful"] = sum(
+        int(r.get("n_pairs_successful", 0) or 0) for r in eval_records
+    )
+
     run_path = Path(run_dir)
     summary: Dict[str, Any] = {
         # --- shape ---
@@ -2506,6 +3029,27 @@ def _summarize(
         "failures_by_phase": by_phase,
         "failures_by_pipeline_stage": _count_by(failure_records, "pipeline_stage"),
         "failures_by_error_type": _count_by(failure_records, "error_type"),
+        "failures_by_condition": _count_by(failure_records, "condition"),
+        # --- FD-BASELINE-v1: the difficulty factor's own accounting ---
+        "difficulty_factor": "fuel_damage_baseline_v1",
+        "fuel_damage_mode": (
+            None if cfg is None else str(cfg.fuel_damage_mode)
+        ),
+        "aircraft_penalty_coeff": (
+            None if cfg is None else float(cfg.aircraft_penalty_coeff)
+        ),
+        "fuel_damage_totals": fd_totals,
+        # The one held-out number the factor is measured by, taken from the LAST round
+        # and always carrying its pair denominator.
+        "final_eval_paired_reward_delta": (
+            eval_records[-1].get("eval_paired_reward_delta") if eval_records else None
+        ),
+        "final_eval_pairs_successful": (
+            eval_records[-1].get("n_pairs_successful") if eval_records else None
+        ),
+        "final_eval_pairs_attempted": (
+            eval_records[-1].get("n_pairs_attempted") if eval_records else None
+        ),
         "accounting_reconciled": (
             ledger_train == train_failed and ledger_eval == eval_failed
         ),
@@ -2628,8 +3172,36 @@ def _print_summary(s: Dict[str, Any]) -> None:
                      digest["updates_completed"]))
         print("            rounds=%d  best=%s"
               % (s["n_eval_rounds"], _fmt_opt(s["eval_reward_best"])))
+        for label, digest in (("pre-update ", s["initial_pre_update_eval"]),
+                              ("final      ", s["final_eval"])):
+            if digest is None:
+                continue
+            print("eval fd:    %s clean R=%s (%s ok) | damaged R=%s (%s ok) | "
+                  "delta=%s over %s/%s pair(s)"
+                  % (label, _fmt_opt(digest["eval_reward_mean_clean"]),
+                     digest["n_clean_successful"],
+                     _fmt_opt(digest["eval_reward_mean_damaged"]),
+                     digest["n_damaged_successful"],
+                     _fmt_opt(digest["eval_paired_reward_delta"]),
+                     digest["n_pairs_successful"], digest["n_pairs_attempted"]))
     else:
         print("eval R:     (disabled)")
+    fd = s["fuel_damage_totals"]
+    print("fuel dmg:   mode=%s  penalty_c=%s"
+          % (s["fuel_damage_mode"], s["aircraft_penalty_coeff"]))
+    print("            train: clean %d/%d ok, damaged %d/%d ok, events=%d wakes=%d "
+          "rtb=%d dead=%d"
+          % (fd["train_clean_successful"], fd["train_clean_attempted"],
+             fd["train_damaged_successful"], fd["train_damaged_attempted"],
+             fd["train_fuel_damage_events_applied"], fd["train_fuel_damage_wakes"],
+             fd["train_fuel_damage_rtb_issued"], fd["train_deaths"]))
+    print("            eval:  clean %d/%d ok, damaged %d/%d ok, events=%d wakes=%d "
+          "rtb=%d dead=%d  pairs %d/%d"
+          % (fd["eval_clean_successful"], fd["eval_clean_attempted"],
+             fd["eval_damaged_successful"], fd["eval_damaged_attempted"],
+             fd["eval_fuel_damage_events_applied"], fd["eval_fuel_damage_wakes"],
+             fd["eval_fuel_damage_rtb_issued"], fd["eval_deaths"],
+             fd["eval_pairs_successful"], fd["eval_pairs_attempted"]))
     print("failures:   %d recorded  by phase=%s  by stage=%s%s"
           % (s["failures_recorded"], s["failures_by_phase"],
              s["failures_by_pipeline_stage"],
@@ -3242,6 +3814,32 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    default=d_cfg.stretch_target_ratio,
                    help="fraction of targets placed in the stretch zone, beyond the "
                         "weakest aircraft's range (default: %(default)s)")
+    # --- FD-BASELINE-v1: the difficulty factor. Defaults read off TrainConfig. ---
+    p.add_argument("--fuel-damage-mode", type=str,
+                   default=d_cfg.fuel_damage_mode,
+                   choices=[FuelDamageMode.SEEDED_MIXTURE, FuelDamageMode.OFF],
+                   help="fuel-damage scheduling for TRAINING episodes; the forced modes "
+                        "belong to an evaluation pair member and are not selectable here "
+                        "(default: %(default)s)")
+    p.add_argument("--fuel-damage-probability", type=float,
+                   default=d_cfg.fuel_damage_probability,
+                   help="P(damaged) per training episode under the seeded mixture "
+                        "(default: %(default)s)")
+    p.add_argument("--fuel-damage-leg-progress", type=float,
+                   default=d_cfg.fuel_damage_leg_progress,
+                   help="fraction of the ego's FIRST planned leg at which the event "
+                        "fires (default: %(default)s)")
+    p.add_argument("--fuel-damage-rtb-margin", type=float,
+                   default=d_cfg.fuel_damage_rtb_margin,
+                   help="RTB fuel reserve multiplier -- the engine's own 1.1 -- applied "
+                        "to both ends of the strict window (default: %(default)s)")
+    p.add_argument("--aircraft-penalty-coeff",
+                   type=_bounded_type(float, 0.0, inclusive=True,
+                                      what="--aircraft-penalty-coeff"),
+                   default=d_cfg.aircraft_penalty_coeff,
+                   help="death-penalty coefficient c passed to graph_reward (whose "
+                        "FORMULA is unchanged); 0 makes losing an aircraft free "
+                        "(default: %(default)s)")
     p.add_argument("--plot", type=str, default=None, metavar="RUN_DIR",
                    help="plot an EXISTING run directory and exit (no training)")
     p.add_argument("--selftest", action="store_true",
@@ -3286,6 +3884,11 @@ def main(argv: Optional[List[str]] = None) -> None:
         num_red_airbases=args.num_red_airbases,
         partial_ratio=args.partial_ratio,
         stretch_target_ratio=args.stretch_target_ratio,
+        fuel_damage_mode=args.fuel_damage_mode,
+        fuel_damage_probability=args.fuel_damage_probability,
+        fuel_damage_leg_progress=args.fuel_damage_leg_progress,
+        fuel_damage_rtb_margin=args.fuel_damage_rtb_margin,
+        aircraft_penalty_coeff=args.aircraft_penalty_coeff,
     )
     # Fail on an impossible cell (e.g. num_agents > n_known) HERE, before train()
     # touches the filesystem or the solver. train() validates again; validate() is pure.
