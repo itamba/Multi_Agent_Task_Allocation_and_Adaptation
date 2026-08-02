@@ -36,6 +36,20 @@ PO2  LOCALITY AND SAME-SNAPSHOT NO-COMMUNICATION
            while every peer row stays featureless (0.0);
      P2.5  a clean controller touches no aircraft and wakes nobody.
 
+F1   THE RTB MEASUREMENT IS COMMAND HISTORY, NOT THE EXECUTOR LIFECYCLE LATCH
+     `rtb_command_for` is proven byte-equal to what a real `GraphPlanExecutor` emits; a
+     controlled abort produces exactly one such command and reports True; and an ego that
+     dies flying PLAN_COMPLIANCE reports False WHILE the executor's `rtb_issued` latch is
+     True for it -- which is what proves the measurement does not reuse that field.
+
+F2   THE WINDOW IS RE-VALIDATED AGAINST THE LIVE EVENT STATE
+     The stub environment is a faithful miniature of
+     `Game.update_all_aircraft_position` -- per-tick `fuel_rate / 3600` burn including
+     route-less launch ticks, movement derived from the aircraft's own knots speed, and
+     removal at empty -- so live fuel at the event really is below
+     `projected_fuel_at_event`. All three live checks are exercised, and each refusal is
+     proven to leave `current_fuel` untouched and the event unfired.
+
 PO3  BEHAVIOURAL AND MEASUREMENT INTEGRATION
      P3.1  a controlled SELF_PRESERVATION_ABORT empties only the damaged ego's plan and
            produces exactly ONE existing RTB command (the executor's latch, unchanged);
@@ -58,6 +72,7 @@ import math
 import random
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import torch
@@ -101,8 +116,10 @@ from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     derive_fuel_damage_seed,
     fuel_for_distance_km,
     interpolate_great_circle,
+    measure_window,
     plan_fuel_damage,
     resolve_condition,
+    rtb_command_for,
 )
 from match_aou.rl.training.graph_rollout import RolloutConfig  # noqa: E402
 from match_aou.rl.training.graph_train import (  # noqa: E402
@@ -241,29 +258,62 @@ class _StubExecutor:
 
 
 class _StubEnv:
-    """Advances every airborne aircraft toward its first target by a fixed step."""
+    """A faithful miniature of ``Game.update_all_aircraft_position``.
 
-    def __init__(self, scenario, *, step_km=10.0, targets=None):
+    Two properties are modelled deliberately, because the fuel-window logic depends on
+    both and a convenient stub would hide them:
+
+      * FUEL IS BURNED EVERY TICK, `fuel_rate / 3600`, whether or not the aircraft moved
+        -- the engine decrements unconditionally, and `hold_ticks` reproduces the real
+        launch tick, where the aircraft is already airborne but has no route yet. This is
+        exactly why live fuel at the event is BELOW `projected_fuel_at_event`, which
+        subtracts only the fuel for distance flown.
+      * AN AIRCRAFT AT `current_fuel <= 0` IS REMOVED from `scenario.aircraft`, as
+        `Game.remove_aircraft` does -- which is how the executor learns an ego is dead.
+
+    DISTANCE PER TICK IS DERIVED FROM THE AIRCRAFT'S OWN KNOTS SPEED, exactly as
+    `get_next_coordinates` does: `speed * NAUTICAL_MILES_TO_METERS / 3600` metres per
+    tick. That is what makes the burn and the movement CONSISTENT -- flying d km costs
+    exactly `fuel_for_distance_km(d)` -- which in turn is what lets a test state the true
+    relationship between live fuel and `projected_fuel_at_event` instead of a relationship
+    manufactured by a compressed timeline.
+    """
+
+    def __init__(self, scenario, *, step_km=None, targets=None, hold_ticks=0,
+                 burn_fuel=True):
         self.scenario = scenario
-        self.step_km = float(step_km)
+        self.step_km = None if step_km is None else float(step_km)
         self.targets = dict(targets or {})
+        self.hold_ticks = int(hold_ticks)
+        self.burn_fuel = bool(burn_fuel)
         self.closed = False
         self.n_steps = 0
+        self.removed = []
+
+    def _step_km_of(self, aircraft) -> float:
+        if self.step_km is not None:
+            return self.step_km
+        return float(aircraft.speed) * NAUTICAL_MILES_TO_METERS / 3600.0 / 1000.0
 
     def step(self, _action):
+        moving = self.n_steps >= self.hold_ticks
         self.n_steps += 1
-        for aircraft in self.scenario.aircraft:
+        for aircraft in list(self.scenario.aircraft):
             target = self.targets.get(str(aircraft.id))
-            if target is None:
-                continue
-            here = Location(aircraft.latitude, aircraft.longitude)
-            remaining = here.distance_to(target)
-            if remaining <= self.step_km:
-                aircraft.latitude, aircraft.longitude = target.latitude, target.longitude
-                continue
-            bearing = _bearing(here, target)
-            moved = _point_at(here, self.step_km, bearing)
-            aircraft.latitude, aircraft.longitude = moved.latitude, moved.longitude
+            step_km = self._step_km_of(aircraft)
+            if moving and target is not None:
+                here = Location(aircraft.latitude, aircraft.longitude)
+                if here.distance_to(target) <= step_km:
+                    aircraft.latitude = target.latitude
+                    aircraft.longitude = target.longitude
+                else:
+                    moved = _point_at(here, step_km, _bearing(here, target))
+                    aircraft.latitude, aircraft.longitude = moved.latitude, moved.longitude
+            if self.burn_fuel:
+                aircraft.current_fuel -= aircraft.fuel_rate / 3600.0
+                if aircraft.current_fuel <= 0:
+                    self.scenario.aircraft.remove(aircraft)
+                    self.removed.append(str(aircraft.id))
         return self.scenario, 0.0, False, False, {}
 
     def close(self):
@@ -541,8 +591,10 @@ def test_p1_5_the_live_aircraft_is_mutated_exactly_once() -> None:
     aircraft = ctx.scenario.get_aircraft(ego)
     launch_fuel = aircraft.current_fuel
 
+    burn = aircraft.fuel_rate / 3600.0
+    n_ticks = 250          # the faithful timeline reaches 30% of a 250 km leg at ~t=112
     fires, fuels = [], []
-    for tick in range(200):
+    for tick in range(n_ticks):
         fired = controller.maybe_apply(ctx.scenario, tick)
         if fired is not None:
             fires.append((tick, fired))
@@ -553,28 +605,40 @@ def test_p1_5_the_live_aircraft_is_mutated_exactly_once() -> None:
     fire_tick, fired_ego = fires[0]
     assert fired_ego == ego
 
-    # Exactly ONE change of the real value over 200 ticks, on the event tick, to the
-    # planned quantity. (The stub env moves aircraft but burns no fuel, so the event is
-    # the only possible source of a change -- which is what makes this count exact.)
-    changes = [i for i in range(1, len(fuels)) if fuels[i] != fuels[i - 1]]
-    assert changes == [fire_tick], (changes, fire_tick)
-    assert aircraft.current_fuel == plan.post_damage_fuel
+    # Exactly ONE non-burn change of the real value over 120 ticks. The env burns
+    # `fuel_rate / 3600` every tick like the engine does, so the test separates the two:
+    # every step is the burn, EXCEPT the event tick, which is the jump to the planned
+    # quantity. A controller that re-applied would show a second jump.
+    jumps = [
+        i for i in range(1, len(fuels))
+        if abs(fuels[i] - (fuels[i - 1] - burn)) > 1e-9
+    ]
+    assert jumps == [fire_tick], (jumps, fire_tick)
+    assert fire_tick > 1, "the event fired before the ego had flown anywhere"
+    assert fuels[fire_tick] == plan.post_damage_fuel
+    assert fuels[fire_tick - 1] > plan.post_damage_fuel
+    assert aircraft.current_fuel < plan.post_damage_fuel  # still burning afterwards
     assert aircraft.current_fuel < launch_fuel
 
     # It fired at the FIRST tick at or past the threshold, not later.
     outcome = controller.outcome
     assert outcome.fired and outcome.event_tick == fire_tick
     assert outcome.observed_progress >= plan.progress_threshold
-    assert outcome.fuel_before == launch_fuel
+    # `fuels[i]` is sampled after `maybe_apply(i)` but before `env.step(i)`, so the fuel
+    # the event saw is the previous sample minus that tick's burn.
+    assert abs(outcome.fuel_before - (fuels[fire_tick - 1] - burn)) < 1e-9
     assert outcome.fuel_after == plan.post_damage_fuel
-    assert abs(outcome.damage_factor - plan.post_damage_fuel / launch_fuel) < 1e-12
+    assert abs(outcome.damage_factor
+               - plan.post_damage_fuel / outcome.fuel_before) < 1e-12
     assert controller.fired
 
-    # And no peer aircraft was touched at all.
+    # And no peer aircraft was damaged: every peer's fuel is the pure burn schedule.
     for peer in ctx.agent_ids:
         if peer == ego:
             continue
-        assert ctx.scenario.get_aircraft(peer).current_fuel == launch_fuel
+        peer_ac = ctx.scenario.get_aircraft(peer)
+        expected = launch_fuel - n_ticks * (peer_ac.fuel_rate / 3600.0)
+        assert abs(peer_ac.current_fuel - expected) < 1e-6, peer
 
 
 def test_p1_5b_the_event_cannot_fire_before_the_threshold_or_while_grounded() -> None:
@@ -782,7 +846,7 @@ def _drive_loop(ctx, *, seed=1, agent_ids=None, params=_PARAMS):
     try:
         result = graph_tick_loop.run_episode(
             None, ctx, GraphObservationConfig(detection_range_km=50.0),
-            max_ticks=200, fuel_damage=controller,
+            max_ticks=300, fuel_damage=controller,
         )
     finally:
         graph_tick_loop.decide_triggers, graph_tick_loop._wake_decision = saved
@@ -809,11 +873,12 @@ def test_p2_1_and_p2_2_the_event_precedes_phase_1_and_reaches_one_ego_only() -> 
     # P2.1: EVERY ego on that tick -- including the first processed -- saw post-damage.
     for row in on_event_tick:
         assert row["fuels"][ego] == plan.post_damage_fuel, (row["ego"], row["fuels"])
-    # And the tick before the event, every ego saw the pre-damage value.
+    # And on the tick before, every ego saw the SAME pre-damage value -- far above the
+    # post-damage level (it is only down by the per-tick burn every aircraft pays).
     before = [row for row in seen if row["tick"] == event_tick - 1]
     assert before, "no tick preceded the event"
-    for row in before:
-        assert row["fuels"][ego] == plan.fuel_at_launch
+    assert len({row["fuels"][ego] for row in before}) == 1, before
+    assert before[0]["fuels"][ego] > 10.0 * plan.post_damage_fuel, before[0]["fuels"][ego]
 
     # P2.2: exactly one ego was flagged, on exactly one tick.
     flagged = [(row["tick"], row["ego"]) for row in seen if row["fuel_damage"]]
@@ -825,12 +890,22 @@ def test_p2_1_and_p2_2_the_event_precedes_phase_1_and_reaches_one_ego_only() -> 
     assert outcome.wake_occurred
     assert outcome.wake_meta_action == int(MetaAction.SELF_PRESERVATION_ABORT)
 
-    # And no peer's fuel was ever observed to change.
+    # And no peer's fuel was ever JUMPED: each follows the pure per-tick burn schedule
+    # every aircraft pays, with no step the event could account for.
+    per_tick = {}
     for row in seen:
-        for peer in ctx.agent_ids:
-            if peer == ego:
-                continue
-            assert row["fuels"][peer] == plan.fuel_at_launch, (row["tick"], peer)
+        per_tick.setdefault(row["tick"], []).append(row["fuels"])
+    for peer in ctx.agent_ids:
+        if peer == ego:
+            continue
+        burn = ctx.scenario.get_aircraft(peer).fuel_rate / 3600.0
+        series = [snapshots[0][peer] for _tick, snapshots in sorted(per_tick.items())]
+        # Every ego on a given tick agreed on this peer's fuel...
+        for _tick, snapshots in per_tick.items():
+            assert len({snap[peer] for snap in snapshots}) == 1, (peer, _tick)
+        # ...and it only ever moved by the burn.
+        for i in range(1, len(series)):
+            assert abs(series[i] - (series[i - 1] - burn)) < 1e-9, (peer, i)
 
 
 def test_p2_3_phase_1_ego_iteration_order_cannot_change_the_result() -> None:
@@ -876,7 +951,7 @@ def test_p2_4_the_damaged_graph_carries_post_damage_fuel_and_peers_stay_featurel
     cfg = GraphObservationConfig(detection_range_km=50.0)
 
     # Fly to the threshold and fire.
-    for tick in range(200):
+    for tick in range(400):
         if controller.maybe_apply(ctx.scenario, tick) is not None:
             break
         ctx.env.step([])
@@ -907,8 +982,13 @@ def test_p2_4_the_damaged_graph_carries_post_damage_fuel_and_peers_stay_featurel
             "a peer agent row is not featureless: %r" % (rows,)
         )
         if peer != ego:
-            assert abs(float(rows[0, 0]) - 1.0) < 1e-6, (
-                "peer %s's own fuel_norm changed: it must not see the event" % peer
+            # A peer's own row is its OWN live fuel (down only by the shared per-tick
+            # burn), nowhere near the damaged ego's post-damage level.
+            peer_ac = ctx.scenario.get_aircraft(peer)
+            assert abs(float(rows[0, 0])
+                       - peer_ac.current_fuel / peer_ac.max_fuel) < 1e-6, peer
+            assert float(rows[0, 0]) > 10.0 * expected, (
+                "peer %s's fuel_norm moved toward the damaged value" % peer
             )
 
 
@@ -923,8 +1003,12 @@ def test_p2_5_a_clean_controller_is_inert() -> None:
     assert not controller.fired and not controller.outcome.wake_occurred
     assert not any(row["fuel_damage"] for row in seen)
     assert wakes == []
-    fuels = {a.current_fuel for a in ctx.scenario.aircraft}
-    assert fuels == {controller.plan.fuel_at_launch or 12000.0}, fuels
+    # Inert means no ego was singled out: every aircraft is on the identical per-tick
+    # burn schedule and none was set to a damaged level.
+    fuels = {round(a.current_fuel, 9) for a in ctx.scenario.aircraft}
+    assert len(fuels) == 1, fuels
+    only = next(iter(fuels))
+    assert 0.0 < only < 12000.0, only
 
     # `note_wake` on a clean controller is a no-op too (it cannot invent an event).
     controller.note_wake(ego_id="ego0", meta_action=int(MetaAction.PLAN_COMPLIANCE))
@@ -1159,6 +1243,397 @@ def test_p3_3d_the_config_refuses_an_eval_band_that_cannot_hold_its_pairs() -> N
         assert "matched pair members" in str(exc), str(exc)
     else:
         raise AssertionError("an eval band that overflows its tag namespace was accepted")
+
+
+# =============================================================================
+# F1 -- the RTB measurement is COMMAND HISTORY, not the executor lifecycle latch
+# =============================================================================
+#
+# The defect: `selected_ego_rtb_issued` was read off `GraphPlanExecutor.rtb_issued`.
+# That field is not a record of commands. `_command_for_ego`'s dead branch sets it True
+# for an ego that is neither airborne nor in an airbase -- precisely BECAUSE no command
+# was emitted -- so an ego that flew its plan into the ground registered as an RTB *and*
+# as a death, in the same episode, in the aggregate that is supposed to show whether the
+# fuel-damage event produced an abort.
+
+
+def _executor_ctx(*, meta_action, target_distance_km=250.0, kill_selected_at=None,
+                  seed=1):
+    """A context whose executor is a REAL `GraphPlanExecutor`, driven by `run_episode`.
+
+    Only `_wake_decision` is replaced, and the replacement does what the real one does
+    for the plan: `apply_meta_action` on the ego's own belief, then `executor.resync` of
+    that ego's slice. The encoder and head are irrelevant to whether a command is emitted,
+    and stubbing them keeps this solver-free and deterministic.
+
+    `kill_selected_at` removes the selected ego's aircraft from `scenario.aircraft` after
+    that tick -- the engine's own `remove_aircraft` behaviour on an empty tank -- which is
+    how the "died without ever issuing an RTB" case is produced.
+    """
+    ctx = _FuelDamageCtx(target_distance_km=target_distance_km)
+    agents = ctx.agents
+    tasks = ctx.beliefs[ctx.agent_ids[0]].tasks
+    ctx.executor = GraphPlanExecutor(
+        tasks=tasks, solution=ctx.a_init, agents=agents, arrival_threshold_km=50.0,
+    )
+    # No fuel burn: this fixture is about COMMANDS, and a mid-episode fuel-out would
+    # confound "the ego died before it could RTB" with the case being constructed.
+    ctx.env = _StubEnv(ctx.scenario, targets=ctx.targets, burn_fuel=False)
+    controller = build_fuel_damage_controller(ctx, episode_seed=seed, params=_PARAMS)
+    selected = controller.plan.ego_id
+
+    if kill_selected_at is not None:
+        real_step = ctx.env.step
+
+        def killing_step(action):
+            result = real_step(action)
+            if ctx.env.n_steps == int(kill_selected_at):
+                victim = ctx.scenario.get_aircraft(selected)
+                if victim is not None:
+                    ctx.scenario.aircraft.remove(victim)
+            return result
+
+        ctx.env.step = killing_step
+
+    def acting_wake(_policy, ego_id, _obs, belief, executor, _cfg, tick, **_kw):
+        class _Gobs:
+            task_target_ids = [
+                str(t.steps[0].target_id) for t in belief.tasks
+            ]
+        node_v = int(belief.solution.get(str(ego_id), [(0, 0, 0)])[0][0])
+        belief.solution = apply_meta_action(
+            belief.solution, _Gobs(), str(ego_id), int(meta_action), node_v, belief.tasks
+        )
+        executor.resync(belief.solution, ego_id=str(ego_id), tasks=belief.tasks)
+        return graph_tick_loop.Transition(
+            gobs=None, ego_id=str(ego_id), tick=int(tick),
+            meta_action=int(meta_action), node_v=node_v, log_prob=0.0, entropy=0.0,
+        )
+
+    issued = []
+    real_next = ctx.executor.next_actions
+
+    def spy_next(observation):
+        commands = real_next(observation)
+        issued.extend(commands)
+        return commands
+
+    ctx.executor.next_actions = spy_next
+
+    saved = graph_tick_loop._wake_decision
+    graph_tick_loop._wake_decision = acting_wake
+    try:
+        result = graph_tick_loop.run_episode(
+            None, ctx, GraphObservationConfig(detection_range_km=50.0),
+            max_ticks=250, fuel_damage=controller,
+        )
+    finally:
+        graph_tick_loop._wake_decision = saved
+    return ctx, controller, issued, result
+
+
+def test_f1_the_rtb_command_string_mirrors_the_real_executor() -> None:
+    """F1. `rtb_command_for` is byte-equal to what a real executor emits.
+
+    It is a deliberate second copy of the executor's format string (importing the BLADE
+    translation layer would cost the component its purity), so the equivalence is
+    test-enforced here -- the same discipline `derived_split` uses against `split_tasks`.
+    """
+    ego = "ego0"
+    agent = Agent(location=Location(_BASE.latitude, _BASE.longitude), capabilities=[],
+                  budget=1.0, move_cost_function=lambda s, d: 0.0, agent_id=ego,
+                  side_color="blue", home_base_id="base-blue",
+                  return_location=Location(_BASE.latitude, _BASE.longitude))
+    executor = GraphPlanExecutor(tasks=[], solution={ego: []}, agents=[agent],
+                                arrival_threshold_km=50.0)
+    mid = _point_at(_BASE, 75.0, 30.0)
+    scenario = _StubScenario(
+        aircraft=[_StubAircraft(ego, mid.latitude, mid.longitude)],
+        airbases=[_StubAirbase("base-blue", _BASE.latitude, _BASE.longitude)],
+    )
+    commands = executor.next_actions(scenario)   # empty plan -> RTB
+    assert commands == [rtb_command_for(ego)], (commands, rtb_command_for(ego))
+
+
+def test_f1_a_controlled_abort_reports_one_real_rtb_command() -> None:
+    """F1 (1). Abort -> exactly one emitted RTB command -> `rtb_command_issued is True`."""
+    ctx, controller, issued, _result = _executor_ctx(
+        meta_action=MetaAction.SELF_PRESERVATION_ABORT
+    )
+    plan = controller.plan
+    assert plan.condition == CONDITION_DAMAGED
+    ego = plan.ego_id
+    assert controller.outcome.fired, "the event never fired"
+
+    wanted = rtb_command_for(ego)
+    assert issued.count(wanted) == 1, (
+        "expected exactly one RTB command for the selected ego, got %d in %r"
+        % (issued.count(wanted), [c for c in issued if "return_to_base" in c])
+    )
+    assert controller.outcome.rtb_command_issued is True
+    assert controller.outcome.wake_meta_action == int(
+        MetaAction.SELF_PRESERVATION_ABORT)
+    # Only the damaged ego's plan was emptied; the peers still fly theirs.
+    assert ctx.executor.plans[ego] == []
+    for peer in ctx.agent_ids:
+        if peer != ego:
+            assert ctx.executor.plans[peer], peer
+
+
+def test_f1_a_dead_ego_reports_no_rtb_even_though_the_latch_is_set() -> None:
+    """F1 (2) + (3). THE regression: death without a command is not an RTB.
+
+    The selected ego flies PLAN_COMPLIANCE and is removed from the scenario shortly after
+    the event -- the engine's behaviour on an empty tank. It therefore never emits an
+    `aircraft_return_to_base`, but the executor's dead branch DOES latch
+    `rtb_issued[ego] = True`. The measurement must report False, and the latch being True
+    at the same time is what proves it is not the source.
+    """
+    ctx, controller, issued, _result = _executor_ctx(
+        meta_action=MetaAction.PLAN_COMPLIANCE, kill_selected_at=150
+    )
+    plan = controller.plan
+    ego = plan.ego_id
+    assert controller.outcome.fired, "the event never fired"
+
+    # (2) no RTB command was ever emitted for this ego, and the measurement says so.
+    assert rtb_command_for(ego) not in issued, [
+        c for c in issued if "return_to_base" in c
+    ]
+    assert controller.outcome.rtb_command_issued is False
+
+    # (3) ...while the executor latch IS True, for the dead ego, having emitted nothing.
+    assert ego in ctx.executor.dead, ctx.executor.dead
+    assert ctx.executor.rtb_issued.get(ego) is True, (
+        "the fixture no longer reproduces the latch state the defect depended on"
+    )
+    # Which is exactly the contradiction the old derivation produced: RTB *and* death.
+    assert ctx.executor.rtb_issued.get(ego) != controller.outcome.rtb_command_issued
+
+
+def test_f1_the_trainer_reports_the_command_not_the_latch() -> None:
+    """F1. The value that reaches `_EpisodeOutcome` and the aggregates is the command.
+
+    Driven through the REAL `_run_one_episode` against a context whose executor latch is
+    True for an ego that emitted nothing -- the exact state the old code misread.
+    """
+    ctx = _FuelDamageCtx()
+    plan = build_fuel_damage_plan(ctx, episode_seed=1, params=_PARAMS)
+    ctx.executor.rtb_issued = {str(plan.ego_id): True}   # latched, no command emitted
+
+    out = _run_one_episode_against(ctx, seed=1)
+    assert out.fuel_damage_plan["condition"] == CONDITION_DAMAGED
+    assert out.selected_ego_rtb_issued is False, (
+        "the trainer read the executor latch instead of the emitted command"
+    )
+    assert out.fuel_damage_outcome["rtb_command_issued"] is False
+
+    # And the tally counts commands, so this episode contributes no RTB.
+    tally = graph_train._ConditionTally()
+    tally.attempt(CONDITION_DAMAGED)
+    tally.success(out)
+    assert tally.to_record()["fuel_damage_rtb_issued"] == 0
+
+
+# =============================================================================
+# F2 -- the window is re-validated against the LIVE event state
+# =============================================================================
+#
+# The defect: the preflight projection subtracts fuel for distance FLOWN, but
+# `Game.update_all_aircraft_position` burns `fuel_rate / 3600` every tick regardless --
+# including the launch tick, where the aircraft is airborne with no route. Live fuel at
+# the event is therefore always below `projected_fuel_at_event`, and `maybe_apply` only
+# checked `fuel_before > post_damage_fuel`. An ego could be below its LIVE continue
+# requirement -- i.e. already unable to finish and get home -- and the event would still
+# fire, producing an episode that looks like a decision and is not one.
+
+
+def _fly_to_threshold(ctx, controller, *, max_ticks=400):
+    """Step the faithful env until the selected ego crosses the progress threshold."""
+    for _ in range(max_ticks):
+        if (controller.observed_progress(ctx.scenario) or 0.0) >= float(
+                controller.plan.progress_threshold):
+            return True
+        ctx.env.step([])
+    return False
+
+
+def test_f2_live_fuel_at_the_event_is_below_the_projection() -> None:
+    """F2. The discrepancy the fix is about is real, and the live bounds are recorded.
+
+    The env burns exactly what the engine burns, including three hold ticks that stand in
+    for the real launch tick (airborne, no route). The event still fires -- the live
+    window holds with margin on this cell -- and what is locked here is that the numbers
+    the mutation was validated against are the LIVE ones, recorded apart from the planned
+    ones so the two can never be confused.
+    """
+    ctx = _FuelDamageCtx()
+    ctx.env = _StubEnv(ctx.scenario, targets=ctx.targets, hold_ticks=3)
+    controller = build_fuel_damage_controller(ctx, episode_seed=1, params=_PARAMS)
+    plan = controller.plan
+    aircraft = ctx.scenario.get_aircraft(plan.ego_id)
+
+    tick = 0
+    fired = None
+    while fired is None and tick < 200:
+        fired = controller.maybe_apply(ctx.scenario, tick)
+        if fired is None:
+            ctx.env.step([])
+            tick += 1
+    assert fired == plan.ego_id, "the event never fired"
+
+    outcome = controller.outcome
+    # THE defect's premise: live fuel is strictly below the preflight projection, because
+    # the projection charges distance only and the engine also charged the hold ticks.
+    assert outcome.fuel_before < plan.projected_fuel_at_event, (
+        outcome.fuel_before, plan.projected_fuel_at_event
+    )
+
+    # The live bounds are recorded, are real numbers, and are the ones the four checks
+    # were applied to.
+    assert outcome.live_rtb_fuel_floor is not None
+    assert outcome.live_continue_fuel_requirement is not None
+    assert outcome.live_rtb_fuel_floor <= plan.post_damage_fuel
+    assert plan.post_damage_fuel < outcome.live_continue_fuel_requirement
+    assert outcome.fuel_before >= outcome.live_continue_fuel_requirement
+    # Planned and live are DIFFERENT quantities and are reported under different names.
+    assert outcome.live_rtb_distance_km != plan.rtb_distance_km
+    assert aircraft.current_fuel == plan.post_damage_fuel
+
+
+def test_f2_the_event_refuses_a_state_already_below_the_live_continue_requirement() -> None:
+    """F2. THE required case: above `post_damage_fuel`, below the live continue need.
+
+    That state means the ego could no longer have finished its route and come home even
+    without the damage, so the event would create no decision. The old check
+    (`fuel_before > post_damage_fuel`) passes here and would have fired. The event must
+    refuse it, and must refuse it WITHOUT MUTATING anything.
+    """
+    ctx = _FuelDamageCtx()
+    controller = build_fuel_damage_controller(ctx, episode_seed=1, params=_PARAMS)
+    plan = controller.plan
+    aircraft = ctx.scenario.get_aircraft(plan.ego_id)
+    assert _fly_to_threshold(ctx, controller)
+
+    live = controller.live_bounds(aircraft)
+    # Strictly inside (post_damage_fuel, live continue requirement): the old guard is
+    # satisfied, the new one is not.
+    starved = 0.5 * (plan.post_damage_fuel + live.continue_fuel_requirement)
+    assert plan.post_damage_fuel < starved < live.continue_fuel_requirement
+    aircraft.current_fuel = starved
+
+    try:
+        controller.maybe_apply(ctx.scenario, 99)
+    except FuelDamageError as exc:
+        assert "below the LIVE continue requirement" in str(exc), str(exc)
+    else:
+        raise AssertionError(
+            "the event fired from a state that was already infeasible to continue from"
+        )
+    # NOTHING was mutated, and the event remains unfired (so it is not silently spent).
+    assert aircraft.current_fuel == starved
+    assert not controller.fired
+    assert controller.outcome.fired is False
+    assert controller.outcome.live_rtb_fuel_floor is None
+
+
+def test_f2_the_event_refuses_a_state_where_rtb_is_no_longer_affordable() -> None:
+    """F2. The target must still cover the LIVE RTB floor, measured where the ego IS.
+
+    Constructed faithfully: the ego overshoots far past its target (progress is well past
+    the threshold, but it is now much further from home than the plan assumed), so the
+    live RTB floor rises above the planned post-damage quantity. Applying the event there
+    would be a kill, not a decision.
+    """
+    ctx = _FuelDamageCtx()
+    controller = build_fuel_damage_controller(ctx, episode_seed=1, params=_PARAMS)
+    plan = controller.plan
+    aircraft = ctx.scenario.get_aircraft(plan.ego_id)
+
+    # Far BEYOND the target on the same bearing: progress is comfortably past the
+    # threshold, but the distance home is now ~412 km instead of the planned 75 km.
+    target = plan.first_target_location
+    beyond = _point_at(target, 0.65 * plan.leg_length_km,
+                       _bearing(Location(_BASE.latitude, _BASE.longitude), target))
+    aircraft.latitude, aircraft.longitude = beyond.latitude, beyond.longitude
+    before = aircraft.current_fuel
+    assert (controller.observed_progress(ctx.scenario) or 0.0) >= plan.progress_threshold
+
+    live = controller.live_bounds(aircraft)
+    assert live.rtb_fuel_floor > plan.post_damage_fuel, live
+
+    try:
+        controller.maybe_apply(ctx.scenario, 77)
+    except FuelDamageError as exc:
+        assert "below the LIVE RTB floor" in str(exc), str(exc)
+    else:
+        raise AssertionError("the event fired where the ego could no longer fly home")
+    assert aircraft.current_fuel == before
+    assert not controller.fired
+
+
+def test_f2_the_event_refuses_a_target_that_still_affords_continuing() -> None:
+    """F2. If the target no longer sits below the LIVE continue requirement, refuse.
+
+    A plan whose `post_damage_fuel` is above the live requirement describes a "damage"
+    the ego can simply absorb -- it would fly its route and come home regardless, and the
+    episode would carry a damaged label with no decision in it. Built by hand because the
+    reference geometry cannot reach this state naturally: with a single-target route the
+    live continue distance is bounded below by the return leg, so the planned midpoint is
+    always under it.
+    """
+    ctx = _FuelDamageCtx()
+    base_plan = build_fuel_damage_plan(ctx, episode_seed=1, params=_PARAMS)
+    inflated = replace(
+        base_plan,
+        post_damage_fuel=base_plan.continue_fuel_requirement * 10.0,
+    )
+    controller = FuelDamageController(inflated)
+    aircraft = ctx.scenario.get_aircraft(inflated.ego_id)
+    assert _fly_to_threshold(ctx, controller)
+    aircraft.current_fuel = inflated.post_damage_fuel * 2.0   # clears checks (1) and (2)
+    before = aircraft.current_fuel
+
+    try:
+        controller.maybe_apply(ctx.scenario, 55)
+    except FuelDamageError as exc:
+        assert "not below the LIVE continue requirement" in str(exc), str(exc)
+    else:
+        raise AssertionError("the event fired with a target that changes nothing")
+    assert aircraft.current_fuel == before
+    assert not controller.fired
+
+
+def test_f2_a_refused_live_window_is_an_accounted_run_stage_failure() -> None:
+    """F2. The refusal surfaces through `run_episode` and is attributed to `run`.
+
+    Not `setup`: the preflight window WAS valid, and what failed is the live state at the
+    event. `skip_and_account_v1` records it once either way, but the stage is the finding.
+    """
+    ctx = _FuelDamageCtx()
+    controller = build_fuel_damage_controller(ctx, episode_seed=1, params=_PARAMS)
+    plan = controller.plan
+    aircraft = ctx.scenario.get_aircraft(plan.ego_id)
+    assert _fly_to_threshold(ctx, controller)
+    live = controller.live_bounds(aircraft)
+    aircraft.current_fuel = 0.5 * (plan.post_damage_fuel + live.continue_fuel_requirement)
+
+    saved = graph_tick_loop._wake_decision
+    graph_tick_loop._wake_decision = lambda *a, **k: None
+    try:
+        graph_tick_loop.run_episode(
+            None, ctx, GraphObservationConfig(detection_range_km=50.0),
+            max_ticks=5, fuel_damage=controller,
+        )
+    except FuelDamageError as exc:
+        assert "LIVE continue requirement" in str(exc), str(exc)
+    else:
+        raise AssertionError("run_episode swallowed the refused event")
+    finally:
+        graph_tick_loop._wake_decision = saved
+
+    # `_run_one_episode` wraps whatever `run_episode` raises as the `run` stage.
+    assert "run" in graph_train._PIPELINE_STAGES
 
 
 # =============================================================================

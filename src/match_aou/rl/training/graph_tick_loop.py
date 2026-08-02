@@ -366,6 +366,13 @@ def run_episode(
 
         # --- Phase 2: deterministic execution. ONE env.step for the whole tick. ---
         commands = ctx.executor.next_actions(obs)
+        if fuel_damage is not None:
+            # A read-only look at what was ACTUALLY ORDERED this tick. This is the only
+            # sound source for "did the damaged ego return to base": the executor's
+            # `rtb_issued` is a lifecycle LATCH that is also set True for a DEAD ego
+            # (which emits no command at all), so reading it would report an ego that
+            # flew its plan into the ground as having returned to base.
+            fuel_damage.note_commands(commands)
         obs, _reward, terminated, truncated, _info = ctx.env.step(commands)
 
         # Record the post-step state (unconditional per executed tick — before the exit

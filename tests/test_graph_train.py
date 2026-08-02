@@ -1873,8 +1873,17 @@ def _assert_block_is_complete(block: list) -> None:
     fd_line = next(l for l in body if l.strip().startswith("fuel_damage="))
     if "fuel_damage=damaged" in fd_line:
         assert "ego=" in fd_line and "fired=" in fd_line, fd_line
-        assert any("fuel_before=" in l and "rtb_floor=" in l for l in body), body
-        assert any("fd_wake=" in l and "rtb_issued=" in l for l in body), body
+        assert any("fuel_before=" in l and "fuel_after=" in l for l in body), body
+        # PLANNED and LIVE bounds are reported side by side and named apart, so a reader
+        # can never mistake the preflight window for the one the mutation was validated
+        # against.
+        bounds = next(l for l in body if "planned_rtb_floor=" in l)
+        assert "planned_continue_req=" in bounds, bounds
+        assert "live_rtb_floor=" in bounds and "live_continue_req=" in bounds, bounds
+        # `rtb_command=`, not `rtb_issued=`: it is an emitted COMMAND, never the
+        # executor's lifecycle latch (which is also set for a dead ego).
+        assert any("fd_wake=" in l and "rtb_command=" in l for l in body), body
+        assert not any("rtb_issued=" in l for l in body), body
     else:
         assert fd_line.strip() == "fuel_damage=clean ego=none", fd_line
 

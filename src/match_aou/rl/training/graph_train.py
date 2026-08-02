@@ -1014,6 +1014,12 @@ class _ConditionTally:
     wake the intended ego (``wakes``), and did anything come of it (``rtb_issued``,
     ``deaths``). A damaged round with zero applied events would produce clean-looking
     numbers under a damaged label, and these counters are what makes that visible.
+
+    ``rtb_issued`` counts EMITTED ``aircraft_return_to_base`` COMMANDS, taken from
+    ``_EpisodeOutcome.selected_ego_rtb_issued`` which the fuel-damage controller derives
+    from the Phase-2 command lists. It is deliberately not the executor's ``rtb_issued``
+    latch, which is also set for a dead ego that emitted no command -- counting that
+    would let one episode register as an RTB *and* a death.
     """
 
     def __init__(self) -> None:
@@ -1824,13 +1830,23 @@ def _fuel_damage_lines(out: "_EpisodeOutcome") -> List[str]:
         % (_ascii(plan.get("ego_id")), outcome.get("fired"),
            _fmt_opt(outcome.get("event_tick"), "%d"),
            _fmt_opt(outcome.get("observed_progress"), "%.3f")),
-        "  fuel_before=%s fuel_after=%s factor=%s rtb_floor=%s continue_req=%s"
+        "  fuel_before=%s fuel_after=%s factor=%s"
         % (_fmt_opt(outcome.get("fuel_before"), "%.1f"),
            _fmt_opt(outcome.get("fuel_after"), "%.1f"),
-           _fmt_opt(outcome.get("damage_factor"), "%.4f"),
-           _fmt_opt(plan.get("rtb_fuel_floor"), "%.1f"),
-           _fmt_opt(plan.get("continue_fuel_requirement"), "%.1f")),
-        "  fd_wake=%s fd_meta=%s rtb_issued=%s"
+           _fmt_opt(outcome.get("damage_factor"), "%.4f")),
+        # PLANNED and LIVE bounds side by side, never merged: the planned pair is the
+        # preflight window, the live pair is what the mutation was really validated
+        # against, and reporting one under the other's name would hide the difference the
+        # live re-check exists to catch.
+        "  planned_rtb_floor=%s planned_continue_req=%s | live_rtb_floor=%s "
+        "live_continue_req=%s"
+        % (_fmt_opt(plan.get("rtb_fuel_floor"), "%.1f"),
+           _fmt_opt(plan.get("continue_fuel_requirement"), "%.1f"),
+           _fmt_opt(outcome.get("live_rtb_fuel_floor"), "%.1f"),
+           _fmt_opt(outcome.get("live_continue_fuel_requirement"), "%.1f")),
+        # `rtb_command=` names it a COMMAND on purpose: it is True only if
+        # `aircraft_return_to_base('<ego>')` was really emitted, never the executor latch.
+        "  fd_wake=%s fd_meta=%s rtb_command=%s"
         % (outcome.get("wake_occurred"), meta_name,
            "n/a" if rtb is None else rtb),
     ]
@@ -2062,12 +2078,13 @@ def _run_one_episode(
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
 
-        # Read while the executor is still in scope; a plain bool survives the env close.
-        selected_ego = fuel_damage.plan.ego_id
-        selected_ego_rtb = (
-            None if selected_ego is None
-            else bool(getattr(ctx.executor, "rtb_issued", {}).get(str(selected_ego), False))
-        )
+        # COMMAND HISTORY, from the controller's read of what `run_episode` actually
+        # emitted -- NOT `executor.rtb_issued`. That field is a lifecycle latch which the
+        # executor also sets True for a DEAD ego, precisely because no command was (or
+        # could be) emitted; reading it would report an ego that flew its plan into the
+        # ground as both an RTB and a death.
+        fd_outcome = fuel_damage.outcome
+        selected_ego_rtb = fd_outcome.rtb_command_issued
 
         return _EpisodeOutcome(
             trajectory=list(result.trajectory),
@@ -2085,7 +2102,7 @@ def _run_one_episode(
             known_confirmed_names=known_confirmed,
             hidden_confirmed_names=hidden_confirmed,
             fuel_damage_plan=fuel_damage.plan.to_record(),
-            fuel_damage_outcome=fuel_damage.outcome.to_record(),
+            fuel_damage_outcome=fd_outcome.to_record(),
             selected_ego_rtb_issued=selected_ego_rtb,
         )
     finally:

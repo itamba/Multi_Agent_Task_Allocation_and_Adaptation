@@ -25,6 +25,35 @@ removes an aircraft at ``current_fuel <= 0``, which the reward charges at
 executor's existing empty-plan branch issue its single RTB, and keep the airframe at the
 cost of the target). Neither branch is forced anywhere: the policy still decides.
 
+THE WINDOW IS VALIDATED TWICE: PLANNED, THEN LIVE
+-------------------------------------------------
+The window is built BEFORE the episode from a projection -- where the ego is expected to
+be at 30% of leg 1, and how much fuel it is expected to hold there. That projection is
+knowingly optimistic: it charges fuel for distance FLOWN, while
+``Game.update_all_aircraft_position`` decrements ``fuel_rate / 3600`` on EVERY tick
+including ones where the aircraft has no route yet (the launch tick is exactly that). So
+live fuel at the event is always somewhat below ``projected_fuel_at_event``.
+
+Rather than trust the projection, :meth:`FuelDamageController.maybe_apply` RE-MEASURES the
+window from the aircraft's actual position and validates the mutation against the ego's
+actual fuel before touching anything. If the live window does not hold -- the ego is
+already below what continuing would cost, or the target would no longer cover the RTB
+leg, or it would no longer make continuing infeasible -- it raises BEFORE mutating, and
+the attempt is accounted as a ``run``-stage failure. Planned and live bounds are recorded
+under separate names (``FuelDamagePlan.rtb_fuel_floor`` vs
+``FuelDamageOutcome.live_rtb_fuel_floor``) so a reader always knows which one a number is.
+
+"DID IT RETURN TO BASE" IS COMMAND HISTORY, NOT EXECUTOR STATE
+--------------------------------------------------------------
+``FuelDamageOutcome.rtb_command_issued`` is True only if ``run_episode`` really emitted
+``aircraft_return_to_base('<ego>')`` in a Phase-2 command list, observed through
+:meth:`FuelDamageController.note_commands`. It deliberately does NOT read
+``GraphPlanExecutor.rtb_issued``: that is a lifecycle LATCH which ``_command_for_ego``
+also sets True for a DEAD ego -- precisely because no command was, or could be, emitted --
+so reading it would report an ego that flew its plan into the ground as having returned to
+base, and count one episode as both an RTB and a death in the aggregate that exists to
+show whether the event produced an abort.
+
 THE FUEL MODEL IS BLADE'S, NOT OURS
 -----------------------------------
 Every quantity here is computed with the engine's own arithmetic, transcribed from
@@ -129,8 +158,10 @@ __all__ = [
     "build_fuel_damage_plan",
     "derive_fuel_damage_seed",
     "fuel_for_distance_km",
+    "measure_window",
     "plan_fuel_damage",
     "resolve_condition",
+    "rtb_command_for",
 ]
 
 
@@ -411,6 +442,64 @@ def _polyline_length_km(points: Sequence[Location]) -> float:
     )
 
 
+@dataclass(frozen=True)
+class _Window:
+    """The strict fuel window measured FROM one position, with its two distances.
+
+    ``[rtb_fuel_floor, continue_fuel_requirement)`` is the half-open interval a
+    post-damage quantity must sit in: at or above the floor the ego can still fly home
+    with the engine's reserve, and strictly below the requirement it can no longer
+    complete its route and then return with that same reserve.
+    """
+
+    rtb_distance_km: float
+    continue_distance_km: float
+    rtb_fuel_floor: float
+    continue_fuel_requirement: float
+
+
+def measure_window(
+    *,
+    position: Location,
+    route: Sequence[Location],
+    home_base: Location,
+    speed_knots: float,
+    fuel_rate: float,
+    margin: float,
+) -> _Window:
+    """Measure the strict window from ``position`` -- the ONE arithmetic site.
+
+    Called TWICE per damaged episode with the same route, home base and aircraft
+    parameters, and a different position: once at plan time from the PROJECTED event
+    point, and once at fire time from the aircraft's LIVE position. Sharing this function
+    is the point -- a planned bound and a live bound computed by two similar-looking
+    expressions could drift apart, and the whole reason the live re-check exists is that
+    the two must be comparable.
+
+    The RTB leg is position -> home base, exactly what
+    ``Game.get_fuel_needed_to_return_to_base`` measures. The continue leg is
+    position -> every remaining route target in predicted order -> home base, so the
+    already-flown part of the route is never charged twice.
+    """
+    points = list(route)
+    if not points:
+        raise FuelDamageError("cannot measure a window against an empty route")
+    rtb_distance_km = float(position.distance_to(home_base))
+    continue_distance_km = float(
+        _polyline_length_km([position] + points) + points[-1].distance_to(home_base)
+    )
+    return _Window(
+        rtb_distance_km=rtb_distance_km,
+        continue_distance_km=continue_distance_km,
+        rtb_fuel_floor=float(margin) * fuel_for_distance_km(
+            rtb_distance_km, speed_knots=speed_knots, fuel_rate=fuel_rate
+        ),
+        continue_fuel_requirement=float(margin) * fuel_for_distance_km(
+            continue_distance_km, speed_knots=speed_knots, fuel_rate=fuel_rate
+        ),
+    )
+
+
 # =============================================================================
 # 3. The plan: plain, testable data describing the scheduled event
 # =============================================================================
@@ -435,23 +524,36 @@ class FuelDamagePlan:
         leg_index: which planned leg the event sits on (always :data:`EVENT_LEG_INDEX`
             in v1; recorded rather than implied so a later variant is legible).
         progress_threshold: the fraction of that leg at which the event fires.
+        rtb_safety_margin: the reserve multiplier both window ends were built with.
+            Recorded on the PLAN because the controller re-measures the window at the
+            live state and must use the identical margin to do it.
         leg_length_km: great-circle length of the first planned leg.
-        first_target_latitude / first_target_longitude: leg 1's ENDPOINT -- the first
-            target of the predicted route. Recorded because runtime progress is measured
-            against it (``(L - distance_to_it) / L``), so a plan fully determines the
-            firing condition without any hidden controller state.
-        event_latitude / event_longitude: the PLANNED event point. The window is computed
-            here; the runtime point is measured separately (see :class:`FuelDamageOutcome`).
-        rtb_distance_km: event point -> home base, great circle.
-        continue_distance_km: event point -> every remaining planned target in predicted
-            order -> home base.
-        rtb_fuel_floor: ``margin * fuel(rtb_distance_km)`` -- the LOW end of the window.
+        route_points: the PREDICTED route as ``((lat, lon), ...)`` in flown order --
+            leg 1's endpoint first. Carried in full, not just leg 1, because the window
+            has to be RE-MEASURED against the live aircraft when the event actually fires
+            (see :meth:`FuelDamageController.live_bounds`): the planned bounds describe
+            the point the ego was projected to be at, and a projection is not a
+            measurement.
+        home_base_latitude / home_base_longitude: where "return to base" resolves to --
+            the point the RTB leg is measured to, planned and live alike.
+        event_latitude / event_longitude: the PLANNED event point. The planned window is
+            computed here; the point the event really fired at is measured separately
+            (see :class:`FuelDamageOutcome`).
+        rtb_distance_km: PLANNED event point -> home base, great circle.
+        continue_distance_km: PLANNED event point -> every remaining planned target in
+            predicted order -> home base.
+        rtb_fuel_floor: ``margin * fuel(rtb_distance_km)`` -- the LOW end of the PLANNED
+            window. The live counterpart is ``FuelDamageOutcome.live_rtb_fuel_floor``.
         continue_fuel_requirement: ``margin * fuel(continue_distance_km)`` -- the HIGH,
-            exclusive end.
-        projected_fuel_at_event: fuel the ego is projected to hold when the event fires,
-            i.e. its launch fuel minus what the flown part of leg 1 costs.
+            exclusive end of the PLANNED window.
+        projected_fuel_at_event: fuel the ego is PROJECTED to hold when the event fires,
+            i.e. its launch fuel minus what the flown part of leg 1 costs. It is an
+            underestimate of consumption by construction -- the engine also burns
+            ``fuel_rate / 3600`` on ticks where the aircraft does not move (the launch
+            tick has no route yet) -- which is exactly why the live re-check exists.
         post_damage_fuel: the deterministic value the live aircraft is set to -- the
-            MIDPOINT of the strict window.
+            MIDPOINT of the planned strict window, re-validated against the live one
+            before it is applied.
         speed_knots / fuel_rate / max_fuel / fuel_at_launch: the live aircraft parameters
             the arithmetic used, recorded so a window can be re-derived from the record.
     """
@@ -464,9 +566,11 @@ class FuelDamagePlan:
     ego_id: Optional[str] = None
     leg_index: Optional[int] = None
     progress_threshold: Optional[float] = None
+    rtb_safety_margin: Optional[float] = None
     leg_length_km: Optional[float] = None
-    first_target_latitude: Optional[float] = None
-    first_target_longitude: Optional[float] = None
+    route_points: Tuple[Tuple[float, float], ...] = ()
+    home_base_latitude: Optional[float] = None
+    home_base_longitude: Optional[float] = None
     event_latitude: Optional[float] = None
     event_longitude: Optional[float] = None
     rtb_distance_km: Optional[float] = None
@@ -492,12 +596,23 @@ class FuelDamagePlan:
         return Location(float(self.event_latitude), float(self.event_longitude))
 
     @property
+    def route_locations(self) -> Tuple[Location, ...]:
+        """The predicted route as :class:`Location` objects, in flown order."""
+        return tuple(Location(float(lat), float(lon)) for lat, lon in self.route_points)
+
+    @property
     def first_target_location(self) -> Optional[Location]:
-        """Leg 1's endpoint as a :class:`Location` (``None`` when clean)."""
-        if self.first_target_latitude is None or self.first_target_longitude is None:
+        """Leg 1's endpoint -- the first predicted target (``None`` when clean)."""
+        route = self.route_locations
+        return route[0] if route else None
+
+    @property
+    def home_base_location(self) -> Optional[Location]:
+        """Where RTB resolves to (``None`` when clean)."""
+        if self.home_base_latitude is None or self.home_base_longitude is None:
             return None
         return Location(
-            float(self.first_target_latitude), float(self.first_target_longitude)
+            float(self.home_base_latitude), float(self.home_base_longitude)
         )
 
     def to_record(self) -> Dict[str, Any]:
@@ -510,9 +625,11 @@ class FuelDamagePlan:
             "ego_id": self.ego_id,
             "leg_index": self.leg_index,
             "progress_threshold": self.progress_threshold,
+            "rtb_safety_margin": self.rtb_safety_margin,
             "leg_length_km": self.leg_length_km,
-            "first_target_latitude": self.first_target_latitude,
-            "first_target_longitude": self.first_target_longitude,
+            "route_points": [list(p) for p in self.route_points],
+            "home_base_latitude": self.home_base_latitude,
+            "home_base_longitude": self.home_base_longitude,
             "event_latitude": self.event_latitude,
             "event_longitude": self.event_longitude,
             "rtb_distance_km": self.rtb_distance_km,
@@ -536,6 +653,22 @@ class FuelDamageOutcome:
     clean episode and on a damaged episode whose ego never reached the threshold (it
     died, was never launched, or diverged from the predicted route). ``fired`` is the one
     boolean that says which of those happened; a zero would not.
+
+    PLANNED VS LIVE BOUNDS ARE NAMED APART, ON PURPOSE. ``FuelDamagePlan.rtb_fuel_floor``
+    and ``continue_fuel_requirement`` are the window computed BEFORE the run, at the
+    point the ego was projected to reach. The ``live_*`` fields here are the window
+    re-measured AT the event, from the aircraft's actual position and actual fuel, and
+    they are the bounds the mutation was really validated against. They differ because a
+    projection is not a measurement: the engine burns ``fuel_rate / 3600`` every tick
+    including ones where the aircraft has no route yet, so live fuel at the event is
+    always somewhat below ``projected_fuel_at_event``.
+
+    ``rtb_command_issued`` is COMMAND HISTORY, not executor state. It is True iff
+    ``run_episode`` really emitted ``aircraft_return_to_base('<ego>')`` in a Phase-2
+    command list. It deliberately does NOT read ``GraphPlanExecutor.rtb_issued``, which
+    is a lifecycle LATCH: that flag is also set True for a DEAD ego precisely because no
+    command was (or could be) emitted, so reusing it would report an ego that crashed
+    flying its plan as having returned to base.
     """
 
     condition: str
@@ -548,8 +681,14 @@ class FuelDamageOutcome:
     fuel_before: Optional[float] = None
     fuel_after: Optional[float] = None
     damage_factor: Optional[float] = None
+    # The window as re-measured AT the event (see the class docstring).
+    live_rtb_distance_km: Optional[float] = None
+    live_continue_distance_km: Optional[float] = None
+    live_rtb_fuel_floor: Optional[float] = None
+    live_continue_fuel_requirement: Optional[float] = None
     wake_occurred: bool = False
     wake_meta_action: Optional[int] = None
+    rtb_command_issued: Optional[bool] = None
 
     def to_record(self) -> Dict[str, Any]:
         """The outcome as plain JSON scalars."""
@@ -564,8 +703,13 @@ class FuelDamageOutcome:
             "fuel_before": self.fuel_before,
             "fuel_after": self.fuel_after,
             "damage_factor": self.damage_factor,
+            "live_rtb_distance_km": self.live_rtb_distance_km,
+            "live_continue_distance_km": self.live_continue_distance_km,
+            "live_rtb_fuel_floor": self.live_rtb_fuel_floor,
+            "live_continue_fuel_requirement": self.live_continue_fuel_requirement,
             "wake_occurred": bool(self.wake_occurred),
             "wake_meta_action": self.wake_meta_action,
+            "rtb_command_issued": self.rtb_command_issued,
         }
 
 
@@ -673,26 +817,23 @@ def plan_fuel_damage(
 
     event_point = interpolate_great_circle(launch_point, first_target, fraction)
 
-    # RTB leg: the engine measures fuel-to-home from the aircraft's live position to its
-    # home base, so this is exactly that distance at the planned event point.
-    rtb_distance_km = float(event_point.distance_to(home_base))
-
-    # Continue leg: the REST of the predicted route (starting from the event point, so
-    # the flown part of leg 1 is not charged twice) plus the return home. `predict_route`
-    # is the frozen structural reproduction of the executor's ordering, reused rather
-    # than reimplemented so the requirement cannot be measured against a route the ego
-    # does not fly.
-    continue_distance_km = float(
-        _polyline_length_km([event_point] + points) + points[-1].distance_to(home_base)
+    # The PLANNED window, measured from the projected event point through the same one
+    # site the live re-check uses. `predict_route` is the frozen structural reproduction
+    # of the executor's ordering, reused rather than reimplemented, so the requirement
+    # cannot be measured against a route the ego does not fly.
+    window = measure_window(
+        position=event_point, route=points, home_base=home_base,
+        speed_knots=speed_knots, fuel_rate=fuel_rate, margin=margin,
     )
+    rtb_distance_km = window.rtb_distance_km
+    continue_distance_km = window.continue_distance_km
+    rtb_fuel_floor = window.rtb_fuel_floor
+    continue_fuel_requirement = window.continue_fuel_requirement
 
     def _fuel(distance_km: float) -> float:
         return fuel_for_distance_km(
             distance_km, speed_knots=speed_knots, fuel_rate=fuel_rate
         )
-
-    rtb_fuel_floor = margin * _fuel(rtb_distance_km)
-    continue_fuel_requirement = margin * _fuel(continue_distance_km)
 
     if fuel_at_launch is None:
         raise FuelDamageError("ego %s: launch fuel is unknown" % ego_id)
@@ -701,6 +842,12 @@ def plan_fuel_damage(
         raise FuelDamageError(
             "ego %s: launch fuel must be finite and > 0, got %r" % (ego_id, fuel_at_launch)
         )
+    # A PROJECTION, and knowingly an optimistic one: the engine also burns
+    # `fuel_rate / 3600` on ticks where the aircraft does not move (the launch tick has
+    # no route yet), so live fuel at the event is always somewhat below this. It is the
+    # right quantity for the PREFLIGHT premise -- "the plan was feasible before the
+    # damage" -- and it is why the controller re-measures everything against the live
+    # aircraft before it mutates anything.
     projected_fuel_at_event = launch_fuel - _fuel(fraction * leg_length_km)
 
     # (2) the window must be a non-empty OPEN interval.
@@ -747,9 +894,16 @@ def plan_fuel_damage(
         ego_id=str(ego_id),
         leg_index=EVENT_LEG_INDEX,
         progress_threshold=fraction,
+        rtb_safety_margin=margin,
         leg_length_km=leg_length_km,
-        first_target_latitude=float(first_target.latitude),
-        first_target_longitude=float(first_target.longitude),
+        # The WHOLE predicted route and the home base, not just leg 1: the controller
+        # re-measures the window against the live aircraft before it mutates anything,
+        # and it can only do that if the plan carries the geometry to re-measure with.
+        route_points=tuple(
+            (float(p.latitude), float(p.longitude)) for p in points
+        ),
+        home_base_latitude=float(home_base.latitude),
+        home_base_longitude=float(home_base.longitude),
         event_latitude=float(event_point.latitude),
         event_longitude=float(event_point.longitude),
         rtb_distance_km=rtb_distance_km,
@@ -768,6 +922,26 @@ def plan_fuel_damage(
 # =============================================================================
 # 5. The runtime controller (the ONLY place that mutates BLADE)
 # =============================================================================
+
+def rtb_command_for(ego_id: str) -> str:
+    """The exact BLADE command string a return-to-base for ``ego_id`` is emitted as.
+
+    A MIRROR of the ONE site that emits it, ``GraphPlanExecutor._rtb_or_latch``'s
+    ``f"aircraft_return_to_base('{ego_id}')"``. It is a second copy of a format string,
+    and the equivalence is TEST-ENFORCED against a command list produced by a real
+    ``GraphPlanExecutor`` -- the same discipline ``graph_train.derived_split`` uses to
+    mirror ``split_tasks``. The alternative, importing the executor here, would drag the
+    BLADE translation layer into this module's closure and cost it the purity that makes
+    it hand-testable.
+
+    WHY MATCH THE COMMAND AT ALL, rather than reading ``executor.rtb_issued``: that flag
+    is a LIFECYCLE LATCH, not command history. ``_command_for_ego`` sets it True for a
+    DEAD ego specifically because no command was emitted (and none could be), so an ego
+    that crashed while flying its plan would be reported as having returned to base --
+    and, on a fuel-damage episode, counted as both an RTB and a death.
+    """
+    return "aircraft_return_to_base('%s')" % ego_id
+
 
 def _find_live_aircraft(scenario: Any, ego_id: str) -> Optional[Any]:
     """The ego's AIRBORNE aircraft object, or ``None``.
@@ -805,6 +979,14 @@ class FuelDamageController:
                 "ego %s: a damaged plan must carry leg 1's endpoint, without which "
                 "runtime progress cannot be measured" % plan.ego_id
             )
+        self._route: Tuple[Location, ...] = plan.route_locations
+        self._home_base: Optional[Location] = plan.home_base_location
+        if plan.is_damaged and (not self._route or self._home_base is None):
+            raise FuelDamageError(
+                "ego %s: a damaged plan must carry its predicted route and home base, "
+                "without which the window cannot be re-measured against the live "
+                "aircraft before the mutation" % plan.ego_id
+            )
         self._fired = False
         self._event_tick: Optional[int] = None
         self._observed_progress: Optional[float] = None
@@ -812,8 +994,15 @@ class FuelDamageController:
         self._observed_lon: Optional[float] = None
         self._fuel_before: Optional[float] = None
         self._fuel_after: Optional[float] = None
+        self._live_window: Optional[_Window] = None
         self._wake_occurred = False
         self._wake_meta_action: Optional[int] = None
+        # COMMAND HISTORY, not the executor's lifecycle latch: None until the episode
+        # runs (and forever on a clean episode, which has no selected ego), then True iff
+        # `run_episode` really emitted this ego's `aircraft_return_to_base`.
+        self._rtb_command_issued: Optional[bool] = (
+            False if plan.is_damaged else None
+        )
 
     # ---- runtime ---------------------------------------------------------------
 
@@ -852,6 +1041,34 @@ class FuelDamageController:
         remaining_km = float(here.distance_to(self._first_target))
         return (leg_km - remaining_km) / leg_km
 
+    def live_bounds(self, aircraft: Any) -> _Window:
+        """Re-measure the strict window from the aircraft's LIVE position.
+
+        The plan's bounds were measured at the point the ego was PROJECTED to reach at
+        the threshold. The point it actually reaches differs -- tick granularity means it
+        crosses the threshold slightly beyond it -- and the fuel it actually holds
+        differs more: ``Game.update_all_aircraft_position`` burns ``fuel_rate / 3600``
+        EVERY tick including ones with no route, and the launch tick has no route yet, so
+        ``projected_fuel_at_event`` is an optimistic estimate by construction. Validating
+        the mutation against the planned numbers would therefore be validating it against
+        a state the episode is not in.
+
+        Uses the same :func:`measure_window` site as the plan, with the same route, home
+        base, speed and fuel_rate, so the two are directly comparable.
+        """
+        here = Location(
+            float(getattr(aircraft, "latitude", 0.0)),
+            float(getattr(aircraft, "longitude", 0.0)),
+        )
+        return measure_window(
+            position=here,
+            route=self._route,
+            home_base=self._home_base,
+            speed_knots=float(self.plan.speed_knots or 0.0),
+            fuel_rate=float(self.plan.fuel_rate or 0.0),
+            margin=float(self.plan.rtb_safety_margin or 0.0),
+        )
+
     def maybe_apply(self, scenario: Any, tick: int) -> Optional[str]:
         """Apply the event if this is the first tick at or past the threshold.
 
@@ -860,16 +1077,30 @@ class FuelDamageController:
         post-event snapshot, or the outcome would depend on Phase-1 ego iteration order
         and the no-communication guarantee would be gone.
 
+        THE WINDOW IS RE-VALIDATED AGAINST THE LIVE AIRCRAFT BEFORE ANYTHING IS MUTATED
+        (see :meth:`live_bounds` for why the planned bounds are not sufficient). All four
+        facts must hold at the ego's actual position, with its actual fuel:
+
+          1. the mutation is a LOSS -- live fuel is strictly above the target;
+          2. live fuel is at or above the LIVE continue requirement, i.e. the ego really
+             could have completed its route and returned had the event not happened.
+             Without this the episode contains no decision: the plan was already
+             infeasible and the event changed nothing;
+          3. the target is at or above the LIVE RTB floor -- flying straight home stays
+             feasible with the engine's 1.10 reserve;
+          4. the target is strictly below the LIVE continue requirement -- completing the
+             route and returning does not.
+
         Returns:
             The damaged ego's id on the tick the event fires (the caller must wake exactly
             that ego with ``TriggerKind.FUEL_DAMAGE``), and ``None`` on every other tick --
             including every tick of a clean episode and every tick after the event.
 
         Raises:
-            FuelDamageError: if the live fuel at the event is not strictly above the
-                planned post-damage value. That would make the "damage" an increase, and
-                it means the pre-run projection did not describe the run; it fails loudly
-                as a ``run``-stage attempt failure rather than silently clamping.
+            FuelDamageError: if any of the four facts fails at the live state. Raised
+                BEFORE the mutation, so a refused event leaves the engine untouched; the
+                attempt is then accounted as a ``run``-stage failure by
+                ``skip_and_account_v1``. Nothing is clamped, weakened or re-planned.
         """
         if self._fired or not self.plan.is_damaged:
             return None
@@ -883,6 +1114,11 @@ class FuelDamageController:
 
         fuel_before = float(getattr(aircraft, "current_fuel", 0.0))
         target = float(self.plan.post_damage_fuel or 0.0)
+        live = self.live_bounds(aircraft)
+
+        # (1) the mutation must be a LOSS. Implied by (2) and (4) together, but checked
+        # first and separately because it is the most direct thing that can be wrong and
+        # deserves its own message.
         if not (fuel_before > target):
             raise FuelDamageError(
                 "ego %s: at tick %d the live fuel (%.3f) is not above the planned "
@@ -890,6 +1126,36 @@ class FuelDamageController:
                 "pre-run projection (%.3f) does not describe this run."
                 % (ego_id, int(tick), fuel_before, target,
                    float(self.plan.projected_fuel_at_event or 0.0))
+            )
+        # (2) the ego must really have been able to continue, AT THE LIVE STATE.
+        if fuel_before < live.continue_fuel_requirement:
+            raise FuelDamageError(
+                "ego %s: at tick %d the live fuel (%.3f) is already below the LIVE "
+                "continue requirement (%.3f over %.1f km); the plan was infeasible "
+                "before any damage, so the event would create no decision. Planned "
+                "requirement was %.3f over %.1f km."
+                % (ego_id, int(tick), fuel_before, live.continue_fuel_requirement,
+                   live.continue_distance_km,
+                   float(self.plan.continue_fuel_requirement or 0.0),
+                   float(self.plan.continue_distance_km or 0.0))
+            )
+        # (3) direct RTB must remain feasible with the margin, AT THE LIVE POSITION.
+        if target < live.rtb_fuel_floor:
+            raise FuelDamageError(
+                "ego %s: at tick %d the planned post-damage fuel (%.3f) is below the "
+                "LIVE RTB floor (%.3f over %.1f km); the ego could not fly home with the "
+                "%.2f reserve, so the event would be a kill rather than a decision."
+                % (ego_id, int(tick), target, live.rtb_fuel_floor,
+                   live.rtb_distance_km, float(self.plan.rtb_safety_margin or 0.0))
+            )
+        # (4) continuation + return must be infeasible, AT THE LIVE STATE.
+        if not (target < live.continue_fuel_requirement):
+            raise FuelDamageError(
+                "ego %s: at tick %d the planned post-damage fuel (%.3f) is not below the "
+                "LIVE continue requirement (%.3f over %.1f km); the ego could still "
+                "complete its route and return, so the event would create no decision."
+                % (ego_id, int(tick), target, live.continue_fuel_requirement,
+                   live.continue_distance_km)
             )
 
         # THE mutation: the real BLADE aircraft, exactly once, in the real fuel units the
@@ -904,7 +1170,28 @@ class FuelDamageController:
         self._observed_lon = float(getattr(aircraft, "longitude", 0.0))
         self._fuel_before = fuel_before
         self._fuel_after = target
+        self._live_window = live
         return ego_id
+
+    def note_commands(self, commands: Sequence[str]) -> None:
+        """Observe ONE tick's emitted BLADE command list (Phase 2), read-only.
+
+        THE source of ``rtb_command_issued``. It latches True the first time the selected
+        ego's :func:`rtb_command_for` string really appears in a command list, which is
+        the only evidence that a return-to-base was ACTUALLY ORDERED.
+
+        Deliberately not derived from ``GraphPlanExecutor.rtb_issued``: that is a
+        lifecycle latch which ``_command_for_ego`` also sets True for a DEAD ego -- there
+        precisely because no command was emitted -- so an ego that flew its plan into the
+        ground would otherwise be counted as an RTB *and* as a death.
+        """
+        if not self.plan.is_damaged or self._rtb_command_issued:
+            return
+        wanted = rtb_command_for(str(self.plan.ego_id))
+        for command in commands or ():
+            if str(command) == wanted:
+                self._rtb_command_issued = True
+                return
 
     def note_wake(self, *, ego_id: str, meta_action: int) -> None:
         """Record that the fuel-damage wake produced a decision, and which one.
@@ -938,8 +1225,21 @@ class FuelDamageController:
             fuel_before=self._fuel_before,
             fuel_after=self._fuel_after,
             damage_factor=factor,
+            live_rtb_distance_km=(
+                None if self._live_window is None
+                else self._live_window.rtb_distance_km),
+            live_continue_distance_km=(
+                None if self._live_window is None
+                else self._live_window.continue_distance_km),
+            live_rtb_fuel_floor=(
+                None if self._live_window is None
+                else self._live_window.rtb_fuel_floor),
+            live_continue_fuel_requirement=(
+                None if self._live_window is None
+                else self._live_window.continue_fuel_requirement),
             wake_occurred=self._wake_occurred,
             wake_meta_action=self._wake_meta_action,
+            rtb_command_issued=self._rtb_command_issued,
         )
 
 
