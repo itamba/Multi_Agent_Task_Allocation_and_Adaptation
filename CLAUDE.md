@@ -196,8 +196,16 @@ split surface is retained and tested but is not on this path.
 
 Reference evidence at the B3 lock (`dd14ab4`, ONE seed-0 episode through
 `graph_rollout --episodes 1 --seed 0`): 3 agents, 3 known + 3 hidden = 6 targets,
-`ended=done`, 4 organic wakes, reward `-0.3333`. That is a single reference episode,
-not a baseline sweep — no post-B3 multi-episode run has been performed.
+`ended=done`, 4 organic wakes, reward `-0.3333`. That remains one reference episode,
+not a baseline sweep.
+
+The first real post-B3 instrumented probe later ran against exact code SHA
+`a3f0838616990987bcb8a51665fa75d84edf5952`: two iterations × four scheduled training
+episodes, with four fixed held-out episodes before and after training. It measured
+`pre_update = -0.4999997395829586` (4/4), 7/8 successful training attempts, one accounted
+`setup` failure at seed 2, 24 wake-transitions, two PPO updates, and
+`post_update = 5.000007394910353e-7` (4/4; numerical zero). This establishes headroom and
+a functioning learning loop, but it is a SHORT PROBE, not a baseline.
 
 ---
 
@@ -325,6 +333,24 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
 - `TrainConfig` gains no scenario semantics here; `evaluate` gained `stage` /
   `updates_completed` / `failures_path`. `updates_completed` counts only updates that
   actually ran epochs, and is the learning-curve x-axis.
+- **Per-episode observability and confirmation semantics (PR #7).** Every successful
+  train / `pre_update` / `post_update` attempt prints one immediate, labelled `OK` block
+  with its phase, indices, exact seed, reward, wakes, ending, ticks, dead count, elapsed
+  time and the known/hidden target roster by BLADE name. `GraphPlanExecutor.done` remains
+  a set of `(ego_id, target_id)` CONFIRMATIONS and may exceed the world target count;
+  trainer target metrics instead count unique `target_id` values directly through
+  `_unique_confirmed_target_ids(ctx.executor.done)`. The authoritative aggregates are
+  `targets_confirmed_unique_mean` / `eval_targets_confirmed_unique_mean`;
+  `kills_mean` / `eval_kills_mean` are compatibility aliases fed from the same corrected
+  number. Names are presentation only. A name lookup may degrade to `<unnamed target>`
+  without changing an id or count, while malformed/inconsistent roster structure raises
+  `EpisodeRosterError`, becomes an accounted `setup` failure, and never contributes a
+  false successful zero. Reward and PPO semantics are unchanged; the reward already
+  deduplicated by target id.
+- **Per-round eval scenario preservation (PR #7).** `eval_episode_tag` gives every eval
+  round a deterministic, disjoint file-tag namespace. Tags affect artifact names only:
+  every round still evaluates the same fixed held-out seed band. `TrainConfig.validate`
+  rejects tag ranges that could collide, so pre- and post-update scenario JSONs coexist.
 
 ---
 
@@ -337,7 +363,7 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
 | Change the LEGACY split path (retained, not deleted) | `rl/training/graph_episode_setup.py` → `_setup_episode_legacy`, `split_tasks` |
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
-| Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json` and one 4-panel `training_plot.png`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` |
+| Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json` and one 4-panel `training_plot.png`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
 | Change the training scenario cell (target counts) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). The generator writes `n_known`; setup patches in `n_hidden`, so **emitted targets are `n_known + n_hidden`** (`TrainConfig.n_targets_emitted`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` / `split_preview` survive and are still tested but are NOT consulted by the construction path (B1, `d6758ac`). |
 | Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
@@ -673,23 +699,73 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   solver-free, driving `train` through stubbed episode/generator/update seams and an
   injected Git verdict.
 
+- `a3f0838` — **First real post-B3 instrumented probe — CLOSED / REVIEWED MEASUREMENT.**
+  The Grade-A measurement is attributable to exact clean code SHA
+  `a3f0838616990987bcb8a51665fa75d84edf5952` on the measurement-only branch
+  `task/b4-first-instrumented-probe`; no tracked file changed and no PR or candidate
+  commit existed. The exact cell was two iterations × four scheduled train episodes,
+  seeds `[0,8)`, plus the same fixed held-out seeds `[1000000,1000004)` before the first
+  update and after two completed updates. Provenance was complete
+  (`git.available=true`, exact SHA, `dirty=false`, Windows / `nlp_env`, vendored BLADE,
+  BONMIN available), the process completed normally in 79.21 s, all six expected
+  artifacts existed, and `run_summary.json:accounting_reconciled=true`. Measured:
+  `pre_update=-0.4999997395829586` over **4/4**; training **7/8** successful with every
+  successful episode producing wakes, **24 transitions**, two productive iterations and
+  two PPO updates; one attempt failed exactly once — train seed 2 at `setup`, because B2
+  produced two placements for three requested hidden targets after the static solve left
+  one ego without a non-empty route; final `post_update=5.000007394910353e-7` over
+  **4/4** (numerical zero). This proves learning headroom, usable data yield and a working
+  update/eval loop. It is a SHORT PROBE, not a baseline. The original
+  `kills_mean` / `eval_kills_mean` fields counted `(ego_id,target_id)` confirmations and
+  are invalid as unique-target counts; reward, wake, failure, transition and PPO evidence
+  remain valid because reward already deduplicated by target id and the count was not a
+  PPO input. Evidence SHA-256:
+  `run_config.json=36ec89cdb93f89c0b6e40163491159bf2045235b86b2fad47fe03f2f86141237`,
+  `train_records.jsonl=af4ec1851425fbcd0330651c05e384d0e44dad67f8aa1f56080543d8247ad82d`,
+  `eval_records.jsonl=2c972efaf85d465ab4f2ffce164ba19ac2a6c189db1e2faf83de6b0d201a7439`,
+  `episode_failures.jsonl=32d51d2d2ec017491f2fbe6bf133e103361752ced66ba39aac51e9b35b03a08e`,
+  `run_summary.json=d2e24714eecdf48bd5f1478ba1c119f405bef5d82067840776daa26dd4270c80`,
+  `training_plot.png=c6dec3ac99c5bd35fe627f77b2e97f432cb33235ce07f7efed8f0c05d7a9521b`.
+- `211e12e` — **B4 follow-up: per-episode observability, unique-target semantics and
+  per-round eval artifacts — CLOSED / MERGED / LOCKED.** Reviewed code SHA
+  `211e12e49b676637362d42effdb80988dd0e55eb`, integrated by merge commit
+  `ffb95a6ee90df45b2d89802b321dcadcbc272821` (PR #7). Exactly two files changed:
+  `src/match_aou/rl/training/graph_train.py` and `tests/test_graph_train.py`; policy,
+  reward, PPO, executor, tick-loop, scenario content and seed semantics are unchanged.
+  Every successful attempt now prints one immediate `OK` block; unique-target aggregates
+  are derived directly from unique target ids and never from display names; structural
+  roster defects become accounted `setup` failures instead of false successful zeros;
+  and each eval round keeps a disjoint scenario-tag namespace while reusing the same
+  held-out seeds. Grade A under `GPT_GITHUB`: candidate
+  `24241690572a7a5264e24348db5e9412b41bc47a` received REQUEST-FIXES because a degraded
+  roster could silently report a false `0/0` and its docstring claimed the helper never
+  raised. The correction landed as a NEW commit, never amend/rebase/force-push, and
+  `211e12e` was reviewed and approved. Verified at the approved head:
+  `tests/test_graph_train.py` **73 passed**, import purity **12 passed**, full suite
+  **157 passed, 4 skipped**, standalone `nlp_env` runner all **73 passed**, and
+  `git diff --check` clean. One authorized smoke produced three `OK` blocks, the seed-0
+  reference `R=-0.3333` / 4 wakes / `targets_confirmed_unique=4/6`, and coexisting
+  pre/post eval scenario files; that smoke validates implementation only and is not a
+  scientific result.
+
 ---
 
 ## 8. OPEN (not built)
 
-- **Phase-A baseline run — B4 PREPARATION IS CLOSED (`1b48145`); the RUN is still OPEN.**
-  Instrumentation, provenance, skip-and-account accounting and true pre-update evaluation
-  are BUILT and locked (§5, §7). **No training run has been started, no post-B3 held-out
-  performance has been measured, and none is authorized by this entry.** The next action is
-  a SEPARATELY AUTHORIZED SHORT INSTRUMENTED PROBE, not a long run: confirm complete
-  provenance and the resolved config, obtain the true `pre_update` held-out measurement,
-  read the failure denominators and data yield, and watch the first two iterations before
-  a long run is even proposed — the loop has never run to completion. Interpretation rules
-  that survive unchanged: near-ceiling held-out performance AT `updates_completed = 0` means
-  the cell lacks learning headroom and must be revisited before compute is spent (saturation
-  AFTER training is the intended outcome); a held-out mean is never read without its
-  denominator; and the former flat `R ≈ −1/3` was scenario invariance at the retired `(3,3)`
-  default, not a reward bug — `graph_reward` remains FROZEN.
+- **Phase-A baseline run — the first instrumented probe is CLOSED; the long baseline
+  is still OPEN.** The exact clean-code probe at
+  `a3f0838616990987bcb8a51665fa75d84edf5952` established real pre-update headroom
+  (`-0.4999997395829586`, 4/4), usable train yield (7/8, one accounted seed-2 `setup`
+  failure), 24 transitions, two productive PPO updates, and a final held-out numerical
+  zero (`5.000007394910353e-7`, 4/4). It is a SHORT PROBE, not a baseline, and PR #7 did
+  not change policy/reward/PPO/scenario behaviour, so repeating the same 2×4 probe on the
+  same easy cell is not a gate. The next gate is research design: select the difficulty
+  factors for the actual baseline cell, implement and lock only those selected factors,
+  then run a new short instrumented probe on that FINAL configuration. A long baseline is
+  authorized only after that probe shows complete provenance, explicit denominators,
+  acceptable failure/data yield, organic wakes, reward headroom and productive updates.
+  A held-out mean is never read without its denominator; `graph_reward` remains FROZEN
+  unless a separately reviewed p<1 design requires an explicit reward-contract change.
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
@@ -698,11 +774,18 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   `train` outside a working checkout must inject the verdict (the tests patch
   `_git_provenance`) rather than expect it to be optional.
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
-- **Reward densification + p<1:** per-wake/dense regret (vs today's terminal scalar) and the operand-scale rework for `probability<1.0` (expected-oracle vs realized-achieved diverge below p=1).
+- **Baseline difficulty selection — NEXT RESEARCH-DESIGN TASK.** Decide explicitly
+  which factors belong in the final Phase-A baseline cell: `fuel_damage`,
+  `probability < 1`, enemy targets that shoot back, and any additional proposed
+  difficulty. Do not enable a bundle implicitly. Each selected factor needs its own
+  semantics, observability, proof obligations and bounded implementation/lock task.
+  In particular, `probability < 1` reopens the reward operand scale because expected
+  oracle utility and realized achieved utility diverge below p=1; per-wake/dense reward
+  remains a separate choice, not an automatic consequence.
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
-- **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` calibration** once p<1 lands, **re-enable fuel-damage** after a clean baseline.
+- **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` calibration** if p<1 lands.
 - **`setup_episode` does not guard `split_meta["outcome"]` — LEGACY-PATH-ONLY since B3
   (`dd14ab4`).** `split_tasks` can return `warn-fallback` or `exhaust` — meaning a hidden
   target has NO known neighbour within `DETECTION_KM` and is therefore undiscoverable at
@@ -729,8 +812,11 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   cardinality check, the B2 geometry, or the loud failure. The general
   `n_hidden != usable ego routes` distribution policy B2 named remains a SEPARATE, still-open
   design task; `skip_and_account_v1` is how the current cell behaves until it exists. The
-  ~17% figure is a pre-B4 measurement over 12 seeds, not a run-time rate — the first real
-  probe measures the actual yield.
+  first real probe measured the actual scheduled yield as **7/8** train attempts:
+  seed 2 failed once at `setup` because only two non-empty ego routes existed for three
+  requested hidden targets; it was recorded once and never retried or replaced. The
+  earlier 10/12 construction sample remains context, not the run-time rate of a future
+  baseline configuration.
 - **Added enemy airbases are not seed-stable by id.** `ScenarioGenerator` mints a FRESH
   uuid for every red airbase it ADDS on each `generate()`, even at a fixed seed
   (geometry and utility identical, id different). The base template holds 3 red
@@ -767,20 +853,19 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   `strict_geometry` defaults to `False` and `min_target_separation_km` defaults to `0.0`
   (off), so every pre-B1 caller's placement and rng stream stay byte-identical (P9c, P11;
   `P6` unchanged).
-- **Post-B3 headroom exists — the zero-headroom item is CLOSED by `dd14ab4`.** The default
-  cell now emits `n_known + n_hidden` = 3 + 3 = 6 targets, and the ONE measured seed-0
-  reference episode (`graph_rollout --episodes 1 --seed 0`) completed `ended=done` with
-  **4 organic wakes** (ticks 147 / 183 / 1021 / 4244), 7 confirmed kills,
-  `u_achieved = 320`, `U_oracle = 479.99968`, and **reward `-0.3333`** — a real gap for the
-  policy to close. *Historical, pre-B3 only:* the same cell used to emit ZERO hidden
-  targets (B1 generated known-only and nothing consumed B2's placement layer) and measured
-  0 wakes at `reward=+0.0000` — one agent per known target, nothing to discover, the static
-  plan already at the oracle. **That old result must never be used as a learning baseline**;
-  it measured the absence of a learning problem. Nor is the new number a baseline: it is
-  ONE reference episode at one seed, not a sweep. **No post-B3 training run or held-out
-  sweep has been performed** — B4 (`1b48145`) built the instrument that will measure it; the
-  first separately authorized probe reads the `pre_update` (`updates_completed = 0`) held-out
-  value from `eval_records.jsonl`, and until then there is no post-B3 baseline to cite.
+- **Post-B3 headroom exists — CLOSED first by the `dd14ab4` reference and then measured
+  by the `a3f0838` probe.** The default cell emits `n_known + n_hidden` = 3 + 3 = 6
+  targets. The B3 seed-0 reference completed `ended=done` with 4 organic wakes,
+  `u_achieved=320`, `U_oracle=479.99968` and reward `-0.3333`. The later fixed-band
+  probe measured the untrained deterministic policy at
+  `pre_update=-0.4999997395829586` over 4/4 and the same band after two PPO updates at
+  `post_update=5.000007394910353e-7` over 4/4. Thus the cell had real headroom and the
+  loop could close it in a short run. Neither result is a baseline: one is a single
+  rollout and the other is a 2×4 diagnostic probe on the easy reference cell.
+  *Historical, pre-B3 only:* the cell emitted no hidden targets and measured 0 wakes at
+  `reward=+0.0000` because nothing existed to discover; that result is invalid as
+  learning evidence. The authoritative target-count fields for future runs are the
+  PR-#7 unique-target aggregates, not the probe's old confirmation-count aliases.
 - **Raw utility 480 vs reward-side `U_oracle = 479.99968` — keep the distinction.** The
   six airbase targets sum to exactly `6 × 80 = 480` raw utility, but `graph_reward.plan_value`
   is bit-faithful to `MatchAou._add_objective` and carries the frozen anti-div-by-zero
