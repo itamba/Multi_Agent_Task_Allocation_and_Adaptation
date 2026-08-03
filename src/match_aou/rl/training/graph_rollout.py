@@ -51,6 +51,16 @@ its seed no matter what else consumes global randomness. Each record carries
 ``ctx.placements`` carries the id-free geometric fingerprint of the hidden half. The
 PPO loop inherits this per-episode pattern.
 
+FD-BASELINE-v1
+--------------
+The cell's ONE difficulty factor -- the seeded, ego-local, one-shot fuel-damage event of
+``graph_fuel_damage`` -- is mirrored here field for field from ``TrainConfig``, and so is
+the ``aircraft_penalty_coeff`` the reward is called with. A rollout that scored deaths as
+free while a training run charged 2.25 would not be diagnosing the same episode. This
+harness runs the seeded MIXTURE only: matched forced-clean / forced-damaged pairs are an
+EVALUATION construct and live in ``graph_train.evaluate``, so no paired delta is computed
+or reported here.
+
 This module imports ONLY the locked public interfaces; it modifies no existing file.
 Windows-safe: pathlib paths and ASCII-only console output (cp1255 console).
 """
@@ -73,8 +83,13 @@ from .graph_episode_setup import (
     DETECTION_KM,
     MAX_SIM_TICKS,
 )
+from .graph_fuel_damage import (
+    FuelDamageMode,
+    FuelDamageParameters,
+    build_fuel_damage_controller,
+)
 from .graph_tick_loop import build_policy, run_episode
-from .graph_reward import compute_episode_reward
+from .graph_reward import RewardConfig, compute_episode_reward
 from ..action.graph_action import MetaAction
 from ...models import StepKind
 from ...utils.blade_utils.scenario_generator import (
@@ -140,6 +155,37 @@ class RolloutConfig:
     randomize_red_airbase_positions: bool = True
     stretch_target_ratio: float = 0.5
 
+    # --- FD-BASELINE-v1 (mirrors TrainConfig field for field) ---------------------
+    # A diagnostic rollout must build the SAME episode a training run does, difficulty
+    # factor included -- that is the whole point of the anti-drift mirror. The condition
+    # is the seeded mixture here too, so a rollout of seeds 0..N sees the same
+    # clean/damaged pattern the trainer would schedule for those seeds.
+    fuel_damage_mode: str = FuelDamageMode.SEEDED_MIXTURE
+    fuel_damage_probability: float = 0.5
+    fuel_damage_leg_progress: float = 0.30
+    fuel_damage_rtb_margin: float = 1.10
+    aircraft_penalty_coeff: float = 2.25
+
+    # ------------------------------------------------------------------
+    def fuel_damage_parameters(
+        self, mode: Optional[str] = None
+    ) -> FuelDamageParameters:
+        """The ONE site that turns this config into a :class:`FuelDamageParameters`."""
+        return FuelDamageParameters(
+            mode=str(self.fuel_damage_mode if mode is None else mode),
+            probability=float(self.fuel_damage_probability),
+            leg_progress_threshold=float(self.fuel_damage_leg_progress),
+            rtb_safety_margin=float(self.fuel_damage_rtb_margin),
+        )
+
+    def reward_config(self) -> RewardConfig:
+        """The ONE site that turns this config into a :class:`RewardConfig`.
+
+        ``graph_reward``'s FORMULA is untouched; this only supplies the death-penalty
+        coefficient it already accepted, instead of silently defaulting it to 0.0.
+        """
+        return RewardConfig(aircraft_penalty_coeff=float(self.aircraft_penalty_coeff))
+
     # ------------------------------------------------------------------
     def validate(self) -> None:
         """Refuse an impossible construction cell BEFORE any expensive work starts.
@@ -191,6 +237,23 @@ class RolloutConfig:
                 "targets are patched in as enemy AIRBASES, and setup_episode refuses a "
                 "world whose enemy units are not all airbases. Mixed SAM / facility / "
                 "ship target semantics are a separate design task."
+            )
+
+        # FD-BASELINE-v1: same verdicts as the trainer, from the same parameter object,
+        # so a cell that is invalid for a training run is invalid for a rollout too.
+        if self.fuel_damage_mode not in (
+            FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE,
+        ):
+            raise ValueError(
+                "fuel_damage_mode must be %r or %r for a rollout -- the forced modes are "
+                "evaluation pair members, not a mixture, and this harness runs no pairs."
+                % (FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE)
+            )
+        self.fuel_damage_parameters().validate()
+        if float(self.aircraft_penalty_coeff) < 0.0:
+            raise ValueError(
+                "aircraft_penalty_coeff must be >= 0 (it is a PENALTY subtracted from "
+                "the reward numerator), got %r" % (self.aircraft_penalty_coeff,)
             )
 
         # Hazard, not an error: a researcher may probe the stalling cell deliberately.
@@ -377,14 +440,27 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                 # DIVERGED and the cross-ego agreement asserted below no longer holds.
                 known_tids = _known_target_ids(ctx)
 
+                # FD-BASELINE-v1: prepared between setup and run (it needs the solved
+                # a_init, the t=0 beliefs and an aircraft that has not burned a tick).
+                # A damaged episode with no valid strict fuel window raises HERE and the
+                # episode is counted as failed by the loop's own handler -- it is never
+                # downgraded to a clean episode.
+                fuel_damage = build_fuel_damage_controller(
+                    ctx, episode_seed=seed, params=cfg.fuel_damage_parameters()
+                )
+
                 # --- rollout + reward ---
                 t_ep = time.perf_counter()
                 result = run_episode(
                     policy, ctx,
                     deterministic=cfg.deterministic,
                     max_ticks=cfg.max_ticks,
+                    fuel_damage=fuel_damage,
                 )
-                ep_reward = compute_episode_reward(ctx, result)
+                # EXPLICIT RewardConfig: graph_reward's own default is c = 0.0, so
+                # without this a rollout would score deaths as free while a training run
+                # charged 2.25 -- the two harnesses would stop being comparable.
+                ep_reward = compute_episode_reward(ctx, result, cfg.reward_config())
                 episode_seconds = time.perf_counter() - t_ep
 
                 # --- SCALAR-ONLY per-episode record (read split_meta keys directly) ---
@@ -415,6 +491,11 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     "ratio": float(ep_reward.ratio),
                     "penalty": float(ep_reward.penalty),
                     "reward": float(ep_reward.reward),
+                    # FD-BASELINE-v1: the component's own frozen records, carried whole
+                    # so this harness never invents a second description of the event.
+                    "fuel_damage_plan": fuel_damage.plan.to_record(),
+                    "fuel_damage_outcome": fuel_damage.outcome.to_record(),
+                    "aircraft_penalty_coeff": float(cfg.aircraft_penalty_coeff),
                     "setup_seconds": float(setup_seconds),
                     "episode_seconds": float(episode_seconds),
                 }
@@ -422,10 +503,15 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                 fh.write(json.dumps(record) + "\n")
                 fh.flush()
 
+                fd_out = fuel_damage.outcome
                 print("[ep %2d] ended=%-10s ticks=%5d wakes=%2d kills=%2d dead=%d "
-                      "reward=%+.4f setup=%5.1fs ep=%5.1fs"
+                      "reward=%+.4f fd=%s%s setup=%5.1fs ep=%5.1fs"
                       % (i, result.ended, result.ticks, result.n_wakes,
                          result.confirmed_kills, result.n_dead, ep_reward.reward,
+                         fd_out.condition,
+                         "" if not fd_out.fired
+                         else "(fired@%d x%.3f)" % (fd_out.event_tick or 0,
+                                                    fd_out.damage_factor or 0.0),
                          setup_seconds, episode_seconds))
 
             except Exception as exc:  # one failed episode must not abort the loop
@@ -476,6 +562,20 @@ def _summarize(
         if r["ended"] in ended_counts:
             ended_counts[r["ended"]] += 1
 
+    # FD-BASELINE-v1: how the seeded mixture actually landed over the OK episodes, and
+    # whether the scheduled events fired. Counts only -- a diagnostic rollout runs no
+    # matched pairs, so it has no paired delta to report and does not invent one.
+    fd_conditions: Dict[str, int] = {}
+    fd_applied = 0
+    fd_wakes = 0
+    for r in records:
+        plan = r.get("fuel_damage_plan") or {}
+        outcome = r.get("fuel_damage_outcome") or {}
+        condition = str(plan.get("condition", "unknown"))
+        fd_conditions[condition] = fd_conditions.get(condition, 0) + 1
+        fd_applied += 1 if outcome.get("fired") else 0
+        fd_wakes += 1 if outcome.get("wake_occurred") else 0
+
     return {
         "n_episodes": cfg.n_episodes,
         "n_ok": n_ok,
@@ -487,6 +587,11 @@ def _summarize(
         "reward": _stats(rewards),
         "ended_counts": ended_counts,
         "ticks_mean": _stats([float(t) for t in ticks])["mean"],
+        "fuel_damage_mode": str(cfg.fuel_damage_mode),
+        "aircraft_penalty_coeff": float(cfg.aircraft_penalty_coeff),
+        "fuel_damage_conditions": fd_conditions,
+        "fuel_damage_events_applied": fd_applied,
+        "fuel_damage_wakes": fd_wakes,
         "setup_seconds_mean": _stats(setup_secs)["mean"],
         "episode_seconds_mean": _stats(ep_secs)["mean"],
         "records_path": str(records_path),
@@ -517,6 +622,10 @@ def _print_summary(s: Dict[str, Any]) -> None:
     print("ended:     done=%d  terminated=%d  truncated=%d"
           % (ec["done"], ec["terminated"], ec["truncated"]))
     print("ticks:     mean=%.1f" % s["ticks_mean"])
+    print("fuel dmg:  mode=%s  penalty_c=%s  conditions=%s  applied=%d  fd_wakes=%d"
+          % (s["fuel_damage_mode"], s["aircraft_penalty_coeff"],
+             s["fuel_damage_conditions"], s["fuel_damage_events_applied"],
+             s["fuel_damage_wakes"]))
     print("timing:    setup_mean=%.1fs  episode_mean=%.1fs"
           % (s["setup_seconds_mean"], s["episode_seconds_mean"]))
     print("records:   %s" % s["records_path"])
