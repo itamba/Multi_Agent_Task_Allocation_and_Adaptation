@@ -1,15 +1,16 @@
-# Multi-Agent Graph RL — Probe + B4 Observability Closure / Baseline-Design Handoff
+# Multi-Agent Graph RL — FD-BASELINE-v1 Closure / Final-Cell Probe Handoff
 
 **Supersedes all earlier handoffs.**
 
-Written 2026-08-02. B1–B4 preparation, the first real post-B3 instrumented probe, and
-the B4 observability follow-up are CLOSED. The commit that lands this handoff changes
-documents only; it does not change code, tests, configuration, dependencies or workflows.
+Written 2026-08-03. B1–B4, the first real post-B3 instrumented probe, the B4 observability
+follow-up (PR #7) and **FD-BASELINE-v1** (PR #8) are all CLOSED. The commit that lands this
+handoff changes documents only; it does not change code, tests, configuration, dependencies
+or workflows.
 
-The short probe proved that the reference cell has learning headroom and that the PPO
-loop can collect data and update. It is **not a baseline**. The next task is to choose the
-difficulty factors for the actual baseline cell, implement and lock only the selected
-factors, then run a fresh short probe on that final configuration before any long run.
+Baseline **difficulty selection is finished**: exactly one factor was selected, implemented,
+reviewed and merged. What has NOT happened is any measurement of the resulting cell. The
+next task is a bounded short scientific probe of the merged fuel-damage configuration,
+before any long baseline.
 
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
@@ -41,128 +42,122 @@ cross-references it rather than duplicating it.
 - **B3 — CLOSED / MERGED / LOCKED.**
   `dd14ab418c71e3bd615f1198d0c612502642d29b`, merged by
   `14224531db9deb700f6e397203177eb8c701c6cc` (PR #4).
-- **B4 preparation — CLOSED / MERGED / LOCKED.** Reviewed code SHA
-  `1b48145f4ba6ed542c27ab6ed7a9ea3e6f6ab12c`, integrated by
-  `ba936606deada050ed9298600ee9041fc330af6c` (PR #6). `CLAUDE.md` §5 owns
-  the trainer/run-auditability contract and §7 owns the fix-chain lock.
-- **First real post-B3 instrumented probe — CLOSED / REVIEWED MEASUREMENT.** It ran from
-  the clean exact code SHA `a3f0838616990987bcb8a51665fa75d84edf5952` with no tracked
-  delta. §2 records the measured evidence. It is a short probe, not a baseline.
-- **B4 per-episode observability follow-up — CLOSED / MERGED / LOCKED.** Reviewed code
-  SHA `211e12e49b676637362d42effdb80988dd0e55eb`, integrated by merge commit
-  `ffb95a6ee90df45b2d89802b321dcadcbc272821` (PR #7). The earlier candidate
+- **B4 preparation — CLOSED / MERGED / LOCKED.**
+  `1b48145f4ba6ed542c27ab6ed7a9ea3e6f6ab12c`, merged by
+  `ba936606deada050ed9298600ee9041fc330af6c` (PR #6).
+- **First real post-B3 instrumented probe — CLOSED / REVIEWED MEASUREMENT of the
+  PRE-FD cell.** Ran from the clean exact code SHA
+  `a3f0838616990987bcb8a51665fa75d84edf5952`. §2 records what it measured and what it
+  does NOT establish.
+- **B4 per-episode observability follow-up — CLOSED / MERGED / LOCKED.**
+  `211e12e49b676637362d42effdb80988dd0e55eb`, merged by
+  `ffb95a6ee90df45b2d89802b321dcadcbc272821` (PR #7). Candidate
   `24241690572a7a5264e24348db5e9412b41bc47a` received REQUEST-FIXES; the approved
   correction was a new commit, never rewritten.
-- **No active task, candidate or PR; ownership is RELEASED after this documentation
-  push.** Immediately before the docs update, GitHub showed `main` at
-  `ffb95a6ee90df45b2d89802b321dcadcbc272821`, no open PR and no `task/*` branch.
-  This docs-only commit advances `main`, so the next orchestrator must resolve its new
-  full SHA rather than reuse any SHA named above as a base.
+- **FD-BASELINE-v1 — CLOSED / MERGED / LOCKED.** Approved candidate
+  `a8669f450708c2508753c49ab16fd1028b29607d`, integrated by
+  `1cecb0ac99f839d47ffeea12c8871aec77e66640` (PR #8); the merged tree was independently
+  verified identical to the approved candidate tree. The FIRST candidate
+  `1cf53fcee3ee05b3466c8391cbc6bb04420a0985` received REQUEST-FIXES; the correction landed
+  as a NEW CHILD COMMIT on the same branch and PR, with no amend, rebase, force-push or
+  history rewrite. §3 summarizes the factor; `CLAUDE.md` §5 and §7 own the authoritative
+  contract and lock.
+- **No active task, candidate or PR after this documentation PR merges; ownership is
+  RELEASED.** Immediately before this documentation change, `main` was at
+  `1cecb0ac99f839d47ffeea12c8871aec77e66640` with PR #8 merged and no open code PR. This
+  docs-only commit advances `main`, so **the receiving orchestrator must resolve the new
+  full `main` SHA** rather than reuse any SHA named above as a base. The code branch
+  `task/fuel-damage-baseline-v1` and this documentation branch are both retained.
 
-## 2. First real post-B3 probe — measured evidence
+## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
-Measured code: exact clean SHA
-`a3f0838616990987bcb8a51665fa75d84edf5952`. Exact shape: two iterations × four
-scheduled train attempts, seeds `[0,8)`, with the same fixed four held-out seeds
-`[1000000,1000004)` before training and after two completed updates. The cell remained
-3 agents, 3 known + 3 hidden airbase targets, strict 200 km launch-point distance,
-100 km known-target separation, 0.5 route-stretch ratio, unified 50 km detection radius,
-`include_sams=False`, randomized red-airbase positions and unchanged PPO defaults.
+Measured code: exact clean SHA `a3f0838616990987bcb8a51665fa75d84edf5952`. Shape: two
+iterations × four scheduled train attempts, seeds `[0,8)`, with the same fixed four
+held-out seeds `[1000000,1000004)` before training and after two completed updates.
 
-- Provenance was complete: exact SHA, `dirty=false`, Windows / `nlp_env`, vendored BLADE
-  and BONMIN all recorded. The run completed normally in 79.21 s.
-- `pre_update`, `updates_completed=0`: reward mean
-  `-0.4999997395829586`, **4/4 successful**, all four with wakes.
-- Training: **7/8 successful**; all seven successes had wakes; iteration 0 was 3/4,
-  iteration 1 was 4/4; **24 transitions** total; two productive iterations and two PPO
-  updates.
-- The only failure was train seed 2 at `setup`. B2 produced two placements for three
-  requested hidden targets because the static solution left one ego without a non-empty
-  route. It was attempted once, recorded once and neither retried nor replaced.
-- `post_update`, `updates_completed=2`: reward mean
-  `5.000007394910353e-7`, **4/4 successful**, numerical zero.
-- `run_summary.json:accounting_reconciled=true`; all six expected durable artifacts
-  existed.
+- Provenance complete (exact SHA, `dirty=false`, Windows / `nlp_env`, vendored BLADE,
+  BONMIN); the run completed normally in 79.21 s.
+- `pre_update`, `updates_completed=0`: reward mean `-0.4999997395829586`, **4/4**.
+- Training **7/8** successful, all with wakes; **24 transitions**; two productive
+  iterations and two PPO updates. The single failure was train seed 2 at `setup` — B2
+  produced two placements for three requested hidden targets — attempted once, recorded
+  once, never retried or replaced.
+- `post_update`, `updates_completed=2`: reward mean `5.000007394910353e-7`, **4/4**.
+- `run_summary.json:accounting_reconciled=true`; all six durable artifacts existed.
+- Evidence SHA-256 for the six artifacts is recorded in `CLAUDE.md` §7 under `a3f0838`.
 
-Interpretation: the easy reference cell had genuine headroom, yielded enough wakes and
-transitions for two updates, and the fixed held-out band reached numerical zero. This is
-useful implementation/research-direction evidence, not a baseline estimate.
+**That cell contained NO difficulty factor.** It is preserved as historical evidence that
+the pipeline collects data and updates, and that the easy cell had headroom the loop could
+close. It is **not** a baseline, and it is **not** evidence about the fuel-damage cell —
+those numbers must never be reused as the new cell's expected behaviour.
 
-The original `kills_mean` / `eval_kills_mean` values are not unique-target counts:
-`GraphPlanExecutor.done` stores `(ego_id,target_id)` confirmations. They did not affect
-reward, PPO, wakes, failures or the learning-curve result; reward already deduplicated by
-target id. PR #7 replaced their semantics for future runs (§3).
+## 3. What PR #8 closed — FD-BASELINE-v1
 
-Evidence SHA-256:
+Authoritative contract: `CLAUDE.md` §5 ("FD-BASELINE-v1 — the difficulty factor") and §4
+for the tick placement. Lock, fix chain and verification: `CLAUDE.md` §7 under `a8669f4`.
+Summarized here only far enough to hand over.
 
-- `run_config.json`:
-  `36ec89cdb93f89c0b6e40163491159bf2045235b86b2fad47fe03f2f86141237`
-- `train_records.jsonl`:
-  `af4ec1851425fbcd0330651c05e384d0e44dad67f8aa1f56080543d8247ad82d`
-- `eval_records.jsonl`:
-  `2c972efaf85d465ab4f2ffce164ba19ac2a6c189db1e2faf83de6b0d201a7439`
-- `episode_failures.jsonl`:
-  `32d51d2d2ec017491f2fbe6bf133e103361752ced66ba39aac51e9b35b03a08e`
-- `run_summary.json`:
-  `d2e24714eecdf48bd5f1478ba1c119f405bef5d82067840776daa26dd4270c80`
-- `training_plot.png`:
-  `c6dec3ac99c5bd35fe627f77b2e97f432cb33235ce07f7efed8f0c05d7a9521b`
+**The selected factor and its research role.** The pre-FD cell was learned in a two-update
+probe: the static plan already sat close to the oracle, and the only adaptation on offer
+was engaging a pop-up the ego happened to fly past. FD-BASELINE-v1 adds exactly ONE
+attributable source of adaptation difficulty — a seeded, ego-local, one-shot fuel-damage
+event partway along an ego's first planned leg, sized so that flying home stays feasible
+while completing the route and returning does not. That turns `SELF_PRESERVATION_ABORT`
+from a never-correct action into a live alternative, and the explicit
+`RewardConfig(aircraft_penalty_coeff=2.25)` is what gives losing the airframe a cost.
 
-## 3. What PR #7 closed
+**The scenario cell is otherwise unchanged**: 3 agents, 3 known + 3 route-relative hidden
+airbase targets, 200 km / 100 km geometry, `DETECTION_KM = 50`, `include_sams=False`,
+`probability = 1`, unchanged BLADE weapon lethality, frozen solver, unchanged PPO, and the
+`graph_reward` formula untouched.
 
-Full contract and lock: `CLAUDE.md` §5 and §7, reviewed at
-`211e12e49b676637362d42effdb80988dd0e55eb` and integrated at
-`ffb95a6ee90df45b2d89802b321dcadcbc272821`.
+**Deferred, NOT bundled.** `probability < 1`, enemy fire / SAMs and dense (per-wake) reward
+were considered and **not selected**. Each remains a separate research change with its own
+semantics, observability and proof obligations, and none may be enabled implicitly — see
+`CLAUDE.md` §8. In particular `p` remains 1, so the reward operand scale is not reopened.
 
-- Every successful train, pre-update eval and post-update eval attempt prints one
-  immediate labelled `OK` block with phase, indices, exact seed, reward, wakes, ending,
-  ticks, dead count, elapsed time and target roster by BLADE name.
-- Authoritative trainer counts are unique over `target_id`:
-  `targets_confirmed_unique_mean` / `eval_targets_confirmed_unique_mean`.
-  `kills_mean` / `eval_kills_mean` remain compatibility aliases to those corrected
-  values. Names are display-only.
-- A structural roster defect is an accounted `setup` failure, never a successful false
-  zero. Only name lookup may degrade to `<unnamed target>`, without changing ids,
-  denominators or counts.
-- Every eval round owns a disjoint scenario-file tag namespace while reusing the same
-  fixed held-out seeds, so pre- and post-update scenario JSONs coexist.
-- No policy, reward, PPO, executor, tick-loop, scenario-content or seed behavior changed.
+**Verification at the approved head** (`CLAUDE.md` §7 has the full statement): full suite
+192 passed / 4 skipped, 35 fuel-damage tests, 73 graph-train tests, import purity 12/12,
+`graph_trigger` selftest green, `git diff --check` clean.
 
-Verification at the approved head: `tests/test_graph_train.py` 73 passed; import purity
-12 passed; full suite 157 passed, 4 skipped; standalone `nlp_env` runner all 73 passed;
-`git diff --check` clean. The authorized smoke was implementation validation, not a
-scientific run.
+**No live BLADE/BONMIN probe, training run, rollout or scientific baseline was performed.**
+Every test is solver-free and drives the pipeline through stubbed engine seams. The lock
+certifies the implementation; it says nothing about how the cell behaves.
 
-## 4. Next task — baseline difficulty design and preparation
+## 4. Next task — a bounded SHORT SCIENTIFIC PROBE of the merged fuel-damage cell
 
-Start with fresh exact-SHA initialization and keep this as a research-design decision
-before implementation.
+Start with fresh exact-SHA initialization against the new `main`. This task must be
+designed and separately authorized; **this documentation task neither authorizes nor runs
+it.**
 
-1. Decide which factors belong in the final Phase-A baseline cell:
-   `fuel_damage`, `probability < 1`, enemy targets that shoot back, and any additional
-   candidates.
-2. For each selected factor, close its semantics, interaction with BLADE/solver/reward,
-   observability, reproducibility, failure policy and proof obligations. Do not enable a
-   bundle implicitly.
-3. Implement and lock the selected factors through separate bounded tasks. Preserve the
-   no-communication, route-placement, exact-cardinality and provenance contracts.
-4. Run a new short instrumented probe on the final selected configuration using PR #7's
-   per-episode output and unique-target metrics.
-5. Start a long baseline only if that probe shows complete provenance, explicit
-   denominators, acceptable failure/data yield, organic wakes, reward headroom and
-   productive PPO updates.
+1. Design the probe: exact iterations × episodes, exact train and held-out seed bands, and
+   the pass/fail reading rules — decided BEFORE it runs, so no result is chosen after the
+   fact.
+2. Run it once, from a clean checkout with complete Git provenance, on the merged cell as
+   configured (no ad-hoc knob changes, no second difficulty factor).
+3. Report, all with explicit denominators:
+   - complete provenance and the exact resolved configuration;
+   - scheduled **clean vs damaged** attempt populations and their successes/failures;
+   - **matched-pair yield** and the paired reward delta over pairs whose BOTH members
+     completed, next to its pair denominator;
+   - **failures by pipeline stage** (`generation` / `setup` / `run` / `reward`), including
+     any `setup` planning refusal and any `run`-stage live-window refusal;
+   - per-episode **event / wake / real RTB command / death** outcomes;
+   - reward headroom, and whether the PPO updates were productive.
+4. Only if that probe passes may a long baseline be proposed. Interpretation rules survive
+   unchanged: a held-out mean is never read without its denominator; an all-failed batch
+   reports `null`, never `0.0`; and an empty successful-pair population is `null` too.
 
-Do not rerun the old 2×4 probe merely to obtain prettier logs; PR #7 did not change the
-behavior it measured, and the easy cell is about to be reconsidered.
+**Do not pre-claim any probe result**, and do not reuse the §2 numbers as its expectation.
 
 ## 5. Closed decisions
 
 - Offline construction only: solve → place → patch → reload.
 - Route prediction is required and supports `num_agents < n_known`.
 - One sensing/arrival/attack/kill-confirmation radius: `DETECTION_KM = 50`.
-- `round_trip_cost` and the current p=1 `graph_reward` remain frozen.
+- `round_trip_cost` and the current p=1 `graph_reward` FORMULA remain frozen.
 - B1 reference cell: 3 agents, 3 known, 3 hidden; strict 200 km launch-point distance,
-  100 km known-target separation and 0.5 stretch ratio. It is a reference cell, not a law.
+  100 km known-target separation and 0.5 stretch ratio. A reference cell, not a law.
 - B2: one placement per non-empty ego route, explicit `random.Random`, id-free geometric
   fingerprints and one-way placement-layer imports.
 - B3: explicit construction-path selection; env-2 is the runtime source of truth;
@@ -172,14 +167,21 @@ behavior it measured, and the easy cell is about to be reconsidered.
   all-failed / zero-wake / productive states.
 - PR #7: per-episode `OK` blocks, direct unique-target-id counts, accounted structural
   roster failures and disjoint per-round eval artifact namespaces.
+- PR #8 (FD-BASELINE-v1): fuel damage is the ONE selected difficulty factor; deterministic
+  private RNG domain; matched forced-clean / forced-damaged evaluation pairs on the same
+  held-out seed; the strict window validated twice (planned, then live before mutation);
+  RTB measured from real emitted command history, never from `GraphPlanExecutor.rtb_issued`;
+  explicit `aircraft_penalty_coeff = 2.25` with the reward formula unchanged.
 - The legacy split surface remains retained, not retired.
 
-## 6. Out of scope for the next design task
+## 6. Out of scope for the next task
 
 - a long training run before the final-cell probe passes;
+- selecting or enabling a SECOND difficulty factor (`probability < 1`, hostile fire/SAMs,
+  dense reward) — each is its own research change;
+- reworking the merged FD-BASELINE-v1 mechanism or its reviewed research decisions;
 - checkpoint loading/resume;
 - centralized critic / CTDE;
-- dense reward unless explicitly selected as a separate research change;
 - low-known-cell solver timeout unless the chosen cell needs `known ≤ 2`;
 - ETA/peer-dropout, reachability-model and legacy-split retirement work;
 - README rewrite.
@@ -191,14 +193,13 @@ behavior it measured, and the easy cell is about to be reconsidered.
 | B1–B4 preparation lands — **DONE** | Contracts and locks recorded in `CLAUDE.md` |
 | First real post-B3 probe completes — **DONE** | Exact code SHA, denominators, yield, failure stage, transitions and pre/post held-out measurements recorded |
 | PR #7 observability follow-up lands — **DONE** | Unique-target semantics, per-episode output, eval artifact preservation and fix-chain lock recorded |
-| Selected baseline-difficulty factors land — **NEXT TRIGGER** | Record each reviewed contract and lock without pre-claiming results |
-| Final-cell short probe completes — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, data yield, wakes, reward headroom and update evidence before authorizing a long baseline |
+| Selected baseline-difficulty factors land — **DONE for FD-BASELINE-v1** | Contract in `CLAUDE.md` §5, tick placement in §4, routing in §6, lock + fix chain in §7, selection closure and deferrals in §8 — recorded without pre-claiming any result |
+| Final-cell short probe completes — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom and update evidence before authorizing a long baseline |
 
 ## 8. Next action
 
-B1–B4 preparation, the first post-B3 probe and the B4 observability follow-up are
-closed. Ownership is released after this documentation push. The next orchestrator
-performs fresh exact-SHA initialization and begins the baseline difficulty-design
-decision in §4.
+Implementation for the final Phase-A baseline cell is COMPLETE and locked. Ownership is
+released after this documentation push; the next orchestrator performs fresh exact-SHA
+initialization against the new `main` and designs the bounded short probe in §4.
 
 **This document authorizes neither an implementation nor a training run.**

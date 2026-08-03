@@ -113,7 +113,8 @@ cleanup began) — **this document describes the graph model only.**
 `match_aou_MINLP_solver.py`. Advisor directive: **address allocation pathologies through scenario design, not solver constraints.** Do NOT re-add: a `single_agent_per_step` constraint, an objective fuel penalty, or a probability patch (all tried and rolled back). The only approved change is the per-target **round-trip** movement charge (`round_trip_cost`, `risk_factor=0`). Objective: `Σ_j y[j]·u_j·Π_k[1 − (1 − p_jk + EPSILON)^(Σ_i x[i,j,k])]`, `EPSILON = 1e-6`. `y[j]==1 ⇔ every step of task j has ≥1 agent ⇔ task appears in ≥1 assignment tuple` (the y/x linking constraints guarantee this — relied on by normalization and reward).
 
 ### 🛑 The BUILT graph layers are stable & reviewed
-All nine graph layers below are BUILT, REVIEWED, and LOCKED (see §7 commits). Their **interfaces are contracts** — change them only through the same recon→prompt→review→lock discipline, and never in a way that weakens the no-communication guarantee (§3).
+Every graph layer in §5 — the nine pipeline stages plus the trainer contract and the
+FD-BASELINE-v1 difficulty factor — is BUILT, REVIEWED, and LOCKED (see §7 commits). Their **interfaces are contracts** — change them only through the same recon→prompt→review→lock discipline, and never in a way that weakens the no-communication guarantee (§3).
 
 ---
 
@@ -174,17 +175,42 @@ From the `EpisodeContext` onward BOTH paths are identical:
 
 ```
 EpisodeContext
-  → run_episode(policy, ctx): per tick, TWO PHASES —
+  → run_episode(policy, ctx, fuel_damage=None): per tick, TWO PHASES —
+       TOP OF TICK (optional, FD-BASELINE-v1): fuel_damage.maybe_apply(obs, tick)
+         # ONE physical mutation of the selected ego's live current_fuel, at most once
+         # per episode, BEFORE any ego is processed. Returns that ego's id on the firing
+         # tick and None otherwise.
        Phase 1 (per ego, one obs snapshot, NO env.step):
-         sensed_target_ids → decide_triggers → (on wake) _wake_decision:
-           build_graph_observation → GraphEncoder → ActionHead
-           → build_action_mask → sample_action → apply_meta_action → executor.resync
-       Phase 2: env.step(executor.next_actions(obs))   # ONE step for the whole tick
+         sensed_target_ids → decide_triggers(..., fuel_damage=<ego is the selected one>)
+           → (on wake) _wake_decision:
+             build_graph_observation → GraphEncoder → ActionHead
+             → build_action_mask → sample_action → apply_meta_action → executor.resync
+       Phase 2: commands = executor.next_actions(obs)
+                fuel_damage.note_commands(commands)   # READ-ONLY measurement
+                env.step(commands)                    # ONE step for the whole tick
      until is_done / terminated / truncated → EpisodeResult(trajectory)
-  → compute_episode_reward(ctx, result): fills Transition.reward (terminal)
+  → compute_episode_reward(ctx, result, cfg.reward_config()): fills Transition.reward
   → PPO buffer + evaluate_action + outer training loop  # BUILT (graph_ppo, graph_train)
   → [OPEN] centralized critic (CTDE)  # Phase B
 ```
+
+**The exogenous-event seam (FD-BASELINE-v1) sits at the TOP of a tick, never inside
+Phase 1.** `run_episode`'s `fuel_damage` parameter is optional and defaults to `None`, so
+a loop without it is byte-unchanged. When supplied, the controller is consulted ONCE per
+tick before the per-ego loop begins, and four properties follow from that placement:
+
+- the physical mutation of one live BLADE aircraft's `current_fuel` happens before any
+  ego senses, so **every ego — the damaged one included — observes the SAME post-event
+  world snapshot** and Phase-1 ego ITERATION ORDER still cannot affect the outcome;
+- **only the selected ego receives the ego-local `FUEL_DAMAGE` wake** (`decide_triggers`
+  is called with `fuel_damage=True` for that ego alone, and `False` for every peer);
+- the trigger **edits neither `belief_tasks` nor `belief_solution`** — the changed
+  quantity is the ego's own live fuel, which the builder reads off the aircraft, so the
+  event only sets `wake`;
+- Phase-2 emitted commands are observed **only for measurement** (`note_commands` is a
+  read-only scan that records whether the selected ego's actual
+  `aircraft_return_to_base` command was issued). Nothing in the loop's control flow reads
+  it back.
 
 Both `rl/training/graph_train.py` (`_run_one_episode`) and the diagnostic harness
 `rl/training/graph_rollout.py` (`run_rollout`) drive the CONSTRUCTION path: they
@@ -273,7 +299,7 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 `GraphPlanExecutor` is the **sole** BLADE translation layer (move/launch/attack/RTB). `__init__(*, tasks, solution, agents, arrival_threshold_km=DETECTION_KM, add_return_to_base=True, nn_ordering=True, kill_confirm_ticks=60)`. **Per-ego private state:** `self.tasks: Dict[ego_id, List[Task]]` (fanned out at init; diverges only via `resync`), `self.plans` per-ego; `_resolve_step(ego_id, assignment)` is the sole reader of `self.tasks`. Key methods: `next_actions(obs) -> List[str]` (one command/ego/tick), `resync(new_solution, *, ego_id, tasks=None)` (swaps one ego's slice, **never resets `done`**), `is_done()` (skips `dead` egos, requires RTB latched), `sensed_target_ids(obs, ego_id) -> {id: unit}` (world-scan within `arrival_threshold_km`; the trigger's eyes). done-on-confirmed-kill, per-`(ego,target)` re-fire throttle, single-issue RTB latch (safe only while doctrine `AIRCRAFT_RTB_WHEN_OUT_OF_RANGE` is off — it is in `strike_training_4v5.json`), `dead` set for crashes. No-comms isolation proven in `_selftest` (ISO-1..3: a pop-up appended to ego A never enters ego B's task-view; same-index pop-ups resolve per-ego).
 
 **Trigger (Stage 2) — `rl/action/graph_trigger.py`.**
-`decide_triggers(belief_tasks, belief_solution, sensed_targets, eta=never_overdue, *, ego_id, clock) -> (new_tasks, new_solution, wake, events)`. PURE (no BLADE/torch), copy-on-write (never mutates inputs). The WHEN gate: **POP-UP** (ego senses an unassigned target → appends a pop-up Task to append-only `belief_tasks`) and **PEER-OVERDUE** (ego senses a peer's target AND its ETA passed → removes that peer tuple from the ego's `belief_solution` copy, so it reads as a pop-up — deterministic *gating*, the policy still chooses). ETA is dormant (`never_overdue` = +inf) for now.
+`decide_triggers(belief_tasks, belief_solution, sensed_targets, eta=never_overdue, *, ego_id, clock, fuel_damage=False) -> (new_tasks, new_solution, wake, events)`. PURE (no BLADE/torch), copy-on-write (never mutates inputs). The WHEN gate over THREE `TriggerKind` members: **POP-UP** (ego senses an unassigned target → appends a pop-up Task to append-only `belief_tasks`), **PEER-OVERDUE** (ego senses a peer's target AND its ETA passed → removes that peer tuple from the ego's `belief_solution` copy, so it reads as a pop-up — deterministic *gating*, the policy still chooses), and **FUEL_DAMAGE** (FD-BASELINE-v1). ETA is dormant (`never_overdue` = +inf) for now. `FUEL_DAMAGE` is EXOGENOUS — it cannot be detected from sensing, so the orchestrator passes `fuel_damage=True` for AT MOST ONE ego per tick; the flag defaults to `False`, so every pre-FD caller is byte-unchanged. It **edits NEITHER `belief_tasks` NOR `belief_solution`** (the changed quantity is the ego's own live fuel, which the builder reads off the aircraft) and only sets `wake`, appending a `(FUEL_DAMAGE, NO_TASK_INDEX)` event — `NO_TASK_INDEX = -1` is a sentinel, deliberately not `0`, because `0` is a valid task index. A tick carrying both a fuel-damage event and a pop-up still produces exactly ONE wake.
 
 **Build (Stage 3) — `rl/observation/graph_builder.py`.**
 `build_graph_observation(scenario, agent_id, current_plan=None, current_time=0, tasks=None, solution=None, precedence_relations=None, config=None) -> GraphObservation`. Stateless projection of `(world, solution)`. `task_features[k, TASK_FEATURE_DIM]` (=6: utility, dist-to-ego, capable, reachable, probability, **sensed**; `TASK_FEATURE_DIM` is the single source of truth the encoder imports), `agent_features[a,1]` (fuel_norm: REAL for ego, `0.0` for peers), COO `edge_index`/`edge_type` over the `EdgeType` IntEnum, `time_norm`. **`ASSIGNMENT` is the only constructed relation** (`SPATIAL` reserved/unused — sensing moved to the `sensed` column; `PRECEDENCE` deferred). Agent set = `ego ∪ assigned same-side peers`. Requires the ego **airborne** (raises otherwise — always satisfied since build only follows a wake, which requires sensing, which requires airborne).
@@ -287,10 +313,10 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 **Resync (Stage 6)** — `GraphPlanExecutor.resync` (above): swaps the ego's plan slice without resetting `done`.
 
 **Reward (Stage 7) — `rl/training/graph_reward.py`.**
-`compute_episode_reward(ctx, result, cfg=RewardConfig()) -> EpisodeReward`. **Terminal, utility-based** (v1): `R = (U_achieved − c·U_aircraft·n_lost − U_oracle)/(|U_oracle| + eps_regret)`, placed on the last wake's `Transition` (others `0.0`; empty trajectory ⇒ nothing attached). `U_oracle = plan_value(ctx.oracle_solution, ctx.oracle_tasks)` — **bit-faithful to `MatchAou._add_objective`** (reuses the solver `EPSILON`; the `y[j]` factor is provably redundant given the y/x constraints; proven under bonmin in `_selftest` T1). `U_achieved = realized_utility(ctx.oracle_tasks, ctx.executor.done)` — full utility IFF all a task's targets are confirmed-killed, **deduped over ego**. `c = aircraft_penalty_coeff` default **0.0**; `n_lost = len(ctx.executor.dead)`; `eps_regret=1e-5` is a division guard (distinct from solver EPSILON). **No-comms:** a centralized/privileged TRAINING signal — MAY read global state, but MUTATES ONLY `Transition.reward` (proven byte-unchanged on real objects in T7). **KNOWN v1 assumption `probability=1.0`** (expected `U_oracle` vs realized `U_achieved` coincide only at p=1; `R∈[-1,~0]`; revisit at p<1).
+`compute_episode_reward(ctx, result, cfg=RewardConfig()) -> EpisodeReward`. **Terminal, utility-based** (v1): `R = (U_achieved − c·U_aircraft·n_lost − U_oracle)/(|U_oracle| + eps_regret)`, placed on the last wake's `Transition` (others `0.0`; empty trajectory ⇒ nothing attached). `U_oracle = plan_value(ctx.oracle_solution, ctx.oracle_tasks)` — **bit-faithful to `MatchAou._add_objective`** (reuses the solver `EPSILON`; the `y[j]` factor is provably redundant given the y/x constraints; proven under bonmin in `_selftest` T1). `U_achieved = realized_utility(ctx.oracle_tasks, ctx.executor.done)` — full utility IFF all a task's targets are confirmed-killed, **deduped over ego**. `c = aircraft_penalty_coeff` — this module's own default is **0.0**, but BOTH harnesses now pass an explicit `RewardConfig(aircraft_penalty_coeff=2.25)` (FD-BASELINE-v1, below); the FORMULA is unchanged. `n_lost = len(ctx.executor.dead)`; `eps_regret=1e-5` is a division guard (distinct from solver EPSILON). **No-comms:** a centralized/privileged TRAINING signal — MAY read global state, but MUTATES ONLY `Transition.reward` (proven byte-unchanged on real objects in T7). **KNOWN v1 assumption `probability=1.0`** (expected `U_oracle` vs realized `U_achieved` coincide only at p=1; `R∈[-1,~0]`; revisit at p<1).
 
 **The two-phase tick (Stages 2–6) — `rl/training/graph_tick_loop.py`.**
-`run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`. Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`). **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
+`run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None, fuel_damage=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`. The optional `fuel_damage` controller (FD-BASELINE-v1) is consulted at the TOP of a tick, before Phase 1, and its Phase-2 `note_commands` call is a read-only measurement — see §4 and the FD contract below; `None` (the default) leaves the loop byte-unchanged. Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`). **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
 
 **Trainer + run auditability (B4) — `rl/training/graph_train.py`.**
 The outer PPO loop's *research-validity* contract. It changed NO pipeline layer: PPO
@@ -352,6 +378,93 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   every round still evaluates the same fixed held-out seed band. `TrainConfig.validate`
   rejects tag ranges that could collide, so pre- and post-update scenario JSONs coexist.
 
+**FD-BASELINE-v1 — the difficulty factor — `rl/training/graph_fuel_damage.py`**
+(consumed by `graph_tick_loop.run_episode`, `graph_train` and `graph_rollout`).
+
+THE **ONE** SELECTED DIFFICULTY FACTOR of the current final Phase-A baseline cell. The
+scenario is otherwise UNCHANGED: 3 agents, 3 known + 3 route-relative hidden airbase
+targets, 200 km / 100 km geometry, `DETECTION_KM = 50`, `include_sams=False`,
+`probability = 1`, unchanged BLADE weapon lethality, frozen solver, unchanged PPO. No
+second factor is bundled in (§8).
+
+- **Deterministic private RNG domain.** `derive_fuel_damage_seed` is
+  `SHA-256("fuel_damage_v1:<episode_seed>")`, so the clean/damaged draw and the ego
+  selection depend on the episode seed ALONE — not on `hash()` (per-process salted), not
+  on global `random`, and not on the placement rng (whose stream position depends on how
+  many placements were rejected). TRAINING uses `fuel_damage_mode = seeded_mixture` at
+  `P(damaged) = 0.5`; the mixture bit is drawn first in EVERY mode, including the forced
+  ones, so the stream position matches and a forced-damaged episode selects the same ego
+  the mixture would have.
+- **Matched-pair EVALUATION.** Each held-out seed is attempted TWICE per round, once
+  `forced_clean` and once `forced_damaged`, on the SAME `eval_seed` — hence the same
+  generated world, the same `A_init` and the same hidden geometry — with DISTINCT
+  artifact tags (`eval_member_tag`, slot `e*2 + m`) so both worlds coexist as files.
+  `TrainConfig.validate` sizes the tag namespace for the doubling.
+- **The event.** A damaged episode selects ONE ego with a non-empty initial route
+  (sorted id order, so the draw never depends on dict insertion order) and plans a
+  ONE-SHOT event at ~30 % of that ego's FIRST planned leg. Route prediction REUSES the
+  frozen `graph_hidden_placement.predict_route`, so the window can never be measured
+  against a route the executor does not fly.
+- **The strict decision window.** The post-damage target lies in the half-open interval
+  `[margin·fuel(direct RTB), margin·fuel(rest of route + return))` at `margin = 1.10`
+  (the engine's own reserve): flying straight home stays feasible, completing the
+  remaining route and then returning does not. The chosen value is the interval MIDPOINT.
+  All fuel arithmetic is BLADE's own, transcribed in `fuel_for_distance_km` from
+  `Game.get_fuel_needed_to_return_to_base` (km → nm → hours at the aircraft's KNOTS
+  speed → lbs/hr); `speed` / `fuel_rate` are read off the LIVE aircraft, never off
+  `Agent` (`scenario_factory` substitutes a 250 kt planning speed for a grounded unit).
+- **THE WINDOW IS VALIDATED TWICE — planned, then live.** `plan_fuel_damage` validates it
+  before the run at the PROJECTED event point, and `FuelDamageController.maybe_apply`
+  RE-MEASURES it through the same `measure_window` site from the aircraft's ACTUAL
+  position and validates against its ACTUAL fuel immediately before mutating. The
+  projection is optimistic by construction: it charges fuel for distance FLOWN, while
+  `Game.update_all_aircraft_position` burns `fuel_rate / 3600` on EVERY tick including
+  route-less ones (the launch tick is exactly that).
+- **Failure policy.** A failed LIVE strict-window check raises BEFORE the mutation, so a
+  refused event leaves the engine untouched, and the attempt is accounted as a `run`-stage
+  failure. A planning failure (no eligible ego, no valid window) raises at `setup` and is
+  **never silently downgraded to a clean episode** — that would move the population every
+  per-condition statistic is reported over. Both land in `skip_and_account_v1`: recorded
+  once, no retry, no substitution, no band shift. A `forced_clean` member computes no
+  window at all, so the two members of a pair fail independently or not at all.
+- **Locality (no-communication).** The real `current_fuel` mutation happens at the TOP of
+  a tick, BEFORE Phase 1, so every ego reasons from the same post-event snapshot and ego
+  iteration order stays irrelevant. Only the selected ego wakes. `FUEL_DAMAGE` carries no
+  peer state, and peer graph rows remain FEATURELESS (`agent_features[peer, 0] = 0.0`),
+  so the damaged value is unreachable from any peer's graph. The damaged ego's own graph
+  at that same wake necessarily carries the post-damage `fuel_norm`, because
+  `_compute_fuel_norm` reads the live object this layer already mutated.
+- **RTB is COMMAND HISTORY.** `FuelDamageOutcome.rtb_command_issued` is True only if
+  `run_episode` really emitted `aircraft_return_to_base('<selected ego>')` in a Phase-2
+  command list, observed by `FuelDamageController.note_commands`. It is NEVER derived
+  from `GraphPlanExecutor.rtb_issued`: that is a lifecycle LATCH which `_command_for_ego`
+  also sets True for a DEAD ego — precisely because no command was, or could be, emitted —
+  so reading it would report an ego that flew its plan into the ground as both an RTB and
+  a death. `rtb_command_for` is a documented mirror of the executor's one emission site,
+  kept out of its import closure to preserve this layer's purity, with the equivalence
+  test-enforced against a real `GraphPlanExecutor`.
+- **Reward.** `RewardConfig(aircraft_penalty_coeff=2.25)` is passed EXPLICITLY by both
+  harnesses (`TrainConfig.reward_config()` / `RolloutConfig.reward_config()`), because
+  `graph_reward`'s own default is `0.0` and losing an airframe would otherwise be free.
+  **The `graph_reward` formula itself is UNCHANGED** — only the coefficient it already
+  accepted, and the resolved value is recorded in `run_config.json:/difficulty`.
+  CONSEQUENCE FOR READING A REWARD: with `c > 0` the penalty term is real, so `R` is no
+  longer confined to `~[-1, 0]` — an episode that loses an airframe can score below `-1`.
+  The §5 Stage-7 range note describes the `c = 0.0` case.
+- **Observability.** Records and the per-episode `OK` block distinguish clean from damaged
+  episodes and PLANNED from LIVE bounds (`FuelDamagePlan.rtb_fuel_floor` vs
+  `FuelDamageOutcome.live_rtb_fuel_floor` — kept under separate names, printed side by
+  side, never merged). They report whether the event fired and when, observed progress,
+  fuel before/after and the damage factor, whether `FUEL_DAMAGE` caused a wake and which
+  meta-action it produced, the real RTB command, deaths, condition-specific attempt counts
+  and reward means, and the matched-pair reward delta over pairs whose BOTH members
+  completed. **An empty successful-pair population is `null`, never numerical zero** — 0
+  is the oracle optimum and would read as "the event changed nothing".
+- **Purity.** The layer imports no BLADE, gymnasium, torch or solver, does no file I/O and
+  holds no module-global randomness; live engine objects are touched only through
+  duck-typed attributes. That is what makes the whole factor hand-testable and keeps it
+  safe inside `graph_tick_loop`'s import-purity closure.
+
 ---
 
 ## 6. File map — "I want to…"
@@ -366,6 +479,9 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json` and one 4-panel `training_plot.png`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
 | Change the training scenario cell (target counts) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). The generator writes `n_known`; setup patches in `n_hidden`, so **emitted targets are `n_known + n_hidden`** (`TrainConfig.n_targets_emitted`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` / `split_preview` survive and are still tested but are NOT consulted by the construction path (B1, `d6758ac`). |
 | Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. |
+| Change the FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. |
+| Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched pairs, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
+| Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`). Rollouts run the seeded MIXTURE only — matched pairs are an evaluation construct and live in `graph_train.evaluate`. |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -747,25 +863,71 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   reference `R=-0.3333` / 4 wakes / `targets_confirmed_unique=4/6`, and coexisting
   pre/post eval scenario files; that smoke validates implementation only and is not a
   scientific result.
+- `a8669f4` — **FD-BASELINE-v1: the deterministic, ego-local fuel-damage difficulty —
+  CLOSED / MERGED / LOCKED.** Reviewed code SHA
+  `a8669f450708c2508753c49ab16fd1028b29607d`, integrated by merge commit
+  `1cecb0ac99f839d47ffeea12c8871aec77e66640` (PR #8); the merged tree is byte-identical
+  to the approved one (`git diff --quiet a8669f4 1cecb0a`). Grade A under `GPT_GITHUB`.
+  The full technical contract is in §5 ("FD-BASELINE-v1 — the difficulty factor") and the
+  tick placement in §4; this entry records the LOCK, not the mechanism.
+  **Reviewed scope: SEVEN cumulative files** — `rl/training/graph_fuel_damage.py` and
+  `tests/test_graph_fuel_damage.py` (both new), plus `rl/action/graph_trigger.py`,
+  `rl/training/graph_tick_loop.py`, `rl/training/graph_train.py`,
+  `rl/training/graph_rollout.py` and `tests/test_graph_train.py`. No BLADE, solver,
+  `graph_reward` formula, PPO, encoder, action-space, feature-width, detection-radius,
+  hidden-placement, cardinality or executor-fuel-policy change.
+  **Fix chain.** The FIRST candidate `1cf53fcee3ee05b3466c8391cbc6bb04420a0985` received
+  REQUEST-FIXES on two measurement-honesty defects; the correction landed as a NEW CHILD
+  COMMIT on the same branch and PR — never amend, rebase, force-push or history rewrite —
+  and that fix commit touched FIVE of the seven files (`graph_fuel_damage.py`,
+  `graph_tick_loop.py`, `graph_train.py` and the two test files). The two defects and
+  their closure:
+  (F1) the per-episode RTB output was derived from `GraphPlanExecutor.rtb_issued`, a
+  LIFECYCLE LATCH that `_command_for_ego` also sets True for a DEAD ego — precisely
+  because no command was emitted — so an ego that flew its plan into the ground counted
+  as an RTB *and* a death. It is now taken from ACTUAL COMMAND HISTORY: `run_episode`
+  hands each Phase-2 command list to `FuelDamageController.note_commands`, which latches
+  only on a real `aircraft_return_to_base('<ego>')`.
+  (F2) the preflight projection charges fuel for distance FLOWN while the engine burns
+  `fuel_rate / 3600` every tick including route-less ones, so live fuel at the event is
+  always below `projected_fuel_at_event` and the only guard was
+  `fuel_before > post_damage_fuel`. The strict window is now RE-MEASURED from the live
+  position through the same `measure_window` site and re-validated against live fuel
+  BEFORE the mutation; a failure raises before anything is touched and is accounted as a
+  `run`-stage failure, with planned and live bounds recorded under separate names.
+  **Verified at the approved head:** full suite **192 passed, 4 skipped**,
+  `tests/test_graph_fuel_damage.py` **35 passed**, `tests/test_graph_train.py`
+  **73 passed**, import purity **12/12**, the `graph_trigger` selftest green, and
+  `git diff --check` clean.
+  **NO live BLADE/BONMIN probe, training run, rollout or scientific baseline was
+  performed** — every test is solver-free and drives the pipeline through stubbed engine
+  seams. Nothing in this lock is evidence about the cell's behaviour; §8 owns the gate.
 
 ---
 
 ## 8. OPEN (not built)
 
-- **Phase-A baseline run — the first instrumented probe is CLOSED; the long baseline
-  is still OPEN.** The exact clean-code probe at
-  `a3f0838616990987bcb8a51665fa75d84edf5952` established real pre-update headroom
-  (`-0.4999997395829586`, 4/4), usable train yield (7/8, one accounted seed-2 `setup`
-  failure), 24 transitions, two productive PPO updates, and a final held-out numerical
-  zero (`5.000007394910353e-7`, 4/4). It is a SHORT PROBE, not a baseline, and PR #7 did
-  not change policy/reward/PPO/scenario behaviour, so repeating the same 2×4 probe on the
-  same easy cell is not a gate. The next gate is research design: select the difficulty
-  factors for the actual baseline cell, implement and lock only those selected factors,
-  then run a new short instrumented probe on that FINAL configuration. A long baseline is
-  authorized only after that probe shows complete provenance, explicit denominators,
-  acceptable failure/data yield, organic wakes, reward headroom and productive updates.
-  A held-out mean is never read without its denominator; `graph_reward` remains FROZEN
-  unless a separately reviewed p<1 design requires an explicit reward-contract change.
+- **THE NEXT GATE — a fresh SHORT INSTRUMENTED PROBE on the FINAL fuel-damage cell.**
+  Difficulty selection is CLOSED (next item) and FD-BASELINE-v1 is merged and locked
+  (`a8669f4`, §7), so the open question is no longer *what* to build but *how the built
+  cell behaves* — and NOTHING has measured that. **No live BLADE/BONMIN episode, training
+  run, rollout or probe has been executed against the fuel-damage cell**; the lock rests
+  entirely on solver-free tests through stubbed engine seams. The next task is therefore
+  a bounded, separately authorized short probe of the merged cell, which must report:
+  complete provenance; explicit denominators everywhere; the scheduled clean vs damaged
+  populations; matched-pair yield and the paired reward delta with its pair denominator;
+  failures by pipeline stage; how often the event actually fired, woke the selected ego,
+  produced a real RTB command, or ended in a death; reward headroom; and whether the PPO
+  updates were productive. **A long baseline stays BLOCKED until that probe passes**, and
+  no result may be pre-claimed for it. A held-out mean is never read without its
+  denominator; `graph_reward` remains FROZEN unless a separately reviewed p<1 design
+  requires an explicit reward-contract change.
+  *Historical, and about the EASY PRE-FD CELL only:* the clean-code probe at
+  `a3f0838616990987bcb8a51665fa75d84edf5952` measured pre-update headroom
+  (`-0.4999997395829586`, 4/4), train yield 7/8 with one accounted seed-2 `setup` failure,
+  24 transitions, two productive PPO updates and a final held-out numerical zero
+  (`5.000007394910353e-7`, 4/4). That cell had no difficulty factor; **those numbers are
+  not evidence about the fuel-damage cell** and must not be reused as its baseline.
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
@@ -774,14 +936,21 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   `train` outside a working checkout must inject the verdict (the tests patch
   `_git_provenance`) rather than expect it to be optional.
 - **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
-- **Baseline difficulty selection — NEXT RESEARCH-DESIGN TASK.** Decide explicitly
-  which factors belong in the final Phase-A baseline cell: `fuel_damage`,
-  `probability < 1`, enemy targets that shoot back, and any additional proposed
-  difficulty. Do not enable a bundle implicitly. Each selected factor needs its own
-  semantics, observability, proof obligations and bounded implementation/lock task.
-  In particular, `probability < 1` reopens the reward operand scale because expected
-  oracle utility and realized achieved utility diverge below p=1; per-wake/dense reward
-  remains a separate choice, not an automatic consequence.
+- **Baseline difficulty selection — CLOSED for the current cell by FD-BASELINE-v1
+  (`a8669f4`).** Exactly ONE factor was selected, implemented and locked: `fuel_damage`
+  (§5, §7). The following were considered and **NOT selected**; each remains a DEFERRED,
+  SEPARATE research change and none may be enabled implicitly or bundled into a probe:
+  - **`probability < 1`** — still out. It reopens the reward operand scale, because
+    expected oracle utility and realized achieved utility diverge below p=1; the cell
+    stays at `probability = 1` and `graph_reward` stays frozen.
+  - **Enemy targets that shoot back / SAMs** — still out. `include_sams=False`, and the
+    construction path refuses a world whose enemy units are not all airbases; BLADE
+    weapon lethality is unchanged.
+  - **Dense / per-wake reward** — still out. It was never a consequence of selecting a
+    difficulty factor, and is not one now.
+  Reopening any of them is a new research-design decision with its own semantics,
+  observability, proof obligations and bounded implementation/lock task — and, per the
+  gate above, it comes AFTER the final-cell probe, not instead of it.
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
@@ -862,6 +1031,9 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   `post_update=5.000007394910353e-7` over 4/4. Thus the cell had real headroom and the
   loop could close it in a short run. Neither result is a baseline: one is a single
   rollout and the other is a 2×4 diagnostic probe on the easy reference cell.
+  **Both predate FD-BASELINE-v1** (`a8669f4`): the target counts are unchanged, but that
+  cell carried NO difficulty factor and no death penalty, so neither number describes the
+  fuel-damage cell's headroom. Only the pending final-cell probe (the gate above) can.
   *Historical, pre-B3 only:* the cell emitted no hidden targets and measured 0 wakes at
   `reward=+0.0000` because nothing existed to discover; that result is invalid as
   learning evidence. The authoritative target-count fields for future runs are the
