@@ -143,6 +143,7 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     _EXACT_CARDINALITY_POLICY,
     _PIPELINE_STAGES,
     _build_arg_parser,
+    _comparable_records,
     _git_provenance,
     _parse_airbase_range,
     _probe_command,
@@ -1453,12 +1454,18 @@ def _run_stub_training(
         return object()          # the stub episode body never touches it
 
     def fake_run_one_episode(policy, gen, cfg_, *, seed, episode_tag, deterministic,
-                             fuel_damage_mode=None):
+                             fuel_damage_mode=None, **extra):
         phase = "eval" if deterministic else "train"
         # FD-BASELINE-v1: evaluation attempts each held-out seed once per matched pair
         # member, passing the forced mode; training passes none. The mode is recorded on
         # the event so a pairing assertion can read it.
-        events.append(("episode", phase, int(seed), int(episode_tag), fuel_damage_mode))
+        #
+        # VISUAL ARTIFACTS: `**extra` rather than `artifacts=None`, so the event can
+        # record whether the keyword was passed AT ALL. A run that did not opt in must
+        # call `_run_one_episode` exactly as it did before the feature existed, which is
+        # a stronger claim than "it passed None".
+        events.append(("episode", phase, int(seed), int(episode_tag), fuel_damage_mode,
+                       extra.get("artifacts"), "artifacts" in extra))
         # Stand in for the file the real generator would have written under this tag.
         if state["scen_dir"] is not None:
             state["scen_dir"].mkdir(parents=True, exist_ok=True)
@@ -2201,8 +2208,25 @@ class _FakeScenario:
 
 
 class _FakeGame:
-    def __init__(self, scenario):
+    """`current_scenario` for the roster, plus the engine's read-only scenario exporter.
+
+    `export_calls` counts every `export_scenario()` -- which is how the OFF path proves it
+    never calls it at all, and the ON path that it calls it EXACTLY once per attempt.
+    `export_error` makes the exporter raise, which is what an artifact-side infrastructure
+    failure looks like from this module's point of view.
+    """
+
+    def __init__(self, scenario, *, exported=None, export_error=None):
         self.current_scenario = scenario
+        self.export_calls = 0
+        self._exported = exported
+        self._export_error = export_error
+
+    def export_scenario(self):
+        self.export_calls += 1
+        if self._export_error is not None:
+            raise self._export_error
+        return {} if self._exported is None else self._exported
 
 
 class _FakeExecutor:
@@ -2221,20 +2245,21 @@ class _FakeEnv:
 class _FakeCtx:
     """The five `EpisodeContext` attributes the observability path actually reads."""
 
-    def __init__(self, *, beliefs, oracle_tasks, scenario, done):
+    def __init__(self, *, beliefs, oracle_tasks, scenario, done,
+                 exported=None, export_error=None):
         self.beliefs = beliefs
         self.oracle_tasks = oracle_tasks
-        self.game = _FakeGame(scenario)
+        self.game = _FakeGame(scenario, exported=exported, export_error=export_error)
         self.executor = _FakeExecutor(done)
         self.env = _FakeEnv()
 
 
 class _FakeResult:
-    def __init__(self, *, confirmed_kills):
-        self.trajectory = []
+    def __init__(self, *, confirmed_kills, trajectory=None, n_wakes=0):
+        self.trajectory = [] if trajectory is None else list(trajectory)
         self.ticks = 11
         self.ended = "done"
-        self.n_wakes = 0
+        self.n_wakes = n_wakes
         self.confirmed_kills = confirmed_kills
         self.n_dead = 0
 
@@ -2255,11 +2280,15 @@ class _FakeGenerator:
         return _FakeScenarioPath()
 
 
-def _reference_ctx(*, done, raise_names=(), known=3, hidden=3, extra_oracle=()):
+def _reference_ctx(*, done, raise_names=(), known=3, hidden=3, extra_oracle=(),
+                   exported=None, export_error=None):
     """A valid reference-cell context: `known` known + `hidden` hidden targets.
 
     Ids are `k0..`/`h0..` (never uuids, so a leak into a success block is unmistakable);
     names mimic the real generator's `Floridistan AFB #N` / `Hidden Airbase #NNN`.
+
+    `exported` / `export_error` configure the game's `export_scenario()` -- the visual
+    artifact tests' only additional seam.
     """
     known_ids = ["k%d" % i for i in range(known)]
     hidden_ids = ["h%d" % i for i in range(hidden)]
@@ -2272,6 +2301,8 @@ def _reference_ctx(*, done, raise_names=(), known=3, hidden=3, extra_oracle=()):
         oracle_tasks=[_FakeTask(t) for t in known_ids + hidden_ids + list(extra_oracle)],
         scenario=_FakeScenario(names, raise_for=raise_names),
         done=done,
+        exported=exported,
+        export_error=export_error,
     )
 
 
@@ -2964,6 +2995,675 @@ def test_plot_still_renders_pre_b4_records(tmp_path: Path) -> None:
     assert out is not None and out.exists()
 
 
+# =============================================================================
+# T15 -- FINAL-CELL VISUAL ARTIFACTS (opt-in inspection bundles)
+# =============================================================================
+#
+# THREE PROOF OBLIGATIONS, and they pull in different directions on purpose:
+#
+#   PO1  default-OFF invariance      : the feature is invisible unless asked for. No
+#                                      directory, no identity, no scenario copy, no
+#                                      `Game.export_scenario()`, and `setup_episode` is
+#                                      called WITHOUT the recording keyword -- exactly as
+#                                      the pre-feature trainer called it.
+#   PO2  snapshot fidelity + identity: an enabled successful attempt preserves the
+#                                      generator's known-only file BYTE for BYTE, the
+#                                      object the authoritative env-2 game exported BEFORE
+#                                      the controller and the run, the recording the tick
+#                                      loop emitted, and a complete manifest that places
+#                                      the attempt without reference to console order.
+#                                      Two members of one held-out seed, and the same seed
+#                                      across two rounds, get DISJOINT bundles.
+#   PO3  isolation + failure honesty : capture adds writes and one read-only export and
+#                                      nothing else -- policy inputs, result, reward,
+#                                      trajectory, buffer content, seeds, tags and
+#                                      condition accounting are identical to the disabled
+#                                      run. A normal EPISODE failure stays in the existing
+#                                      stage taxonomy and leaves an `incomplete` bundle; an
+#                                      ARTIFACT failure aborts loudly through
+#                                      `_VisualArtifactError` and never reaches the ledger.
+#
+# The BLADE / solver seams are stubbed as everywhere else in this file; everything between
+# them -- the bundle lifecycle, the identity, the manifest, the ordering of the export
+# against the controller, the re-raise ahead of the broad handlers -- is production code.
+
+_VA_KNOWN_TARGET_NAMES = ("Floridistan AFB #1", "Floridistan AFB #2",
+                          "Floridistan AFB #3")
+_VA_HIDDEN_TARGET_NAMES = ("Hidden Airbase #001", "Hidden Airbase #002",
+                           "Hidden Airbase #003")
+
+
+def _va_known_only_bytes(tag: int, seed: int) -> bytes:
+    """The exact bytes the generator "wrote" for one attempt: a 3-target known-only world.
+
+    Deliberately IRREGULAR (odd spacing, hand-ordered keys, a trailing newline): a copy
+    that went through `json.load` + `json.dump` would come back normalized, so byte
+    equality is a real test of "copied, not reserialized".
+    """
+    airbases = ", ".join('{"name": "%s"}' % n for n in _VA_KNOWN_TARGET_NAMES)
+    return (
+        '{"currentScenario": {"name": "episode_%04d",   "airbases": [ %s ]},'
+        '  "tag": %d,   "seed": %d}\n' % (int(tag), airbases, int(tag), int(seed))
+    ).encode("utf-8")
+
+
+def _va_executed_t0_object(tag: int, seed: int) -> dict:
+    """What the AUTHORITATIVE env-2 game exports at t=0: the 6-target executed world."""
+    return {
+        "currentScenario": {
+            "name": "episode_%04d" % int(tag),
+            "airbases": [{"name": n} for n in
+                         _VA_KNOWN_TARGET_NAMES + _VA_HIDDEN_TARGET_NAMES],
+        },
+        "currentSideId": "side-blue",
+        "selectedUnitId": "",
+        "mapView": {"defaultCenter": [0.0, 0.0], "currentCameraZoom": 5},
+        "tag": int(tag),
+        "seed": int(seed),
+    }
+
+
+class _VaFuelDamagePlan:
+    def __init__(self, condition):
+        self._condition = condition
+
+    def to_record(self):
+        return {"condition": self._condition, "ego_id": None}
+
+
+class _VaFuelDamageOutcome:
+    rtb_command_issued = None
+
+    def __init__(self, condition):
+        self._condition = condition
+
+    def to_record(self):
+        return {"condition": self._condition, "fired": False,
+                "wake_occurred": False, "wake_meta_action": None}
+
+
+class _VaFuelDamageController:
+    """A clean, inert controller -- the FD mechanism is not what these tests measure."""
+
+    def __init__(self, condition):
+        self.plan = _VaFuelDamagePlan(condition)
+        self.outcome = _VaFuelDamageOutcome(condition)
+
+
+def _run_training_with_real_episode_body(
+    cfg: TrainConfig,
+    *,
+    setup_error_seeds=(),
+    export_error_tags=(),
+    emit_recording: bool = True,
+):
+    """Drive the REAL `train()` AND the REAL `_run_one_episode` over stubbed engine seams.
+
+    `_run_stub_training` replaces `_run_one_episode` wholesale, which is right for the
+    schedule and the ledger but reaches none of the artifact code. Here the four seams
+    that genuinely need BLADE / bonmin are replaced instead:
+
+      * `_build_generator`           -> writes a real known-only scenario file per tag;
+      * `setup_episode`              -> a fake context; RECORDS the recording keyword it
+                                        was (or was not) given;
+      * `run_episode`                -> writes a playback `.jsonl` into that path, exactly
+                                        as the locked tick-loop contract does on a
+                                        completed run;
+      * `compute_episode_reward` /
+        `build_fuel_damage_controller`-> inert.
+
+    Everything else -- the bundle lifecycle, the manifest, the ordering, the failure
+    routing -- is production code.
+
+    `setup_error_seeds` makes those seeds raise inside setup (a NORMAL episode failure).
+    `export_error_tags` makes `Game.export_scenario()` raise for those tags (an ARTIFACT
+    failure). `emit_recording=False` models a run that produced no playback file.
+
+    Returns ``(summary, calls, state)``; `calls` is the ordered per-attempt log.
+    """
+    calls: list = []
+    state: dict = {"scen_dir": None, "raised": None}
+
+    saved = {
+        "_build_generator": graph_train._build_generator,
+        "setup_episode": graph_train.setup_episode,
+        "run_episode": graph_train.run_episode,
+        "compute_episode_reward": graph_train.compute_episode_reward,
+        "build_fuel_damage_controller": graph_train.build_fuel_damage_controller,
+        "PPOUpdater": graph_train.PPOUpdater,
+        "build_policy": graph_train.build_policy,
+        "_git_provenance": graph_train._git_provenance,
+    }
+
+    class _VaGenerator:
+        def generate(self, episode, config):
+            path = state["scen_dir"] / ("episode_%04d_scenario.json" % int(episode))
+            path.write_bytes(_va_known_only_bytes(int(episode), int(config.seed)))
+            calls.append({"kind": "generate", "tag": int(episode),
+                          "seed": int(config.seed)})
+            return path
+
+    def fake_build_generator(scen_dir):
+        state["scen_dir"] = Path(scen_dir)
+        state["scen_dir"].mkdir(parents=True, exist_ok=True)
+        return _VaGenerator()
+
+    def fake_setup_episode(scenario_json, **kwargs):
+        # The tag / seed the generator just recorded identify this attempt.
+        tag = calls[-1]["tag"]
+        seed = calls[-1]["seed"]
+        recording_path = kwargs.get("recording_export_path", "<absent>")
+        calls.append({"kind": "setup", "tag": tag, "seed": seed,
+                      "recording_kwarg_present": "recording_export_path" in kwargs,
+                      "recording_export_path": recording_path})
+        if seed in set(setup_error_seeds):
+            raise RuntimeError("stubbed exact-cardinality failure at seed %d" % seed)
+        export_error = (ValueError("stubbed export failure")
+                        if tag in set(export_error_tags) else None)
+        ctx = _reference_ctx(done={("ego_0", "k0"), ("ego_1", "h1")},
+                             exported=_va_executed_t0_object(tag, seed),
+                             export_error=export_error)
+        ctx.recording_export_path = (
+            None if recording_path == "<absent>" else recording_path)
+        ctx.tag = tag
+        return ctx
+
+    def fake_run_episode(policy, ctx, **kwargs):
+        # The locked tick-loop contract: a COMPLETED run exports the playback into the
+        # armed export path (and none at all when recording was never armed).
+        calls.append({"kind": "run", "tag": ctx.tag,
+                      "export_calls_before_run": ctx.game.export_calls})
+        if emit_recording and getattr(ctx, "recording_export_path", None):
+            out = Path(ctx.recording_export_path)
+            (out / ("episode_%04d Recording 000000 - 000100.jsonl" % ctx.tag)).write_text(
+                json.dumps({"tag": ctx.tag}) + "\n", encoding="utf-8")
+        # One wake, so a training iteration really runs an update and
+        # `updates_completed` advances -- the identity field the eval bundles carry.
+        return _FakeResult(confirmed_kills=2,
+                           trajectory=[_StubTransition("ego_0", 0)], n_wakes=1)
+
+    def fake_build_fuel_damage_controller(ctx, *, episode_seed, params):
+        calls.append({"kind": "fuel_damage_controller", "tag": ctx.tag,
+                      "export_calls_before_controller": ctx.game.export_calls})
+        return _VaFuelDamageController(
+            resolve_condition(episode_seed=int(episode_seed), params=params))
+
+    graph_train._git_provenance = lambda repo_root: dict(_FAKE_GIT_OK)
+    graph_train._build_generator = fake_build_generator
+    graph_train.setup_episode = fake_setup_episode
+    graph_train.run_episode = fake_run_episode
+    graph_train.compute_episode_reward = lambda *a, **k: _FakeReward()
+    graph_train.build_fuel_damage_controller = fake_build_fuel_damage_controller
+    graph_train.PPOUpdater = lambda policy, ppo: _RecordingUpdater(policy, ppo, log=[])
+    buf = io.StringIO()
+    summary = None
+    try:
+        with contextlib.redirect_stdout(buf):
+            summary = graph_train.train(cfg)
+    except BaseException as exc:  # noqa: BLE001 - the abort itself is under test
+        state["raised"] = exc
+    finally:
+        state["stdout"] = buf.getvalue()
+        for name, original in saved.items():
+            setattr(graph_train, name, original)
+    return summary, calls, state
+
+
+def _va_cfg(tmp_path: Path, *, name: str, visual_artifacts: bool, **kwargs) -> TrainConfig:
+    """A tiny 1x1 run with one held-out pair, so a full run has 4 attempts (2+1+... )."""
+    defaults = dict(
+        n_iterations=1, episodes_per_iteration=1, base_seed=0,
+        output_dir=tmp_path / name, eval_every=1, eval_episodes=1,
+        eval_base_seed=1_000_000, checkpoint_every=0,
+        visual_artifacts=visual_artifacts,
+    )
+    defaults.update(kwargs)
+    return TrainConfig(**defaults)
+
+
+def _va_bundles(run_dir: Path) -> list:
+    """Every attempt bundle under `<run_dir>/visual_artifacts`, sorted by name."""
+    root = Path(run_dir) / "visual_artifacts"
+    if not root.exists():
+        return []
+    return sorted((p for p in root.iterdir() if p.is_dir()), key=lambda p: p.name)
+
+
+def _va_manifest(bundle: Path) -> dict:
+    return json.loads((bundle / "artifact_manifest.json").read_text(encoding="utf-8"))
+
+
+# --- PO1: default OFF, at both surfaces and on the whole call path -------------
+
+def test_visual_artifacts_default_off_at_both_surfaces() -> None:
+    """PO1. The dataclass default and the CLI default are both OFF; the flag turns it on.
+
+    The CLI default is READ OFF `TrainConfig`, so this also guards the drift the other
+    CLI-default test guards for the scenario knobs.
+    """
+    assert TrainConfig(n_iterations=1).visual_artifacts is False
+
+    parser = _build_arg_parser()
+    off = parser.parse_args(["--iterations", "1"])
+    assert off.visual_artifacts is False
+    assert TrainConfig(n_iterations=1).visual_artifacts == off.visual_artifacts
+
+    on = parser.parse_args(["--iterations", "1", "--visual-artifacts"])
+    assert on.visual_artifacts is True
+
+
+def test_disabled_run_builds_no_bundle_and_no_directory(tmp_path: Path) -> None:
+    """PO1. Off means nothing is constructed: no identity, no directory, no files.
+
+    Driven through the stub trainer, which records the `artifacts` value the loop resolved
+    for every attempt -- so this asserts the ABSENCE at the call boundary, not merely that
+    no file happened to appear.
+    """
+    cfg = _va_cfg(tmp_path, name="off", visual_artifacts=False)
+    summary, events, _state = _run_stub_training(cfg)
+
+    episodes = [e for e in events if e[0] == "episode"]
+    assert episodes, "the stub run collected no attempts"
+    assert all(e[6] is False for e in episodes), \
+        "the disabled run passed an `artifacts` keyword at all"
+    assert all(e[5] is None for e in episodes), \
+        "the disabled run constructed an artifact bundle"
+    assert not (Path(cfg.output_dir) / "visual_artifacts").exists()
+    assert summary["n_iterations"] == cfg.n_iterations
+
+
+def test_disabled_run_passes_no_recording_path_and_never_exports(tmp_path: Path) -> None:
+    """PO1. `setup_episode` gets NO recording keyword and `export_scenario` is not called.
+
+    The strongest form of the claim: the keyword is ABSENT from the call, not present and
+    `None`, so the disabled path is the pre-feature call.
+    """
+    cfg = _va_cfg(tmp_path, name="off_body", visual_artifacts=False)
+    _summary, calls, state = _run_training_with_real_episode_body(cfg)
+    assert state["raised"] is None, state["raised"]
+
+    setups = [c for c in calls if c["kind"] == "setup"]
+    assert setups, "no episode reached setup"
+    assert all(c["recording_kwarg_present"] is False for c in setups), \
+        "the disabled path armed recording"
+    # `export_scenario` is only ever reached through the artifact layer, so the count
+    # observed by the controller (which runs after the export site) stays 0.
+    controllers = [c for c in calls if c["kind"] == "fuel_damage_controller"]
+    assert controllers and all(
+        c["export_calls_before_controller"] == 0 for c in controllers)
+    assert not (Path(cfg.output_dir) / "visual_artifacts").exists()
+
+
+def test_enabling_artifacts_changes_no_seed_tag_or_condition(tmp_path: Path) -> None:
+    """PO1/PO3. The schedule is identical with the feature on and off.
+
+    Same seeds, in the same order, under the same scenario tags, with the same forced
+    evaluation modes. Artifacts are an observation surface; if they moved any of these the
+    two runs would not be comparable at all.
+    """
+    def _schedule(name, enabled):
+        cfg = _va_cfg(tmp_path, name=name, visual_artifacts=enabled,
+                      n_iterations=2, episodes_per_iteration=2, eval_episodes=2)
+        _summary, events, _state = _run_stub_training(cfg)
+        return [(e[1], e[2], e[3], e[4]) for e in events if e[0] == "episode"]
+
+    assert _schedule("sched_off", False) == _schedule("sched_on", True)
+
+
+# --- PO2: fidelity of the three snapshots, and the identity that names them ----
+
+def test_enabled_attempt_preserves_all_three_snapshots(tmp_path: Path) -> None:
+    """PO2. One bundle per attempt, holding the exact three files and a complete manifest.
+
+    A 1x1 run with one held-out pair schedules four attempts: pre_update clean,
+    pre_update damaged, one training episode, post_update clean, post_update damaged --
+    covering every phase and both matched-pair members in one run.
+    """
+    cfg = _va_cfg(tmp_path, name="on", visual_artifacts=True)
+    _summary, calls, state = _run_training_with_real_episode_body(cfg)
+    assert state["raised"] is None, state["raised"]
+
+    run_dir = Path(cfg.output_dir)
+    bundles = _va_bundles(run_dir)
+    attempts = [c for c in calls if c["kind"] == "generate"]
+    assert len(bundles) == len(attempts) == 5, [b.name for b in bundles]
+
+    phases = sorted({_va_manifest(b)["identity"]["phase"] for b in bundles})
+    assert phases == ["post_update", "pre_update", "train"]
+
+    for bundle in bundles:
+        manifest = _va_manifest(bundle)
+        tag = manifest["identity"]["episode_tag"]
+        seed = manifest["identity"]["seed"]
+
+        assert manifest["status"] == "complete"
+        assert manifest["schema"] == "final_cell_visual_artifacts"
+        assert manifest["version"] == 1
+        assert manifest["source_episode_tag"] == tag
+
+        # 1. the generator's known-only world, BYTE for byte (3 targets).
+        known_only = bundle / manifest["known_only_scenario"]
+        assert manifest["known_only_scenario"] == "known_only_scenario.json"
+        assert known_only.read_bytes() == _va_known_only_bytes(tag, seed)
+        # ... and the run's own scenario file is untouched by the copy.
+        original = run_dir / "scenarios" / ("episode_%04d_scenario.json" % tag)
+        assert original.read_bytes() == known_only.read_bytes()
+
+        # 2. the AUTHORITATIVE executed world (6 targets), equal to what env-2 exported.
+        executed = bundle / manifest["executed_t0_scenario"]
+        assert manifest["executed_t0_scenario"] == "executed_t0_scenario.json"
+        assert json.loads(executed.read_text(encoding="utf-8")) == \
+            _va_executed_t0_object(tag, seed)
+        assert len(json.loads(executed.read_text(encoding="utf-8"))
+                   ["currentScenario"]["airbases"]) == 6
+
+        # 3. the BLADE playback the tick loop emitted into this bundle.
+        recordings = manifest["playback_recordings"]
+        assert recordings and all((bundle / r).exists() for r in recordings)
+        assert all(r.endswith(".jsonl") for r in recordings)
+        assert sorted(p.name for p in bundle.glob("*.jsonl")) == sorted(recordings)
+
+        # target-count expectations vs observations, both explicit.
+        assert manifest["targets"]["expected"] == {
+            "n_known": cfg.n_known, "n_hidden": cfg.n_hidden,
+            "n_targets_executed": cfg.n_targets_emitted}
+        assert manifest["targets"]["observed"]["n_known"] == 3
+        assert manifest["targets"]["observed"]["n_hidden"] == 3
+        assert manifest["targets"]["observed"]["n_targets_executed"] == 6
+
+
+def test_manifest_identity_places_every_phase_exactly(tmp_path: Path) -> None:
+    """PO2. Phase, iteration/update state, ordinals, seed, condition and tag are explicit.
+
+    Read from the manifests alone -- no console order, no directory order.
+    """
+    cfg = _va_cfg(tmp_path, name="identity", visual_artifacts=True)
+    _summary, _calls, state = _run_training_with_real_episode_body(cfg)
+    assert state["raised"] is None, state["raised"]
+
+    ids = {}
+    for bundle in _va_bundles(Path(cfg.output_dir)):
+        ident = _va_manifest(bundle)["identity"]
+        ids[(ident["phase"], ident["seed"], ident["condition"])] = ident
+
+    train_id = ids[("train", 0, resolve_condition(
+        episode_seed=0, params=cfg.fuel_damage_parameters()))]
+    assert train_id["iteration"] == 0
+    assert train_id["episode_index"] == 0
+    assert train_id["attempt_ordinal"] == 0
+    assert train_id["updates_completed"] == 0
+    assert train_id["episode_tag"] == 0
+    assert train_id["eval_round_ordinal"] is None
+    assert train_id["eval_episode_index"] is None
+    assert train_id["eval_pair_member"] is None
+
+    pre_clean = ids[("pre_update", 1_000_000, CONDITION_CLEAN)]
+    pre_damaged = ids[("pre_update", 1_000_000, CONDITION_DAMAGED)]
+    assert pre_clean["iteration"] is None and pre_clean["updates_completed"] == 0
+    assert (pre_clean["eval_round_ordinal"], pre_clean["eval_pair_member"]) == (0, 0)
+    assert (pre_damaged["eval_round_ordinal"], pre_damaged["eval_pair_member"]) == (0, 1)
+    assert pre_clean["eval_episode_index"] == pre_damaged["eval_episode_index"] == 0
+    assert pre_clean["attempt_ordinal"] == 0 and pre_damaged["attempt_ordinal"] == 1
+    assert pre_clean["episode_index"] is None
+
+    post_clean = ids[("post_update", 1_000_000, CONDITION_CLEAN)]
+    # The SAME held-out seed as the pre-update round, one round later -- the case that
+    # must not overwrite anything.
+    assert post_clean["eval_round_ordinal"] == 1
+    assert post_clean["updates_completed"] == 1
+    assert post_clean["iteration"] == 0
+    assert post_clean["episode_tag"] != pre_clean["episode_tag"]
+
+
+def test_one_seed_cannot_overwrite_another_bundle(tmp_path: Path) -> None:
+    """PO2. The same held-out seed x 2 members x 2 rounds gives FOUR distinct bundles.
+
+    This is the exact collision the eval tag namespace exists to prevent, now applied to
+    artifact directories: four attempts share one seed and one world, and each keeps its
+    own files.
+    """
+    cfg = _va_cfg(tmp_path, name="collide", visual_artifacts=True)
+    _summary, _calls, state = _run_training_with_real_episode_body(cfg)
+    assert state["raised"] is None, state["raised"]
+
+    eval_bundles = [b for b in _va_bundles(Path(cfg.output_dir))
+                    if _va_manifest(b)["identity"]["seed"] == 1_000_000]
+    assert len(eval_bundles) == 4
+    assert len({b.name for b in eval_bundles}) == 4
+    keys = {(m["phase"], m["eval_round_ordinal"], m["eval_pair_member"])
+            for m in (_va_manifest(b)["identity"] for b in eval_bundles)}
+    assert keys == {("pre_update", 0, 0), ("pre_update", 0, 1),
+                    ("post_update", 1, 0), ("post_update", 1, 1)}
+    # Every bundle really holds its own three artifacts (nothing was merged away).
+    for bundle in eval_bundles:
+        manifest = _va_manifest(bundle)
+        assert manifest["status"] == "complete"
+        assert (bundle / "known_only_scenario.json").exists()
+        assert (bundle / "executed_t0_scenario.json").exists()
+        assert manifest["playback_recordings"]
+
+
+def test_a_bundle_directory_collision_fails_loudly(tmp_path: Path) -> None:
+    """PO2. A pre-existing attempt directory RAISES; nothing is overwritten or merged."""
+    root = tmp_path / "artifacts"
+    identity = graph_train._AttemptIdentity(
+        phase="train", iteration=0, updates_completed=0, eval_round_ordinal=None,
+        eval_episode_index=None, eval_pair_member=None, attempt_ordinal=0,
+        episode_index=0, seed=0, condition=CONDITION_CLEAN, episode_tag=0,
+    )
+    first = graph_train._AttemptArtifacts(root=root, identity=identity).open()
+    (first.directory / "known_only_scenario.json").write_bytes(b"original")
+
+    second = graph_train._AttemptArtifacts(root=root, identity=identity)
+    try:
+        second.open()
+    except graph_train._VisualArtifactError as exc:
+        assert "already exists" in str(exc)
+    else:
+        raise AssertionError("a colliding bundle directory was accepted")
+    assert (first.directory / "known_only_scenario.json").read_bytes() == b"original"
+
+
+def test_export_happens_before_the_controller_and_exactly_once(tmp_path: Path) -> None:
+    """PO2/PO3. `export_scenario()` runs ONCE, before the FD controller and the run.
+
+    The controller is what plans (and therefore can fire) the fuel-damage mutation, so
+    "before the controller exists" is also "before the top-of-tick mutation, before any
+    policy decision and before any env.step".
+    """
+    cfg = _va_cfg(tmp_path, name="order", visual_artifacts=True)
+    _summary, calls, state = _run_training_with_real_episode_body(cfg)
+    assert state["raised"] is None, state["raised"]
+
+    controllers = [c for c in calls if c["kind"] == "fuel_damage_controller"]
+    runs = [c for c in calls if c["kind"] == "run"]
+    assert controllers and runs
+    assert all(c["export_calls_before_controller"] == 1 for c in controllers), \
+        "the executed t=0 scenario was not exported exactly once before the controller"
+    assert all(c["export_calls_before_run"] == 1 for c in runs)
+
+    # Ordering in the call log itself: setup -> controller -> run, per attempt.
+    kinds = [c["kind"] for c in calls]
+    assert kinds == ["generate", "setup", "fuel_damage_controller", "run"] * len(runs)
+
+
+def test_recording_is_armed_only_on_the_bundle_directory(tmp_path: Path) -> None:
+    """PO2. Recording is armed through `setup_episode`, at the attempt's own directory."""
+    cfg = _va_cfg(tmp_path, name="armed", visual_artifacts=True)
+    _summary, calls, state = _run_training_with_real_episode_body(cfg)
+    assert state["raised"] is None, state["raised"]
+
+    root = Path(cfg.output_dir) / "visual_artifacts"
+    setups = [c for c in calls if c["kind"] == "setup"]
+    assert setups and all(c["recording_kwarg_present"] for c in setups)
+    armed = [Path(c["recording_export_path"]) for c in setups]
+    assert len(armed) == len({str(p) for p in armed}), "two attempts shared a directory"
+    assert all(p.parent == root for p in armed)
+    assert {p.name for p in armed} == {b.name for b in _va_bundles(Path(cfg.output_dir))}
+
+
+# --- PO3: observational isolation, and honest failure routing ------------------
+
+def test_artifacts_change_no_outcome_record_or_ppo_input(tmp_path: Path) -> None:
+    """PO3. An enabled run and a disabled run produce identical scientific records.
+
+    Same seeds, tags, conditions, rewards, wake counts, target counts, meta-action mixes,
+    endings, failure accounting and PPO batch shapes. Only the wall-clock fields and the
+    run directory legitimately differ.
+    """
+    def _run(name, enabled):
+        cfg = _va_cfg(tmp_path, name=name, visual_artifacts=enabled,
+                      n_iterations=2, episodes_per_iteration=2, eval_episodes=1)
+        _summary, calls, state = _run_training_with_real_episode_body(cfg)
+        assert state["raised"] is None, state["raised"]
+        run_dir = Path(cfg.output_dir)
+        return (
+            _comparable_records(_read_records(run_dir, "train_records.jsonl")),
+            _comparable_records(_read_records(run_dir, "eval_records.jsonl")),
+            _read_records(run_dir, "episode_failures.jsonl"),
+            [(c["kind"], c.get("tag"), c.get("seed")) for c in calls],
+            run_dir,
+        )
+
+    off_train, off_eval, off_fail, off_calls, off_dir = _run("iso_off", False)
+    on_train, on_eval, on_fail, on_calls, on_dir = _run("iso_on", True)
+
+    assert off_train == on_train
+    assert off_eval == on_eval
+    assert off_fail == on_fail == []
+    assert off_calls == on_calls
+    assert not (off_dir / "visual_artifacts").exists()
+    assert _va_bundles(on_dir), "the enabled run wrote no bundles"
+
+
+def test_a_normal_episode_failure_stays_scientific_and_leaves_an_incomplete_bundle(
+    tmp_path: Path,
+) -> None:
+    """PO3. A `setup` failure is accounted as before; its bundle stays `incomplete`.
+
+    The pre-failure artifact that WAS valid (the known-only scenario) is kept, the two
+    that could not exist are absent, and no recording is fabricated -- the tick loop
+    exports none when the loop never ran.
+    """
+    cfg = _va_cfg(tmp_path, name="epfail", visual_artifacts=True,
+                  n_iterations=1, episodes_per_iteration=1, eval_every=0,
+                  eval_episodes=0)
+    _summary, _calls, state = _run_training_with_real_episode_body(
+        cfg, setup_error_seeds=(0,))
+    assert state["raised"] is None, state["raised"]
+
+    run_dir = Path(cfg.output_dir)
+    ledger = _read_records(run_dir, "episode_failures.jsonl")
+    assert len(ledger) == 1
+    assert ledger[0]["pipeline_stage"] == "setup"
+    assert ledger[0]["pipeline_stage"] in _PIPELINE_STAGES
+    assert ledger[0]["seed"] == 0 and ledger[0]["phase"] == "train"
+
+    bundles = _va_bundles(run_dir)
+    assert len(bundles) == 1
+    manifest = _va_manifest(bundles[0])
+    assert manifest["status"] == "incomplete"
+    assert manifest["known_only_scenario"] == "known_only_scenario.json"
+    assert (bundles[0] / "known_only_scenario.json").exists()
+    assert manifest["executed_t0_scenario"] is None
+    assert manifest["playback_recordings"] == []
+    assert not list(bundles[0].glob("*.jsonl")), "a recording was fabricated"
+
+
+def test_an_artifact_failure_aborts_and_never_enters_the_ledger(tmp_path: Path) -> None:
+    """PO3. An artifact failure raises `_VisualArtifactError` and stops the run.
+
+    It must not be written as a `generation` / `setup` / `run` / `reward` failure, must
+    not enter `skip_and_account_v1`, and therefore cannot shrink a scientific denominator
+    by masquerading as an episode failure.
+    """
+    # The FIRST attempt of a run with eval enabled is a pre_update member (tag 900000),
+    # so this exercises the eval handler's re-raise.
+    cfg = _va_cfg(tmp_path, name="artfail_eval", visual_artifacts=True)
+    _summary, _calls, state = _run_training_with_real_episode_body(
+        cfg, export_error_tags=(900_000,))
+    assert isinstance(state["raised"], graph_train._VisualArtifactError), state["raised"]
+    assert not isinstance(state["raised"], EpisodeAttemptError)
+    assert _read_records(Path(cfg.output_dir), "episode_failures.jsonl") == []
+
+    # And the training handler's re-raise, on the training tag.
+    cfg2 = _va_cfg(tmp_path, name="artfail_train", visual_artifacts=True,
+                   eval_every=0, eval_episodes=0)
+    _summary2, _calls2, state2 = _run_training_with_real_episode_body(
+        cfg2, export_error_tags=(0,))
+    assert isinstance(state2["raised"], graph_train._VisualArtifactError), state2["raised"]
+    assert _read_records(Path(cfg2.output_dir), "episode_failures.jsonl") == []
+
+
+def test_a_missing_recording_is_an_artifact_failure_not_a_silent_pass(
+    tmp_path: Path,
+) -> None:
+    """PO3. A completed episode with no playback file aborts; the bundle stays incomplete.
+
+    A bundle without a recording is not the deliverable, and reporting it as `complete`
+    would let a probe finish with un-inspectable episodes.
+    """
+    cfg = _va_cfg(tmp_path, name="norec", visual_artifacts=True,
+                  eval_every=0, eval_episodes=0)
+    _summary, _calls, state = _run_training_with_real_episode_body(
+        cfg, emit_recording=False)
+    assert isinstance(state["raised"], graph_train._VisualArtifactError), state["raised"]
+    assert "no BLADE playback" in str(state["raised"])
+    assert _read_records(Path(cfg.output_dir), "episode_failures.jsonl") == []
+    manifest = _va_manifest(_va_bundles(Path(cfg.output_dir))[0])
+    assert manifest["status"] == "incomplete"
+
+
+def test_run_config_records_the_resolved_visual_artifacts_flag(tmp_path: Path) -> None:
+    """PO1/PO2. The resolved flag is in `run_config.json` through the existing path."""
+    for enabled in (False, True):
+        run_dir = tmp_path / ("cfg_%s" % enabled)
+        run_dir.mkdir()
+        cfg = TrainConfig(n_iterations=1, output_dir=run_dir,
+                          visual_artifacts=enabled)
+        path = write_run_config(run_dir, cfg, provenance={"stub": True})
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert payload["train_config"]["visual_artifacts"] is enabled
+
+
+def test_an_attempt_identity_cannot_omit_what_names_it() -> None:
+    """PO2. An identity that could not distinguish its attempt is refused outright."""
+    base = dict(phase="train", iteration=0, updates_completed=0,
+                eval_round_ordinal=None, eval_episode_index=None,
+                eval_pair_member=None, attempt_ordinal=0, episode_index=0,
+                seed=0, condition=CONDITION_CLEAN, episode_tag=0)
+    graph_train._AttemptIdentity(**base)          # the complete form is accepted
+
+    for field_name in ("iteration", "episode_index"):
+        broken = dict(base, **{field_name: None})
+        try:
+            graph_train._AttemptIdentity(**broken)
+        except ValueError as exc:
+            assert field_name in str(exc)
+        else:
+            raise AssertionError("a train identity without %s was accepted" % field_name)
+
+    eval_base = dict(base, phase="pre_update", iteration=None, episode_index=None,
+                     eval_round_ordinal=0, eval_episode_index=0, eval_pair_member=0,
+                     episode_tag=900_000)
+    graph_train._AttemptIdentity(**eval_base)
+    for field_name in ("eval_round_ordinal", "eval_episode_index", "eval_pair_member"):
+        broken = dict(eval_base, **{field_name: None})
+        try:
+            graph_train._AttemptIdentity(**broken)
+        except ValueError as exc:
+            assert field_name in str(exc)
+        else:
+            raise AssertionError("an eval identity without %s was accepted" % field_name)
+
+    try:
+        graph_train._AttemptIdentity(**dict(base, phase="not_a_phase"))
+    except ValueError as exc:
+        assert "phase" in str(exc)
+    else:
+        raise AssertionError("an unknown artifact phase was accepted")
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -3117,6 +3817,40 @@ if __name__ == "__main__":
          test_plot_renders_the_four_panel_figure_from_jsonl, True),
         ("plot_still_renders_pre_b4_records",
          test_plot_still_renders_pre_b4_records, True),
+        # --- T15: the opt-in visual-artifact bundles (PO1 / PO2 / PO3) ---
+        ("visual_artifacts_default_off_at_both_surfaces",
+         test_visual_artifacts_default_off_at_both_surfaces, False),
+        ("disabled_run_builds_no_bundle_and_no_directory",
+         test_disabled_run_builds_no_bundle_and_no_directory, True),
+        ("disabled_run_passes_no_recording_path_and_never_exports",
+         test_disabled_run_passes_no_recording_path_and_never_exports, True),
+        ("enabling_artifacts_changes_no_seed_tag_or_condition",
+         test_enabling_artifacts_changes_no_seed_tag_or_condition, True),
+        ("enabled_attempt_preserves_all_three_snapshots",
+         test_enabled_attempt_preserves_all_three_snapshots, True),
+        ("manifest_identity_places_every_phase_exactly",
+         test_manifest_identity_places_every_phase_exactly, True),
+        ("one_seed_cannot_overwrite_another_bundle",
+         test_one_seed_cannot_overwrite_another_bundle, True),
+        ("a_bundle_directory_collision_fails_loudly",
+         test_a_bundle_directory_collision_fails_loudly, True),
+        ("export_happens_before_the_controller_and_exactly_once",
+         test_export_happens_before_the_controller_and_exactly_once, True),
+        ("recording_is_armed_only_on_the_bundle_directory",
+         test_recording_is_armed_only_on_the_bundle_directory, True),
+        ("artifacts_change_no_outcome_record_or_ppo_input",
+         test_artifacts_change_no_outcome_record_or_ppo_input, True),
+        ("a_normal_episode_failure_stays_scientific_and_leaves_an_incomplete_bundle",
+         test_a_normal_episode_failure_stays_scientific_and_leaves_an_incomplete_bundle,
+         True),
+        ("an_artifact_failure_aborts_and_never_enters_the_ledger",
+         test_an_artifact_failure_aborts_and_never_enters_the_ledger, True),
+        ("a_missing_recording_is_an_artifact_failure_not_a_silent_pass",
+         test_a_missing_recording_is_an_artifact_failure_not_a_silent_pass, True),
+        ("run_config_records_the_resolved_visual_artifacts_flag",
+         test_run_config_records_the_resolved_visual_artifacts_flag, True),
+        ("an_attempt_identity_cannot_omit_what_names_it",
+         test_an_attempt_identity_cannot_omit_what_names_it, False),
     ]
     for name, fn, needs_tmp in tests:
         try:

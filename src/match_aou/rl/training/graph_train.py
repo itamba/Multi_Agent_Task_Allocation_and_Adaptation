@@ -165,6 +165,24 @@ a console scrollback:
   * ``run_summary.json``       -- derived from the three jsonl files at completion.
   * ``training_plot.png``      -- 4 panels, derived from the jsonl files alone.
 
+VISUAL ARTIFACTS (opt-in: ``--visual-artifacts`` / ``TrainConfig.visual_artifacts``)
+------------------------------------------------------------------------------------
+OFF by default, and off is byte-unchanged. When enabled, every scheduled ``pre_update`` /
+``train`` / ``post_update`` attempt preserves an inspection bundle under
+``<run_dir>/visual_artifacts/<attempt>/``: the exact generated KNOWN-ONLY scenario, the
+AUTHORITATIVE executed t=0 scenario (``Game.export_scenario()`` off the env-2 game, taken
+before the fuel-damage controller exists and therefore before the first tick), the BLADE
+playback recording, and an ``artifact_manifest.json`` that states the attempt's phase,
+iteration, update count, ordinals, exact seed, scheduled condition and scenario tag
+explicitly. That is what makes a finished probe openable in PyCharm and in the BLADE
+client instead of only readable as numbers.
+
+It is OBSERVATION, not measurement: nothing captured is read back, no seed / tag /
+scenario name / RNG draw changes, recording is armed only through the locked
+``setup_episode(recording_export_path=...)`` seam and driven only by ``run_episode``, and
+a capture failure raises ``_VisualArtifactError`` -- infrastructure, aborting the run --
+rather than entering the scientific failure ledger. See section 3e.
+
 EXACT-CARDINALITY FAILURES: SKIP AND ACCOUNT (``skip_and_account_v1``)
 ---------------------------------------------------------------------
 B2's locked contract places one hidden target per non-empty ego route and B3 requires
@@ -353,6 +371,34 @@ _EVAL_PAIR_SIZE = len(_EVAL_PAIR_MEMBERS)
 # them into the summary would create a second, divergeable metric path.
 _SUMMARY_RECORD_KEYS = ("train_records", "eval_records", "failure_records")
 
+# --- VISUAL ARTIFACTS (opt-in, OFF by default) --------------------------------
+# One directory per SELECTED attempt under `<run_dir>/visual_artifacts/`, holding the
+# exact generated known-only scenario, the authoritative executed t=0 scenario, the BLADE
+# playback recording, and a manifest stating the attempt's identity explicitly.
+_VISUAL_ARTIFACTS_DIRNAME = "visual_artifacts"
+_ARTIFACT_KNOWN_ONLY_SCENARIO = "known_only_scenario.json"
+_ARTIFACT_EXECUTED_T0_SCENARIO = "executed_t0_scenario.json"
+_ARTIFACT_MANIFEST = "artifact_manifest.json"
+
+# The playback recorder writes `<scenario name> Recording <start> - <end>.jsonl` into the
+# export path it was armed with. The manifest lists whatever it produced -- a plural, so a
+# recorder that ever splits a long recording into chunks is recorded as chunks, not as a
+# single file that silently lost its tail.
+_ARTIFACT_RECORDING_GLOB = "*.jsonl"
+
+_ARTIFACT_MANIFEST_SCHEMA = "final_cell_visual_artifacts"
+_ARTIFACT_MANIFEST_VERSION = 1
+_ARTIFACT_STATUS_INCOMPLETE = "incomplete"
+_ARTIFACT_STATUS_COMPLETE = "complete"
+
+# This module's own name for a scheduled TRAINING attempt. The other two artifact phases
+# are the existing evaluation STAGE names, so a manifest's `phase` and an eval record's
+# `evaluation_stage` are literally the same string.
+_ARTIFACT_PHASE_TRAIN = "train"
+_ARTIFACT_PHASES = (
+    _EVAL_STAGE_PRE_UPDATE, _ARTIFACT_PHASE_TRAIN, _EVAL_STAGE_POST_UPDATE,
+)
+
 
 
 # =============================================================================
@@ -447,6 +493,9 @@ class TrainConfig:
         max_ticks: per-episode tick cap (``None`` -> the env's own ``MAX_SIM_TICKS``).
         include_sams / randomize_red_airbase_positions / stretch_target_ratio:
             generator knobs, live on the construction path.
+        visual_artifacts: opt in to per-attempt inspection bundles (OFF by default). See
+            :class:`_AttemptArtifacts`; it is an observation surface and changes nothing
+            an episode measures.
         num_red_airbases: LEGACY, like ``partial_ratio`` -- the construction path emits
             ``n_known`` targets and never reads this.
     """
@@ -512,6 +561,17 @@ class TrainConfig:
     # net-negative and RTB strictly beats suicide-on-best. Passed as an explicit
     # `RewardConfig` at the reward call site rather than by mutating a shared default.
     aircraft_penalty_coeff: float = 2.25
+
+    # --- VISUAL ARTIFACTS: opt-in inspection bundles, OFF by default --------------
+    # Purely additive OBSERVATION. When True, every scheduled `pre_update` / `train` /
+    # `post_update` attempt preserves the exact generated known-only scenario, the
+    # authoritative executed t=0 scenario and the BLADE playback recording in its own
+    # directory under `<run_dir>/visual_artifacts/`, so a finished run can be re-opened in
+    # PyCharm and in the BLADE client. It selects EVERY scheduled attempt -- there is
+    # deliberately no per-seed filter, which would be a second artifact-selection language
+    # next to the seed schedule. It changes no seed, no scenario tag, no scenario name and
+    # no episode outcome (see `_AttemptArtifacts`).
+    visual_artifacts: bool = False
 
     # --- LEGACY split surface (see `derived_split`) -------------------------------
     # The Phase-A baseline cell, kept so `derived_split` / `split_preview` / the
@@ -1878,6 +1938,357 @@ def _format_episode_block(header: str, out: "_EpisodeOutcome") -> str:
 
 
 # =============================================================================
+# 3e. Visual artifacts -- one inspectable bundle per selected attempt
+# =============================================================================
+#
+# WHAT THIS IS FOR. A finished scientific probe is a directory of numbers. To LOOK at an
+# episode afterwards -- in PyCharm and in the BLADE client -- three files have to survive
+# it, and each of them exists for only a moment inside `_run_one_episode`:
+#
+#   1. the exact generated KNOWN-ONLY scenario (three targets), which the construction
+#      path immediately supersedes;
+#   2. the AUTHORITATIVE EXECUTED t=0 scenario (six targets), which exists only as the
+#      live env-2 game object -- `build_patched_scenario`'s intermediate JSON, the
+#      placement audit, the beliefs and the oracle tasks are all DERIVED views and none of
+#      them is what the engine actually loaded;
+#   3. the BLADE playback recording of the run.
+#
+# WHAT THIS IS NOT. It is not a second measurement path. Nothing here is read back into
+# the pipeline: the copies are writes, `Game.export_scenario()` is a read-only serializer
+# the engine already exposes, and the recording is produced by the LOCKED tick-loop
+# contract (armed by `setup_episode(recording_export_path=...)`, started / stepped /
+# exported by `run_episode`) which is proven observationally pure. This layer calls no
+# recorder internals and holds no randomness -- every name it derives comes from metadata
+# the schedule had already resolved -- so an artifact-enabled attempt runs the same
+# episode as the disabled one.
+#
+# FAILURES ARE INFRASTRUCTURE, NOT SCIENCE. A full disk or an unserializable export says
+# nothing about the cell; counting it as an episode failure would put it in
+# `episode_failures.jsonl` under a pipeline stage it did not happen in, and silently move
+# the denominator every per-condition statistic is reported over. So it raises
+# `_VisualArtifactError`, which the train and eval attempt handlers re-raise BEFORE their
+# broad `except Exception`, and the run stops loudly. A normal EPISODE failure is
+# unaffected: it stays in `skip_and_account_v1` and simply leaves an `incomplete` bundle
+# holding whichever pre-failure artifacts were valid.
+
+class _VisualArtifactError(RuntimeError):
+    """A visual-artifact capture failed -- an INFRASTRUCTURE failure, never a scientific one.
+
+    Deliberately NOT an :class:`EpisodeAttemptError`: it carries no pipeline stage,
+    because it did not happen in one. It must never be appended to the failure ledger,
+    never counted against a condition, and never skipped -- it aborts the run.
+    """
+
+
+@dataclass(frozen=True)
+class _AttemptIdentity:
+    """Exactly which scheduled attempt a bundle belongs to.
+
+    Frozen and complete: the manifest must place an attempt WITHOUT anyone reading the
+    console in order, so every discriminator the schedule used is carried explicitly
+    rather than being implied by directory order or by a compact name.
+
+    Attributes:
+        phase: ``pre_update`` / ``train`` / ``post_update`` (:data:`_ARTIFACT_PHASES`).
+        iteration: the zero-based training iteration, or ``None`` for the pre-update
+            round (no training iteration has happened yet).
+        updates_completed: PPO updates that had really run when the attempt started --
+            the learning axis, and what stops a post-update bundle from being read as
+            "iteration 0".
+        eval_round_ordinal / eval_episode_index / eval_pair_member: the evaluation
+            coordinates; ``None`` on a training attempt. The member is the matched
+            clean/damaged slot, so the two members of one held-out seed are distinct.
+        attempt_ordinal: the position in the phase's schedule (``j`` for training,
+            ``e * 2 + member`` for evaluation) -- the same ordinal the failure ledger
+            records.
+        episode_index: the run-wide training episode index ``g``; ``None`` for evaluation.
+        seed: the exact episode seed.
+        condition: the SCHEDULED fuel-damage condition (``clean`` / ``damaged``).
+        episode_tag: the exact scenario tag the generator was called with -- the link from
+            this bundle back to the run's own ``scenarios/episode_<tag>_scenario.json``.
+    """
+
+    phase: str
+    iteration: Optional[int]
+    updates_completed: int
+    eval_round_ordinal: Optional[int]
+    eval_episode_index: Optional[int]
+    eval_pair_member: Optional[int]
+    attempt_ordinal: int
+    episode_index: Optional[int]
+    seed: int
+    condition: str
+    episode_tag: int
+
+    def __post_init__(self) -> None:
+        if self.phase not in _ARTIFACT_PHASES:
+            raise ValueError(
+                "artifact phase must be one of %r, got %r"
+                % (list(_ARTIFACT_PHASES), self.phase)
+            )
+        if self.phase == _ARTIFACT_PHASE_TRAIN:
+            missing = [name for name in ("iteration", "episode_index")
+                       if getattr(self, name) is None]
+        else:
+            missing = [name for name in ("eval_round_ordinal", "eval_episode_index",
+                                         "eval_pair_member")
+                       if getattr(self, name) is None]
+        if missing:
+            raise ValueError(
+                "a %r attempt identity is missing %s: a bundle that cannot say which "
+                "attempt it is cannot be told apart from another one"
+                % (self.phase, ", ".join(missing))
+            )
+
+    @property
+    def directory_name(self) -> str:
+        """The bundle's directory name -- compact, sortable, and unique by construction.
+
+        Uniqueness comes from ``episode_tag``, which is already globally unique across a
+        run: training attempts are tagged by ``g`` and every eval round/member owns its
+        own disjoint tag slot (:func:`eval_member_tag`). The remaining fields are there to
+        be READABLE at a glance; the manifest, not this name, is the record.
+        """
+        if self.phase == _ARTIFACT_PHASE_TRAIN:
+            return "train_iter%04d_ep%06d_seed%d_%s_tag%06d" % (
+                int(self.iteration), int(self.episode_index), int(self.seed),
+                str(self.condition), int(self.episode_tag),
+            )
+        return "%s_r%03d_e%03d_m%d_seed%d_%s_tag%06d" % (
+            str(self.phase), int(self.eval_round_ordinal),
+            int(self.eval_episode_index), int(self.eval_pair_member),
+            int(self.seed), str(self.condition), int(self.episode_tag),
+        )
+
+    def to_record(self) -> Dict[str, Any]:
+        """Every field, explicitly, for the manifest."""
+        return {
+            "phase": str(self.phase),
+            "iteration": None if self.iteration is None else int(self.iteration),
+            "updates_completed": int(self.updates_completed),
+            "eval_round_ordinal": (
+                None if self.eval_round_ordinal is None
+                else int(self.eval_round_ordinal)),
+            "eval_episode_index": (
+                None if self.eval_episode_index is None
+                else int(self.eval_episode_index)),
+            "eval_pair_member": (
+                None if self.eval_pair_member is None else int(self.eval_pair_member)),
+            "attempt_ordinal": int(self.attempt_ordinal),
+            "episode_index": (
+                None if self.episode_index is None else int(self.episode_index)),
+            "seed": int(self.seed),
+            "condition": str(self.condition),
+            "episode_tag": int(self.episode_tag),
+        }
+
+
+class _AttemptArtifacts:
+    """The bundle of ONE selected attempt: its directory, its files and its manifest.
+
+    Lifecycle, in the order ``_run_one_episode`` drives it:
+
+      ``open()``                       -- claim the directory (a collision RAISES) and
+                                          write the ``incomplete`` manifest;
+      ``capture_known_only_scenario()``-- copy the generator's file BYTES;
+      ``capture_executed_t0_scenario()``- serialize ``Game.export_scenario()`` from the
+                                          authoritative env-2 game, before the fuel-damage
+                                          controller exists and before the first tick;
+      (the tick loop writes the playback recording into this same directory)
+      ``finalize()``                   -- require the recording, record the target counts,
+                                          and mark the manifest ``complete``.
+
+    The manifest is rewritten after every step, so an attempt that dies mid-way leaves a
+    truthful ``incomplete`` record of exactly what had been captured -- never a fabricated
+    one. Only a ``complete`` manifest whose files exist may be read as a full bundle.
+    """
+
+    def __init__(self, *, root: Union[str, Path], identity: _AttemptIdentity) -> None:
+        self.root = Path(root)
+        self.identity = identity
+        self.directory = self.root / identity.directory_name
+        self._known_only: Optional[str] = None
+        self._executed_t0: Optional[str] = None
+        self._recordings: Tuple[str, ...] = ()
+        self._targets: Dict[str, Any] = {}
+        self._status = _ARTIFACT_STATUS_INCOMPLETE
+
+    # ------------------------------------------------------------------
+    @property
+    def recording_export_path(self) -> str:
+        """Where the tick loop's recorder writes -- this bundle's own directory.
+
+        Handed to ``setup_episode(recording_export_path=...)``, which is the ONLY way
+        recording is armed. Nothing here touches the recorder itself.
+        """
+        return str(self.directory)
+
+    def open(self) -> "_AttemptArtifacts":
+        """Create the attempt directory and write the initial ``incomplete`` manifest.
+
+        ``exist_ok=False`` on purpose: two attempts sharing a directory would interleave
+        two episodes' scenarios and recordings into one unreadable bundle. The tag makes
+        that impossible by construction, so a collision means an assumption broke and it
+        must fail LOUDLY rather than merge or overwrite.
+        """
+        try:
+            self.root.mkdir(parents=True, exist_ok=True)
+            self.directory.mkdir(parents=False, exist_ok=False)
+        except FileExistsError as exc:
+            raise _VisualArtifactError(
+                "visual artifacts: %s already exists -- two attempts would share one "
+                "bundle. Nothing was overwritten." % str(self.directory)
+            ) from exc
+        except OSError as exc:
+            raise _VisualArtifactError(
+                "visual artifacts: could not create %s: %s"
+                % (str(self.directory), exc)
+            ) from exc
+        self._write_manifest()
+        return self
+
+    def capture_known_only_scenario(self, scenario_path: Union[str, Path]) -> None:
+        """Preserve the generator's known-only scenario as EXACT BYTES.
+
+        A copy, not a re-serialization: normalizing, reformatting or rebuilding it from
+        tasks would produce a file that is not the one the run generated. The original
+        under ``<run_dir>/scenarios`` is left untouched.
+        """
+        try:
+            payload = Path(str(scenario_path)).read_bytes()
+            (self.directory / _ARTIFACT_KNOWN_ONLY_SCENARIO).write_bytes(payload)
+        except OSError as exc:
+            raise _VisualArtifactError(
+                "visual artifacts: could not preserve the known-only scenario %s in %s: %s"
+                % (str(scenario_path), str(self.directory), exc)
+            ) from exc
+        self._known_only = _ARTIFACT_KNOWN_ONLY_SCENARIO
+        self._write_manifest()
+
+    def capture_executed_t0_scenario(self, game: Any) -> None:
+        """Serialize the AUTHORITATIVE executed world at t=0, straight off the engine.
+
+        ``Game.export_scenario()`` is the client-loadable wrapper the engine already
+        exposes, and env-2 is the sole runtime source of truth (B3), so this is the only
+        thing that is the six-target world the episode really runs. Called EXACTLY ONCE
+        per bundle, before the fuel-damage controller is built and therefore before the
+        top-of-tick mutation, any policy decision and any ``env.step``.
+
+        Read-only: the returned object is serialized and dropped. It is never modified and
+        never fed back into execution.
+        """
+        try:
+            exported = game.export_scenario()
+        except Exception as exc:  # noqa: BLE001 - an artifact read must not be a stage
+            raise _VisualArtifactError(
+                "visual artifacts: Game.export_scenario() failed for %s: %s: %s"
+                % (str(self.directory), type(exc).__name__, exc)
+            ) from exc
+        try:
+            with open(self.directory / _ARTIFACT_EXECUTED_T0_SCENARIO, "w",
+                      encoding="utf-8") as fh:
+                json.dump(exported, fh, indent=2)
+        except (OSError, TypeError, ValueError) as exc:
+            raise _VisualArtifactError(
+                "visual artifacts: could not write the executed t=0 scenario in %s: %s"
+                % (str(self.directory), exc)
+            ) from exc
+        self._executed_t0 = _ARTIFACT_EXECUTED_T0_SCENARIO
+        self._write_manifest()
+
+    def finalize(self, *, expected: Dict[str, int], observed: Dict[str, int]) -> None:
+        """Require the complete bundle and mark the manifest ``complete``.
+
+        The recording is REQUIRED here and not fabricated anywhere: the tick-loop contract
+        exports one on every completed run and none when the loop raised, so a successful
+        attempt with no playback file means recording was not really armed -- an
+        infrastructure fault, not a quiet omission.
+        """
+        missing = [name for name, value in (
+            (_ARTIFACT_KNOWN_ONLY_SCENARIO, self._known_only),
+            (_ARTIFACT_EXECUTED_T0_SCENARIO, self._executed_t0),
+        ) if value is None]
+        if missing:
+            raise _VisualArtifactError(
+                "visual artifacts: %s was never captured for %s"
+                % (", ".join(missing), str(self.directory))
+            )
+        try:
+            recordings = sorted(
+                p.name for p in self.directory.glob(_ARTIFACT_RECORDING_GLOB)
+            )
+        except OSError as exc:
+            raise _VisualArtifactError(
+                "visual artifacts: could not list %s: %s" % (str(self.directory), exc)
+            ) from exc
+        if not recordings:
+            raise _VisualArtifactError(
+                "visual artifacts: the episode completed but no BLADE playback %s was "
+                "written to %s -- recording was not armed on the executed environment."
+                % (_ARTIFACT_RECORDING_GLOB, str(self.directory))
+            )
+        self._recordings = tuple(recordings)
+        self._targets = {
+            "expected": {k: int(v) for k, v in dict(expected).items()},
+            "observed": {k: int(v) for k, v in dict(observed).items()},
+        }
+        self._status = _ARTIFACT_STATUS_COMPLETE
+        self._write_manifest()
+
+    # ------------------------------------------------------------------
+    def to_manifest(self) -> Dict[str, Any]:
+        """The manifest as a dict (the same object that is written to disk)."""
+        return {
+            "schema": _ARTIFACT_MANIFEST_SCHEMA,
+            "version": _ARTIFACT_MANIFEST_VERSION,
+            "status": str(self._status),
+            "identity": self.identity.to_record(),
+            # Restated at the top level as well: an operator matching a bundle against
+            # `<run_dir>/scenarios/episode_<tag>_scenario.json` should not have to know
+            # where inside the identity block the tag lives.
+            "source_episode_tag": int(self.identity.episode_tag),
+            "known_only_scenario": self._known_only,
+            "executed_t0_scenario": self._executed_t0,
+            "playback_recordings": list(self._recordings),
+            "targets": dict(self._targets),
+        }
+
+    def _write_manifest(self) -> None:
+        try:
+            with open(self.directory / _ARTIFACT_MANIFEST, "w", encoding="utf-8") as fh:
+                json.dump(self.to_manifest(), fh, indent=2)
+        except (OSError, TypeError, ValueError) as exc:
+            raise _VisualArtifactError(
+                "visual artifacts: could not write %s in %s: %s"
+                % (_ARTIFACT_MANIFEST, str(self.directory), exc)
+            ) from exc
+
+
+def _recording_kwargs(artifacts: Optional[_AttemptArtifacts]) -> Dict[str, Any]:
+    """``setup_episode``'s recording keyword -- or NOTHING at all when artifacts are off.
+
+    Not ``{"recording_export_path": None}``: the OFF path must call ``setup_episode``
+    exactly as it did before this feature existed, so the keyword is absent rather than
+    present-and-empty.
+    """
+    if artifacts is None:
+        return {}
+    return {"recording_export_path": artifacts.recording_export_path}
+
+
+def _artifact_kwargs(artifacts: Optional[_AttemptArtifacts]) -> Dict[str, Any]:
+    """``_run_one_episode``'s artifact keyword -- or NOTHING when the run did not opt in.
+
+    Same rule as :func:`_recording_kwargs`, one level up: a run with artifacts off calls
+    ``_run_one_episode`` with exactly the arguments it did before this feature existed,
+    rather than with a new keyword carrying ``None``.
+    """
+    if artifacts is None:
+        return {}
+    return {"artifacts": artifacts}
+
+
+# =============================================================================
 # 4. One episode (shared by training and evaluation)
 # =============================================================================
 
@@ -1949,6 +2360,7 @@ def _run_one_episode(
     episode_tag: int,
     deterministic: bool,
     fuel_damage_mode: Optional[str] = None,
+    artifacts: Optional[_AttemptArtifacts] = None,
 ) -> _EpisodeOutcome:
     """Generate -> setup -> run -> reward for ONE episode; always closes its env.
 
@@ -1993,10 +2405,27 @@ def _run_one_episode(
     population every per-condition statistic is reported over. A FORCED-CLEAN member
     computes no window at all and therefore cannot fail for this reason -- the two members
     of a pair fail independently or not at all.
+
+    VISUAL ARTIFACTS. ``artifacts`` is ``None`` unless the run opted in, and on that OFF
+    path this function is byte-unchanged: no directory is created, no scenario is copied,
+    ``Game.export_scenario`` is not called and ``setup_episode`` receives no recording
+    keyword at all (:func:`_recording_kwargs`). When a bundle IS supplied it is opened
+    before generation, the generated known-only scenario is copied into it, recording is
+    armed on the returned env-2, the authoritative executed t=0 scenario is exported once
+    -- before the fuel-damage controller exists, hence before the top-of-tick mutation,
+    any policy decision and any ``env.step`` -- and the bundle is completed after the
+    reward. A capture failure raises :class:`_VisualArtifactError`, NOT an
+    :class:`EpisodeAttemptError`: it is infrastructure, it belongs in no pipeline stage,
+    and the callers re-raise it instead of accounting it as a failed episode.
     """
     random.seed(seed)
     torch.manual_seed(seed)
     fd_params = cfg.fuel_damage_parameters(fuel_damage_mode)
+
+    # Claimed BEFORE generation: the known-only scenario is the first artifact, and a
+    # directory collision must be discovered before an episode is paid for.
+    if artifacts is not None:
+        artifacts.open()
 
     t0 = time.perf_counter()
     try:
@@ -2004,6 +2433,9 @@ def _run_one_episode(
         scenario_path = gen.generate(episode=int(episode_tag), config=var)
     except Exception as exc:
         raise EpisodeAttemptError("generation", exc) from exc
+
+    if artifacts is not None:
+        artifacts.capture_known_only_scenario(scenario_path)
 
     ctx = None
     try:
@@ -2016,9 +2448,18 @@ def _run_one_episode(
                 # deliberately NOT passed -- `split_tasks` never runs here.
                 n_hidden=int(cfg.n_hidden),
                 placement_rng=random.Random(seed),
+                # Recording is ARMED here or nowhere; the tick loop drives it. Absent
+                # entirely when artifacts are off.
+                **_recording_kwargs(artifacts),
             )
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
+
+        # The authoritative six-target world, taken from env-2 -- the sole runtime source
+        # of truth -- while nothing has run yet. Deliberately the FIRST thing after setup
+        # returns, so no later step can be suspected of having moved it.
+        if artifacts is not None:
+            artifacts.capture_executed_t0_scenario(ctx.game)
 
         # The roster is snapshotted HERE -- after setup, before a single tick -- because
         # both of its sources are t=0 facts: the N beliefs are byte-equal only now, and
@@ -2086,6 +2527,24 @@ def _run_one_episode(
         fd_outcome = fuel_damage.outcome
         selected_ego_rtb = fd_outcome.rtb_command_issued
 
+        # The bundle is COMPLETE only now: the recording is exported by `run_episode`, so
+        # it cannot be required any earlier, and the observed target counts are the
+        # roster's -- the same numbers the OK block prints.
+        if artifacts is not None:
+            artifacts.finalize(
+                expected={
+                    "n_known": int(cfg.n_known),
+                    "n_hidden": int(cfg.n_hidden),
+                    "n_targets_executed": int(cfg.n_targets_emitted),
+                },
+                observed={
+                    "n_known": len(roster.known_names),
+                    "n_hidden": len(roster.hidden_names),
+                    "n_targets_executed": int(roster.total),
+                    "targets_confirmed_unique": int(targets_confirmed_unique),
+                },
+            )
+
         return _EpisodeOutcome(
             trajectory=list(result.trajectory),
             reward=float(ep_reward.reward),
@@ -2127,6 +2586,7 @@ def evaluate(
     updates_completed: int = 0,
     round_ordinal: int = 0,
     failures_path: Optional[Path] = None,
+    artifacts_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Run ``cfg.eval_episodes`` deterministic episodes on the FIXED eval seed band.
 
@@ -2171,6 +2631,13 @@ def evaluate(
     ALONE -- a pair with a failed member contributes to no delta, is never repaired with
     the surviving member, and is still visible in the attempt counts.
 
+    ``artifacts_root`` is the visual-artifact switch for this round: ``None`` (the
+    default) captures nothing, and a path makes every scheduled member preserve its
+    bundle under it. ``train`` passes it only when :attr:`TrainConfig.visual_artifacts` is
+    set. The identities carry this round's ordinal and each member's pair slot, so the two
+    members of a held-out seed -- and the same seed across two rounds -- can never share a
+    bundle.
+
     Returns a scalar-only record (also written to ``eval_records.jsonl``), plus one
     printed ``OK`` block per successful episode.
     """
@@ -2196,6 +2663,24 @@ def evaluate(
         for member, (condition, mode) in enumerate(_EVAL_PAIR_MEMBERS):
             tag = eval_member_tag(round_ordinal=round_ordinal, e=e, member=member)
             tally.attempt(condition)
+            artifacts = None
+            if artifacts_root is not None:
+                artifacts = _AttemptArtifacts(
+                    root=artifacts_root,
+                    identity=_AttemptIdentity(
+                        phase=str(stage),
+                        iteration=iteration,
+                        updates_completed=int(updates_completed),
+                        eval_round_ordinal=int(round_ordinal),
+                        eval_episode_index=int(e),
+                        eval_pair_member=int(member),
+                        attempt_ordinal=e * _EVAL_PAIR_SIZE + member,
+                        episode_index=None,
+                        seed=int(seed),
+                        condition=str(condition),
+                        episode_tag=int(tag),
+                    ),
+                )
             try:
                 out = _run_one_episode(
                     policy, gen, cfg,
@@ -2203,7 +2688,14 @@ def evaluate(
                     episode_tag=tag,
                     deterministic=True,
                     fuel_damage_mode=mode,
+                    **_artifact_kwargs(artifacts),
                 )
+            except _VisualArtifactError:
+                # INFRASTRUCTURE, not science: it names no pipeline stage, must not enter
+                # the ledger or a condition tally, and must not be skipped. Re-raised
+                # ahead of the broad handler so the run stops loudly instead of recording
+                # a scientific failure that never happened.
+                raise
             except Exception as exc:  # an eval failure must not abort training either
                 n_failed += 1
                 tally.failure(condition)
@@ -2442,6 +2934,12 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     scen_dir = run_dir / "scenarios"
     scen_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir = run_dir / "checkpoints"
+    # The visual-artifact switch, resolved ONCE. `None` disables capture everywhere --
+    # `_run_one_episode` and `evaluate` both read it as the single on/off signal, so the
+    # OFF path never constructs an identity or touches the filesystem.
+    artifacts_root = (
+        run_dir / _VISUAL_ARTIFACTS_DIRNAME if cfg.visual_artifacts else None
+    )
     train_records_path = run_dir / "train_records.jsonl"
     eval_records_path = run_dir / "eval_records.jsonl"
     failures_path = run_dir / "episode_failures.jsonl"
@@ -2524,6 +3022,13 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
           "num_red_airbases=%r partial_ratio=%s -> known/hidden = %s"
           % (cfg.num_red_airbases, cfg.partial_ratio,
              _format_split_preview(cfg.split_preview)))
+    if artifacts_root is None:
+        print("visual artifacts: DISABLED")
+    else:
+        print("visual artifacts: ENABLED for every scheduled pre_update / train / "
+              "post_update attempt -> %s" % str(artifacts_root))
+        print("          per attempt: the generated known-only scenario, the executed "
+              "t=0 scenario, the BLADE playback and a manifest")
     print("run_dir=%s" % str(run_dir))
     print("config:  %s" % str(run_config_path))
     print("code:    %s%s"
@@ -2560,7 +3065,8 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
             ev = evaluate(policy, gen, cfg, iteration=None,
                           stage=_EVAL_STAGE_PRE_UPDATE, updates_completed=0,
                           round_ordinal=eval_round_ordinal,
-                          failures_path=failures_path)
+                          failures_path=failures_path,
+                          artifacts_root=artifacts_root)
             eval_round_ordinal += 1
             eval_records.append(ev)
             eval_fh.write(json.dumps(ev) + "\n")
@@ -2597,11 +3103,37 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                     episode_seed=seed, params=cfg.fuel_damage_parameters()
                 )
                 tally.attempt(condition)
+                artifacts = None
+                if artifacts_root is not None:
+                    artifacts = _AttemptArtifacts(
+                        root=artifacts_root,
+                        identity=_AttemptIdentity(
+                            phase=_ARTIFACT_PHASE_TRAIN,
+                            iteration=int(iteration),
+                            updates_completed=int(updates_before),
+                            eval_round_ordinal=None,
+                            eval_episode_index=None,
+                            eval_pair_member=None,
+                            attempt_ordinal=int(j),
+                            episode_index=int(g),
+                            seed=int(seed),
+                            condition=str(condition),
+                            episode_tag=int(g),
+                        ),
+                    )
                 try:
                     out = _run_one_episode(
                         policy, gen, cfg,
                         seed=seed, episode_tag=g, deterministic=False,
+                        **_artifact_kwargs(artifacts),
                     )
+                except _VisualArtifactError:
+                    # INFRASTRUCTURE, not science. Re-raised ahead of the broad handler
+                    # so it can never be written to the ledger as a `generation` /
+                    # `setup` / `run` / `reward` failure, never enter `skip_and_account_v1`
+                    # and never shrink a denominator by masquerading as an episode
+                    # failure. The run stops.
+                    raise
                 except Exception as exc:  # never abort the run on one episode
                     # SKIP AND ACCOUNT: record it and move to the NEXT scheduled seed.
                     # This seed is spent -- no retry, no substitute, no shift of the
@@ -2773,7 +3305,8 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                               stage=_EVAL_STAGE_POST_UPDATE,
                               updates_completed=updates_completed,
                               round_ordinal=eval_round_ordinal,
-                              failures_path=failures_path)
+                              failures_path=failures_path,
+                              artifacts_root=artifacts_root)
                 eval_round_ordinal += 1
                 eval_records.append(ev)
                 eval_fh.write(json.dumps(ev) + "\n")
@@ -2802,7 +3335,8 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
                           stage=_EVAL_STAGE_POST_UPDATE,
                           updates_completed=updates_completed,
                           round_ordinal=eval_round_ordinal,
-                          failures_path=failures_path)
+                          failures_path=failures_path,
+                          artifacts_root=artifacts_root)
             eval_round_ordinal += 1
             eval_records.append(ev)
             eval_fh.write(json.dumps(ev) + "\n")
@@ -3857,6 +4391,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="death-penalty coefficient c passed to graph_reward (whose "
                         "FORMULA is unchanged); 0 makes losing an aircraft free "
                         "(default: %(default)s)")
+    # --- visual artifacts: opt-in, and the flag's absence IS the default ---
+    p.add_argument("--visual-artifacts", action="store_true",
+                   default=d_cfg.visual_artifacts,
+                   help="preserve one inspection bundle per scheduled pre_update / "
+                        "train / post_update attempt under <run_dir>/%s: the generated "
+                        "known-only scenario, the executed t=0 scenario, the BLADE "
+                        "playback and a manifest (default: %%(default)s)"
+                        % _VISUAL_ARTIFACTS_DIRNAME)
     p.add_argument("--plot", type=str, default=None, metavar="RUN_DIR",
                    help="plot an EXISTING run directory and exit (no training)")
     p.add_argument("--selftest", action="store_true",
@@ -3906,6 +4448,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         fuel_damage_leg_progress=args.fuel_damage_leg_progress,
         fuel_damage_rtb_margin=args.fuel_damage_rtb_margin,
         aircraft_penalty_coeff=args.aircraft_penalty_coeff,
+        visual_artifacts=args.visual_artifacts,
     )
     # Fail on an impossible cell (e.g. num_agents > n_known) HERE, before train()
     # touches the filesystem or the solver. train() validates again; validate() is pure.
