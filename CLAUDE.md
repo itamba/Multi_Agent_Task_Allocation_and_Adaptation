@@ -377,6 +377,55 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   round a deterministic, disjoint file-tag namespace. Tags affect artifact names only:
   every round still evaluates the same fixed held-out seed band. `TrainConfig.validate`
   rejects tag ranges that could collide, so pre- and post-update scenario JSONs coexist.
+- **Visual artifacts — the opt-in inspection surface (PR #10).** `TrainConfig.
+  visual_artifacts` / `--visual-artifacts`, **OFF at both surfaces by default**. It is
+  OBSERVATION, not measurement: nothing captured is ever read back into the pipeline.
+  When enabled it selects EVERY scheduled `pre_update` / `train` / `post_update`
+  attempt — there is deliberately no per-seed filter, which would be a second
+  artifact-selection language beside the seed schedule — and stores one collision-free
+  bundle per attempt under `<run_dir>/visual_artifacts/`. Each bundle holds:
+  - `known_only_scenario.json` — the generator's known-only world copied **byte for
+    byte** (never regenerated, normalized, reserialized or rebuilt from tasks); the
+    original under `<run_dir>/scenarios` is untouched;
+  - `executed_t0_scenario.json` — the AUTHORITATIVE executed world, serialized from
+    `ctx.game.export_scenario()` on the **env-2** game, called EXACTLY ONCE and BEFORE
+    `build_fuel_damage_controller`, `run_episode`, the top-of-tick fuel mutation, any
+    policy decision and any `env.step`. Env-1, `build_patched_scenario` output, the
+    placement audit, the beliefs and the oracle tasks are derived views and none of them
+    substitutes for it;
+  - the BLADE playback `.jsonl`, produced ONLY through the existing locked contract —
+    armed by `setup_episode(recording_export_path=<attempt dir>)`, started / stepped /
+    exported by `run_episode`. No recorder internal is called and no scenario name is
+    mutated; the per-attempt directory is what keeps recordings apart. All chunks are
+    listed if the recorder ever splits one;
+  - `artifact_manifest.json` — the attempt's identity stated EXPLICITLY (phase,
+    iteration, `updates_completed`, eval round / episode / pair-member ordinals, attempt
+    ordinal, training episode index, exact seed, scheduled condition, exact
+    `episode_tag`), plus target-count expectations vs observations. `status` is
+    `incomplete` until the bundle is whole and `complete` only once the three files
+    exist; a bundle may be read as full only when it is `complete`.
+
+  **Failure routing.** An artifact filesystem / serialization failure is INFRASTRUCTURE:
+  it raises `_VisualArtifactError`, which the train and eval attempt handlers re-raise
+  AHEAD of their broad `except Exception`. It therefore aborts the run loudly, is never
+  written as a `generation` / `setup` / `run` / `reward` failure, never enters
+  `skip_and_account_v1`, and cannot shrink a scientific denominator by masquerading as
+  an episode failure. A NORMAL episode failure is unaffected — it stays in the existing
+  stage taxonomy and leaves a clearly marked `incomplete` bundle holding whichever
+  pre-failure artifacts were valid; no recording is ever fabricated, because the tick
+  loop deliberately exports none when the loop raised. A directory collision raises
+  rather than overwriting or merging two attempts.
+
+  **OFF-path invariance.** With `visual_artifacts=False` no `visual_artifacts/` directory
+  is created, no identity is constructed, no scenario is copied, `Game.export_scenario`
+  is not called, and NEITHER keyword is passed at all — `_recording_kwargs` omits
+  `recording_export_path` from the `setup_episode` call and `_artifact_kwargs` omits
+  `artifacts` from the `_run_one_episode` call, so both are the pre-feature calls.
+  Neither path adds an RNG object or draw (bundle names derive only from already-resolved
+  schedule metadata), and seeds, scenario tags, scenario names, policy inference, PPO
+  inputs, the solver, the reward, fuel-damage semantics, the failure taxonomy and BLADE
+  are all unchanged. The resolved flag is recorded in `run_config.json` through the
+  existing `asdict(cfg)` path and echoed in the startup header.
 
 **FD-BASELINE-v1 — the difficulty factor — `rl/training/graph_fuel_damage.py`**
 (consumed by `graph_tick_loop.run_episode`, `graph_train` and `graph_rollout`).
@@ -482,6 +531,7 @@ second factor is bundled in (§8).
 | Change the FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. |
 | Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched pairs, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
 | Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`). Rollouts run the seeded MIXTURE only — matched pairs are an evaluation construct and live in `graph_train.evaluate`. |
+| Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `finalize` / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -902,6 +952,37 @@ second factor is bundled in (§8).
   **NO live BLADE/BONMIN probe, training run, rollout or scientific baseline was
   performed** — every test is solver-free and drives the pipeline through stubbed engine
   seams. Nothing in this lock is evidence about the cell's behaviour; §8 owns the gate.
+- `24d1835` — **FINAL-CELL-VISUAL-ARTIFACTS: opt-in per-attempt inspection bundles —
+  CLOSED / MERGED / REVIEWED.** Reviewed code SHA
+  `24d1835f31d2e6aac04b418308a8753c392ac951`, integrated by merge commit
+  `771f2107211fb3f984b64482b799613260e19aca` (PR #10); the merged tree is byte-identical
+  to the approved one (`git diff --quiet 24d1835 771f210`). Grade A under `GPT_GITHUB`,
+  implementation mode SURGICAL. The full technical contract is in §5 ("Visual artifacts —
+  the opt-in inspection surface") and the routing in §6; this entry records the LOCK, not
+  the mechanism.
+  **Reviewed scope: EXACTLY TWO files** — `src/match_aou/rl/training/graph_train.py` and
+  `tests/test_graph_train.py`. No generator, setup, tick-loop, fuel-damage, PPO, reward,
+  solver, executor or vendored-BLADE file was touched, and no scenario semantics, seed
+  formula, scenario-tag formula, scenario name, RNG draw, policy inference, PPO input,
+  failure taxonomy or checkpoint/plot behaviour changed. `visual_artifacts` defaults to
+  `False`, so a run that does not opt in is byte-unchanged.
+  **Verified at the approved head:** `tests/test_graph_train.py` **89 passed** (73 → 89)
+  under the base-env `pytest` AND all **89 passed** through the standalone `__main__`
+  runner under `nlp_env`; `tests/test_graph_setup_seam.py` + `tests/test_graph_fuel_damage.py`
+  **66 passed, 4 skipped**; import purity **12 passed**; full suite **208 passed,
+  4 skipped** (192 → 208); `git diff --check` clean. Three mutation checks confirmed the
+  load-bearing tests falsify (OFF path passing `recording_export_path=None`; the executed
+  t=0 export moved after `build_fuel_damage_controller`; the `_VisualArtifactError`
+  re-raise disabled) — each was caught and then reverted.
+  **NEW FACT that shaped the implementation:** `tests/test_graph_fuel_damage.py` carries
+  its OWN `_run_stub_training` with an independent `fake_run_one_episode` stub, so a new
+  keyword passed UNCONDITIONALLY to `_run_one_episode` would break that unauthorized file.
+  `_artifact_kwargs` therefore omits the keyword entirely on the OFF path — which is also
+  the stronger invariance claim.
+  **NO live BLADE/BONMIN probe, training run, rollout, artifact-generating smoke or
+  scientific baseline was performed** — every test is solver-free and drives the pipeline
+  through stubbed engine seams. Nothing in this lock is evidence about the cell's
+  behaviour; §8 still owns the gate.
 
 ---
 
@@ -922,6 +1003,11 @@ second factor is bundled in (§8).
   no result may be pre-claimed for it. A held-out mean is never read without its
   denominator; `graph_reward` remains FROZEN unless a separately reviewed p<1 design
   requires an explicit reward-contract change.
+  That probe MAY run with `--visual-artifacts` (§5, `24d1835`), which preserves each
+  successful attempt's known-only scenario, executed t=0 scenario and BLADE playback for
+  inspection. It is an observation surface only: enabling it neither authorizes the probe
+  nor changes anything the probe measures, and artifact completeness is reported ALONGSIDE
+  the scientific denominators, never in place of one.
   *Historical, and about the EASY PRE-FD CELL only:* the clean-code probe at
   `a3f0838616990987bcb8a51665fa75d84edf5952` measured pre-update headroom
   (`-0.4999997395829586`, 4/4), train yield 7/8 with one accounted seed-2 `setup` failure,

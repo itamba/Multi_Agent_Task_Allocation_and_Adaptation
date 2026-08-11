@@ -1,16 +1,16 @@
-# Multi-Agent Graph RL — FD-BASELINE-v1 Closure / Final-Cell Probe Handoff
+# Multi-Agent Graph RL — Visual-Artifact Closure / Final-Cell Probe Handoff
 
 **Supersedes all earlier handoffs.**
 
-Written 2026-08-03. B1–B4, the first real post-B3 instrumented probe, the B4 observability
-follow-up (PR #7) and **FD-BASELINE-v1** (PR #8) are all CLOSED. The commit that lands this
-handoff changes documents only; it does not change code, tests, configuration, dependencies
-or workflows.
+Written 2026-08-11. B1–B4, the first real post-B3 instrumented probe, the B4 observability
+follow-up (PR #7), **FD-BASELINE-v1** (PR #8) and **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10)
+are all CLOSED. The commit that lands this handoff changes documents only; it does not
+change code, tests, configuration, dependencies or workflows.
 
-Baseline **difficulty selection is finished**: exactly one factor was selected, implemented,
-reviewed and merged. What has NOT happened is any measurement of the resulting cell. The
-next task is a bounded short scientific probe of the merged fuel-damage configuration,
-before any long baseline.
+Baseline **difficulty selection is finished** and the **inspection surface for a probe is
+now in place**. What has NOT happened is any measurement of the resulting cell. The next
+task is a bounded short scientific probe of the merged fuel-damage configuration, before
+any long baseline.
 
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
@@ -54,20 +54,33 @@ cross-references it rather than duplicating it.
   `ffb95a6ee90df45b2d89802b321dcadcbc272821` (PR #7). Candidate
   `24241690572a7a5264e24348db5e9412b41bc47a` received REQUEST-FIXES; the approved
   correction was a new commit, never rewritten.
-- **FD-BASELINE-v1 — CLOSED / MERGED / LOCKED.** Approved candidate
+- **FD-BASELINE-v1 — CLOSED / MERGED / LOCKED, and it remains so.** Approved candidate
   `a8669f450708c2508753c49ab16fd1028b29607d`, integrated by
   `1cecb0ac99f839d47ffeea12c8871aec77e66640` (PR #8); the merged tree was independently
   verified identical to the approved candidate tree. The FIRST candidate
   `1cf53fcee3ee05b3466c8391cbc6bb04420a0985` received REQUEST-FIXES; the correction landed
   as a NEW CHILD COMMIT on the same branch and PR, with no amend, rebase, force-push or
   history rewrite. §3 summarizes the factor; `CLAUDE.md` §5 and §7 own the authoritative
-  contract and lock.
-- **No active task, candidate or PR after this documentation PR merges; ownership is
+  contract and lock. Nothing in the visual-artifact work below changed it.
+- **FINAL-CELL-VISUAL-ARTIFACTS — CLOSED / MERGED / REVIEWED.** Approved candidate
+  `24d1835f31d2e6aac04b418308a8753c392ac951`, integrated by
+  `771f2107211fb3f984b64482b799613260e19aca` (PR #10); the merged tree was verified
+  byte-identical to the approved candidate tree (`git diff --quiet 24d1835 771f210`).
+  Grade A under `GPT_GITHUB`, mode SURGICAL, exactly two files
+  (`src/match_aou/rl/training/graph_train.py`, `tests/test_graph_train.py`). §3b
+  summarizes it; `CLAUDE.md` §5, §6 and §7 own the contract, routing and lock.
+- **No scientific probe or training run has been performed on the merged final cell.**
+  Every test behind both locks is solver-free and drives the pipeline through stubbed
+  engine seams. The locks certify implementation; they say nothing about how the cell
+  behaves.
+- **No active task, candidate or PR after this documentation commit; ownership is
   RELEASED.** Immediately before this documentation change, `main` was at
-  `1cecb0ac99f839d47ffeea12c8871aec77e66640` with PR #8 merged and no open code PR. This
-  docs-only commit advances `main`, so **the receiving orchestrator must resolve the new
-  full `main` SHA** rather than reuse any SHA named above as a base. The code branch
-  `task/fuel-damage-baseline-v1` and this documentation branch are both retained.
+  `771f2107211fb3f984b64482b799613260e19aca` with PR #10 merged and no open code PR. This
+  docs-only commit is pushed directly to `main` under explicit one-time user
+  authorization, so it ADVANCES `main`: **the receiving orchestrator must resolve the new
+  full `main` SHA** rather than reuse any SHA named above as a base. The implementation
+  branch `task/final-cell-visual-artifacts` is RETAINED and may be deleted only after GPT
+  has verified this documentation commit and the resulting `main`.
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -89,7 +102,8 @@ held-out seeds `[1000000,1000004)` before training and after two completed updat
 **That cell contained NO difficulty factor.** It is preserved as historical evidence that
 the pipeline collects data and updates, and that the easy cell had headroom the loop could
 close. It is **not** a baseline, and it is **not** evidence about the fuel-damage cell —
-those numbers must never be reused as the new cell's expected behaviour.
+those numbers must never be reused as the new cell's expected behaviour, and the probe in
+§4 must not be judged against them.
 
 ## 3. What PR #8 closed — FD-BASELINE-v1
 
@@ -120,35 +134,87 @@ semantics, observability and proof obligations, and none may be enabled implicit
 192 passed / 4 skipped, 35 fuel-damage tests, 73 graph-train tests, import purity 12/12,
 `graph_trigger` selftest green, `git diff --check` clean.
 
-**No live BLADE/BONMIN probe, training run, rollout or scientific baseline was performed.**
-Every test is solver-free and drives the pipeline through stubbed engine seams. The lock
-certifies the implementation; it says nothing about how the cell behaves.
+## 3b. What PR #10 closed — FINAL-CELL-VISUAL-ARTIFACTS
+
+Authoritative contract: `CLAUDE.md` §5 ("Visual artifacts — the opt-in inspection
+surface"); routing in §6; lock and verification in §7 under `24d1835`. Summarized here
+only far enough to hand over.
+
+**What it is for.** A finished probe is otherwise a directory of numbers. With
+`TrainConfig.visual_artifacts` / `--visual-artifacts` enabled, every scheduled
+`pre_update` / `train` / `post_update` attempt keeps one collision-free bundle under
+`<run_dir>/visual_artifacts/`: the byte-identical generated known-only scenario, the
+authoritative executed t=0 scenario taken from `ctx.game.export_scenario()` on the env-2
+game before the fuel-damage controller exists, the BLADE playback produced through the
+existing `setup_episode(recording_export_path=...)` + `run_episode` contract, and an
+`artifact_manifest.json` stating phase, iteration, `updates_completed`, ordinals, exact
+seed, scheduled condition and exact scenario tag. A whole bundle is `complete`; a bundle
+left behind by a failed attempt is clearly marked `incomplete`.
+
+**What it is not.** It is observation, not measurement. Nothing captured is read back into
+the pipeline. **OFF by default, and OFF is byte-unchanged** — no directory, no identity, no
+copy, no `Game.export_scenario` call, and neither the `recording_export_path` nor the
+`artifacts` keyword is passed at all. No seed, scenario tag, scenario name, RNG draw,
+policy inference, PPO input, solver input, reward, fuel-damage semantic, failure taxonomy
+or BLADE behaviour changed.
+
+**Failure routing.** An artifact filesystem / serialization failure is INFRASTRUCTURE:
+`_VisualArtifactError` is re-raised ahead of the broad episode handlers, aborts the run
+loudly, and never enters `skip_and_account_v1` or `episode_failures.jsonl`, so it cannot
+shrink a scientific denominator by masquerading as an episode failure.
+
+**Verification at the approved head** (`CLAUDE.md` §7 has the full statement):
+`tests/test_graph_train.py` 89 passed in BOTH environments, setup-seam + fuel-damage
+regressions 66 passed / 4 skipped, import purity 12/12, full suite 208 passed / 4 skipped,
+`git diff --check` clean, plus three mutation checks confirming the load-bearing tests
+falsify.
+
+**No live BLADE/BONMIN probe, training run, rollout, artifact-generating smoke or
+scientific baseline was performed** for either PR #8 or PR #10.
 
 ## 4. Next task — a bounded SHORT SCIENTIFIC PROBE of the merged fuel-damage cell
 
-Start with fresh exact-SHA initialization against the new `main`. This task must be
-designed and separately authorized; **this documentation task neither authorizes nor runs
-it.**
+Start with fresh exact-SHA initialization against the new `main`. **This documentation
+task neither authorizes nor runs the probe.** The probe's exact CLI/config, seed bands,
+pass/fail reading rules and local PyCharm execution procedure MUST be closed in the next
+chat, BEFORE the run.
 
-1. Design the probe: exact iterations × episodes, exact train and held-out seed bands, and
-   the pass/fail reading rules — decided BEFORE it runs, so no result is chosen after the
-   fact.
-2. Run it once, from a clean checkout with complete Git provenance, on the merged cell as
-   configured (no ad-hoc knob changes, no second difficulty factor).
-3. Report, all with explicit denominators:
-   - complete provenance and the exact resolved configuration;
-   - scheduled **clean vs damaged** attempt populations and their successes/failures;
-   - **matched-pair yield** and the paired reward delta over pairs whose BOTH members
-     completed, next to its pair denominator;
-   - **failures by pipeline stage** (`generation` / `setup` / `run` / `reward`), including
-     any `setup` planning refusal and any `run`-stage live-window refusal;
-   - per-episode **event / wake / real RTB command / death** outcomes;
-   - reward headroom, and whether the PPO updates were productive.
-4. Only if that probe passes may a long baseline be proposed. Interpretation rules survive
-   unchanged: a held-out mean is never read without its denominator; an all-failed batch
-   reports `null`, never `0.0`; and an empty successful-pair population is `null` too.
+**Intended shape, to be confirmed and made exact before execution:**
 
-**Do not pre-claim any probe result**, and do not reuse the §2 numbers as its expectation.
+- 2 training iterations;
+- 4 scheduled training attempts per iteration;
+- four fixed held-out seeds;
+- matched forced-clean and forced-damaged members, run BEFORE training (`pre_update`) and
+  AFTER training (`post_update`) on the same held-out seeds;
+- live console output (the per-episode `OK` blocks and the per-iteration / per-round
+  lines);
+- visual artifacts ENABLED — the flag selects every scheduled attempt, so a successful one
+  yields a `complete` bundle and a failed one a clearly marked `incomplete` bundle.
+
+**Execution discipline.** Run it ONCE, from a clean checkout at an exact resolved `main`
+SHA, with COMPLETE Git provenance (`train` refuses otherwise — `CLAUDE.md` §8), on the
+merged cell as configured: no ad-hoc knob changes, no second difficulty factor, no retry
+of a failed seed, no band shift.
+
+**Report, all with explicit denominators:**
+
+- complete provenance and the exact resolved configuration;
+- scheduled **clean vs damaged** attempt populations and their successes/failures;
+- **matched-pair yield** and the paired reward delta over pairs whose BOTH members
+  completed, next to its pair denominator;
+- **failures by pipeline stage** (`generation` / `setup` / `run` / `reward`), including any
+  `setup` planning refusal and any `run`-stage live-window refusal;
+- per-episode **event fired / wake / real RTB command / death** outcomes;
+- reward headroom, and whether the PPO updates were productive;
+- **artifact completeness** — how many selected attempts produced a `complete` bundle and
+  how many an `incomplete` one, reported ALONGSIDE the scientific denominators and never
+  in place of one.
+
+**A long baseline remains UNAUTHORIZED until the short probe has been reviewed.**
+Interpretation rules survive unchanged: a held-out mean is never read without its
+denominator; an all-failed batch reports `null`, never `0.0`; and an empty
+successful-pair population is `null` too. **Do not pre-claim any probe result**, and do not
+reuse the §2 numbers as its expectation.
 
 ## 5. Closed decisions
 
@@ -172,6 +238,11 @@ it.**
   held-out seed; the strict window validated twice (planned, then live before mutation);
   RTB measured from real emitted command history, never from `GraphPlanExecutor.rtb_issued`;
   explicit `aircraft_penalty_coeff = 2.25` with the reward formula unchanged.
+- PR #10 (FINAL-CELL-VISUAL-ARTIFACTS): artifact capture is opt-in and OFF by default; it
+  selects every scheduled attempt rather than a per-seed subset; the executed t=0 snapshot
+  comes from env-2 before the controller and the run; recording is armed only through the
+  existing setup/tick-loop contract; artifact failures are infrastructure and stay outside
+  the scientific ledger.
 - The legacy split surface remains retained, not retired.
 
 ## 6. Out of scope for the next task
@@ -179,7 +250,10 @@ it.**
 - a long training run before the final-cell probe passes;
 - selecting or enabling a SECOND difficulty factor (`probability < 1`, hostile fire/SAMs,
   dense reward) — each is its own research change;
-- reworking the merged FD-BASELINE-v1 mechanism or its reviewed research decisions;
+- reworking the merged FD-BASELINE-v1 mechanism or the merged visual-artifact surface, or
+  their reviewed research decisions;
+- extending artifact capture (per-seed filters, new artifact kinds, artifact-derived
+  metrics) — the probe uses what is merged;
 - checkpoint loading/resume;
 - centralized critic / CTDE;
 - low-known-cell solver timeout unless the chosen cell needs `known ≤ 2`;
@@ -194,12 +268,17 @@ it.**
 | First real post-B3 probe completes — **DONE** | Exact code SHA, denominators, yield, failure stage, transitions and pre/post held-out measurements recorded |
 | PR #7 observability follow-up lands — **DONE** | Unique-target semantics, per-episode output, eval artifact preservation and fix-chain lock recorded |
 | Selected baseline-difficulty factors land — **DONE for FD-BASELINE-v1** | Contract in `CLAUDE.md` §5, tick placement in §4, routing in §6, lock + fix chain in §7, selection closure and deferrals in §8 — recorded without pre-claiming any result |
-| Final-cell short probe completes — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom and update evidence before authorizing a long baseline |
+| Visual-artifact support lands — **DONE for PR #10** | Contract in `CLAUDE.md` §5, routing in §6, lock in §7, and the §8 note that the bounded probe MAY enable it — recorded without pre-claiming any result |
+| Final-cell short probe completes — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence and artifact completeness before authorizing a long baseline |
 
 ## 8. Next action
 
-Implementation for the final Phase-A baseline cell is COMPLETE and locked. Ownership is
-released after this documentation push; the next orchestrator performs fresh exact-SHA
-initialization against the new `main` and designs the bounded short probe in §4.
+Implementation for the final Phase-A baseline cell is COMPLETE and locked, and its
+inspection surface is merged. Ownership is released after this documentation push; the
+next orchestrator performs fresh exact-SHA initialization against the new `main`, closes
+the probe's exact configuration and execution procedure per §4, and only then runs it once.
+
+`task/final-cell-visual-artifacts` stays until GPT has verified this documentation commit
+and the resulting `main`; deleting it earlier is not authorized.
 
 **This document authorizes neither an implementation nor a training run.**
