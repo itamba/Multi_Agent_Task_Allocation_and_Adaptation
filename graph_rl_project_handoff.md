@@ -2,10 +2,11 @@
 
 **Supersedes all earlier handoffs.**
 
-Written 2026-08-11. B1–B4, the first real post-B3 instrumented probe, the B4 observability
-follow-up (PR #7), **FD-BASELINE-v1** (PR #8) and **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10)
-are all CLOSED. The commit that lands this handoff changes documents only; it does not
-change code, tests, configuration, dependencies or workflows.
+Written 2026-08-11; updated 2026-08-13 for the repository-hygiene closure below.
+B1–B4, the first real post-B3 instrumented probe, the B4 observability follow-up (PR #7),
+**FD-BASELINE-v1** (PR #8), **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10) and the repository
+code-hygiene cleanup (PR #11) are all CLOSED. Neither that cleanup nor this update changes
+research behaviour, configuration, dependencies or workflows.
 
 Baseline **difficulty selection is finished** and the **inspection surface for a probe is
 now in place**. What has NOT happened is any measurement of the resulting cell. The next
@@ -69,18 +70,33 @@ cross-references it rather than duplicating it.
   Grade A under `GPT_GITHUB`, mode SURGICAL, exactly two files
   (`src/match_aou/rl/training/graph_train.py`, `tests/test_graph_train.py`). §3b
   summarizes it; `CLAUDE.md` §5, §6 and §7 own the contract, routing and lock.
+- **Repository code-hygiene cleanup — CLOSED / APPROVED / MERGED.** Approved candidate
+  `2a3f89cf2d027581308493a98767ae658107d6d1`, integrated by
+  `6e2757dd30100f429d492f4d23fd8b5f57cf4fac` (PR #11). Grade A under `GPT_GITHUB`, mode
+  SURGICAL. The retired `blade_executor_minimal.py` is **removed from current `main`**, and
+  its one live helper `nearest_neighbor_order` now lives in
+  `src/match_aou/utils/scheduling_utils.py`, imported by BOTH `GraphPlanExecutor._eligible`
+  and `graph_hidden_placement.predict_route` — so online execution and offline route
+  prediction still share exactly ONE implementation. Verified no behaviour change: placement
+  geometry and executor eligibility were byte-identical to the pre-merge base over seed and
+  world sweeps, full suite 216 passed / 4 skipped, import purity 12/12. No training,
+  rollout, BONMIN solve or scientific probe was run. `CLAUDE.md` §7 owns the lock.
+
 - **No scientific probe or training run has been performed on the merged final cell.**
   Every test behind both locks is solver-free and drives the pipeline through stubbed
   engine seams. The locks certify implementation; they say nothing about how the cell
   behaves.
-- **No active task, candidate or PR after this documentation commit; ownership is
-  RELEASED.** Immediately before this documentation change, `main` was at
-  `771f2107211fb3f984b64482b799613260e19aca` with PR #10 merged and no open code PR. This
-  docs-only commit is pushed directly to `main` under explicit one-time user
-  authorization, so it ADVANCES `main`: **the receiving orchestrator must resolve the new
-  full `main` SHA** rather than reuse any SHA named above as a base. The implementation
-  branch `task/final-cell-visual-artifacts` is RETAINED and may be deleted only after GPT
-  has verified this documentation commit and the resulting `main`.
+- **Current repository state: one OPEN documentation candidate, no open code task.** The
+  last merged code change is the repository code-hygiene cleanup above (PR #11). On top of
+  it, a Grade-C repository/documentation hygiene candidate is open as **PR #12** on branch
+  `task/repo-doc-hygiene` — it replaces `README.md`, corrects
+  `docs/BLADE_API_DOCUMENTATION.md` against the vendored fork, deletes four obsolete
+  scenario JSONs and two dead utility symbols, and updates this handoff and `CLAUDE.md`. It
+  changes no research behaviour. **Resolve the current full `main` SHA from the repository
+  before using anything here as a base** — do not reuse a SHA named above, and note that
+  merging PR #12 will advance `main` again. The implementation branch
+  `task/final-cell-visual-artifacts` has been verified and **deleted**; it is no longer a
+  live reference.
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -258,7 +274,9 @@ reuse the §2 numbers as its expectation.
 - centralized critic / CTDE;
 - low-known-cell solver timeout unless the chosen cell needs `known ≤ 2`;
 - ETA/peer-dropout, reachability-model and legacy-split retirement work;
-- README rewrite.
+- further repository/documentation hygiene — the README rewrite and the BLADE fork
+  documentation audit were closed by PR #11's follow-up hygiene task, and the probe
+  neither needs nor may reopen them.
 
 ## 7. Documentation duties
 
@@ -268,17 +286,20 @@ reuse the §2 numbers as its expectation.
 | First real post-B3 probe completes — **DONE** | Exact code SHA, denominators, yield, failure stage, transitions and pre/post held-out measurements recorded |
 | PR #7 observability follow-up lands — **DONE** | Unique-target semantics, per-episode output, eval artifact preservation and fix-chain lock recorded |
 | Selected baseline-difficulty factors land — **DONE for FD-BASELINE-v1** | Contract in `CLAUDE.md` §5, tick placement in §4, routing in §6, lock + fix chain in §7, selection closure and deferrals in §8 — recorded without pre-claiming any result |
+| Repository code-hygiene + documentation alignment lands — **DONE for PR #11 and its follow-up** | Helper ownership, retired-executor removal and the lock recorded in `CLAUDE.md` §5–§7; README replaced, BLADE fork documentation audited, obsolete scenarios and dead utility symbols removed |
 | Visual-artifact support lands — **DONE for PR #10** | Contract in `CLAUDE.md` §5, routing in §6, lock in §7, and the §8 note that the bounded probe MAY enable it — recorded without pre-claiming any result |
 | Final-cell short probe completes — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence and artifact completeness before authorizing a long baseline |
 
 ## 8. Next action
 
 Implementation for the final Phase-A baseline cell is COMPLETE and locked, and its
-inspection surface is merged. Ownership is released after this documentation push; the
-next orchestrator performs fresh exact-SHA initialization against the new `main`, closes
-the probe's exact configuration and execution procedure per §4, and only then runs it once.
+inspection surface is merged. The remaining open work is repository hygiene, not research:
+the code cleanup is merged (PR #11) and the documentation candidate is under review
+(PR #12). Once PR #12 is resolved, ownership passes to the next orchestrator, which
+performs fresh exact-SHA initialization against the then-current `main`, closes the probe's
+exact configuration and execution procedure per §4, and only then runs it once.
 
-`task/final-cell-visual-artifacts` stays until GPT has verified this documentation commit
-and the resulting `main`; deleting it earlier is not authorized.
+No implementation branch is awaiting cleanup: `task/final-cell-visual-artifacts` has been
+verified and deleted.
 
 **This document authorizes neither an implementation nor a training run.**

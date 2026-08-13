@@ -1,111 +1,353 @@
 # Multi-Agent Task Allocation and Adaptation
 
-MSc research project combining optimization-based task allocation with reinforcement learning for dynamic plan adaptation in multi-agent military simulations.
+MSc research software for **runtime adaptation of a static multi-agent task allocation**,
+under a hard **no-communication** constraint, executed in a physics-based military
+simulation.
 
-## Overview
+A MATCH-AOU MINLP solver produces one optimal allocation offline. At runtime each agent
+flies that plan alone: it senses only through its own sensors, keeps its own private
+belief about the plan, and — when its own observations warrant it — a Graph-RL policy
+edits that belief. Agents never exchange information, directly or indirectly.
 
-The system has three integrated components:
+---
 
-1. **MATCH-AOU** — A Mixed-Integer Nonlinear Programming (MINLP) solver that generates optimal task allocations for heterogeneous agents operating without communication.
+## 1. Research objective
 
-2. **BLADE** — A physics-based military simulation environment (Panopticon fork), providing realistic aircraft dynamics, weapon engagement, and scenario execution.
+Given a fleet of heterogeneous strike agents and a set of targets, MATCH-AOU computes a
+static allocation `A_init`. That plan is optimal only for the world known when it was
+solved. During execution the world changes — targets appear that were not in the plan, and
+an agent can suffer damage that invalidates its remaining route.
 
-3. **RL Layer (MAPPO)** — A Multi-Agent PPO system with Centralized Training, Decentralized Execution (CTDE) that enables agents to adapt their plans mid-mission when new targets are discovered.
+The research question is how an agent should **adapt a static allocation at runtime using
+only its own information**. Concretely:
 
-### Research Problem
+- the allocation is produced by optimization, not learned;
+- adaptation is learned, and is **event-triggered** — the policy is consulted when the
+  agent's own sensing (or an exogenous event) says something changed, not on a fixed
+  decision interval;
+- adaptation is **decentralized and communication-free**: nothing an agent learns may
+  originate from a peer's sensors, position, fuel or decisions;
+- a full-information **oracle** solution is computed per episode purely to normalize the
+  training reward — it is a centralized *training* signal and is never visible to a policy
+  at execution time.
 
-Agents start a mission with a MATCH-AOU plan based on **partial** target information (~67% of targets). During execution, they discover new targets and must decide in real-time whether to deviate from the original plan. The RL layer learns this adaptation by imitating an oracle that has access to the **full** target set.
+Execution runs in **BLADE**, a vendored fork of the Panopticon simulation engine
+(aircraft dynamics, fuel burn, weapon engagement, kill resolution).
 
-## Project Structure
+---
+
+## 2. Architecture
+
+```
+                    offline                                runtime
+   ┌──────────────────────────────────┐   ┌──────────────────────────────────────┐
+   │ scenario generator               │   │ per tick:                            │
+   │   └─ known-only world            │   │                                      │
+   │ MATCH-AOU solve  ──> A_init      │   │  Phase 1 (per ego, one snapshot):    │
+   │ hidden-target placement          │   │    own sensing ──> trigger?          │
+   │   (route-relative, guaranteed    │   │      └─ wake ──> graph observation   │
+   │    to be flown past)             │   │              ──> Graph Transformer   │
+   │ scenario patch + reload          │   │              ──> masked meta-action  │
+   │ MATCH-AOU solve  ──> oracle      │   │              ──> edit OWN belief     │
+   │   (all targets; training only)   │   │              ──> executor resync     │
+   └──────────────────────────────────┘   │                                      │
+                                          │  Phase 2 (once):                     │
+                                          │    GraphPlanExecutor.next_actions()  │
+                                          │    ──> env.step(commands)  [BLADE]   │
+                                          └──────────────────────────────────────┘
+                                                          │
+                                          terminal, oracle-normalized reward
+                                                          │
+                                                    PPO update
+```
+
+**Private beliefs.** The episode mints *N* independent `Belief(tasks, solution)` objects,
+one per agent. All start byte-equal to the normalized `A_init`, but they are fully
+independent copies. Editing one agent's belief can never touch another's.
+
+**The graph is a projection, not state.** `solution` is the single source of truth. The
+graph observation is rebuilt from `(world, solution)` on every wake and is never mutated.
+Every decision is an edit to a belief's `solution`; the graph re-derives on the next build.
+
+**Structural no-communication.** Peer nodes in the graph are *featureless* — a peer's fuel,
+position and observations are deliberately dropped, because reading them would be a
+communication channel. `A_init` enters only through `ASSIGNMENT` edges and the featureless
+peer nodes anchoring them. The only runtime sensing in the graph is the ego's own `sensed`
+column, recomputed from the ego's own position.
+
+**Policy.** A Graph Transformer encoder (edge-masked multi-head attention over typed
+relations, implemented directly in PyTorch — no PyG/DGL) produces per-task-node
+embeddings; an action head emits three meta-actions per node — `PLAN_COMPLIANCE`,
+`OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` — under a hard legality mask.
+
+**Execution.** `GraphPlanExecutor` is the sole translation layer from a plan to BLADE
+commands (move / launch / attack / return-to-base). It keeps per-agent private task lists
+and marks a target done only on a **confirmed kill within the agent's own sensor range**.
+
+---
+
+## 3. Core invariants
+
+These are load-bearing; the authoritative statements live in `CLAUDE.md` §3.
+
+| Invariant | Meaning |
+|---|---|
+| **No communication** | An agent acts only on its own sensors and its own belief. It never learns what a peer sensed, killed or decided. |
+| **`solution` is the source of truth** | The graph is a stateless projection rebuilt each trigger, never mutated. |
+| **Tasks are append-only** | Within an episode a pop-up task is appended, never removed — positional `task_idx` indexes into `solution` tuples and must stay valid. |
+| **Peer runtime state is not exposed** | Peer graph rows carry no features. |
+| **One radius** | Sensing = attack = arrival = kill-confirmation = discovery = `DETECTION_KM` (50 km) in the current cell. BLADE's per-aircraft `aircraft.range` is deliberately *not* used for discovery. |
+| **Event-triggered** | The policy wakes on a pop-up, a peer-overdue gate, or a fuel-damage event — never on a periodic timer. |
+| **Actor-only PPO** | Phase A has **no centralized critic**. `GraphEncoder.pool()` exists as the seam where a CTDE critic would attach; it is not implemented on `main`. |
+
+---
+
+## 4. Current experiment cell
+
+The primary scenario template is `data/scenarios/strike_training_4v5.json`. Every episode
+is a seeded variation generated from it.
+
+The current reference cell (defaults in `TrainConfig` / `RolloutConfig`):
+
+- **3 agents**, all launching from the same BLUE airbase;
+- **3 known targets** — present at `t=0` and solved into `A_init`;
+- **3 hidden targets** — placed *route-relative*, on a leg the assigned agent is
+  geometrically guaranteed to fly past within its sensing radius, so discovery comes from
+  geometry rather than from a connectivity heuristic;
+- enemy targets are airbases only (`include_sams=False`); they do not shoot back;
+- engagement probability is 1.0;
+- geometry floors of 200 km (launch base to any target) and 100 km (between known targets);
+- one difficulty factor, **FD-BASELINE-v1**: a deterministic, seeded, ego-local
+  fuel-damage event that puts exactly one agent into a strict decision window where flying
+  home is still feasible but completing its route is not. Training draws clean/damaged
+  episodes from a seeded mixture; evaluation runs matched clean/damaged pairs on the same
+  seed.
+
+**On results.** The pipeline, the difficulty factor and the inspection tooling are
+implemented, reviewed and locked. **No long baseline has been run on this cell**, and no
+result is claimed for it. An earlier short probe measured a strictly easier, pre-fuel-damage
+configuration; those numbers are historical and are explicitly *not* a baseline for the
+current cell. The next planned step is a single bounded short probe — see
+`graph_rl_project_handoff.md`.
+
+---
+
+## 5. Repository layout
 
 ```
 Multi_Agent_Task_Allocation_and_Adaptation/
+├── CLAUDE.md                        # authoritative technical & research contracts
+├── graph_rl_project_handoff.md      # volatile: current phase, next task
 ├── requirements.txt
 ├── data/
-│   └── scenarios/                   # BLADE scenario JSON files
-│       └── strike_training_2v3.json # Primary training scenario (2 F-16s, 3 targets)
+│   └── scenarios/
+│       └── strike_training_4v5.json # the one active scenario template
+├── docs/
+│   └── BLADE_API_DOCUMENTATION.md   # API reference for THIS vendored fork
 ├── src/match_aou/
-│   ├── models/                      # Domain objects (Agent, Task, Step, Location, ...)
-│   ├── solvers/                     # MATCH-AOU MINLP solver
+│   ├── models/                      # Agent, Task, Step, StepKind, Location, Capability
+│   ├── solvers/                     # MATCH-AOU MINLP solver (frozen)
 │   ├── utils/
-│   │   ├── blade_utils/             # BLADE integration (executor, plan utils, scenario factory)
-│   │   ├── scheduling_utils.py      # Post-solve scheduling
-│   │   ├── topology_utils.py        # Topological ordering
-│   │   └── match_aou_parser.py      # Output parsing
+│   │   ├── scheduling_utils.py      # post-solve filter/level + nearest_neighbor_order
+│   │   ├── topology_utils.py        # topological levels from precedence
+│   │   └── blade_utils/
+│   │       ├── blade_graph_executor.py  # GraphPlanExecutor — sole BLADE translation layer
+│   │       ├── scenario_factory.py      # scenario -> Agents / Tasks
+│   │       └── scenario_generator.py    # seeded scenario variations
 │   ├── rl/
-│   │   ├── observation/             # Observation builder (30-dim vector)
-│   │   ├── action/                  # Action space (5 discrete: NOOP, ATTACK×3, RTB)
-│   │   ├── agent/                   # ActorCriticNetwork (shared actor, centralized critic)
-│   │   ├── training/                # PPOTrainer, RolloutBuffer, Reward, Oracle
-│   │   ├── plan_editor.py           # Converts RL actions → BLADE commands
-│   │   └── shared_utils.py          # Common utilities (haversine, normalization)
+│   │   ├── observation/graph_builder.py # (world, solution) -> GraphObservation
+│   │   ├── agent/graph_encoder.py       # Graph Transformer encoder (+ pool() critic seam)
+│   │   ├── action/
+│   │   │   ├── graph_action.py          # action head, legality mask, sampling
+│   │   │   ├── graph_effect.py          # apply a meta-action to a solution (pure)
+│   │   │   └── graph_trigger.py         # WHEN the policy wakes (pure)
+│   │   ├── training/
+│   │   │   ├── belief.py                # per-ego private Belief
+│   │   │   ├── graph_episode_setup.py   # episode construction: solve -> place -> patch -> reload
+│   │   │   ├── graph_hidden_placement.py# route-relative hidden-target geometry (pure)
+│   │   │   ├── graph_tick_loop.py       # the two-phase tick
+│   │   │   ├── graph_fuel_damage.py     # FD-BASELINE-v1 difficulty factor (pure)
+│   │   │   ├── graph_reward.py          # terminal oracle-normalized regret
+│   │   │   ├── graph_ppo.py             # PPO core (actor-only)
+│   │   │   ├── graph_train.py           # training entry point
+│   │   │   └── graph_rollout.py         # diagnostic rollout entry point
+│   │   └── shared_utils.py              # small shared numeric helpers
 │   └── integrations/
-│       └── panopticon-main/         # BLADE engine (frozen Panopticon copy)
-│           └── gym/blade/           # Python API (Game, Scenario, units, Gym env)
-├── tests/                           # Unit tests (observation, action space)
-├── legacy/                          # Archived code (DQN-era)
-└── docs/                            # Project documentation
+│       └── panopticon-main/gym/blade/   # vendored BLADE engine (frozen)
+├── tests/                           # solver-free unit/integration tests
+└── tools/
+    └── graph_executor_smoke.py      # end-to-end executor smoke (needs BLADE + BONMIN)
 ```
 
-## Quick Start
+The pure layers (`graph_trigger`, `graph_effect`, `graph_hidden_placement`,
+`graph_fuel_damage`) import no simulator, no solver and no PyTorch, which is what makes
+them hand-testable. `tests/test_import_purity.py` enforces that boundary.
 
-### Prerequisites
+---
 
-- Python 3.10+
-- A Pyomo-compatible solver (bonmin recommended)
+## 6. Environment and installation
 
-### Installation
+The maintained environment is **Windows + PyCharm with a conda environment named
+`nlp_env`**, Python 3.10+. Commands below assume the repository root as the working
+directory.
+
+**1. Python dependencies** (`numpy`, `scipy`, `torch`, `pyomo`, `gymnasium`, `shapely`,
+`haversine`):
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Training
+**2. The vendored BLADE engine** is editable-installed, so `import blade` resolves to the
+fork in this repository rather than to any other copy:
 
 ```bash
-PYTHONPATH=src python -m match_aou.rl.training.graph_rollout   # under nlp_env
+pip install -e src/match_aou/integrations/panopticon-main/gym
 ```
 
-Key arguments:
+**3. BONMIN** is required for real MATCH-AOU solves. It is provided by the `nlp_env`
+environment. Anything that *solves* — training, rollouts, the executor smoke — must run
+under `nlp_env`:
 
-| Argument | Default | Description |
+```bash
+conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --help
+```
+
+`--no-capture-output` avoids a Windows console re-encoding failure on Unicode output.
+
+**4. `match_aou` itself is not installed as a package.** `src/` must be on `PYTHONPATH`.
+In PowerShell:
+
+```powershell
+$env:PYTHONPATH = "src"
+```
+
+`tools/graph_executor_smoke.py` and the test files insert `src/` on `sys.path` themselves,
+so they need no `PYTHONPATH`.
+
+> A base conda environment also resolves `blade` and `gymnasium` (same vendored fork), which
+> is why the solver-free test suite can run outside `nlp_env`. It does **not** have BONMIN,
+> and a missing solver there fails quietly — never judge a solve by its exit code alone.
+
+---
+
+## 7. Entry points
+
+| Command | What it does |
+|---|---|
+| `python -m match_aou.rl.training.graph_train` | **Training.** Runs PPO; updates weights; writes a run directory. |
+| `python -m match_aou.rl.training.graph_rollout` | **Diagnostics only.** Drives the full pipeline and reports per-episode statistics. **No learning, no weight update.** |
+| `python tools/graph_executor_smoke.py` | **Executor smoke.** One solved scenario end-to-end in BLADE, asserting launch → strike → RTB. |
+
+### Training
+
+`--iterations` is required for a real training run:
+
+```bash
+conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 20 --episodes 8 --seed 0
+```
+
+Selected options (`--help` is authoritative):
+
+| Option | Default | Meaning |
 |---|---|---|
-| `--scenario` | `data/scenarios/strike_training_2v3.json` | Scenario file |
-| `--episodes` | 50 | Training episodes |
-| `--decision-interval` | 100 | Ticks between RL decisions |
-| `--lr` | 3e-4 | Learning rate |
-| `--save-freq` | 10 | Checkpoint save frequency |
+| `--iterations` | — | PPO iterations; required to train |
+| `--episodes` | 8 | training episodes per iteration |
+| `--seed` | 0 | base seed; pins initial weights and anchors the episode seed schedule |
+| `--out` | `training_output_<timestamp>` | run directory |
+| `--eval-every` / `--eval-episodes` | 5 / 8 | held-out evaluation cadence and size |
+| `--eval-base-seed` | 1000000 | start of the held-out seed band (must not overlap training seeds) |
+| `--num-agents`, `--n-known`, `--n-hidden` | 3, 3, 3 | the scenario cell |
+| `--fuel-damage-mode`, `--fuel-damage-probability` | mixture, 0.5 | difficulty-factor scheduling |
+| `--visual-artifacts` | off | opt-in per-attempt inspection bundles |
+| `--plot RUN_DIR` | — | re-plot an existing run directory and exit (no training) |
 
-Training outputs are saved to `training_output/` (models, logs, BLADE recordings).
+Training refuses to start unless Git provenance is complete — both the full commit SHA and
+a clean/dirty verdict must be determinable, so a run is always attributable to exact code.
+A dirty tree warns loudly but runs.
 
-## Architecture
+### Diagnostic rollout
 
-### Observation Space (30 features)
+```bash
+conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_rollout --episodes 20 --seed 0
+```
 
-| Component | Features | Description |
-|---|---|---|
-| Self-state | 6 | fuel, has_weapon, dist_to_next, next_is_attack, heading, rtb_possible |
-| Targets (×3) | 18 | exists, dist_norm, is_threat, is_dynamic, is_in_plan, already_engaged |
-| Plan context | 6 | Remaining assignments, progress, distances |
+Options: `--episodes`, `--seed`, `--out` (default `rollouts`), `--deterministic`,
+`--record-first` (record episode 0 with the BLADE playback recorder).
 
-### Action Space (5 discrete)
+### Executor smoke
 
-| Token | Action | Description |
-|---|---|---|
-| 0 | NOOP | Continue current plan |
-| 1-3 | INSERT_ATTACK(k) | Insert attack on target slot k |
-| 4 | FORCE_RTB | Return to base |
+```bash
+conda run -n nlp_env --no-capture-output python tools/graph_executor_smoke.py
+```
 
-### MAPPO (CTDE)
+### Tests
 
-- **Actor** (shared weights, decentralized): `local_obs[30] → 128 → 64 → logits[5]`
-- **Critic** (centralized): `global_state[60] → 128 → 64 → V(s)[1]`
-- **Training**: PPO with GAE, clipped surrogate objective, imitation reward from oracle
+The suite is solver-free and runs under a plain `pytest`:
 
-## Documentation
+```bash
+python -m pytest -q
+```
 
-- [BLADE API Reference](docs/BLADE_API_DOCUMENTATION.md)
+Test files carrying a `__main__` runner can also be executed directly under `nlp_env`,
+which is how they are checked in the project environment (`pytest` is not installed there):
 
-## License
+```bash
+conda run -n nlp_env --no-capture-output python tests/test_graph_hidden_placement.py
+```
 
-This project is part of MSc research at Ben-Gurion University of the Negev, Department of Software and Information Systems Engineering.
+---
+
+## 8. Training outputs
+
+A run directory is the record of the run. `graph_train` writes:
+
+| File | Contents |
+|---|---|
+| `run_config.json` | the fully resolved configuration, including nested PPO settings and a Git `provenance` block |
+| `train_records.jsonl` | one record per training iteration |
+| `eval_records.jsonl` | one record per held-out evaluation round |
+| `episode_failures.jsonl` | append-only, flushed immediately: every failed episode attempt with its pipeline stage, exact seed and traceback |
+| `run_summary.json` | derived from the jsonl files, with an accounting reconciliation flag |
+| `training_plot.png` | one four-panel figure drawn from the jsonl files |
+| `scenarios/` | the generated scenario JSON for each attempt |
+
+Every scheduled seed is attempted **at most once**. A failure is recorded and never
+retried, replaced or substituted, so each reported statistic describes the successful
+subset and is published next to its denominator. An all-failed batch reports its reward as
+`null`, never `0.0` — the reward is oracle-normalized regret, where `0` is the optimum.
+
+`--visual-artifacts` is off by default and is **observation, not measurement** — nothing it
+captures is read back into the pipeline. When enabled, each scheduled attempt gets one
+bundle under `<run_dir>/visual_artifacts/` containing the generator's known-only scenario,
+the authoritative executed `t=0` scenario, the BLADE playback recording, and a manifest
+stating the attempt's identity and whether the bundle is complete.
+
+---
+
+## 9. Documentation map
+
+| Document | Role |
+|---|---|
+| `README.md` | public orientation — this file |
+| `CLAUDE.md` | **authoritative** technical and research contracts: invariants, locked layer interfaces, build history, open questions |
+| `graph_rl_project_handoff.md` | volatile: current phase state and the next task |
+| `docs/BLADE_API_DOCUMENTATION.md` | API reference for the vendored BLADE fork *as it exists in this repository* |
+
+Where this README and `CLAUDE.md` disagree, `CLAUDE.md` wins; where `CLAUDE.md` and the
+code disagree, the code wins.
+
+---
+
+## 10. Historical code
+
+An earlier flat (non-graph) RL path — a MAPPO/CTDE design over a fixed-width observation
+vector — was retired and deleted from `main`. It is preserved in full on the `flat-final`
+branch and the `pre-cleanup` tag, and nothing in `src/` or `tools/` references it.
+
+---
+
+## Academic context
+
+Part of MSc research at Ben-Gurion University of the Negev, Department of Software and
+Information Systems Engineering.

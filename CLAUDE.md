@@ -296,7 +296,7 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 (§8). Reproducibility is judged by that fingerprint, never by id.
 
 **Execution (Stage 1) — `utils/blade_utils/blade_graph_executor.py`.**
-`GraphPlanExecutor` is the **sole** BLADE translation layer (move/launch/attack/RTB). `__init__(*, tasks, solution, agents, arrival_threshold_km=DETECTION_KM, add_return_to_base=True, nn_ordering=True, kill_confirm_ticks=60)`. **Per-ego private state:** `self.tasks: Dict[ego_id, List[Task]]` (fanned out at init; diverges only via `resync`), `self.plans` per-ego; `_resolve_step(ego_id, assignment)` is the sole reader of `self.tasks`. Key methods: `next_actions(obs) -> List[str]` (one command/ego/tick), `resync(new_solution, *, ego_id, tasks=None)` (swaps one ego's slice, **never resets `done`**), `is_done()` (skips `dead` egos, requires RTB latched), `sensed_target_ids(obs, ego_id) -> {id: unit}` (world-scan within `arrival_threshold_km`; the trigger's eyes). done-on-confirmed-kill, per-`(ego,target)` re-fire throttle, single-issue RTB latch (safe only while doctrine `AIRCRAFT_RTB_WHEN_OUT_OF_RANGE` is off — it is in `strike_training_4v5.json`), `dead` set for crashes. No-comms isolation proven in `_selftest` (ISO-1..3: a pop-up appended to ego A never enters ego B's task-view; same-index pop-ups resolve per-ego).
+`GraphPlanExecutor` is the **sole** BLADE translation layer (move/launch/attack/RTB). Its intra-level travel ordering comes from the SHARED pure helper `nearest_neighbor_order`, imported from `utils/scheduling_utils.py` — the SAME function `graph_hidden_placement.predict_route` calls, which is what keeps online execution and offline route prediction from drifting apart (`2a3f89c`). `__init__(*, tasks, solution, agents, arrival_threshold_km=DETECTION_KM, add_return_to_base=True, nn_ordering=True, kill_confirm_ticks=60)`. **Per-ego private state:** `self.tasks: Dict[ego_id, List[Task]]` (fanned out at init; diverges only via `resync`), `self.plans` per-ego; `_resolve_step(ego_id, assignment)` is the sole reader of `self.tasks`. Key methods: `next_actions(obs) -> List[str]` (one command/ego/tick), `resync(new_solution, *, ego_id, tasks=None)` (swaps one ego's slice, **never resets `done`**), `is_done()` (skips `dead` egos, requires RTB latched), `sensed_target_ids(obs, ego_id) -> {id: unit}` (world-scan within `arrival_threshold_km`; the trigger's eyes). done-on-confirmed-kill, per-`(ego,target)` re-fire throttle, single-issue RTB latch (safe only while doctrine `AIRCRAFT_RTB_WHEN_OUT_OF_RANGE` is off — it is in `strike_training_4v5.json`), `dead` set for crashes. No-comms isolation proven in `_selftest` (ISO-1..3: a pop-up appended to ego A never enters ego B's task-view; same-index pop-ups resolve per-ego).
 
 **Trigger (Stage 2) — `rl/action/graph_trigger.py`.**
 `decide_triggers(belief_tasks, belief_solution, sensed_targets, eta=never_overdue, *, ego_id, clock, fuel_damage=False) -> (new_tasks, new_solution, wake, events)`. PURE (no BLADE/torch), copy-on-write (never mutates inputs). The WHEN gate over THREE `TriggerKind` members: **POP-UP** (ego senses an unassigned target → appends a pop-up Task to append-only `belief_tasks`), **PEER-OVERDUE** (ego senses a peer's target AND its ETA passed → removes that peer tuple from the ego's `belief_solution` copy, so it reads as a pop-up — deterministic *gating*, the policy still chooses), and **FUEL_DAMAGE** (FD-BASELINE-v1). ETA is dormant (`never_overdue` = +inf) for now. `FUEL_DAMAGE` is EXOGENOUS — it cannot be detected from sensing, so the orchestrator passes `fuel_damage=True` for AT MOST ONE ego per tick; the flag defaults to `False`, so every pre-FD caller is byte-unchanged. It **edits NEITHER `belief_tasks` NOR `belief_solution`** (the changed quantity is the ego's own live fuel, which the builder reads off the aircraft) and only sets `wake`, appending a `(FUEL_DAMAGE, NO_TASK_INDEX)` event — `NO_TASK_INDEX = -1` is a sentinel, deliberately not `0`, because `0` is a valid task index. A tick carrying both a fuel-damage event and a pop-up still produces exactly ONE wake.
@@ -527,7 +527,8 @@ second factor is bundled in (§8).
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json` and one 4-panel `training_plot.png`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
 | Change the training scenario cell (target counts) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). The generator writes `n_known`; setup patches in `n_hidden`, so **emitted targets are `n_known + n_hidden`** (`TrainConfig.n_targets_emitted`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` / `split_preview` survive and are still tested but are NOT consulted by the construction path (B1, `d6758ac`). |
-| Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. |
+| Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. `predict_route` imports `nearest_neighbor_order` from `utils/scheduling_utils.py`, NOT from any executor module. |
+| Change the SHARED intra-level nearest-neighbor ordering (route prediction + execution at once) | `utils/scheduling_utils.py` (`nearest_neighbor_order`). ONE implementation with TWO consumers — `blade_graph_executor.GraphPlanExecutor._eligible` and `graph_hidden_placement.predict_route`. Changing it changes BOTH; that shared identity is the route-fidelity invariant (`2a3f89c`). Pinned by `tests/test_graph_executor_nn_ordering.py`. |
 | Change the FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. |
 | Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched pairs, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
 | Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`). Rollouts run the seeded MIXTURE only — matched pairs are an evaluation construct and live in `graph_train.evaluate`. |
@@ -757,8 +758,10 @@ second factor is bundled in (§8).
   Tuple[HiddenPlacement, ...]`, egos iterated in SORTED id order so the result never
   depends on the solution dict's insertion order; reproducibility is judged by
   `geometric_fingerprint` (coordinates only — **no UUIDs**, per §8's "Added enemy airbases
-  are not seed-stable by id"). **Route prediction reuses the frozen
-  `nearest_neighbor_order`** (imported, never reimplemented): ascending `level_order`, the
+  are not seed-stable by id"). **Route prediction reuses the SHARED
+  `nearest_neighbor_order`** (imported, never reimplemented — originally from the minimal
+  executor, relocated to `utils/scheduling_utils.py` by `2a3f89c` with the body unchanged):
+  ascending `level_order`, the
   helper called separately inside each level, its returned end location chained into the
   next, first level seeded from the shared launch point — so prediction cannot drift from
   execution. **Cardinality: exactly ONE placement per non-empty ego route**; a general
@@ -984,6 +987,50 @@ second factor is bundled in (§8).
   through stubbed engine seams. Nothing in this lock is evidence about the cell's
   behaviour; §8 still owns the gate.
 
+- `2a3f89c` — **Repository code hygiene: the retired minimal executor removed —
+  CLOSED / MERGED / APPROVED.** Reviewed code SHA
+  `2a3f89cf2d027581308493a98767ae658107d6d1`, integrated by
+  `6e2757dd30100f429d492f4d23fd8b5f57cf4fac` (PR #11). Grade A under `GPT_GITHUB`,
+  implementation mode SURGICAL — Grade A because it touched the locked
+  `GraphPlanExecutor` and B2 route-prediction imports, even though the intended runtime
+  behaviour was unchanged.
+  `blade_executor_minimal.py` had stopped being an executor long ago and survived only
+  because two live consumers imported its pure helper. **`nearest_neighbor_order` moved to
+  `src/match_aou/utils/scheduling_utils.py`** — the environment-agnostic scheduling layer —
+  with the body LINE-FOR-LINE unchanged, the only difference being the local type alias
+  `Assignment` → that module's pre-existing, identical `Assignment3`. Both consumers
+  (`GraphPlanExecutor._eligible`, `graph_hidden_placement.predict_route`) now import that
+  ONE implementation, which IS the route-fidelity invariant. The retired file was deleted
+  with **no shim and no re-export** (it remains on `flat-final`); stale prose was corrected
+  in `blade_graph_executor.py`, `graph_hidden_placement.py` and `models/step.py` (the last
+  still named the retired class as "the sole translation layer").
+  Tests: `tests/test_executor_nn_ordering.py` → `tests/test_graph_executor_nn_ordering.py`,
+  rewritten against current code (3 → 11 tests: the pure helper's order, exact tie-break,
+  unlocated-last, no-anchor and end-location chaining, plus `GraphPlanExecutor` legacy-vs-NN
+  ordering, live-position seeding, current-minimum-level gating and per-ego isolation).
+  `tests/test_graph_hidden_placement.py` PO2 no longer uses the retired executor as its
+  oracle: it consumes the CURRENT executor's own `_eligible` level by level from a live
+  position, so the check stays independent of `predict_route` instead of becoming a
+  tautological re-call of the shared helper.
+  **Reviewed proof.** (i) HELPER SEMANTIC IDENTITY — empty normalized line diff against the
+  base body. (ii) EXECUTOR / B2 FIDELITY — measured against the base SHA on both source
+  trees: placement geometry byte-identical over 60 seeds × every `HiddenPlacement` field,
+  the `geometric_fingerprint`, six predicted-route orderings and the post-placement RNG
+  STREAM POSITION (so no draw was added, removed or reordered); executor eligibility
+  byte-identical over 120 randomized worlds × both ordering modes × airborne / grounded /
+  post-kill, plus emitted commands. Four mutation checks confirmed the load-bearing tests
+  falsify — breaking `predict_route`'s chaining ALONE fails PO2, and so does breaking
+  `_eligible`'s live-position seeding ALONE. (iii) NO DEPENDENCY LEAK — no Python or test
+  import of `blade_executor_minimal` remains, `nearest_neighbor_order` has exactly one
+  definition, and `graph_hidden_placement` purity IMPROVED (it no longer pulls in the
+  `blade_utils` package at all).
+  Verified: `tests/test_graph_executor_nn_ordering.py` **11 passed**,
+  `tests/test_graph_hidden_placement.py` **18 passed**, import purity **12 passed**, full
+  suite **216 passed, 4 skipped** (208 → 216), both `nlp_env` `__main__` runners green, and
+  `git diff --check` clean. **NO training run, rollout, BONMIN solve, BLADE smoke or
+  scientific probe was performed** — nothing here is evidence about the cell's behaviour;
+  §8 still owns the gate.
+
 ---
 
 ## 8. OPEN (not built)
@@ -1142,4 +1189,40 @@ second factor is bundled in (§8).
   plain `match_aou` and asserts pyomo is already present, so the test fails if the root
   package is ever made lazy. Recorded as a precise fact, NOT as authorization to refactor
   the root package.
-> **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, `7f324fd`), plus a final doc sweep as a coda. The 38 deleted paths are preserved on TWO DISTINCT refs — branch `flat-final` (`4d44c34`) and the annotated tag `pre-cleanup` (commit `561b7cb`; `git rev-parse pre-cleanup` returns the TAG OBJECT `cce4e1e`, so peel it with `pre-cleanup^{commit}`). Nothing in `src/` or `tools/` references the flat path. `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/MATCH_AOU_API.md`, and `docs/INTEGRATION_GUIDE.md` were **deleted in the final sweep** (superseding the earlier decision to keep the first two as run-log records — the run logs live on the preserved refs, and `train_full` prose in `main` was more confusing than useful). **Kept, flagged for future passes:** `README.md` (minimally truthful — dead links pruned, but its MAPPO/flat architecture prose still awaits its own rewrite task) and `docs/BLADE_API_DOCUMENTATION.md` (documents the frozen vendored engine; unaudited against the current fork).
+> **Repository hygiene / documentation alignment: CLOSED** (Grade C, follows `2a3f89c`;
+> its own SHA is recorded by the next commit that touches this file, per the §7 hash
+> convention). Verified before each removal with exhaustive `git grep`.
+> **`README.md` fully replaced** from current repository truth: every path in its layout
+> tree exists, every command was run locally before being documented, and the stale-term
+> scan (`MAPPO`, `CTDE`, `ActorCriticNetwork`, `30 features`, `centralized critic`,
+> `strike_training_2v3`, `plan_editor.py`, `decision-interval`) leaves only the
+> §3 invariant stating there is NO centralized critic and one clearly historical sentence.
+> **`docs/BLADE_API_DOCUMENTATION.md` audited against the vendored fork** and corrected:
+> `blade/__init__.py` exports ONLY the gym registration, so `from blade import Game` binds
+> the MODULE and fails later as `'module' object is not callable` — the module-path import
+> is now documented; `Scenario.load_from_file` / `Scenario.from_json` DO NOT EXIST and were
+> removed in favour of the real `Game(current_scenario=Scenario())` + `game.load_scenario(
+> json_string)` path; the gym class is `BLADE` taking `game=`, not `BladeEnv` taking
+> `scenario_file=`; `add_strike_mission` is really `create_strike_mission`;
+> `Scenario.is_hostile`'s second parameter is NAMED `target_id` but is not a unit id — it
+> delegates to `Relationships.is_hostile`, which tests membership in
+> `hostiles[side_id]`, and in this fork's scenarios that maps side id → hostile SIDE ids
+> (every engine call site passes another unit's `.side_id`); passing a unit id returns
+> `False` SILENTLY, so resolve `target.side_id` first; `get_next_coordinates` takes
+> origin/destination/speed, not bearing/distance; detection and weapon engagement ranges are
+> NAUTICAL MILES while `get_distance_between_two_points` returns KILOMETRES; `DoctrineType`
+> has no `ATTACK_HOSTILE`; and the dead `blade_executor_minimal` / `execute_plan`
+> integration section was replaced by the real `GraphPlanExecutor` one. The two additive
+> fork APIs and the "set `current_scenario.name` BEFORE `start_recording()`" rule are
+> documented as contracts. Every claim was machine-checked against the fork.
+> **Scenario set reduced to the one active template** (user decision): `close_scenario.json`,
+> `far_scenario.json`, `match-aou_demo_2agents.json` and `strike_training_2v3.json` deleted;
+> only `data/scenarios/strike_training_4v5.json` remains tracked, and it was NOT modified.
+> No code or test referenced any of the four — the sole references were in the old README.
+> **Dead utility symbols removed:** `rl/shared_utils.py` loses `nm_to_km` and
+> `normalize_value` (zero references across all tracked files; only `haversine_distance` and
+> `clip_to_01` are live, both consumed by `graph_builder`), and its module docstring now
+> describes only what it provides. `requirements.txt` lost its stale `MAPPO` comment;
+> dependency membership and versions are unchanged. No runtime behaviour changed.
+
+> **Flat-path cleanup phase: CLOSED.** All four steps are locked (§7: `814734e`, `d9b8c17`, `ab54ac3`, `7f324fd`), plus a final doc sweep as a coda. The 38 deleted paths are preserved on TWO DISTINCT refs — branch `flat-final` (`4d44c34`) and the annotated tag `pre-cleanup` (commit `561b7cb`; `git rev-parse pre-cleanup` returns the TAG OBJECT `cce4e1e`, so peel it with `pre-cleanup^{commit}`). Nothing in `src/` or `tools/` references the flat path. `LOGS_GUIDE.md`, `RUN_SUMMARY.md`, `docs/MATCH_AOU_API.md`, and `docs/INTEGRATION_GUIDE.md` were **deleted in the final sweep** (superseding the earlier decision to keep the first two as run-log records — the run logs live on the preserved refs, and `train_full` prose in `main` was more confusing than useful). **Both remaining documentation debts are now CLOSED** by the repository-hygiene task that follows `2a3f89c` (§7): `README.md` was REPLACED outright — written from current repository truth, with the MAPPO/CTDE/flat-observation prose gone except one explicitly historical sentence — and `docs/BLADE_API_DOCUMENTATION.md` was AUDITED against the vendored fork and rewritten where it was wrong.

@@ -6,7 +6,7 @@
 numpy>=1.21.0
 scipy>=1.7.0
 
-# Deep learning (MAPPO / PPO)
+# Deep learning (Graph Transformer policy + PPO)
 torch>=2.0.0
 
 # Optimization (MATCH-AOU MINLP solver)
