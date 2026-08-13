@@ -86,14 +86,17 @@ cross-references it rather than duplicating it.
   Every test behind both locks is solver-free and drives the pipeline through stubbed
   engine seams. The locks certify implementation; they say nothing about how the cell
   behaves.
-- **No active task, candidate or PR after this documentation commit; ownership is
-  RELEASED.** Immediately before this documentation change, `main` was at
-  `771f2107211fb3f984b64482b799613260e19aca` with PR #10 merged and no open code PR. This
-  docs-only commit is pushed directly to `main` under explicit one-time user
-  authorization, so it ADVANCES `main`: **the receiving orchestrator must resolve the new
-  full `main` SHA** rather than reuse any SHA named above as a base. The implementation
-  branch `task/final-cell-visual-artifacts` has since been verified and **deleted**; it is
-  no longer a live reference.
+- **Current repository state: one OPEN documentation candidate, no open code task.** The
+  last merged code change is the repository code-hygiene cleanup above (PR #11). On top of
+  it, a Grade-C repository/documentation hygiene candidate is open as **PR #12** on branch
+  `task/repo-doc-hygiene` — it replaces `README.md`, corrects
+  `docs/BLADE_API_DOCUMENTATION.md` against the vendored fork, deletes four obsolete
+  scenario JSONs and two dead utility symbols, and updates this handoff and `CLAUDE.md`. It
+  changes no research behaviour. **Resolve the current full `main` SHA from the repository
+  before using anything here as a base** — do not reuse a SHA named above, and note that
+  merging PR #12 will advance `main` again. The implementation branch
+  `task/final-cell-visual-artifacts` has been verified and **deleted**; it is no longer a
+  live reference.
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -290,11 +293,13 @@ reuse the §2 numbers as its expectation.
 ## 8. Next action
 
 Implementation for the final Phase-A baseline cell is COMPLETE and locked, and its
-inspection surface is merged. Ownership is released after this documentation push; the
-next orchestrator performs fresh exact-SHA initialization against the new `main`, closes
-the probe's exact configuration and execution procedure per §4, and only then runs it once.
+inspection surface is merged. The remaining open work is repository hygiene, not research:
+the code cleanup is merged (PR #11) and the documentation candidate is under review
+(PR #12). Once PR #12 is resolved, ownership passes to the next orchestrator, which
+performs fresh exact-SHA initialization against the then-current `main`, closes the probe's
+exact configuration and execution procedure per §4, and only then runs it once.
 
-`task/final-cell-visual-artifacts` has been verified and deleted; there is no retained
-implementation branch awaiting cleanup.
+No implementation branch is awaiting cleanup: `task/final-cell-visual-artifacts` has been
+verified and deleted.
 
 **This document authorizes neither an implementation nor a training run.**

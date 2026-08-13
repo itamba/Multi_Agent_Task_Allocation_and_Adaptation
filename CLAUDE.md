@@ -1204,7 +1204,11 @@ second factor is bundled in (§8).
 > removed in favour of the real `Game(current_scenario=Scenario())` + `game.load_scenario(
 > json_string)` path; the gym class is `BLADE` taking `game=`, not `BladeEnv` taking
 > `scenario_file=`; `add_strike_mission` is really `create_strike_mission`;
-> `is_hostile(side_id, target_id)` takes a side and a TARGET; `get_next_coordinates` takes
+> `Scenario.is_hostile`'s second parameter is NAMED `target_id` but is not a unit id — it
+> delegates to `Relationships.is_hostile`, which tests membership in
+> `hostiles[side_id]`, and in this fork's scenarios that maps side id → hostile SIDE ids
+> (every engine call site passes another unit's `.side_id`); passing a unit id returns
+> `False` SILENTLY, so resolve `target.side_id` first; `get_next_coordinates` takes
 > origin/destination/speed, not bearing/distance; detection and weapon engagement ranges are
 > NAUTICAL MILES while `get_distance_between_two_points` returns KILOMETRES; `DoctrineType`
 > has no `ATTACK_HOSTILE`; and the dead `blade_executor_minimal` / `execute_plan`

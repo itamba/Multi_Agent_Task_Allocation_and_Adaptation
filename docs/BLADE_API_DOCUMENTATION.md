@@ -354,7 +354,7 @@ scenario.get_all_strike_missions() / get_all_patrol_missions()
 **Relationships and doctrine**
 
 ```python
-scenario.is_hostile(side_id: str, target_id: str) -> bool
+scenario.is_hostile(side_id: str, target_id: str) -> bool   # see the warning below
 scenario.check_side_doctrine(side_id: str, doctrine_type: DoctrineType) -> bool
 scenario.get_side_doctrine(side_id) -> SideDoctrine
 scenario.update_side_doctrine(side_id, side_doctrine=None) -> None
@@ -362,7 +362,52 @@ scenario.remove_side_doctrine(side_id) -> None
 scenario.get_default_doctrine() / get_default_side_doctrine()
 ```
 
-`is_hostile` takes a **side id and a target id** — not two side ids.
+#### `is_hostile` — the second parameter name is misleading
+
+`Scenario.is_hostile` declares its second parameter as `target_id`, but **it is not a unit
+id**. The method delegates straight through:
+
+```python
+# blade/Scenario.py
+def is_hostile(self, side_id: str, target_id: str) -> bool:
+    return self.relationships.is_hostile(side_id, target_id)
+
+# blade/Relationships.py
+def is_hostile(self, side_id: str, hostile_id: str) -> bool:
+    return hostile_id in self.hostiles.get(side_id, [])
+```
+
+So the call is a membership test against `relationships.hostiles[side_id]`. In this fork
+and in this project's scenarios that mapping is **side id → list of hostile SIDE ids** —
+`data/scenarios/strike_training_4v5.json` maps the BLUE side id to `[RED side id]` and vice
+versa. Every engine call site passes another unit's `.side_id`, never a unit id:
+
+```python
+# blade/Game.py (facility / ship auto-defense, air-to-air)
+if self.current_scenario.is_hostile(facility.side_id, aircraft.side_id): ...
+if self.current_scenario.is_hostile(ship.side_id, weapon.side_id): ...
+
+# blade/Scenario.py (get_all_targets_from_enemy_sides)
+if self.is_hostile(aircraft.side_id, side_id): ...
+```
+
+**Passing a unit id silently returns `False`** — not an error — even when that unit really
+is hostile, because a unit id is never a key or a member of `hostiles`:
+
+```python
+scenario.is_hostile(blue_side_id, red_side_id)        # True
+scenario.is_hostile(blue_side_id, red_airbase.id)     # False  <- wrong answer, no exception
+```
+
+Read it as `is_hostile(side_id, other_side_id)`. To ask "may I attack this unit?", resolve
+the unit's side first:
+
+```python
+target = scenario.get_target(target_id)
+hostile = target is not None and scenario.is_hostile(my_side_id, target.side_id)
+```
+
+The parameter name cannot be corrected here — the engine is frozen (`CLAUDE.md` §2).
 
 `DoctrineType` members (`blade/Doctrine.py`), all string-valued:
 
