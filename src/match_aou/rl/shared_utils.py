@@ -1,14 +1,15 @@
 """
-Shared Utilities for RL Module
+Shared numeric helpers for the graph-RL modules.
 
-Common functions used across observation, action, and plan_edit modules.
+Two small pure functions, kept here so the layers that need them do not each carry
+their own copy:
 
-This module provides utilities that are needed by multiple RL components:
-- Distance calculations (haversine)
-- Unit conversions (nautical miles to kilometers)
-- Value normalization and clipping
+- ``haversine_distance((lat, lon), (lat, lon))`` -- great-circle distance in kilometres,
+  via the ``haversine`` package when it is installed and an inline fallback otherwise.
+- ``clip_to_01(value)`` -- clamp a value into ``[0, 1]``.
 
-All RL submodules should import from here rather than duplicating code.
+Both are consumed by ``rl/observation/graph_builder.py`` when it normalizes task and
+agent features. Nothing here imports BLADE, gymnasium, torch or the solver.
 """
 
 import math
@@ -57,25 +58,6 @@ def haversine_distance(
         return R * c
 
 
-def nm_to_km(nautical_miles: float) -> float:
-    """
-    Convert nautical miles to kilometers.
-    
-    Standard conversion: 1 NM = 1.852 km
-    
-    Args:
-        nautical_miles: Distance in nautical miles
-    
-    Returns:
-        Distance in kilometers
-    
-    Example:
-        >>> nm_to_km(100)
-        185.2
-    """
-    return nautical_miles * 1.852
-
-
 def clip_to_01(value: float) -> float:
     """
     Clip value to [0, 1] range.
@@ -95,31 +77,3 @@ def clip_to_01(value: float) -> float:
         0.0
     """
     return max(0.0, min(1.0, float(value)))
-
-
-def normalize_value(value: float, min_val: float, max_val: float) -> float:
-    """
-    Normalize value to [0, 1] range.
-    
-    Maps a value from [min_val, max_val] to [0, 1].
-    Automatically clips result to [0, 1].
-    
-    Args:
-        value: Value to normalize
-        min_val: Minimum possible value
-        max_val: Maximum possible value
-    
-    Returns:
-        Normalized value in [0, 1]
-    
-    Example:
-        >>> normalize_value(50, 0, 100)
-        0.5
-        >>> normalize_value(150, 0, 100)
-        1.0
-    """
-    if max_val <= min_val:
-        return 0.0
-    
-    normalized = (value - min_val) / (max_val - min_val)
-    return clip_to_01(normalized)
