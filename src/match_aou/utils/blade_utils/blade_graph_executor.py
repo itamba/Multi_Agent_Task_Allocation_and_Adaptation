@@ -30,10 +30,12 @@ DONE-ON-CONFIRMED-KILL:
   keeps the executor correct once task probability < 1.0, where a launch may
   miss — the ego re-engages instead of silently advancing past a survivor.)
 
-WHY THIS IS A FRESH FILE (not a refactor of blade_executor_minimal.py):
-  The frozen minimal executor was written against an older model. Applying the
-  lens "would I build it this way if that file did not exist?", these structural
-  choices changed:
+WHY THIS IS A FRESH FILE (not a refactor of the retired minimal executor):
+  This module is the sole BLADE translation layer. It was written fresh rather
+  than refactored out of the earlier minimal demo executor (retired and deleted
+  from `main`; preserved on the historical `flat-final` branch), which had been
+  built against an older model. Applying the lens "would I build it this way if
+  that file did not exist?", these structural choices changed:
     * NO positional queue cursor (``_AgentExec.idx``). Eligibility is DERIVED
       fresh from ``(plans, done)`` every tick, so a mid-episode ``resync`` needs
       no cursor surgery — it just swaps a plan slice.
@@ -51,8 +53,9 @@ WHY THIS IS A FRESH FILE (not a refactor of blade_executor_minimal.py):
     * ``done`` keyed on ``(ego_id, target_id)`` (semantic, per-agent), not on
       ``(task_idx, step_idx)`` + a queue index — this is what makes per-agent
       done + no-comms + resync-survival work.
-  Genuinely reusable, proven, pure helper ``nearest_neighbor_order`` IS reused
-  (imported, not copied) — it survives the lens unchanged.
+  The genuinely reusable, proven, pure helper ``nearest_neighbor_order`` survived
+  the lens unchanged and now lives in ``match_aou.utils.scheduling_utils``, the
+  environment-agnostic scheduling layer. It is IMPORTED, never copied.
 """
 
 from __future__ import annotations
@@ -60,10 +63,10 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ...models import Agent, Location, Task
-# Proven, pure haversine nearest-neighbor helper. Imported (not copied): it is a
-# module-level pure function, so reusing it neither couples us to the frozen
-# executor's class structure nor risks divergence.
-from .blade_executor_minimal import nearest_neighbor_order
+# Proven, pure haversine nearest-neighbor helper. Imported (not copied) from the
+# environment-agnostic scheduling layer, so this executor and the offline route
+# prediction in `graph_hidden_placement` share ONE implementation and cannot diverge.
+from ..scheduling_utils import nearest_neighbor_order
 # Shared enemy-enumeration (single source of truth). sensed_target_ids reuses it so
 # executor sensing and generate_all_enemy_tasks agree on "which units are enemy targets".
 from .scenario_factory import iter_enemy_targets
@@ -201,7 +204,7 @@ class GraphPlanExecutor:
         resolve against ``self.tasks[str(ego_id)]``, never a peer's list. An unknown
         ego (absent key) is treated as an empty list, so its assignments resolve to
         None. Out-of-range task/step indices likewise yield None and are treated as
-        "nothing to execute" (skipped), exactly like the frozen executor's guards.
+        "nothing to execute" (skipped) rather than raising.
         """
         t_idx, s_idx, _lv = assignment
         ego_tasks = self.tasks.get(str(ego_id), [])

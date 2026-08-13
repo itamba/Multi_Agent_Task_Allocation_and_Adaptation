@@ -17,9 +17,10 @@ They discharge the three declared proof obligations:
        placement on leg 2, a placement on leg 3, STRICT rejection at a 100 km
        nearest-neighbor gap with D = 50 (and acceptance just above it), the
        one-remaining-target trivial pass, fallback to leg 1 when a later leg is
-       unstable, and that the predicted route is byte-identical to the queue the frozen
-       executor builds through the same `nearest_neighbor_order` (level grouping +
-       chained start location included).
+       unstable, and that the predicted route is byte-identical to the route the CURRENT
+       `GraphPlanExecutor` actually flies -- obtained by consuming its own `_eligible`
+       level by level from a live position, not by re-calling the ordering helper (level
+       grouping + chained start location included).
 
   PO3  REPRODUCIBILITY
        Identically seeded `random.Random` instances produce identical geometric
@@ -32,8 +33,10 @@ every fixture asserts its own premises (which target is nearest, what the gaps a
 test that stops proving what it claims fails instead of passing vacuously.
 
 Pure: no bonmin, no BLADE `Game`, no gymnasium env, no torch, no file I/O. The only
-heavier import is the frozen `BladeExecutorMinimal` (pure Python) used as the independent
-oracle for route prediction.
+heavier import is `GraphPlanExecutor` (pure Python -- it duck-types the observation and
+imports no simulator), used as the independent oracle for route prediction. The module
+UNDER TEST still must not reach it: `test_module_has_no_blade_torch_or_solver_dependency`
+checks the placement module's own import closure in a child process.
 
 Run:
     pytest tests/test_graph_hidden_placement.py -q                          (base env)
@@ -68,8 +71,8 @@ from match_aou.rl.training.graph_hidden_placement import (  # noqa: E402
     predict_route,
     validate_placement,
 )
-from match_aou.utils.blade_utils.blade_executor_minimal import (  # noqa: E402
-    BladeExecutorMinimal,
+from match_aou.utils.blade_utils.blade_graph_executor import (  # noqa: E402
+    GraphPlanExecutor,
 )
 
 DETECTION_KM = 50.0  # the unified radius (CLAUDE.md Sec 3), supplied via parameters
@@ -386,8 +389,64 @@ def test_po2_single_remaining_candidate_passes_trivially() -> None:
     validate_placement(p, PARAMS)
 
 
-def test_po2_predicted_route_matches_executor_queue() -> None:
-    """Prediction reproduces the frozen executor's queue: levels, chaining, tie-breaks."""
+class _FakeAircraft:
+    """The attributes `blade_graph_executor._live_location` reads off an observation."""
+
+    def __init__(self, ego_id: str, lat: float, lon: float) -> None:
+        self.id = ego_id
+        self.latitude = float(lat)
+        self.longitude = float(lon)
+
+
+class _FakeScenario:
+    """Minimal airborne-ego observation. No BLADE `Game`, no env, no stepping."""
+
+    def __init__(self, ego_id: str, loc: Location) -> None:
+        self.aircraft = [_FakeAircraft(ego_id, loc.latitude, loc.longitude)]
+        self.airbases = []
+
+
+def _executor_flown_route(tasks, assignments, ego_id: str, start: Location):
+    """The order the CURRENT `GraphPlanExecutor` really flies, level by level.
+
+    Independent of `predict_route`: it drives the executor's own `_eligible` exactly the
+    way `_command_for_ego` does -- recompute eligibility from the ego's LIVE position,
+    take the head, record the confirmed kill in `done` (the executor's sole advance
+    signal), move the live position onto that target, repeat. So this reads the
+    executor's real level-min gating and private per-ego task resolution rather than
+    re-calling the shared ordering helper, which would make the comparison tautological.
+    """
+    agent = Agent(
+        location=start,
+        capabilities=[],
+        budget=0.0,
+        move_cost_function=lambda a, b: 0.0,
+        agent_id=ego_id,
+        return_location=start,
+    )
+    executor = GraphPlanExecutor(
+        tasks=list(tasks),
+        solution={ego_id: [tuple(a) for a in assignments]},
+        agents=[agent],
+        add_return_to_base=False,
+    )
+    flown = []
+    scenario = _FakeScenario(ego_id, start)
+    for _guard in range(1000):
+        eligible = executor._eligible(ego_id, scenario)
+        if not eligible:
+            return flown
+        head = eligible[0]
+        step = executor._resolve_step(ego_id, head)
+        _assert(step is not None, f"assignment {head} must resolve to a step")
+        flown.append(tuple(head))
+        executor.done.add((ego_id, str(step.target_id)))
+        scenario = _FakeScenario(ego_id, step.location)
+    raise AssertionError("executor route consumption did not terminate")
+
+
+def test_po2_predicted_route_matches_executor_flown_route() -> None:
+    """Prediction reproduces what the CURRENT executor flies: levels, chaining, ties."""
     locs = [
         _dest(LAUNCH, 90.0, 220.0),
         _dest(LAUNCH, 45.0, 260.0),
@@ -398,27 +457,28 @@ def test_po2_predicted_route_matches_executor_queue() -> None:
     tasks = _tasks(*locs)
     assignments = [(0, 0, 0), (1, 0, 0), (2, 0, 1), (3, 0, 1), (4, 0, 2)]
 
-    agent = Agent(
-        location=LAUNCH,
-        capabilities=[],
-        budget=0.0,
-        move_cost_function=lambda a, b: 0.0,
-        agent_id="ego",
-        return_location=LAUNCH,
-    )
-    executor = BladeExecutorMinimal(
-        tasks=tasks, solution={"ego": list(assignments)}, agents=[agent]
-    )
-    expected = [tuple(a) for a in executor.queue["ego"]]
+    expected = _executor_flown_route(tasks, assignments, "ego", LAUNCH)
+    _assert(len(expected) == len(assignments),
+            f"the executor must fly every assignment once, got {expected}")
+    _assert(sorted(expected) == sorted(tuple(a) for a in assignments),
+            f"the executor must fly exactly the planned SET, got {expected}")
+
     predicted = list(predict_route(assignments, tasks, LAUNCH))
-    _assert(predicted == expected, f"route {predicted} != executor queue {expected}")
+    _assert(predicted == expected, f"route {predicted} != executor flown route {expected}")
     _assert([a[2] for a in predicted] == sorted(a[2] for a in predicted),
             "levels must stay ascending")
 
-    # Insertion order of the assignment list must not matter.
+    # The fixture must be non-trivial: at least one level must be REORDERED away from
+    # the plain (task_idx, step_idx) order, else agreement proves nothing.
+    _assert(predicted != [tuple(a) for a in assignments],
+            "fixture is vacuous: nearest-neighbor ordering did not reorder anything")
+
+    # Insertion order of the assignment list must not matter -- on either side.
     shuffled = list(reversed(assignments))
     _assert(list(predict_route(shuffled, tasks, LAUNCH)) == expected,
             "route prediction must not depend on assignment list order")
+    _assert(_executor_flown_route(tasks, shuffled, "ego", LAUNCH) == expected,
+            "executor execution must not depend on assignment list order")
 
 
 # ---------------------------------------------------------------------------
@@ -688,8 +748,8 @@ if __name__ == "__main__":
          test_po2_tie_margin_strict_at_two_detection_radii),
         ("po2_single_remaining_candidate_passes_trivially",
          test_po2_single_remaining_candidate_passes_trivially),
-        ("po2_predicted_route_matches_executor_queue",
-         test_po2_predicted_route_matches_executor_queue),
+        ("po2_predicted_route_matches_executor_flown_route",
+         test_po2_predicted_route_matches_executor_flown_route),
         ("po3_identical_seeds_reproduce_fingerprint_and_metadata",
          test_po3_identical_seeds_reproduce_fingerprint_and_metadata),
         ("po3_insertion_order_does_not_change_the_result",
