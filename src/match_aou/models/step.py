@@ -23,7 +23,7 @@ class Step:
 
     A Step describes WHAT must happen (act on this target, at this location, with
     these capabilities) but never HOW to express it to a particular simulator.
-    The executor (BladeExecutorMinimal) is the sole translation layer: it turns a
+    The executor (GraphPlanExecutor) is the sole translation layer: it turns a
     Step plus its agent assignment into concrete BLADE commands. The Step itself
     carries no agent identity, no action template, and no placeholders.
     """

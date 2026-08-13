@@ -19,9 +19,10 @@ and module-global randomness: the caller supplies an explicit ``random.Random``,
 ``detection_km`` arrives through :class:`PlacementParameters` rather than being imported
 from ``graph_episode_setup`` (importing it would drag this layer into the
 setup/solver/executor dependency closure). Everything it needs from the rest of the
-project is the pure domain models plus the frozen executor helper
-``nearest_neighbor_order`` -- IMPORTED, never reimplemented, so route prediction cannot
-drift from route execution.
+project is the pure domain models plus the shared scheduling helper
+``nearest_neighbor_order`` (``match_aou.utils.scheduling_utils``) -- IMPORTED, never
+reimplemented, and the very function ``GraphPlanExecutor`` orders its own eligible
+assignments with, so route prediction cannot drift from route execution.
 
 THE GEOMETRY (closed decisions)
 -------------------------------
@@ -91,10 +92,11 @@ from numbers import Integral
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ...models import Location, Task
-# The FROZEN executor's pure ordering helper. Imported, never reproduced or modified:
-# offline route prediction and online route execution must be the same function
-# (graph_rl_project_handoff.md, "Route prediction").
-from ...utils.blade_utils.blade_executor_minimal import nearest_neighbor_order
+# The SHARED pure ordering helper from the environment-agnostic scheduling layer --
+# the same function `GraphPlanExecutor._eligible` calls. Imported, never reproduced or
+# modified: offline route prediction and online route execution must be the same
+# function (graph_rl_project_handoff.md, "Route prediction").
+from ...utils.scheduling_utils import nearest_neighbor_order
 
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level_order)
 
