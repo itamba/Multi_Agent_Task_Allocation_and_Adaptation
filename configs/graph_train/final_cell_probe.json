@@ -1,0 +1,32 @@
+{
+  "_comment": "THE BOUNDED SHORT FINAL-CELL PROBE. Keys are TrainConfig field names; keys starting with '_' are comments (JSON has none). Load with: python -m match_aou.rl.training.graph_train --config configs/graph_train/final_cell_probe.json",
+  "_scope": "A SHORT PROBE, NOT A BASELINE. 2 iterations x 4 training episodes, plus one pre_update and one post_update held-out round of 4 matched pairs each. It exists to measure how the merged fuel-damage cell behaves; a long baseline is a separately authorized task and is deliberately NOT presettable here.",
+
+  "_schedule": "Bounded: 8 scheduled training episodes total. Every scheduled seed is attempted at most once (skip_and_account_v1) -- a failure is recorded, never retried or replaced.",
+  "n_iterations": 2,
+  "episodes_per_iteration": 4,
+  "base_seed": 0,
+
+  "_evaluation": "eval_every=2 with n_iterations=2 gives exactly two rounds: the pre_update measurement of the untrained policy (updates_completed=0) and one post_update round after both updates. eval_base_seed sits far beyond the training band, so the held-out seeds are never trained on.",
+  "eval_every": 2,
+  "eval_episodes": 4,
+  "eval_base_seed": 1000000,
+
+  "_cell": "The final Phase-A scenario cell, unchanged: 3 agents, 3 known + 3 route-relative hidden airbase targets (6 emitted), 200 km launch-to-target floor, 100 km known-target separation, no SAMs.",
+  "num_agents": 3,
+  "n_known": 3,
+  "n_hidden": 3,
+  "min_target_distance_km": 200.0,
+  "min_known_separation_km": 100.0,
+  "include_sams": false,
+
+  "_difficulty": "FD-BASELINE-v1, exactly as merged on main. The seeded mixture makes the condition a deterministic function of the episode seed; evaluation ignores the mode and forces both members of each matched pair. aircraft_penalty_coeff is the death penalty c that graph_reward already accepted -- the reward FORMULA is unchanged.",
+  "fuel_damage_mode": "seeded_mixture",
+  "fuel_damage_probability": 0.5,
+  "fuel_damage_leg_progress": 0.3,
+  "fuel_damage_rtb_margin": 1.1,
+  "aircraft_penalty_coeff": 2.25,
+
+  "_artifacts": "ON for this probe: each scheduled attempt keeps its known-only scenario, its authoritative executed t=0 scenario, the BLADE playback and a manifest under <run_dir>/visual_artifacts/. Observation only -- nothing captured is read back, and artifact completeness is reported alongside the scientific denominators, never in place of one.",
+  "visual_artifacts": true
+}
