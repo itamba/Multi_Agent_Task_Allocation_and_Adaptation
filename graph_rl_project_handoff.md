@@ -95,17 +95,19 @@ cross-references it rather than duplicating it.
   research behaviour. The FIRST candidate `6302847bdc8b5e40313763b4b167af85dd0a462e`
   received REQUEST-FIXES; the correction landed as a new child commit, never rewritten.
   `CLAUDE.md` §7 owns the lock.
-- **Repository hygiene is now COMPLETE, and NO active candidate or open task PR remains.**
-  Both hygiene tasks are merged (PR #11 code, PR #12 documentation) and their branches
-  `task/repo-code-hygiene` and `task/repo-doc-hygiene` have been **deleted** locally and
-  remotely by safe deletion, each verified an ancestor of `main` first; every reviewed
-  candidate tip stays reachable on GitHub through `refs/pull/<n>/head`. The earlier
+- **All PRIOR repository-hygiene work is CLOSED, and this document is the phase's final
+  closure record.** Both hygiene tasks are merged (PR #11 code, PR #12 documentation) and
+  their branches `task/repo-code-hygiene` and `task/repo-doc-hygiene` have been **deleted**
+  locally and remotely by safe deletion, each verified an ancestor of `main` first; every
+  reviewed candidate tip stays reachable on GitHub through `refs/pull/<n>/head`. The earlier
   implementation branch `task/final-cell-visual-artifacts` was likewise verified and
   deleted. `flat-final` (`4d44c3454a5561a6cb9d7aed593d59a40068d6d7`) and the `pre-cleanup`
   tag (peeling to `561b7cb7f2d873e584a8c0dabe71df8050f1b4ed`) are untouched.
-  **Ownership is RELEASED.** The next orchestrator performs fresh exact-SHA initialization:
-  **resolve the current full `main` SHA from the repository** rather than reusing any SHA
-  named in this document.
+  **Ownership is RELEASED once this closure record is integrated into `main`.** No further
+  repository-hygiene task follows it. **Live branch and PR state — including whatever
+  delivered this record — must be resolved from GitHub, never from this document**, and the
+  next orchestrator performs fresh exact-SHA initialization: **resolve the current full
+  `main` SHA from the repository** rather than reusing any SHA named here.
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -303,14 +305,15 @@ reuse the §2 numbers as its expectation.
 
 Implementation for the final Phase-A baseline cell is COMPLETE and locked, its inspection
 surface is merged, and repository hygiene is CLOSED (PR #11 code, PR #12 documentation).
-No active candidate, task branch or open task PR remains, and **ownership is RELEASED**.
+No further repository-hygiene task follows this closure record, and **ownership is RELEASED
+once it is integrated into `main`**.
 
 The next orchestrator performs fresh exact-SHA initialization against the current `main`,
 closes the probe's exact configuration and execution procedure per §4, and only then runs
 it once. The next task is still the bounded SHORT SCIENTIFIC PROBE of the merged
-fuel-damage cell described in §4 — unchanged by the hygiene work — and the long baseline
-remains UNAUTHORIZED until that probe passes.
+fuel-damage cell described in §4 — unchanged by the hygiene work — and **a long baseline
+remains UNAUTHORIZED until the short probe has been reviewed** (§4).
 
-No branch is awaiting cleanup.
+Resolve live branch and PR state from GitHub; this document does not track it.
 
 **This document authorizes neither an implementation nor a training run.**
