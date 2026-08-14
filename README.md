@@ -139,6 +139,9 @@ Multi_Agent_Task_Allocation_and_Adaptation/
 ├── CLAUDE.md                        # authoritative technical & research contracts
 ├── graph_rl_project_handoff.md      # volatile: current phase, next task
 ├── requirements.txt
+├── configs/
+│   └── graph_train/
+│       └── final_cell_probe.json    # the bounded short final-cell probe preset
 ├── data/
 │   └── scenarios/
 │       └── strike_training_4v5.json # the one active scenario template
@@ -247,11 +250,56 @@ so they need no `PYTHONPATH`.
 conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 20 --episodes 8 --seed 0
 ```
 
+#### Running from a JSON preset
+
+A run's shape can be declared in a JSON file instead of a command line, which is what
+makes a bounded experiment reproducible from the repository rather than from a shell
+history. The repository owns one preset: the **bounded short final-cell probe**.
+
+```bash
+conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config configs/graph_train/final_cell_probe.json
+```
+
+That preset is 2 iterations x 4 training episodes, plus one `pre_update` and one
+`post_update` held-out round of 4 matched pairs each, on the final cell (3 agents,
+3 known + 3 hidden targets, no SAMs) with FD-BASELINE-v1 and `--visual-artifacts` on.
+It is a **short probe, not a baseline**; a long baseline is separately authorized and is
+deliberately not presettable.
+
+From PyCharm, the same run is a *Module name* run configuration —
+module `match_aou.rl.training.graph_train`, parameters
+`--config configs/graph_train/final_cell_probe.json`, working directory the repository
+root, interpreter `nlp_env`, and `PYTHONPATH` including `src`.
+
+A preset names `TrainConfig` **field** names (nested PPO knobs under `"ppo"`); keys
+beginning with `_` are comments, and an unknown key is refused rather than ignored.
+Resolution is **dataclass defaults < preset < explicitly typed flags**, so a preset can
+be adjusted for one run without editing it:
+
+```bash
+conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config configs/graph_train/final_cell_probe.json --seed 7
+```
+
+The resolved configuration and the preset it came from are both recorded in
+`run_config.json` (`train_config` and `config_source`, the latter listing which fields
+the preset supplied and which a flag overrode). `config_source` is **always a structured
+object**, never `null`, and its `resolved_from` names one of three truthful provenances:
+
+| `resolved_from` | What produced the config |
+|---|---|
+| `config_file` | a command line naming a JSON preset (`path` says which) |
+| `cli_defaults` | a command line with no `--config` |
+| `direct_config` | a `TrainConfig` built in Python and passed straight to `train()` — no command line, no preset |
+
+So "no preset was used" is a stated fact rather than a missing key, and a run driven from
+a script or notebook is never recorded as though a command line had resolved it.
+
 Selected options (`--help` is authoritative):
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--iterations` | — | PPO iterations; required to train |
+| `--config PATH` | — | JSON preset of `TrainConfig` fields; explicit flags override it |
+| `--iterations` | — | PPO iterations; required to train (may come from `--config`) |
 | `--episodes` | 8 | training episodes per iteration |
 | `--seed` | 0 | base seed; pins initial weights and anchors the episode seed schedule |
 | `--out` | `training_output_<timestamp>` | run directory |
@@ -260,7 +308,7 @@ Selected options (`--help` is authoritative):
 | `--num-agents`, `--n-known`, `--n-hidden` | 3, 3, 3 | the scenario cell |
 | `--fuel-damage-mode`, `--fuel-damage-probability` | mixture, 0.5 | difficulty-factor scheduling |
 | `--visual-artifacts` | off | opt-in per-attempt inspection bundles |
-| `--plot RUN_DIR` | — | re-plot an existing run directory and exit (no training) |
+| `--plot RUN_DIR` | — | re-draw an existing run directory's figures into `<RUN_DIR>/plots/` and exit (no training) |
 
 Training refuses to start unless Git provenance is complete — both the full commit SHA and
 a clean/dirty verdict must be determinable, so a run is always attributable to exact code.
@@ -309,8 +357,45 @@ A run directory is the record of the run. `graph_train` writes:
 | `eval_records.jsonl` | one record per held-out evaluation round |
 | `episode_failures.jsonl` | append-only, flushed immediately: every failed episode attempt with its pipeline stage, exact seed and traceback |
 | `run_summary.json` | derived from the jsonl files, with an accounting reconciliation flag |
-| `training_plot.png` | one four-panel figure drawn from the jsonl files |
+| `plots/` | three figures drawn from the jsonl files alone (below) |
 | `scenarios/` | the generated scenario JSON for each attempt |
+| `checkpoints/` | saved encoder + head + optimizer state |
+
+#### Plots
+
+Figures are derived artifacts, so they live under `<run_dir>/plots/` rather than among
+the records, and each one carries a single claim:
+
+| Figure | What it shows |
+|---|---|
+| `training_performance.png` | training reward; held-out evaluation **split into clean and damaged**; the matched-pair delta `R_damaged - R_clean` |
+| `policy_diagnostics.png` | meta-action mix and policy entropy over the training decisions |
+| `measurement_health.png` | the denominators — training and eval success fractions, wake coverage, the **pair** success fraction, and **per-condition held-out completion** |
+
+The two condition curves in `training_performance.png` are each a mean over **that
+condition's own successful episodes**, so if one condition fails more held-out seeds than
+the other they are not averages over the same seeds and the gap between them is not a
+within-seed effect. The panel and its legend say so, and the per-condition
+attempted/successful counts in `measurement_health.png` are what make the asymmetry
+inspectable. The **matched-pair delta is the within-seed comparison** — it uses only
+pairs whose both members completed, so it stays valid when the two populations differ.
+
+All three share one x-axis: **PPO updates completed before the measurement**. Training
+points sit at `updates_completed_before` (the updates the policy that generated those
+episodes had received) and evaluation points at `updates_completed`, so the untrained
+policy's first batch and its `pre_update` held-out measurement share an origin. Reward is
+oracle-normalized regret where `0` is the optimum, so a batch or round with no successful
+episode is **dropped** from a curve rather than drawn at 0 — `measurement_health.png` is
+where that gap becomes visible, and the two figures are meant to be read together.
+
+Any run directory can be re-plotted later without retraining:
+
+```bash
+python -m match_aou.rl.training.graph_train --plot training_output_20260101_120000
+```
+
+matplotlib is optional: if it is missing, plotting prints a notice and the run still
+completes — the jsonl files are the record.
 
 Every scheduled seed is attempted **at most once**. A failure is recorded and never
 retried, replaced or substituted, so each reported statistic describes the successful

@@ -163,7 +163,24 @@ a console scrollback:
   * ``episode_failures.jsonl`` -- append-only, flushed per record: every failed attempt
                                  with its phase, seed, pipeline stage and traceback.
   * ``run_summary.json``       -- derived from the three jsonl files at completion.
-  * ``training_plot.png``      -- 4 panels, derived from the jsonl files alone.
+  * ``plots/``                 -- the three figures, derived from the jsonl files alone:
+                                 ``training_performance.png`` (train reward, held-out
+                                 clean vs damaged, matched-pair delta),
+                                 ``policy_diagnostics.png`` (meta-action mix, entropy)
+                                 and ``measurement_health.png`` (the denominators).
+  * ``scenarios/``             -- the generated scenario JSON of every attempt.
+
+JSON PRESETS (``--config <path>``)
+----------------------------------
+A run's shape can be declared in a JSON file instead of a command line, which is what
+makes a bounded probe reproducible from the repository rather than from someone's shell
+history. The file names :class:`TrainConfig` FIELDS directly (with the nested PPO knobs
+under ``"ppo"``); ``TrainConfig`` stays the single source of truth, unknown keys are
+refused, and an EXPLICIT command-line flag still wins over the file. The resolved config
+and the preset it came from are both recorded in ``run_config.json``
+(``/config_source``), so a finished run states which preset produced it. The repository
+owns one preset today: ``configs/graph_train/final_cell_probe.json``, the bounded short
+final-cell probe.
 
 VISUAL ARTIFACTS (opt-in: ``--visual-artifacts`` / ``TrainConfig.visual_artifacts``)
 ------------------------------------------------------------------------------------
@@ -226,12 +243,13 @@ Consequently:
     safe to call from any process that has NOT loaded torch.
   * :func:`plot_training_subprocess` is what a TORCH process (a finished training run,
     the selftest, a test) must call. It re-invokes this module's ``--plot`` CLI in a
-    child process that only reads jsonl and draws a PNG -- no tensor math whatsoever --
+    child process that only reads jsonl and draws the PNGs -- no tensor math at all --
     with ``KMP_DUPLICATE_LIB_OK=TRUE`` set for that child alone. The duplicate-OpenMP
     tolerance is therefore confined to a throwaway, numerics-free process; the training
     process itself never gets a second OpenMP runtime.
 Either way, training NEVER depends on matplotlib: a missing matplotlib (or a failed
-child) prints one notice and returns ``None``.
+child) prints one notice and returns an EMPTY LIST of figures. Both functions return the
+list of figure paths they wrote, because there are three of them (see PLOTS below).
 
 Windows-safe: pathlib paths, ASCII-only console output (cp1255 console).
 """
@@ -250,7 +268,7 @@ import subprocess
 import sys
 import time
 import traceback
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields as dataclass_fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -397,6 +415,112 @@ _ARTIFACT_STATUS_COMPLETE = "complete"
 _ARTIFACT_PHASE_TRAIN = "train"
 _ARTIFACT_PHASES = (
     _EVAL_STAGE_PRE_UPDATE, _ARTIFACT_PHASE_TRAIN, _EVAL_STAGE_POST_UPDATE,
+)
+
+# --- PLOTS: one subdirectory, three semantically separate figures ---------------
+# The legacy single `training_plot.png` dashboard is GONE. It put the stochastic
+# training mean and the deterministic held-out mean on one axis, which invited reading
+# them as one curve, and it pre-dated the matched-pair evaluation entirely -- so the
+# held-out series it drew pooled the clean and damaged conditions and therefore answered
+# no question about the difficulty factor. The three figures below separate what is
+# being claimed: PERFORMANCE, policy DIAGNOSTICS, and the DENOMINATORS behind both.
+_PLOTS_DIRNAME = "plots"
+_PLOT_PERFORMANCE = "training_performance.png"
+_PLOT_DIAGNOSTICS = "policy_diagnostics.png"
+_PLOT_MEASUREMENT_HEALTH = "measurement_health.png"
+_PLOT_FILENAMES = (_PLOT_PERFORMANCE, _PLOT_DIAGNOSTICS, _PLOT_MEASUREMENT_HEALTH)
+
+# Every figure shares ONE x-coordinate concept, stated on every figure so a reader never
+# has to infer it: the policy state a measurement describes, counted in PPO updates
+# COMPLETED BEFORE that measurement was taken. Training points therefore sit at
+# `updates_completed_before` (the updates the policy that GENERATED those episodes had
+# received) and eval points at `updates_completed` (0 for the pre-update round), which is
+# what puts the untrained policy's training batch and its held-out measurement at the
+# same origin. This is the honest placement, not the flattering one: it never credits a
+# batch to an update that had not happened when the batch was collected.
+_PLOT_X_LABEL = "PPO updates completed before the measurement"
+_PLOT_X_SEMANTICS = (
+    "x = PPO updates completed BEFORE the measurement (train: "
+    "updates_completed_before; eval: updates_completed)"
+)
+
+# --- JSON PRESETS -------------------------------------------------------------
+# A preset names TrainConfig FIELDS, not CLI flags: `TrainConfig` is the contract, and a
+# second parallel naming scheme would be a second place for the two to drift apart.
+# Nested PPO knobs live under this key, mirroring the dataclass.
+_CONFIG_PPO_KEY = "ppo"
+
+# JSON has no comments, so a preset may carry any number of underscore-prefixed keys as
+# prose. Everything else must be a real field name -- an unrecognized key is REFUSED
+# rather than ignored, because a typo that silently leaves a knob at its default is a
+# run that measured something other than what its file says.
+_CONFIG_COMMENT_PREFIX = "_"
+
+# CLI dest -> TrainConfig field. The ONE mapping site behind both `main`'s config
+# construction and the JSON-preset override precedence, so a flag cannot reach a
+# different field than the preset key of the same name does.
+_CLI_FIELD_BY_DEST = {
+    "iterations": "n_iterations",
+    "episodes": "episodes_per_iteration",
+    "seed": "base_seed",
+    "out": "output_dir",
+    "checkpoint_every": "checkpoint_every",
+    "eval_every": "eval_every",
+    "eval_episodes": "eval_episodes",
+    "eval_base_seed": "eval_base_seed",
+    "num_agents": "num_agents",
+    "n_known": "n_known",
+    "n_hidden": "n_hidden",
+    "min_target_distance_km": "min_target_distance_km",
+    "min_known_separation_km": "min_known_separation_km",
+    "num_red_airbases": "num_red_airbases",
+    "partial_ratio": "partial_ratio",
+    "stretch_target_ratio": "stretch_target_ratio",
+    "fuel_damage_mode": "fuel_damage_mode",
+    "fuel_damage_probability": "fuel_damage_probability",
+    "fuel_damage_leg_progress": "fuel_damage_leg_progress",
+    "fuel_damage_rtb_margin": "fuel_damage_rtb_margin",
+    "aircraft_penalty_coeff": "aircraft_penalty_coeff",
+    "visual_artifacts": "visual_artifacts",
+}
+
+# CLI dest -> PPOConfig field (the nested block).
+_CLI_PPO_FIELD_BY_DEST = {
+    "lr": "lr",
+    "epochs": "n_epochs",
+    "entropy_coeff": "entropy_coeff",
+    "clip_ratio": "clip_ratio",
+}
+
+# Fields whose JSON form is a list but whose dataclass form is a tuple. `asdict` writes
+# `num_red_airbases` as a list, so a preset copied out of a previous run's
+# `run_config.json:/train_config` must load back into the same config it came from.
+_CONFIG_TUPLE_FIELDS = ("num_red_airbases",)
+
+# The THREE ways a resolved config can have come about, recorded verbatim in
+# `run_config.json:/config_source`. `config_source` is ALWAYS a structured object --
+# never `null` -- so a reader parses one shape and reads `resolved_from` to learn which
+# case it is. "No preset" is then a STATED fact (`path: null`, empty field lists) rather
+# than an absent key, which is indistinguishable from a writer that forgot to record it.
+#
+#   cli_defaults  : a COMMAND LINE with no `--config`. The values are the argparse
+#                   defaults plus whatever flags were typed.
+#   config_file   : a command line that named a JSON preset (`path` says which).
+#   direct_config : a `TrainConfig` built IN PYTHON and handed straight to `train()`,
+#                   with no command line and no preset involved at all. `_selftest`
+#                   does exactly this, and so does any notebook or script that imports
+#                   the trainer -- so this is a real repository path, not a hypothetical
+#                   one. It is a SEPARATE value on purpose: labelling such a run
+#                   `cli_defaults` would assert that a command line resolved it, which
+#                   is precisely the kind of plausible-but-false provenance a run record
+#                   exists to prevent. (A caller that DID resolve a real source passes
+#                   it through `train(..., config_source=...)`; this value is only the
+#                   fallback for one that did not.)
+_CONFIG_SOURCE_CLI_DEFAULTS = "cli_defaults"
+_CONFIG_SOURCE_FILE = "config_file"
+_CONFIG_SOURCE_DIRECT = "direct_config"
+_CONFIG_SOURCE_KINDS = (
+    _CONFIG_SOURCE_CLI_DEFAULTS, _CONFIG_SOURCE_FILE, _CONFIG_SOURCE_DIRECT,
 )
 
 
@@ -829,6 +953,273 @@ class TrainConfig:
 # =============================================================================
 # 2. The seeding schedule (pure functions -- unit-testable without a run)
 # =============================================================================
+
+# =============================================================================
+# 1b. JSON presets -- a run's shape declared in a file, not in a shell history
+# =============================================================================
+
+def _config_field_names() -> Tuple[str, ...]:
+    """Every :class:`TrainConfig` field name a preset may set."""
+    return tuple(f.name for f in dataclass_fields(TrainConfig))
+
+
+def _ppo_field_names() -> Tuple[str, ...]:
+    """Every :class:`PPOConfig` field name a preset's ``"ppo"`` block may set."""
+    return tuple(f.name for f in dataclass_fields(PPOConfig))
+
+
+def load_config_file(path: Union[str, Path]) -> Dict[str, Any]:
+    """Read a JSON preset and return the :class:`TrainConfig` overrides it declares.
+
+    STDLIB ONLY -- ``json``, no YAML and no new dependency. The file is a flat object of
+    ``TrainConfig`` FIELD names, plus an optional nested ``"ppo"`` object of
+    :class:`PPOConfig` field names::
+
+        {"_comment": "...", "n_iterations": 2, "base_seed": 0, "ppo": {"lr": 0.0003}}
+
+    Naming FIELDS rather than CLI flags is deliberate: ``TrainConfig`` is the contract,
+    and a second parallel naming scheme would be a second place for the two to drift.
+
+    Three strictnesses, each because the failure it prevents is silent:
+
+      * an UNRECOGNIZED key raises. A misspelled knob that is quietly ignored produces a
+        run whose file says one thing and whose behaviour is another -- the config would
+        stop describing the measurement;
+      * ``"ppo"`` must be an object, and its keys are checked the same way;
+      * a list becomes a tuple ONLY for the fields whose dataclass form is a tuple
+        (:data:`_CONFIG_TUPLE_FIELDS`), so a preset copied out of a previous run's
+        ``run_config.json:/train_config`` loads back into the config it came from.
+
+    Keys beginning with ``_`` are ignored as comments (JSON has none of its own).
+
+    Returns the override mapping ONLY -- it neither constructs nor validates a
+    ``TrainConfig``. Resolution against the CLI happens in :func:`resolve_train_config`,
+    the one site that knows what "explicit" means.
+    """
+    cfg_path = Path(path)
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except FileNotFoundError:
+        raise ValueError("config file not found: %s" % str(cfg_path))
+    except json.JSONDecodeError as exc:
+        raise ValueError("config file %s is not valid JSON: %s" % (str(cfg_path), exc))
+    if not isinstance(raw, dict):
+        raise ValueError(
+            "config file %s must hold a JSON object of TrainConfig fields, got %s"
+            % (str(cfg_path), type(raw).__name__)
+        )
+
+    known = set(_config_field_names())
+    ppo_known = set(_ppo_field_names())
+    values: Dict[str, Any] = {}
+    for key, value in raw.items():
+        if str(key).startswith(_CONFIG_COMMENT_PREFIX):
+            continue
+        if key == _CONFIG_PPO_KEY:
+            if not isinstance(value, dict):
+                raise ValueError(
+                    "config file %s: %r must be a JSON object of PPOConfig fields, "
+                    "got %s"
+                    % (str(cfg_path), _CONFIG_PPO_KEY, type(value).__name__)
+                )
+            ppo_values = {
+                k: v for k, v in value.items()
+                if not str(k).startswith(_CONFIG_COMMENT_PREFIX)
+            }
+            unknown = sorted(set(ppo_values) - ppo_known)
+            if unknown:
+                raise ValueError(
+                    "config file %s: unknown PPOConfig field(s) %s; known fields are %s"
+                    % (str(cfg_path), unknown, sorted(ppo_known))
+                )
+            values[_CONFIG_PPO_KEY] = ppo_values
+            continue
+        if key not in known:
+            raise ValueError(
+                "config file %s: unknown TrainConfig field %r; known fields are %s"
+                % (str(cfg_path), key, sorted(known))
+            )
+        if key in _CONFIG_TUPLE_FIELDS and isinstance(value, list):
+            value = tuple(value)
+        values[key] = value
+    return values
+
+
+def config_source_record(
+    *,
+    resolved_from: str,
+    config_path: Optional[Union[str, Path]] = None,
+    config_fields: Optional[List[str]] = None,
+    cli_overrides: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """The ONE construction site of ``run_config.json:/config_source``.
+
+    Always returns a STRUCTURED object -- never ``null`` -- so a reader parses one shape
+    and reads ``resolved_from`` to learn which of :data:`_CONFIG_SOURCE_KINDS` produced
+    the run. ``null`` would have collapsed two different facts into one value: "this run
+    used no preset" and "whoever wrote this file did not record where the config came
+    from".
+
+    ``resolved_from`` is REQUIRED and is never inferred. It was briefly derived from
+    whether a ``config_path`` was present, which silently reported every direct
+    ``train(cfg)`` call -- ``_selftest`` among them -- as ``cli_defaults``, i.e. as
+    having been resolved by a command line that never existed. A provenance field that
+    can be wrong in a plausible way is worse than one that is absent, so the caller now
+    has to say which case it is.
+
+    ``config_fields`` is what a preset supplied; ``cli_overrides`` is what an explicit
+    flag then took back off it. An empty ``cli_overrides`` next to a non-empty
+    ``config_fields`` is the statement that the run is the preset unmodified.
+
+    The record is checked for INTERNAL consistency before it is returned: only
+    ``config_file`` may carry a path, and it must carry one. A record claiming a preset
+    it cannot name -- or naming a file while claiming it came from somewhere else -- is
+    a defect in the writer, and it fails here rather than being written to disk.
+    """
+    if resolved_from not in _CONFIG_SOURCE_KINDS:
+        raise ValueError(
+            "resolved_from must be one of %s, got %r"
+            % (list(_CONFIG_SOURCE_KINDS), resolved_from)
+        )
+    if resolved_from == _CONFIG_SOURCE_FILE and config_path is None:
+        raise ValueError(
+            "resolved_from=%r requires the config_path it was resolved from"
+            % _CONFIG_SOURCE_FILE
+        )
+    if resolved_from != _CONFIG_SOURCE_FILE and config_path is not None:
+        raise ValueError(
+            "config_path is only meaningful for resolved_from=%r, got %r with path %s"
+            % (_CONFIG_SOURCE_FILE, resolved_from, str(config_path))
+        )
+    return {
+        "path": None if config_path is None else str(config_path),
+        "absolute_path": (
+            None if config_path is None else str(Path(config_path).resolve())
+        ),
+        "format": None if config_path is None else "json",
+        "config_fields": sorted(config_fields or []),
+        "cli_overrides": sorted(cli_overrides or []),
+        "resolved_from": str(resolved_from),
+    }
+
+
+def _effective_argv(argv: Optional[List[str]]) -> List[str]:
+    """The ONE argv vector a CLI invocation is resolved from.
+
+    ``argparse`` falls back to ``sys.argv[1:]`` when it is handed ``None``, so a caller
+    that passes ``None`` to one parse and ``[]`` to another is parsing TWO DIFFERENT
+    command lines. That is not hypothetical here: ``main()`` is normally called with no
+    argument at all (PyCharm, a terminal, ``python -m ...``), and the override-precedence
+    pass would then have seen an EMPTY command line and concluded that the operator typed
+    nothing -- letting a preset silently overwrite a flag that was really given. Resolving
+    the vector ONCE, here, is what keeps both passes describing the same invocation.
+    """
+    return list(sys.argv[1:]) if argv is None else list(argv)
+
+
+def _explicit_cli_dests(argv: Optional[List[str]]) -> set:
+    """The set of argparse dests the caller ACTUALLY typed on the command line.
+
+    A parsed namespace cannot answer this on its own -- a flag left out and a flag passed
+    its own default value produce the identical value -- and the answer is exactly what
+    the override precedence needs: an explicit flag must beat a preset, a default must
+    not. Determined by re-parsing the same argv through a THROWAWAY copy of the parser
+    whose defaults are all :data:`argparse.SUPPRESS`, which makes argparse omit the
+    attribute entirely for anything that was not supplied. The real parser -- and its
+    real defaults, which is what ``--help`` must keep showing -- is untouched.
+
+    ``argv=None`` means the REAL command line (:func:`_effective_argv`), exactly as it
+    does for ``parser.parse_args``. Reading it as an empty command line would make every
+    ordinary invocation -- ``main()`` with no argument, which is how PyCharm and a
+    terminal call it -- report that nothing was typed, and a preset would then override
+    flags the operator really passed.
+    """
+    probe = _build_arg_parser()
+    for action in probe._actions:      # argparse exposes no public equivalent
+        action.default = argparse.SUPPRESS
+    return set(vars(probe.parse_args(_effective_argv(argv))))
+
+
+def resolve_train_config(
+    args: argparse.Namespace,
+    *,
+    explicit: set,
+    config_values: Optional[Dict[str, Any]] = None,
+    config_path: Optional[Union[str, Path]] = None,
+) -> Tuple[TrainConfig, Dict[str, Any]]:
+    """Resolve dataclass defaults < JSON preset < EXPLICIT CLI flags into one config.
+
+    Three layers, in that order, and only the middle one is new: with no preset this
+    reproduces exactly what the CLI built before -- every mapped flag's argparse default,
+    which is itself read off :class:`TrainConfig` (drift-guarded by test). A preset only
+    chooses among values the command line could already have given.
+
+    ``explicit`` is :func:`_explicit_cli_dests`. A flag in it wins over the preset; a
+    flag absent from it does not, even though ``args`` carries a value for it.
+
+    Returns ``(cfg, config_source)``. The second element is the audit record written into
+    ``run_config.json`` (:func:`config_source_record`) -- which preset was read, which
+    fields it supplied, and which of those a command-line flag then overrode -- so a
+    finished run states what produced it instead of leaving a reader to compare numbers
+    by eye. It is a structured object for a CLI-only run too, which then states
+    ``resolved_from = "cli_defaults"`` and carries no path. This function is a CLI path
+    by definition, so it never produces ``direct_config`` -- that value belongs to a
+    caller that built a :class:`TrainConfig` in Python (see :func:`config_source_record`).
+    """
+    values = dict(config_values or {})
+    ppo_values = dict(values.pop(_CONFIG_PPO_KEY, {}) or {})
+
+    # Layer 1: the argparse defaults (== the dataclass defaults) for every mapped flag.
+    kwargs: Dict[str, Any] = {}
+    for dest, field_name in _CLI_FIELD_BY_DEST.items():
+        kwargs[field_name] = getattr(args, dest)
+    ppo_kwargs: Dict[str, Any] = {}
+    for dest, field_name in _CLI_PPO_FIELD_BY_DEST.items():
+        ppo_kwargs[field_name] = getattr(args, dest)
+    # `--iterations` has no default: absent, it must come from the preset (or fail).
+    if kwargs.get("n_iterations") is None:
+        kwargs.pop("n_iterations", None)
+
+    # Layer 2: the preset. It may also set fields no flag exposes (e.g. `max_ticks`).
+    kwargs.update(values)
+    ppo_kwargs.update(ppo_values)
+
+    # Layer 3: explicit command-line flags, which beat the preset.
+    overridden: List[str] = []
+    for dest in sorted(explicit):
+        if dest in _CLI_FIELD_BY_DEST:
+            field_name = _CLI_FIELD_BY_DEST[dest]
+            kwargs[field_name] = getattr(args, dest)
+            if field_name in values:
+                overridden.append(field_name)
+        elif dest in _CLI_PPO_FIELD_BY_DEST:
+            field_name = _CLI_PPO_FIELD_BY_DEST[dest]
+            ppo_kwargs[field_name] = getattr(args, dest)
+            if field_name in ppo_values:
+                overridden.append("%s.%s" % (_CONFIG_PPO_KEY, field_name))
+
+    if kwargs.get("n_iterations") is None:
+        raise ValueError(
+            "n_iterations is not set: pass --iterations, or declare it in the --config "
+            "preset. How long to train is the one decision that is never defaulted."
+        )
+
+    cfg = TrainConfig(ppo=PPOConfig(**ppo_kwargs), **kwargs)
+    # This function is reached only from a COMMAND LINE, so the kind is one of the two
+    # CLI values -- which of them is exactly whether a preset was named.
+    config_source = config_source_record(
+        resolved_from=(
+            _CONFIG_SOURCE_CLI_DEFAULTS if config_path is None else _CONFIG_SOURCE_FILE
+        ),
+        config_path=config_path,
+        config_fields=(
+            list(values) + ["%s.%s" % (_CONFIG_PPO_KEY, k) for k in ppo_values]
+        ),
+        cli_overrides=overridden,
+    )
+    return cfg, config_source
+
 
 def global_episode_index(cfg: TrainConfig, iteration: int, j: int) -> int:
     """``g = iteration * episodes_per_iteration + j`` -- the run-wide episode index."""
@@ -1444,6 +1835,7 @@ def write_run_config(
     cfg: TrainConfig,
     *,
     provenance: Optional[Dict[str, Any]] = None,
+    config_source: Optional[Dict[str, Any]] = None,
 ) -> Path:
     """Write ``run_dir/run_config.json`` -- the full resolved config of THIS run.
 
@@ -1459,6 +1851,15 @@ def write_run_config(
         ``n_targets_emitted == n_known + n_hidden``;
       * ``derived_split`` -- LEGACY. :attr:`TrainConfig.split_preview`, kept for
         continuity with pre-B1 runs; the construction path does not consult it;
+      * ``config_source`` -- WHERE the resolved config came from: the JSON preset
+        path (absolute and as typed), the fields that preset supplied, and the fields an
+        explicit CLI flag then overrode. ALWAYS a structured object, never ``null``, and
+        ``resolved_from`` names which of :data:`_CONFIG_SOURCE_KINDS` applies, so "no
+        preset" is a stated fact rather than an absent key. Omitting the argument means
+        the caller handed in a :class:`TrainConfig` DIRECTLY, which is recorded as
+        ``direct_config`` -- NOT as ``cli_defaults``, which would claim a command line
+        that never ran. This is what makes "what produced this run?" answerable from the
+        run directory instead of by comparing numbers by eye;
       * ``base_scenario`` -- the template filename every variation derives from;
       * ``provenance``    -- :func:`collect_provenance`: code SHA + dirty state,
         invocation, interpreter, platform, targeted package versions and paths, the
@@ -1505,6 +1906,13 @@ def write_run_config(
             },
         },
         "derived_split": cfg.split_preview,
+        # Never `null`, and never MISLABELLED: an omitted source means a caller built
+        # this config in Python, which is a third provenance -- not a command line that
+        # happened to use no preset.
+        "config_source": (
+            config_source_record(resolved_from=_CONFIG_SOURCE_DIRECT)
+            if config_source is None else config_source
+        ),
         "base_scenario": _BASE_SCENARIO.name,
     }
     path = Path(run_dir) / "run_config.json"
@@ -2870,7 +3278,11 @@ def save_checkpoint(
 # 7. The training loop
 # =============================================================================
 
-def train(cfg: TrainConfig) -> Dict[str, Any]:
+def train(
+    cfg: TrainConfig,
+    *,
+    config_source: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Run ``cfg.n_iterations`` PPO iterations end-to-end; returns an aggregate summary.
 
     Per iteration: collect ``episodes_per_iteration`` stochastic episodes into a fresh
@@ -2917,6 +3329,13 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
     (:func:`_format_episode_block`), before the next attempt starts.
 
     The updater (hence its Adam moments) is built ONCE for the whole run.
+
+    ``config_source`` is the audit record from :func:`resolve_train_config` (which JSON
+    preset produced this config, and what the command line overrode). It is recorded in
+    ``run_config.json`` and read by nothing -- ``cfg`` is the config; this only says
+    where it came from. Omitted -- as every DIRECT caller does, ``_selftest`` included --
+    the run records ``resolved_from = "direct_config"``, which is the truthful statement
+    that no command line and no preset were involved (:func:`config_source_record`).
     """
     cfg.validate()
 
@@ -2946,7 +3365,8 @@ def train(cfg: TrainConfig) -> Dict[str, Any]:
 
     # Written BEFORE the completeness gate below, so a refused run still leaves an
     # inspectable record of what was attempted and why it was refused.
-    run_config_path = write_run_config(run_dir, cfg, provenance=provenance)
+    run_config_path = write_run_config(run_dir, cfg, provenance=provenance,
+                                       config_source=config_source)
 
     if not git_info["available"]:
         raise RuntimeError(
@@ -3623,7 +4043,13 @@ def _summarize(
         "failures_path": str(run_path / "episode_failures.jsonl"),
         "run_config_path": str(run_path / "run_config.json"),
         "run_summary_path": str(run_path / "run_summary.json"),
-        "plot_path": str(run_path / "training_plot.png"),
+        # Figures live under `<run_dir>/plots/`, one claim per file. Listed by NAME so a
+        # reader (or a notebook) can resolve a specific figure without knowing the
+        # layout, and so the summary states which figures a run is supposed to have.
+        "plots_dir": str(_plots_dir(run_path)),
+        "plot_paths": {
+            name: str(_plots_dir(run_path) / name) for name in _PLOT_FILENAMES
+        },
     }
     # Pre-B4 names, kept so an existing reader of a summary still resolves.
     summary["total_train_episodes"] = train_attempted
@@ -3633,6 +4059,10 @@ def _summarize(
     summary["train_baseline_mean"] = summary["train_reward_mean"]
     summary["eval_reward_first"] = (eval_means[0] if eval_means else None)
     summary["eval_reward_last"] = (eval_means[-1] if eval_means else None)
+    # ALIAS, not a fourth figure: the retired single `training_plot.png` dashboard is
+    # gone, and an existing reader of `plot_path` is pointed at the figure that carries
+    # the run's performance claim. `plot_paths` is the authoritative list.
+    summary["plot_path"] = summary["plot_paths"][_PLOT_PERFORMANCE]
     # The full record streams, for in-process callers ONLY (see _SUMMARY_RECORD_KEYS:
     # they are stripped before the summary is written, because the jsonl files are the
     # record and a copy of them inside the summary could diverge from it).
@@ -3760,6 +4190,7 @@ def _print_summary(s: Dict[str, Any]) -> None:
              else "   [!] LEDGER DISAGREES WITH THE RECORD COUNTS"))
     if s["run_seconds"] is not None:
         print("timing:     total=%.1fs" % s["run_seconds"])
+    print("plots:      %s" % s["plots_dir"])
     print("records:    %s" % s["train_records_path"])
     print("            %s" % s["eval_records_path"])
     print("            %s" % s["failures_path"])
@@ -3783,8 +4214,8 @@ def _xy(
     A ``None`` reward means "this batch or round produced no measurement at all"
     (:func:`_stats_or_none`). Such a point is omitted from the curve rather than drawn:
     plotting it as 0 would show a total data loss AT THE ORACLE OPTIMUM, and plotting it
-    as some other number would invent one. Its attempts are still visible -- panel 4
-    shows the success fraction that caused the gap.
+    as some other number would invent one. Its attempts are still visible --
+    ``measurement_health.png`` shows the success fraction that caused the gap.
     """
     xs: List[float] = []
     ys: List[float] = []
@@ -3800,63 +4231,163 @@ def _xy(
     return xs, ys
 
 
-def plot_training(run_dir: Union[str, Path]) -> Optional[Path]:
-    """Render the 4-panel training figure from a run directory's jsonl files.
+def _plots_dir(run_dir: Union[str, Path]) -> Path:
+    """``<run_dir>/plots`` -- the ONE place a figure is ever written.
 
-    Works purely from ``train_records.jsonl`` + ``eval_records.jsonl`` -- no retraining,
-    no policy, no torch -- so it can be pointed at any finished (or in-progress) run via
-    ``--plot <run_dir>``.
-
-    CALL FROM A TORCH-FREE PROCESS. See the module docstring: importing matplotlib into
-    a process that has loaded torch aborts the interpreter on this stack. A torch
-    process must call :func:`plot_training_subprocess` instead. The record files are
-    read BEFORE matplotlib is touched, so the "nothing to plot" path stays safe
-    everywhere.
-
-    THE X-AXIS IS ``updates_completed``, NOT the iteration index. Two reasons, both
-    about honesty rather than taste: the ``pre_update`` held-out point measures the
-    initial policy and belongs at x=0, which an iteration index has no room for; and a
-    zero-wake iteration completes without performing a gradient step, so iteration
-    number over-states how much learning stands behind a later point. Training points
-    are placed at ``updates_completed_before`` -- the updates the policy that GENERATED
-    those episodes had received -- so training iteration 0 and the pre-update eval sit
-    at the same origin. Records from before B4 fall back to their iteration index.
-
-    Panels (stacked, sharing the x-axis):
-      1. LEARNING CURVE: per-iteration training mean R (faint) + eval mean R (bold),
-         with a dashed reference at ``R = 0``. The reward is oracle-normalized regret,
-         so 0 is the perfect-information optimum -- the ceiling, not an arbitrary
-         gridline, which is exactly why a batch with NO successful episode is dropped
-         from the curve instead of drawn at 0 (see :func:`_xy`).
-      2. META-ACTION MIX: the fraction of each meta-action per iteration.
-      3. POLICY ENTROPY per iteration -- the collapse detector for panel 2.
-      4. DATA YIELD: training success fraction, the fraction of SUCCESSFUL training
-         episodes that contained wakes, and eval success fraction at each eval point.
-         Panel 1 without panel 4 is unreadable: a mean over 2 of 8 feasible seeds and a
-         mean over 8 of 8 look identical there and are not the same claim.
-
-    Returns the PNG path, or ``None`` if matplotlib is missing (a friendly notice is
-    printed and NO exception is raised: matplotlib is optional).
+    Figures are derived, regenerable and (unlike the jsonl records) not evidence, so they
+    live in their own subdirectory instead of sitting next to the run's scientific
+    artifacts. A run root then holds records, scenarios, checkpoints, optional visual
+    artifacts and plots as five clearly separate things.
     """
-    run_path = Path(run_dir)
-    train_records = _read_jsonl(run_path / "train_records.jsonl")
-    eval_records = _read_jsonl(run_path / "eval_records.jsonl")
-    if not train_records and not eval_records:
-        print("plot_training: no train_records.jsonl / eval_records.jsonl in %s -- "
-              "nothing to plot." % str(run_path))
-        return None
+    return Path(run_dir) / _PLOTS_DIRNAME
 
-    try:
-        import matplotlib
-        matplotlib.use("Agg")  # headless: no display needed, no backend guessing
-        import matplotlib.pyplot as plt
-    except ImportError:
-        print("plot_training: matplotlib is not installed -- skipping the plot "
-              "(the jsonl records are complete and can be plotted later).")
-        return None
 
-    # Training points sit at the updates the GENERATING policy had received; eval points
-    # at the updates completed when the round ran (0 for the pre-update round).
+def _annotate_x_semantics(fig: Any) -> None:
+    """Stamp the shared x-axis meaning onto a figure, in the figure itself.
+
+    Every figure in this module uses the same x-coordinate, and it is NOT the iteration
+    index (see :data:`_PLOT_X_SEMANTICS`). Stating it on the image rather than only in a
+    docstring is the point: a PNG travels out of the run directory -- into a slide, a
+    message, a thesis -- and has to keep carrying what its axis means.
+    """
+    fig.text(0.005, 0.005, _PLOT_X_SEMANTICS, fontsize=7, color="0.35", ha="left")
+
+
+def _plot_training_performance(
+    plt: Any,
+    plots_dir: Path,
+    train_records: List[Dict[str, Any]],
+    eval_records: List[Dict[str, Any]],
+) -> Path:
+    """PERFORMANCE only: training reward, held-out clean vs damaged, matched delta.
+
+    Three panels, deliberately NOT one:
+
+      1. TRAINING reward (``train_reward_mean``) -- the stochastic policy on the
+         training seed band, averaged over that batch's SUCCESSFUL episodes only.
+      2. HELD-OUT matched evaluation, ONE SERIES PER CONDITION
+         (``eval_reward_mean_clean`` / ``eval_reward_mean_damaged``). Both members of a
+         matched pair run the same fixed held-out seed -- the same generated world, the
+         same A_init, the same hidden geometry -- and differ only in the fuel-damage
+         condition. Pooling them into a single "eval reward" curve, which is what the
+         retired dashboard drew, averages across the very factor the cell was built to
+         study, so that pooled series is NOT drawn here as the held-out signal. It
+         appears only as an explicitly labelled fallback for pre-FD records that carry
+         no per-condition means at all.
+
+         WHAT THESE TWO SERIES ARE NOT: a within-seed comparison. Each is a mean over
+         ITS OWN condition's SUCCESSFUL episodes, and the two conditions can fail a
+         different number of held-out seeds, so the curves are not necessarily averages
+         over the same completed seeds. Their vertical gap is therefore suggestive, not
+         a measurement. The panel title and both legend entries say so, and
+         ``measurement_health.png`` carries the per-condition completion counts that
+         make the asymmetry inspectable.
+      3. The MATCHED-PAIR delta (``eval_paired_reward_delta`` = mean of
+         ``R_damaged - R_clean`` over pairs whose BOTH members completed) -- the one
+         number that isolates the difficulty factor, and the ONLY within-seed
+         comparison on this figure, with 0 marked. A half-pair contributes nothing to
+         it, which is exactly why it stays valid when panel 2's two populations differ.
+
+    Panels 1 and 2 mark ``R = 0``: the reward is oracle-normalized regret, so 0 is the
+    perfect-information optimum -- a ceiling, not an arbitrary gridline. That is also
+    why a batch or round with no successful episode is DROPPED from a curve rather than
+    drawn at 0 (see :func:`_xy`): plotting a total data loss at the optimum would invert
+    its meaning. The denominators behind every point live in ``measurement_health.png``.
+    """
+    curve_x, curve_y = _xy(
+        train_records, "updates_completed_before", "train_reward_mean"
+    )
+    if not curve_y:  # pre-B4 records carry the value under its old name
+        curve_x, curve_y = _xy(train_records, "updates_completed_before", "baseline")
+    clean_x, clean_y = _xy(eval_records, "updates_completed", "eval_reward_mean_clean")
+    dmg_x, dmg_y = _xy(eval_records, "updates_completed", "eval_reward_mean_damaged")
+    delta_x, delta_y = _xy(eval_records, "updates_completed", "eval_paired_reward_delta")
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+
+    # --- Panel 1: TRAINING reward (stochastic policy, training seeds) ---
+    ax = axes[0]
+    ax.axhline(0.0, linestyle="--", linewidth=1.0, color="0.4",
+               label="oracle optimum (R = 0)")
+    if curve_y:
+        ax.plot(curve_x, curve_y, color="tab:blue", linewidth=1.6,
+                marker=".", markersize=5, label="train mean R (stochastic)")
+    ax.set_ylabel("episode reward R")
+    ax.set_title("TRAINING reward -- regret vs oracle, 0 = optimum "
+                 "(SUCCESSFUL episodes only)", fontsize=11)
+    ax.legend(loc="lower right", fontsize=8)
+    ax.grid(alpha=0.25)
+
+    # --- Panel 2: HELD-OUT matched evaluation, one series per condition ---
+    ax = axes[1]
+    ax.axhline(0.0, linestyle="--", linewidth=1.0, color="0.4",
+               label="oracle optimum (R = 0)")
+    if clean_y:
+        ax.plot(clean_x, clean_y, color="tab:green", linewidth=2.2,
+                marker="o", markersize=5,
+                label="held-out CLEAN -- mean over SUCCESSFUL forced_clean episodes")
+    if dmg_y:
+        ax.plot(dmg_x, dmg_y, color="tab:red", linewidth=2.2,
+                marker="s", markersize=5,
+                label="held-out DAMAGED -- mean over SUCCESSFUL forced_damaged episodes")
+    if not clean_y and not dmg_y:
+        # Pre-FD records have no per-condition means. Drawing the pooled mean is then
+        # the only held-out information that exists -- labelled as pooled, so it can
+        # never be mistaken for a per-condition measurement.
+        pooled_x, pooled_y = _xy(eval_records, "updates_completed", "eval_reward_mean")
+        if pooled_y:
+            ax.plot(pooled_x, pooled_y, color="0.35", linewidth=1.8, linestyle=":",
+                    marker="o", markersize=4,
+                    label="held-out mean R -- BOTH CONDITIONS POOLED (legacy records)")
+    ax.set_ylabel("episode reward R")
+    ax.set_title("HELD-OUT BY CONDITION -- each mean over THAT condition's successful "
+                 "episodes", fontsize=11)
+    ax.legend(loc="lower right", fontsize=8)
+    ax.grid(alpha=0.25)
+
+    # --- Panel 3: the matched-pair delta ---
+    ax = axes[2]
+    ax.axhline(0.0, linestyle="--", linewidth=1.0, color="0.4",
+               label="no measured effect (delta = 0)")
+    if delta_y:
+        ax.plot(delta_x, delta_y, color="tab:purple", linewidth=2.0,
+                marker="D", markersize=5,
+                label="mean(R_damaged - R_clean) over COMPLETE pairs "
+                      "(denominators: %s)" % _PLOT_MEASUREMENT_HEALTH)
+    ax.set_ylabel("paired reward delta")
+    ax.set_xlabel(_PLOT_X_LABEL)
+    ax.set_title("MATCHED-PAIR fuel-damage delta -- the WITHIN-SEED comparison, "
+                 "COMPLETE pairs only", fontsize=11)
+    # Upper right: a damaging event makes the delta negative, so the top of this panel
+    # is the half that stays empty in the case the figure exists to show.
+    ax.legend(loc="upper right", fontsize=8)
+    ax.grid(alpha=0.25)
+
+    fig.tight_layout(rect=(0, 0.02, 1, 1))
+    _annotate_x_semantics(fig)
+    out_path = plots_dir / _PLOT_PERFORMANCE
+    fig.savefig(out_path, dpi=140)
+    plt.close(fig)
+    return out_path
+
+
+def _plot_policy_diagnostics(
+    plt: Any,
+    plots_dir: Path,
+    train_records: List[Dict[str, Any]],
+) -> Path:
+    """DIAGNOSTICS over the TRAINING decisions only: meta-action mix and entropy.
+
+    Neither panel is a performance claim; both describe what the policy was DOING while
+    it generated the training batches. The mix says which meta-actions were sampled and
+    entropy is its collapse detector -- a mix that flattens onto PLAN_COMPLIANCE (always
+    legal, the easy local optimum) while entropy falls is the failure these two panels
+    exist to make visible before a reward curve is over-read.
+
+    Each point is one training batch, placed at the updates its GENERATING policy had
+    received -- not at an iteration index -- so the panels line up with the performance
+    figure. The titles say "batch" rather than "iteration" for exactly that reason.
+    """
     train_x = [
         float(r.get("updates_completed_before", r.get("iteration", 0)))
         for r in train_records
@@ -3868,104 +4399,248 @@ def plot_training(run_dir: Union[str, Path]) -> Optional[Path]:
         for name in _META_NAMES
     }
 
-    curve_x, curve_y = _xy(
-        train_records, "updates_completed_before", "train_reward_mean"
-    )
-    if not curve_y:  # pre-B4 records carry the value under its old name
-        curve_x, curve_y = _xy(
-            train_records, "updates_completed_before", "baseline"
-        )
-    eval_x, eval_y = _xy(eval_records, "updates_completed", "eval_reward_mean")
+    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
-    fig, axes = plt.subplots(4, 1, figsize=(10, 14), sharex=True)
-
-    # --- Panel 1: learning curve ---
     ax = axes[0]
-    ax.axhline(0.0, linestyle="--", linewidth=1.0, color="0.4",
-               label="oracle optimum (R = 0)")
-    if curve_y:
-        ax.plot(curve_x, curve_y, color="tab:blue", alpha=0.35, linewidth=1.2,
-                marker=".", markersize=4, label="train mean R (stochastic)")
-    if eval_y:
-        ax.plot(eval_x, eval_y, color="tab:red", linewidth=2.2,
-                marker="o", markersize=5, label="eval mean R (deterministic)")
-    ax.set_ylabel("episode reward R")
-    ax.set_title("Learning curve -- oracle-normalized regret (0 = optimum); "
-                 "means over SUCCESSFUL episodes only")
-    ax.legend(loc="lower right", fontsize=8)
-    ax.grid(alpha=0.25)
-
-    # --- Panel 2: meta-action mix ---
-    ax = axes[1]
     for name, color in zip(_META_NAMES, ("tab:green", "tab:orange", "tab:purple")):
         ax.plot(train_x, fractions[name], color=color, linewidth=1.6,
                 marker=".", markersize=4, label=name)
     ax.set_ylabel("fraction of decisions")
     ax.set_ylim(-0.05, 1.05)
-    ax.set_title("Meta-action mix per iteration")
+    ax.set_title("Meta-action mix per TRAINING batch (decisions sampled while "
+                 "collecting that batch)", fontsize=11)
     ax.legend(loc="upper right", fontsize=8)
     ax.grid(alpha=0.25)
 
-    # --- Panel 3: entropy ---
-    ax = axes[2]
+    ax = axes[1]
     ax.plot(train_x, entropies, color="tab:brown", linewidth=1.6,
             marker=".", markersize=4)
     ax.set_ylabel("policy entropy (nats)")
-    ax.set_title("Policy entropy per iteration (collapse detector)")
+    ax.set_xlabel(_PLOT_X_LABEL)
+    ax.set_title("Policy entropy per TRAINING batch (collapse detector for the mix "
+                 "above)", fontsize=11)
     ax.grid(alpha=0.25)
 
-    # --- Panel 4: data yield (the denominator behind panel 1) ---
-    ax = axes[3]
-    ok_x, ok_y = _xy(train_records, "updates_completed_before", "success_fraction")
-    if ok_y:
-        ax.plot(ok_x, ok_y, color="tab:blue", linewidth=1.8, marker=".",
-                markersize=5, label="train episodes: successful / attempted")
-    wake_x, wake_y = _xy(
-        train_records, "updates_completed_before", "wake_fraction_of_successful"
+    fig.tight_layout(rect=(0, 0.03, 1, 1))
+    _annotate_x_semantics(fig)
+    out_path = plots_dir / _PLOT_DIAGNOSTICS
+    fig.savefig(out_path, dpi=140)
+    plt.close(fig)
+    return out_path
+
+
+def _plot_measurement_health(
+    plt: Any,
+    plots_dir: Path,
+    train_records: List[Dict[str, Any]],
+    eval_records: List[Dict[str, Any]],
+) -> Path:
+    """MEASUREMENT HEALTH -- the denominators. Explicitly NOT a performance figure.
+
+    Every reward in this module is a mean over the exact-cardinality-FEASIBLE,
+    SUCCESSFUL subset of the scheduled seeds (``skip_and_account_v1``), and a mean over
+    2 of 8 seeds is a different claim from the same number over 8 of 8 while looking
+    identical on a reward axis. Splitting the denominators into their own figure keeps
+    the performance panels readable WITHOUT letting the coverage disappear: the two
+    figures are read together, and this one is titled so it can never be mistaken for a
+    result.
+
+    Panel 1 -- fractions:
+      * training ``success_fraction``  (successful / attempted episodes);
+      * training ``wake_fraction_of_successful`` (successful episodes that woke the
+        policy at all -- a successful zero-wake episode is real, and contributes no
+        transition);
+      * eval EPISODE ``success_fraction``;
+      * eval ``pair_success_fraction`` (pairs whose BOTH members completed / pairs
+        attempted) -- the denominator of the matched-pair delta specifically, which the
+        episode-level fraction does not give: two surviving halves of two different
+        pairs are two successful episodes and zero pairs.
+
+    Panel 2 -- the absolute counts those fractions came from, so a small denominator is
+    visible as a small number and not only as a ratio.
+
+    Panel 3 -- PER-CONDITION held-out completion, attempted vs successful for
+    ``forced_clean`` and ``forced_damaged`` separately. This is the denominator behind
+    the performance figure's two condition curves, and it is the panel that says whether
+    those curves are comparable at all: each is a mean over its OWN successful subset,
+    so if one condition completes fewer held-out seeds than the other, the two means are
+    not taken over the same seeds and their gap is not a within-seed effect. (The
+    matched-pair delta is unaffected -- it uses only pairs whose BOTH members completed,
+    which is why it, and not the gap, is the figure's causal claim.) Drawn straight from
+    the existing ``eval_n_<condition>_attempted`` / ``_successful`` record fields; no
+    evaluation semantics and no new quantity are involved.
+    """
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+
+    ax = axes[0]
+    series = (
+        (train_records, "updates_completed_before", "success_fraction",
+         "tab:blue", "-", ".", "train episodes: successful / attempted"),
+        (train_records, "updates_completed_before", "wake_fraction_of_successful",
+         "tab:cyan", "--", ".", "successful train episodes WITH wakes"),
+        (eval_records, "updates_completed", "success_fraction",
+         "tab:red", "-", "o", "eval episodes: successful / attempted"),
+        (eval_records, "updates_completed", "pair_success_fraction",
+         "tab:purple", "--", "D", "eval matched PAIRS: complete / attempted"),
     )
-    if wake_y:
-        ax.plot(wake_x, wake_y, color="tab:cyan", linewidth=1.4, marker=".",
-                markersize=4, linestyle="--",
-                label="successful train episodes with wakes")
-    ev_ok_x, ev_ok_y = _xy(eval_records, "updates_completed", "success_fraction")
-    if ev_ok_y:
-        ax.plot(ev_ok_x, ev_ok_y, color="tab:red", linewidth=1.8, marker="o",
-                markersize=5, label="eval episodes: successful / attempted")
+    for records, x_key, y_key, color, style, marker, label in series:
+        xs, ys = _xy(records, x_key, y_key)
+        if ys:
+            ax.plot(xs, ys, color=color, linestyle=style, marker=marker,
+                    markersize=4, linewidth=1.6, label=label)
     ax.set_ylabel("fraction")
     ax.set_ylim(-0.05, 1.05)
-    ax.set_xlabel("PPO updates completed")
-    ax.set_title("Data yield -- exact-cardinality feasibility (%s) and wake coverage"
-                 % _EXACT_CARDINALITY_POLICY)
+    ax.set_title("MEASUREMENT HEALTH -- coverage and denominators (%s), "
+                 "NOT performance" % _EXACT_CARDINALITY_POLICY, fontsize=11)
     ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
-    fig.tight_layout()
-    out_path = run_path / "training_plot.png"
+    ax = axes[1]
+    counts = (
+        (train_records, "updates_completed_before", "n_attempted",
+         "tab:blue", "--", ".", "train episodes attempted"),
+        (train_records, "updates_completed_before", "n_successful",
+         "tab:blue", "-", ".", "train episodes successful"),
+        (eval_records, "updates_completed", "n_attempted",
+         "tab:red", "--", "o", "eval episodes attempted"),
+        (eval_records, "updates_completed", "n_successful",
+         "tab:red", "-", "o", "eval episodes successful"),
+        (eval_records, "updates_completed", "n_pairs_successful",
+         "tab:purple", "-", "D", "eval complete pairs"),
+    )
+    for records, x_key, y_key, color, style, marker, label in counts:
+        xs, ys = _xy(records, x_key, y_key)
+        if ys:
+            ax.plot(xs, ys, color=color, linestyle=style, marker=marker,
+                    markersize=4, linewidth=1.4, label=label)
+    ax.set_ylabel("episodes / pairs")
+    ax.set_ylim(bottom=0)
+    ax.set_title("The absolute counts behind those fractions", fontsize=11)
+    ax.legend(loc="upper right", fontsize=8)
+    ax.grid(alpha=0.25)
+
+    # --- Panel 3: per-condition held-out completion (the condition curves' own
+    # denominators). Attempted and successful are drawn in ONE colour per condition,
+    # separated by linestyle, so the gap between them IS that condition's failures.
+    ax = axes[2]
+    per_condition = (
+        (CONDITION_CLEAN, "tab:green", "o"),
+        (CONDITION_DAMAGED, "tab:red", "s"),
+    )
+    for condition, color, marker in per_condition:
+        # ATTEMPTED is a pale wide line, SUCCESSFUL a crisp one on top of it, so what
+        # the eye reads is the GAP BETWEEN THEM -- that condition's failures. Both
+        # conditions attempt the same seeds, so their attempted lines coincide exactly;
+        # drawing them at equal weight would hide one behind the other and make the
+        # panel look like it had lost a series.
+        for suffix, style, width, alpha in (("attempted", "--", 3.2, 0.30),
+                                            ("successful", "-", 1.7, 1.0)):
+            xs, ys = _xy(eval_records, "updates_completed",
+                         "eval_n_%s_%s" % (condition, suffix))
+            if ys:
+                ax.plot(xs, ys, color=color, linestyle=style, marker=marker,
+                        markersize=4, linewidth=width, alpha=alpha,
+                        label="held-out %s: %s" % (condition.upper(), suffix))
+    ax.set_ylabel("held-out episodes")
+    ax.set_ylim(bottom=0)
+    ax.set_xlabel(_PLOT_X_LABEL)
+    ax.set_title("PER-CONDITION held-out completion -- the denominators of the two "
+                 "condition means", fontsize=11)
+    ax.legend(loc="lower right", fontsize=8)
+    ax.grid(alpha=0.25)
+
+    fig.tight_layout(rect=(0, 0.03, 1, 1))
+    _annotate_x_semantics(fig)
+    out_path = plots_dir / _PLOT_MEASUREMENT_HEALTH
     fig.savefig(out_path, dpi=140)
     plt.close(fig)
-    print("plot_training: wrote %s" % str(out_path))
     return out_path
+
+
+def plot_training(run_dir: Union[str, Path]) -> List[Path]:
+    """Render THE THREE figures of a run directory into ``<run_dir>/plots/``.
+
+    Works purely from ``train_records.jsonl`` + ``eval_records.jsonl`` -- no retraining,
+    no policy, no torch -- so it can be pointed at any finished (or in-progress) run via
+    ``--plot <run_dir>``.
+
+    CALL FROM A TORCH-FREE PROCESS. See the module docstring: importing matplotlib into
+    a process that has loaded torch aborts the interpreter on this stack. A torch
+    process must call :func:`plot_training_subprocess` instead. The record files are read
+    BEFORE matplotlib is touched, so the "nothing to plot" path stays safe everywhere.
+
+    THE FIGURES (one claim each, never mixed):
+
+      * :data:`_PLOT_PERFORMANCE` -- training reward, held-out CLEAN vs DAMAGED, and the
+        matched-pair delta (:func:`_plot_training_performance`);
+      * :data:`_PLOT_DIAGNOSTICS` -- meta-action mix and entropy over the training
+        decisions (:func:`_plot_policy_diagnostics`);
+      * :data:`_PLOT_MEASUREMENT_HEALTH` -- the denominators behind both
+        (:func:`_plot_measurement_health`).
+
+    THE X-AXIS IS ``updates_completed``, NOT the iteration index, on all three. Two
+    reasons, both about honesty rather than taste: the ``pre_update`` held-out point
+    measures the initial policy and belongs at x=0, which an iteration index has no room
+    for; and a zero-wake iteration completes without performing a gradient step, so
+    iteration number over-states how much learning stands behind a later point. Training
+    points sit at ``updates_completed_before`` -- the updates the policy that GENERATED
+    those episodes had received -- so training batch 0 and the pre-update eval share an
+    origin. Records from before B4 fall back to their iteration index.
+
+    Returns the figure paths that were written, newest layout first, or an EMPTY LIST if
+    there was nothing to plot or matplotlib is missing (a friendly notice is printed and
+    NO exception is raised: matplotlib is optional and must never fail a run).
+    """
+    run_path = Path(run_dir)
+    train_records = _read_jsonl(run_path / "train_records.jsonl")
+    eval_records = _read_jsonl(run_path / "eval_records.jsonl")
+    if not train_records and not eval_records:
+        print("plot_training: no train_records.jsonl / eval_records.jsonl in %s -- "
+              "nothing to plot." % str(run_path))
+        return []
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")  # headless: no display needed, no backend guessing
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("plot_training: matplotlib is not installed -- skipping the plots "
+              "(the jsonl records are complete and can be plotted later).")
+        return []
+
+    plots_dir = _plots_dir(run_path)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    written = [
+        _plot_training_performance(plt, plots_dir, train_records, eval_records),
+        _plot_policy_diagnostics(plt, plots_dir, train_records),
+        _plot_measurement_health(plt, plots_dir, train_records, eval_records),
+    ]
+    for path in written:
+        print("plot_training: wrote %s" % str(path))
+    return written
 
 
 def plot_training_subprocess(
     run_dir: Union[str, Path],
     *,
     timeout: float = 300.0,
-) -> Optional[Path]:
-    """Render the figure from a TORCH process by re-invoking ``--plot`` in a child.
+) -> List[Path]:
+    """Render the figures from a TORCH process by re-invoking ``--plot`` in a child.
 
     Why this exists at all: see the module docstring. torch and matplotlib abort the
     interpreter if they share a process on this stack, and an abort is not catchable --
-    so a training process cannot draw its own plot, it has to fork one that does.
+    so a training process cannot draw its own plots, it has to fork one that does.
 
     The child is `` python -m match_aou.rl.training.graph_train --plot <run_dir> `` with
     ``KMP_DUPLICATE_LIB_OK=TRUE`` in ITS environment only. That flag is Intel's
     documented "unsafe" duplicate-OpenMP tolerance; it is acceptable here precisely
     because the child performs NO numerical work -- it reads two jsonl files and writes
-    a PNG -- and it never touches the parent's environment.
+    PNGs -- and it never touches the parent's environment.
 
-    Never raises: a missing matplotlib, a crashed child, or a timeout prints a notice
-    and returns ``None``. Plotting is a convenience; the jsonl records are the record.
+    Never raises: a missing matplotlib, a crashed child, or a timeout prints a notice and
+    returns whatever figures do exist (an empty list if none). Plotting is a
+    convenience; the jsonl records are the record.
     """
     run_path = Path(run_dir)
     env = os.environ.copy()
@@ -3983,23 +4658,24 @@ def plot_training_subprocess(
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         print("plot_training_subprocess: could not run the plot child (%s: %s) -- "
-              "plot skipped; re-run `--plot %s` later."
+              "plots skipped; re-run `--plot %s` later."
               % (type(exc).__name__, exc, str(run_path)))
-        return None
+        return []
 
     for line in (proc.stdout or "").splitlines():
         if line.startswith("plot_training"):
             print("  " + line)
-    out_path = run_path / "training_plot.png"
-    if proc.returncode != 0 or not out_path.exists():
-        print("plot_training_subprocess: the plot child did not produce a figure "
-              "(rc=%d) -- plot skipped; the records are intact."
-              % proc.returncode)
+    plots_dir = _plots_dir(run_path)
+    written = [plots_dir / name for name in _PLOT_FILENAMES
+               if (plots_dir / name).exists()]
+    if proc.returncode != 0 or len(written) != len(_PLOT_FILENAMES):
+        print("plot_training_subprocess: the plot child produced %d of %d figure(s) "
+              "(rc=%d) -- plots incomplete; the records are intact."
+              % (len(written), len(_PLOT_FILENAMES), proc.returncode))
         if proc.stderr:
             print("  child stderr (last line): %s"
                   % proc.stderr.strip().splitlines()[-1:])
-        return None
-    return out_path
+    return written
 
 
 # =============================================================================
@@ -4135,10 +4811,11 @@ def _selftest() -> None:
 
         # Plot via the CHILD process -- this process has torch loaded (see the module
         # docstring), and this is the exact path `main()` uses after a real run.
-        png = plot_training_subprocess(run1)
-        assert png is None or png.exists()
-        print("  plot: %s   OK"
-              % (str(png) if png else "not produced (matplotlib absent) -- skipped"))
+        figures = plot_training_subprocess(run1)
+        assert all(path.exists() for path in figures)
+        print("  plots: %s   OK"
+              % (", ".join(path.name for path in figures) if figures
+                 else "not produced (matplotlib absent) -- skipped"))
 
         # =================================================================
         # TEST 2 -- EVAL PURITY: eval ON vs eval OFF -> identical train records
@@ -4399,16 +5076,35 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "known-only scenario, the executed t=0 scenario, the BLADE "
                         "playback and a manifest (default: %%(default)s)"
                         % _VISUAL_ARTIFACTS_DIRNAME)
+    p.add_argument("--config", type=str, default=None, metavar="PATH",
+                   help="JSON preset of TrainConfig fields (see configs/graph_train/); "
+                        "any flag given EXPLICITLY on the command line overrides it")
     p.add_argument("--plot", type=str, default=None, metavar="RUN_DIR",
-                   help="plot an EXISTING run directory and exit (no training)")
+                   help="re-plot an EXISTING run directory into <RUN_DIR>/%s and exit "
+                        "(no training)" % _PLOTS_DIRNAME)
     p.add_argument("--selftest", action="store_true",
                    help="run the module self-test (needs BLADE + bonmin) and exit")
     return p
 
 
 def main(argv: Optional[List[str]] = None) -> None:
+    """CLI entry point: dataclass defaults < JSON preset < EXPLICIT command-line flags.
+
+    ``--config`` is resolved through :func:`resolve_train_config`, which is also what
+    records WHICH preset produced the run into ``run_config.json:/config_source``.
+    Without ``--config`` the resolution is the argparse defaults plus whatever was typed
+    -- exactly what this function built before presets existed.
+
+    BOTH parsing passes run on ONE argv vector, resolved once by :func:`_effective_argv`.
+    ``argparse`` reads ``None`` as ``sys.argv[1:]``, so passing ``None`` to the real parse
+    and ``[]`` to the override-precedence probe would have compared two different command
+    lines -- and since ``main()`` is normally called with no argument at all, that is the
+    ordinary case, not an edge case: every flag the operator really typed would have
+    looked un-typed, and a preset would have overridden it.
+    """
+    effective_argv = _effective_argv(argv)
     parser = _build_arg_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(effective_argv)
 
     if args.selftest:
         _selftest()
@@ -4416,45 +5112,35 @@ def main(argv: Optional[List[str]] = None) -> None:
     if args.plot is not None:
         plot_training(args.plot)
         return
-    if args.iterations is None:
-        parser.error("--iterations is required for a training run "
-                     "(or pass --plot RUN_DIR / --selftest)")
 
-    cfg = TrainConfig(
-        n_iterations=args.iterations,
-        episodes_per_iteration=args.episodes,
-        base_seed=args.seed,
-        output_dir=args.out,
-        ppo=PPOConfig(
-            clip_ratio=args.clip_ratio,
-            entropy_coeff=args.entropy_coeff,
-            lr=args.lr,
-            n_epochs=args.epochs,
-        ),
-        checkpoint_every=args.checkpoint_every,
-        eval_every=args.eval_every,
-        eval_episodes=args.eval_episodes,
-        eval_base_seed=args.eval_base_seed,
-        num_agents=args.num_agents,
-        n_known=args.n_known,
-        n_hidden=args.n_hidden,
-        min_target_distance_km=args.min_target_distance_km,
-        min_known_separation_km=args.min_known_separation_km,
-        num_red_airbases=args.num_red_airbases,
-        partial_ratio=args.partial_ratio,
-        stretch_target_ratio=args.stretch_target_ratio,
-        fuel_damage_mode=args.fuel_damage_mode,
-        fuel_damage_probability=args.fuel_damage_probability,
-        fuel_damage_leg_progress=args.fuel_damage_leg_progress,
-        fuel_damage_rtb_margin=args.fuel_damage_rtb_margin,
-        aircraft_penalty_coeff=args.aircraft_penalty_coeff,
-        visual_artifacts=args.visual_artifacts,
-    )
+    config_values: Optional[Dict[str, Any]] = None
+    if args.config is not None:
+        try:
+            config_values = load_config_file(args.config)
+        except ValueError as exc:
+            parser.error(str(exc))
+        print("[config] preset: %s" % str(Path(args.config).resolve()))
+
+    try:
+        cfg, config_source = resolve_train_config(
+            args,
+            explicit=_explicit_cli_dests(effective_argv),
+            config_values=config_values,
+            config_path=args.config,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+        return                                  # parser.error exits; keeps type checkers happy
+    if config_source["cli_overrides"]:
+        print("[config] command-line overrides: %s"
+              % ", ".join(config_source["cli_overrides"]))
+
     # Fail on an impossible cell (e.g. num_agents > n_known) HERE, before train()
     # touches the filesystem or the solver. train() validates again; validate() is pure.
     cfg.validate()
-    summary = train(cfg)
-    # This process has torch loaded, so the figure is drawn by a child (module docstring).
+    summary = train(cfg, config_source=config_source)
+    # This process has torch loaded, so the figures are drawn by a child (module
+    # docstring).
     plot_training_subprocess(summary["run_dir"])
 
 

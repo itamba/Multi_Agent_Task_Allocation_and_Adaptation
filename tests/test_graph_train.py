@@ -23,10 +23,11 @@ What these tests lock:
                              from every training seed the run reaches; and a config
                              whose bands overlap is REFUSED by validate() rather than
                              quietly training on its own "held-out" set.
-  T3 plotting              : plot_training() renders a PNG from synthetic jsonl alone
-                             (no training, no torch), tolerates a missing eval file,
-                             and degrades to a friendly no-op when matplotlib is absent
-                             -- matplotlib is optional and must never fail the suite.
+  T3 plotting              : plot_training() renders the THREE figures from synthetic
+                             jsonl alone (no training, no torch) into <run_dir>/plots/,
+                             tolerates a missing eval file, and degrades to a friendly
+                             no-op when matplotlib is absent -- matplotlib is optional
+                             and must never fail the suite.
   T4 the baseline cell     : the DEFAULTS are the approved Phase-A cell --
                              num_red_airbases=(6, 6), partial_ratio=0.5 -> known 3 /
                              hidden 3 -- and a range config previews both of its ends.
@@ -92,6 +93,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
 import io
 import inspect
 import json
@@ -142,7 +144,13 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     _EVAL_STAGE_PRE_UPDATE,
     _EXACT_CARDINALITY_POLICY,
     _PIPELINE_STAGES,
+    _PLOT_DIAGNOSTICS,
+    _PLOT_FILENAMES,
+    _PLOT_MEASUREMENT_HEALTH,
+    _PLOT_PERFORMANCE,
+    _PLOTS_DIRNAME,
     _build_arg_parser,
+    _explicit_cli_dests,
     _comparable_records,
     _git_provenance,
     _parse_airbase_range,
@@ -155,8 +163,11 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     eval_member_tag,
     eval_seed,
     global_episode_index,
+    config_source_record,
+    load_config_file,
     plot_training,
     plot_training_subprocess,
+    resolve_train_config,
     save_checkpoint,
     seed_bands,
     train_seed,
@@ -403,6 +414,25 @@ def _write_synthetic_run(
                         "success_fraction": 0.75,
                         "n_ok": 3,
                         "aggregates_over": "successful_episodes",
+                        # FD-BASELINE-v1 matched pairs, in the shape `evaluate` emits.
+                        # The two conditions differ so a plot that pooled them, or that
+                        # drew one series twice, would be visible rather than plausible.
+                        "eval_reward_mean_clean": -0.7 + 0.05 * updates,
+                        "eval_reward_mean_damaged": -0.9 + 0.05 * updates,
+                        "eval_paired_reward_delta": -0.2,
+                        "n_pairs_attempted": 2,
+                        "n_pairs_successful": 1,
+                        "pair_success_fraction": 0.5,
+                        # ASYMMETRIC on purpose: the damaged condition completes fewer
+                        # held-out seeds than the clean one, so the two condition means
+                        # are NOT over the same seeds. That is exactly the case the
+                        # per-condition denominators exist to expose.
+                        "eval_n_clean_attempted": 2,
+                        "eval_n_clean_successful": 2,
+                        "eval_n_clean_failed": 0,
+                        "eval_n_damaged_attempted": 2,
+                        "eval_n_damaged_successful": 1,
+                        "eval_n_damaged_failed": 1,
                     })
                 elif it is None:      # a legacy run has no pre-update round at all
                     continue
@@ -427,35 +457,45 @@ def _skip_without_matplotlib() -> bool:
     return True
 
 
-def test_plot_training_from_synthetic_jsonl(tmp_path: Path) -> None:
-    """A PNG is produced from the jsonl alone -- no training, no policy involved."""
+def test_plot_training_writes_three_figures_into_the_plots_dir(tmp_path: Path) -> None:
+    """The three figures are produced from the jsonl alone, under `<run_dir>/plots/`.
+
+    Also the run-output-organization claim: figures are DERIVED artifacts and live in
+    their own subdirectory, so they never sit among the scientific records.
+    """
     if _skip_without_matplotlib():
         return
     run_dir = tmp_path / "run"
     _write_synthetic_run(run_dir)
     out = plot_training_subprocess(run_dir)
-    assert out is not None and out.exists()
-    assert out.name == "training_plot.png"
-    assert out.stat().st_size > 1000, "PNG is suspiciously small"
+
+    assert [path.name for path in out] == list(_PLOT_FILENAMES)
+    for path in out:
+        assert path.exists(), path
+        assert path.parent == run_dir / _PLOTS_DIRNAME, path
+        assert path.stat().st_size > 1000, "%s is suspiciously small" % path.name
+    # Nothing was written next to the records.
+    assert not (run_dir / "training_plot.png").exists()
 
 
 def test_plot_training_without_eval_records(tmp_path: Path) -> None:
-    """An in-progress run with no eval round yet still plots (panel 1 loses a series)."""
+    """An in-progress run with no eval round yet still plots (eval series are empty)."""
     if _skip_without_matplotlib():
         return
     run_dir = tmp_path / "run_no_eval"
     _write_synthetic_run(run_dir, with_eval=False)
     out = plot_training_subprocess(run_dir)
-    assert out is not None and out.exists()
+    assert [path.name for path in out] == list(_PLOT_FILENAMES)
+    assert all(path.exists() for path in out)
 
 
 def test_plot_training_missing_records_is_a_clean_noop(tmp_path: Path) -> None:
-    """Pointing the plotter at a directory with no records returns None, never raises.
+    """Pointing the plotter at a directory with no records returns [], never raises.
 
     Safe to call IN-PROCESS despite the torch/matplotlib conflict: `plot_training`
     reads the records before it touches matplotlib, so the empty path never imports it.
     """
-    assert plot_training(tmp_path / "does_not_exist") is None
+    assert plot_training(tmp_path / "does_not_exist") == []
 
 
 # =============================================================================
@@ -2889,8 +2929,14 @@ def test_run_summary_is_derived_from_the_jsonl_records(tmp_path: Path) -> None:
     assert summary["total_transitions"] == 10 + 11 + 12 + 0 + 14 + 15
 
     for key in ("run_dir", "train_records_path", "eval_records_path",
-                "failures_path", "run_config_path", "run_summary_path", "plot_path"):
+                "failures_path", "run_config_path", "run_summary_path", "plots_dir"):
         assert summary[key], key
+    # Every figure is discoverable by NAME, and the legacy single-path key survives as a
+    # documented ALIAS of the performance figure rather than pointing at a dead file.
+    assert set(summary["plot_paths"]) == set(_PLOT_FILENAMES)
+    for name, path in summary["plot_paths"].items():
+        assert path.endswith(name) and _PLOTS_DIRNAME in path
+    assert summary["plot_path"] == summary["plot_paths"][_PLOT_PERFORMANCE]
 
 
 def test_run_summary_flags_a_ledger_that_disagrees(tmp_path: Path) -> None:
@@ -2958,41 +3004,102 @@ def test_xy_drops_missing_rewards_and_anchors_pre_update_at_zero() -> None:
     assert _xy(legacy, "updates_completed_before", "baseline") == ([2.0], [-0.5])
 
 
-def test_plot_declares_four_panels_on_the_updates_axis() -> None:
-    """The figure is 4 panels keyed to completed updates -- read off the source.
+def test_plot_separates_performance_from_diagnostics_and_health() -> None:
+    """THREE figures, each built at its own site, all on the same x quantity.
 
     Structural rather than pixel-based: a PNG cannot be asked how many axes it has, and
-    the two facts worth locking (panel COUNT and the x-axis QUANTITY) are both visible
-    in the construction site. The panels' data is proven separately, from jsonl.
+    the facts worth locking -- that performance, diagnostics and denominators are three
+    SEPARATE files, and that every one of them labels the shared x-axis -- are visible
+    at the construction sites. Each figure's data is proven separately, from jsonl.
     """
     source = Path(inspect.getsourcefile(graph_train)).read_text(encoding="utf-8")
-    assert "plt.subplots(4, 1" in source, "the figure is no longer 4 panels"
-    assert 'ax.set_xlabel("PPO updates completed")' in source
-    assert "training_plot.png" in source
-    # Exactly one figure file: no second plot artifact was introduced.
-    assert source.count("fig.savefig(") == 1
+    # Exactly three figures are saved: one per claim, no fourth artifact.
+    assert source.count("fig.savefig(") == 3
+    assert "plt.subplots(3, 1" in inspect.getsource(
+        graph_train._plot_training_performance), "performance is not 3 panels"
+    assert "plt.subplots(2, 1" in inspect.getsource(
+        graph_train._plot_policy_diagnostics), "diagnostics is not 2 panels"
+    assert "plt.subplots(3, 1" in inspect.getsource(
+        graph_train._plot_measurement_health), "health is not 3 panels"
+    # The retired single dashboard is gone as an OUTPUT (its name survives only in the
+    # prose explaining why).
+    assert 'savefig(out_path' in source
+    assert '"training_plot.png"' not in source
+    # One x-axis quantity, stamped on every figure.
+    assert source.count("ax.set_xlabel(_PLOT_X_LABEL)") == 3
+    assert source.count("_annotate_x_semantics(fig)") == 3
+    # The honest placement survives: training at updates_completed_before, eval at
+    # updates_completed. Neither was moved to make a curve look better.
+    assert '_xy(\n        train_records, "updates_completed_before", "train_reward_mean"\n    )' in source
+    assert '_xy(eval_records, "updates_completed", "eval_reward_mean_clean")' in source
 
 
-def test_plot_renders_the_four_panel_figure_from_jsonl(tmp_path: Path) -> None:
-    """PO3. The whole figure, including an all-failed iteration, renders from records."""
+def test_performance_plot_draws_clean_damaged_and_delta_distinctly() -> None:
+    """PO2. The held-out panel is PER CONDITION, and the delta is the paired field.
+
+    The three series must come from three different record fields. The specific thing
+    forbidden here is the retired dashboard's behaviour: drawing the pooled
+    `eval_reward_mean` as THE held-out signal, which averages across the very factor the
+    matched pairs exist to isolate.
+    """
+    source = inspect.getsource(graph_train._plot_training_performance)
+    assert '"eval_reward_mean_clean"' in source
+    assert '"eval_reward_mean_damaged"' in source
+    assert '"eval_paired_reward_delta"' in source
+    # Training reward and the held-out series are not the same panel: three axes, and
+    # the train series is drawn on the first.
+    assert "plt.subplots(3, 1" in source
+    assert source.index('"train_reward_mean"') < source.index('"eval_reward_mean_clean"')
+    # The pooled series appears ONLY inside the legacy fallback branch -- i.e. after the
+    # per-condition series have been found empty -- and is labelled as pooled.
+    assert "if not clean_y and not dmg_y:" in source
+    assert source.index("if not clean_y and not dmg_y:") < source.index('"eval_reward_mean"')
+    assert "POOLED" in source
+
+
+def test_measurement_health_keeps_every_denominator() -> None:
+    """PO2. Coverage moved to its own figure, and NOTHING was dropped on the way.
+
+    The four fractions the packet requires, plus the pair fraction that the
+    episode-level one cannot express: two surviving halves of two different pairs are
+    two successful episodes and ZERO complete pairs.
+    """
+    source = inspect.getsource(graph_train._plot_measurement_health)
+    for key in ("success_fraction", "wake_fraction_of_successful",
+                "pair_success_fraction"):
+        assert '"%s"' % key in source, key
+    # Both record streams are read, so "eval success_fraction" is really eval's.
+    assert "(train_records, \"updates_completed_before\", \"success_fraction\"" in source
+    assert "(eval_records, \"updates_completed\", \"success_fraction\"" in source
+    # It says what it is: a health figure, explicitly not a performance claim.
+    assert "MEASUREMENT HEALTH" in source and "NOT performance" in source
+
+
+def test_plot_renders_every_figure_from_jsonl(tmp_path: Path) -> None:
+    """PO3. All three figures, including an all-failed iteration, render from records."""
     if _skip_without_matplotlib():
         return
     run_dir = tmp_path / "run"
     _write_synthetic_run(run_dir, all_failed_iteration=True)
     out = plot_training_subprocess(run_dir)
-    assert out is not None and out.exists()
-    assert out.name == "training_plot.png"
-    assert out.stat().st_size > 1000, "PNG is suspiciously small"
+    assert [path.name for path in out] == list(_PLOT_FILENAMES)
+    for path in out:
+        assert path.exists() and path.stat().st_size > 1000, path
 
 
 def test_plot_still_renders_pre_b4_records(tmp_path: Path) -> None:
-    """A run started before this change is still a run -- its records still plot."""
+    """A run started before this change is still a run -- its records still plot.
+
+    Pre-B4 records carry no per-condition eval means at all, so the held-out panel falls
+    back to the pooled series. That path must still produce all three figures.
+    """
     if _skip_without_matplotlib():
         return
     run_dir = tmp_path / "run_legacy"
     _write_synthetic_run(run_dir, legacy=True)
     out = plot_training_subprocess(run_dir)
-    assert out is not None and out.exists()
+    assert [path.name for path in out] == list(_PLOT_FILENAMES)
+    assert all(path.exists() for path in out)
 
 
 # =============================================================================
@@ -3664,6 +3771,597 @@ def test_an_attempt_identity_cannot_omit_what_names_it() -> None:
         raise AssertionError("an unknown artifact phase was accepted")
 
 
+
+# =============================================================================
+# T16 -- JSON presets: --config, override precedence, and the recorded source
+# =============================================================================
+
+_PROBE_PRESET = ROOT / "configs" / "graph_train" / "final_cell_probe.json"
+
+
+def _resolve(argv, *, config_path=None):
+    """Resolve argv the way `main` does: defaults < preset < EXPLICIT flags."""
+    parser = _build_arg_parser()
+    values = None if config_path is None else load_config_file(config_path)
+    return resolve_train_config(
+        parser.parse_args(argv),
+        explicit=_explicit_cli_dests(argv),
+        config_values=values,
+        config_path=config_path,
+    )
+
+
+def test_the_repository_probe_preset_resolves_a_valid_train_config() -> None:
+    """PO1. The shipped preset loads, resolves and VALIDATES as the bounded probe.
+
+    The preset is the artifact that makes the short probe reproducible from the
+    repository rather than from a shell history, so its exact declared shape is pinned
+    here: a wrong number in that file is a differently-sized experiment.
+    """
+    assert _PROBE_PRESET.exists(), str(_PROBE_PRESET)
+    argv = ["--config", str(_PROBE_PRESET)]
+    cfg, source = _resolve(argv, config_path=_PROBE_PRESET)
+    cfg.validate()      # must not raise: the preset is a runnable configuration
+
+    # The bounded short probe, exactly.
+    assert cfg.n_iterations == 2
+    assert cfg.episodes_per_iteration == 4
+    assert cfg.base_seed == 0
+    assert cfg.eval_every == 2
+    assert cfg.eval_episodes == 4
+    assert cfg.eval_base_seed == 1_000_000
+    assert cfg.total_episodes == 8, "the probe must stay bounded"
+    # The final cell, unchanged.
+    assert (cfg.num_agents, cfg.n_known, cfg.n_hidden) == (3, 3, 3)
+    assert cfg.n_targets_emitted == 6
+    assert cfg.min_target_distance_km == 200.0
+    assert cfg.min_known_separation_km == 100.0
+    assert cfg.include_sams is False
+    # FD-BASELINE-v1 as merged on main.
+    assert cfg.fuel_damage_mode == FuelDamageMode.SEEDED_MIXTURE
+    assert cfg.fuel_damage_probability == 0.5
+    assert cfg.fuel_damage_leg_progress == 0.30
+    assert cfg.fuel_damage_rtb_margin == 1.10
+    assert cfg.aircraft_penalty_coeff == 2.25
+    # The inspection surface is ON for this probe.
+    assert cfg.visual_artifacts is True
+
+    assert source["resolved_from"] == "config_file"
+    assert source["cli_overrides"] == [], "the preset alone must need no flags"
+
+
+def test_the_probe_preset_carries_the_fd_and_cell_defaults_of_the_dataclass() -> None:
+    """The preset RESTATES the approved defaults; it never quietly retunes the cell.
+
+    Anything the preset sets that also has a dataclass default must AGREE with it. The
+    probe is meant to measure the merged cell, so a preset that silently changed the
+    geometry or the difficulty factor would measure something else under the same name.
+    """
+    d = TrainConfig(n_iterations=1)
+    values = load_config_file(_PROBE_PRESET)
+    for field_name in ("num_agents", "n_known", "n_hidden", "min_target_distance_km",
+                       "min_known_separation_km", "include_sams", "fuel_damage_mode",
+                       "fuel_damage_probability", "fuel_damage_leg_progress",
+                       "fuel_damage_rtb_margin", "aircraft_penalty_coeff",
+                       "base_seed", "eval_base_seed"):
+        assert values[field_name] == getattr(d, field_name), field_name
+    # The two knobs the preset deliberately CHANGES are the run's size, nothing else.
+    changed = {k for k in values
+               if k in {f.name for f in dataclasses.fields(TrainConfig)}
+               and values[k] != getattr(d, k, object())}
+    assert changed <= {"n_iterations", "episodes_per_iteration", "eval_every",
+                       "eval_episodes", "visual_artifacts"}, sorted(changed)
+
+
+def test_explicit_cli_flags_beat_the_json_preset(tmp_path: Path) -> None:
+    """PO1. Defaults < preset < EXPLICIT flag -- and a DEFAULT never counts as explicit.
+
+    The load-bearing half is the negative one. If "explicit" were inferred from the
+    parsed value, every flag whose default happens to differ from the preset would
+    silently override the preset, and a preset would be unusable.
+    """
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({
+        "n_iterations": 5,
+        "episodes_per_iteration": 6,
+        "base_seed": 11,
+        "n_hidden": 2,
+        "ppo": {"lr": 0.005, "n_epochs": 7},
+    }), encoding="utf-8")
+
+    # (a) preset alone: every declared field is taken, nothing else moves.
+    argv = ["--config", str(preset)]
+    cfg, source = _resolve(argv, config_path=preset)
+    assert (cfg.n_iterations, cfg.episodes_per_iteration) == (5, 6)
+    assert cfg.base_seed == 11 and cfg.n_hidden == 2
+    assert cfg.ppo.lr == 0.005 and cfg.ppo.n_epochs == 7
+    # ... and the fields the preset did NOT set are still the dataclass defaults, even
+    # though argparse handed `resolve_train_config` a value for every one of them.
+    d = TrainConfig(n_iterations=1)
+    assert cfg.n_known == d.n_known
+    assert cfg.eval_episodes == d.eval_episodes
+    assert cfg.ppo.clip_ratio == PPOConfig().clip_ratio
+    assert source["cli_overrides"] == []
+
+    # (b) explicit flags win, including inside the nested PPO block.
+    argv = ["--config", str(preset), "--episodes", "2", "--seed", "99", "--lr", "0.001"]
+    cfg, source = _resolve(argv, config_path=preset)
+    assert cfg.episodes_per_iteration == 2 and cfg.base_seed == 99
+    assert cfg.ppo.lr == 0.001
+    assert cfg.n_iterations == 5, "an unmentioned preset field must survive"
+    assert cfg.ppo.n_epochs == 7
+    assert source["cli_overrides"] == ["base_seed", "episodes_per_iteration", "ppo.lr"]
+
+    # (c) a flag passed its OWN DEFAULT value is still explicit -- it was typed.
+    argv = ["--config", str(preset), "--seed", str(d.base_seed)]
+    cfg, _ = _resolve(argv, config_path=preset)
+    assert cfg.base_seed == d.base_seed != 11
+
+    # (d) a store_true flag: absent means "the preset decides", present means ON.
+    preset.write_text(json.dumps({"n_iterations": 1, "visual_artifacts": True}),
+                      encoding="utf-8")
+    cfg, _ = _resolve(["--config", str(preset)], config_path=preset)
+    assert cfg.visual_artifacts is True, "the absent flag overrode the preset"
+    cfg, _ = _resolve(["--config", str(preset), "--visual-artifacts"],
+                      config_path=preset)
+    assert cfg.visual_artifacts is True
+
+
+def test_no_config_reproduces_the_pre_preset_cli_resolution() -> None:
+    """With no --config, resolution is exactly the argparse defaults plus what was typed.
+
+    The invariance claim for the whole feature: presets must not have changed what an
+    existing command line already produced.
+    """
+    argv = ["--iterations", "3", "--n-known", "4", "--num-agents", "2"]
+    cfg, source = _resolve(argv)
+    parser = _build_arg_parser()
+    args = parser.parse_args(argv)
+    assert cfg.n_iterations == 3 and cfg.n_known == 4 and cfg.num_agents == 2
+    # Every mapped flag equals what argparse resolved -- no third source of values.
+    # `output_dir` is excluded: TrainConfig.__post_init__ turns the empty default into
+    # `training_output_<timestamp>`, which is the dataclass's own behaviour and not a
+    # resolution step.
+    for dest, field_name in graph_train._CLI_FIELD_BY_DEST.items():
+        if field_name == "output_dir":
+            continue
+        assert getattr(cfg, field_name) == getattr(args, dest), field_name
+    assert args.out == "" and str(cfg.output_dir).startswith("training_output_")
+    for dest, field_name in graph_train._CLI_PPO_FIELD_BY_DEST.items():
+        assert getattr(cfg.ppo, field_name) == getattr(args, dest), field_name
+    assert source["path"] is None and source["resolved_from"] == "cli_defaults"
+    assert source["config_fields"] == [] and source["cli_overrides"] == []
+
+
+def test_a_config_may_supply_iterations_and_its_absence_still_fails(
+    tmp_path: Path,
+) -> None:
+    """`n_iterations` may come from the preset, but it is never DEFAULTED into existence."""
+    preset = tmp_path / "iters.json"
+    preset.write_text(json.dumps({"n_iterations": 4}), encoding="utf-8")
+    cfg, _ = _resolve(["--config", str(preset)], config_path=preset)
+    assert cfg.n_iterations == 4
+
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"base_seed": 3}), encoding="utf-8")
+    try:
+        _resolve(["--config", str(empty)], config_path=empty)
+    except ValueError as exc:
+        assert "n_iterations" in str(exc)
+    else:
+        raise AssertionError("a config with no n_iterations was accepted")
+
+
+def test_load_config_file_refuses_what_it_cannot_honour(tmp_path: Path) -> None:
+    """A typo is REFUSED, not ignored: a silently dropped knob is a mismeasured run."""
+    bad = tmp_path / "bad.json"
+
+    bad.write_text(json.dumps({"n_iterations": 1, "n_hiddenn": 3}), encoding="utf-8")
+    try:
+        load_config_file(bad)
+    except ValueError as exc:
+        assert "n_hiddenn" in str(exc)
+    else:
+        raise AssertionError("an unknown TrainConfig field was accepted")
+
+    bad.write_text(json.dumps({"n_iterations": 1, "ppo": {"learning_rate": 0.1}}),
+                   encoding="utf-8")
+    try:
+        load_config_file(bad)
+    except ValueError as exc:
+        assert "learning_rate" in str(exc)
+    else:
+        raise AssertionError("an unknown PPOConfig field was accepted")
+
+    bad.write_text(json.dumps({"n_iterations": 1, "ppo": 3}), encoding="utf-8")
+    try:
+        load_config_file(bad)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a non-object ppo block was accepted")
+
+    bad.write_text("[1, 2, 3]", encoding="utf-8")
+    try:
+        load_config_file(bad)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a non-object config was accepted")
+
+    bad.write_text("{not json", encoding="utf-8")
+    try:
+        load_config_file(bad)
+    except ValueError as exc:
+        assert "JSON" in str(exc)
+    else:
+        raise AssertionError("malformed JSON was accepted")
+
+    try:
+        load_config_file(tmp_path / "nope.json")
+    except ValueError as exc:
+        assert "not found" in str(exc)
+    else:
+        raise AssertionError("a missing config file was accepted")
+
+
+def test_config_comments_are_ignored_and_tuples_round_trip(tmp_path: Path) -> None:
+    """Underscore keys are prose; a list reloads as the tuple the dataclass holds.
+
+    The tuple half matters because `asdict` writes `num_red_airbases` as a LIST, so a
+    preset lifted out of a previous run's `run_config.json:/train_config` must load back
+    into the config it came from.
+    """
+    preset = tmp_path / "commented.json"
+    preset.write_text(json.dumps({
+        "_comment": "why this preset exists",
+        "_anything": {"nested": "prose"},
+        "n_iterations": 1,
+        "num_red_airbases": [6, 8],
+        "ppo": {"_note": "prose here too", "lr": 0.002},
+    }), encoding="utf-8")
+    values = load_config_file(preset)
+    assert "_comment" not in values and "_anything" not in values
+    assert values["num_red_airbases"] == (6, 8)
+    assert values["ppo"] == {"lr": 0.002}
+
+    cfg, _ = _resolve(["--config", str(preset)], config_path=preset)
+    assert cfg.num_red_airbases == (6, 8)
+    # ... and that IS the shape the dataclass round-trips through `asdict`.
+    assert tuple(dataclasses.asdict(cfg)["num_red_airbases"]) == (6, 8)
+
+
+def test_run_config_records_the_effective_config_and_its_preset(tmp_path: Path) -> None:
+    """PO1. `run_config.json` states the resolved config AND where it came from.
+
+    Without the source, two runs of the same preset with different one-off flags are
+    indistinguishable after the fact except by comparing every number by eye.
+    """
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({"n_iterations": 5, "base_seed": 11, "n_hidden": 2}),
+                      encoding="utf-8")
+    argv = ["--config", str(preset), "--seed", "99"]
+    cfg, source = _resolve(argv, config_path=preset)
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    path = write_run_config(run_dir, cfg, provenance={"stub": True},
+                            config_source=source)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    # The EFFECTIVE config, with the override applied.
+    assert payload["train_config"]["base_seed"] == 99
+    assert payload["train_config"]["n_iterations"] == 5
+    assert payload["train_config"]["n_hidden"] == 2
+    assert payload["construction"]["n_hidden"] == 2
+
+    # ... and the preset that produced it, by path, with what the CLI took back off it.
+    recorded = payload["config_source"]
+    assert recorded["path"] == str(preset)
+    assert Path(recorded["absolute_path"]) == preset.resolve()
+    assert recorded["format"] == "json"
+    assert recorded["resolved_from"] == "config_file"
+    assert set(recorded["config_fields"]) == {"n_iterations", "base_seed", "n_hidden"}
+    assert recorded["cli_overrides"] == ["base_seed"]
+
+
+def test_config_source_is_always_a_structured_object(tmp_path: Path) -> None:
+    """PO1. ONE schema, THREE truthful kinds, and never `null`.
+
+    `null` would have collapsed two different facts into one value: "this run used no
+    preset" and "whoever wrote this file did not record where the config came from". But
+    a single non-null fallback is not enough either -- see
+    `test_a_direct_train_call_is_not_recorded_as_cli_provenance`: the three ways a config
+    can arise must stay distinguishable under the same schema.
+
+    Checked at every site that can produce the record, because a contract that only holds
+    at one of them is not a contract.
+    """
+    expected_keys = {"path", "absolute_path", "format", "config_fields",
+                     "cli_overrides", "resolved_from"}
+
+    # (1) the constructor, for each kind. The shape never varies.
+    cli = config_source_record(resolved_from="cli_defaults")
+    direct = config_source_record(resolved_from="direct_config")
+    for record in (cli, direct):
+        assert set(record) == expected_keys
+        assert record["path"] is None and record["absolute_path"] is None
+        assert record["format"] is None
+        assert record["config_fields"] == [] and record["cli_overrides"] == []
+    assert cli["resolved_from"] == "cli_defaults"
+    assert direct["resolved_from"] == "direct_config"
+    assert cli != direct, "the two provenances must not be the same record"
+
+    # (2) `resolve_train_config` on a CLI-only invocation -- a command line really did
+    # resolve this one, so `cli_defaults` is the truthful value here.
+    _cfg, source = _resolve(["--iterations", "2"])
+    assert source == cli
+
+    # (3) the preset case is the SAME shape, only differently filled.
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({"n_iterations": 1}), encoding="utf-8")
+    _cfg, file_source = _resolve(["--config", str(preset)], config_path=preset)
+    assert set(file_source) == expected_keys
+    assert file_source["resolved_from"] == "config_file"
+    assert file_source["format"] == "json"
+    assert file_source["path"] == str(preset)
+
+    # (4) the record must be internally consistent: only a `config_file` may name a
+    # file, and it MUST name one. A record that could claim a preset it cannot identify
+    # is a provenance defect, so it fails at construction rather than reaching disk.
+    for bad in (
+        {"resolved_from": "not_a_kind"},
+        {"resolved_from": "config_file"},                       # claims a file, names none
+        {"resolved_from": "cli_defaults", "config_path": preset},
+        {"resolved_from": "direct_config", "config_path": preset},
+    ):
+        try:
+            config_source_record(**bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("config_source_record accepted %r" % bad)
+
+
+def test_a_direct_train_call_is_not_recorded_as_cli_provenance(tmp_path: Path) -> None:
+    """PO1. A `TrainConfig` built in PYTHON is `direct_config`, never `cli_defaults`.
+
+    This is a real repository path, not a hypothetical: `_selftest` calls `train(cfg)`
+    directly three times, as would any notebook or script importing the trainer. Such a
+    run never saw a command line, so recording it as `cli_defaults` would assert that
+    argparse defaults resolved it -- a plausible-looking false statement in exactly the
+    field a reader consults to find out what produced the run. A provenance value that
+    can be wrong in a believable way is worse than one that is absent.
+    """
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    cfg = TrainConfig(n_iterations=1, output_dir=str(run_dir))
+
+    payload = json.loads(
+        write_run_config(run_dir, cfg, provenance={"stub": True})
+        .read_text(encoding="utf-8")
+    )
+    recorded = payload["config_source"]
+    assert recorded is not None, "the fallback must still be structured"
+    assert recorded["resolved_from"] == "direct_config"
+    assert recorded["resolved_from"] != "cli_defaults", "a direct call claimed a CLI"
+    assert recorded["path"] is None and recorded["config_fields"] == []
+
+    # The three kinds are mutually exclusive and exhaustive at the schema level.
+    kinds = {graph_train._CONFIG_SOURCE_CLI_DEFAULTS,
+             graph_train._CONFIG_SOURCE_FILE,
+             graph_train._CONFIG_SOURCE_DIRECT}
+    assert len(kinds) == 3
+    assert set(graph_train._CONFIG_SOURCE_KINDS) == kinds
+    assert recorded["resolved_from"] in kinds
+
+    # A caller that DID resolve a real source still wins -- the fallback only applies
+    # when nothing was supplied.
+    supplied = config_source_record(resolved_from="cli_defaults")
+    payload = json.loads(
+        write_run_config(run_dir, cfg, provenance={"stub": True},
+                         config_source=supplied).read_text(encoding="utf-8")
+    )
+    assert payload["config_source"]["resolved_from"] == "cli_defaults"
+
+
+def test_cli_exposes_config_and_plot_targets_the_plots_dir() -> None:
+    """`--config` parses, and `--plot` documents where the figures land."""
+    parser = _build_arg_parser()
+    args = parser.parse_args(["--config", "some/preset.json", "--iterations", "1"])
+    assert args.config == "some/preset.json"
+    assert parser.parse_args(["--iterations", "1"]).config is None
+    # `--config` is not a training knob and must never reach TrainConfig as a field.
+    assert "config" not in {f.name for f in dataclasses.fields(TrainConfig)}
+
+
+
+def test_main_hands_train_the_resolved_config_and_its_source(tmp_path: Path) -> None:
+    """PO1. End to end through `main`: the preset reaches `train`, and so does its origin.
+
+    Everything below `main` is stubbed -- no policy, no generator, no engine, no solver
+    -- because what is under test is the WIRING: that `--config` is resolved once, that
+    an explicit flag still wins at that level, and that `config_source` is handed to
+    `train` (which records it in run_config.json) rather than being computed and dropped.
+    """
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({"n_iterations": 3, "base_seed": 11, "n_hidden": 2}),
+                      encoding="utf-8")
+
+    seen = {}
+
+    def fake_train(cfg, *, config_source=None):
+        seen["cfg"] = cfg
+        seen["config_source"] = config_source
+        return {"run_dir": str(tmp_path / "run")}
+
+    def fake_plot(run_dir, **kwargs):
+        seen["plotted"] = str(run_dir)
+        return []
+
+    real_train = graph_train.train
+    real_plot = graph_train.plot_training_subprocess
+    graph_train.train = fake_train                     # type: ignore[assignment]
+    graph_train.plot_training_subprocess = fake_plot   # type: ignore[assignment]
+    try:
+        graph_train.main(["--config", str(preset), "--seed", "99"])
+    finally:
+        graph_train.train = real_train                 # type: ignore[assignment]
+        graph_train.plot_training_subprocess = real_plot  # type: ignore[assignment]
+
+    cfg = seen["cfg"]
+    assert cfg.n_iterations == 3 and cfg.n_hidden == 2   # from the preset
+    assert cfg.base_seed == 99                            # the explicit flag won
+    source = seen["config_source"]
+    assert source is not None, "train was called without the config source"
+    assert source["path"] == str(preset)
+    assert source["cli_overrides"] == ["base_seed"]
+    # The figures are still drawn in the child, from the run directory `train` reported.
+    assert seen["plotted"] == str(tmp_path / "run")
+
+
+
+def test_main_with_argv_none_still_sees_the_real_command_line(tmp_path: Path) -> None:
+    """PO1. `main()` called with NO argument resolves the REAL `sys.argv`, both passes.
+
+    This is the ordinary invocation -- PyCharm, a terminal, `python -m ...` all reach
+    `main()` with `argv=None` -- and it is where the override precedence silently broke:
+    argparse reads `None` as `sys.argv[1:]`, so a probe pass that read `None` as `[]`
+    concluded the operator had typed nothing and let the preset overwrite a flag that
+    was really given. The regression is asserted on the VALUE that reaches `train`, not
+    on the helper, because that is what a run would have been configured with.
+    """
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({"n_iterations": 3, "base_seed": 11, "n_hidden": 2}),
+                      encoding="utf-8")
+
+    seen = {}
+
+    def fake_train(cfg, *, config_source=None):
+        seen["cfg"] = cfg
+        seen["config_source"] = config_source
+        return {"run_dir": str(tmp_path / "run")}
+
+    real_train = graph_train.train
+    real_plot = graph_train.plot_training_subprocess
+    real_argv = sys.argv
+    graph_train.train = fake_train                        # type: ignore[assignment]
+    graph_train.plot_training_subprocess = lambda run_dir, **kw: []   # type: ignore
+    sys.argv = ["graph_train.py", "--config", str(preset), "--seed", "7"]
+    try:
+        graph_train.main()          # <- NO argv argument: the real entry point
+    finally:
+        graph_train.train = real_train                    # type: ignore[assignment]
+        graph_train.plot_training_subprocess = real_plot  # type: ignore[assignment]
+        sys.argv = real_argv
+
+    cfg = seen["cfg"]
+    assert cfg.base_seed == 7, "the typed --seed lost to the preset (finding 1)"
+    assert cfg.n_iterations == 3 and cfg.n_hidden == 2, "the preset stopped applying"
+    assert seen["config_source"]["cli_overrides"] == ["base_seed"]
+
+
+def test_explicit_dests_read_argv_none_as_the_real_command_line() -> None:
+    """The helper itself: `None` means `sys.argv[1:]`, exactly as argparse reads it.
+
+    Unit-level companion to the entry-point test above -- it pins the CAUSE, so a future
+    change that reintroduces `[] if argv is None` fails here with a readable message and
+    not only through a stubbed `main`.
+    """
+    real_argv = sys.argv
+    sys.argv = ["graph_train.py", "--iterations", "2", "--seed", "5"]
+    try:
+        assert _explicit_cli_dests(None) == {"iterations", "seed"}
+        # An explicitly EMPTY list is still an empty command line -- the two must not be
+        # conflated in the other direction either.
+        assert _explicit_cli_dests([]) == set()
+    finally:
+        sys.argv = real_argv
+
+
+def test_health_plot_exposes_per_condition_eval_denominators() -> None:
+    """PO3. The two condition means carry their own completion counts.
+
+    `eval_reward_mean_clean` and `eval_reward_mean_damaged` are each a mean over THAT
+    condition's successful episodes, so when one condition fails more held-out seeds the
+    two curves are not averages over the same seeds and their gap is not a within-seed
+    effect. The per-condition attempted/successful counts are what make that inspectable,
+    and they come from existing record fields -- no evaluation semantics change.
+    """
+    source = inspect.getsource(graph_train._plot_measurement_health)
+    assert '"eval_n_%s_%s" % (condition, suffix)' in source
+    assert "attempted" in source and "successful" in source
+    assert "CONDITION_CLEAN" in source and "CONDITION_DAMAGED" in source
+    # It says WHY the panel exists: the two condition means are not a within-seed
+    # comparison, while the paired delta is.
+    assert "denominator" in source.lower()
+
+    # The performance figure must label its condition series honestly, and reserve the
+    # within-seed claim for the paired delta.
+    perf = inspect.getsource(graph_train._plot_training_performance)
+    assert "mean over SUCCESSFUL forced_clean episodes" in perf
+    assert "mean over SUCCESSFUL forced_damaged episodes" in perf
+    assert "each mean over THAT condition's successful" in perf
+    assert "WITHIN-SEED" in perf
+    # The paired delta still comes from the matched field only -- unchanged semantics.
+    assert '"eval_paired_reward_delta"' in perf
+
+
+def test_per_condition_denominators_survive_an_asymmetric_round(tmp_path: Path) -> None:
+    """PO3. With clean 2/2 and damaged 1/2 completed, both denominators are plottable.
+
+    Data-level proof on the `_xy` series builder that feeds the panel: the asymmetry is
+    present in the records and is picked up as two DISTINCT series, so a reader can see
+    that the damaged mean rests on fewer seeds than the clean one.
+    """
+    run_dir = tmp_path / "run"
+    _write_synthetic_run(run_dir)
+    records = [json.loads(line) for line in
+               (run_dir / "eval_records.jsonl").read_text(encoding="utf-8").splitlines()]
+
+    clean_att = _xy(records, "updates_completed", "eval_n_clean_attempted")
+    clean_ok = _xy(records, "updates_completed", "eval_n_clean_successful")
+    dmg_att = _xy(records, "updates_completed", "eval_n_damaged_attempted")
+    dmg_ok = _xy(records, "updates_completed", "eval_n_damaged_successful")
+
+    assert clean_att[1] and dmg_att[1], "the per-condition denominators are missing"
+    assert clean_att[1] == dmg_att[1], "both conditions attempt the same seeds"
+    assert clean_ok[1] != dmg_ok[1], "the asymmetry the panel exists for is not present"
+    # ... and the paired delta is still taken over COMPLETE pairs only, untouched.
+    assert all(r["n_pairs_successful"] <= r["n_pairs_attempted"] for r in records)
+    assert all(r["eval_paired_reward_delta"] is not None for r in records)
+
+
+
+def test_probe_preset_claims_scheduled_iterations_not_productive_updates() -> None:
+    """PO2. The preset promises two scheduled ITERATIONS, never two productive UPDATES.
+
+    `updates_completed` advances only when the updater actually runs epochs, and a
+    successful zero-wake iteration completes with `n_epochs_run == 0` and leaves it
+    unchanged. So "after both updates" was a claim the schedule cannot guarantee -- and
+    productive-update yield is one of the quantities this probe is run to MEASURE, which
+    makes assuming it in the preset's own description exactly backwards.
+
+    Asserted on the shipped file's prose because the prose is what a reader takes the
+    run's shape from; the schedule fields are pinned separately and are unchanged.
+    """
+    raw = json.loads(_PROBE_PRESET.read_text(encoding="utf-8"))
+    text = raw["_evaluation"]
+
+    assert "after both updates" not in text, "the preset still promises two updates"
+    assert "SCHEDULED TRAINING ITERATIONS" in text
+    # It says what updates_completed actually depends on, and that 2 is not guaranteed.
+    assert "0, 1 or 2" in text
+    assert "productive" in text.lower()
+    assert "no wakes" in text or "zero-wake" in text
+
+    # The SCHEDULE itself is untouched -- this finding was about wording only.
+    assert raw["n_iterations"] == 2
+    assert raw["eval_every"] == 2
+    assert raw["eval_episodes"] == 4
+    assert raw["episodes_per_iteration"] == 4
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -3678,8 +4376,8 @@ if __name__ == "__main__":
          test_validate_rejects_overlapping_seed_bands, False),
         ("validate_rejects_degenerate_shapes",
          test_validate_rejects_degenerate_shapes, False),
-        ("plot_training_from_synthetic_jsonl",
-         test_plot_training_from_synthetic_jsonl, True),
+        ("plot_training_writes_three_figures_into_the_plots_dir",
+         test_plot_training_writes_three_figures_into_the_plots_dir, True),
         ("plot_training_without_eval_records",
          test_plot_training_without_eval_records, True),
         ("plot_training_missing_records_is_a_clean_noop",
@@ -3811,10 +4509,14 @@ if __name__ == "__main__":
          test_run_summary_json_omits_the_embedded_record_lists, True),
         ("xy_drops_missing_rewards_and_anchors_pre_update_at_zero",
          test_xy_drops_missing_rewards_and_anchors_pre_update_at_zero, False),
-        ("plot_declares_four_panels_on_the_updates_axis",
-         test_plot_declares_four_panels_on_the_updates_axis, False),
-        ("plot_renders_the_four_panel_figure_from_jsonl",
-         test_plot_renders_the_four_panel_figure_from_jsonl, True),
+        ("plot_separates_performance_from_diagnostics_and_health",
+         test_plot_separates_performance_from_diagnostics_and_health, False),
+        ("performance_plot_draws_clean_damaged_and_delta_distinctly",
+         test_performance_plot_draws_clean_damaged_and_delta_distinctly, False),
+        ("measurement_health_keeps_every_denominator",
+         test_measurement_health_keeps_every_denominator, False),
+        ("plot_renders_every_figure_from_jsonl",
+         test_plot_renders_every_figure_from_jsonl, True),
         ("plot_still_renders_pre_b4_records",
          test_plot_still_renders_pre_b4_records, True),
         # --- T15: the opt-in visual-artifact bundles (PO1 / PO2 / PO3) ---
@@ -3851,6 +4553,41 @@ if __name__ == "__main__":
          test_run_config_records_the_resolved_visual_artifacts_flag, True),
         ("an_attempt_identity_cannot_omit_what_names_it",
          test_an_attempt_identity_cannot_omit_what_names_it, False),
+        # --- T16: JSON presets ---
+        ("the_repository_probe_preset_resolves_a_valid_train_config",
+         test_the_repository_probe_preset_resolves_a_valid_train_config, False),
+        ("the_probe_preset_carries_the_fd_and_cell_defaults_of_the_dataclass",
+         test_the_probe_preset_carries_the_fd_and_cell_defaults_of_the_dataclass, False),
+        ("explicit_cli_flags_beat_the_json_preset",
+         test_explicit_cli_flags_beat_the_json_preset, True),
+        ("no_config_reproduces_the_pre_preset_cli_resolution",
+         test_no_config_reproduces_the_pre_preset_cli_resolution, False),
+        ("a_config_may_supply_iterations_and_its_absence_still_fails",
+         test_a_config_may_supply_iterations_and_its_absence_still_fails, True),
+        ("load_config_file_refuses_what_it_cannot_honour",
+         test_load_config_file_refuses_what_it_cannot_honour, True),
+        ("config_comments_are_ignored_and_tuples_round_trip",
+         test_config_comments_are_ignored_and_tuples_round_trip, True),
+        ("run_config_records_the_effective_config_and_its_preset",
+         test_run_config_records_the_effective_config_and_its_preset, True),
+        ("config_source_is_always_a_structured_object",
+         test_config_source_is_always_a_structured_object, True),
+        ("a_direct_train_call_is_not_recorded_as_cli_provenance",
+         test_a_direct_train_call_is_not_recorded_as_cli_provenance, True),
+        ("probe_preset_claims_scheduled_iterations_not_productive_updates",
+         test_probe_preset_claims_scheduled_iterations_not_productive_updates, False),
+        ("cli_exposes_config_and_plot_targets_the_plots_dir",
+         test_cli_exposes_config_and_plot_targets_the_plots_dir, False),
+        ("main_hands_train_the_resolved_config_and_its_source",
+         test_main_hands_train_the_resolved_config_and_its_source, True),
+        ("main_with_argv_none_still_sees_the_real_command_line",
+         test_main_with_argv_none_still_sees_the_real_command_line, True),
+        ("explicit_dests_read_argv_none_as_the_real_command_line",
+         test_explicit_dests_read_argv_none_as_the_real_command_line, False),
+        ("health_plot_exposes_per_condition_eval_denominators",
+         test_health_plot_exposes_per_condition_eval_denominators, False),
+        ("per_condition_denominators_survive_an_asymmetric_round",
+         test_per_condition_denominators_survive_an_asymmetric_round, True),
     ]
     for name, fn, needs_tmp in tests:
         try:
