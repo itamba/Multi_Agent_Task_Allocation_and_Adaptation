@@ -163,6 +163,7 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     eval_member_tag,
     eval_seed,
     global_episode_index,
+    config_source_record,
     load_config_file,
     plot_training,
     plot_training_subprocess,
@@ -422,6 +423,16 @@ def _write_synthetic_run(
                         "n_pairs_attempted": 2,
                         "n_pairs_successful": 1,
                         "pair_success_fraction": 0.5,
+                        # ASYMMETRIC on purpose: the damaged condition completes fewer
+                        # held-out seeds than the clean one, so the two condition means
+                        # are NOT over the same seeds. That is exactly the case the
+                        # per-condition denominators exist to expose.
+                        "eval_n_clean_attempted": 2,
+                        "eval_n_clean_successful": 2,
+                        "eval_n_clean_failed": 0,
+                        "eval_n_damaged_attempted": 2,
+                        "eval_n_damaged_successful": 1,
+                        "eval_n_damaged_failed": 1,
                     })
                 elif it is None:      # a legacy run has no pre-update round at all
                     continue
@@ -3004,8 +3015,12 @@ def test_plot_separates_performance_from_diagnostics_and_health() -> None:
     source = Path(inspect.getsourcefile(graph_train)).read_text(encoding="utf-8")
     # Exactly three figures are saved: one per claim, no fourth artifact.
     assert source.count("fig.savefig(") == 3
-    assert source.count("plt.subplots(3, 1") == 1, "performance is not 3 panels"
-    assert source.count("plt.subplots(2, 1") == 2, "diagnostics/health are not 2 panels"
+    assert "plt.subplots(3, 1" in inspect.getsource(
+        graph_train._plot_training_performance), "performance is not 3 panels"
+    assert "plt.subplots(2, 1" in inspect.getsource(
+        graph_train._plot_policy_diagnostics), "diagnostics is not 2 panels"
+    assert "plt.subplots(3, 1" in inspect.getsource(
+        graph_train._plot_measurement_health), "health is not 3 panels"
     # The retired single dashboard is gone as an OUTPUT (its name survives only in the
     # prose explaining why).
     assert 'savefig(out_path' in source
@@ -4050,8 +4065,34 @@ def test_run_config_records_the_effective_config_and_its_preset(tmp_path: Path) 
     assert recorded["cli_overrides"] == ["base_seed"]
 
 
-def test_run_config_states_plainly_when_no_preset_was_used(tmp_path: Path) -> None:
-    """A CLI-only run records `config_source: null` -- absence stated, not omitted."""
+def test_config_source_is_always_a_structured_object(tmp_path: Path) -> None:
+    """PO2. ONE contract: `config_source` is a structured object, never `null`.
+
+    A CLI-only run STATES that it used no preset -- null path, empty field lists,
+    `resolved_from = "cli_defaults"` -- rather than recording nothing. `null` would have
+    collapsed two different facts into one value: "this run used no preset" and "whoever
+    wrote this file did not record where the config came from".
+
+    Checked at all three sites that can produce the record, because a contract that only
+    holds at one of them is not a contract.
+    """
+    expected_keys = {"path", "absolute_path", "format", "config_fields",
+                     "cli_overrides", "resolved_from"}
+
+    # (1) the constructor itself.
+    bare = config_source_record()
+    assert set(bare) == expected_keys
+    assert bare["path"] is None and bare["absolute_path"] is None
+    assert bare["format"] is None
+    assert bare["config_fields"] == [] and bare["cli_overrides"] == []
+    assert bare["resolved_from"] == "cli_defaults"
+
+    # (2) `resolve_train_config` on a CLI-only invocation.
+    _cfg, source = _resolve(["--iterations", "2"])
+    assert source == bare
+
+    # (3) `write_run_config` when no source is passed at all -- it must SYNTHESIZE the
+    # CLI-only record, not write null.
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     cfg = TrainConfig(n_iterations=1, output_dir=str(run_dir))
@@ -4059,7 +4100,15 @@ def test_run_config_states_plainly_when_no_preset_was_used(tmp_path: Path) -> No
         write_run_config(run_dir, cfg, provenance={"stub": True})
         .read_text(encoding="utf-8")
     )
-    assert "config_source" in payload and payload["config_source"] is None
+    assert payload["config_source"] == bare
+
+    # ... and the preset case is the SAME shape, only differently filled.
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({"n_iterations": 1}), encoding="utf-8")
+    _cfg, file_source = _resolve(["--config", str(preset)], config_path=preset)
+    assert set(file_source) == expected_keys
+    assert file_source["resolved_from"] == "config_file"
+    assert file_source["format"] == "json"
 
 
 def test_cli_exposes_config_and_plot_targets_the_plots_dir() -> None:
@@ -4115,6 +4164,118 @@ def test_main_hands_train_the_resolved_config_and_its_source(tmp_path: Path) -> 
     assert source["cli_overrides"] == ["base_seed"]
     # The figures are still drawn in the child, from the run directory `train` reported.
     assert seen["plotted"] == str(tmp_path / "run")
+
+
+
+def test_main_with_argv_none_still_sees_the_real_command_line(tmp_path: Path) -> None:
+    """PO1. `main()` called with NO argument resolves the REAL `sys.argv`, both passes.
+
+    This is the ordinary invocation -- PyCharm, a terminal, `python -m ...` all reach
+    `main()` with `argv=None` -- and it is where the override precedence silently broke:
+    argparse reads `None` as `sys.argv[1:]`, so a probe pass that read `None` as `[]`
+    concluded the operator had typed nothing and let the preset overwrite a flag that
+    was really given. The regression is asserted on the VALUE that reaches `train`, not
+    on the helper, because that is what a run would have been configured with.
+    """
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({"n_iterations": 3, "base_seed": 11, "n_hidden": 2}),
+                      encoding="utf-8")
+
+    seen = {}
+
+    def fake_train(cfg, *, config_source=None):
+        seen["cfg"] = cfg
+        seen["config_source"] = config_source
+        return {"run_dir": str(tmp_path / "run")}
+
+    real_train = graph_train.train
+    real_plot = graph_train.plot_training_subprocess
+    real_argv = sys.argv
+    graph_train.train = fake_train                        # type: ignore[assignment]
+    graph_train.plot_training_subprocess = lambda run_dir, **kw: []   # type: ignore
+    sys.argv = ["graph_train.py", "--config", str(preset), "--seed", "7"]
+    try:
+        graph_train.main()          # <- NO argv argument: the real entry point
+    finally:
+        graph_train.train = real_train                    # type: ignore[assignment]
+        graph_train.plot_training_subprocess = real_plot  # type: ignore[assignment]
+        sys.argv = real_argv
+
+    cfg = seen["cfg"]
+    assert cfg.base_seed == 7, "the typed --seed lost to the preset (finding 1)"
+    assert cfg.n_iterations == 3 and cfg.n_hidden == 2, "the preset stopped applying"
+    assert seen["config_source"]["cli_overrides"] == ["base_seed"]
+
+
+def test_explicit_dests_read_argv_none_as_the_real_command_line() -> None:
+    """The helper itself: `None` means `sys.argv[1:]`, exactly as argparse reads it.
+
+    Unit-level companion to the entry-point test above -- it pins the CAUSE, so a future
+    change that reintroduces `[] if argv is None` fails here with a readable message and
+    not only through a stubbed `main`.
+    """
+    real_argv = sys.argv
+    sys.argv = ["graph_train.py", "--iterations", "2", "--seed", "5"]
+    try:
+        assert _explicit_cli_dests(None) == {"iterations", "seed"}
+        # An explicitly EMPTY list is still an empty command line -- the two must not be
+        # conflated in the other direction either.
+        assert _explicit_cli_dests([]) == set()
+    finally:
+        sys.argv = real_argv
+
+
+def test_health_plot_exposes_per_condition_eval_denominators() -> None:
+    """PO3. The two condition means carry their own completion counts.
+
+    `eval_reward_mean_clean` and `eval_reward_mean_damaged` are each a mean over THAT
+    condition's successful episodes, so when one condition fails more held-out seeds the
+    two curves are not averages over the same seeds and their gap is not a within-seed
+    effect. The per-condition attempted/successful counts are what make that inspectable,
+    and they come from existing record fields -- no evaluation semantics change.
+    """
+    source = inspect.getsource(graph_train._plot_measurement_health)
+    assert '"eval_n_%s_%s" % (condition, suffix)' in source
+    assert "attempted" in source and "successful" in source
+    assert "CONDITION_CLEAN" in source and "CONDITION_DAMAGED" in source
+    # It says WHY the panel exists: the two condition means are not a within-seed
+    # comparison, while the paired delta is.
+    assert "denominator" in source.lower()
+
+    # The performance figure must label its condition series honestly, and reserve the
+    # within-seed claim for the paired delta.
+    perf = inspect.getsource(graph_train._plot_training_performance)
+    assert "mean over SUCCESSFUL forced_clean episodes" in perf
+    assert "mean over SUCCESSFUL forced_damaged episodes" in perf
+    assert "each mean over THAT condition's successful" in perf
+    assert "WITHIN-SEED" in perf
+    # The paired delta still comes from the matched field only -- unchanged semantics.
+    assert '"eval_paired_reward_delta"' in perf
+
+
+def test_per_condition_denominators_survive_an_asymmetric_round(tmp_path: Path) -> None:
+    """PO3. With clean 2/2 and damaged 1/2 completed, both denominators are plottable.
+
+    Data-level proof on the `_xy` series builder that feeds the panel: the asymmetry is
+    present in the records and is picked up as two DISTINCT series, so a reader can see
+    that the damaged mean rests on fewer seeds than the clean one.
+    """
+    run_dir = tmp_path / "run"
+    _write_synthetic_run(run_dir)
+    records = [json.loads(line) for line in
+               (run_dir / "eval_records.jsonl").read_text(encoding="utf-8").splitlines()]
+
+    clean_att = _xy(records, "updates_completed", "eval_n_clean_attempted")
+    clean_ok = _xy(records, "updates_completed", "eval_n_clean_successful")
+    dmg_att = _xy(records, "updates_completed", "eval_n_damaged_attempted")
+    dmg_ok = _xy(records, "updates_completed", "eval_n_damaged_successful")
+
+    assert clean_att[1] and dmg_att[1], "the per-condition denominators are missing"
+    assert clean_att[1] == dmg_att[1], "both conditions attempt the same seeds"
+    assert clean_ok[1] != dmg_ok[1], "the asymmetry the panel exists for is not present"
+    # ... and the paired delta is still taken over COMPLETE pairs only, untouched.
+    assert all(r["n_pairs_successful"] <= r["n_pairs_attempted"] for r in records)
+    assert all(r["eval_paired_reward_delta"] is not None for r in records)
 
 
 if __name__ == "__main__":
@@ -4325,12 +4486,20 @@ if __name__ == "__main__":
          test_config_comments_are_ignored_and_tuples_round_trip, True),
         ("run_config_records_the_effective_config_and_its_preset",
          test_run_config_records_the_effective_config_and_its_preset, True),
-        ("run_config_states_plainly_when_no_preset_was_used",
-         test_run_config_states_plainly_when_no_preset_was_used, True),
+        ("config_source_is_always_a_structured_object",
+         test_config_source_is_always_a_structured_object, True),
         ("cli_exposes_config_and_plot_targets_the_plots_dir",
          test_cli_exposes_config_and_plot_targets_the_plots_dir, False),
         ("main_hands_train_the_resolved_config_and_its_source",
          test_main_hands_train_the_resolved_config_and_its_source, True),
+        ("main_with_argv_none_still_sees_the_real_command_line",
+         test_main_with_argv_none_still_sees_the_real_command_line, True),
+        ("explicit_dests_read_argv_none_as_the_real_command_line",
+         test_explicit_dests_read_argv_none_as_the_real_command_line, False),
+        ("health_plot_exposes_per_condition_eval_denominators",
+         test_health_plot_exposes_per_condition_eval_denominators, False),
+        ("per_condition_denominators_survive_an_asymmetric_round",
+         test_per_condition_denominators_survive_an_asymmetric_round, True),
     ]
     for name, fn, needs_tmp in tests:
         try:

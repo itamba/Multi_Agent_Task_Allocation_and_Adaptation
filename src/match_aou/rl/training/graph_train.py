@@ -243,12 +243,13 @@ Consequently:
     safe to call from any process that has NOT loaded torch.
   * :func:`plot_training_subprocess` is what a TORCH process (a finished training run,
     the selftest, a test) must call. It re-invokes this module's ``--plot`` CLI in a
-    child process that only reads jsonl and draws a PNG -- no tensor math whatsoever --
+    child process that only reads jsonl and draws the PNGs -- no tensor math at all --
     with ``KMP_DUPLICATE_LIB_OK=TRUE`` set for that child alone. The duplicate-OpenMP
     tolerance is therefore confined to a throwaway, numerics-free process; the training
     process itself never gets a second OpenMP runtime.
 Either way, training NEVER depends on matplotlib: a missing matplotlib (or a failed
-child) prints one notice and returns ``None``.
+child) prints one notice and returns an EMPTY LIST of figures. Both functions return the
+list of figure paths they wrote, because there are three of them (see PLOTS below).
 
 Windows-safe: pathlib paths, ASCII-only console output (cp1255 console).
 """
@@ -495,6 +496,14 @@ _CLI_PPO_FIELD_BY_DEST = {
 # `num_red_airbases` as a list, so a preset copied out of a previous run's
 # `run_config.json:/train_config` must load back into the same config it came from.
 _CONFIG_TUPLE_FIELDS = ("num_red_airbases",)
+
+# The two ways a resolved config can have come about, recorded verbatim in
+# `run_config.json:/config_source`. `config_source` is ALWAYS a structured object --
+# never `null` -- so a reader parses one shape and reads `resolved_from` to learn which
+# case it is. "No preset" is then a STATED fact (`path: null`, empty field lists) rather
+# than an absent key, which is indistinguishable from a writer that forgot to record it.
+_CONFIG_SOURCE_CLI_DEFAULTS = "cli_defaults"
+_CONFIG_SOURCE_FILE = "config_file"
 
 
 
@@ -1019,6 +1028,53 @@ def load_config_file(path: Union[str, Path]) -> Dict[str, Any]:
     return values
 
 
+def config_source_record(
+    *,
+    config_path: Optional[Union[str, Path]] = None,
+    config_fields: Optional[List[str]] = None,
+    cli_overrides: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """The ONE construction site of ``run_config.json:/config_source``.
+
+    Always returns a STRUCTURED object, including for a run that used no preset at all:
+    ``path``/``absolute_path``/``format`` are then ``null`` and both field lists are
+    empty, with ``resolved_from = "cli_defaults"``. One shape, always present, so a
+    reader never has to distinguish "no preset was used" from "this writer did not
+    record where the config came from" -- and `null` would have collapsed exactly those
+    two into the same value.
+
+    ``config_fields`` is what the preset supplied; ``cli_overrides`` is what an explicit
+    flag then took back off it. An empty ``cli_overrides`` next to a non-empty
+    ``config_fields`` is the statement that the run is the preset unmodified.
+    """
+    return {
+        "path": None if config_path is None else str(config_path),
+        "absolute_path": (
+            None if config_path is None else str(Path(config_path).resolve())
+        ),
+        "format": None if config_path is None else "json",
+        "config_fields": sorted(config_fields or []),
+        "cli_overrides": sorted(cli_overrides or []),
+        "resolved_from": (
+            _CONFIG_SOURCE_CLI_DEFAULTS if config_path is None else _CONFIG_SOURCE_FILE
+        ),
+    }
+
+
+def _effective_argv(argv: Optional[List[str]]) -> List[str]:
+    """The ONE argv vector a CLI invocation is resolved from.
+
+    ``argparse`` falls back to ``sys.argv[1:]`` when it is handed ``None``, so a caller
+    that passes ``None`` to one parse and ``[]`` to another is parsing TWO DIFFERENT
+    command lines. That is not hypothetical here: ``main()`` is normally called with no
+    argument at all (PyCharm, a terminal, ``python -m ...``), and the override-precedence
+    pass would then have seen an EMPTY command line and concluded that the operator typed
+    nothing -- letting a preset silently overwrite a flag that was really given. Resolving
+    the vector ONCE, here, is what keeps both passes describing the same invocation.
+    """
+    return list(sys.argv[1:]) if argv is None else list(argv)
+
+
 def _explicit_cli_dests(argv: Optional[List[str]]) -> set:
     """The set of argparse dests the caller ACTUALLY typed on the command line.
 
@@ -1029,11 +1085,17 @@ def _explicit_cli_dests(argv: Optional[List[str]]) -> set:
     whose defaults are all :data:`argparse.SUPPRESS`, which makes argparse omit the
     attribute entirely for anything that was not supplied. The real parser -- and its
     real defaults, which is what ``--help`` must keep showing -- is untouched.
+
+    ``argv=None`` means the REAL command line (:func:`_effective_argv`), exactly as it
+    does for ``parser.parse_args``. Reading it as an empty command line would make every
+    ordinary invocation -- ``main()`` with no argument, which is how PyCharm and a
+    terminal call it -- report that nothing was typed, and a preset would then override
+    flags the operator really passed.
     """
     probe = _build_arg_parser()
     for action in probe._actions:      # argparse exposes no public equivalent
         action.default = argparse.SUPPRESS
-    return set(vars(probe.parse_args([] if argv is None else argv)))
+    return set(vars(probe.parse_args(_effective_argv(argv))))
 
 
 def resolve_train_config(
@@ -1054,9 +1116,11 @@ def resolve_train_config(
     flag absent from it does not, even though ``args`` carries a value for it.
 
     Returns ``(cfg, config_source)``. The second element is the audit record written into
-    ``run_config.json`` -- which preset was read, which fields it supplied, and which of
-    those a command-line flag then overrode -- so a finished run states what produced it
-    instead of leaving a reader to compare numbers by eye.
+    ``run_config.json`` (:func:`config_source_record`) -- which preset was read, which
+    fields it supplied, and which of those a command-line flag then overrode -- so a
+    finished run states what produced it instead of leaving a reader to compare numbers
+    by eye. It is a structured object for a CLI-only run too, which then states
+    ``resolved_from = "cli_defaults"`` and carries no path.
     """
     values = dict(config_values or {})
     ppo_values = dict(values.pop(_CONFIG_PPO_KEY, {}) or {})
@@ -1097,21 +1161,13 @@ def resolve_train_config(
         )
 
     cfg = TrainConfig(ppo=PPOConfig(**ppo_kwargs), **kwargs)
-    config_source = {
-        "path": None if config_path is None else str(config_path),
-        "absolute_path": (
-            None if config_path is None else str(Path(config_path).resolve())
+    config_source = config_source_record(
+        config_path=config_path,
+        config_fields=(
+            list(values) + ["%s.%s" % (_CONFIG_PPO_KEY, k) for k in ppo_values]
         ),
-        "format": "json",
-        # What the preset supplied, and what a flag then took back off it. Both sorted,
-        # both possibly empty -- an empty `cli_overrides` is the statement that the run
-        # is the preset unmodified.
-        "config_fields": sorted(values) + sorted(
-            "%s.%s" % (_CONFIG_PPO_KEY, k) for k in ppo_values
-        ),
-        "cli_overrides": sorted(overridden),
-        "resolved_from": "cli_defaults" if config_path is None else "config_file",
-    }
+        cli_overrides=overridden,
+    )
     return cfg, config_source
 
 
@@ -1747,9 +1803,12 @@ def write_run_config(
         continuity with pre-B1 runs; the construction path does not consult it;
       * ``config_source`` -- WHERE the resolved config came from: the JSON preset
         path (absolute and as typed), the fields that preset supplied, and the fields an
-        explicit CLI flag then overrode. ``null`` when no preset was used. This is what
-        makes "which preset produced this run?" answerable from the run directory
-        instead of by comparing numbers by eye;
+        explicit CLI flag then overrode. ALWAYS a structured object, never ``null``: a
+        run that used no preset records ``resolved_from = "cli_defaults"`` with a null
+        path and empty field lists (:func:`config_source_record`), so "no preset" is a
+        stated fact rather than an absent key. This is what makes "which preset produced
+        this run?" answerable from the run directory instead of by comparing numbers by
+        eye;
       * ``base_scenario`` -- the template filename every variation derives from;
       * ``provenance``    -- :func:`collect_provenance`: code SHA + dirty state,
         invocation, interpreter, platform, targeted package versions and paths, the
@@ -1796,7 +1855,10 @@ def write_run_config(
             },
         },
         "derived_split": cfg.split_preview,
-        "config_source": config_source,
+        # Never `null`: an omitted source and a CLI-only run must not read alike.
+        "config_source": (
+            config_source_record() if config_source is None else config_source
+        ),
         "base_scenario": _BASE_SCENARIO.name,
     }
     path = Path(run_dir) / "run_config.json"
@@ -3217,7 +3279,8 @@ def train(
     ``config_source`` is the audit record from :func:`resolve_train_config` (which JSON
     preset produced this config, and what the command line overrode). It is recorded in
     ``run_config.json`` and read by nothing -- ``cfg`` is the config; this only says
-    where it came from.
+    where it came from. Omitted, the CLI-only record is written rather than ``null``
+    (:func:`config_source_record`).
     """
     cfg.validate()
 
@@ -4156,9 +4219,19 @@ def _plot_training_performance(
          study, so that pooled series is NOT drawn here as the held-out signal. It
          appears only as an explicitly labelled fallback for pre-FD records that carry
          no per-condition means at all.
+
+         WHAT THESE TWO SERIES ARE NOT: a within-seed comparison. Each is a mean over
+         ITS OWN condition's SUCCESSFUL episodes, and the two conditions can fail a
+         different number of held-out seeds, so the curves are not necessarily averages
+         over the same completed seeds. Their vertical gap is therefore suggestive, not
+         a measurement. The panel title and both legend entries say so, and
+         ``measurement_health.png`` carries the per-condition completion counts that
+         make the asymmetry inspectable.
       3. The MATCHED-PAIR delta (``eval_paired_reward_delta`` = mean of
          ``R_damaged - R_clean`` over pairs whose BOTH members completed) -- the one
-         number that isolates the difficulty factor, with 0 marked.
+         number that isolates the difficulty factor, and the ONLY within-seed
+         comparison on this figure, with 0 marked. A half-pair contributes nothing to
+         it, which is exactly why it stays valid when panel 2's two populations differ.
 
     Panels 1 and 2 mark ``R = 0``: the reward is oracle-normalized regret, so 0 is the
     perfect-information optimum -- a ceiling, not an arbitrary gridline. That is also
@@ -4196,10 +4269,12 @@ def _plot_training_performance(
                label="oracle optimum (R = 0)")
     if clean_y:
         ax.plot(clean_x, clean_y, color="tab:green", linewidth=2.2,
-                marker="o", markersize=5, label="held-out CLEAN (forced_clean)")
+                marker="o", markersize=5,
+                label="held-out CLEAN -- mean over SUCCESSFUL forced_clean episodes")
     if dmg_y:
         ax.plot(dmg_x, dmg_y, color="tab:red", linewidth=2.2,
-                marker="s", markersize=5, label="held-out DAMAGED (forced_damaged)")
+                marker="s", markersize=5,
+                label="held-out DAMAGED -- mean over SUCCESSFUL forced_damaged episodes")
     if not clean_y and not dmg_y:
         # Pre-FD records have no per-condition means. Drawing the pooled mean is then
         # the only held-out information that exists -- labelled as pooled, so it can
@@ -4210,8 +4285,8 @@ def _plot_training_performance(
                     marker="o", markersize=4,
                     label="held-out mean R -- BOTH CONDITIONS POOLED (legacy records)")
     ax.set_ylabel("episode reward R")
-    ax.set_title("HELD-OUT matched evaluation BY CONDITION -- same fixed seeds, "
-                 "deterministic", fontsize=11)
+    ax.set_title("HELD-OUT BY CONDITION -- each mean over THAT condition's successful "
+                 "episodes", fontsize=11)
     ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
@@ -4226,8 +4301,8 @@ def _plot_training_performance(
                       "(denominators: %s)" % _PLOT_MEASUREMENT_HEALTH)
     ax.set_ylabel("paired reward delta")
     ax.set_xlabel(_PLOT_X_LABEL)
-    ax.set_title("MATCHED-PAIR fuel-damage delta -- pairs with BOTH members "
-                 "complete", fontsize=11)
+    ax.set_title("MATCHED-PAIR fuel-damage delta -- the WITHIN-SEED comparison, "
+                 "COMPLETE pairs only", fontsize=11)
     # Upper right: a damaging event makes the delta negative, so the top of this panel
     # is the half that stays empty in the case the figure exists to show.
     ax.legend(loc="upper right", fontsize=8)
@@ -4328,8 +4403,19 @@ def _plot_measurement_health(
 
     Panel 2 -- the absolute counts those fractions came from, so a small denominator is
     visible as a small number and not only as a ratio.
+
+    Panel 3 -- PER-CONDITION held-out completion, attempted vs successful for
+    ``forced_clean`` and ``forced_damaged`` separately. This is the denominator behind
+    the performance figure's two condition curves, and it is the panel that says whether
+    those curves are comparable at all: each is a mean over its OWN successful subset,
+    so if one condition completes fewer held-out seeds than the other, the two means are
+    not taken over the same seeds and their gap is not a within-seed effect. (The
+    matched-pair delta is unaffected -- it uses only pairs whose BOTH members completed,
+    which is why it, and not the gap, is the figure's causal claim.) Drawn straight from
+    the existing ``eval_n_<condition>_attempted`` / ``_successful`` record fields; no
+    evaluation semantics and no new quantity are involved.
     """
-    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
 
     ax = axes[0]
     series = (
@@ -4374,9 +4460,38 @@ def _plot_measurement_health(
                     markersize=4, linewidth=1.4, label=label)
     ax.set_ylabel("episodes / pairs")
     ax.set_ylim(bottom=0)
-    ax.set_xlabel(_PLOT_X_LABEL)
-    ax.set_title("The absolute counts behind those fractions")
+    ax.set_title("The absolute counts behind those fractions", fontsize=11)
     ax.legend(loc="upper right", fontsize=8)
+    ax.grid(alpha=0.25)
+
+    # --- Panel 3: per-condition held-out completion (the condition curves' own
+    # denominators). Attempted and successful are drawn in ONE colour per condition,
+    # separated by linestyle, so the gap between them IS that condition's failures.
+    ax = axes[2]
+    per_condition = (
+        (CONDITION_CLEAN, "tab:green", "o"),
+        (CONDITION_DAMAGED, "tab:red", "s"),
+    )
+    for condition, color, marker in per_condition:
+        # ATTEMPTED is a pale wide line, SUCCESSFUL a crisp one on top of it, so what
+        # the eye reads is the GAP BETWEEN THEM -- that condition's failures. Both
+        # conditions attempt the same seeds, so their attempted lines coincide exactly;
+        # drawing them at equal weight would hide one behind the other and make the
+        # panel look like it had lost a series.
+        for suffix, style, width, alpha in (("attempted", "--", 3.2, 0.30),
+                                            ("successful", "-", 1.7, 1.0)):
+            xs, ys = _xy(eval_records, "updates_completed",
+                         "eval_n_%s_%s" % (condition, suffix))
+            if ys:
+                ax.plot(xs, ys, color=color, linestyle=style, marker=marker,
+                        markersize=4, linewidth=width, alpha=alpha,
+                        label="held-out %s: %s" % (condition.upper(), suffix))
+    ax.set_ylabel("held-out episodes")
+    ax.set_ylim(bottom=0)
+    ax.set_xlabel(_PLOT_X_LABEL)
+    ax.set_title("PER-CONDITION held-out completion -- the denominators of the two "
+                 "condition means", fontsize=11)
+    ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
     fig.tight_layout(rect=(0, 0.03, 1, 1))
@@ -4924,9 +5039,17 @@ def main(argv: Optional[List[str]] = None) -> None:
     records WHICH preset produced the run into ``run_config.json:/config_source``.
     Without ``--config`` the resolution is the argparse defaults plus whatever was typed
     -- exactly what this function built before presets existed.
+
+    BOTH parsing passes run on ONE argv vector, resolved once by :func:`_effective_argv`.
+    ``argparse`` reads ``None`` as ``sys.argv[1:]``, so passing ``None`` to the real parse
+    and ``[]`` to the override-precedence probe would have compared two different command
+    lines -- and since ``main()`` is normally called with no argument at all, that is the
+    ordinary case, not an edge case: every flag the operator really typed would have
+    looked un-typed, and a preset would have overridden it.
     """
+    effective_argv = _effective_argv(argv)
     parser = _build_arg_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(effective_argv)
 
     if args.selftest:
         _selftest()
@@ -4946,7 +5069,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     try:
         cfg, config_source = resolve_train_config(
             args,
-            explicit=_explicit_cli_dests(argv),
+            explicit=_explicit_cli_dests(effective_argv),
             config_values=config_values,
             config_path=args.config,
         )

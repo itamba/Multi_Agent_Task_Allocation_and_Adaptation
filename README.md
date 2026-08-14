@@ -282,7 +282,10 @@ conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_t
 
 The resolved configuration and the preset it came from are both recorded in
 `run_config.json` (`train_config` and `config_source`, the latter listing which fields
-the preset supplied and which a flag overrode).
+the preset supplied and which a flag overrode). `config_source` is **always a structured
+object**, never `null`: a run that used no preset records `resolved_from:
+"cli_defaults"` with a null path and empty field lists, so "no preset was used" is a
+stated fact rather than a missing key.
 
 Selected options (`--help` is authoritative):
 
@@ -360,7 +363,15 @@ the records, and each one carries a single claim:
 |---|---|
 | `training_performance.png` | training reward; held-out evaluation **split into clean and damaged**; the matched-pair delta `R_damaged - R_clean` |
 | `policy_diagnostics.png` | meta-action mix and policy entropy over the training decisions |
-| `measurement_health.png` | the denominators — training and eval success fractions, wake coverage, and the **pair** success fraction |
+| `measurement_health.png` | the denominators — training and eval success fractions, wake coverage, the **pair** success fraction, and **per-condition held-out completion** |
+
+The two condition curves in `training_performance.png` are each a mean over **that
+condition's own successful episodes**, so if one condition fails more held-out seeds than
+the other they are not averages over the same seeds and the gap between them is not a
+within-seed effect. The panel and its legend say so, and the per-condition
+attempted/successful counts in `measurement_health.png` are what make the asymmetry
+inspectable. The **matched-pair delta is the within-seed comparison** — it uses only
+pairs whose both members completed, so it stays valid when the two populations differ.
 
 All three share one x-axis: **PPO updates completed before the measurement**. Training
 points sit at `updates_completed_before` (the updates the policy that generated those
