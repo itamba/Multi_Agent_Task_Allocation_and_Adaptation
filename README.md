@@ -283,9 +283,16 @@ conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_t
 The resolved configuration and the preset it came from are both recorded in
 `run_config.json` (`train_config` and `config_source`, the latter listing which fields
 the preset supplied and which a flag overrode). `config_source` is **always a structured
-object**, never `null`: a run that used no preset records `resolved_from:
-"cli_defaults"` with a null path and empty field lists, so "no preset was used" is a
-stated fact rather than a missing key.
+object**, never `null`, and its `resolved_from` names one of three truthful provenances:
+
+| `resolved_from` | What produced the config |
+|---|---|
+| `config_file` | a command line naming a JSON preset (`path` says which) |
+| `cli_defaults` | a command line with no `--config` |
+| `direct_config` | a `TrainConfig` built in Python and passed straight to `train()` — no command line, no preset |
+
+So "no preset was used" is a stated fact rather than a missing key, and a run driven from
+a script or notebook is never recorded as though a command line had resolved it.
 
 Selected options (`--help` is authoritative):
 

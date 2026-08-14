@@ -7,7 +7,7 @@
   "episodes_per_iteration": 4,
   "base_seed": 0,
 
-  "_evaluation": "eval_every=2 with n_iterations=2 gives exactly two rounds: the pre_update measurement of the untrained policy (updates_completed=0) and one post_update round after both updates. eval_base_seed sits far beyond the training band, so the held-out seeds are never trained on.",
+  "_evaluation": "eval_every=2 with n_iterations=2 gives exactly two rounds: the pre_update measurement of the untrained policy (updates_completed=0) and one post_update round after both SCHEDULED TRAINING ITERATIONS. That round's updates_completed is whatever PRODUCTIVE PPO updates actually occurred -- 0, 1 or 2 -- not necessarily 2: an iteration that completes with no wakes runs no epochs and does not increment the counter. Productive-update yield is one of the things this probe measures, so it is never assumed here. eval_base_seed sits far beyond the training band, so the held-out seeds are never trained on.",
   "eval_every": 2,
   "eval_episodes": 4,
   "eval_base_seed": 1000000,

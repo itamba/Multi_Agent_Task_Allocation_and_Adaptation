@@ -497,13 +497,31 @@ _CLI_PPO_FIELD_BY_DEST = {
 # `run_config.json:/train_config` must load back into the same config it came from.
 _CONFIG_TUPLE_FIELDS = ("num_red_airbases",)
 
-# The two ways a resolved config can have come about, recorded verbatim in
+# The THREE ways a resolved config can have come about, recorded verbatim in
 # `run_config.json:/config_source`. `config_source` is ALWAYS a structured object --
 # never `null` -- so a reader parses one shape and reads `resolved_from` to learn which
 # case it is. "No preset" is then a STATED fact (`path: null`, empty field lists) rather
 # than an absent key, which is indistinguishable from a writer that forgot to record it.
+#
+#   cli_defaults  : a COMMAND LINE with no `--config`. The values are the argparse
+#                   defaults plus whatever flags were typed.
+#   config_file   : a command line that named a JSON preset (`path` says which).
+#   direct_config : a `TrainConfig` built IN PYTHON and handed straight to `train()`,
+#                   with no command line and no preset involved at all. `_selftest`
+#                   does exactly this, and so does any notebook or script that imports
+#                   the trainer -- so this is a real repository path, not a hypothetical
+#                   one. It is a SEPARATE value on purpose: labelling such a run
+#                   `cli_defaults` would assert that a command line resolved it, which
+#                   is precisely the kind of plausible-but-false provenance a run record
+#                   exists to prevent. (A caller that DID resolve a real source passes
+#                   it through `train(..., config_source=...)`; this value is only the
+#                   fallback for one that did not.)
 _CONFIG_SOURCE_CLI_DEFAULTS = "cli_defaults"
 _CONFIG_SOURCE_FILE = "config_file"
+_CONFIG_SOURCE_DIRECT = "direct_config"
+_CONFIG_SOURCE_KINDS = (
+    _CONFIG_SOURCE_CLI_DEFAULTS, _CONFIG_SOURCE_FILE, _CONFIG_SOURCE_DIRECT,
+)
 
 
 
@@ -1030,23 +1048,50 @@ def load_config_file(path: Union[str, Path]) -> Dict[str, Any]:
 
 def config_source_record(
     *,
+    resolved_from: str,
     config_path: Optional[Union[str, Path]] = None,
     config_fields: Optional[List[str]] = None,
     cli_overrides: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """The ONE construction site of ``run_config.json:/config_source``.
 
-    Always returns a STRUCTURED object, including for a run that used no preset at all:
-    ``path``/``absolute_path``/``format`` are then ``null`` and both field lists are
-    empty, with ``resolved_from = "cli_defaults"``. One shape, always present, so a
-    reader never has to distinguish "no preset was used" from "this writer did not
-    record where the config came from" -- and `null` would have collapsed exactly those
-    two into the same value.
+    Always returns a STRUCTURED object -- never ``null`` -- so a reader parses one shape
+    and reads ``resolved_from`` to learn which of :data:`_CONFIG_SOURCE_KINDS` produced
+    the run. ``null`` would have collapsed two different facts into one value: "this run
+    used no preset" and "whoever wrote this file did not record where the config came
+    from".
 
-    ``config_fields`` is what the preset supplied; ``cli_overrides`` is what an explicit
+    ``resolved_from`` is REQUIRED and is never inferred. It was briefly derived from
+    whether a ``config_path`` was present, which silently reported every direct
+    ``train(cfg)`` call -- ``_selftest`` among them -- as ``cli_defaults``, i.e. as
+    having been resolved by a command line that never existed. A provenance field that
+    can be wrong in a plausible way is worse than one that is absent, so the caller now
+    has to say which case it is.
+
+    ``config_fields`` is what a preset supplied; ``cli_overrides`` is what an explicit
     flag then took back off it. An empty ``cli_overrides`` next to a non-empty
     ``config_fields`` is the statement that the run is the preset unmodified.
+
+    The record is checked for INTERNAL consistency before it is returned: only
+    ``config_file`` may carry a path, and it must carry one. A record claiming a preset
+    it cannot name -- or naming a file while claiming it came from somewhere else -- is
+    a defect in the writer, and it fails here rather than being written to disk.
     """
+    if resolved_from not in _CONFIG_SOURCE_KINDS:
+        raise ValueError(
+            "resolved_from must be one of %s, got %r"
+            % (list(_CONFIG_SOURCE_KINDS), resolved_from)
+        )
+    if resolved_from == _CONFIG_SOURCE_FILE and config_path is None:
+        raise ValueError(
+            "resolved_from=%r requires the config_path it was resolved from"
+            % _CONFIG_SOURCE_FILE
+        )
+    if resolved_from != _CONFIG_SOURCE_FILE and config_path is not None:
+        raise ValueError(
+            "config_path is only meaningful for resolved_from=%r, got %r with path %s"
+            % (_CONFIG_SOURCE_FILE, resolved_from, str(config_path))
+        )
     return {
         "path": None if config_path is None else str(config_path),
         "absolute_path": (
@@ -1055,9 +1100,7 @@ def config_source_record(
         "format": None if config_path is None else "json",
         "config_fields": sorted(config_fields or []),
         "cli_overrides": sorted(cli_overrides or []),
-        "resolved_from": (
-            _CONFIG_SOURCE_CLI_DEFAULTS if config_path is None else _CONFIG_SOURCE_FILE
-        ),
+        "resolved_from": str(resolved_from),
     }
 
 
@@ -1120,7 +1163,9 @@ def resolve_train_config(
     fields it supplied, and which of those a command-line flag then overrode -- so a
     finished run states what produced it instead of leaving a reader to compare numbers
     by eye. It is a structured object for a CLI-only run too, which then states
-    ``resolved_from = "cli_defaults"`` and carries no path.
+    ``resolved_from = "cli_defaults"`` and carries no path. This function is a CLI path
+    by definition, so it never produces ``direct_config`` -- that value belongs to a
+    caller that built a :class:`TrainConfig` in Python (see :func:`config_source_record`).
     """
     values = dict(config_values or {})
     ppo_values = dict(values.pop(_CONFIG_PPO_KEY, {}) or {})
@@ -1161,7 +1206,12 @@ def resolve_train_config(
         )
 
     cfg = TrainConfig(ppo=PPOConfig(**ppo_kwargs), **kwargs)
+    # This function is reached only from a COMMAND LINE, so the kind is one of the two
+    # CLI values -- which of them is exactly whether a preset was named.
     config_source = config_source_record(
+        resolved_from=(
+            _CONFIG_SOURCE_CLI_DEFAULTS if config_path is None else _CONFIG_SOURCE_FILE
+        ),
         config_path=config_path,
         config_fields=(
             list(values) + ["%s.%s" % (_CONFIG_PPO_KEY, k) for k in ppo_values]
@@ -1803,12 +1853,13 @@ def write_run_config(
         continuity with pre-B1 runs; the construction path does not consult it;
       * ``config_source`` -- WHERE the resolved config came from: the JSON preset
         path (absolute and as typed), the fields that preset supplied, and the fields an
-        explicit CLI flag then overrode. ALWAYS a structured object, never ``null``: a
-        run that used no preset records ``resolved_from = "cli_defaults"`` with a null
-        path and empty field lists (:func:`config_source_record`), so "no preset" is a
-        stated fact rather than an absent key. This is what makes "which preset produced
-        this run?" answerable from the run directory instead of by comparing numbers by
-        eye;
+        explicit CLI flag then overrode. ALWAYS a structured object, never ``null``, and
+        ``resolved_from`` names which of :data:`_CONFIG_SOURCE_KINDS` applies, so "no
+        preset" is a stated fact rather than an absent key. Omitting the argument means
+        the caller handed in a :class:`TrainConfig` DIRECTLY, which is recorded as
+        ``direct_config`` -- NOT as ``cli_defaults``, which would claim a command line
+        that never ran. This is what makes "what produced this run?" answerable from the
+        run directory instead of by comparing numbers by eye;
       * ``base_scenario`` -- the template filename every variation derives from;
       * ``provenance``    -- :func:`collect_provenance`: code SHA + dirty state,
         invocation, interpreter, platform, targeted package versions and paths, the
@@ -1855,9 +1906,12 @@ def write_run_config(
             },
         },
         "derived_split": cfg.split_preview,
-        # Never `null`: an omitted source and a CLI-only run must not read alike.
+        # Never `null`, and never MISLABELLED: an omitted source means a caller built
+        # this config in Python, which is a third provenance -- not a command line that
+        # happened to use no preset.
         "config_source": (
-            config_source_record() if config_source is None else config_source
+            config_source_record(resolved_from=_CONFIG_SOURCE_DIRECT)
+            if config_source is None else config_source
         ),
         "base_scenario": _BASE_SCENARIO.name,
     }
@@ -3279,8 +3333,9 @@ def train(
     ``config_source`` is the audit record from :func:`resolve_train_config` (which JSON
     preset produced this config, and what the command line overrode). It is recorded in
     ``run_config.json`` and read by nothing -- ``cfg`` is the config; this only says
-    where it came from. Omitted, the CLI-only record is written rather than ``null``
-    (:func:`config_source_record`).
+    where it came from. Omitted -- as every DIRECT caller does, ``_selftest`` included --
+    the run records ``resolved_from = "direct_config"``, which is the truthful statement
+    that no command line and no preset were involved (:func:`config_source_record`).
     """
     cfg.validate()
 

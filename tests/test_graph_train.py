@@ -4066,49 +4066,103 @@ def test_run_config_records_the_effective_config_and_its_preset(tmp_path: Path) 
 
 
 def test_config_source_is_always_a_structured_object(tmp_path: Path) -> None:
-    """PO2. ONE contract: `config_source` is a structured object, never `null`.
+    """PO1. ONE schema, THREE truthful kinds, and never `null`.
 
-    A CLI-only run STATES that it used no preset -- null path, empty field lists,
-    `resolved_from = "cli_defaults"` -- rather than recording nothing. `null` would have
-    collapsed two different facts into one value: "this run used no preset" and "whoever
-    wrote this file did not record where the config came from".
+    `null` would have collapsed two different facts into one value: "this run used no
+    preset" and "whoever wrote this file did not record where the config came from". But
+    a single non-null fallback is not enough either -- see
+    `test_a_direct_train_call_is_not_recorded_as_cli_provenance`: the three ways a config
+    can arise must stay distinguishable under the same schema.
 
-    Checked at all three sites that can produce the record, because a contract that only
-    holds at one of them is not a contract.
+    Checked at every site that can produce the record, because a contract that only holds
+    at one of them is not a contract.
     """
     expected_keys = {"path", "absolute_path", "format", "config_fields",
                      "cli_overrides", "resolved_from"}
 
-    # (1) the constructor itself.
-    bare = config_source_record()
-    assert set(bare) == expected_keys
-    assert bare["path"] is None and bare["absolute_path"] is None
-    assert bare["format"] is None
-    assert bare["config_fields"] == [] and bare["cli_overrides"] == []
-    assert bare["resolved_from"] == "cli_defaults"
+    # (1) the constructor, for each kind. The shape never varies.
+    cli = config_source_record(resolved_from="cli_defaults")
+    direct = config_source_record(resolved_from="direct_config")
+    for record in (cli, direct):
+        assert set(record) == expected_keys
+        assert record["path"] is None and record["absolute_path"] is None
+        assert record["format"] is None
+        assert record["config_fields"] == [] and record["cli_overrides"] == []
+    assert cli["resolved_from"] == "cli_defaults"
+    assert direct["resolved_from"] == "direct_config"
+    assert cli != direct, "the two provenances must not be the same record"
 
-    # (2) `resolve_train_config` on a CLI-only invocation.
+    # (2) `resolve_train_config` on a CLI-only invocation -- a command line really did
+    # resolve this one, so `cli_defaults` is the truthful value here.
     _cfg, source = _resolve(["--iterations", "2"])
-    assert source == bare
+    assert source == cli
 
-    # (3) `write_run_config` when no source is passed at all -- it must SYNTHESIZE the
-    # CLI-only record, not write null.
-    run_dir = tmp_path / "run"
-    run_dir.mkdir()
-    cfg = TrainConfig(n_iterations=1, output_dir=str(run_dir))
-    payload = json.loads(
-        write_run_config(run_dir, cfg, provenance={"stub": True})
-        .read_text(encoding="utf-8")
-    )
-    assert payload["config_source"] == bare
-
-    # ... and the preset case is the SAME shape, only differently filled.
+    # (3) the preset case is the SAME shape, only differently filled.
     preset = tmp_path / "preset.json"
     preset.write_text(json.dumps({"n_iterations": 1}), encoding="utf-8")
     _cfg, file_source = _resolve(["--config", str(preset)], config_path=preset)
     assert set(file_source) == expected_keys
     assert file_source["resolved_from"] == "config_file"
     assert file_source["format"] == "json"
+    assert file_source["path"] == str(preset)
+
+    # (4) the record must be internally consistent: only a `config_file` may name a
+    # file, and it MUST name one. A record that could claim a preset it cannot identify
+    # is a provenance defect, so it fails at construction rather than reaching disk.
+    for bad in (
+        {"resolved_from": "not_a_kind"},
+        {"resolved_from": "config_file"},                       # claims a file, names none
+        {"resolved_from": "cli_defaults", "config_path": preset},
+        {"resolved_from": "direct_config", "config_path": preset},
+    ):
+        try:
+            config_source_record(**bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("config_source_record accepted %r" % bad)
+
+
+def test_a_direct_train_call_is_not_recorded_as_cli_provenance(tmp_path: Path) -> None:
+    """PO1. A `TrainConfig` built in PYTHON is `direct_config`, never `cli_defaults`.
+
+    This is a real repository path, not a hypothetical: `_selftest` calls `train(cfg)`
+    directly three times, as would any notebook or script importing the trainer. Such a
+    run never saw a command line, so recording it as `cli_defaults` would assert that
+    argparse defaults resolved it -- a plausible-looking false statement in exactly the
+    field a reader consults to find out what produced the run. A provenance value that
+    can be wrong in a believable way is worse than one that is absent.
+    """
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    cfg = TrainConfig(n_iterations=1, output_dir=str(run_dir))
+
+    payload = json.loads(
+        write_run_config(run_dir, cfg, provenance={"stub": True})
+        .read_text(encoding="utf-8")
+    )
+    recorded = payload["config_source"]
+    assert recorded is not None, "the fallback must still be structured"
+    assert recorded["resolved_from"] == "direct_config"
+    assert recorded["resolved_from"] != "cli_defaults", "a direct call claimed a CLI"
+    assert recorded["path"] is None and recorded["config_fields"] == []
+
+    # The three kinds are mutually exclusive and exhaustive at the schema level.
+    kinds = {graph_train._CONFIG_SOURCE_CLI_DEFAULTS,
+             graph_train._CONFIG_SOURCE_FILE,
+             graph_train._CONFIG_SOURCE_DIRECT}
+    assert len(kinds) == 3
+    assert set(graph_train._CONFIG_SOURCE_KINDS) == kinds
+    assert recorded["resolved_from"] in kinds
+
+    # A caller that DID resolve a real source still wins -- the fallback only applies
+    # when nothing was supplied.
+    supplied = config_source_record(resolved_from="cli_defaults")
+    payload = json.loads(
+        write_run_config(run_dir, cfg, provenance={"stub": True},
+                         config_source=supplied).read_text(encoding="utf-8")
+    )
+    assert payload["config_source"]["resolved_from"] == "cli_defaults"
 
 
 def test_cli_exposes_config_and_plot_targets_the_plots_dir() -> None:
@@ -4276,6 +4330,36 @@ def test_per_condition_denominators_survive_an_asymmetric_round(tmp_path: Path) 
     # ... and the paired delta is still taken over COMPLETE pairs only, untouched.
     assert all(r["n_pairs_successful"] <= r["n_pairs_attempted"] for r in records)
     assert all(r["eval_paired_reward_delta"] is not None for r in records)
+
+
+
+def test_probe_preset_claims_scheduled_iterations_not_productive_updates() -> None:
+    """PO2. The preset promises two scheduled ITERATIONS, never two productive UPDATES.
+
+    `updates_completed` advances only when the updater actually runs epochs, and a
+    successful zero-wake iteration completes with `n_epochs_run == 0` and leaves it
+    unchanged. So "after both updates" was a claim the schedule cannot guarantee -- and
+    productive-update yield is one of the quantities this probe is run to MEASURE, which
+    makes assuming it in the preset's own description exactly backwards.
+
+    Asserted on the shipped file's prose because the prose is what a reader takes the
+    run's shape from; the schedule fields are pinned separately and are unchanged.
+    """
+    raw = json.loads(_PROBE_PRESET.read_text(encoding="utf-8"))
+    text = raw["_evaluation"]
+
+    assert "after both updates" not in text, "the preset still promises two updates"
+    assert "SCHEDULED TRAINING ITERATIONS" in text
+    # It says what updates_completed actually depends on, and that 2 is not guaranteed.
+    assert "0, 1 or 2" in text
+    assert "productive" in text.lower()
+    assert "no wakes" in text or "zero-wake" in text
+
+    # The SCHEDULE itself is untouched -- this finding was about wording only.
+    assert raw["n_iterations"] == 2
+    assert raw["eval_every"] == 2
+    assert raw["eval_episodes"] == 4
+    assert raw["episodes_per_iteration"] == 4
 
 
 if __name__ == "__main__":
@@ -4488,6 +4572,10 @@ if __name__ == "__main__":
          test_run_config_records_the_effective_config_and_its_preset, True),
         ("config_source_is_always_a_structured_object",
          test_config_source_is_always_a_structured_object, True),
+        ("a_direct_train_call_is_not_recorded_as_cli_provenance",
+         test_a_direct_train_call_is_not_recorded_as_cli_provenance, True),
+        ("probe_preset_claims_scheduled_iterations_not_productive_updates",
+         test_probe_preset_claims_scheduled_iterations_not_productive_updates, False),
         ("cli_exposes_config_and_plot_targets_the_plots_dir",
          test_cli_exposes_config_and_plot_targets_the_plots_dir, False),
         ("main_hands_train_the_resolved_config_and_its_source",
