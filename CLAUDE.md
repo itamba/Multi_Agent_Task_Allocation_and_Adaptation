@@ -1031,6 +1031,26 @@ second factor is bundled in (§8).
   scientific probe was performed** — nothing here is evidence about the cell's behaviour;
   §8 still owns the gate.
 
+- `52064c2` — **Repository / documentation hygiene — CLOSED / MERGED / APPROVED.**
+  Approved candidate `52064c2d306df7c8447d159df20e6e189a59bf85`, integrated by
+  `5f78904e3af1e2e47386c9b0e01ddbaa273724f5` (PR #12); the approved candidate tree was
+  verified identical to the integration tree. Grade C under `GPT_GITHUB`, implementation
+  mode SURGICAL. The FIRST candidate `6302847bdc8b5e40313763b4b167af85dd0a462e` received
+  REQUEST-FIXES on two documentation-correctness findings — a backwards
+  `Scenario.is_hostile` claim and stale volatile handoff state — and the correction landed
+  as a NEW CHILD COMMIT on the same branch and PR, never amended, rebased or force-pushed.
+  Scope: `README.md` replaced, `docs/BLADE_API_DOCUMENTATION.md` audited against the
+  vendored fork, four obsolete scenario JSONs deleted, two dead utility symbols removed,
+  the stale `requirements.txt` comment corrected, and `CLAUDE.md` / the handoff aligned —
+  the §8 note below states the detail and is NOT repeated here. Verified: import purity
+  **12 passed**, full suite **216 passed, 4 skipped** (unchanged from the base, since no
+  runtime code changed), `git diff --check` clean. **NO scientific run, BONMIN solve,
+  rollout, probe or artifact generation was performed.** After the merge the obsolete
+  branches `task/repo-code-hygiene` and `task/repo-doc-hygiene` were deleted (safe
+  deletion only, both already ancestors of `main`); `flat-final` and `pre-cleanup` were
+  untouched, and every reviewed candidate tip remains reachable on GitHub through
+  `refs/pull/<n>/head`.
+
 ---
 
 ## 8. OPEN (not built)
@@ -1189,9 +1209,10 @@ second factor is bundled in (§8).
   plain `match_aou` and asserts pyomo is already present, so the test fails if the root
   package is ever made lazy. Recorded as a precise fact, NOT as authorization to refactor
   the root package.
-> **Repository hygiene / documentation alignment: CLOSED** (Grade C, follows `2a3f89c`;
-> its own SHA is recorded by the next commit that touches this file, per the §7 hash
-> convention). Verified before each removal with exhaustive `git grep`.
+> **Repository hygiene / documentation alignment: CLOSED** (Grade C, approved candidate
+> `52064c2d306df7c8447d159df20e6e189a59bf85`, integrated by
+> `5f78904e3af1e2e47386c9b0e01ddbaa273724f5`, PR #12 — see the §7 entry). Verified before
+> each removal with exhaustive `git grep`.
 > **`README.md` fully replaced** from current repository truth: every path in its layout
 > tree exists, every command was run locally before being documented, and the stale-term
 > scan (`MAPPO`, `CTDE`, `ActorCriticNetwork`, `30 features`, `centralized critic`,
