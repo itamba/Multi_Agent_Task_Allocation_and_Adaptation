@@ -1,17 +1,20 @@
-# Multi-Agent Graph RL — Visual-Artifact Closure / Final-Cell Probe Handoff
+# Multi-Agent Graph RL — Harness Closure / Final-Cell Probe Handoff
 
 **Supersedes all earlier handoffs.**
 
-Written 2026-08-11; updated 2026-08-13 for the repository-hygiene closure below.
+Written 2026-08-11; updated 2026-08-14 for the final-cell PROBE HARNESS closure below.
 B1–B4, the first real post-B3 instrumented probe, the B4 observability follow-up (PR #7),
-**FD-BASELINE-v1** (PR #8), **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10) and the repository
-code-hygiene cleanup (PR #11) are all CLOSED. Neither that cleanup nor this update changes
-research behaviour, configuration, dependencies or workflows.
+**FD-BASELINE-v1** (PR #8), **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10), the repository
+code-hygiene cleanup (PR #11), the documentation hygiene (PR #12) and now the
+**FINAL-CELL PROBE HARNESS** (PR #14) are all CLOSED. None of them changes research
+behaviour: the solver, BLADE, reward, fuel-damage semantics, PPO math, seed schedules,
+scenario construction and matched-pair evaluation are exactly as their own locks left them.
 
-Baseline **difficulty selection is finished** and the **inspection surface for a probe is
-now in place**. What has NOT happened is any measurement of the resulting cell. The next
-task is a bounded short scientific probe of the merged fuel-damage configuration, before
-any long baseline.
+Baseline **difficulty selection is finished**, the **inspection surface is in place**, and
+the **operator harness a probe is driven from — preset, run layout and figures — is now
+merged**. What has NOT happened is any measurement of the resulting cell. The next task is
+a bounded short scientific probe of the merged fuel-damage configuration, before any long
+baseline.
 
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
@@ -82,10 +85,24 @@ cross-references it rather than duplicating it.
   world sweeps, full suite 216 passed / 4 skipped, import purity 12/12. No training,
   rollout, BONMIN solve or scientific probe was run. `CLAUDE.md` §7 owns the lock.
 
+- **FINAL-CELL PROBE HARNESS — CLOSED / MERGED / APPROVED.** Approved candidate
+  `61e539ed62fcf1e3fe25a83d213cae06f5afa98e`, integrated by
+  `a5f389a2af328640e19db51d3277a33167c08f25` (PR #14); GitHub verification established
+  that candidate…merge has ZERO changed files, so the merged tree is exactly the reviewed
+  tree. Grade A under `GPT_GITHUB`, mode SURGICAL — **the grade was corrected from B to A
+  during review** because `graph_train.py` belongs to the §5 locked trainer contract, with
+  no implementation redo required. Four files: `src/match_aou/rl/training/graph_train.py`,
+  `tests/test_graph_train.py`, `README.md`, and the new
+  `configs/graph_train/final_cell_probe.json`. TWO REQUEST-FIXES rounds landed as new child
+  commits on the same branch and PR (`4238e0e` → `de51883` → `61e539e`) with no amend,
+  rebase, force-push or history rewrite. §3c summarizes it; `CLAUDE.md` §5, §6 and §7 own
+  the contract, routing and lock.
+
 - **No scientific probe or training run has been performed on the merged final cell.**
-  Every test behind both locks is solver-free and drives the pipeline through stubbed
-  engine seams. The locks certify implementation; they say nothing about how the cell
-  behaves.
+  Every test behind every one of these locks is solver-free and drives the pipeline through
+  stubbed engine seams. The locks certify implementation; they say nothing about how the
+  cell behaves. **The harness lock in particular measured nothing**: it certifies that a
+  probe can be configured, run and read, not that the cell learns anything.
 - **Repository documentation hygiene — CLOSED / APPROVED / MERGED.** Approved candidate
   `52064c2d306df7c8447d159df20e6e189a59bf85`, integrated by
   `5f78904e3af1e2e47386c9b0e01ddbaa273724f5` (PR #12); the approved candidate tree was
@@ -199,29 +216,68 @@ falsify.
 **No live BLADE/BONMIN probe, training run, rollout, artifact-generating smoke or
 scientific baseline was performed** for either PR #8 or PR #10.
 
+## 3c. What PR #14 closed — the FINAL-CELL PROBE HARNESS
+
+Operator-facing only. `CLAUDE.md` §5 ("Experiment harness") owns the contract; this is the
+short form.
+
+- **`--config <path>`** loads a JSON preset of `TrainConfig` FIELDS (nested PPO knobs under
+  `"ppo"`). Precedence: dataclass / CLI defaults < preset < EXPLICITLY typed CLI flags.
+  `TrainConfig` stays the configuration authority; an unrecognized key raises.
+- **`configs/graph_train/final_cell_probe.json`** is the repository's ONLY preset and is
+  the bounded short probe: 2 scheduled training iterations × 4 scheduled attempts, base
+  seed 0, `eval_every` 2, four fixed held-out seeds from 1_000_000 → one `pre_update` and
+  one `post_update` matched round, the final 3-agent / 3-known / 3-hidden cell,
+  FD-BASELINE-v1, visual artifacts ENABLED. **Two scheduled iterations do NOT imply two
+  productive PPO updates** — `updates_completed` may be 0, 1 or 2, since a zero-wake
+  iteration runs no epochs.
+- **`run_config.json:/config_source`** is always a structured object with exactly three
+  truthful `resolved_from` kinds: `config_file`, `cli_defaults`, `direct_config`.
+- **Figures moved to `<run_dir>/plots/`** and the single four-panel `training_plot.png` is
+  retired: `training_performance.png`, `policy_diagnostics.png`, `measurement_health.png`.
+  Training reward is separated from held-out evaluation; clean and damaged held-out means
+  are shown separately and are each over THAT condition's own successful episodes; the
+  within-seed comparison is the matched-pair delta over COMPLETE pairs; measurement health
+  preserves the episode, pair, wake and per-condition denominators; and the shared x
+  quantity is PPO updates completed before the measurement.
+- **Run organization is unchanged in kind**: everything still lives under ONE run root —
+  records, `scenarios/`, `checkpoints/`, optional `visual_artifacts/`, and now `plots/`.
+- **It ran no probe.** No BONMIN solve, BLADE episode, training run, rollout or selftest
+  was executed for this PR; every test is solver-free, and the figures were rendered from
+  SYNTHETIC records.
+
 ## 4. Next task — a bounded SHORT SCIENTIFIC PROBE of the merged fuel-damage cell
 
 Start with fresh exact-SHA initialization against the new `main`. **This documentation
-task neither authorizes nor runs the probe.** The probe's exact CLI/config, seed bands,
-pass/fail reading rules and local PyCharm execution procedure MUST be closed in the next
-chat, BEFORE the run.
+task neither authorizes nor runs the probe.**
 
-**Intended shape, to be confirmed and made exact before execution:**
+**The probe's shape is no longer "to be confirmed" — it is the merged repository preset**
+`configs/graph_train/final_cell_probe.json` (PR #14, §3c), run through `--config`:
 
-- 2 training iterations;
+- 2 scheduled training iterations;
 - 4 scheduled training attempts per iteration;
-- four fixed held-out seeds;
-- matched forced-clean and forced-damaged members, run BEFORE training (`pre_update`) and
-  AFTER training (`post_update`) on the same held-out seeds;
-- live console output (the per-episode `OK` blocks and the per-iteration / per-round
-  lines);
+- base seed 0;
+- four fixed held-out seeds from 1_000_000, with matched forced-clean and forced-damaged
+  members run BEFORE training (`pre_update`) and AFTER training (`post_update`) on the
+  same seeds;
+- the final 3-agent / 3-known / 3-hidden cell and FD-BASELINE-v1, unchanged;
 - visual artifacts ENABLED — the flag selects every scheduled attempt, so a successful one
-  yields a `complete` bundle and a failed one a clearly marked `incomplete` bundle.
+  yields a `complete` bundle and a failed one a clearly marked `incomplete` bundle;
+- live console output (the per-episode `OK` blocks and the per-iteration / per-round
+  lines).
+
+What still has to be closed before the run is the OPERATIONAL procedure only — the exact
+local PyCharm / CLI invocation, the environment (`nlp_env`), and confirmation of a clean
+checkout at an exact resolved `main` SHA. The configuration itself is now a reviewed file
+in the repository, not a decision to be re-made.
 
 **Execution discipline.** Run it ONCE, from a clean checkout at an exact resolved `main`
 SHA, with COMPLETE Git provenance (`train` refuses otherwise — `CLAUDE.md` §8), on the
-merged cell as configured: no ad-hoc knob changes, no second difficulty factor, no retry
-of a failed seed, no band shift.
+merged cell as the preset configures it: no ad-hoc knob changes, no second difficulty
+factor, no retry of a failed seed, no band shift. An explicitly typed CLI flag overrides
+the preset, so anything typed beyond `--config` is a deliberate deviation and must be
+reported as one; `run_config.json:/config_source` records exactly which fields the preset
+supplied and which a flag overrode.
 
 **Report, all with explicit denominators:**
 
@@ -237,11 +293,34 @@ of a failed seed, no band shift.
   how many an `incomplete` one, reported ALONGSIDE the scientific denominators and never
   in place of one.
 
-**A long baseline remains UNAUTHORIZED until the short probe has been reviewed.**
-Interpretation rules survive unchanged: a held-out mean is never read without its
-denominator; an all-failed batch reports `null`, never `0.0`; and an empty
-successful-pair population is `null` too. **Do not pre-claim any probe result**, and do not
-reuse the §2 numbers as its expectation.
+**What makes the probe VALID — as opposed to favourable.** The probe is an OPERATIONAL
+and SCIENTIFIC VALIDATION of the merged harness and cell. It is *not* a requirement to
+demonstrate reward improvement. A run counts as a valid measurement when ALL of:
+
+- Git provenance is COMPLETE and the checkout was clean;
+- `run_summary.json:accounting_reconciled` is true — the ledger and the record counts
+  agree;
+- no INFRASTRUCTURE failure occurred (a `_VisualArtifactError` or any crash outside the
+  `generation` / `setup` / `run` / `reward` episode taxonomy aborts the run and is not a
+  scientific result);
+- **at least one COMPLETED matched pair exists in BOTH the `pre_update` and the
+  `post_update` round** — a pair counts only when both its members completed.
+
+If either round yields no completed matched pair, or accounting / data integrity fails,
+the probe is **INCONCLUSIVE** and the long baseline stays blocked.
+
+**A negative result is still a valid result.** No reward improvement, or zero productive
+PPO updates (`updates_completed = 0`), is a valid NEGATIVE SCIENTIFIC OBSERVATION about
+the cell — not a technical probe failure, and not grounds to re-run, re-tune or re-seed.
+Productive-update yield is one of the quantities being measured.
+
+**A long baseline remains UNAUTHORIZED until the short probe has been executed and
+reviewed.** Interpretation rules survive unchanged: a held-out mean is never read without
+its denominator; an all-failed batch reports `null`, never `0.0`; an empty successful-pair
+population is `null` too; and the held-out per-condition means are each over their own
+successful subset, so the within-seed claim is the matched-pair delta alone (`CLAUDE.md`
+§5). **Do not pre-claim any probe result**, and do not reuse the §2 numbers as its
+expectation.
 
 ## 5. Closed decisions
 
@@ -277,8 +356,10 @@ reuse the §2 numbers as its expectation.
 - a long training run before the final-cell probe passes;
 - selecting or enabling a SECOND difficulty factor (`probability < 1`, hostile fire/SAMs,
   dense reward) — each is its own research change;
-- reworking the merged FD-BASELINE-v1 mechanism or the merged visual-artifact surface, or
-  their reviewed research decisions;
+- reworking the merged FD-BASELINE-v1 mechanism, the merged visual-artifact surface or
+  the merged probe harness (preset, `--config` precedence, `config_source`, run layout,
+  the three figures), or their reviewed research decisions — the probe RUNS what is
+  merged;
 - extending artifact capture (per-seed filters, new artifact kinds, artifact-derived
   metrics) — the probe uses what is merged;
 - checkpoint loading/resume;
@@ -299,20 +380,25 @@ reuse the §2 numbers as its expectation.
 | Selected baseline-difficulty factors land — **DONE for FD-BASELINE-v1** | Contract in `CLAUDE.md` §5, tick placement in §4, routing in §6, lock + fix chain in §7, selection closure and deferrals in §8 — recorded without pre-claiming any result |
 | Repository code-hygiene + documentation alignment lands — **DONE for PR #11 and its follow-up** | Helper ownership, retired-executor removal and the lock recorded in `CLAUDE.md` §5–§7; README replaced, BLADE fork documentation audited, obsolete scenarios and dead utility symbols removed |
 | Visual-artifact support lands — **DONE for PR #10** | Contract in `CLAUDE.md` §5, routing in §6, lock in §7, and the §8 note that the bounded probe MAY enable it — recorded without pre-claiming any result |
+| Probe harness lands — **DONE for PR #14** | Preset, `--config` precedence, three-kind `config_source` and the `plots/` figures recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the two-round fix chain; the retired four-panel `training_plot.png` removed from the contracts — recorded without pre-claiming any result |
 | Final-cell short probe completes — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence and artifact completeness before authorizing a long baseline |
 
 ## 8. Next action
 
 Implementation for the final Phase-A baseline cell is COMPLETE and locked, its inspection
-surface is merged, and repository hygiene is CLOSED (PR #11 code, PR #12 documentation).
-No further repository-hygiene task follows this closure record, and **ownership is RELEASED
-once it is integrated into `main`**.
+surface is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), and
+the **probe harness is CLOSED** (PR #14). **No active scientific candidate exists**, no
+implementation task remains before the probe, and **ownership is RELEASED once this
+closure record is integrated into `main`** — the orchestrator and user own the probe's
+preparation and run from that point.
 
 The next orchestrator performs fresh exact-SHA initialization against the current `main`,
-closes the probe's exact configuration and execution procedure per §4, and only then runs
-it once. The next task is still the bounded SHORT SCIENTIFIC PROBE of the merged
-fuel-damage cell described in §4 — unchanged by the hygiene work — and **a long baseline
-remains UNAUTHORIZED until the short probe has been reviewed** (§4).
+closes the probe's remaining OPERATIONAL procedure per §4 (the configuration itself is now
+the merged preset), and only then runs it once, from a clean checkout of the final
+post-documentation `main` SHA. The next task is still the bounded SHORT SCIENTIFIC PROBE
+of the merged fuel-damage cell described in §4 — unchanged by the harness work — judged by
+the §4 validity gate rather than by whether reward improved, and **a long baseline remains
+UNAUTHORIZED until the short probe has been executed and reviewed** (§4).
 
 Resolve live branch and PR state from GitHub; this document does not track it.
 

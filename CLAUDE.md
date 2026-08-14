@@ -344,8 +344,10 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   completed, iteration, attempt ordinal, episode index / eval tag, exact seed, pipeline
   stage `generation|setup|run|reward`, original exception + traceback), the derived
   `run_summary.json` (`build_run_summary` reads the jsonl — ONE metric path, with
-  `accounting_reconciled` cross-checking record counts against the ledger), and ONE
-  four-panel `training_plot.png` (`plot_training`, jsonl-only, torch-free child).
+  `accounting_reconciled` cross-checking record counts against the ledger), and the
+  THREE figures under `plots/` (`plot_training`, jsonl-only, torch-free child — see the
+  harness contract below). A run root holds records, `scenarios/`, `checkpoints/`,
+  optional `visual_artifacts/` and `plots/` as separate things.
 - **Evaluation timing.** A deterministic held-out `pre_update` round runs after the
   initial policy is built and BEFORE the first training episode, buffer insert and
   optimizer step, recorded with `updates_completed = 0` and `iteration = null`. Later
@@ -426,6 +428,84 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   inputs, the solver, the reward, fuel-damage semantics, the failure taxonomy and BLADE
   are all unchanged. The resolved flag is recorded in `run_config.json` through the
   existing `asdict(cfg)` path and echoed in the startup header.
+
+**Experiment harness: JSON presets, run layout and the three figures (PR #14) —
+`rl/training/graph_train.py` + `configs/graph_train/final_cell_probe.json`.**
+The OPERATOR-facing surface. It changed no pipeline layer, no scenario semantics, no seed
+schedule, no PPO/reward/fuel-damage behaviour and no evaluation record field; what it
+changes is how a run is CONFIGURED and how its results are PRESENTED.
+
+- **JSON presets — `--config <path>`.** Stdlib `json` only, no new dependency. A preset
+  names `TrainConfig` FIELDS (nested PPO knobs under `"ppo"`), never CLI flag spellings,
+  so `TrainConfig` remains the one configuration authority and there is no second naming
+  scheme to drift from it. Keys beginning with `_` are comments; an UNRECOGNIZED key
+  RAISES rather than being ignored, because a knob silently left at its default produces
+  a run whose file says one thing and whose behaviour is another. Resolution is
+  **dataclass/CLI defaults < preset < EXPLICITLY typed CLI flags**. "Explicit" is
+  measured by re-parsing argv through a throwaway parser whose defaults are
+  `argparse.SUPPRESS` (`_explicit_cli_dests`) — a parsed namespace cannot tell an absent
+  flag from one passed its own default, and inferring it from the VALUE would let every
+  differing default silently override the preset. Both parse passes consume ONE vector
+  (`_effective_argv`): `argparse` reads `None` as `sys.argv[1:]`, and `main()` is normally
+  called with no argument, so reading `None` as `[]` anywhere would make every typed flag
+  look un-typed. Symbols: `load_config_file`, `resolve_train_config`, `_effective_argv`,
+  `_explicit_cli_dests`, `_CLI_FIELD_BY_DEST` / `_CLI_PPO_FIELD_BY_DEST` (the ONE
+  dest→field mapping), `_CONFIG_TUPLE_FIELDS`.
+- **The repository short-probe preset — `configs/graph_train/final_cell_probe.json`.**
+  The bounded short probe, and deliberately the ONLY preset the repository owns: 2
+  scheduled training iterations × 4 scheduled attempts, `base_seed = 0`, `eval_every = 2`,
+  4 fixed held-out seeds from `1_000_000`, giving one `pre_update` and one `post_update`
+  matched round; the final 3-agent / 3-known / 3-hidden cell with its 200 km / 100 km
+  geometry and `include_sams = false`; FD-BASELINE-v1 unchanged; `visual_artifacts = true`.
+  Every field it sets that also has a dataclass default AGREES with that default, so the
+  preset RESTATES the approved cell instead of retuning it (test-enforced). **TWO
+  SCHEDULED ITERATIONS DO NOT IMPLY TWO PRODUCTIVE PPO UPDATES:** `updates_completed`
+  advances only when the updater actually runs epochs, so a successful zero-wake iteration
+  leaves it unchanged and the value may be 0, 1 or 2. Productive-update yield is one of
+  the things the probe MEASURES; nothing may assume it. No long-baseline preset exists.
+- **`run_config.json:/config_source` — ALWAYS a structured object, never `null`.** One
+  schema, one construction site (`config_source_record`, whose `resolved_from` is a
+  REQUIRED argument, never inferred), and exactly THREE truthful kinds
+  (`_CONFIG_SOURCE_KINDS`): `config_file` (a command line naming a preset; `path` /
+  `absolute_path` say which), `cli_defaults` (a command line with no `--config`), and
+  `direct_config` (a `TrainConfig` built in Python and handed straight to `train()` — what
+  `_selftest` and any importing script do). The record also carries `config_fields` (what
+  the preset supplied) and `cli_overrides` (what an explicit flag took back off it), and
+  it is validated for internal consistency: only `config_file` may carry a path, and it
+  must carry one. The three kinds exist because a provenance field that is WRONG in a
+  believable way — a direct call recorded as `cli_defaults` — is worse than one that is
+  absent.
+- **Figures: `<run_dir>/plots/`, three files, one claim each.** The legacy single
+  four-panel `training_plot.png` is RETIRED and is no longer written. `plot_training` and
+  `plot_training_subprocess` now return the LIST of figures written (empty when there is
+  nothing to plot or matplotlib is missing; matplotlib stays optional and never fails a
+  run). `run_summary.json` carries `plots_dir` + `plot_paths`, and the legacy `plot_path`
+  key survives as a documented ALIAS of the performance figure.
+  - `training_performance.png` — training reward; held-out evaluation as TWO SEPARATE
+    per-condition series; the matched-pair delta.
+  - `policy_diagnostics.png` — meta-action mix and policy entropy over the TRAINING
+    decisions only.
+  - `measurement_health.png` — the denominators, titled as health and explicitly NOT
+    performance: train `success_fraction` and `wake_fraction_of_successful`, eval episode
+    `success_fraction`, eval `pair_success_fraction`, the absolute counts, and
+    PER-CONDITION held-out completion (`eval_n_<condition>_attempted` / `_successful`).
+- **The two presentation invariants.** (1) **Condition means vs the paired delta.**
+  `eval_reward_mean_clean` and `eval_reward_mean_damaged` are each a mean over THAT
+  condition's own SUCCESSFUL episodes, so when one condition fails more held-out seeds
+  the two curves are not averages over the same completed seeds and their gap is NOT a
+  within-seed effect — the panel title, both legend entries and the per-condition
+  denominators say so. The ONLY within-seed comparison is `eval_paired_reward_delta`, over
+  pairs whose BOTH members completed. Pooling the two conditions into one held-out curve —
+  what the retired dashboard drew — averages across the very factor the cell was built to
+  study, and is drawn only as an explicitly labelled fallback for pre-FD records carrying
+  no per-condition means. (2) **The honest x-axis.** All three figures share ONE quantity,
+  stamped on each: PPO updates completed BEFORE the measurement. Training points sit at
+  `updates_completed_before` (the updates the policy that GENERATED those episodes had
+  received) and eval points at `updates_completed`, so the untrained policy's first batch
+  and its `pre_update` round share an origin. A batch or round with NO successful episode
+  is DROPPED from a curve rather than drawn at 0 — the reward is oracle-normalized regret,
+  so 0 is the OPTIMUM and plotting a total data loss there would invert its meaning; the
+  gap is accounted for in `measurement_health.png`.
 
 **FD-BASELINE-v1 — the difficulty factor — `rl/training/graph_fuel_damage.py`**
 (consumed by `graph_tick_loop.run_episode`, `graph_train` and `graph_rollout`).
@@ -525,7 +605,10 @@ second factor is bundled in (§8).
 | Change the LEGACY split path (retained, not deleted) | `rl/training/graph_episode_setup.py` → `_setup_episode_legacy`, `split_tasks` |
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
-| Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json` and one 4-panel `training_plot.png`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
+| Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance` + `config_source`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures under `plots/`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
+| Configure a run from a FILE, or add a preset | `configs/graph_train/final_cell_probe.json` (the ONLY repository preset: the bounded short probe) + `rl/training/graph_train.py` (`--config`, `load_config_file`, `resolve_train_config`, `_effective_argv`, `_explicit_cli_dests`, `_CLI_FIELD_BY_DEST` / `_CLI_PPO_FIELD_BY_DEST`). Presets name `TrainConfig` FIELDS; precedence is defaults < preset < explicitly typed flags. See the §5 harness contract |
+| Change what a run RECORDS about where its config came from | `rl/training/graph_train.py` (`config_source_record`, `_CONFIG_SOURCE_KINDS` = `config_file` / `cli_defaults` / `direct_config`, `write_run_config`). Always a structured object, never `null`; `resolved_from` is required, never inferred |
+| Change a FIGURE (or add one) | `rl/training/graph_train.py` (`plot_training`, `_plots_dir`, `_plot_training_performance`, `_plot_policy_diagnostics`, `_plot_measurement_health`, `_PLOT_FILENAMES`, `_PLOT_X_LABEL` / `_PLOT_X_SEMANTICS`, `_xy`, `plot_training_subprocess`). Figures go to `<run_dir>/plots/`; the two presentation invariants in §5 (condition means vs complete-pair delta, and the honest x-axis) are contractual |
 | Change the training scenario cell (target counts) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). The generator writes `n_known`; setup patches in `n_hidden`, so **emitted targets are `n_known + n_hidden`** (`TrainConfig.n_targets_emitted`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` / `split_preview` survive and are still tested but are NOT consulted by the construction path (B1, `d6758ac`). |
 | Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. `predict_route` imports `nearest_neighbor_order` from `utils/scheduling_utils.py`, NOT from any executor module. |
 | Change the SHARED intra-level nearest-neighbor ordering (route prediction + execution at once) | `utils/scheduling_utils.py` (`nearest_neighbor_order`). ONE implementation with TWO consumers — `blade_graph_executor.GraphPlanExecutor._eligible` and `graph_hidden_placement.predict_route`. Changing it changes BOTH; that shared identity is the route-fidelity invariant (`2a3f89c`). Pinned by `tests/test_graph_executor_nn_ordering.py`. |
@@ -1051,6 +1134,58 @@ second factor is bundled in (§8).
   untouched, and every reviewed candidate tip remains reachable on GitHub through
   `refs/pull/<n>/head`.
 
+- `61e539e` — **FINAL-CELL PROBE HARNESS: JSON presets, run layout and three semantic
+  figures — CLOSED / MERGED / APPROVED.** Reviewed code SHA
+  `61e539ed62fcf1e3fe25a83d213cae06f5afa98e`, integrated by merge commit
+  `a5f389a2af328640e19db51d3277a33167c08f25` (PR #14); the merged tree is byte-identical
+  to the approved one (`git diff` between the two reports zero changed files). Grade A
+  under `GPT_GITHUB`, implementation mode SURGICAL — **the grade was corrected from B to A
+  during review**, because `graph_train.py` is part of the §5 locked trainer contract; no
+  implementation redo was required, since the strongest reasoning model, three proof
+  obligations, the exact-SHA branch workflow and the broad test set were already in place.
+  The full technical contract is in §5 ("Experiment harness") and the routing in §6; this
+  entry records the LOCK, not the mechanism.
+  **Reviewed scope: FOUR files** — `src/match_aou/rl/training/graph_train.py`,
+  `tests/test_graph_train.py`, `README.md`, and the new
+  `configs/graph_train/final_cell_probe.json`. No solver, BLADE, reward, fuel-damage,
+  tick-loop, PPO, episode-setup, scenario-construction, seed-schedule, matched-pair
+  evaluation or visual-artifact semantics were touched, and no evaluation RECORD FIELD was
+  added, removed or redefined — the figures read fields that already existed.
+  **Fix chain: TWO REQUEST-FIXES rounds, each landing as a NEW CHILD COMMIT on the same
+  branch and PR** — never amended, rebased or force-pushed. Candidate
+  `4238e0ee79faf3c1bde414fa041d410e44c07b38` → `de51883f20f28aadb4e6a9fa2a6f679a9eaded2f`
+  → the approved `61e539e`. The five findings and their closure:
+  (F1) `_explicit_cli_dests` read `argv=None` as an EMPTY command line while `argparse`
+  reads it as `sys.argv[1:]`; since `main()` is normally called with no argument, every
+  flag an operator really typed looked un-typed and a preset could silently override it.
+  Both passes now consume one `_effective_argv` vector.
+  (F2) `config_source` had two contradictory contracts (structured for CLI-only runs in
+  code, `null` in the docs). Settled on ALWAYS-structured, one schema, one helper.
+  (F3) the two held-out condition means are each over their own successful subset, so
+  their gap is not a within-seed comparison; `measurement_health.png` gained PER-CONDITION
+  completion counts and the performance panel's title and legends now say what each mean
+  is over. Evaluation semantics and the matched-pair computation were NOT changed.
+  (F4) the `config_source` fallback INFERRED `cli_defaults` from the absence of a path,
+  which mislabelled every direct `train(cfg)` call — `_selftest` included — as
+  CLI-resolved; `resolved_from` became a required argument and `direct_config` a third
+  truthful kind.
+  (F5) the preset's own prose promised a post-update round "after both updates", which the
+  schedule cannot guarantee; it now says both SCHEDULED ITERATIONS and states that
+  `updates_completed` may be 0, 1 or 2. PROSE ONLY — the schedule fields are byte-unchanged
+  and test-pinned.
+  **Verified at the approved head:** `tests/test_graph_train.py` **108 passed** (89 → 108),
+  import purity **12 passed**, full suite **235 passed, 4 skipped** (216 → 235), all 108
+  green through the standalone `__main__` runner under `nlp_env`, and `git diff --check`
+  clean. Five mutation checks confirmed the load-bearing tests falsify (the `argv=None`
+  reading; the unguarded `config_source`; the blanked per-condition series; the
+  `cli_defaults` fallback; the restored "after both updates" prose) — each was caught and
+  then reverted. Figures were rendered from SYNTHETIC records through the real `--plot`
+  CLI and inspected.
+  **NO BONMIN solve, BLADE episode, training run, rollout, selftest, probe or baseline was
+  executed** — every test is solver-free and drives the pipeline through stubbed engine
+  seams. **This lock certifies the HARNESS, not the cell**: no reward improvement and no
+  fuel-damage behaviour has been measured on it. §8 still owns the gate.
+
 ---
 
 ## 8. OPEN (not built)
@@ -1066,15 +1201,28 @@ second factor is bundled in (§8).
   populations; matched-pair yield and the paired reward delta with its pair denominator;
   failures by pipeline stage; how often the event actually fired, woke the selected ego,
   produced a real RTB command, or ended in a death; reward headroom; and whether the PPO
-  updates were productive. **A long baseline stays BLOCKED until that probe passes**, and
-  no result may be pre-claimed for it. A held-out mean is never read without its
-  denominator; `graph_reward` remains FROZEN unless a separately reviewed p<1 design
-  requires an explicit reward-contract change.
-  That probe MAY run with `--visual-artifacts` (§5, `24d1835`), which preserves each
-  successful attempt's known-only scenario, executed t=0 scenario and BLADE playback for
-  inspection. It is an observation surface only: enabling it neither authorizes the probe
-  nor changes anything the probe measures, and artifact completeness is reported ALONGSIDE
-  the scientific denominators, never in place of one.
+  updates were productive. **A long baseline stays BLOCKED until that probe has been
+  executed and REVIEWED**, and no result may be pre-claimed for it. A held-out mean is
+  never read without its denominator; `graph_reward` remains FROZEN unless a separately
+  reviewed p<1 design requires an explicit reward-contract change.
+  **The harness that probe runs on is MERGED and LOCKED** (`61e539e`, §7): it is driven by
+  the repository preset `configs/graph_train/final_cell_probe.json` via `--config`, and it
+  writes `run_config.json` (with `provenance` and a structured `config_source`), the three
+  jsonl records, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures
+  under `plots/`. Two consequences for reading its result: the preset schedules TWO
+  ITERATIONS, which does not guarantee two PRODUCTIVE PPO updates (`updates_completed` may
+  be 0, 1 or 2 — that yield is a MEASUREMENT, never an assumption); and the held-out
+  per-condition means are each over their own successful subset, so the within-seed claim
+  is the matched-pair delta over COMPLETE pairs alone (§5). What counts as a VALID
+  measurement — as opposed to a favourable one — is stated in the handoff: a probe that
+  produces no reward improvement, or no productive update, is a valid NEGATIVE observation,
+  not a technical failure.
+  That probe MAY run with `--visual-artifacts` (§5, `24d1835`); the repository preset
+  enables it. It preserves each successful attempt's known-only scenario, executed t=0
+  scenario and BLADE playback for inspection, and it is an observation surface only:
+  enabling it neither authorizes the probe nor changes anything the probe measures, and
+  artifact completeness is reported ALONGSIDE the scientific denominators, never in place
+  of one.
   *Historical, and about the EASY PRE-FD CELL only:* the clean-code probe at
   `a3f0838616990987bcb8a51665fa75d84edf5952` measured pre-update headroom
   (`-0.4999997395829586`, 4/4), train yield 7/8 with one accounted seed-2 `setup` failure,
