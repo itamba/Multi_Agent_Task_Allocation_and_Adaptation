@@ -25,8 +25,12 @@ What we KEEP / DROP relative to the paper
 - OUR CHOICE: we drop the paper's "Local Queue Optimization" meta-action and keep
   §3.3's "Self-Preservation Abort", giving the locked 3-action set in
   :class:`MetaAction`.
-- OUR CHOICE: Self-Preservation Abort is **node-indexed** (it targets the ego's own
-  assigned task node), not a global action.
+- OUR CHOICE: Self-Preservation Abort keeps the shared node-indexed SELECTION
+  identity — it is chosen as a ``k x 3`` cell on one of the ego's own assigned task
+  nodes, and that cell is what is sampled, stored and re-scored by PPO. Its EFFECT
+  SCOPE is a different question and is EGO-GLOBAL: ``graph_effect.apply_meta_action``
+  clears the acting ego's whole remaining plan, which the executor turns into RTB. The
+  mask below governs SELECTION only; it is unchanged by that.
 - OUR CHOICE: the exact per-cell mask rules in :func:`build_action_mask`.
 - OUR CHOICE: "sensed" means the EGO's own sensing only, read from the ego-only
   ``sensed`` task-feature column (``task_features[:, 5]``). Under no-communication the
@@ -72,6 +76,17 @@ class MetaAction(IntEnum):
     The integer value of each member IS its column index in the ``[k, 3]`` mask /
     logit matrix (e.g. ``mask[v, MetaAction.OPPORTUNISTIC_ENGAGEMENT]``), so member value
     and column index are one and the same by construction.
+
+    SELECTION vs EFFECT — two separate things. EVERY member keeps the same node-indexed
+    SELECTION identity: what is sampled, stored and re-scored by PPO is a ``(node, meta)``
+    cell. What the chosen cell then DOES to the plan differs per member:
+
+    - PLAN_COMPLIANCE          : no plan edit at all (the node is selection only).
+    - OPPORTUNISTIC_ENGAGEMENT : NODE-LOCAL effect — it assigns the ego to THAT task node.
+    - SELF_PRESERVATION_ABORT  : EGO-GLOBAL effect — it clears the acting ego's whole
+      remaining plan, so every legal cell produces the same result.
+
+    The effects themselves live in ``graph_effect.apply_meta_action``.
     """
 
     PLAN_COMPLIANCE = 0
@@ -121,8 +136,10 @@ def build_action_mask(
                                  per node, so the masked softmax is never all ``-inf``.
     - OPPORTUNISTIC_ENGAGEMENT : ``unassigned & sensed & capable & reachable``.
     - SELF_PRESERVATION_ABORT  : ``assigned_to_ego`` (reachability / capability
-                                 irrelevant — abandoning an assignment to preserve
-                                 the airframe is always physically available).
+                                 irrelevant — abandoning the mission to preserve the
+                                 airframe is always physically available). This LEGALITY
+                                 rule is per-node and unchanged; the chosen cell's EFFECT
+                                 is ego-global and belongs to ``graph_effect``.
 
     Args:
         obs: the :class:`GraphObservation` to mask.

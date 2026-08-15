@@ -32,7 +32,9 @@ Meta-action -> plan edit (these map onto ASSIGNMENT-edge deltas, expressed on th
 
 - PLAN_COMPLIANCE          : no edit. Return the plan unchanged.
 - OPPORTUNISTIC_ENGAGEMENT : add ASSIGNMENT ego -> task v  (== append a tuple).
-- SELF_PRESERVATION_ABORT  : remove ASSIGNMENT ego -> task v (== drop the tuple(s)).
+- SELF_PRESERVATION_ABORT  : EGO-GLOBAL mission abort — drop EVERY remaining
+                             ASSIGNMENT of the acting ego (the node cell selects the
+                             ACTION; it does not scope its effect).
 
 OUR CHOICE: OPPORTUNISTIC_ENGAGEMENT is the sole "add assignment" meta-action.
 Peer-failure recovery is handled upstream by the trigger layer (a peer-overdue
@@ -46,9 +48,14 @@ target at the FRONT of the ego's queue (attack-now) while the ego's original
 assignments stay in ``solution`` at their original levels and resume naturally
 afterward. No queue object is mutated; the temporal priority lives in the level.
 
-EXTENDS / OUR CHOICE: SELF_PRESERVATION_ABORT only removes the assignment. In the
-single-target regime this empties the ego's queue, which the FUTURE executor
-turns into RTB — but the effect layer does NOT issue RTB; it only edits the plan.
+EXTENDS / OUR CHOICE: SELF_PRESERVATION_ABORT is SELECTED through a node-indexed
+``k x 3`` cell like every other meta-action, but its EFFECT is EGO-GLOBAL: it clears
+ALL of the acting ego's remaining assignments, not only the selected node's. Aborting
+to preserve the airframe is a decision about the MISSION — dropping one task while the
+ego flies on to the next would leave it in exactly the danger the abort was chosen to
+escape. Selecting ANY legal SPA cell therefore produces the same empty ego plan, which
+``GraphPlanExecutor`` turns into its single latched RTB — but the effect layer does NOT
+issue RTB; it only edits the plan.
 
 This module replaced the retired flat ``plan_editor.py``. The executor that consumes
 the updated ``solution`` is ``GraphPlanExecutor``; this layer stays decoupled from
@@ -135,6 +142,8 @@ def apply_meta_action(
             pop-up engagement by an unassigned ego is handled by creating the entry).
         meta_action: a :class:`MetaAction` value (accepts the int or the member).
         node_v: the chosen task node ``== task_idx``; guarded to ``[0, len(tasks))``.
+            SELF_PRESERVATION_ABORT reads it for traceability only — that effect is
+            EGO-GLOBAL and is identical for every legal cell the ego could select.
         tasks: the stable Task list (``task_idx`` indexes into it), used to locate
             the ATTACK step index for an inserted assignment.
 
@@ -194,13 +203,24 @@ def apply_meta_action(
                      action.name, ego_key, node_v, step_idx, new_level, target_id)
         return new_solution
 
-    # --- SELF_PRESERVATION_ABORT: drop the ego's assignment(s) to task v -----
+    # --- SELF_PRESERVATION_ABORT: EGO-GLOBAL mission abort -------------------
+    # The selected cell names WHICH action was taken, not what it reaches: the whole
+    # of THIS ego's remaining plan goes, so the executor's empty-plan branch is reached
+    # on the NEXT ``GraphPlanExecutor.next_actions`` call and issues its single latched
+    # RTB there. Under ``graph_tick_loop.run_episode`` that call is PHASE 2 OF THE SAME
+    # TICK: the wake, this plan edit and the executor resync all happen in Phase 1,
+    # before any ``env.step`` — so the abort reaches BLADE within the tick it was
+    # decided in, not a tick later. An ego with no key already has an empty mission, so
+    # the dict shape is left exactly as it was found — no key is invented here, and no
+    # peer slice is read or written (the no-communication red line).
     if action is MetaAction.SELF_PRESERVATION_ABORT:
         if ego_key in new_solution:
-            kept = [t for t in new_solution[ego_key] if int(t[0]) != node_v]
-            new_solution[ego_key] = kept  # key retained (possibly empty -> future RTB)
-        logger.debug("SELF_PRESERVATION_ABORT ego=%s -= task %d (target %s)",
-                     ego_key, node_v, target_id)
+            new_solution[ego_key] = []  # key retained, emptied -> executor RTB
+        logger.debug(
+            "SELF_PRESERVATION_ABORT ego=%s cleared ALL remaining assignments "
+            "(selected cell node=%d, target %s)",
+            ego_key, node_v, target_id,
+        )
         return new_solution
 
     # Unreachable: every MetaAction member is handled above.
@@ -272,11 +292,32 @@ def _selftest() -> None:
     assert out_oe["ego"] == [(0, 0, 0), (2, 1, -1)], out_oe["ego"]   # step_idx 1, level -1
     print("[2] OE -> (1,0,-1) [step0] / (2,1,-1) [step1]  (min_level-1, correct step_idx)  OK")
 
-    # (3) ABORT removes the ego's tuple(s) to task v; peer untouched.
+    # (3) ABORT is an EGO-GLOBAL mission abort. THE regression: the ego holds TWO
+    #     assignments at DIFFERENT levels and the selected cell names only ONE of
+    #     them, so the retired node-filtered implementation would have left the other
+    #     tuple in place. Both must go, for EVERY legal cell the ego could select.
+    multi = {"ego": [(0, 0, 0), (2, 1, 3)], "p1": [(1, 0, 0)]}
+    multi_snapshot = {"ego": [(0, 0, 0), (2, 1, 3)], "p1": [(1, 0, 0)]}
+    out_ab0 = apply_meta_action(multi, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
+    out_ab2 = apply_meta_action(multi, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, 2, tasks)
+    assert out_ab0["ego"] == [], out_ab0["ego"]
+    assert out_ab2["ego"] == [], out_ab2["ego"]        # selected-node INDEPENDENCE
+    assert out_ab0["p1"] == [(1, 0, 0)], out_ab0["p1"]  # peer slice never read/written
+    assert out_ab2["p1"] == [(1, 0, 0)], out_ab2["p1"]
+    assert multi == multi_snapshot, multi               # input never mutated
+    # The single-assignment case still empties the ego and leaves the peer alone.
     out_ab = apply_meta_action(base, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
-    assert out_ab["ego"] == [], out_ab["ego"]
-    assert out_ab["p1"] == [(1, 0, 0)], out_ab["p1"]
-    print("[3] SELF_PRESERVATION_ABORT removes ego->task0, peer untouched   OK")
+    assert out_ab["ego"] == [] and out_ab["p1"] == [(1, 0, 0)], out_ab
+    # Dict SHAPE is preserved: a present-but-empty key stays, an ABSENT key stays absent
+    # (an ego with no key already has an empty mission — nothing is invented).
+    empty_key = apply_meta_action({"ego": [], "p1": [(1, 0, 0)]}, obs, "ego",
+                                  MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
+    assert empty_key == {"ego": [], "p1": [(1, 0, 0)]}, empty_key
+    absent_key = apply_meta_action({"p1": [(1, 0, 0)]}, obs, "ego",
+                                   MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
+    assert "ego" not in absent_key and absent_key == {"p1": [(1, 0, 0)]}, absent_key
+    print("[3] SELF_PRESERVATION_ABORT is EGO-GLOBAL (every legal cell -> []), "
+          "peer / input / dict-shape untouched   OK")
 
     # (4) The input solution was never mutated by any call above.
     assert base == base_snapshot, base
