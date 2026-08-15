@@ -19,8 +19,10 @@ the **operator harness a probe is driven from — preset, run layout and figures
 merged**. The bounded short probe HAS NOW BEEN RUN ONCE
 (`training_output_20260815_173029`, from clean `main` at
 `238062d7d284334432d9c39d7543fb0bbf39ea7c`). It passed every mechanical harness and
-accounting check **and** exposed three research-validity defects (§3d). Those defects are
-being corrected ONE AT A TIME: **Defect A is now CLOSED and MERGED** (PR #17), while
+accounting check **and** exposed three research-validity defects (§3d). They are being
+corrected in sequence — A, then B, then C, as separate reviewed tasks by default, with the
+policy and its one recorded exception in `CLAUDE.md` §8: **Defect A is now CLOSED and
+MERGED** (PR #17), while
 **Defects B and C remain OPEN** — **Defect B is the next unresolved code task**. The SAME
 bounded probe shape is rerun ONCE only after all three, and the documentation/lock duty
 each carries, have closed. **A long baseline remains UNAUTHORIZED.**
@@ -395,12 +397,15 @@ task neither authorizes nor runs anything; it records state only.**
 listed here only so the remaining sequence is unambiguous; nothing about it is outstanding.
 
 **Task 1 — Defect B, the evidence-derived confirmation wait (NEXT UNRESOLVED CODE TASK).**
-`GraphPlanExecutor.kill_confirm_ticks` is a fixed 60-tick constant, so a slower salvo still
-in flight can let the window expire and a redundant second salvo consume the last weapons
-(§3d records the measured `1000003` sequence). The approved direction is NOT to raise the
-constant blindly but to DERIVE a conservative confirmation wait from the ACTUAL
-auto-selected live weapon and the CURRENT engagement distance, preserving current lethality
-and FROZEN BLADE behaviour; the probabilistic-miss / weapons-exhaustion redesign stays out
+`GraphPlanExecutor.kill_confirm_ticks` is CONFIGURABLE through the executor's constructor
+(default 60), but no caller passes it, so the CURRENT path runs a FIXED 60-tick
+confirmation wait; a slower salvo still in flight can therefore let that wait expire and a
+redundant second salvo consume the last weapons (§3d records the measured `1000003`
+sequence). Defect B concerns REPLACING that current fixed wait with an EVIDENCE-DERIVED
+one: not raising the default blindly, but DERIVING a conservative confirmation wait from
+the ACTUAL auto-selected live weapon and the CURRENT engagement distance, preserving
+current lethality and FROZEN BLADE behaviour; the probabilistic-miss /
+weapons-exhaustion redesign stays out
 of scope unless the evidence requires it. It touches §5-locked layers, so it is **Grade A**
 with declared proof obligations, and it must be dispatched by the next GPT orchestrator
 after exact-SHA initialization and task-focused recon. Expected implementation mode is
@@ -556,7 +561,7 @@ expectation.
 | Visual-artifact support lands — **DONE for PR #10** | Contract in `CLAUDE.md` §5, routing in §6, lock in §7, and the §8 note that the bounded probe MAY enable it — recorded without pre-claiming any result |
 | Probe harness lands — **DONE for PR #14** | Preset, `--config` precedence, three-kind `config_source` and the `plots/` figures recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the two-round fix chain; the retired four-panel `training_plot.png` removed from the contracts — recorded without pre-claiming any result |
 | FIRST final-cell short probe completes — **DONE for `training_output_20260815_173029`** | Run identity, exact code SHA, accounting and denominators, and the three research-validity defects it exposed recorded in §3d — as findings only, with no scientific claim about the cell and no long-baseline authorization |
-| §3d validity correction lands — **PARTIAL: DONE for DEFECT A ONLY (PR #17); DEFECTS B AND C STILL PENDING** | Record each corrected contract in `CLAUDE.md` §5–§7 with its own lock and fix chain, ONE DEFECT AT A TIME and only once that defect is merged, never in advance. **Defect A — DONE:** the ego-global `SELF_PRESERVATION_ABORT` selection/effect contracts are in `CLAUDE.md` §5 (Stages 4 and 5), the lock, fix chain and evidence in §7, and the defect state in §8. **Defect B (confirmation wait) — NOT DONE. Defect C (RTB completion) — NOT DONE.** This row must NOT be marked complete until all three are recorded |
+| §3d validity correction lands — **PARTIAL: DONE for DEFECT A ONLY (PR #17); DEFECTS B AND C STILL PENDING** | Record each corrected contract in `CLAUDE.md` §5–§7 with its own lock and fix chain, ONE DEFECT AT A TIME and only once that defect is merged, never in advance — a DOCUMENTATION-RECORDING rule, not a constraint on how the fixes are broken into tasks (`CLAUDE.md` §8 owns the sequential-defect policy). **Defect A — DONE:** the ego-global `SELF_PRESERVATION_ABORT` selection/effect contracts are in `CLAUDE.md` §5 (Stages 4 and 5), the lock, fix chain and evidence in §7, and the defect state in §8. **Defect B (confirmation wait) — NOT DONE. Defect C (RTB completion) — NOT DONE.** This row must NOT be marked complete until all three are recorded |
 | Probe RERUN completes on the corrected cell — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence and artifact completeness before authorizing a long baseline |
 
 ## 8. Next action
@@ -569,10 +574,15 @@ surface is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentati
 integrated `f094e0b`, PR #17, identical tree `70e5af2…`). Current `main` is
 `f094e0b32e5e67b79757edbfe4e73c1fe01b0a87` (`2026-08-16T01:20:33+03:00`).
 
-**No active CODE candidate exists.** The only active work is the documentation/lock task
-that records Defect A's closure, delivered on branch `task/defect-a-doc-lock` as a draft
-PR; until that branch exists no candidate of any kind should be claimed. **Live branch and
-PR state must be resolved from GitHub, never from this document.**
+**No active CODE candidate exists**, and the state below is written to be valid on BOTH
+sides of this record's own integration. **While this record is published and under review**
+the sole active candidate of any kind is the documentation/lock task itself — branch
+`task/defect-a-doc-lock`, draft PR #18 — and no other candidate should be claimed.
+**Once this record is integrated into `main`, no active candidate remains** and ownership
+is RELEASED for fresh-`main` Defect-B recon. The integrating merge's SHA is deliberately
+NOT named here: it does not exist while this is written, and inventing it would be a false
+provenance claim. **GitHub remains authoritative for live branch and PR state — resolve it
+there, never from this document.**
 
 **The next unresolved code task is DEFECT B** — an evidence-derived confirmation wait,
 DERIVED from the ACTUAL auto-selected live weapon and the CURRENT engagement distance

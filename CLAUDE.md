@@ -1213,8 +1213,10 @@ second factor is bundled in (§8).
   and its non-docstring/non-comment token stream was verified identical to `c306455`.
   **CUMULATIVE SCOPE: EXACTLY FIVE FILES** — `src/match_aou/rl/action/graph_effect.py`
   (the sole runtime change), `src/match_aou/rl/action/graph_action.py` and
-  `src/match_aou/rl/training/graph_fuel_damage.py` (both DOCUMENTATION-ONLY, token streams
-  verified identical to the base), plus `tests/test_graph_fuel_damage.py` and
+  `src/match_aou/rl/training/graph_fuel_damage.py` (both DOCUMENTATION-ONLY: their
+  docstring text necessarily CHANGED, so their complete token streams are NOT identical —
+  what was verified identical to the base is their NON-DOCSTRING / NON-COMMENT,
+  runtime-relevant token stream), plus `tests/test_graph_fuel_damage.py` and
   `tests/test_graph_setup_seam.py`. No BLADE, executor, tick-loop, PPO, encoder, reward,
   solver, generator, scenario, seed-schedule, fuel-damage-mechanism, trainer, rollout,
   preset or artifact file was touched.
@@ -1254,9 +1256,14 @@ second factor is bundled in (§8).
   `training_output_20260815_173029`, from clean `main` at
   `238062d7d284334432d9c39d7543fb0bbf39ea7c` — and it established HARNESS AND ACCOUNTING
   OPERABILITY ONLY: it also exposed three research-validity defects (next bullet), so its
-  reward numbers are NOT scientific evidence about the fuel-damage cell. **NOTHING has yet
-  measured the CORRECTED cell**: no live BLADE/BONMIN episode, training run, rollout or
-  probe has been executed against it. The gate is therefore a RERUN of the SAME bounded
+  reward numbers are NOT scientific evidence about the fuel-damage cell. **What exists for
+  the CORRECTED cell is IMPLEMENTATION evidence, not PERFORMANCE evidence.** The merged
+  Defect-A work carries real-BLADE and BONMIN-backed proof-test evidence (§7) — a real
+  `Game`, a real launched aircraft, a real executor-issued route replaced by the ride home,
+  and the setup-seam solver tier green under BONMIN — but **those tests validate
+  IMPLEMENTATION SEAMS ONLY**. **No scientific probe, training/performance run, rollout or
+  baseline has measured the CORRECTED cell**, so NO SCIENTIFIC PERFORMANCE CLAIM about it
+  exists and none may be made. The gate is therefore a RERUN of the SAME bounded
   probe shape — separately authorized, and only once Defects A, B and C **and** the
   documentation/lock duty each carries have ALL closed. It must report:
   complete provenance; explicit denominators everywhere; the scheduled clean vs damaged
@@ -1292,24 +1299,33 @@ second factor is bundled in (§8).
   (`5.000007394910353e-7`, 4/4). That cell had no difficulty factor; **those numbers are
   not evidence about the fuel-damage cell** and must not be reused as its baseline.
 - **The three research-validity defects the first short probe exposed — DEFECT A is
-  CLOSED; DEFECTS B and C remain OPEN.** They are corrected ONE AT A TIME, each as its own
-  reviewed, separately locked task; none may be bundled with another or with the rerun.
+  CLOSED; DEFECTS B and C remain OPEN.** **SEQUENTIAL-DEFECT POLICY:** the DEFAULT
+  breakdown is A, then B, then C — each its own separately reviewed, separately locked
+  task — and the probe rerun is a task of its own, never folded into a defect fix. That
+  default is a working decision, NOT an absolute prohibition: if FOCUSED RECON proves that
+  two defects are technically INSEPARABLE and that bundling them is MATERIALLY SAFER than
+  splitting them, **STOP and obtain an explicit GPT / user decision before changing the
+  breakdown** — recon alone never authorizes the change. **Bundling is NOT authorized
+  now**, and the default sequence stands until such a decision is recorded.
   - **Defect A — `SELF_PRESERVATION_ABORT` was node-scoped, not an ego-global abort:
     CLOSED / MERGED / APPROVED.** Approved `d56fda6`, integrated by `f094e0b` (PR #17) —
     the lock and its evidence are in §7, the contract in §5 Stages 4 and 5. It changed
     abort SEMANTICS only; the `k × 3` action surface, PPO, reward, fuel-damage mechanism
     and BLADE are untouched.
   - **Defect B — PREMATURE ATTACK RE-FIRE EXHAUSTS WEAPONS: OPEN, and THE NEXT UNRESOLVED
-    CODE TASK.** `GraphPlanExecutor.kill_confirm_ticks` is a fixed 60-tick constant, so a
-    slower salvo still in flight can let the window expire and a redundant second salvo
-    consume the last weapons — measured in the `post_update` damaged eval seed `1000003`,
+    CODE TASK.** `GraphPlanExecutor.kill_confirm_ticks` is CONFIGURABLE through the
+    executor's constructor (`kill_confirm_ticks=60` default, §5), but no caller passes it,
+    so the CURRENT path runs a FIXED 60-tick confirmation wait. A slower salvo still in
+    flight can therefore let that wait expire and a redundant second salvo consume the last
+    weapons — measured in the `post_update` damaged eval seed `1000003`,
     where a B-2 reached its final known target with ZERO onboard weapons and then loitered
     to fuel exhaustion. Code anchors: `GraphPlanExecutor.kill_confirm_ticks`,
     `GraphPlanExecutor._command_for_ego`, `Game.handle_aircraft_attack`,
-    `weaponEngagement.launch_weapon`. **Approved direction:** do NOT merely raise the
-    constant — DERIVE a conservative confirmation wait from the ACTUAL auto-selected live
-    weapon and the CURRENT engagement distance, preserving current lethality and FROZEN
-    BLADE behaviour. A probabilistic-miss / weapons-exhaustion redesign stays OUT of scope
+    `weaponEngagement.launch_weapon`. **Defect B concerns REPLACING that current fixed wait
+    with an EVIDENCE-DERIVED one**: do NOT merely raise the default — DERIVE a conservative
+    confirmation wait from the ACTUAL auto-selected live weapon and the CURRENT engagement
+    distance, preserving current lethality and FROZEN BLADE behaviour. A
+    probabilistic-miss / weapons-exhaustion redesign stays OUT of scope
     unless the evidence requires it. NOT IMPLEMENTED — nothing may be pre-claimed for it.
   - **Defect C — RTB ISSUANCE is not physical RTB COMPLETION: OPEN, and follows B.**
     `GraphPlanExecutor.is_done()` treats the `rtb_issued` lifecycle LATCH as RTB-resolved
