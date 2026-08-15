@@ -306,9 +306,10 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 
 **Encode + decide (Stage 4) — `rl/agent/graph_encoder.py` + `rl/action/graph_action.py`.**
 `GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the **hook for the future centralized critic** (no value head yet). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]`. `build_action_mask(obs, ...) -> [k,3]` (hard physical/structural legality; `OPPORTUNISTIC_ENGAGEMENT` gated by `unassigned` AND `sensed`). `sample_action(logits, mask, deterministic=False) -> (meta:int, node_v:int, log_prob, entropy)`. `evaluate_action(logits, mask, meta, node_v) -> (log_prob, entropy)` re-scores a stored decision through the SAME private `_masked_dist` construction site (grad-mode caller-controlled; masked / out-of-bounds cells fail loud). **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
+**SELECTION CONTRACT (locked by Defect A, `d56fda6`).** The action surface REMAINS `k × 3`, and EVERY meta-action retains NODE-INDEXED SELECTION IDENTITY: the selected `(node_v, meta_action)` cell is what `sample_action` samples, what `Transition` stores, and what `evaluate_action` re-scores under PPO, with `node_v` still bounds-checked to `[0, k)`. **Selection identity is NOT effect scope**, and the three members differ on the second: `PLAN_COMPLIANCE` performs NO plan edit; `OPPORTUNISTIC_ENGAGEMENT` has a NODE-LOCAL effect (it assigns the ego to THAT task node); `SELF_PRESERVATION_ABORT` has an EGO-GLOBAL effect (Stage 5). `build_action_mask` governs SELECTION only — its per-column legality rules, `NUM_META_ACTIONS`, the logit/mask shape and the sampling/evaluation action identities are all UNCHANGED by Defect A.
 
 **Effect (Stage 5) — `rl/action/graph_effect.py`.**
-`apply_meta_action(solution, obs, ego_id, meta_action, node_v, tasks) -> new_solution`. PURE (BLADE-free, torch-free), copy-on-write (`_copy_solution`, never mutates input). engage = add ego→task assignment; abort = drop the ego's assignments; comply = no-op. Does NOT touch the graph — the edge appears on the next rebuild.
+`apply_meta_action(solution, obs, ego_id, meta_action, node_v, tasks) -> new_solution`. PURE (BLADE-free, torch-free), copy-on-write (`_copy_solution`, never mutates input). comply = no-op; engage = add an ego→task assignment AT THE SELECTED NODE. **ABORT IS EGO-GLOBAL (locked by Defect A, `d56fda6`):** selecting `SELF_PRESERVATION_ABORT` on ANY legal cell clears **ALL** of the acting ego's REMAINING assignments, and **the selected node does NOT scope the effect** — every legal abort cell of a given ego therefore produces the identical empty slice. Only `solution[str(ego_id)]` is written: **peer assignment slices, peer beliefs and every task list stay untouched**, `tasks` remains append-only, and `GraphPlanExecutor.done` is not reset. An ego with no key already has an empty mission, so the dict SHAPE is preserved as found (no key is invented). The layer stays PURE and **issues no BLADE command of any kind**: `graph_tick_loop._wake_decision` resyncs ONLY the acting ego's executor slice, and the resulting EMPTY PLAN reaches `GraphPlanExecutor.next_actions` in **Phase 2 of the SAME tick** — the wake, this plan edit and the resync all happen in Phase 1, before any `env.step` — where the PRE-EXISTING empty-plan branch emits the single latched `aircraft_return_to_base`. Nothing new was built for RTB. Does NOT touch the graph — the edge appears on the next rebuild.
 
 **Resync (Stage 6)** — `GraphPlanExecutor.resync` (above): swaps the ego's plan slice without resetting `done`.
 
@@ -1186,17 +1187,78 @@ second factor is bundled in (§8).
   seams. **This lock certifies the HARNESS, not the cell**: no reward improvement and no
   fuel-damage behaviour has been measured on it. §8 still owns the gate.
 
+- `d56fda6` — **DEFECT A: ego-global `SELF_PRESERVATION_ABORT` — CLOSED / MERGED /
+  APPROVED.** Approved candidate SHA `d56fda636ab5ec1a5cce6076f07acac5556d10cb`,
+  integrated by merge commit `f094e0b32e5e67b79757edbfe4e73c1fe01b0a87` (PR #17). The
+  candidate was merged with a MERGE COMMIT and preserved as its SECOND PARENT; candidate
+  and integration share the identical tree `70e5af2446f0a1b0674eb10819c9451753260560`, and
+  the candidate→integration comparison contains ZERO changed files. Grade A under
+  `GPT_GITHUB`, implementation mode SURGICAL. The technical contract is in §5 (Stage 4
+  SELECTION, Stage 5 EFFECT); this entry records the LOCK, not the mechanism.
+  **THE DEFECT.** The first executed bounded short probe (`training_output_20260815_173029`,
+  from `238062d7d284334432d9c39d7543fb0bbf39ea7c`) showed `apply_meta_action` removing only
+  the assignments whose `task_idx == node_v`, so SPA aborted ONE TASK rather than the ego's
+  MISSION — playback showed a fuel-damaged KC-135 selecting SPA while its BLADE route
+  continued and further assignments remained. The approved behaviour is an EGO-GLOBAL
+  mission abort, reaching the ALREADY-EXISTING wake → resync → empty-plan → single-latched-RTB
+  path. **The `k × 3` action head was NOT redesigned.**
+  **APPEND-ONLY FIX CHAIN, two commits on one branch and one PR.** The first candidate
+  `c306455085de408c7bf383135c27e600ff3f1428` received REQUEST-FIXES for THREE
+  documentation inaccuracies — a comment claiming the RTB is issued "on the next tick"
+  (it is issued on the next `GraphPlanExecutor.next_actions` call, which is Phase 2 of the
+  SAME tick), a stale `graph_fuel_damage` docstring still saying SPA would "drop the
+  assignment", and a `MetaAction` docstring wrongly grouping `PLAN_COMPLIANCE` with
+  `OPPORTUNISTIC_ENGAGEMENT` as acting on the selected node. The correction landed as a NEW
+  CHILD COMMIT `d56fda6` — never amend, rebase, squash, force-push or history rewrite —
+  and its non-docstring/non-comment token stream was verified identical to `c306455`.
+  **CUMULATIVE SCOPE: EXACTLY FIVE FILES** — `src/match_aou/rl/action/graph_effect.py`
+  (the sole runtime change), `src/match_aou/rl/action/graph_action.py` and
+  `src/match_aou/rl/training/graph_fuel_damage.py` (both DOCUMENTATION-ONLY, token streams
+  verified identical to the base), plus `tests/test_graph_fuel_damage.py` and
+  `tests/test_graph_setup_seam.py`. No BLADE, executor, tick-loop, PPO, encoder, reward,
+  solver, generator, scenario, seed-schedule, fuel-damage-mechanism, trainer, rollout,
+  preset or artifact file was touched.
+  **PROOF OBLIGATIONS.** PO1 — ego-global effect and private isolation: a multi-assignment
+  actor across BOTH of its legal abort cells yields the identical empty slice, every peer
+  slice is value-unchanged, the input `solution` and `tasks` are unmutated, out-of-range
+  `node_v` still raises, and the real builder + real `build_action_mask` confirm the `k × 3`
+  shape with abort legal on exactly the ego's own assigned nodes. PO2 — the REAL
+  `graph_tick_loop._wake_decision` chain (real builder, mask, `sample_action`,
+  `apply_meta_action` and `GraphPlanExecutor.resync`; only encoder/head stubbed to force a
+  deterministic cell): before Phase 2 the actor's belief slice and executor plan are both
+  empty while every peer is unchanged, then exactly ONE `aircraft_return_to_base`, no stale
+  move/attack for that ego, and no second RTB toggle. PO3 — a solver-free REAL-BLADE tier:
+  a real launched aircraft flying a real executor-issued mission route has `rtb` set, the
+  stale waypoint removed and a route ending at its ACTUAL home base, with no second
+  executor RTB; `Game.py` is byte-unchanged.
+  **VERIFIED at the approved head:** full base suite **238 passed, 4 skipped** (235 → 238);
+  focused base pytest (fuel damage, setup seam, action evaluate, import purity) **70 passed,
+  4 skipped**; `tests/test_graph_fuel_damage.py` standalone `nlp_env` runner **37 passed**;
+  `tests/test_graph_setup_seam.py` standalone `nlp_env` runner **20 passed, 0 skipped**,
+  including the real-BLADE + BONMIN solver tier with no `CRASH`/`Traceback`; both
+  action-layer selftests green under `nlp_env`; `git diff --check` clean. Falsifiability was
+  demonstrated: with the old node-filtered body temporarily restored all four regressions
+  fail and the `graph_effect` selftest fails at case (3); the mutation was reverted
+  byte-identically and is not in the history.
+  **NO scientific probe, training run, rollout or baseline was executed.** **This closes
+  DEFECT A ONLY — Defects B and C remain OPEN (§8).**
+
 ---
 
 ## 8. OPEN (not built)
 
-- **THE NEXT GATE — a fresh SHORT INSTRUMENTED PROBE on the FINAL fuel-damage cell.**
-  Difficulty selection is CLOSED (next item) and FD-BASELINE-v1 is merged and locked
-  (`a8669f4`, §7), so the open question is no longer *what* to build but *how the built
-  cell behaves* — and NOTHING has measured that. **No live BLADE/BONMIN episode, training
-  run, rollout or probe has been executed against the fuel-damage cell**; the lock rests
-  entirely on solver-free tests through stubbed engine seams. The next task is therefore
-  a bounded, separately authorized short probe of the merged cell, which must report:
+- **THE NEXT GATE — a RERUN of the bounded SHORT INSTRUMENTED PROBE, gated behind the
+  three research-validity defects.** Difficulty selection is CLOSED (next item) and
+  FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so the open question is no longer
+  *what* to build but *how the built cell behaves*. That probe HAS NOW BEEN RUN ONCE —
+  `training_output_20260815_173029`, from clean `main` at
+  `238062d7d284334432d9c39d7543fb0bbf39ea7c` — and it established HARNESS AND ACCOUNTING
+  OPERABILITY ONLY: it also exposed three research-validity defects (next bullet), so its
+  reward numbers are NOT scientific evidence about the fuel-damage cell. **NOTHING has yet
+  measured the CORRECTED cell**: no live BLADE/BONMIN episode, training run, rollout or
+  probe has been executed against it. The gate is therefore a RERUN of the SAME bounded
+  probe shape — separately authorized, and only once Defects A, B and C **and** the
+  documentation/lock duty each carries have ALL closed. It must report:
   complete provenance; explicit denominators everywhere; the scheduled clean vs damaged
   populations; matched-pair yield and the paired reward delta with its pair denominator;
   failures by pipeline stage; how often the event actually fired, woke the selected ego,
@@ -1229,6 +1291,38 @@ second factor is bundled in (§8).
   24 transitions, two productive PPO updates and a final held-out numerical zero
   (`5.000007394910353e-7`, 4/4). That cell had no difficulty factor; **those numbers are
   not evidence about the fuel-damage cell** and must not be reused as its baseline.
+- **The three research-validity defects the first short probe exposed — DEFECT A is
+  CLOSED; DEFECTS B and C remain OPEN.** They are corrected ONE AT A TIME, each as its own
+  reviewed, separately locked task; none may be bundled with another or with the rerun.
+  - **Defect A — `SELF_PRESERVATION_ABORT` was node-scoped, not an ego-global abort:
+    CLOSED / MERGED / APPROVED.** Approved `d56fda6`, integrated by `f094e0b` (PR #17) —
+    the lock and its evidence are in §7, the contract in §5 Stages 4 and 5. It changed
+    abort SEMANTICS only; the `k × 3` action surface, PPO, reward, fuel-damage mechanism
+    and BLADE are untouched.
+  - **Defect B — PREMATURE ATTACK RE-FIRE EXHAUSTS WEAPONS: OPEN, and THE NEXT UNRESOLVED
+    CODE TASK.** `GraphPlanExecutor.kill_confirm_ticks` is a fixed 60-tick constant, so a
+    slower salvo still in flight can let the window expire and a redundant second salvo
+    consume the last weapons — measured in the `post_update` damaged eval seed `1000003`,
+    where a B-2 reached its final known target with ZERO onboard weapons and then loitered
+    to fuel exhaustion. Code anchors: `GraphPlanExecutor.kill_confirm_ticks`,
+    `GraphPlanExecutor._command_for_ego`, `Game.handle_aircraft_attack`,
+    `weaponEngagement.launch_weapon`. **Approved direction:** do NOT merely raise the
+    constant — DERIVE a conservative confirmation wait from the ACTUAL auto-selected live
+    weapon and the CURRENT engagement distance, preserving current lethality and FROZEN
+    BLADE behaviour. A probabilistic-miss / weapons-exhaustion redesign stays OUT of scope
+    unless the evidence requires it. NOT IMPLEMENTED — nothing may be pre-claimed for it.
+  - **Defect C — RTB ISSUANCE is not physical RTB COMPLETION: OPEN, and follows B.**
+    `GraphPlanExecutor.is_done()` treats the `rtb_issued` lifecycle LATCH as RTB-resolved
+    and `run_episode` stops when `is_done()` becomes true, so an episode can end while the
+    aircraft is still airborne — measured in the `post_update` damaged eval seed `1000000`,
+    which recorded `dead=0` and reward 0 for an ego that could not physically reach home.
+    The correction must separate "RTB command issued" from "RTB physically resolved" (a
+    non-dead ego must actually be landed / in an airbase before episode completion) while
+    PRESERVING the single-issue RTB toggle protection. NOT IMPLEMENTED.
+  **Gating, unchanged by Defect A's closure:** the vendored BLADE engine stays FROZEN
+  unless separately authorized (§2); the LONG BASELINE stays BLOCKED / UNAUTHORIZED; and
+  the short probe is NOT rerun until A, B and C plus their documentation and locks have
+  ALL closed. No result may be pre-claimed for B, C or the rerun.
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
