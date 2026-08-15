@@ -21,9 +21,11 @@ so flying home is feasible with the engine's own 1.10 reserve while completing t
 and then returning is not. The ego must therefore choose between PLAN_COMPLIANCE (finish
 the route, and on this cell run the tank dry -- ``Game.update_all_aircraft_position``
 removes an aircraft at ``current_fuel <= 0``, which the reward charges at
-``aircraft_penalty_coeff``) and SELF_PRESERVATION_ABORT (drop the assignment, let the
-executor's existing empty-plan branch issue its single RTB, and keep the airframe at the
-cost of the target). Neither branch is forced anywhere: the policy still decides.
+``aircraft_penalty_coeff``) and SELF_PRESERVATION_ABORT (abort the ego's REMAINING
+MISSION -- the effect layer clears ALL of that ego's remaining assignments, not only the
+selected node's -- after which the executor's existing empty-plan path issues its single
+latched RTB, keeping the airframe at the cost of the targets it gives up). Neither branch
+is forced anywhere: the policy still decides.
 
 THE WINDOW IS VALIDATED TWICE: PLANNED, THEN LIVE
 -------------------------------------------------

@@ -77,10 +77,16 @@ class MetaAction(IntEnum):
     logit matrix (e.g. ``mask[v, MetaAction.OPPORTUNISTIC_ENGAGEMENT]``), so member value
     and column index are one and the same by construction.
 
-    SELECTION vs EFFECT: every member is SELECTED per node. PLAN_COMPLIANCE and
-    OPPORTUNISTIC_ENGAGEMENT also ACT on that node; SELF_PRESERVATION_ABORT does NOT —
-    it is an ego-global mission abort, so any legal cell produces the same result (see
-    ``graph_effect.apply_meta_action``).
+    SELECTION vs EFFECT — two separate things. EVERY member keeps the same node-indexed
+    SELECTION identity: what is sampled, stored and re-scored by PPO is a ``(node, meta)``
+    cell. What the chosen cell then DOES to the plan differs per member:
+
+    - PLAN_COMPLIANCE          : no plan edit at all (the node is selection only).
+    - OPPORTUNISTIC_ENGAGEMENT : NODE-LOCAL effect — it assigns the ego to THAT task node.
+    - SELF_PRESERVATION_ABORT  : EGO-GLOBAL effect — it clears the acting ego's whole
+      remaining plan, so every legal cell produces the same result.
+
+    The effects themselves live in ``graph_effect.apply_meta_action``.
     """
 
     PLAN_COMPLIANCE = 0

@@ -205,10 +205,14 @@ def apply_meta_action(
 
     # --- SELF_PRESERVATION_ABORT: EGO-GLOBAL mission abort -------------------
     # The selected cell names WHICH action was taken, not what it reaches: the whole
-    # of THIS ego's remaining plan goes, so the executor's empty-plan branch issues
-    # its single latched RTB on the next tick. An ego with no key already has an empty
-    # mission, so the dict shape is left exactly as it was found — no key is invented
-    # here, and no peer slice is read or written (the no-communication red line).
+    # of THIS ego's remaining plan goes, so the executor's empty-plan branch is reached
+    # on the NEXT ``GraphPlanExecutor.next_actions`` call and issues its single latched
+    # RTB there. Under ``graph_tick_loop.run_episode`` that call is PHASE 2 OF THE SAME
+    # TICK: the wake, this plan edit and the executor resync all happen in Phase 1,
+    # before any ``env.step`` — so the abort reaches BLADE within the tick it was
+    # decided in, not a tick later. An ego with no key already has an empty mission, so
+    # the dict shape is left exactly as it was found — no key is invented here, and no
+    # peer slice is read or written (the no-communication red line).
     if action is MetaAction.SELF_PRESERVATION_ABORT:
         if ego_key in new_solution:
             new_solution[ego_key] = []  # key retained, emptied -> executor RTB
