@@ -51,8 +51,11 @@ F2   THE WINDOW IS RE-VALIDATED AGAINST THE LIVE EVENT STATE
      proven to leave `current_fuel` untouched and the event unfired.
 
 PO3  BEHAVIOURAL AND MEASUREMENT INTEGRATION
-     P3.1  a controlled SELF_PRESERVATION_ABORT empties only the damaged ego's plan and
-           produces exactly ONE existing RTB command (the executor's latch, unchanged);
+     P3.1  a controlled SELF_PRESERVATION_ABORT is EGO-GLOBAL -- it empties the damaged
+           ego's WHOLE remaining plan (never only the selected node's assignment) and
+           only that ego's, producing exactly ONE existing RTB command (the executor's
+           latch, unchanged). P3.1b proves the pure effect-layer scope and isolation;
+           P3.1c drives the real `_wake_decision` -> resync -> RTB chain end to end;
      P3.2  `RewardConfig(aircraft_penalty_coeff=2.25)` really reaches
            `compute_episode_reward` from BOTH harnesses;
      P3.3  matched eval members reuse the identical seed while taking disjoint scenario
@@ -90,7 +93,11 @@ from match_aou.models.agent import Agent  # noqa: E402
 from match_aou.models.location import Location  # noqa: E402
 from match_aou.models.step import Step, StepKind  # noqa: E402
 from match_aou.models.task import Task  # noqa: E402
-from match_aou.rl.action.graph_action import MetaAction  # noqa: E402
+from match_aou.rl.action.graph_action import (  # noqa: E402
+    NUM_META_ACTIONS,
+    MetaAction,
+    build_action_mask,
+)
 from match_aou.rl.action.graph_effect import apply_meta_action  # noqa: E402
 from match_aou.rl.action.graph_trigger import (  # noqa: E402
     NO_TASK_INDEX,
@@ -1034,67 +1041,257 @@ def test_p2_5b_the_trigger_seam_stays_pure_and_edits_nothing() -> None:
 # PO3 -- behavioural and measurement integration
 # =============================================================================
 
+# The ABORT fixture, shared by P3.1 and P3.1b/c: an actor holding TWO assignments at
+# DIFFERENT levels plus an independent peer. The multi-assignment actor is the whole
+# point -- a node-scoped abort would clear only the selected tuple, leave the ego's plan
+# non-empty and therefore emit a MOVE instead of the RTB.
+_ABORT_EGO, _ABORT_PEER = "ego0", "ego1"
+
+
+def _abort_tasks():
+    """Three attack tasks: nodes 0 and 2 belong to the actor, node 1 to the peer."""
+    return [
+        _attack_task("tgt0", _point_at(_BASE, 250.0, 30.0)),   # actor, level 0
+        _attack_task("tgt1", _point_at(_BASE, 250.0, 90.0)),   # peer
+        _attack_task("tgt2", _point_at(_BASE, 260.0, 45.0)),   # actor, level 1
+    ]
+
+
+def _abort_solution():
+    """The actor's mission spans two levels; the peer flies its own single task."""
+    return {_ABORT_EGO: [(0, 0, 0), (2, 0, 1)], _ABORT_PEER: [(1, 0, 0)]}
+
+
+def _abort_agent(aid):
+    return Agent(location=Location(_BASE.latitude, _BASE.longitude), capabilities=[],
+                 budget=1.0, move_cost_function=lambda s, d: 0.0, agent_id=aid,
+                 side_color="blue", home_base_id="base-blue",
+                 return_location=Location(_BASE.latitude, _BASE.longitude))
+
+
+def _abort_world(tasks, solution):
+    """A real `GraphPlanExecutor` plus both egos airborne, mid-leg, far from target."""
+    executor = GraphPlanExecutor(
+        tasks=tasks, solution=solution,
+        agents=[_abort_agent(_ABORT_EGO), _abort_agent(_ABORT_PEER)],
+        arrival_threshold_km=50.0,
+    )
+    mid = _point_at(_BASE, 75.0, 30.0)
+    scenario = _StubScenario(
+        aircraft=[_StubAircraft(_ABORT_EGO, mid.latitude, mid.longitude),
+                  _StubAircraft(_ABORT_PEER, mid.latitude, mid.longitude)],
+        airbases=[_StubAirbase("base-blue", _BASE.latitude, _BASE.longitude)],
+    )
+    return executor, scenario
+
+
+class _AbortGobs:
+    """The single attribute `apply_meta_action` reads off the observation."""
+
+    task_target_ids = ["tgt0", "tgt1", "tgt2"]
+
+
 def test_p3_1_abort_empties_only_the_damaged_ego_and_issues_exactly_one_rtb() -> None:
     """P3.1. The existing effect + executor path, exercised with a controlled abort.
 
-    Nothing new is built for RTB: the abort drops the ego's assignment, the ego's plan
-    becomes empty, and `GraphPlanExecutor`'s pre-existing empty-plan branch issues its
-    single latched `aircraft_return_to_base`. This test locks that the fuel-damage
-    decision reaches BLADE through exactly that path and through no other.
+    Nothing new is built for RTB: the abort clears the ego's WHOLE remaining plan, the
+    ego's plan becomes empty, and `GraphPlanExecutor`'s pre-existing empty-plan branch
+    issues its single latched `aircraft_return_to_base`. This test locks that the
+    fuel-damage decision reaches BLADE through exactly that path and through no other.
+
+    THE REGRESSION: the actor holds TWO assignments and the loop selects each of its
+    legal SELF_PRESERVATION_ABORT cells in turn -- each names only ONE of them. A
+    node-scoped abort leaves the other tuple in place, so the plan stays non-empty, the
+    executor emits a move and NO RTB is ever issued. Both cells must produce the same
+    empty plan and the same single RTB.
     """
-    ego, peer = "ego0", "ego1"
-    t_ego = _point_at(_BASE, 250.0, 30.0)
-    t_peer = _point_at(_BASE, 250.0, 90.0)
-    tasks = [_attack_task("tgt0", t_ego), _attack_task("tgt1", t_peer)]
-    solution = {ego: [(0, 0, 0)], peer: [(1, 0, 0)]}
+    ego, peer = _ABORT_EGO, _ABORT_PEER
 
-    def _agent(aid):
-        return Agent(location=Location(_BASE.latitude, _BASE.longitude), capabilities=[],
-                     budget=1.0, move_cost_function=lambda s, d: 0.0, agent_id=aid,
-                     side_color="blue", home_base_id="base-blue",
-                     return_location=Location(_BASE.latitude, _BASE.longitude))
+    for selected_node in (0, 2):   # both of the actor's legal SPA cells
+        tasks = _abort_tasks()
+        solution = _abort_solution()
+        executor, scenario = _abort_world(tasks, solution)
 
-    executor = GraphPlanExecutor(
-        tasks=tasks, solution=solution, agents=[_agent(ego), _agent(peer)],
-        arrival_threshold_km=50.0,
-    )
-    # Both egos airborne, mid-leg, far from their targets (so the plan is not "done").
+        # Baseline: neither ego is RTB-ing; both are flying their plan.
+        before = executor.next_actions(scenario)
+        assert not any("aircraft_return_to_base" in c for c in before), before
+
+        # The abort itself: the SAME pure effect layer a wake would call, on the damaged
+        # ego's private belief only.
+        new_solution = apply_meta_action(
+            solution, _AbortGobs(), ego,
+            int(MetaAction.SELF_PRESERVATION_ABORT), selected_node, tasks,
+        )
+        assert new_solution[ego] == [], (
+            "abort on node %d left %r: the effect is EGO-GLOBAL, not node-scoped"
+            % (selected_node, new_solution[ego])
+        )
+        assert new_solution[peer] == [(1, 0, 0)], "the peer's plan was edited"
+        assert solution[ego] == [(0, 0, 0), (2, 0, 1)], "apply_meta_action mutated its input"
+
+        executor.resync(new_solution, ego_id=ego, tasks=tasks)
+        assert executor.plans[ego] == [], executor.plans[ego]
+        assert executor.plans[peer] == [(1, 0, 0)], "the peer's executor slice moved"
+
+        commands = executor.next_actions(scenario)
+        rtbs = [c for c in commands if "aircraft_return_to_base" in c]
+        assert rtbs == ["aircraft_return_to_base('%s')" % ego], (selected_node, commands)
+        # ...and nothing stale is still being flown for the aborted ego.
+        assert not any(c.startswith("move_aircraft('%s'" % ego)
+                       or c.startswith("handle_aircraft_attack('%s'" % ego)
+                       for c in commands), commands
+        assert executor.rtb_issued.get(ego) is True
+        assert executor.rtb_issued.get(peer) is not True
+
+        # EXACTLY one: the single-issue latch means a second tick emits no second RTB
+        # (`aircraft_return_to_base` is a TOGGLE in BLADE -- a second one would cancel it).
+        again = executor.next_actions(scenario)
+        assert not any("aircraft_return_to_base" in c for c in again), again
+
+
+def test_p3_1b_abort_is_ego_global_and_every_peer_slice_is_untouched() -> None:
+    """P3.1b (PO1). The pure effect layer: ego-global scope + private isolation.
+
+    Two peers, one of them holding several assignments of its own, so "the acting ego's
+    whole slice and nothing else" is a real claim rather than an artefact of a two-entry
+    dict. The `k x 3` selection surface is asserted UNCHANGED alongside it: the actor
+    still has one legal abort CELL PER assigned node -- which is exactly why selected-node
+    independence has to be proven rather than assumed.
+    """
+    ego = _ABORT_EGO
+    tasks = _abort_tasks()
+    tasks_snapshot = list(tasks)
+    solution = {
+        ego: [(0, 0, 0), (2, 0, 1)],
+        "peer_a": [(1, 0, 0)],
+        "peer_b": [(1, 0, 2), (2, 0, 2)],
+    }
+    snapshot = {k: list(v) for k, v in solution.items()}
+
+    # --- the k x 3 selection surface, from the REAL builder + REAL mask -------------
     mid = _point_at(_BASE, 75.0, 30.0)
     scenario = _StubScenario(
         aircraft=[_StubAircraft(ego, mid.latitude, mid.longitude),
-                  _StubAircraft(peer, mid.latitude, mid.longitude)],
+                  _StubAircraft("peer_a", mid.latitude, mid.longitude),
+                  _StubAircraft("peer_b", mid.latitude, mid.longitude)],
         airbases=[_StubAirbase("base-blue", _BASE.latitude, _BASE.longitude)],
     )
-
-    # Baseline: neither ego is RTB-ing; both are flying their plan.
-    before = executor.next_actions(scenario)
-    assert not any("aircraft_return_to_base" in c for c in before), before
-
-    # The abort itself: the SAME pure effect layer a wake would call, on the damaged
-    # ego's private belief only.
-    class _Gobs:
-        task_target_ids = ["tgt0", "tgt1"]
-
-    new_solution = apply_meta_action(
-        solution, _Gobs(), ego, int(MetaAction.SELF_PRESERVATION_ABORT), 0, tasks
+    gobs = build_graph_observation(
+        scenario=scenario, agent_id=ego, current_plan=solution[ego], current_time=0,
+        tasks=tasks, solution=solution, precedence_relations=[],
+        config=GraphObservationConfig(detection_range_km=50.0),
     )
-    assert new_solution[ego] == [], new_solution
-    assert new_solution[peer] == [(1, 0, 0)], "the peer's plan was edited"
-    assert solution[ego] == [(0, 0, 0)], "apply_meta_action mutated its input"
+    mask = build_action_mask(gobs)
+    assert NUM_META_ACTIONS == 3, NUM_META_ACTIONS
+    assert mask.shape == (len(tasks), NUM_META_ACTIONS), mask.shape
+    spa = int(MetaAction.SELF_PRESERVATION_ABORT)
+    legal_cells = [v for v in range(len(tasks)) if math.isfinite(float(mask[v, spa]))]
+    assert legal_cells == [0, 2], (
+        "abort must stay legal on exactly the ego's own assigned nodes: %r" % (legal_cells,)
+    )
+    assert all(math.isfinite(float(mask[v, int(MetaAction.PLAN_COMPLIANCE)]))
+               for v in range(len(tasks))), mask
 
-    executor.resync(new_solution, ego_id=ego, tasks=tasks)
-    assert executor.plans[peer] == [(1, 0, 0)], "the peer's executor slice moved"
+    # --- every legal cell produces the SAME ego-global result -----------------------
+    results = [
+        apply_meta_action(solution, gobs, ego,
+                          int(MetaAction.SELF_PRESERVATION_ABORT), v, tasks)
+        for v in legal_cells
+    ]
+    for v, out in zip(legal_cells, results):
+        assert out[ego] == [], (
+            "abort on node %d left %r; the effect must be ego-global" % (v, out[ego])
+        )
+        assert out["peer_a"] == [(1, 0, 0)], (v, out["peer_a"])
+        assert out["peer_b"] == [(1, 0, 2), (2, 0, 2)], (v, out["peer_b"])
+    assert results[0] == results[1], (results[0], results[1])
 
-    commands = executor.next_actions(scenario)
-    rtbs = [c for c in commands if "aircraft_return_to_base" in c]
-    assert rtbs == ["aircraft_return_to_base('%s')" % ego], commands
-    assert executor.rtb_issued.get(ego) is True
-    assert executor.rtb_issued.get(peer) is not True
+    # --- purity: the input solution and the task list are untouched -----------------
+    assert solution == snapshot, solution
+    assert tasks == tasks_snapshot and all(a is b for a, b in zip(tasks, tasks_snapshot))
 
-    # EXACTLY one: the single-issue latch means a second tick emits no second RTB
-    # (`aircraft_return_to_base` is a TOGGLE in BLADE -- a second one would cancel it).
-    again = executor.next_actions(scenario)
-    assert not any("aircraft_return_to_base" in c for c in again), again
+    # --- the bounds guard is unchanged ---------------------------------------------
+    for bad_v in (-1, len(tasks)):
+        try:
+            apply_meta_action(solution, gobs, ego,
+                              int(MetaAction.SELF_PRESERVATION_ABORT), bad_v, tasks)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("out-of-range node_v=%r must still raise" % (bad_v,))
+
+
+def test_p3_1c_a_real_wake_decision_aborts_the_whole_ego_and_yields_one_rtb() -> None:
+    """P3.1c (PO2). The REAL wake -> effect -> resync -> single-RTB chain.
+
+    `graph_tick_loop._wake_decision` is the production function under test: it builds the
+    real `GraphObservation`, applies the real `build_action_mask`, decodes the cell
+    through the real `sample_action`, calls the real `apply_meta_action` and the real
+    `GraphPlanExecutor.resync`. ONLY the encoder and the head are stubbed, and only to
+    make the sampled cell deterministic -- they contribute nothing to WHAT the chosen
+    cell does. Both of the actor's legal abort cells are driven, and the selected cell
+    names only one of its two assignments.
+    """
+    ego, peer = _ABORT_EGO, _ABORT_PEER
+    cfg = GraphObservationConfig(detection_range_km=50.0)
+
+    class _ForcedPolicy:
+        """Puts all the mass on ONE (node, meta) cell; `deterministic=True` takes it."""
+
+        def __init__(self, node_v, meta_action):
+            self.node_v, self.meta_action = int(node_v), int(meta_action)
+
+        def encoder(self, gobs):
+            return torch.zeros((int(gobs.task_features.shape[0]), 4), dtype=torch.float32)
+
+        def head(self, emb):
+            logits = torch.zeros((int(emb.shape[0]), NUM_META_ACTIONS), dtype=torch.float32)
+            logits[self.node_v, self.meta_action] = 10.0
+            return logits
+
+    for selected_node in (0, 2):
+        tasks = _abort_tasks()
+        solution = _abort_solution()
+        executor, scenario = _abort_world(tasks, solution)
+        beliefs = {aid: _StubBelief(list(tasks), {k: list(v) for k, v in solution.items()})
+                   for aid in (ego, peer)}
+        peer_solution_before = {k: list(v) for k, v in beliefs[peer].solution.items()}
+
+        # Pre-wake: the actor is flying its plan, nobody is RTB-ing.
+        before = executor.next_actions(scenario)
+        assert not any("aircraft_return_to_base" in c for c in before), before
+
+        transition = graph_tick_loop._wake_decision(
+            _ForcedPolicy(selected_node, int(MetaAction.SELF_PRESERVATION_ABORT)),
+            ego, scenario, beliefs[ego], executor, cfg, tick=7, deterministic=True,
+        )
+        # The real `sample_action` really decoded the forced abort cell.
+        assert transition.meta_action == int(MetaAction.SELF_PRESERVATION_ABORT), transition
+        assert transition.node_v == selected_node, transition
+        assert transition.ego_id == ego and transition.tick == 7
+
+        # BEFORE Phase 2: belief and executor slice are both empty for the actor only.
+        assert beliefs[ego].solution[ego] == [], beliefs[ego].solution
+        assert executor.plans[ego] == [], executor.plans[ego]
+        assert beliefs[ego].solution[peer] == [(1, 0, 0)], beliefs[ego].solution
+        assert executor.plans[peer] == [(1, 0, 0)], executor.plans
+        assert beliefs[peer].solution == peer_solution_before, beliefs[peer].solution
+        assert executor.tasks[peer] == tasks, "the peer's task-view moved"
+
+        # Phase 2: exactly one RTB, for the actor, and nothing stale for it.
+        commands = executor.next_actions(scenario)
+        assert [c for c in commands if "aircraft_return_to_base" in c] == [
+            "aircraft_return_to_base('%s')" % ego], (selected_node, commands)
+        assert not any(c.startswith("move_aircraft('%s'" % ego)
+                       or c.startswith("handle_aircraft_attack('%s'" % ego)
+                       for c in commands), commands
+        # The peer was NOT sent home by the actor's abort -- it is still flying its plan.
+        assert any(c.startswith("move_aircraft('%s'" % peer) for c in commands), commands
+        assert executor.rtb_issued.get(peer) is not True
+
+        # The single-issue latch: no second RTB toggle on the next call.
+        again = executor.next_actions(scenario)
+        assert not any("aircraft_return_to_base" in c for c in again), again
 
 
 def test_p3_2_the_penalty_coefficient_reaches_both_harnesses() -> None:

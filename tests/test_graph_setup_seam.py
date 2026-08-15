@@ -15,7 +15,9 @@ cheap and the expensive ones are still reachable:
   BLADE     -- needs the engine but NOT bonmin. Environment ownership, on both sides of
                `_build_env`'s return: a `reset()` failure INSIDE the builder must close
                the environment the builder had already created, and an injected failure
-               between "env-1 is up" and "A_init exists" must still close env-1.
+               between "env-1 is up" and "A_init exists" must still close env-1. Plus P3:
+               what an ego-global SELF_PRESERVATION_ABORT does to a REAL aircraft that is
+               already flying a stale mission route.
   SOLVER    -- needs BLADE *and* bonmin, so it runs under `nlp_env` only (P1 / P2).
                `conda run -n nlp_env --no-capture-output python tests/test_graph_setup_seam.py`
 
@@ -27,6 +29,11 @@ P1  patch/reload + reproducible source of truth: known targets preserved in orde
     positional indices still valid against the re-materialized env-2 tasks, the SAME
     geometric fingerprint for a repeated setup at the same placement seed (never compared
     by uuid), and env-1 closed on both the success and the injected-failure path.
+P3  real-BLADE stale-route replacement (no solver): an airborne ego flying a real
+    executor-issued mission route has its plan emptied by the ego-global abort; the real
+    `GraphPlanExecutor` empty-plan branch emits exactly ONE `aircraft_return_to_base`,
+    and applying it through the real `Game` action seam sets `rtb`, DROPS the stale
+    waypoint and leaves a route that ends at the aircraft's actual home base.
 P2  private sensing isolation, through the INTEGRATED setup/tick seam: a hidden target
     that the setup really put in the world is reported as sensed by ONE ego, and the real
     `run_episode` Phase-1 chain is what carries it into that ego's belief and executor
@@ -590,6 +597,130 @@ def test_environment_one_is_closed_on_an_injected_failure() -> None:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+@_needs_blade
+def test_blade_abort_replaces_a_stale_route_with_the_home_base_route() -> None:
+    """P3: the ego-global abort really turns a stale BLADE route into the ride home.
+
+    Solver-free -- the plan is hand-built, nothing is solved -- but everything else is
+    real: a real `Game` from `_build_env`, real agents/tasks from `_extract_world`, a
+    real launch, the real `GraphPlanExecutor` producing BOTH the stale mission route and
+    the RTB command, the real `graph_effect.apply_meta_action` emptying the plan, and the
+    real `Game.handle_action` applying each command.
+
+    The ego is given TWO assignments and the abort names only the FIRST, so under the
+    retired node-scoped behaviour its plan would stay non-empty, the executor would keep
+    issuing moves and no RTB would ever reach the engine.
+
+    `Game.handle_action` `exec`s and swallows exceptions (it prints them), so a command
+    that silently did nothing would still "succeed". Every step below is therefore
+    asserted against the ENGINE STATE it produced, never against the absence of a raise.
+    """
+    from match_aou.rl.action.graph_action import MetaAction
+    from match_aou.rl.action.graph_effect import apply_meta_action
+    from match_aou.rl.training import graph_episode_setup as ges
+    from match_aou.utils.blade_utils.blade_graph_executor import GraphPlanExecutor
+
+    game, env, obs = ges._build_env(
+        BASE_SCENARIO.read_text(encoding="utf-8"),
+        max_episode_steps=MAX_SIM_TICKS,
+        attacking_side_color=ATTACKING_SIDE_COLOR,
+        record_every_seconds=10,
+        recording_export_path=None,
+    )
+    try:
+        agents, tasks = ges._extract_world(obs, ATTACKING_SIDE_COLOR)
+        assert len(agents) >= 1 and len(tasks) >= 2, (len(agents), len(tasks))
+        agent = agents[0]
+        ego = str(agent.id)
+        home_id = str(agent.home_base_id)
+
+        scenario = game.current_scenario
+
+        # (1) A REAL launch: the ego leaves its airbase inventory and goes airborne.
+        launched = game.launch_aircraft_from_airbase(home_id, ego)
+        assert launched is not None, "the targeted launch did not happen"
+        aircraft = scenario.get_aircraft(ego)
+        assert aircraft is not None, "the ego is not airborne after the launch"
+        assert not aircraft.route, aircraft.route
+        assert aircraft.rtb is False, aircraft.rtb
+
+        home = scenario.get_aircraft_homebase(ego)
+        assert home is not None and str(home.id) == home_id, home
+        home_waypoint = [home.latitude, home.longitude]
+
+        # (2) TWO assignments at different levels; only the level-0 one is eligible now.
+        #     The level-0 target must sit OUTSIDE the ego's detection radius, or the
+        #     executor would ENGAGE it instead of moving and no route would be laid --
+        #     the template's nearest red unit is a SAM facility only ~45 km out.
+        launch_point = Location(aircraft.latitude, aircraft.longitude)
+        by_distance = sorted(
+            range(len(tasks)),
+            key=lambda i: launch_point.distance_to(tasks[i].steps[0].location),
+        )
+        far_idx, next_idx = by_distance[-1], by_distance[-2]
+        assert launch_point.distance_to(tasks[far_idx].steps[0].location) > DETECTION_KM, (
+            "the level-0 target is already in engagement range; no route would be laid"
+        )
+        solution = {ego: [(far_idx, 0, 0), (next_idx, 0, 1)]}
+        executor = GraphPlanExecutor(
+            tasks=tasks, solution=solution, agents=agents,
+            arrival_threshold_km=DETECTION_KM,
+        )
+
+        # (3) The STALE mission route -- issued by the real executor, applied by the
+        #     real engine. It points at an enemy target, not at home.
+        move_commands = executor.next_actions(scenario)
+        assert move_commands == ["move_aircraft('%s', [[%s, %s]])" % (
+            ego, tasks[far_idx].steps[0].location.latitude,
+            tasks[far_idx].steps[0].location.longitude)], move_commands
+        game.handle_action(move_commands)
+
+        stale_route = [list(wp) for wp in aircraft.route]
+        assert stale_route, "the engine did not store the mission route"
+        assert stale_route[-1] != home_waypoint, (
+            "the mission route already ends at home; it is not a stale route"
+        )
+
+        # (4) The ego-global abort, naming only the FIRST of the two assignments.
+        class _Gobs:
+            task_target_ids = [str(t.steps[0].target_id) for t in tasks]
+
+        new_solution = apply_meta_action(
+            solution, _Gobs(), ego, int(MetaAction.SELF_PRESERVATION_ABORT), far_idx, tasks
+        )
+        assert new_solution[ego] == [], (
+            "the abort left %r; a non-empty plan never reaches the RTB branch"
+            % (new_solution[ego],)
+        )
+        executor.resync(new_solution, ego_id=ego, tasks=tasks)
+        assert executor.plans[ego] == [], executor.plans[ego]
+
+        # (5) The empty-plan branch: exactly ONE RTB command, and nothing else.
+        rtb_commands = executor.next_actions(scenario)
+        assert rtb_commands == ["aircraft_return_to_base('%s')" % ego], rtb_commands
+        game.handle_action(rtb_commands)
+
+        # (6) What the REAL engine did with it.
+        assert aircraft.rtb is True, "Game.aircraft_return_to_base did not set rtb"
+        route = [list(wp) for wp in aircraft.route]
+        assert route == [home_waypoint], (
+            "the route must be replaced by the ride home, got %r (home %r)"
+            % (route, home_waypoint)
+        )
+        for waypoint in stale_route:
+            assert waypoint not in route, (
+                "stale waypoint %r survived the RTB" % (waypoint,)
+            )
+        assert str(aircraft.home_base_id) == home_id, aircraft.home_base_id
+
+        # (7) No second RTB: a second `aircraft_return_to_base` is a TOGGLE and would
+        #     cancel the one just issued. The executor's latch is what prevents it.
+        assert executor.next_actions(scenario) == [], "a second RTB command was emitted"
+        assert aircraft.rtb is True and [list(wp) for wp in aircraft.route] == route
+    finally:
+        env.close()
+
+
 # =============================================================================
 # SOLVER (BLADE + bonmin) -- P1 and P2 end to end
 # =============================================================================
@@ -879,6 +1010,7 @@ def _run_all() -> None:
         needs_solver = name.startswith("test_p1") or name.startswith("test_p2")
         needs_blade = (
             needs_solver or "environment_one" in name or "build_env" in name
+            or name.startswith("test_blade")
         )
         if needs_solver and not HAVE_SOLVER:
             print("[SKIP] %s (needs BLADE + bonmin)" % name)
