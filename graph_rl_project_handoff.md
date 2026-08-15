@@ -2,7 +2,9 @@
 
 **Supersedes all earlier handoffs.**
 
-Written 2026-08-11; updated 2026-08-14 for the final-cell PROBE HARNESS closure below.
+Written 2026-08-11; updated 2026-08-14 for the final-cell PROBE HARNESS closure, and
+2026-08-15 to record the FIRST EXECUTED bounded short probe and the three
+research-validity defects it exposed (§3d).
 B1–B4, the first real post-B3 instrumented probe, the B4 observability follow-up (PR #7),
 **FD-BASELINE-v1** (PR #8), **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10), the repository
 code-hygiene cleanup (PR #11), the documentation hygiene (PR #12) and now the
@@ -11,10 +13,14 @@ behaviour: the solver, BLADE, reward, fuel-damage semantics, PPO math, seed sche
 scenario construction and matched-pair evaluation are exactly as their own locks left them.
 
 Baseline **difficulty selection is finished**, the **inspection surface is in place**, and
-the **operator harness a probe is driven from — preset, run layout and figures — is now
-merged**. What has NOT happened is any measurement of the resulting cell. The next task is
-a bounded short scientific probe of the merged fuel-damage configuration, before any long
-baseline.
+the **operator harness a probe is driven from — preset, run layout and figures — is
+merged**. The bounded short probe HAS NOW BEEN RUN ONCE
+(`training_output_20260815_173029`, from clean `main` at
+`238062d7d284334432d9c39d7543fb0bbf39ea7c`). It passed every mechanical harness and
+accounting check **and** exposed three research-validity defects (§3d). The next task is
+therefore no longer the probe itself but a **Grade-A research-validity correction** of
+those defects, after which the SAME bounded probe shape is rerun once and reviewed. **A
+long baseline remains UNAUTHORIZED.**
 
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
@@ -98,11 +104,27 @@ cross-references it rather than duplicating it.
   rebase, force-push or history rewrite. §3c summarizes it; `CLAUDE.md` §5, §6 and §7 own
   the contract, routing and lock.
 
-- **No scientific probe or training run has been performed on the merged final cell.**
-  Every test behind every one of these locks is solver-free and drives the pipeline through
-  stubbed engine seams. The locks certify implementation; they say nothing about how the
-  cell behaves. **The harness lock in particular measured nothing**: it certifies that a
-  probe can be configured, run and read, not that the cell learns anything.
+- **No scientific probe or training run had been performed on the merged final cell at the
+  time of the locks above.** Every test behind every one of these locks is solver-free and
+  drives the pipeline through stubbed engine seams. The locks certify implementation; they
+  say nothing about how the cell behaves. **The harness lock in particular measured
+  nothing**: it certifies that a probe can be configured, run and read, not that the cell
+  learns anything. That measurement gap is now PARTLY closed — and only partly — by the
+  executed short probe recorded in the next bullet and detailed in §3d.
+- **FIRST BOUNDED SHORT PROBE OF THE FINAL FUEL-DAMAGE CELL — EXECUTED / REVIEWED /
+  SCIENTIFICALLY INCONCLUSIVE.** Run `training_output_20260815_173029`, executed from a
+  clean checkout at exact code SHA `238062d7d284334432d9c39d7543fb0bbf39ea7c`. It confirms
+  HARNESS AND ACCOUNTING OPERABILITY and nothing more: the process exited normally,
+  `run_summary.json` reported `accounting_reconciled=true`, training accounting was 8
+  attempted / 6 successful / 2 `setup` failures, evaluation was 16/16 successful with 4/4
+  complete matched pairs in BOTH the `pre_update` and the `post_update` round, and two
+  productive PPO updates completed. It ALSO exposed three research-validity defects in
+  merged, previously locked behaviour — abort semantics, premature attack re-fire, and
+  episode termination on RTB ISSUANCE rather than RTB COMPLETION. **Its post-update reward
+  improvement is therefore NOT final scientific evidence about the fuel-damage cell**, and
+  **a long baseline stays BLOCKED**. §3d records the run state, the three defects and the
+  decided direction; the correction is a FUTURE Grade-A task and is **not implemented at
+  the SHA above**.
 - **Repository documentation hygiene — CLOSED / APPROVED / MERGED.** Approved candidate
   `52064c2d306df7c8447d159df20e6e189a59bf85`, integrated by
   `5f78904e3af1e2e47386c9b0e01ddbaa273724f5` (PR #12); the approved candidate tree was
@@ -246,10 +268,107 @@ short form.
   was executed for this PR; every test is solver-free, and the figures were rendered from
   SYNTHETIC records.
 
-## 4. Next task — a bounded SHORT SCIENTIFIC PROBE of the merged fuel-damage cell
+## 3d. The executed bounded short probe — operability CONFIRMED, scientific reading BLOCKED
 
-Start with fresh exact-SHA initialization against the new `main`. **This documentation
-task neither authorizes nor runs the probe.**
+Run identifier `training_output_20260815_173029`, executed from a clean checkout at exact
+code SHA `238062d7d284334432d9c39d7543fb0bbf39ea7c`, in the merged preset's shape: 2
+scheduled training iterations × 4 scheduled attempts, plus the fixed held-out matched
+`pre_update` / `post_update` rounds.
+
+**What it establishes — harness and accounting OPERABILITY only.**
+
+- the process exited normally;
+- `run_summary.json` reported `accounting_reconciled=true`;
+- training accounting: **8 attempted, 6 successful, 2 `setup` failures**;
+- evaluation accounting: **16/16 successful**, with **4/4 complete matched pairs in the
+  `pre_update` round and 4/4 in the `post_update` round**;
+- **two productive PPO updates** completed.
+
+These facts say the instrument runs and accounts for itself. They do **not** authorize the
+long baseline, because the same run exposed the three research-validity defects below.
+
+**Defect A — `SELF_PRESERVATION_ABORT` is node-indexed, not an ego-global abort.**
+
+- At this SHA `graph_effect.apply_meta_action` removes only the assignment(s) whose
+  `task_idx == node_v`, so SPA aborts ONE task rather than the ego's mission.
+- Probe playback showed a fuel-damaged KC-135 selecting SPA while its existing BLADE route
+  continued and further assignments remained.
+- **User decision for the NEXT CODE TASK:** the desired behaviour is an **ego-global
+  mission abort** — selecting `SELF_PRESERVATION_ABORT` must clear ALL of that ego's
+  remaining assignments, so the executor reaches its empty-plan RTB path. **This is a
+  decision about future work; it is NOT implemented at the SHA above.**
+- The existing `k × 3` action-head structure is **not** authorized for redesign by this
+  record. The next code task determines the minimal contract-safe implementation and tests
+  it end to end.
+- Execution-seam fact that narrows the diagnosis: `graph_tick_loop._wake_decision` already
+  resyncs the edited ego plan before Phase 2, and an actually EMPTY plan should make
+  `GraphPlanExecutor` emit `aircraft_return_to_base`, whose BLADE handling replaces the
+  stale route with the home-base route. The observed stale route is therefore currently
+  explained by SPA not emptying the plan — **not** by evidence of a missing resync call.
+
+**Defect B — premature re-fire exhausts weapons.**
+
+- In the `post_update` damaged eval seed `1000003`, B-2 Spirit #698 engaged its
+  route-relative hidden targets successfully but reached the final known target
+  `Floridistan AFB #4067` with **zero onboard weapons**, and then remained over it until
+  fuel exhaustion.
+- Artifact reconstruction of the sequence: at approximately t=5140 the final 2 AIM-120
+  launched at Hidden Airbase #003; at approximately t=5240 2 AIM-9 launched at Hidden
+  Airbase #001 from about 47.2 km; at approximately t=5300, before that slower AIM-9 salvo
+  resolved, the fixed 60-tick confirmation cooldown expired and a redundant second salvo
+  consumed the final 2 AGM-65 — and the AIM-9 salvo killed the target in that same engine
+  update, leaving the B-2 with no weapons for the final known target.
+- Code anchors: `GraphPlanExecutor.kill_confirm_ticks`,
+  `GraphPlanExecutor._command_for_ego`, `Game.handle_aircraft_attack`,
+  `weaponEngagement.launch_weapon`.
+- **Design direction for the next code task:** do NOT merely raise the constant blindly.
+  Derive a conservative confirmation wait from the ACTUAL auto-selected live weapon and the
+  current engagement distance, while preserving current lethality and frozen BLADE
+  behaviour. Unrelated future probabilistic-miss / weapons-exhaustion redesign stays OUT of
+  scope unless the evidence requires it.
+
+**Defect C — RTB ISSUANCE is not physical RTB COMPLETION.**
+
+- `GraphPlanExecutor.is_done()` currently treats the `rtb_issued` lifecycle latch as
+  RTB-resolved, and `run_episode` stops when `executor.is_done()` becomes true — so an
+  episode may end immediately after an RTB command while the aircraft is still airborne.
+- In the `post_update` damaged eval seed `1000000`, the damaged KC-135 completed its work
+  and an RTB command was eventually issued while it no longer had enough fuel to physically
+  reach home; the episode nevertheless ended before the resulting fuel exhaustion / death
+  could occur, recorded `dead=0`, and contributed reward 0.
+- The next code task must separate **"RTB command issued"** from **"RTB physically
+  resolved"**: a non-dead ego must actually be back in an airbase / landed before episode
+  completion. The single-issue RTB toggle protection is preserved.
+
+**Scientific interpretation.**
+
+- The first probe is USEFUL and did its job: it successfully exposed these defects.
+- Its post-update reward improvement **must NOT** be treated as final scientific evidence
+  for the fuel-damage cell, because episode termination (Defect C) and abort semantics
+  (Defect A) can distort the measured airframe penalty — precisely the quantity
+  FD-BASELINE-v1 exists to make real.
+- **The long baseline remains BLOCKED / UNAUTHORIZED.**
+- After the fixes are reviewed and merged, rerun the SAME bounded short-probe shape ONCE
+  from the new clean exact `main` and perform a fresh artifact review before any long run.
+
+## 4. Next tasks — the Grade-A validity correction, then a RERUN of the same bounded probe
+
+Start with fresh exact-SHA initialization against the current `main`. **This documentation
+task neither authorizes nor runs anything; it records state only.**
+
+**Task 1 — the Grade-A research-validity correction (NEXT; no active code candidate
+exists).** Correct the three §3d defects: ego-global `SELF_PRESERVATION_ABORT`, an
+evidence-derived confirmation wait, and RTB COMPLETION rather than RTB issuance as the
+episode-completion condition. Expected implementation mode is **BUILD**, or SURGICAL only
+if recon proves the contract changes truly remain narrowly local. It touches §5-locked
+layers, so it is **Grade A** with declared proof obligations, and it must be dispatched by
+the next GPT orchestrator after exact-SHA initialization and task-focused recon. Nothing
+here pre-decides its design beyond the directions §3d records.
+
+**Task 2 — RERUN the same bounded short probe, ONCE, after Task 1 is reviewed and
+merged**, from the new clean exact `main`, followed by a fresh artifact review. The shape,
+execution discipline, reporting duties and validity gate below are UNCHANGED and are what
+gets rerun. The first run's numbers are not its expectation, exactly as §2's are not.
 
 **The probe's shape is no longer "to be confirmed" — it is the merged repository preset**
 `configs/graph_train/final_cell_probe.json` (PR #14, §3c), run through `--config`:
@@ -266,10 +385,11 @@ task neither authorizes nor runs the probe.**
 - live console output (the per-episode `OK` blocks and the per-iteration / per-round
   lines).
 
-What still has to be closed before the run is the OPERATIONAL procedure only — the exact
-local PyCharm / CLI invocation, the environment (`nlp_env`), and confirmation of a clean
-checkout at an exact resolved `main` SHA. The configuration itself is now a reviewed file
-in the repository, not a decision to be re-made.
+The OPERATIONAL procedure — the local PyCharm / CLI invocation and the environment
+(`nlp_env`) — is no longer an open question either: the first run (§3d) exercised it end to
+end. What the RERUN still requires is confirmation of a clean checkout at the exact
+resolved post-correction `main` SHA. The configuration itself is a reviewed file in the
+repository, not a decision to be re-made.
 
 **Execution discipline.** Run it ONCE, from a clean checkout at an exact resolved `main`
 SHA, with COMPLETE Git provenance (`train` refuses otherwise — `CLAUDE.md` §8), on the
@@ -353,13 +473,16 @@ expectation.
 
 ## 6. Out of scope for the next task
 
-- a long training run before the final-cell probe passes;
+- a long training run before the §3d correction is merged and the probe RERUN has been
+  executed and reviewed;
 - selecting or enabling a SECOND difficulty factor (`probability < 1`, hostile fire/SAMs,
   dense reward) — each is its own research change;
 - reworking the merged FD-BASELINE-v1 mechanism, the merged visual-artifact surface or
   the merged probe harness (preset, `--config` precedence, `config_source`, run layout,
-  the three figures), or their reviewed research decisions — the probe RUNS what is
-  merged;
+  the three figures), or their reviewed research decisions — the probe RUNS what is merged.
+  The §3d validity correction is the ONE authorized exception, and it is scoped to those
+  three defects alone (abort semantics, the confirmation wait, RTB completion); it is not a
+  licence to retune the cell, the reward, the seeds or the harness;
 - extending artifact capture (per-seed filters, new artifact kinds, artifact-derived
   metrics) — the probe uses what is merged;
 - checkpoint loading/resume;
@@ -381,24 +504,30 @@ expectation.
 | Repository code-hygiene + documentation alignment lands — **DONE for PR #11 and its follow-up** | Helper ownership, retired-executor removal and the lock recorded in `CLAUDE.md` §5–§7; README replaced, BLADE fork documentation audited, obsolete scenarios and dead utility symbols removed |
 | Visual-artifact support lands — **DONE for PR #10** | Contract in `CLAUDE.md` §5, routing in §6, lock in §7, and the §8 note that the bounded probe MAY enable it — recorded without pre-claiming any result |
 | Probe harness lands — **DONE for PR #14** | Preset, `--config` precedence, three-kind `config_source` and the `plots/` figures recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the two-round fix chain; the retired four-panel `training_plot.png` removed from the contracts — recorded without pre-claiming any result |
-| Final-cell short probe completes — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence and artifact completeness before authorizing a long baseline |
+| FIRST final-cell short probe completes — **DONE for `training_output_20260815_173029`** | Run identity, exact code SHA, accounting and denominators, and the three research-validity defects it exposed recorded in §3d — as findings only, with no scientific claim about the cell and no long-baseline authorization |
+| §3d validity correction lands | Record the corrected `SELF_PRESERVATION_ABORT`, confirmation-wait and RTB-completion contracts in `CLAUDE.md` §5–§7 with their lock and fix chain — only once merged, never in advance |
+| Probe RERUN completes on the corrected cell — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence and artifact completeness before authorizing a long baseline |
 
 ## 8. Next action
 
 Implementation for the final Phase-A baseline cell is COMPLETE and locked, its inspection
-surface is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), and
-the **probe harness is CLOSED** (PR #14). **No active scientific candidate exists**, no
-implementation task remains before the probe, and **ownership is RELEASED once this
-closure record is integrated into `main`** — the orchestrator and user own the probe's
-preparation and run from that point.
+surface is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), the
+**probe harness is CLOSED** (PR #14), and the bounded short probe has now been **EXECUTED
+ONCE** (§3d). **No active code candidate exists**, and **ownership is RELEASED once this
+record is integrated into `main`**.
 
-The next orchestrator performs fresh exact-SHA initialization against the current `main`,
-closes the probe's remaining OPERATIONAL procedure per §4 (the configuration itself is now
-the merged preset), and only then runs it once, from a clean checkout of the final
-post-documentation `main` SHA. The next task is still the bounded SHORT SCIENTIFIC PROBE
-of the merged fuel-damage cell described in §4 — unchanged by the harness work — judged by
-the §4 validity gate rather than by whether reward improved, and **a long baseline remains
-UNAUTHORIZED until the short probe has been executed and reviewed** (§4).
+The next task is the **Grade-A research-validity correction** of the three §3d defects —
+ego-global `SELF_PRESERVATION_ABORT`, an evidence-derived confirmation wait, and RTB
+COMPLETION rather than RTB issuance as the episode-completion condition. Expected
+implementation mode is BUILD, or SURGICAL only if recon proves the contract changes truly
+remain narrowly local. It must be dispatched by the next GPT orchestrator after fresh
+exact-SHA initialization against the current `main` and task-focused recon; none of it is
+implemented at `238062d7d284334432d9c39d7543fb0bbf39ea7c`.
+
+Once that correction is reviewed and merged, the SAME bounded short probe (§4) is rerun
+ONCE from the new clean exact `main` and reviewed afresh, judged by the §4 validity gate
+rather than by whether reward improved. **A long baseline remains UNAUTHORIZED until that
+rerun has been executed and reviewed**, and no result may be pre-claimed for it.
 
 Resolve live branch and PR state from GitHub; this document does not track it.
 
