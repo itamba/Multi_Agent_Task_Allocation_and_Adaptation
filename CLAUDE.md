@@ -181,13 +181,16 @@ EpisodeContext
          # per episode, BEFORE any ego is processed. Returns that ego's id on the firing
          # tick and None otherwise.
        Phase 1 (per ego, one obs snapshot, NO env.step):
+         # SKIPPED for a dead ego, and for one whose rtb_issued latch is already set
+         # (committed to return: no sensing, trigger, wake, belief edit or transition).
          sensed_target_ids → decide_triggers(..., fuel_damage=<ego is the selected one>)
            → (on wake) _wake_decision:
              build_graph_observation → GraphEncoder → ActionHead
              → build_action_mask → sample_action → apply_meta_action → executor.resync
        Phase 2: commands = executor.next_actions(obs)
                 fuel_damage.note_commands(commands)   # READ-ONLY measurement
-                env.step(commands)                    # ONE step for the whole tick
+                obs, _reward, terminated, truncated, _info = env.step(commands)
+                executor.is_done(obs)                 # PHYSICAL completion, POST-step
      until is_done / terminated / truncated → EpisodeResult(trajectory)
   → compute_episode_reward(ctx, result, cfg.reward_config()): fills Transition.reward
   → PPO buffer + evaluate_action + outer training loop  # BUILT (graph_ppo, graph_train)
@@ -211,6 +214,29 @@ tick before the per-ego loop begins, and four properties follow from that placem
   read-only scan that records whether the selected ego's actual
   `aircraft_return_to_base` command was issued). Nothing in the loop's control flow reads
   it back.
+
+**EPISODE COMPLETION IS PHYSICAL, AND IT IS JUDGED AFTER THE STEP (locked by Defect C,
+`ea62e4e`).** The tick's completion check is `executor.is_done(obs)` where `obs` is the
+observation `env.step` JUST RETURNED — the world the step produced, not the snapshot the
+egos decided on. Three consequences:
+
+- **A non-dead ego counts as physically resolved only once BLADE has actually put it
+  back into an airbase inventory.** Issuing `aircraft_return_to_base` is an ORDER, not
+  an outcome, so the episode keeps ticking while the aircraft really flies home.
+- **A death during the return is reconciled BEFORE `EpisodeResult` is built**, so it
+  reaches `EpisodeResult.n_dead` and therefore the terminal reward's `n_lost` — an ego
+  that runs its tank dry on the way home is charged as the airframe it really lost.
+- **`terminated` and `truncated` behaviour is UNCHANGED**: they are still checked after
+  the completion check, in that order, with the same meanings.
+
+**An ego that has committed to return LEAVES PHASE 1.** Once its `rtb_issued` latch is
+set it is skipped for the entire Phase-1 chain — no sensing, no `decide_triggers`, no
+wake, no policy inference, no belief edit, no `Transition` — so the extra ticks the ride
+home costs cannot manufacture fresh decisions out of a mission that is already over.
+**Phase 2 still runs every tick for every ego** (that is what lets BLADE land it or
+exhaust its fuel), PEERS ARE UNTOUCHED and continue normally, and the one-snapshot
+two-phase structure — hence the structural no-communication property — is exactly as
+before.
 
 Both `rl/training/graph_train.py` (`_run_one_episode`) and the diagnostic harness
 `rl/training/graph_rollout.py` (`run_rollout`) drive the CONSTRUCTION path: they
@@ -296,7 +322,7 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 (§8). Reproducibility is judged by that fingerprint, never by id.
 
 **Execution (Stage 1) — `utils/blade_utils/blade_graph_executor.py`.**
-`GraphPlanExecutor` is the **sole** BLADE translation layer (move/launch/attack/RTB). Its intra-level travel ordering comes from the SHARED pure helper `nearest_neighbor_order`, imported from `utils/scheduling_utils.py` — the SAME function `graph_hidden_placement.predict_route` calls, which is what keeps online execution and offline route prediction from drifting apart (`2a3f89c`). `__init__(*, tasks, solution, agents, arrival_threshold_km=DETECTION_KM, add_return_to_base=True, nn_ordering=True, kill_confirm_ticks=60)`. **Per-ego private state:** `self.tasks: Dict[ego_id, List[Task]]` (fanned out at init; diverges only via `resync`), `self.plans` per-ego; `_resolve_step(ego_id, assignment)` is the sole reader of `self.tasks`. Key methods: `next_actions(obs) -> List[str]` (one command/ego/tick), `resync(new_solution, *, ego_id, tasks=None)` (swaps one ego's slice, **never resets `done`**), `is_done()` (skips `dead` egos, requires RTB latched), `sensed_target_ids(obs, ego_id) -> {id: unit}` (world-scan within `arrival_threshold_km`; the trigger's eyes). done-on-confirmed-kill, per-`(ego,target)` re-fire throttle, single-issue RTB latch (safe only while doctrine `AIRCRAFT_RTB_WHEN_OUT_OF_RANGE` is off — it is in `strike_training_4v5.json`), `dead` set for crashes. No-comms isolation proven in `_selftest` (ISO-1..3: a pop-up appended to ego A never enters ego B's task-view; same-index pop-ups resolve per-ego).
+`GraphPlanExecutor` is the **sole** BLADE translation layer (move/launch/attack/RTB). Its intra-level travel ordering comes from the SHARED pure helper `nearest_neighbor_order`, imported from `utils/scheduling_utils.py` — the SAME function `graph_hidden_placement.predict_route` calls, which is what keeps online execution and offline route prediction from drifting apart (`2a3f89c`). `__init__(*, tasks, solution, agents, arrival_threshold_km=DETECTION_KM, add_return_to_base=True, nn_ordering=True, kill_confirm_ticks=60)`. **Per-ego private state:** `self.tasks: Dict[ego_id, List[Task]]` (fanned out at init; diverges only via `resync`), `self.plans` per-ego; `_resolve_step(ego_id, assignment)` is the sole reader of `self.tasks`. Key methods: `next_actions(obs) -> List[str]` (one command/ego/tick), `resync(new_solution, *, ego_id, tasks=None)` (swaps one ego's slice, **never resets `done`**), `is_done(observation)` (**the live observation is REQUIRED**, no default — physical completion; see the Defect-C contract below), `sensed_target_ids(obs, ego_id) -> {id: unit}` (world-scan within `arrival_threshold_km`; the trigger's eyes). done-on-confirmed-kill, per-`(ego,target)` re-fire throttle, single-issue RTB latch (safe only while doctrine `AIRCRAFT_RTB_WHEN_OUT_OF_RANGE` is off — it is in `strike_training_4v5.json`), `dead` set for crashes. No-comms isolation proven in `_selftest` (ISO-1..3: a pop-up appended to ego A never enters ego B's task-view; same-index pop-ups resolve per-ego).
 
 **THE ATTACK-CONFIRMATION WAIT IS DERIVED PER SALVO (locked by Defect B, `39a16f2`).**
 `kill_confirm_ticks=60` REMAINS a constructor parameter, but it is now the configured
@@ -346,8 +372,9 @@ confirmation_wait =
 - **Still out of scope:** general ammunition management and any probabilistic-miss policy.
   An ego with an empty rack still emits its attack and the engine simply launches nothing,
   exactly as before.
-- **Defect C is UNCHANGED and OPEN** by this fix: `is_done()` still treats the `rtb_issued`
-  latch as RTB-resolved, so physical RTB completion remains an open problem (§8).
+- **Defect C was NOT addressed by this fix.** At THIS lock `is_done()` still treated the
+  `rtb_issued` latch as RTB-resolved. It was closed separately and afterwards by
+  `ea62e4e` — the contract is the next block.
 
 The accepted real-BLADE evidence, both engagements inside the single `DETECTION_KM = 50`
 attack envelope, at the production default `kill_confirm_ticks = 60`:
@@ -362,6 +389,46 @@ constant was ALREADY below the salvo's bound, and the control arm escaped a redu
 by exactly ONE tick. The ~49.0 km row is a CONTROL demonstrating the SAME premature-refire
 mechanism inside the SAME envelope, where that one-tick escape is gone; it is **not** an
 exact rerun of the original probe world, and neither row is a scientific probe result.
+
+**COMPLETION IS PHYSICAL, NOT ISSUANCE (locked by Defect C, `ea62e4e`).**
+`GraphPlanExecutor.is_done(observation)` takes the LIVE observation as a REQUIRED
+argument and has NO observation-free default — a defaulted one would silently restore
+the retired command-issuance notion of completion. The verdict has two halves, from two
+different sources, and only the second changed:
+
+- **ASSIGNMENTS — still EXECUTOR SEMANTIC STATE, exactly as before:** the ego's `plans`
+  slice, the steps `_resolve_step` resolves against its OWN ego-private `tasks`, and the
+  proximity-confirmed `done` set. **Nothing here reads the observation.** A dead ego's
+  remaining assignments stay terminally unsatisfiable and an unresolvable index stays
+  implicitly satisfied, both unchanged.
+- **PHYSICAL LIFECYCLE — read from the observation, through the ONE classification site
+  `_physical_state(ego_id, observation)`,** which returns exactly one of three states
+  because the FROZEN engine keeps every aircraft it still has in exactly one home:
+  present in `scenario.aircraft` ⇒ **airborne**; absent from the air but present in some
+  `airbase.aircraft` inventory ⇒ **landed** (`Game.land_aicraft` appends there, then
+  removes it from the air); absent from BOTH ⇒ **removed/dead** (`Game.remove_aircraft`,
+  which `update_all_aircraft_position` calls at `current_fuel <= 0`). It reads only that
+  ego's own entries and mutates nothing.
+- **`_note_dead(ego_id)` reconciles a newly observed death idempotently** into
+  `executor.dead` (and latches `rtb_issued` so the RTB branch stays a no-op for an ego
+  that can no longer be commanded). The SAME classifier is used by `_command_for_ego`
+  on the PRE-step world and by `is_done` on the POST-step world, so a death is
+  reconciled from both sides of `env.step`.
+- **Death reconciliation covers EVERY ego before the global verdict.** `is_done` runs a
+  total first pass over the (sorted) egos and only then decides, so an early "not done"
+  cannot hide a peer's death and the `dead` set the caller reads afterwards is complete
+  for this tick.
+- **`rtb_issued` remains ONLY the single-issue BLADE-toggle guard**
+  (`aircraft_return_to_base` is a BLADE toggle; issuing it twice cancels the RTB). It is **not** survival, **not**
+  landing and **not** terminal completion, and it is set for dead and landed egos too.
+  Measuring a REAL return still means reading the EMITTED COMMAND history —
+  `graph_fuel_damage.FuelDamageController.note_commands` — never this flag.
+- **With `add_return_to_base=True`, a live ego whose work is complete or empty is NOT
+  terminal while airborne.** With `add_return_to_base=False` the physical check is
+  skipped entirely, preserving the existing no-return-required contract for callers that
+  opted out.
+- **No BLADE engine behaviour changed.** The classification reads what the frozen engine
+  already exposes; the vendored files are byte-unchanged (§2).
 
 **Trigger (Stage 2) — `rl/action/graph_trigger.py`.**
 `decide_triggers(belief_tasks, belief_solution, sensed_targets, eta=never_overdue, *, ego_id, clock, fuel_damage=False) -> (new_tasks, new_solution, wake, events)`. PURE (no BLADE/torch), copy-on-write (never mutates inputs). The WHEN gate over THREE `TriggerKind` members: **POP-UP** (ego senses an unassigned target → appends a pop-up Task to append-only `belief_tasks`), **PEER-OVERDUE** (ego senses a peer's target AND its ETA passed → removes that peer tuple from the ego's `belief_solution` copy, so it reads as a pop-up — deterministic *gating*, the policy still chooses), and **FUEL_DAMAGE** (FD-BASELINE-v1). ETA is dormant (`never_overdue` = +inf) for now. `FUEL_DAMAGE` is EXOGENOUS — it cannot be detected from sensing, so the orchestrator passes `fuel_damage=True` for AT MOST ONE ego per tick; the flag defaults to `False`, so every pre-FD caller is byte-unchanged. It **edits NEITHER `belief_tasks` NOR `belief_solution`** (the changed quantity is the ego's own live fuel, which the builder reads off the aircraft) and only sets `wake`, appending a `(FUEL_DAMAGE, NO_TASK_INDEX)` event — `NO_TASK_INDEX = -1` is a sentinel, deliberately not `0`, because `0` is a valid task index. A tick carrying both a fuel-damage event and a pop-up still produces exactly ONE wake.
@@ -382,7 +449,7 @@ exact rerun of the original probe world, and neither row is a scientific probe r
 `compute_episode_reward(ctx, result, cfg=RewardConfig()) -> EpisodeReward`. **Terminal, utility-based** (v1): `R = (U_achieved − c·U_aircraft·n_lost − U_oracle)/(|U_oracle| + eps_regret)`, placed on the last wake's `Transition` (others `0.0`; empty trajectory ⇒ nothing attached). `U_oracle = plan_value(ctx.oracle_solution, ctx.oracle_tasks)` — **bit-faithful to `MatchAou._add_objective`** (reuses the solver `EPSILON`; the `y[j]` factor is provably redundant given the y/x constraints; proven under bonmin in `_selftest` T1). `U_achieved = realized_utility(ctx.oracle_tasks, ctx.executor.done)` — full utility IFF all a task's targets are confirmed-killed, **deduped over ego**. `c = aircraft_penalty_coeff` — this module's own default is **0.0**, but BOTH harnesses now pass an explicit `RewardConfig(aircraft_penalty_coeff=2.25)` (FD-BASELINE-v1, below); the FORMULA is unchanged. `n_lost = len(ctx.executor.dead)`; `eps_regret=1e-5` is a division guard (distinct from solver EPSILON). **No-comms:** a centralized/privileged TRAINING signal — MAY read global state, but MUTATES ONLY `Transition.reward` (proven byte-unchanged on real objects in T7). **KNOWN v1 assumption `probability=1.0`** (expected `U_oracle` vs realized `U_achieved` coincide only at p=1; `R∈[-1,~0]`; revisit at p<1).
 
 **The two-phase tick (Stages 2–6) — `rl/training/graph_tick_loop.py`.**
-`run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None, fuel_damage=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`. The optional `fuel_damage` controller (FD-BASELINE-v1) is consulted at the TOP of a tick, before Phase 1, and its Phase-2 `note_commands` call is a read-only measurement — see §4 and the FD contract below; `None` (the default) leaves the loop byte-unchanged. Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`). **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
+`run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None, fuel_damage=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`, and the tick's completion verdict is `executor.is_done(<the POST-STEP obs that step just returned>)` — completion is a PHYSICAL fact about the world the step produced (Defect C, `ea62e4e`), so an episode keeps ticking while an ordered-home aircraft actually flies home, and a death on that return is reconciled into `executor.dead` by the same call, BEFORE the loop returns, hence into `EpisodeResult.n_dead`. An ego whose `rtb_issued` latch is set is SKIPPED for the whole of Phase 1 from then on — no sensing, trigger, wake, policy inference, belief edit or `Transition` — while Phase 2 still runs for it every tick and peers continue normally. The optional `fuel_damage` controller (FD-BASELINE-v1) is consulted at the TOP of a tick, before Phase 1, and its Phase-2 `note_commands` call is a read-only measurement — see §4 and the FD contract below; `None` (the default) leaves the loop byte-unchanged. Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`); it only hands `is_done` the post-step observation and READS the answer. **The reward seam is unchanged:** `graph_reward`'s formula still reads `n_lost = len(ctx.executor.dead)` — what changed is that the set is now truthful at episode end. **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
 
 **Trainer + run auditability (B4) — `rl/training/graph_train.py`.**
 The outer PPO loop's *research-validity* contract. It changed NO pipeline layer: PPO
@@ -690,6 +757,7 @@ second factor is bundled in (§8).
 | Change how a decision edits the plan | `rl/action/graph_effect.py` (`apply_meta_action`) |
 | Change BLADE execution / plan re-sync | `utils/blade_utils/blade_graph_executor.py` (`GraphPlanExecutor`) |
 | Change the ATTACK-CONFIRMATION WAIT (how long an ego holds before re-firing) | `utils/blade_utils/blade_graph_executor.py` — `_salvo_travel_ticks` (the conservative travel BOUND + the transcribed `KILOMETERS_TO_NAUTICAL_MILES`), `_confirmation_wait_ticks` (live-weapon selection + the `max(kill_confirm_ticks, bound + 1)` floor) and the ATTACK BRANCH of `_command_for_ego` that arms the per-`(ego_id, target_id)` cooldown. Proofs — pure tiers and the real-BLADE tier (incl. the engine-constant comparison) — live in `tests/test_graph_setup_seam.py`. **The vendored engine stays FROZEN** (§2): the wait is derived from what BLADE already exposes, never by editing it. |
+| Change RTB / EPISODE-COMPLETION semantics (when an episode is allowed to end) | `utils/blade_utils/blade_graph_executor.py` — `is_done(observation)` (the two-half verdict), `_physical_state` (the ONE airborne / landed / removed classification site) and `_note_dead` (idempotent death reconciliation) — plus the returning-ego Phase-1 guard in `rl/training/graph_tick_loop.py` (`run_episode`, the `rtb_issued` skip) and the post-step `is_done(obs)` call site. Proofs: the pure lifecycle tier and the real-BLADE `P7` ride-home tier in `tests/test_graph_setup_seam.py`, and the returning-ego `POC-1..4` tier in `tests/test_graph_fuel_damage.py`. **The vendored BLADE engine stays FROZEN** (§2): completion is decided from states the engine already exposes, never by editing it. |
 | Expose the ego's own sensing | `blade_graph_executor.py` → `sensed_target_ids` |
 | Create Agents / Tasks from a scenario | `scenario_factory.py` → `create_agents_from_scenario` / `generate_all_enemy_tasks` (`probability=1.0`) / `iter_enemy_targets` + `make_attack_task` (utility: Facility 100 / Airbase 80 / Ship 95) |
 | Change scenario content / zones / fleet / fuel tiers | `scenario_generator.py` (`VariationConfig` incl. `strict_geometry` (raise instead of silently weakening requested geometry) and `min_target_separation_km` (pairwise known-target floor, default 0.0 = off); `ScenarioGenerator`, `CLASS_RANGE_TIERS`) |
@@ -1309,8 +1377,8 @@ second factor is bundled in (§8).
   fail and the `graph_effect` selftest fails at case (3); the mutation was reverted
   byte-identically and is not in the history.
   **NO scientific probe, training run, rollout or baseline was executed.** **This closes
-  DEFECT A ONLY — as of THIS lock, Defects B and C both remained OPEN. Defect B has since
-  been closed by `39a16f2` below; §8 owns the current state.**
+  DEFECT A ONLY — as of THIS lock, Defects B and C both remained OPEN. Both have since
+  been closed — B by `39a16f2` and C by `ea62e4e`, below; §8 owns the current state.**
 
 - `39a16f2` — **DEFECT B: the attack-confirmation wait DERIVED from the salvo about to fly
   — CLOSED / APPROVED / MERGED.** Approved candidate SHA
@@ -1361,7 +1429,67 @@ second factor is bundled in (§8).
   comparison RAN and the BONMIN tier RAN, with no `CRASH` and no `Traceback`; the executor
   selftest green; `git diff --check` clean.
   **NO scientific probe, training run, rollout or baseline was executed.** **This closes
-  DEFECT B ONLY — Defect C remains OPEN (§8).**
+  DEFECT B ONLY — as of THIS lock Defect C remained OPEN. It has since been closed by
+  `ea62e4e` below; §8 owns the current state.**
+
+- **DEFECT C: physical RTB completion — CLOSED / APPROVED / MERGED.** Approved candidate
+  SHA `ea62e4e33eb8d17b773d9742aa8dfd577fe3d98b`, integrated by merge commit
+  `0de9f21eb9e8904f06f836f4ecd010bc46c788b6` (PR #21). The candidate was merged with a
+  MERGE COMMIT and preserved as its SECOND PARENT (integration parents, in order:
+  `6e97940733d2c7cf8c4ffc7033180c65f644ae17` then `ea62e4e…`); candidate and integration
+  share the IDENTICAL tree `6d05cc5ea9af0f6bdcd4a2d6865767bcbe525ebe` (verified locally),
+  and the candidate→integration comparison contains ZERO changed files. Implementation
+  fixed base `6e97940733d2c7cf8c4ffc7033180c65f644ae17`. Grade A under `GPT_GITHUB`,
+  implementation mode BUILD. The technical contract is in §4 (the pipeline's terminal
+  loop) and §5 (Execution Stage 1, “COMPLETION IS PHYSICAL, NOT ISSUANCE”, and the
+  tick-loop entry); the routing is in §6. This entry records the LOCK, not the mechanism.
+  **THE DEFECT.** `GraphPlanExecutor.is_done()` read the `rtb_issued` lifecycle LATCH as
+  RTB-resolved and `run_episode` stopped as soon as it became true, so an episode could
+  end while the aircraft was still airborne — measured in the first short probe's
+  `post_update` damaged eval seed `1000000`, which recorded `dead=0` and reward 0 for an
+  ego that could not physically reach home. The approved behaviour separates “RTB command
+  ISSUED” from “RTB physically RESOLVED” while PRESERVING the single-issue toggle guard.
+  **APPEND-ONLY REVIEW CHAIN, two commits on one branch and one PR** — never amend,
+  rebase, squash, force-push or history rewrite. First candidate
+  `5a0809df1a490df6ff266343788655d32fcefd81` (parent `6e97940…`) carried the runtime
+  correction; the review correction landed as the NEW CHILD COMMIT `ea62e4e…` (parent
+  `5a0809d…`), which names `is_done`'s two distinct sources explicitly and proves the
+  burn-out branch directly.
+  **CUMULATIVE SCOPE: EXACTLY SIX FILES** —
+  `src/match_aou/utils/blade_utils/blade_graph_executor.py`,
+  `src/match_aou/rl/training/graph_tick_loop.py`,
+  `src/match_aou/rl/training/graph_episode_setup.py`, `tools/graph_executor_smoke.py`,
+  `tests/test_graph_setup_seam.py` and `tests/test_graph_fuel_damage.py`. No vendored
+  BLADE, solver, reward, PPO, encoder, action-space, trainer, rollout, fuel-damage
+  mechanism, scenario, preset or artifact file was touched.
+  **PROOF OBLIGATIONS.** PO1 — completion is decided from the LIVE post-step observation:
+  issuance is not landing, a non-dead ego must be in an airbase inventory, an ego absent
+  from both the air and every inventory is reconciled into `dead`, the reconciliation pass
+  is total before any verdict, and the `add_return_to_base=False` contract is preserved.
+  PO2 — against the REAL engine, the ride home reaches the terminal result: with fuel to
+  spare the episode continues past the order and ends only on landing; with half the fuel
+  the engine itself says the trip needs, the ego is removed mid-return, counted dead and
+  charged by the unchanged reward path. PO3 — a returning ego is frozen out of Phase 1
+  (no sensing, trigger, wake, inference, belief edit or transition; its belief is
+  byte-frozen from the moment it commits) while peers continue normally, and no peer can
+  decide whether the returning ego is home or lost.
+  **ACCEPTED EVIDENCE.** Full base suite **257 passed, 4 skipped**; focused suite
+  **89 passed, 4 skipped**; standalone `tests/test_graph_setup_seam.py` under `nlp_env`
+  **35 passed, 0 skipped** — the real-BLADE tier RAN and the BONMIN tier RAN, with no
+  `CRASH` and no `Traceback`; standalone `tests/test_graph_fuel_damage.py` **41 passed,
+  0 failed**; the executor and tick-loop selftests green; `tools/graph_executor_smoke.py`
+  reported **`SMOKE PASS`** with **3/3 egos physically returned to airbases**;
+  `git diff --check` clean. The real-BLADE tier supplies BOTH lifecycle outcomes
+  directly — a sufficient-fuel ego that lands, and an insufficient-fuel ego that dies —
+  and the death is pinned by a DIRECT CAUSAL WITNESS on `Game.remove_aircraft`: exactly
+  ONE recorded removal of that ego, at `current_fuel <= 0`, with no replacement airframe
+  in any inventory (the landing branch would show positive fuel and an inventory entry, and
+  a weapon kill bypasses `remove_aircraft` entirely, so it could leave no record at all).
+  The returning-ego freeze and peer continuation are shown on the real `run_episode`.
+  **NO scientific probe, training run, rollout or baseline was executed** — nothing in
+  this lock is a corrected-cell measurement. **This closes DEFECT C ONLY**; with Defects
+  A and B already closed, the three-defect CODE correction is complete, but that is an
+  implementation fact, not a scientific result (§8 owns the gate).
 
 ---
 
@@ -1376,16 +1504,20 @@ second factor is bundled in (§8).
   OPERABILITY ONLY: it also exposed three research-validity defects (next bullet), so its
   reward numbers are NOT scientific evidence about the fuel-damage cell. **What exists for
   the CORRECTED cell is IMPLEMENTATION evidence, not PERFORMANCE evidence.** The merged
-  Defect-A and Defect-B work carries real-BLADE and BONMIN-backed proof-test evidence
-  (§7) — a real `Game`, a real launched aircraft, a real executor-issued route replaced by
-  the ride home, a real salvo whose derived wait prevents the redundant re-fire, and the
-  setup-seam solver tier green under BONMIN — but **those tests validate
-  IMPLEMENTATION SEAMS ONLY**. **No scientific probe, training/performance run, rollout or
-  baseline has measured the CORRECTED cell**, so NO SCIENTIFIC PERFORMANCE CLAIM about it
-  exists and none may be made. The gate is therefore a RERUN of the SAME bounded
-  probe shape — separately authorized, and only once Defects A, B and C **and** the
-  documentation/lock duty each carries have ALL closed — which today means once DEFECT C
-  and its documentation/lock close. It must report:
+  Defect-A, Defect-B and Defect-C work carries real-BLADE and BONMIN-backed proof-test
+  evidence (§7) — a real `Game`, a real launched aircraft, a real executor-issued route
+  replaced by the ride home, a real salvo whose derived wait prevents the redundant
+  re-fire, a real ride home that lands (and, on half the fuel the engine itself requires,
+  one that does not), and the setup-seam solver tier green under BONMIN — but **those
+  tests validate IMPLEMENTATION SEAMS ONLY**. **No scientific probe, training/performance
+  run, rollout or baseline has measured the CORRECTED cell**, so NO SCIENTIFIC PERFORMANCE
+  CLAIM about it exists and none may be made. The gate is therefore a RERUN of the SAME
+  bounded probe shape, separately authorized. **The three-defect CODE correction is
+  COMPLETE** (A `d56fda6`/PR #17, B `39a16f2`/PR #19, C `ea62e4e`/PR #21); what remains
+  before the rerun is the integration of THIS documentation record, which is the only
+  active candidate while its branch and draft PR are under review. Once it is integrated
+  no active candidate remains, and the ONE authorized corrected-cell short-probe rerun
+  becomes the next task, run from a clean checkout at exactly that `main`. It must report:
   complete provenance; explicit denominators everywhere; the scheduled clean vs damaged
   populations; matched-pair yield and the paired reward delta with its pair denominator;
   failures by pipeline stage; how often the event actually fired, woke the selected ego,
@@ -1418,15 +1550,14 @@ second factor is bundled in (§8).
   24 transitions, two productive PPO updates and a final held-out numerical zero
   (`5.000007394910353e-7`, 4/4). That cell had no difficulty factor; **those numbers are
   not evidence about the fuel-damage cell** and must not be reused as its baseline.
-- **The three research-validity defects the first short probe exposed — DEFECTS A and B
-  are CLOSED; DEFECT C remains OPEN.** **SEQUENTIAL-DEFECT POLICY:** the DEFAULT
-  breakdown is A, then B, then C — each its own separately reviewed, separately locked
-  task — and the probe rerun is a task of its own, never folded into a defect fix. That
-  default is a working decision, NOT an absolute prohibition: if FOCUSED RECON proves that
-  two defects are technically INSEPARABLE and that bundling them is MATERIALLY SAFER than
-  splitting them, **STOP and obtain an explicit GPT / user decision before changing the
-  breakdown** — recon alone never authorizes the change. **Bundling is NOT authorized
-  now**, and the default sequence stands until such a decision is recorded.
+- **The three research-validity defects the first short probe exposed — DEFECTS A, B and C
+  are ALL CLOSED: implemented, reviewed, approved and merged.** *Historical workflow
+  context, kept because it is how these three were run and is not a new prohibition:* the
+  SEQUENTIAL-DEFECT POLICY made the DEFAULT breakdown A, then B, then C — each its own
+  separately reviewed, separately locked task — with the probe rerun a task of its own,
+  never folded into a defect fix; bundling two defects required FOCUSED RECON proving
+  them technically INSEPARABLE plus an explicit GPT / user decision, and was never
+  authorized. All three closed under that default sequence.
   - **Defect A — `SELF_PRESERVATION_ABORT` was node-scoped, not an ego-global abort:
     CLOSED / MERGED / APPROVED.** Approved `d56fda6`, integrated by `f094e0b` (PR #17) —
     the lock and its evidence are in §7, the contract in §5 Stages 4 and 5. It changed
@@ -1446,20 +1577,29 @@ second factor is bundled in (§8).
     default was NOT merely raised. Lethality, the two-argument attack command and the
     FROZEN vendored BLADE engine are unchanged, and a probabilistic-miss /
     weapons-exhaustion redesign remains OUT of scope.
-  - **Defect C — RTB ISSUANCE is not physical RTB COMPLETION: OPEN, and THE NEXT
-    UNRESOLVED CODE TASK.**
-    `GraphPlanExecutor.is_done()` treats the `rtb_issued` lifecycle LATCH as RTB-resolved
-    and `run_episode` stops when `is_done()` becomes true, so an episode can end while the
-    aircraft is still airborne — measured in the `post_update` damaged eval seed `1000000`,
-    which recorded `dead=0` and reward 0 for an ego that could not physically reach home.
-    The correction must separate "RTB command issued" from "RTB physically resolved" (a
-    non-dead ego must actually be landed / in an airbase before episode completion) while
-    PRESERVING the single-issue RTB toggle protection. NOT IMPLEMENTED.
-  **Gating, unchanged by the closure of Defects A and B:** the vendored BLADE engine stays
-  FROZEN unless separately authorized (§2); the LONG BASELINE stays BLOCKED /
-  UNAUTHORIZED; and the short probe is NOT rerun until A, B and C plus their documentation
-  and locks have ALL closed — today that means DEFECT C and its documentation/lock. No
-  result may be pre-claimed for C or the rerun.
+  - **Defect C — RTB ISSUANCE is not physical RTB COMPLETION: CLOSED / APPROVED /
+    MERGED.** Approved `ea62e4e`, integrated by `0de9f21` (PR #21) — the lock and its
+    evidence are in §7, the contract in §4 and §5 (Execution, Stage 1, and the tick loop)
+    and the routing in §6.
+    *The defect, historically:* `GraphPlanExecutor.is_done()` treated the `rtb_issued`
+    lifecycle LATCH as RTB-resolved and `run_episode` stopped when it became true, so an
+    episode could end while the aircraft was still airborne — measured in the first short
+    probe's `post_update` damaged eval seed `1000000`, which recorded `dead=0` and reward 0
+    for an ego that could not physically reach home. *The merged correction:*
+    `is_done(observation)` requires the LIVE post-step observation; assignment completion
+    still comes from executor semantic state, while the PHYSICAL half comes from
+    `_physical_state` (airborne / landed / removed) and `_note_dead` reconciles a death on
+    the ride home into `executor.dead` before the verdict, so the unchanged reward formula
+    receives the truthful terminal loss. `rtb_issued` keeps its ONE job as the single-issue
+    toggle guard, and an ego that has committed to return leaves Phase 1 while peers
+    continue. The vendored BLADE engine is unchanged.
+  **Gating, unchanged by the closure of all three defects:** the vendored BLADE engine
+  stays FROZEN unless separately authorized (§2); the LONG BASELINE stays BLOCKED /
+  UNAUTHORIZED until the ONE authorized corrected-cell short-probe rerun has been executed
+  AND independently reviewed; and that rerun waits on the integration of this
+  documentation record (the gate bullet above). **The probe has NOT been rerun against the
+  corrected cell**, and no result — reward improvement, productive update, survival or any
+  other — may be pre-claimed for it.
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
