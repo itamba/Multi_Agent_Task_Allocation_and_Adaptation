@@ -521,7 +521,12 @@ research-semantic change accompanied the run**. Preset blob
 deviation to report. Provenance complete: `git.available=true`, exact SHA, `branch=main`,
 `dirty=false`, Windows / `nlp_env`, vendored BLADE, BONMIN available and probed `ok`.
 `difficulty.factor = fuel_damage_baseline_v1`, `aircraft_penalty_coeff = 2.25`,
-`reward.formula_changed = false`. Wall clock 204.51 s.
+`reward.formula_changed = false`. **Elapsed time is TWO DISTINCT QUANTITIES, never
+merged:** the harness's own `run_summary.json:run_seconds = 204.50847799982876`, and the
+externally measured invocation wall clock of **223.117 s** (the preserved probe runner's
+`timing.txt`: `PROBE_START_UTC = 2026-08-16T13:21:24.1839202Z` → `PROBE_END_UTC =
+2026-08-16T13:25:07.3008671Z`). The harness figure excludes process start-up, `conda run`
+dispatch, imports and teardown, so it is NOT the wall clock.
 
 **Verdict: VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS**, judged by the §4 validity gate
 and not by whether reward improved — complete clean provenance; `accounting_reconciled =
@@ -568,30 +573,55 @@ holds its known-only scenario, executed t=0 scenario and BLADE playback; execute
 cardinality reconciles at **3 known / 3 hidden / 6 total** on every one; **neither
 incomplete bundle fabricated a playback**. The complete scientific artifact is preserved.
 
-**Playback witnesses.** Directly observed in
-`visual_artifacts/post_update_r001_e003_m1_seed1000003_damaged_tag901007` — playback is
-sampled every ten ticks and offsets are from the recording's first frame. **Defect A:**
-KC-135R Stratotanker #76 takes the FD event at tick 269 (≈ T+270, fuel `203578.18` →
-`70017.43`), its selected FD meta-action is `SELF_PRESERVATION_ABORT`, real RTB state and a
-route to base appear immediately, it lands ≈ T+540, and it never resumes the abandoned
-assignment queue — consistent with EGO-GLOBAL abort. **Defect B:** B-2 Spirit #698 fires
-**one salvo per target** (Floridistan AFB #1794 ≈ T+2320, Hidden Airbase #003 ≈ T+5140),
-each BLADE two-argument attack launching two physical AIM-120 missiles, with no redundant
-second salvo and no flat-timeout re-fire loop; salvo quantity, lethality and ammunition
-management are unchanged. **Defect C:** the same B-2 enters RTB ≈ T+5240, the episode keeps
-ticking while it physically flies home, it lands ≈ T+7705, and only then does the episode
-finish — physical completion, not command issuance.
+**Playback witnesses and corroborating run evidence.** All of the following concerns the
+attempt preserved as
+`visual_artifacts/post_update_r001_e003_m1_seed1000003_damaged_tag901007`, and **two
+evidence sources are involved which are deliberately not merged.** The BLADE **playback
+JSON** proves PHYSICAL state only — position, fuel, `rtb`, route, weapon inventory, airbase
+membership — is sampled every ten ticks (offsets below are from the recording's first
+frame), and records **no per-wake meta-action label**; the jsonl records persist per-round
+and per-iteration meta-action AGGREGATES only. The **preserved console transcript** of the
+per-episode `OK` blocks (`probe_console.log`, SHA-256
+`97bf45d56a3b224ef0ebe5a362bb7415b73e88520d192c891e347cb2412f31c4`, re-verified read-only
+before citation) is the only artifact recording a SELECTED ACTION LABEL, and it does so for
+the fuel-damage wake specifically.
+
+**Defect A — KC-135R Stratotanker #76** (ego `0a14f756-13f2-4c78-8aa8-446da245aee5`, the id
+the playback binds to that name). *Console transcript, this exact attempt:* `[eval
+stage=post_update ep=3 damaged seed=1000003] OK` records `fired=True tick=269
+progress=0.300`, `fuel_before=203494.4 fuel_after=70026.7 factor=0.3441` and `fd_wake=True
+fd_meta=SELF_PRESERVATION_ABORT rtb_command=True` — **the action label is an attribution
+from that record, not something visible in playback.** *Playback, independently:* fuel falls
+from `203578.18` at the T+260 sample to `70017.43` at T+270 (sampled values, hence not
+identical to the console's exact event-time pair), `rtb` flips `False → True` on that frame,
+the route is replaced by a route to base at once, the aircraft lands ≈ T+540, and it never
+resumes the abandoned assignment queue. The two sources agree, and the physical signature is
+**consistent with the merged EGO-GLOBAL abort semantics**.
+
+**Defect B — B-2 Spirit #698** (playback evidence alone; no action label claimed). It fires
+**one salvo per target** — Floridistan AFB #1794 ≈ T+2320 (AIM-120 `4 → 2`) and Hidden
+Airbase #003 ≈ T+5140 (AIM-120 `2 → 0`) — each BLADE two-argument attack launching two
+physical AIM-120 missiles, with no redundant second salvo and no flat-timeout re-fire loop.
+Salvo quantity, lethality and ammunition management are unchanged.
+
+**Defect C — the same B-2** (playback, corroborated by the transcript's terminal line). It
+enters RTB ≈ T+5240, the episode keeps ticking while it physically flies home, it lands
+≈ T+7705, and only then does the episode finish; the console block for the same attempt
+independently reports `ended=done ticks=7705 dead=0`. That is physical completion, not
+command issuance.
 
 **Deferred research hypothesis — NOT a defect and NOT a proven action attribution.** Hidden
 Airbase #001 lies close to Hidden Airbase #003; the sampled playback puts the B-2 at
 **50.07 km** from Hidden #001 at T+5230 while not yet in RTB, against a 50 km detection
 threshold, with RTB visible on the next sampled frame at T+5240. Playback is sampled every
-ten ticks and the preserved artifact does not persist every organic wake's selected
-meta-action, so it is **plausible but not proven** that the B-2 crossed the threshold
-between samples and selected `SELF_PRESERVATION_ABORT`. Treat possible over-conservatism as
-a future research hypothesis about policy calibration, relevant to a later
-variable-FD-severity experiment. **It opens no defect, changes no reward, retunes no
-policy, and neither invalidates nor blocks this probe or the long baseline.**
+ten ticks and **nothing preserved records an ORGANIC wake's selected meta-action** — the
+jsonl records carry aggregates only, and the console transcript labels the fuel-damage wake
+alone, which is a different ego in a different episode phase — so it is **plausible but not
+proven** that the B-2 crossed the threshold between samples and selected
+`SELF_PRESERVATION_ABORT`. Treat possible over-conservatism as a future research hypothesis
+about policy calibration, relevant to a later variable-FD-severity experiment. **It opens no
+defect, changes no reward, retunes no policy, and neither invalidates nor blocks this probe
+or the long baseline.**
 
 ## 4. Next task — the short-probe sequence is COMPLETE; the LONG BASELINE is next
 
