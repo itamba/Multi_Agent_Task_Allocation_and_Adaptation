@@ -1491,59 +1491,191 @@ second factor is bundled in (§8).
   A and B already closed, the three-defect CODE correction is complete, but that is an
   implementation fact, not a scientific result (§8 owns the gate).
 
+- **CORRECTED-CELL BOUNDED SHORT PROBE — EXECUTED / INDEPENDENTLY REVIEWED / VALID
+  MEASUREMENT.** The measurement is attributable to exact clean code SHA
+  `900ff0b24898eccfa2e35d2db05c4e0229c64ce3` (committed `2026-08-16T15:26:55+03:00`), the
+  `main` head produced by the Defect-C documentation merge (PR #22). Per §7's hash
+  convention this entry is keyed to the MEASURED CODE SHA; the documentation commit that
+  creates it, and the merge that integrates it, cannot name their own SHAs and are
+  deliberately not invented here. **No tracked file changed for the measurement** — it is
+  a run of merged code, not a candidate.
+  **RUN IDENTITY.** Run directory `training_output_20260816_162130`. Exactly ONE
+  invocation, native exit code **0**:
+  `conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config configs/graph_train/final_cell_probe.json`.
+  The tracked checkout was clean before and after. Preset blob
+  `3c85e5bdc780600fe1ee528b3e35fc71591fe4b7`,
+  `config_source.resolved_from = config_file`, `cli_overrides = []` — so the probe ran the
+  reviewed preset with NO typed override and NO ad-hoc knob. Provenance complete:
+  `git.available=true`, exact SHA, `branch=main`, `dirty=false`, `dirty_path_count=0`,
+  Windows / `nlp_env` (CPython 3.12.3), vendored BLADE, BONMIN available and probed `ok`,
+  `difficulty.factor = fuel_damage_baseline_v1` with `aircraft_penalty_coeff = 2.25` and
+  `reward.formula_changed = false`. Wall clock 204.51 s. **No code, configuration, preset
+  or research-semantic change accompanied it.**
+  **VALIDITY VERDICT — VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS**, judged against
+  the pre-declared validity gate and NOT against whether reward improved: exact clean Git
+  provenance is complete; `run_summary.json:accounting_reconciled = true`; no
+  INFRASTRUCTURE failure occurred (no `_VisualArtifactError`, and both recorded failures
+  sit inside the `generation`/`setup`/`run`/`reward` episode taxonomy); BOTH evaluation
+  rounds carry **4/4 complete matched pairs**; and PPO-update and artifact evidence are
+  complete. **This closes the research-validity gate the FIRST probe exposed.** Defects
+  A, B and C remain CLOSED / APPROVED / MERGED and are now OPERATIONALLY WITNESSED in a
+  real corrected-cell measurement rather than in proof tests alone.
+  **ACCOUNTING — every denominator explicit, `skip_and_account_v1` unchanged.**
+  **24 scheduled attempts** (8 train + 16 eval), **22 successful**, **2 failed, both at
+  `setup`**. By condition: **clean 11 attempted / 10 successful / 1 failed**; **damaged 13
+  attempted / 12 successful / 1 failed**. Training 8 attempted / 6 successful / 2 failed,
+  all 6 successes producing wakes; evaluation **16/16 successful, 0 failed**.
+  `accounting_reconciled = true`. **No retry, no substitution, no seed-band shift** — each
+  failed seed was attempted once and recorded once:
+  - train seed 2, **damaged**, `setup`, `RuntimeError` — B2 produced only two placements
+    for `n_hidden=3`, because the static solve left one of the three egos without a
+    non-empty route (the known exact-cardinality behaviour, §8);
+  - train seed 4, **clean**, `setup`, `EpisodeRosterError` — one t=0 known target was
+    absent from the executed world, so the roster would not have covered what runs.
+
+  **FD FIRING RATE — state it against the right denominator.** The fuel-damage event fired
+  and woke its selected ego in **12/12 successfully completed damaged episodes** (4 train +
+  8 eval), which is **12/13 SCHEDULED damaged attempts**: the damaged seed-2 attempt failed
+  during `setup`, before an event could exist. It must never be described as 12/12
+  scheduled damaged attempts.
+  **MATCHED HELD-OUT EVALUATION — the only within-seed claim is the paired delta.** Both
+  rounds ran the same fixed band `[1000000,1000004)`, each seed twice (`forced_clean` +
+  `forced_damaged`), 8 attempted / 8 successful per round.
+  - `pre_update` (`updates_completed = 0`): **4/4 complete pairs**; clean mean
+    `-0.4999997395829586` over 4; damaged mean `-0.8749999192707323` over 4; paired delta
+    `-0.37500017968777366` over 4/4 pairs; **eval deaths 4**; unique targets confirmed
+    mean `3.00`; meta-action mix `PLAN_COMPLIANCE 52 / OPPORTUNISTIC_ENGAGEMENT 0 /
+    SELF_PRESERVATION_ABORT 0`.
+  - `post_update` (`updates_completed = 2`): **4/4 complete pairs**; clean mean
+    `-0.12499955989518505` over 4; damaged mean `-0.4583330529509838` over 4; paired delta
+    `-0.33333349305579874` over 4/4 pairs; **eval deaths 0**; unique targets confirmed
+    mean `4.25`; damaged **real RTB command yield 4/4**; deterministic meta-action mix
+    `PLAN_COMPLIANCE 0 / OPPORTUNISTIC_ENGAGEMENT 18 / SELF_PRESERVATION_ABORT 13`.
+
+  Held-out OVERALL mean moved `-0.6874998294268455` → `-0.2916663064230844`, **each over
+  8/8 completed eval episodes**. Training: 6 successful episodes, **26 transitions**, **two
+  productive iterations**, `updates_completed = 2`, train reward mean
+  `-0.6874997530379319`, and `ended_counts` all `done` in both eval rounds. **These are
+  SHORT-PROBE OBSERVATIONS, not estimates of converged policy performance**, and the two
+  per-condition means are each over their own successful subset (§5).
+  **ARTIFACT COMPLETENESS — reported ALONGSIDE the scientific denominators, never in place
+  of one.** **24 visual-artifact bundles and 24 manifests**; **22 `complete`**, exactly
+  matching the 22 successful attempts, and **2 `incomplete`**, exactly matching the two
+  `setup` failures. Every `complete` bundle holds its known-only scenario, its executed
+  t=0 scenario and its BLADE playback. Expected vs observed executed-world cardinality
+  reconciles on every complete bundle at **3 known / 3 hidden / 6 total**. **Neither
+  incomplete bundle fabricated a playback** (neither carries a recording at all). The
+  complete scientific artifact remains preserved.
+  **PLAYBACK WITNESSES — DIRECTLY OBSERVED** in
+  `visual_artifacts/post_update_r001_e003_m1_seed1000003_damaged_tag901007`. Playback is
+  sampled every ten ticks, and the offsets below are stated from the recording's first
+  frame:
+  - **Defect A witness — KC-135R Stratotanker #76.** The FD event lands at tick 269
+    (≈ T+270): fuel falls from `203578.18` at T+260 to `70017.43` at T+270, the selected FD
+    meta-action is `SELF_PRESERVATION_ABORT`, real RTB state and a route to base appear
+    IMMEDIATELY on that same frame, the aircraft lands at ≈ T+540, and it never resumes the
+    abandoned assignment queue. This is consistent with EGO-GLOBAL abort semantics rather
+    than with removal of only the current assignment.
+  - **Defect B witness — B-2 Spirit #698.** **ONE salvo per target**: one against
+    Floridistan AFB #1794 at ≈ T+2320 (AIM-120 `4 → 2`) and one against Hidden Airbase #003
+    at ≈ T+5140 (AIM-120 `2 → 0`). Each BLADE two-argument attack launches **two physical
+    AIM-120 missiles**. No redundant second salvo against either target, and no repeated
+    flat-timeout attack loop. Defect B changed NEITHER BLADE salvo quantity, NOR lethality,
+    NOR general ammunition management — only the wait before a re-fire.
+  - **Defect C witness — B-2 Spirit #698.** It enters RTB at ≈ T+5240, **the episode keeps
+    ticking while it physically flies home**, it lands at ≈ T+7705, and only then does the
+    episode finish. That is physical completion, not RTB-command issuance.
+
+  **DEFERRED RESEARCH HYPOTHESIS — NOT a defect, and NOT a proven action attribution.**
+  Hidden Airbase #001 lies close to Hidden Airbase #003. In the sampled playback the B-2 is
+  **50.07 km** from Hidden #001 at T+5230 while NOT yet in RTB — against a `DETECTION_KM`
+  threshold of 50 km — and the next sampled frame, T+5240, shows RTB. Because playback is
+  sampled every ten ticks and the preserved run artifact does NOT persist every organic
+  wake's selected meta-action (the records carry per-round / per-iteration meta-action
+  aggregates only), it is PLAUSIBLE BUT NOT PROVEN that the B-2 crossed the threshold
+  between samples and selected `SELF_PRESERVATION_ABORT` on the resulting wake. Treat
+  possible over-conservatism as a FUTURE RESEARCH HYPOTHESIS about policy calibration —
+  relevant to a later variable-FD-severity experiment. **Do not open a new defect, change
+  the reward, retune the policy, or let this hypothesis invalidate or block this probe.**
+  **EVIDENCE SHA-256** (verified read-only against the preserved run directory before being
+  recorded here):
+  `run_config.json=700f18fb54e485a12e0ab96a9b128353550c16c9f240e549bb40b01a303fbd22`,
+  `train_records.jsonl=8581b4c50ad622ba2312c48434444cc57f560dfcd81c2495a03adf224666b16e`,
+  `eval_records.jsonl=baa29c7281cf1dfbed9d928a83d60ab1e3c4826770de5ebcdf55ca34f12a68f2`,
+  `episode_failures.jsonl=20c022a14971afb2776e774a268dbf0e6e6c0221fd2ac5e24dbe77e6c2f29784`,
+  `run_summary.json=3038b754c82fb2dcb56d97632af4a24faa27dde68d2499701c228e3a208751fa`,
+  `checkpoints/ckpt_iter0001.pt=605a05fde0084050fb66821e8da234bacacf1039a13f9bd0bd446876b9c2ba71`.
+
 ---
 
 ## 8. OPEN (not built)
 
-- **THE NEXT GATE — a RERUN of the bounded SHORT INSTRUMENTED PROBE, gated behind the
-  three research-validity defects.** Difficulty selection is CLOSED (next item) and
-  FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so the open question is no longer
-  *what* to build but *how the built cell behaves*. That probe HAS NOW BEEN RUN ONCE —
-  `training_output_20260815_173029`, from clean `main` at
-  `238062d7d284334432d9c39d7543fb0bbf39ea7c` — and it established HARNESS AND ACCOUNTING
-  OPERABILITY ONLY: it also exposed three research-validity defects (next bullet), so its
-  reward numbers are NOT scientific evidence about the fuel-damage cell. **What exists for
-  the CORRECTED cell is IMPLEMENTATION evidence, not PERFORMANCE evidence.** The merged
-  Defect-A, Defect-B and Defect-C work carries real-BLADE and BONMIN-backed proof-test
-  evidence (§7) — a real `Game`, a real launched aircraft, a real executor-issued route
-  replaced by the ride home, a real salvo whose derived wait prevents the redundant
-  re-fire, a real ride home that lands (and, on half the fuel the engine itself requires,
-  one that does not), and the setup-seam solver tier green under BONMIN — but **those
-  tests validate IMPLEMENTATION SEAMS ONLY**. **No scientific probe, training/performance
-  run, rollout or baseline has measured the CORRECTED cell**, so NO SCIENTIFIC PERFORMANCE
-  CLAIM about it exists and none may be made. The gate is therefore a RERUN of the SAME
-  bounded probe shape, separately authorized. **The three-defect CODE correction is
-  COMPLETE** (A `d56fda6`/PR #17, B `39a16f2`/PR #19, C `ea62e4e`/PR #21); what remains
-  before the rerun is the integration of THIS documentation record, which is the only
-  active candidate while its branch and draft PR are under review. Once it is integrated
-  no active candidate remains, and the ONE authorized corrected-cell short-probe rerun
-  becomes the next task, run from a clean checkout at exactly that `main`. It must report:
-  complete provenance; explicit denominators everywhere; the scheduled clean vs damaged
-  populations; matched-pair yield and the paired reward delta with its pair denominator;
-  failures by pipeline stage; how often the event actually fired, woke the selected ego,
-  produced a real RTB command, or ended in a death; reward headroom; and whether the PPO
-  updates were productive. **A long baseline stays BLOCKED until that probe has been
-  executed and REVIEWED**, and no result may be pre-claimed for it. A held-out mean is
-  never read without its denominator; `graph_reward` remains FROZEN unless a separately
-  reviewed p<1 design requires an explicit reward-contract change.
-  **The harness that probe runs on is MERGED and LOCKED** (`61e539e`, §7): it is driven by
-  the repository preset `configs/graph_train/final_cell_probe.json` via `--config`, and it
-  writes `run_config.json` (with `provenance` and a structured `config_source`), the three
-  jsonl records, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures
-  under `plots/`. Two consequences for reading its result: the preset schedules TWO
-  ITERATIONS, which does not guarantee two PRODUCTIVE PPO updates (`updates_completed` may
-  be 0, 1 or 2 — that yield is a MEASUREMENT, never an assumption); and the held-out
-  per-condition means are each over their own successful subset, so the within-seed claim
-  is the matched-pair delta over COMPLETE pairs alone (§5). What counts as a VALID
-  measurement — as opposed to a favourable one — is stated in the handoff: a probe that
-  produces no reward improvement, or no productive update, is a valid NEGATIVE observation,
-  not a technical failure.
-  That probe MAY run with `--visual-artifacts` (§5, `24d1835`); the repository preset
-  enables it. It preserves each successful attempt's known-only scenario, executed t=0
-  scenario and BLADE playback for inspection, and it is an observation surface only:
-  enabling it neither authorizes the probe nor changes anything the probe measures, and
-  artifact completeness is reported ALONGSIDE the scientific denominators, never in place
-  of one.
+- **THE VALIDITY GATE IS PASSED — the corrected-cell short probe is EXECUTED,
+  INDEPENDENTLY REVIEWED and VALID; the LONG BASELINE has still NOT been run.** Difficulty
+  selection is CLOSED (below) and FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so
+  the open question was never *what* to build but *how the built cell behaves* — and that
+  question now has ONE BOUNDED ANSWER. The bounded short probe has been run TWICE, and the
+  two runs mean different things:
+  - **First run — `training_output_20260815_173029`**, from clean `main` at
+    `238062d7d284334432d9c39d7543fb0bbf39ea7c`. It established HARNESS AND ACCOUNTING
+    OPERABILITY ONLY and exposed three research-validity defects (next bullet), so **its
+    reward numbers are NOT scientific evidence about the fuel-damage cell** and remain
+    historical evidence about the PRE-CORRECTION behaviour.
+  - **Corrected rerun — `training_output_20260816_162130`**, from a clean checkout at exact
+    code SHA `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, one invocation of the reviewed
+    preset through `--config`, native exit code 0, `cli_overrides = []`. Independently
+    reviewed and recorded in §7 as **VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS**:
+    complete clean provenance, `accounting_reconciled = true`, no infrastructure failure,
+    **4/4 complete matched pairs in BOTH evaluation rounds**, two productive PPO updates
+    (`updates_completed = 2`), 24/24 artifact bundles accounted (22 `complete`, 2
+    `incomplete` matching the two `setup` failures), and all three defect corrections
+    OPERATIONALLY WITNESSED in real playback. **This closes the research-validity gate the
+    first probe opened.**
+  **What the gate's passing does and does not authorize.** The corrected cell now has real
+  PERFORMANCE evidence at SHORT-PROBE scale — §7 records every number with its
+  denominator — but that is a bounded 24-attempt probe, **not** a baseline and **not** an
+  estimate of converged policy performance. **NO LONG BASELINE HAS BEEN RUN**, and none may
+  have its result pre-claimed. The long baseline is UNBLOCKED as a next research task, not
+  as an entitlement to a particular outcome.
+  **The next research task**, once THIS documentation record is integrated into `main` and
+  its branch `task/corrected-short-probe-doc-lock` is retired, is **fresh exact-SHA
+  long-baseline RECON followed by long-baseline EXECUTION**, separately authorized and
+  starting from a freshly resolved live `main`. **Its shape, duration, seed schedule and
+  CLI contract are deliberately NOT fixed here** — they are derived in that recon from the
+  newly merged documents, never invented in a documentation task. No result may be
+  pre-claimed for it. The reporting duties are unchanged and are what the corrected rerun
+  already satisfied: complete provenance; explicit denominators everywhere; the scheduled
+  clean vs damaged populations; matched-pair yield and the paired reward delta with its
+  pair denominator; failures by pipeline stage; how often the event actually fired, woke
+  the selected ego, produced a real RTB command, or ended in a death; reward headroom; and
+  whether the PPO updates were productive. A held-out mean is never read without its
+  denominator; `graph_reward` remains FROZEN unless a separately reviewed p<1 design
+  requires an explicit reward-contract change.
+  **The deferred over-safety observation is a HYPOTHESIS, not a defect and not a semantic
+  change.** The corrected rerun's playback shows a B-2 at 50.07 km from a second hidden
+  target — against the 50 km `DETECTION_KM` threshold — on the sampled frame before it
+  enters RTB, and the preserved artifact does not persist that wake's selected meta-action,
+  so the attribution is PLAUSIBLE BUT NOT PROVEN (§7). It is recorded as a future research
+  hypothesis about policy calibration, relevant to a later variable-FD-severity experiment.
+  **It opens no defect, changes no reward, retunes no policy, and neither invalidates nor
+  blocks the corrected probe or the long baseline.**
+  **The harness both probes ran on is MERGED and LOCKED** (`61e539e`, §7): driven by the
+  repository preset `configs/graph_train/final_cell_probe.json` via `--config`, writing
+  `run_config.json` (with `provenance` and a structured `config_source`), the three jsonl
+  records, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures under
+  `plots/`. Two reading rules survive unchanged: the preset schedules TWO ITERATIONS, which
+  does not guarantee two PRODUCTIVE PPO updates (`updates_completed` may be 0, 1 or 2 —
+  the corrected rerun measured 2, but that yield is always a MEASUREMENT, never an
+  assumption); and the held-out per-condition means are each over their own successful
+  subset, so the within-seed claim is the matched-pair delta over COMPLETE pairs alone
+  (§5). What counts as a VALID measurement — as opposed to a favourable one — is stated in
+  the handoff: a probe that produces no reward improvement, or no productive update, is a
+  valid NEGATIVE observation, not a technical failure.
+  Both runs used `--visual-artifacts` (§5, `24d1835`; the repository preset enables it). It
+  preserves each successful attempt's known-only scenario, executed t=0 scenario and BLADE
+  playback for inspection, and it is an observation surface only: enabling it neither
+  authorizes a run nor changes anything a run measures, and artifact completeness is
+  reported ALONGSIDE the scientific denominators, never in place of one.
   *Historical, and about the EASY PRE-FD CELL only:* the clean-code probe at
   `a3f0838616990987bcb8a51665fa75d84edf5952` measured pre-update headroom
   (`-0.4999997395829586`, 4/4), train yield 7/8 with one accounted seed-2 `setup` failure,
@@ -1593,13 +1725,15 @@ second factor is bundled in (§8).
     receives the truthful terminal loss. `rtb_issued` keeps its ONE job as the single-issue
     toggle guard, and an ego that has committed to return leaves Phase 1 while peers
     continue. The vendored BLADE engine is unchanged.
-  **Gating, unchanged by the closure of all three defects:** the vendored BLADE engine
-  stays FROZEN unless separately authorized (§2); the LONG BASELINE stays BLOCKED /
-  UNAUTHORIZED until the ONE authorized corrected-cell short-probe rerun has been executed
-  AND independently reviewed; and that rerun waits on the integration of this
-  documentation record (the gate bullet above). **The probe has NOT been rerun against the
-  corrected cell**, and no result — reward improvement, productive update, survival or any
-  other — may be pre-claimed for it.
+  **Gating, as it now stands:** the vendored BLADE engine stays FROZEN unless separately
+  authorized (§2). The ONE authorized corrected-cell short-probe rerun **HAS been
+  executed AND independently reviewed** — `training_output_20260816_162130` at
+  `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, verdict VALID (§7) — so the LONG BASELINE
+  is no longer blocked on it and becomes the next research task once this documentation
+  record is integrated and its branch is retired (the gate bullet above). All three
+  defects are now OPERATIONALLY WITNESSED in that measurement, not only in proof tests.
+  **No long-baseline result may be pre-claimed**, and the corrected rerun's own numbers
+  are short-probe observations, never a baseline expectation.
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
