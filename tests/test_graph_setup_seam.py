@@ -1327,6 +1327,453 @@ def test_blade_derived_wait_prevents_the_redundant_salvo() -> None:
 
 
 # =============================================================================
+# PURE -- P6: RTB ISSUANCE vs PHYSICAL COMPLETION (Defect C)
+# =============================================================================
+#
+# `is_done` used to read the `rtb_issued` LATCH, i.e. "the order went out", and the tick
+# loop stopped there -- so an episode could end while the aircraft was still airborne and
+# a doomed ego was scored as a survivor. Completion is now a PHYSICAL fact read off the
+# live observation: a non-dead ego is resolved only once it is back in an airbase
+# inventory, and an ego that is in neither the air nor any inventory has been removed by
+# the engine and is reconciled into `dead`.
+#
+# These stubs model exactly the three engine states and nothing else -- an aircraft lives
+# in `scenario.aircraft` (flying), in some `airbase.aircraft` (landed, where
+# `Game.land_aicraft` puts it), or in neither (`Game.remove_aircraft`, the empty tank).
+
+
+class _LifeAircraft:
+    """A live aircraft: only identity and position are read by the lifecycle path."""
+
+    def __init__(self, uid: str, lat: float = 32.0, lon: float = 35.0) -> None:
+        self.id, self.latitude, self.longitude = uid, lat, lon
+        self.route: List[Any] = []
+
+
+class _LifeAirbase:
+    """An airbase whose `aircraft` inventory is what "landed" actually means."""
+
+    def __init__(self, uid: str, aircraft: Optional[List[Any]] = None) -> None:
+        self.id = uid
+        self.aircraft = list(aircraft or [])
+        self.latitude, self.longitude = 32.0, 35.0
+
+
+class _LifeWorld:
+    """The two lists the lifecycle reads, plus the liveness probe the guard uses."""
+
+    def __init__(self, aircraft: List[Any], airbases: List[Any]) -> None:
+        self.aircraft, self.airbases = list(aircraft), list(airbases)
+        self.facilities: List[Any] = []
+        self.ships: List[Any] = []
+
+    def get_target(self, _target_id: str) -> Optional[Any]:
+        return None  # every target already gone; nothing here is about kills
+
+    def land(self, aircraft: Any, base: Any) -> None:
+        """What `Game.land_aicraft` does: inventory first, then out of the air."""
+        base.aircraft.append(aircraft)
+        self.aircraft.remove(aircraft)
+
+    def burn_out(self, aircraft: Any) -> None:
+        """What `Game.remove_aircraft` does on an empty tank: gone, with no home."""
+        self.aircraft.remove(aircraft)
+
+
+def _life_executor(solution, *, tasks=None, add_return_to_base=True, agent_ids=None):
+    from match_aou.utils.blade_utils.blade_graph_executor import GraphPlanExecutor
+
+    ids = list(agent_ids if agent_ids is not None else solution.keys())
+    agents = [_StubAgent(a, Location(32.0, 35.0), Location(32.0, 35.0)) for a in ids]
+    return GraphPlanExecutor(
+        tasks=list(tasks or []), solution=solution, agents=agents,
+        arrival_threshold_km=DETECTION_KM, add_return_to_base=add_return_to_base,
+    )
+
+
+def test_rtb_issuance_is_not_physical_completion() -> None:
+    """P6a: ONE RTB order, no second toggle, and completion only on the landing.
+
+    The whole defect in one sequence: the order goes out on the first empty-plan
+    airborne tick, `rtb_issued` latches, and the episode must NOT be finished -- the
+    aircraft is still in the air. Completion arrives only when the engine has actually
+    moved it into an airbase inventory.
+    """
+    ego = "ego"
+    aircraft = _LifeAircraft(ego)
+    base = _LifeAirbase("base")
+    world = _LifeWorld([aircraft], [base])
+    executor = _life_executor({ego: []})
+
+    # (1) The first airborne tick with nothing left to do: exactly ONE RTB order.
+    assert executor.next_actions(world) == ["aircraft_return_to_base('%s')" % ego]
+    assert executor.rtb_issued.get(ego) is True
+
+    # (2) THE DEFECT: the latch is set, and the episode is NOT over.
+    assert executor.is_done(world) is False, (
+        "issuing the RTB order completed the episode -- that is Defect C"
+    )
+
+    # (3) The ride home: no second toggle (it would CANCEL the RTB), still not done.
+    for _ in range(5):
+        assert executor.next_actions(world) == [], "a second RTB toggle was emitted"
+        assert executor.is_done(world) is False
+    assert ego not in executor.dead
+
+    # (4) The engine lands it. NOW, and only now, the episode is over.
+    world.land(aircraft, base)
+    assert executor.is_done(world) is True
+    assert ego not in executor.dead, "a landed ego must never be counted as lost"
+    assert executor.next_actions(world) == [], "a landed ego was commanded again"
+
+
+def test_a_burn_out_on_the_ride_home_is_reconciled_dead() -> None:
+    """P6b: an ego removed mid-return is recorded dead by the completion check itself.
+
+    This is the accounting half of the defect: under issuance-based completion the
+    episode stopped at (1), so the engine never got the ticks in which the tank ran dry
+    and `dead` stayed empty -- a doomed aircraft scored as a survivor.
+    """
+    ego = "ego"
+    aircraft = _LifeAircraft(ego)
+    world = _LifeWorld([aircraft], [_LifeAirbase("base")])
+    executor = _life_executor({ego: []})
+
+    # (1) Ordered home, still flying, not finished, not dead.
+    assert executor.next_actions(world) == ["aircraft_return_to_base('%s')" % ego]
+    assert executor.is_done(world) is False and not executor.dead
+
+    # (2) The tank runs dry: removed from the air, with no inventory to land in.
+    world.burn_out(aircraft)
+
+    # (3) The completion check itself reconciles the loss -- no other call is needed,
+    #     which is what makes it visible to `EpisodeResult.n_dead` and the reward.
+    assert executor.is_done(world) is True
+    assert executor.dead == {ego}
+    assert executor.next_actions(world) == [], "a dead ego was commanded"
+
+
+def test_death_reconciliation_covers_every_ego_before_any_verdict() -> None:
+    """P6c: a peer that is still working cannot hide another ego's death.
+
+    The reconciliation pass is TOTAL and runs before the verdict, so the early
+    "not done" produced by `a_working` does not stop `z_burned` from being recorded.
+    Ids are chosen so the unfinished ego is visited FIRST in sorted order.
+    """
+    working, burned = "a_working", "z_burned"
+    task = _task("tgt-1", 32.0, 35.0)
+    flying = _LifeAircraft(working)
+    doomed = _LifeAircraft(burned)
+    world = _LifeWorld([flying, doomed], [_LifeAirbase("base")])
+    executor = _life_executor(
+        {working: [(0, 0, 0)], burned: []}, tasks=[task]
+    )
+
+    world.burn_out(doomed)
+
+    assert executor.is_done(world) is False, "the working ego is not finished"
+    assert executor.dead == {burned}, (
+        "the death was skipped because a peer returned 'not done' first"
+    )
+
+
+def test_no_return_to_base_contract_is_preserved() -> None:
+    """P6d: `add_return_to_base=False` still requires no return of any kind.
+
+    Callers that opted out get the pre-Defect-C behaviour exactly: no RTB command is
+    ever emitted, and an airborne ego whose work is finished IS done.
+    """
+    ego = "ego"
+    aircraft = _LifeAircraft(ego)
+    world = _LifeWorld([aircraft], [_LifeAirbase("base")])
+    task = _task("tgt-1", 32.0, 35.0)
+
+    finished = _life_executor({ego: []}, add_return_to_base=False)
+    assert finished.next_actions(world) == [], "an RTB was emitted with RTB disabled"
+    assert finished.is_done(world) is True, (
+        "airborne-but-finished must stay done when no return is required"
+    )
+    assert finished.rtb_issued.get(ego) is None
+
+    # Unfinished work still blocks completion, RTB policy or not.
+    busy = _life_executor({ego: [(0, 0, 0)]}, tasks=[task], add_return_to_base=False)
+    assert busy.is_done(world) is False
+
+
+def test_physical_classification_cannot_be_moved_by_a_peer() -> None:
+    """P6e: only the ego's OWN entries decide where the ego is (no-communication).
+
+    The classifier is handed worlds that differ ONLY in peer placement -- peers flying,
+    peers landed, peers removed entirely -- and must return the same verdict for the ego
+    every time, so no peer's lifecycle can leak into this ego's completion.
+    """
+    ego, peer = "ego", "peer"
+    executor = _life_executor({ego: []}, agent_ids=[ego, peer])
+    base = _LifeAirbase("base")
+
+    def _classify(build) -> Tuple[str, bool]:
+        world, ego_aircraft = build()
+        state = executor._physical_state(ego, world)
+        # `is_done` is asked about the ego alone (only it has a plan slice).
+        return state, executor.is_done(world)
+
+    def _airborne_ego(peer_where: str):
+        def build():
+            ac = _LifeAircraft(ego)
+            peer_ac = _LifeAircraft(peer)
+            home = _LifeAirbase("base")
+            if peer_where == "air":
+                return _LifeWorld([ac, peer_ac], [home]), ac
+            if peer_where == "landed":
+                home.aircraft.append(peer_ac)
+                return _LifeWorld([ac], [home]), ac
+            return _LifeWorld([ac], [home]), ac  # peer removed entirely
+        return build
+
+    verdicts = {w: _classify(_airborne_ego(w)) for w in ("air", "landed", "gone")}
+    assert set(verdicts.values()) == {("airborne", False)}, verdicts
+    assert not executor.dead, executor.dead
+
+    # And the same invariance once the ego itself is home.
+    landed = []
+    for peer_where in ("air", "landed", "gone"):
+        ac = _LifeAircraft(ego)
+        peer_ac = _LifeAircraft(peer)
+        home = _LifeAirbase("base", aircraft=[ac])
+        air = [peer_ac] if peer_where == "air" else []
+        if peer_where == "landed":
+            home.aircraft.append(peer_ac)
+        world = _LifeWorld(air, [home])
+        landed.append((executor._physical_state(ego, world), executor.is_done(world)))
+    assert set(landed) == {("landed", True)}, landed
+    assert base.aircraft == []
+
+
+# =============================================================================
+# BLADE (no solver) -- P7: the real ride home reaches the terminal result (Defect C)
+# =============================================================================
+#
+# Everything below is the real engine: a real `Game` from `_build_env`, real agents and
+# tasks from `_extract_world`, a real targeted launch, the real `GraphPlanExecutor`
+# choosing every command, the real `run_episode` two-phase tick, and real `env.step`
+# physics deciding whether the aircraft gets home. Only `_wake_decision` is stubbed --
+# the encoder and head decide nothing about a lifecycle, and stubbing them keeps this
+# tier solver-free and deterministic.
+
+# One degree of latitude in kilometres; used only to displace the ego from its base so
+# the ride home takes a measurable number of ticks instead of resolving instantly.
+# The displacement is SOUTHWARD on purpose: this template's two red SAM facilities sit
+# NORTH of the blue base, and flying the return leg through their envelope would let a
+# surface-to-air kill masquerade as a fuel burn-out. The fixtures assert that no weapon
+# ever existed, so removal can only have come from `current_fuel <= 0`.
+_KM_PER_DEGREE_LATITUDE = 111.19492664455873
+_RETURN_DISTANCE_KM = 120.0
+
+
+class _ReturnCtx:
+    """The `EpisodeContext` surface `run_episode` and `compute_episode_reward` read."""
+
+    def __init__(self, *, env, game, ego, executor, observation, tasks) -> None:
+        from match_aou.rl.training.belief import Belief
+
+        self.env, self.game = env, game
+        self.agent_ids = [ego]
+        self.executor = executor
+        self.observation = observation
+        self.record = False
+        self.beliefs = {ego: Belief.independent(list(tasks), {ego: []})}
+        # A hand-built oracle: `plan_value` is pure arithmetic over (solution, tasks),
+        # so the reward path needs no solver to be exercised honestly.
+        self.oracle_tasks = list(tasks)
+        self.oracle_solution = {ego: [(i, 0, 0) for i in range(len(tasks))]}
+
+
+def _fly_home_with_real_blade(*, fuel_multiplier: float) -> Dict[str, Any]:
+    """Order ONE real ego home from `_RETURN_DISTANCE_KM` out and report what happened.
+
+    `fuel_multiplier` scales the engine's OWN `get_fuel_needed_to_return_to_base`, so
+    `> 1` means the aircraft can reach home and `< 1` means it cannot. Nothing else is
+    tuned: the burn, the movement, the landing and the removal are all BLADE's.
+    """
+    from match_aou.rl.observation.graph_builder import GraphObservationConfig
+    from match_aou.rl.training import graph_episode_setup as ges
+    from match_aou.rl.training import graph_tick_loop
+    from match_aou.utils.blade_utils.blade_graph_executor import GraphPlanExecutor
+
+    game, env, obs = ges._build_env(
+        BASE_SCENARIO.read_text(encoding="utf-8"),
+        max_episode_steps=MAX_SIM_TICKS,
+        attacking_side_color=ATTACKING_SIDE_COLOR,
+        record_every_seconds=10,
+        recording_export_path=None,
+    )
+    try:
+        agents, tasks = ges._extract_world(obs, ATTACKING_SIDE_COLOR)
+        agent = agents[0]
+        ego, home_id = str(agent.id), str(agent.home_base_id)
+
+        scenario = game.current_scenario
+        from blade.Doctrine import DoctrineType
+
+        assert game.launch_aircraft_from_airbase(home_id, ego) is not None
+        aircraft = scenario.get_aircraft(ego)
+        assert aircraft is not None
+        assert not scenario.check_side_doctrine(
+            aircraft.side_id, DoctrineType.AIRCRAFT_RTB_WHEN_OUT_OF_RANGE
+        ), "the engine would toggle rtb itself; the single-issue latch is not sound"
+
+        home = scenario.get_aircraft_homebase(ego)
+        assert home is not None and str(home.id) == home_id
+
+        # Displace it straight south of home, so the ride home is a real flight that
+        # stays clear of the northern SAM belt (see `_RETURN_DISTANCE_KM`).
+        aircraft.latitude = home.latitude - _RETURN_DISTANCE_KM / _KM_PER_DEGREE_LATITUDE
+        aircraft.longitude = home.longitude
+        aircraft.current_fuel = (
+            float(fuel_multiplier) * game.get_fuel_needed_to_return_to_base(aircraft)
+        )
+
+        # An EMPTY plan is the whole mission here: the executor's pre-existing
+        # empty-plan branch orders the ride home on the very first tick.
+        executor = GraphPlanExecutor(
+            tasks=tasks, solution={ego: []}, agents=[agent],
+            arrival_threshold_km=DETECTION_KM,
+        )
+        ctx = _ReturnCtx(env=env, game=game, ego=ego, executor=executor,
+                         observation=obs, tasks=tasks)
+
+        # `next_actions` runs exactly once per tick, so its call ordinal IS the tick.
+        issued: List[Tuple[int, List[str]]] = []
+        weapons_seen: List[int] = []
+        fuel_seen: List[float] = []
+        real_next = executor.next_actions
+
+        def spy_next(observation):
+            # `next_actions` is called exactly once per tick, so its call ordinal IS the
+            # tick, and this is also a free per-tick sample of the world it acted on.
+            weapons_seen.append(len(getattr(observation, "weapons", []) or []))
+            live = observation.get_aircraft(ego)
+            if live is not None:
+                fuel_seen.append(float(live.current_fuel))
+            commands = real_next(observation)
+            issued.append((len(issued), list(commands)))
+            return commands
+
+        executor.next_actions = spy_next
+
+        wakes: List[Tuple[str, int]] = []
+
+        def spy_wake(_policy, ego_id, _obs, _belief, _executor, _cfg, tick, **_kw):
+            wakes.append((str(ego_id), int(tick)))
+            return graph_tick_loop.Transition(
+                gobs=None, ego_id=str(ego_id), tick=int(tick),
+                meta_action=0, node_v=0, log_prob=0.0, entropy=0.0,
+            )
+
+        # Generous but BOUNDED: the return leg at this aircraft's own knots speed plus
+        # a wide margin, so a run that hits the cap has stopped progressing.
+        km_per_tick = float(aircraft.speed) * 1.852 / 3600.0
+        cap = int(4 * _RETURN_DISTANCE_KM / km_per_tick) + 50
+
+        saved = graph_tick_loop._wake_decision
+        graph_tick_loop._wake_decision = spy_wake
+        try:
+            result = graph_tick_loop.run_episode(
+                None, ctx, GraphObservationConfig(detection_range_km=DETECTION_KM),
+                max_ticks=cap,
+            )
+        finally:
+            graph_tick_loop._wake_decision = saved
+
+        final = scenario
+        in_air = {str(getattr(ac, "id", "")) for ac in getattr(final, "aircraft", []) or []}
+        in_base = {
+            str(getattr(ac, "id", ""))
+            for b in (getattr(final, "airbases", []) or [])
+            for ac in (getattr(b, "aircraft", []) or [])
+        }
+        rtb_cmd = "aircraft_return_to_base('%s')" % ego
+        rtb_ticks = [t for t, cmds in issued if rtb_cmd in cmds]
+        return {
+            "ego": ego, "ctx": ctx, "result": result, "cap": cap,
+            "rtb_ticks": rtb_ticks, "wakes": wakes,
+            "n_commands": sum(len(cmds) for _t, cmds in issued),
+            "airborne": ego in in_air, "landed": ego in in_base,
+            "max_weapons": max(weapons_seen) if weapons_seen else 0,
+            "last_fuel": fuel_seen[-1] if fuel_seen else None,
+            "fuel_fell": bool(len(fuel_seen) > 1 and fuel_seen[-1] < fuel_seen[0]),
+            # The engine's own per-tick burn, `fuel_rate / 3600`, unconditional.
+            "burn_per_tick": float(aircraft.fuel_rate) / 3600.0,
+        }
+    finally:
+        env.close()
+
+
+@_needs_blade
+def test_blade_a_fuelled_ego_flies_home_and_lands_before_the_episode_ends() -> None:
+    """P7a: with fuel to spare the episode continues past the order and ends on landing.
+
+    Under the retired contract the episode stopped on the tick the order was issued.
+    Here it keeps ticking, the engine flies the aircraft home, and completion arrives
+    only once BLADE has put it back in an airbase inventory.
+    """
+    out = _fly_home_with_real_blade(fuel_multiplier=4.0)
+    ego, result = out["ego"], out["result"]
+
+    assert out["rtb_ticks"] == [0], out["rtb_ticks"]
+    assert out["n_commands"] == 1, "more than the single RTB order was issued"
+    assert result.ticks > out["rtb_ticks"][0] + 1, (
+        "the episode ended on the issuing tick -- that is Defect C"
+    )
+    assert result.ended == "done" and result.ticks < out["cap"], (result.ended, result.ticks)
+    assert out["landed"] and not out["airborne"], out
+    assert result.n_dead == 0 and out["ctx"].executor.dead == set()
+    assert out["max_weapons"] == 0, "a shot was fired; this is no longer a clean flight"
+
+
+@_needs_blade
+def test_blade_an_ego_that_burns_out_on_the_ride_home_is_counted_dead() -> None:
+    """P7b: too little fuel -> the loss is real, and the reward charges for it.
+
+    The aircraft is given HALF the fuel the engine itself says the trip needs, so it is
+    removed mid-return. The episode had to keep running for that to be able to happen at
+    all, which is exactly what the retired issuance-based completion prevented.
+    """
+    from match_aou.rl.training.graph_reward import RewardConfig, compute_episode_reward
+
+    out = _fly_home_with_real_blade(fuel_multiplier=0.5)
+    ego, ctx, result = out["ego"], out["ctx"], out["result"]
+
+    assert out["rtb_ticks"] == [0], out["rtb_ticks"]
+    assert out["n_commands"] == 1, "more than the single RTB order was issued"
+    assert result.ticks > out["rtb_ticks"][0] + 1, (
+        "the episode ended on the issuing tick, so the burn-out could never occur"
+    )
+    assert not out["airborne"] and not out["landed"], (
+        "the aircraft neither burned out nor landed: %r" % (out,)
+    )
+    # The removal must be the EMPTY TANK and nothing else. `update_all_aircraft_position`
+    # removes an aircraft only at `current_fuel <= 0`; the other way to leave the sim is
+    # a weapon, so a world in which no weapon ever existed pins the cause.
+    assert out["max_weapons"] == 0, "a weapon killed it; this is not a fuel burn-out"
+    # The last tank reading before the removal held LESS than one tick of burn, so the
+    # very next `fuel_rate / 3600` decrement took it to <= 0 -- the engine's own rule.
+    assert out["fuel_fell"], out
+    assert 0.0 < out["last_fuel"] <= out["burn_per_tick"], out
+    assert ctx.executor.dead == {ego}, ctx.executor.dead
+    assert result.n_dead == 1, result
+
+    # The EXISTING reward path, unchanged, now sees the airframe that was really lost.
+    cfg = RewardConfig(aircraft_penalty_coeff=2.25)
+    breakdown = compute_episode_reward(ctx, result, cfg)
+    assert breakdown.n_lost == 1, breakdown
+    denominator = abs(breakdown.u_oracle) + cfg.regret_epsilon
+    assert breakdown.penalty == 2.25 * breakdown.u_aircraft * 1 / denominator
+    assert breakdown.penalty > 0.0, breakdown
+    assert breakdown.reward == breakdown.ratio - breakdown.penalty
+
+
+# =============================================================================
 # SOLVER (BLADE + bonmin) -- P1 and P2 end to end
 # =============================================================================
 

@@ -15,7 +15,7 @@ This is the FIRST real exercise of the two new BLADE edits' new forms:
 Asserts:
   * every assigned target ends up destroyed (get_target -> None);
   * each agent launches (becomes airborne) then RTBs (lands into an airbase);
-  * executor.is_done() becomes True;
+  * executor.is_done(obs) becomes True;
   * no exception / Traceback.
 
 Also instruments the per-(ego,target) kill-confirm latency (ticks from attack-emit
@@ -219,14 +219,16 @@ def main() -> int:
             if key not in kill_tick and obs.get_target(key[1]) is None:
                 kill_tick[key] = tick
 
-        # Stop once: plan done (is_done), in-flight weapons resolved the kills, AND
-        # every assigned agent has physically left the air (landed or crashed).
-        # NOTE: is_done() latches at RTB *issue*, not landing — so we additionally
-        # wait for the agents to actually clear scenario.aircraft (fly home + land).
+        # Stop once: plan done and everyone physically resolved (is_done now reads the
+        # live observation and requires a non-dead ego to be back in an airbase
+        # inventory), AND the in-flight weapons resolved the kills. The explicit
+        # "cleared the air" test is kept as an INDEPENDENT witness of the same fact --
+        # it is what this script asserts against, so it must not be replaced by the
+        # very predicate under test.
         airborne_ids = {str(getattr(ac, "id", "")) for ac in getattr(obs, "aircraft", []) or []}
         targets_gone = all(obs.get_target(t) is None for t in assigned_tids)
         all_cleared_air = all(a not in airborne_ids for a in agent_ids)
-        if executor.is_done() and targets_gone and all_cleared_air:
+        if executor.is_done(obs) and targets_gone and all_cleared_air:
             print(f"Loop finished at tick {tick}: is_done=True, all assigned targets "
                   f"destroyed, all assigned agents cleared the air.")
             break
@@ -266,11 +268,11 @@ def main() -> int:
     else:
         print(f"OK: all {len(agent_ids)} agents RTB'd into an airbase.")
 
-    if not executor.is_done():
+    if not executor.is_done(obs):
         ok = False
-        print("ASSERT FAIL: executor.is_done() is False at end.")
+        print("ASSERT FAIL: executor.is_done(obs) is False at end.")
     else:
-        print("OK: executor.is_done() is True.")
+        print("OK: executor.is_done(obs) is True.")
 
     # --- Kill-confirm latency report (calibrates kill_confirm_ticks) ---
     print("\nKill-confirm latency (ticks from attack-emit to get_target -> None):")

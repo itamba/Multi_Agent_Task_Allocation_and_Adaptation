@@ -1224,9 +1224,11 @@ def _selftest() -> None:
     print(f"[4] oracle_solution produced, distinct object from A_init "
           f"({sum(len(v) for v in ctx.oracle_solution.values())} assignments)   OK")
 
-    # (5) Executor constructed; is_done() is False at t=0 (work remains, no RTB yet).
+    # (5) Executor constructed; is_done() is False at t=0 (work remains, nobody home).
+    #     Completion is PHYSICAL, so the check reads the reset observation.
     assert isinstance(ctx.executor, GraphPlanExecutor)
-    assert ctx.executor.is_done() is False, "executor claims done at t=0 (no work?!)"
+    assert ctx.executor.is_done(ctx.observation) is False, \
+        "executor claims done at t=0 (no work?!)"
     print("[5] executor constructed; is_done() is False at t=0   OK")
 
     # (6) REAL SPLIT (Test 2): partial ⊊ full, and A_init covers only KNOWN targets.
