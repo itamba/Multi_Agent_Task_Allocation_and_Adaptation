@@ -34,6 +34,18 @@ P3  real-BLADE stale-route replacement (no solver): an airborne ego flying a rea
     `GraphPlanExecutor` empty-plan branch emits exactly ONE `aircraft_return_to_base`,
     and applying it through the real `Game` action seam sets `rtb`, DROPS the stale
     waypoint and leaves a route that ends at the aircraft's actual home base.
+P4  the DERIVED attack-confirmation wait (pure): the wait armed after a salvo comes from
+    the weapon the engine's own 2-arg attack will select and the engagement distance the
+    executor already computed, follows the engine's km -> nm -> knots -> seconds
+    arithmetic with a ceiling and a one-tick margin, keeps the configured
+    `kill_confirm_ticks` as its floor and its fallback, refuses to guess on unusable
+    weapon/speed data, cannot be moved by a peer, and leaves the per-(ego, target)
+    cooldown identity and the confirmed-kill bypass exactly as they were.
+P5  real-BLADE redundant-salvo regression (no solver): with the loadout in the state the
+    first short probe reached, a single AIM-9 salvo is left to fly to completion instead
+    of being re-fired over -- the AGM-65 reserve survives, the target still dies, and the
+    plan still advances the moment the kill is confirmed. A control arm restoring the
+    retired flat wait reproduces the probe's redundant salvo.
 P2  private sensing isolation, through the INTEGRATED setup/tick seam: a hidden target
     that the setup really put in the world is reported as sensed by ONE ego, and the real
     `run_episode` Phase-1 chain is what carries it into that ego's belief and executor
@@ -459,6 +471,290 @@ def test_legacy_context_has_an_empty_placement_audit() -> None:
 
 
 # =============================================================================
+# PURE -- P4: the DERIVED attack-confirmation wait (Defect B)
+# =============================================================================
+#
+# The executor used to arm a FIXED `kill_confirm_ticks` (default 60) after every salvo.
+# It now DERIVES the wait at issue time from the weapon BLADE's own 2-arg attack path
+# will select and the engagement distance the executor already computed, keeping the
+# configured value as the FLOOR and the fallback. These are hand-built stubs: no engine,
+# no solver -- the derivation is arithmetic over duck-typed attributes.
+
+
+class _StubWeapon:
+    """The two attributes the derivation touches, plus the engine's own range rule.
+
+    `Weapon.get_engagement_range` is `speed * (current_fuel / fuel_rate)` -- an endurance
+    product, NOT a speed ranking. That is exactly why the selected weapon can get SLOWER
+    as a loadout is spent, which is the defect being fixed.
+    """
+
+    def __init__(self, name: str, speed: Any, engagement_range: float) -> None:
+        self.name, self.speed, self._range = name, speed, engagement_range
+
+    def get_engagement_range(self) -> float:
+        return self._range
+
+
+class _StubArmedAircraft:
+    """A duck-typed live aircraft exposing the engine's own selection method."""
+
+    def __init__(self, uid: str, lat: float, lon: float, weapons: List[Any]) -> None:
+        self.id, self.latitude, self.longitude = uid, lat, lon
+        self.weapons = list(weapons)
+
+    def get_weapon_with_highest_engagement_range(self) -> Optional[Any]:
+        # Byte-for-byte the engine's rule, from `Aircraft`.
+        if not self.weapons:
+            return None
+        return max(self.weapons, key=lambda w: w.get_engagement_range())
+
+
+class _StubAirScenario:
+    """Only `aircraft` is read by `_find_aircraft`, which is all the wait needs."""
+
+    def __init__(self, aircraft: List[Any]) -> None:
+        self.aircraft = list(aircraft)
+
+
+def _wait_executor(kill_confirm_ticks: int = 60) -> Any:
+    """A minimal executor whose ONLY job here is to expose `_confirmation_wait_ticks`."""
+    from match_aou.utils.blade_utils.blade_graph_executor import GraphPlanExecutor
+
+    agent = _StubAgent("ego", Location(32.0, 35.0), Location(32.0, 35.0))
+    return GraphPlanExecutor(
+        tasks=[], solution={"ego": []}, agents=[agent],
+        arrival_threshold_km=DETECTION_KM, kill_confirm_ticks=kill_confirm_ticks,
+    )
+
+
+def test_salvo_travel_ticks_transcribes_the_engine_flight_arithmetic() -> None:
+    """P4a: km -> nm -> hours at the weapon's KNOTS speed -> seconds, CEILED.
+
+    The expected values are recomputed here from the engine's constant rather than copied
+    from the implementation, so a changed conversion, a lost `3600` or a swapped rounding
+    mode all fail.
+    """
+    import math
+
+    from match_aou.utils.blade_utils.blade_graph_executor import (
+        KILOMETERS_TO_NAUTICAL_MILES,
+        _salvo_travel_ticks,
+    )
+
+    # The transcription itself: this is `blade.utils.constants`' value, the one
+    # `blade.utils.utils.get_next_coordinates` divides the weapon's speed into.
+    assert KILOMETERS_TO_NAUTICAL_MILES == 0.539957
+
+    def expected(distance_km: float, speed_knots: float) -> int:
+        return int(math.ceil(distance_km * 0.539957 / speed_knots * 3600.0))
+
+    # The three real loadout speeds of `strike_training_4v5.json`, at the observed
+    # engagement distance and at the detection radius.
+    cases = [
+        (47.2, 2600.0, 36),   # AIM-120 -- comfortably inside a fixed 60
+        (47.2, 1500.0, 62),   # AIM-9   -- ALREADY BEYOND a fixed 60: the defect
+        (47.2, 600.0, 153),   # AGM-65  -- far beyond it
+        (50.0, 2600.0, 38),
+        (50.0, 1500.0, 65),
+        (0.0, 1500.0, 0),     # degenerate but well defined: no flight, no wait
+    ]
+    for distance_km, speed_knots, want in cases:
+        got = _salvo_travel_ticks(_StubWeapon("w", speed_knots, 1.0), distance_km)
+        assert got == want == expected(distance_km, speed_knots), (
+            distance_km, speed_knots, got, want
+        )
+
+    # CEILING, not rounding and not truncation: 1 km at 1 kt is 1943.85 s -> 1944.
+    assert _salvo_travel_ticks(_StubWeapon("w", 1.0, 1.0), 1.0) == 1944
+
+    # |speed|, exactly as the engine normalises it in `get_next_coordinates`.
+    assert _salvo_travel_ticks(_StubWeapon("w", -1500.0, 1.0), 47.2) == 62
+
+
+def test_salvo_travel_ticks_refuses_to_guess_on_unusable_data() -> None:
+    """P4b: every underivable input returns None -> the caller uses the configured wait."""
+    from match_aou.utils.blade_utils.blade_graph_executor import _salvo_travel_ticks
+
+    assert _salvo_travel_ticks(None, 47.2) is None                        # no weapon
+    assert _salvo_travel_ticks(object(), 47.2) is None                    # no `speed`
+    assert _salvo_travel_ticks(_StubWeapon("w", 0.0, 1.0), 47.2) is None  # zero speed
+    assert _salvo_travel_ticks(_StubWeapon("w", float("nan"), 1.0), 47.2) is None
+    assert _salvo_travel_ticks(_StubWeapon("w", float("inf"), 1.0), 47.2) is None
+    assert _salvo_travel_ticks(_StubWeapon("w", "fast", 1.0), 47.2) is None
+    assert _salvo_travel_ticks(_StubWeapon("w", None, 1.0), 47.2) is None
+    # ... and an unusable DISTANCE is refused the same way.
+    assert _salvo_travel_ticks(_StubWeapon("w", 1500.0, 1.0), float("nan")) is None
+    assert _salvo_travel_ticks(_StubWeapon("w", 1500.0, 1.0), float("inf")) is None
+    assert _salvo_travel_ticks(_StubWeapon("w", 1500.0, 1.0), -1.0) is None
+
+
+def test_confirmation_wait_uses_the_highest_engagement_range_live_weapon() -> None:
+    """P4c: the SELECTED weapon drives the wait -- never a name, an order or a speed rank.
+
+    The rack is deliberately adversarial: the FASTEST weapon is first, the selected one
+    sits in the MIDDLE, and the LAST entry is the slowest. Only `get_engagement_range`
+    decides -- the same call `Game.handle_aircraft_attack(aircraft_id, target_id)` makes.
+    """
+    from match_aou.utils.blade_utils.blade_graph_executor import _salvo_travel_ticks
+
+    executor = _wait_executor(kill_confirm_ticks=60)
+
+    fastest = _StubWeapon("AIM-120 AMRAAM", 2600.0, 1000.0)     # fastest, SHORTEST range
+    selected = _StubWeapon("AIM-9 Sidewinder", 1500.0, 3565.0)  # the engine's pick
+    slowest = _StubWeapon("AGM-65 Maverick", 600.0, 1875.0)
+    aircraft = _StubArmedAircraft("ego", 32.0, 35.0, [fastest, selected, slowest])
+    scenario = _StubAirScenario([aircraft])
+
+    assert aircraft.get_weapon_with_highest_engagement_range() is selected
+    got = executor._confirmation_wait_ticks(scenario, "ego", 47.2)
+    assert got == _salvo_travel_ticks(selected, 47.2) + 1 == 63, got
+    # It is NOT the fastest, NOT the slowest and NOT a list position.
+    assert got != _salvo_travel_ticks(fastest, 47.2) + 1
+    assert got != _salvo_travel_ticks(slowest, 47.2) + 1
+
+    # Reordering the identical rack cannot change the answer.
+    for order in ([selected, slowest, fastest], [slowest, fastest, selected]):
+        shuffled = _StubAirScenario([_StubArmedAircraft("ego", 32.0, 35.0, order)])
+        assert executor._confirmation_wait_ticks(shuffled, "ego", 47.2) == got, order
+
+    # Spend the pick and the engine's own rule hands over to the next rack entry: the
+    # wait FOLLOWS it downward in speed, which a fixed constant cannot do.
+    aircraft.weapons.remove(selected)
+    assert aircraft.get_weapon_with_highest_engagement_range() is slowest
+    assert executor._confirmation_wait_ticks(scenario, "ego", 47.2) == 154
+
+
+def test_confirmation_wait_keeps_the_configured_value_as_floor_and_fallback() -> None:
+    """P4d: `max(configured, travel + 1)`, and the configured value on every fallback."""
+    from types import SimpleNamespace
+
+    executor = _wait_executor(kill_confirm_ticks=60)
+    quick = _StubWeapon("AIM-120 AMRAAM", 2600.0, 3565.0)  # 36 ticks at 47.2 km
+
+    # FLOOR: a fast salvo derives 37, which is below the configured minimum.
+    scenario = _StubAirScenario([_StubArmedAircraft("ego", 32.0, 35.0, [quick])])
+    assert executor._confirmation_wait_ticks(scenario, "ego", 47.2) == 60
+
+    # The floor is the CONFIGURED value, not a literal 60.
+    lenient = _wait_executor(kill_confirm_ticks=5)
+    assert lenient._confirmation_wait_ticks(scenario, "ego", 47.2) == 37
+    strict = _wait_executor(kill_confirm_ticks=500)
+    assert strict._confirmation_wait_ticks(scenario, "ego", 47.2) == 500
+
+    # FALLBACKS -- each returns the configured value untouched.
+    empty_rack = _StubAirScenario([_StubArmedAircraft("ego", 32.0, 35.0, [])])
+    assert executor._confirmation_wait_ticks(empty_rack, "ego", 47.2) == 60
+    bad_speed = _StubAirScenario(
+        [_StubArmedAircraft("ego", 32.0, 35.0, [_StubWeapon("w", 0.0, 1.0)])]
+    )
+    assert executor._confirmation_wait_ticks(bad_speed, "ego", 47.2) == 60
+    # A duck-typed aircraft with NO selector at all (the hand-built stub tiers).
+    no_selector = _StubAirScenario(
+        [SimpleNamespace(id="ego", latitude=32.0, longitude=35.0)]
+    )
+    assert executor._confirmation_wait_ticks(no_selector, "ego", 47.2) == 60
+    # The ego is not airborne at all -> `_find_aircraft` returns None.
+    assert executor._confirmation_wait_ticks(_StubAirScenario([]), "ego", 47.2) == 60
+    # And the configured value survives all of them.
+    assert executor.kill_confirm_ticks == 60
+
+
+def test_confirmation_wait_cannot_be_moved_by_a_peer() -> None:
+    """P4e: no-communication -- only the ACTING ego's own aircraft is read.
+
+    Peers carrying wildly different loadouts, with ids sorting both before and after the
+    ego, must leave the acting ego's derived wait byte-identical.
+    """
+    executor = _wait_executor(kill_confirm_ticks=60)
+    ego_weapon = _StubWeapon("AIM-9 Sidewinder", 1500.0, 1875.0)
+    alone = _StubAirScenario([_StubArmedAircraft("ego", 32.0, 35.0, [ego_weapon])])
+    baseline = executor._confirmation_wait_ticks(alone, "ego", 47.2)
+    assert baseline == 63, baseline
+
+    peer_slow = _StubArmedAircraft("aaa_peer", 33.0, 36.0, [_StubWeapon("p", 1.0, 9e9)])
+    peer_fast = _StubArmedAircraft("zzz_peer", 31.0, 34.0, [_StubWeapon("p", 9e5, 9e9)])
+    crowded = _StubAirScenario(
+        [peer_slow, _StubArmedAircraft("ego", 32.0, 35.0, [ego_weapon]), peer_fast]
+    )
+    assert executor._confirmation_wait_ticks(crowded, "ego", 47.2) == baseline
+    # Emptying a PEER's rack changes nothing either.
+    peer_slow.weapons = []
+    peer_fast.weapons = []
+    assert executor._confirmation_wait_ticks(crowded, "ego", 47.2) == baseline
+
+
+def test_derived_wait_is_armed_only_on_attack_and_stays_per_ego_and_target() -> None:
+    """P4f: the cooldown identity, the 2-arg command form and the confirmed-kill bypass.
+
+    Everything here is hand-built: two egos share ONE stub world holding two live enemy
+    airbases, both egos are in range of both, and each ego's rack differs -- so a leaked
+    cooldown key or a peer-derived wait would show up immediately.
+    """
+    from match_aou.utils.blade_utils.blade_graph_executor import GraphPlanExecutor
+
+    class _Scenario(_StubAirScenario):
+        def __init__(self, aircraft: List[Any], airbases: List[Any]) -> None:
+            super().__init__(aircraft)
+            self.airbases, self.facilities, self.ships = list(airbases), [], []
+
+        def get_target(self, target_id: str) -> Optional[Any]:
+            for unit in self.airbases:
+                if str(unit.id) == str(target_id):
+                    return unit
+            return None
+
+    t0 = Airbase("t0", 32.05, 35.0, "red")   # ~5.6 km from both egos
+    t1 = Airbase("t1", 32.06, 35.0, "red")
+    tasks = [_task("t0", 32.05, 35.0), _task("t1", 32.06, 35.0)]
+    ego_a = _StubArmedAircraft("A", 32.0, 35.0, [_StubWeapon("AIM-9", 1500.0, 1875.0)])
+    ego_b = _StubArmedAircraft("B", 32.0, 35.0, [_StubWeapon("AGM-65", 600.0, 1000.0)])
+    scenario = _Scenario([ego_a, ego_b], [t0, t1])
+
+    agents = [
+        _StubAgent("A", Location(32.0, 35.0), Location(32.0, 35.0)),
+        _StubAgent("B", Location(32.0, 35.0), Location(32.0, 35.0)),
+    ]
+    executor = GraphPlanExecutor(
+        tasks=tasks, solution={"A": [(0, 0, 0), (1, 0, 1)], "B": [(0, 0, 0)]},
+        agents=agents, arrival_threshold_km=DETECTION_KM, kill_confirm_ticks=60,
+    )
+
+    # (1) Both egos engage t0 on the same tick, with the CURRENT 2-arg command form.
+    commands = executor.next_actions(scenario)
+    assert commands == [
+        "handle_aircraft_attack('A', 't0')", "handle_aircraft_attack('B', 't0')"
+    ], commands
+
+    # (2) The cooldown is keyed per (ego, target) and each ego got ITS OWN weapon's wait.
+    #     A ~5.6 km hop is 8 ticks for the AIM-9 and 19 for the AGM-65, so BOTH sit under
+    #     the configured floor -- which is exactly what `max` is for.
+    assert set(executor.attack_cooldown) == {("A", "t0"), ("B", "t0")}
+    assert executor.attack_cooldown[("A", "t0")] == 60
+    assert executor.attack_cooldown[("B", "t0")] == 60
+    # Nothing was armed for a target neither ego has engaged yet.
+    assert ("A", "t1") not in executor.attack_cooldown
+
+    # (3) While the wait runs, neither ego re-fires and each cooldown decays alone.
+    assert executor.next_actions(scenario) == []
+    assert executor.attack_cooldown[("A", "t0")] == 59
+    assert executor.attack_cooldown[("B", "t0")] == 59
+
+    # (4) CONFIRMED KILL BYPASSES THE REMAINING WAIT: t0 dies with 59 ticks still on the
+    #     clock; A advances to t1 on the very next tick and B, whose plan is finished,
+    #     goes straight to RTB. Neither waits the window out.
+    scenario.airbases.remove(t0)
+    commands = executor.next_actions(scenario)
+    assert commands == [
+        "handle_aircraft_attack('A', 't1')", "aircraft_return_to_base('B')"
+    ], commands
+    assert ("A", "t0") in executor.done and ("B", "t0") in executor.done
+    # The confirmed target's stale cooldown is dropped for BOTH egos, independently.
+    assert set(executor.attack_cooldown) == {("A", "t1")}
+    assert executor.attack_cooldown[("A", "t1")] == 60
+
+
+# =============================================================================
 # BLADE (no solver) -- environment-1 ownership
 # =============================================================================
 
@@ -719,6 +1015,247 @@ def test_blade_abort_replaces_a_stale_route_with_the_home_base_route() -> None:
         assert aircraft.rtb is True and [list(wp) for wp in aircraft.route] == route
     finally:
         env.close()
+
+
+# =============================================================================
+# BLADE (no solver) -- P5: the redundant-salvo regression (Defect B)
+# =============================================================================
+
+# Generous cap: the slowest rack entry (AGM-65, 600 kt) needs ~153 ticks at this range,
+# so a run that hits this bound has stopped advancing rather than merely taken its time.
+_MAX_ENGAGEMENT_CALLS = 400
+
+
+def _engage_one_target_with_real_blade(
+    distance_km: float, *, fixed_wait: bool
+) -> Dict[str, Any]:
+    """Drive ONE real ego against ONE real enemy airbase and record what happened.
+
+    Everything is real except the loadout trim: a real `Game` from `_build_env`, real
+    agents/tasks from `_extract_world`, a real targeted launch, the real
+    `GraphPlanExecutor` choosing every command, and the real `Game.handle_action` +
+    `Game.update_game_state` resolving them tick by tick.
+
+    THE LOADOUT TRIM. The B-2's rack is AIM-120 (2600 kt) / AIM-9 (1500 kt) / AGM-65
+    (600 kt), and the engine's 2-arg attack always picks the highest ENGAGEMENT RANGE --
+    the AIM-120 -- until it is spent. The probe reached the failing state after two
+    AIM-120 salvos, at which point `weaponEngagement.launch_weapon` DROPS the exhausted
+    entry (`origin.weapons.remove(launched_weapon)` once `current_quantity < 1`). We
+    reproduce that end state directly by removing the same entry, so BLADE's own
+    selection then returns the AIM-9 with the AGM-65 reserve behind it. Nothing else
+    about the aircraft, the weapons or the engine is touched.
+
+    `fixed_wait=True` selects the RETIRED behaviour as a control arm -- the executor with
+    `_confirmation_wait_ticks` forced back to the flat configured constant. It is a
+    test-local subclass, never production code.
+    """
+    from match_aou.rl.training import graph_episode_setup as ges
+    from match_aou.utils.blade_utils.blade_graph_executor import GraphPlanExecutor
+    from blade.utils.utils import (
+        get_distance_between_two_points,
+        get_terminal_coordinates_from_distance_and_bearing,
+    )
+
+    class _FixedWaitExecutor(GraphPlanExecutor):
+        """The pre-fix contract: one flat configured wait, whatever is about to fly."""
+
+        def _confirmation_wait_ticks(
+            self, scenario: object, ego_id: str, distance_km: float
+        ) -> int:
+            return self.kill_confirm_ticks
+
+    executor_cls = _FixedWaitExecutor if fixed_wait else GraphPlanExecutor
+
+    game, env, obs = ges._build_env(
+        BASE_SCENARIO.read_text(encoding="utf-8"),
+        max_episode_steps=MAX_SIM_TICKS,
+        attacking_side_color=ATTACKING_SIDE_COLOR,
+        record_every_seconds=10,
+        recording_export_path=None,
+    )
+    try:
+        agents, tasks = ges._extract_world(obs, ATTACKING_SIDE_COLOR)
+        agent = agents[0]
+        ego = str(agent.id)
+        scenario = game.current_scenario
+
+        assert game.launch_aircraft_from_airbase(str(agent.home_base_id), ego) is not None
+        aircraft = scenario.get_aircraft(ego)
+        assert aircraft is not None, "the ego is not airborne after the launch"
+
+        # The loadout trim described above -- the engine's own post-exhaustion state.
+        aircraft.weapons = [w for w in aircraft.weapons if "AIM-120" not in w.name]
+
+        # A real enemy AIRBASE (destroyable, and what the construction cell places).
+        task_idx, target_id, target_loc = next(
+            (i, str(t.steps[0].target_id), t.steps[0].location)
+            for i, t in enumerate(tasks)
+            if scenario.get_airbase(str(t.steps[0].target_id)) is not None
+        )
+        latitude, longitude = get_terminal_coordinates_from_distance_and_bearing(
+            target_loc.latitude, target_loc.longitude, distance_km, 90.0
+        )
+        aircraft.latitude, aircraft.longitude = latitude, longitude
+        aircraft.route = []  # loitering: the executor issues no move once in range
+
+        selected = aircraft.get_weapon_with_highest_engagement_range()
+        reserve = [w for w in aircraft.weapons if w is not selected]
+
+        executor = executor_cls(
+            tasks=tasks, solution={ego: [(task_idx, 0, 0)]}, agents=agents,
+            arrival_threshold_km=DETECTION_KM,
+        )
+        engagement_km = Location(latitude, longitude).distance_to(target_loc)
+        derived_wait = executor._confirmation_wait_ticks(scenario, ego, engagement_km)
+
+        attack_calls: List[int] = []
+        target_alive_at: Dict[int, bool] = {}
+        weapons_in_flight_at: Dict[int, int] = {}
+        rack_quantity_at: Dict[int, int] = {}
+        confirmed_at: Optional[int] = None
+        rtb_at: Optional[int] = None
+
+        for call in range(0, _MAX_ENGAGEMENT_CALLS):
+            target_alive_at[call] = scenario.get_airbase(target_id) is not None
+            weapons_in_flight_at[call] = len(scenario.weapons)
+            live = scenario.get_aircraft(ego)
+            rack_quantity_at[call] = (
+                sum(w.current_quantity for w in live.weapons) if live is not None else -1
+            )
+            commands = executor.next_actions(scenario)
+            for command in commands:
+                if command.startswith("handle_aircraft_attack"):
+                    attack_calls.append(call)
+                elif command.startswith("aircraft_return_to_base") and rtb_at is None:
+                    rtb_at = call
+            if (ego, target_id) in executor.done and confirmed_at is None:
+                confirmed_at = call
+            game.handle_action(commands)
+            game.update_game_state()
+            if rtb_at is not None:
+                break
+
+        live = scenario.get_aircraft(ego)
+        return {
+            "ego": ego,
+            "target_id": target_id,
+            "engagement_km": engagement_km,
+            "blade_engagement_km": get_distance_between_two_points(
+                latitude, longitude, target_loc.latitude, target_loc.longitude
+            ),
+            "selected_name": selected.name,
+            "selected_speed": selected.speed,
+            "selected_lethality": selected.lethality,
+            "reserve_names": [w.name for w in reserve],
+            "derived_wait": derived_wait,
+            "configured_wait": executor.kill_confirm_ticks,
+            "attack_calls": attack_calls,
+            "attack_commands": [
+                "handle_aircraft_attack('%s', '%s')" % (ego, target_id)
+            ] * len(attack_calls),
+            "confirmed_at": confirmed_at,
+            "rtb_at": rtb_at,
+            "target_destroyed": scenario.get_airbase(target_id) is None,
+            "ego_alive": live is not None,
+            "remaining_rack": (
+                [(w.name, w.current_quantity) for w in live.weapons]
+                if live is not None else None
+            ),
+            "weapons_still_in_flight": len(scenario.weapons),
+            "target_alive_at": target_alive_at,
+            "weapons_in_flight_at": weapons_in_flight_at,
+            "rack_quantity_at": rack_quantity_at,
+        }
+    finally:
+        env.close()
+
+
+@_needs_blade
+def test_blade_derived_wait_prevents_the_redundant_salvo() -> None:
+    """P5: a slower auto-selected salvo is no longer re-fired over while it is airborne.
+
+    THE MEASURED DEFECT. In the first short probe a B-2 launched its last AIM-9 pair at a
+    hidden airbase, the flat 60-tick wait expired while that pair was still flying, the
+    executor issued a second attack, BLADE auto-selected the remaining AGM-65 pair, and
+    the ego reached its final known target with an empty rack. Both arms below are driven
+    against the REAL engine at the executor's production default `kill_confirm_ticks=60`;
+    the only difference is whether the wait is derived.
+
+    THE CONTROL ARM'S SCHEDULE, which fixes every call index used here: the executor arms
+    the cooldown on the firing call, decrements it once per later call, so a flat 60
+    reaches 0 on call 60 and the earliest re-fire is call 61. The confirm-guard runs
+    FIRST on every call, so a kill visible by call 61 is confirmed instead of re-fired.
+
+    TWO DISTANCES, both inside the single `DETECTION_KM = 50` attack envelope:
+      * 47.2 km -- the distance reconstructed from the probe's artifacts. Here the AIM-9
+        needs 62 s of flight against a flat 60-tick wait: the constant is ALREADY shorter
+        than the salvo it is supposed to cover, and the control arm survives only because
+        the kill lands one single tick before the re-fire. That one-tick margin is the
+        finding, not a safety property.
+      * 49.0 km -- the same envelope, one tick further out, where the margin is gone and
+        the control arm reproduces the probe's failure exactly.
+    """
+    close = _engage_one_target_with_real_blade(47.2, fixed_wait=False)
+    close_control = _engage_one_target_with_real_blade(47.2, fixed_wait=True)
+    far = _engage_one_target_with_real_blade(49.0, fixed_wait=False)
+    far_control = _engage_one_target_with_real_blade(49.0, fixed_wait=True)
+
+    # ---- the fixture really is the observed shape -----------------------------
+    for run in (close, close_control, far, far_control):
+        assert run["selected_name"].startswith("AIM-9"), run["selected_name"]
+        assert run["selected_speed"] == 1500, run["selected_speed"]
+        assert run["selected_lethality"] == 1.0, run["selected_lethality"]  # deterministic
+        assert any(n.startswith("AGM-65") for n in run["reserve_names"]), run["reserve_names"]
+        assert run["configured_wait"] == 60, run["configured_wait"]
+        assert run["ego_alive"], "the ego did not survive the engagement"
+    # The distance the executor derives from (our `Location.distance_to`) and the one the
+    # engine flies the weapon over agree to well under a metre -- orders of magnitude away
+    # from the nearest ceiling boundary, so the derived tick count cannot hinge on it.
+    for run in (close, far):
+        assert abs(run["engagement_km"] - run["blade_engagement_km"]) < 1e-3, run
+
+    # ---- 47.2 km: the flat constant was already SHORTER than the salvo --------
+    # 47.2 km at 1500 kt is 61.17 s -> 62 ticks of flight, +1 margin -> 63.
+    assert close["derived_wait"] == 63, close["derived_wait"]
+    assert close["derived_wait"] > close["configured_wait"]
+    # ... and the control arm's escape is exactly one tick wide: it confirms on call 60,
+    # the very call before the flat wait would have permitted a second command.
+    assert close_control["confirmed_at"] == 60, close_control["confirmed_at"]
+    assert close_control["attack_calls"] == [0], close_control["attack_calls"]
+
+    # ---- 49.0 km: the control arm reproduces the probe's failure --------------
+    # 49.0 km at 1500 kt is 63.5 s -> 64 ticks of flight, +1 margin -> 65.
+    assert far["derived_wait"] == 65, far["derived_wait"]
+    # THE SALVO IS STILL AIRBORNE when the flat wait expires: on call 61 the target is
+    # alive, the AIM-9 pair is still in the air, and the AGM-65 reserve is still onboard.
+    assert far["target_alive_at"][61] is True
+    assert far["weapons_in_flight_at"][61] == 2, far["weapons_in_flight_at"][61]
+    assert far["rack_quantity_at"][61] == 2, far["rack_quantity_at"][61]
+    # The control arm fires again on exactly that call and burns the whole reserve.
+    assert far_control["attack_calls"] == [0, 61], far_control["attack_calls"]
+    assert far_control["remaining_rack"] == [], far_control["remaining_rack"]
+    assert far_control["weapons_still_in_flight"] == 1, far_control["weapons_still_in_flight"]
+
+    # ---- the derived wait: ONE salvo, reserve intact, target still dead -------
+    assert far["attack_calls"] == [0], far["attack_calls"]
+    assert far["attack_commands"] == [
+        "handle_aircraft_attack('%s', '%s')" % (far["ego"], far["target_id"])
+    ], far["attack_commands"]
+    assert far["remaining_rack"] == [("AGM-65 Maverick", 2)], far["remaining_rack"]
+    assert far["weapons_still_in_flight"] == 0, far["weapons_still_in_flight"]
+    assert far["target_destroyed"], "the single derived-wait salvo did not kill the target"
+    # PLAN ADVANCEMENT IS NOT DELAYED: the confirm-guard advances on the same call the
+    # kill becomes visible (62), with 3 ticks still on the derived clock, and the now
+    # empty plan issues RTB immediately -- the longer wait throttles RE-FIRE only.
+    assert far["confirmed_at"] == 62, far["confirmed_at"]
+    assert far["rtb_at"] == far["confirmed_at"], (far["rtb_at"], far["confirmed_at"])
+    assert far["confirmed_at"] < far["derived_wait"], far
+
+    # The same holds at the reconstructed distance.
+    assert close["attack_calls"] == [0], close["attack_calls"]
+    assert close["remaining_rack"] == [("AGM-65 Maverick", 2)], close["remaining_rack"]
+    assert close["target_destroyed"] and close["weapons_still_in_flight"] == 0
+    assert close["rtb_at"] == close["confirmed_at"] == 60, close
 
 
 # =============================================================================

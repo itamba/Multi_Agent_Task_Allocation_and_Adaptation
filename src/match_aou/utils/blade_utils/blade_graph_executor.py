@@ -60,6 +60,7 @@ WHY THIS IS A FRESH FILE (not a refactor of the retired minimal executor):
 
 from __future__ import annotations
 
+import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ...models import Agent, Location, Task
@@ -72,6 +73,15 @@ from ..scheduling_utils import nearest_neighbor_order
 from .scenario_factory import iter_enemy_targets
 
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
+
+# blade.utils.constants.KILOMETERS_TO_NAUTICAL_MILES -- the constant the FROZEN engine's
+# own weapon-flight model uses in `blade.utils.utils.get_next_coordinates`, which is what
+# `weaponEngagement.weapon_engagement` steps a launched weapon with every tick.
+# Transcribed rather than imported, exactly as `graph_fuel_damage` transcribes
+# NAUTICAL_MILES_TO_METERS: importing it would drag the engine into this module's import
+# closure (it is an import-purity ENTRY_MODULE and stays duck-typed / BLADE-free at
+# import time). The transcription is asserted against the engine in the BLADE test tier.
+KILOMETERS_TO_NAUTICAL_MILES = 0.539957
 
 
 # =============================================================================
@@ -101,6 +111,42 @@ def _airbase_of(scenario: object, ego_id: str) -> Optional[str]:
                 bid = getattr(base, "id", None)
                 return str(bid) if bid is not None else None
     return None
+
+
+def _salvo_travel_ticks(weapon: object, distance_km: float) -> Optional[int]:
+    """Ticks a launched ``weapon`` needs to cross ``distance_km``, or None if underivable.
+
+    A transcription of the FROZEN engine's own weapon-flight arithmetic. A weapon launched
+    by ``weaponEngagement.launch_weapon`` is stepped every tick by
+    ``blade.utils.utils.get_next_coordinates``, which converts kilometres to nautical
+    miles, divides by the platform's KNOTS speed to get hours (taking |speed|, as the
+    engine does) and turns that into whole seconds -- and one engine tick is one second
+    (``Game.update_game_state`` advances ``current_time`` by 1). The engine FLOORS that
+    figure to size its per-tick leg; we CEIL it, because this is a conservative bound on
+    when the salvo can have resolved, not a re-derivation of the engine's leg length.
+
+    Speed is normalised with ``abs`` FIRST, exactly as the engine normalises it
+    (``platform_speed if platform_speed >= 0 else -platform_speed``), so a negatively
+    signed speed yields the same flight time the engine would actually fly.
+
+    Returns None -- "cannot be derived, use the configured fallback" -- rather than
+    guessing, when there is no weapon, when its speed is missing / non-numeric /
+    non-finite / zero after that normalisation, or when the distance is not a finite
+    non-negative number.
+    """
+    if weapon is None:
+        return None
+    try:
+        speed_knots = abs(float(getattr(weapon, "speed", 0.0)))
+        distance = float(distance_km)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(speed_knots) or speed_knots <= 0.0:
+        return None
+    if not math.isfinite(distance) or distance < 0.0:
+        return None
+    seconds = distance * KILOMETERS_TO_NAUTICAL_MILES / speed_knots * 3600.0
+    return int(math.ceil(seconds))
 
 
 def _live_location(scenario: object, ego_id: str) -> Optional[Location]:
@@ -149,20 +195,23 @@ class GraphPlanExecutor:
         # arrival_threshold == attack range == detection range (unified, see CLAUDE.md).
         self.arrival_threshold_km = float(arrival_threshold_km)
         self.nn_ordering = bool(nn_ordering)
-        # Ticks to WAIT for an emitted salvo to confirm a kill before re-firing.
-        # MUST be >= the auto-selected weapon's flight time at arrival_threshold,
-        # else salvos are wasted re-firing before the first lands. Default 60 covers
-        # the highest-engagement-range pick (AIM-120, ~37 ticks from 50 km). Over-
-        # sizing is harmless: the proximity confirm-guard advances the instant the
-        # kill resolves, so this only throttles re-fire on a MISS (probability<1.0).
+        # The configured MINIMUM (and fallback) number of ticks to wait for an emitted
+        # salvo to confirm a kill before re-firing. It is NOT a universal safe bound and
+        # never was: the wait actually armed is DERIVED per salvo by
+        # `_confirmation_wait_ticks` from the live weapon BLADE will auto-select and the
+        # CURRENT engagement distance, and this configured value is only its floor.
         #
-        # CALIBRATION: while lethality == 1.0 this value never bites (the confirm-guard
-        # always advances first, so an ego fires exactly once) — 60 is a safe upper bound.
-        # TODO: calibrate when task probability < 1.0 is introduced. Set it just above the
-        # AUTO-SELECTED weapon's measured flight time at arrival_threshold (the smoke
-        # measured 36 ticks for AIM-120 from 50 km). Better still, DERIVE it at runtime
-        # from the weapon's flight time so it tracks any weapon/range change instead of a
-        # hard-coded constant.
+        # WHY (the defect a bare floor caused): the engine's 2-arg attack picks the weapon
+        # with the highest ENGAGEMENT RANGE, which is a fuel/endurance product
+        # (`Weapon.get_engagement_range` == speed * current_fuel / fuel_rate), NOT a speed
+        # ranking -- so as a loadout is spent the auto-selected weapon can get SLOWER. In
+        # `strike_training_4v5.json` the order is AIM-120 (2600 kt) -> AIM-9 (1500 kt) ->
+        # AGM-65 (600 kt): once the AIM-120 is gone an AIM-9 salvo needs ~62 ticks to
+        # cross 47.2 km and an AGM-65 salvo ~153 ticks, both BEYOND a fixed 60. A wait
+        # that expires mid-flight lets the executor issue a redundant salvo that burns the
+        # ego's last weapons -- measured in the first short probe. Over-sizing stays
+        # harmless: the proximity confirm-guard advances the instant the kill resolves, so
+        # the wait only throttles re-fire on a MISS (probability < 1.0).
         self.kill_confirm_ticks = int(kill_confirm_ticks)
 
         # done: the SOLE source of truth for "this ego CONFIRMED this target dead".
@@ -442,12 +491,14 @@ class GraphPlanExecutor:
         # IN RANGE, target still ALIVE -> ENGAGE, then WAIT to confirm the kill.
         # NOT done-on-emit: emitting an attack does NOT mark done (that would be
         # unsafe once task probability < 1.0, where a launch may miss). We fire ONE
-        # salvo, then hold (loiter in range, no command) for up to kill_confirm_ticks
-        # while the weapon flies and the engine resolves the kill; the CONFIRM-GUARD
-        # above marks done the instant get_target -> None. If the window elapses with
-        # the target STILL alive (a future miss), the cooldown reaches 0 and we
-        # re-engage. For lethality == 1.0 the guard always confirms first, so the ego
-        # fires exactly once. 2-arg form: weapon -> highest-range, quantity -> 2.
+        # salvo, then hold (loiter in range, no command) for the wait DERIVED at issue
+        # time from the salvo actually about to fly (`_confirmation_wait_ticks`) while
+        # the weapon flies and the engine resolves the kill; the CONFIRM-GUARD above
+        # marks done the instant get_target -> None, without waiting the rest of the
+        # window out. If the window elapses with the target STILL alive (a future miss),
+        # the cooldown reaches 0 and we re-engage. For lethality == 1.0 the guard always
+        # confirms first, so the ego fires exactly once.
+        # 2-arg form: weapon -> highest-range, quantity -> 2.
         #
         # FLAG (record only — handled later in the RL abort layer, NOT here): once task
         # probability < 1.0 lands, an ego can deplete its inventory without ever
@@ -460,9 +511,58 @@ class GraphPlanExecutor:
         if cd > 0:
             self.attack_cooldown[(ego_id, target_id)] = cd - 1
             return None  # salvo in flight; loiter and wait for confirmation
-        self.attack_cooldown[(ego_id, target_id)] = self.kill_confirm_ticks
+        self.attack_cooldown[(ego_id, target_id)] = self._confirmation_wait_ticks(
+            scenario, ego_id, d
+        )
         self.last_attack_target_id = target_id
         return f"handle_aircraft_attack('{ego_id}', '{target_id}')"
+
+    # ---- confirmation wait (derived from the salvo that is about to fly) ------
+
+    def _confirmation_wait_ticks(
+        self, scenario: object, ego_id: str, distance_km: float
+    ) -> int:
+        """Ticks to hold before this ego may re-fire at a target ``distance_km`` away.
+
+        Derived at ISSUE TIME from the salvo that is actually about to fly, so the wait
+        tracks the loadout instead of assuming one:
+
+          1. WHICH weapon -- the acting live aircraft's own
+             ``get_weapon_with_highest_engagement_range()``. That is the SAME call the
+             engine makes for the 2-arg ``Game.handle_aircraft_attack(aircraft_id,
+             target_id)`` this branch emits, so the wait is measured against the weapon
+             BLADE will really launch. We never rank weapons ourselves and never
+             duplicate the engine's selection policy: one call, one source of truth.
+             Nothing can change the ego's inventory between this read and the engine
+             executing the command -- ``next_actions`` only reads, and
+             ``Game.handle_action`` execs each ego's command against its OWN aircraft.
+          2. HOW LONG -- ``_salvo_travel_ticks`` on that weapon's LIVE speed and the
+             engagement distance ``_command_for_ego`` already computed for this tick.
+
+        The result is ``max(kill_confirm_ticks, travel + 1)``: the configured value stays
+        the FLOOR, and the ``+1`` is the discrete confirmation/order margin -- one full
+        tick beyond the conservative continuous travel estimate, because the confirm-guard
+        can only observe the kill on the tick AFTER the engine resolves it.
+
+        Falls back to the configured ``kill_confirm_ticks`` whenever the derivation has
+        nothing sound to stand on: no weapon selected (an empty rack, or a duck-typed
+        aircraft with no selector at all, as in the hand-built stub tiers), or a missing /
+        non-finite / non-positive speed. The fallback deliberately does NOT invent an
+        ammunition-management policy -- an ego with an empty rack still emits its attack
+        and the engine simply launches nothing, exactly as before.
+
+        NO-COMMS: reads ONLY the acting ego's own aircraft object and its own engagement
+        distance. No peer aircraft, inventory, belief or assignment is consulted, so no
+        peer can move this ego's wait.
+        """
+        aircraft = _find_aircraft(scenario, ego_id)
+        select = getattr(aircraft, "get_weapon_with_highest_engagement_range", None)
+        if not callable(select):
+            return self.kill_confirm_ticks
+        travel = _salvo_travel_ticks(select(), distance_km)
+        if travel is None:
+            return self.kill_confirm_ticks
+        return max(self.kill_confirm_ticks, travel + 1)
 
     # ---- command builders / small predicates ---------------------------------
 
