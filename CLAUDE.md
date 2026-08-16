@@ -298,6 +298,71 @@ names the training/rollout records read), plus `n_hidden_requested`, `allocated_
 **Execution (Stage 1) — `utils/blade_utils/blade_graph_executor.py`.**
 `GraphPlanExecutor` is the **sole** BLADE translation layer (move/launch/attack/RTB). Its intra-level travel ordering comes from the SHARED pure helper `nearest_neighbor_order`, imported from `utils/scheduling_utils.py` — the SAME function `graph_hidden_placement.predict_route` calls, which is what keeps online execution and offline route prediction from drifting apart (`2a3f89c`). `__init__(*, tasks, solution, agents, arrival_threshold_km=DETECTION_KM, add_return_to_base=True, nn_ordering=True, kill_confirm_ticks=60)`. **Per-ego private state:** `self.tasks: Dict[ego_id, List[Task]]` (fanned out at init; diverges only via `resync`), `self.plans` per-ego; `_resolve_step(ego_id, assignment)` is the sole reader of `self.tasks`. Key methods: `next_actions(obs) -> List[str]` (one command/ego/tick), `resync(new_solution, *, ego_id, tasks=None)` (swaps one ego's slice, **never resets `done`**), `is_done()` (skips `dead` egos, requires RTB latched), `sensed_target_ids(obs, ego_id) -> {id: unit}` (world-scan within `arrival_threshold_km`; the trigger's eyes). done-on-confirmed-kill, per-`(ego,target)` re-fire throttle, single-issue RTB latch (safe only while doctrine `AIRCRAFT_RTB_WHEN_OUT_OF_RANGE` is off — it is in `strike_training_4v5.json`), `dead` set for crashes. No-comms isolation proven in `_selftest` (ISO-1..3: a pop-up appended to ego A never enters ego B's task-view; same-index pop-ups resolve per-ego).
 
+**THE ATTACK-CONFIRMATION WAIT IS DERIVED PER SALVO (locked by Defect B, `39a16f2`).**
+`kill_confirm_ticks=60` REMAINS a constructor parameter, but it is now the configured
+**MINIMUM and FALLBACK** — not the universal wait armed for every salvo. At ATTACK-ISSUE
+time, `_confirmation_wait_ticks(scenario, ego_id, distance_km)` asks the ACTING LIVE
+AIRCRAFT's own `get_weapon_with_highest_engagement_range()` — the SAME selector BLADE's
+two-argument attack path uses, so the wait is measured against the weapon the engine will
+really launch — and pairs it with the CURRENT engagement distance `_command_for_ego`
+already computed for this tick. `_salvo_travel_ticks` turns that pair into a conservative
+full-distance BOUND:
+
+```text
+travel_bound =
+    ceil(distance_km
+         × KILOMETERS_TO_NAUTICAL_MILES
+         ÷ abs(speed_knots)
+         × 3600)
+confirmation_wait =
+    max(kill_confirm_ticks, travel_bound + 1)
+```
+
+- **`KILOMETERS_TO_NAUTICAL_MILES = 0.539957` is TRANSCRIBED, not imported**, to preserve
+  this module's BLADE-free import closure (it is an import-purity `ENTRY_MODULE`), exactly
+  as `graph_fuel_damage` transcribes its own engine constant. The transcription is compared
+  against the ACTUAL FROZEN-ENGINE constant (`blade.utils.constants`) in the BLADE test
+  tier, which is what would catch drift.
+- **The bound is DELIBERATELY NOT an exact reconstruction of BLADE's discrete
+  launch / update / endgame schedule**, and must never be read as the number of engine ticks
+  a salvo actually takes. Real engagements resolve EARLIER than the bound; the wait only has
+  to be long enough.
+- **A FINITE NEGATIVE speed is NOT a fallback case** — it is normalized with `abs`,
+  matching frozen BLADE's own `platform_speed if platform_speed >= 0 else -platform_speed`,
+  and yields the same bound as its magnitude.
+- **Fallback to the configured value** covers only: no weapon selected (empty rack, or a
+  duck-typed aircraft exposing no selector), and weapon-speed data that is missing,
+  non-numeric, non-finite or zero AFTER that normalization — plus an unusable (non-finite
+  or negative) engagement distance.
+- **The existing confirmed-kill guard still runs FIRST**: when the target is confirmed gone
+  it clears the cooldown and advances immediately, so a longer wait throttles RE-FIRE only
+  and never delays plan advancement. **Cooldown identity remains per `(ego_id, target_id)`.**
+- **Frozen behaviour is untouched:** the emitted two-argument
+  `handle_aircraft_attack(ego_id, target_id)` command, its weapon quantity, weapon lethality
+  and every vendored BLADE file are unchanged.
+- **NO-COMMS:** the derivation reads ONLY the acting ego's own live aircraft and its own
+  engagement distance. No peer aircraft, peer inventory, peer belief or peer assignment can
+  move this ego's wait.
+- **Still out of scope:** general ammunition management and any probabilistic-miss policy.
+  An ego with an empty rack still emits its attack and the engine simply launches nothing,
+  exactly as before.
+- **Defect C is UNCHANGED and OPEN** by this fix: `is_done()` still treats the `rtb_issued`
+  latch as RTB-resolved, so physical RTB completion remains an open problem (§8).
+
+The accepted real-BLADE evidence, both engagements inside the single `DETECTION_KM = 50`
+attack envelope, at the production default `kill_confirm_ticks = 60`:
+
+| Engagement | Bound | Derived wait | Real confirmation | Flat-60 result |
+|---|---:|---:|---:|---|
+| ~47.2 km | 62 | 63 | call 60 | no redundant fire |
+| ~49.0 km | 64 | 65 | call 62 | redundant attack on call 61 |
+
+At ~47.2 km — the distance reconstructed from the first short probe's artifacts — the flat
+constant was ALREADY below the salvo's bound, and the control arm escaped a redundant salvo
+by exactly ONE tick. The ~49.0 km row is a CONTROL demonstrating the SAME premature-refire
+mechanism inside the SAME envelope, where that one-tick escape is gone; it is **not** an
+exact rerun of the original probe world, and neither row is a scientific probe result.
+
 **Trigger (Stage 2) — `rl/action/graph_trigger.py`.**
 `decide_triggers(belief_tasks, belief_solution, sensed_targets, eta=never_overdue, *, ego_id, clock, fuel_damage=False) -> (new_tasks, new_solution, wake, events)`. PURE (no BLADE/torch), copy-on-write (never mutates inputs). The WHEN gate over THREE `TriggerKind` members: **POP-UP** (ego senses an unassigned target → appends a pop-up Task to append-only `belief_tasks`), **PEER-OVERDUE** (ego senses a peer's target AND its ETA passed → removes that peer tuple from the ego's `belief_solution` copy, so it reads as a pop-up — deterministic *gating*, the policy still chooses), and **FUEL_DAMAGE** (FD-BASELINE-v1). ETA is dormant (`never_overdue` = +inf) for now. `FUEL_DAMAGE` is EXOGENOUS — it cannot be detected from sensing, so the orchestrator passes `fuel_damage=True` for AT MOST ONE ego per tick; the flag defaults to `False`, so every pre-FD caller is byte-unchanged. It **edits NEITHER `belief_tasks` NOR `belief_solution`** (the changed quantity is the ego's own live fuel, which the builder reads off the aircraft) and only sets `wake`, appending a `(FUEL_DAMAGE, NO_TASK_INDEX)` event — `NO_TASK_INDEX = -1` is a sentinel, deliberately not `0`, because `0` is a valid task index. A tick carrying both a fuel-damage event and a pop-up still produces exactly ONE wake.
 
@@ -624,6 +689,7 @@ second factor is bundled in (§8).
 | Change actions / mask / sampling | `rl/action/graph_action.py` (`MetaAction`, `ActionHead`, `build_action_mask`, `sample_action`) |
 | Change how a decision edits the plan | `rl/action/graph_effect.py` (`apply_meta_action`) |
 | Change BLADE execution / plan re-sync | `utils/blade_utils/blade_graph_executor.py` (`GraphPlanExecutor`) |
+| Change the ATTACK-CONFIRMATION WAIT (how long an ego holds before re-firing) | `utils/blade_utils/blade_graph_executor.py` — `_salvo_travel_ticks` (the conservative travel BOUND + the transcribed `KILOMETERS_TO_NAUTICAL_MILES`), `_confirmation_wait_ticks` (live-weapon selection + the `max(kill_confirm_ticks, bound + 1)` floor) and the ATTACK BRANCH of `_command_for_ego` that arms the per-`(ego_id, target_id)` cooldown. Proofs — pure tiers and the real-BLADE tier (incl. the engine-constant comparison) — live in `tests/test_graph_setup_seam.py`. **The vendored engine stays FROZEN** (§2): the wait is derived from what BLADE already exposes, never by editing it. |
 | Expose the ego's own sensing | `blade_graph_executor.py` → `sensed_target_ids` |
 | Create Agents / Tasks from a scenario | `scenario_factory.py` → `create_agents_from_scenario` / `generate_all_enemy_tasks` (`probability=1.0`) / `iter_enemy_targets` + `make_attack_task` (utility: Facility 100 / Airbase 80 / Ship 95) |
 | Change scenario content / zones / fleet / fuel tiers | `scenario_generator.py` (`VariationConfig` incl. `strict_geometry` (raise instead of silently weakening requested geometry) and `min_target_separation_km` (pairwise known-target floor, default 0.0 = off); `ScenarioGenerator`, `CLASS_RANGE_TIERS`) |
@@ -1243,7 +1309,59 @@ second factor is bundled in (§8).
   fail and the `graph_effect` selftest fails at case (3); the mutation was reverted
   byte-identically and is not in the history.
   **NO scientific probe, training run, rollout or baseline was executed.** **This closes
-  DEFECT A ONLY — Defects B and C remain OPEN (§8).**
+  DEFECT A ONLY — as of THIS lock, Defects B and C both remained OPEN. Defect B has since
+  been closed by `39a16f2` below; §8 owns the current state.**
+
+- `39a16f2` — **DEFECT B: the attack-confirmation wait DERIVED from the salvo about to fly
+  — CLOSED / APPROVED / MERGED.** Approved candidate SHA
+  `39a16f2e5e1a3302d545c11b072e037e9702dffe`, integrated by merge commit
+  `60a82d17398e9d14be1c2684cc72fafd020e0d9b` (PR #19). The candidate was merged with a
+  MERGE COMMIT and preserved as its SECOND PARENT; candidate and integration share the
+  IDENTICAL tree `ee86f0782ac50ee8bd0ee2fe634393a9cfc53a66` (verified locally), and the
+  candidate→integration comparison contains ZERO changed files. Implementation fixed base
+  `cefda78b18ea2daeda5014bab9a75a0945ef8e37`. Grade A under `GPT_GITHUB`, implementation
+  mode SURGICAL. The technical contract is in §5 (Execution, Stage 1) and the routing in
+  §6; this entry records the LOCK, not the mechanism.
+  **THE DEFECT.** `GraphPlanExecutor` armed a FLAT `kill_confirm_ticks` for every salvo
+  (default 60, and no caller passed it), so a slower auto-selected weapon could still be
+  airborne when the wait expired — the executor then issued a redundant salvo that burned
+  the ego's last weapons, measured in the first short probe's `post_update` damaged eval
+  seed `1000003` (§8). The approved behaviour DERIVES the wait per salvo from the live
+  auto-selected weapon and the current engagement distance, with the configured value kept
+  as its FLOOR and FALLBACK. **The default was not merely raised, and frozen BLADE was not
+  touched.**
+  **CUMULATIVE SCOPE: EXACTLY TWO FILES** —
+  `src/match_aou/utils/blade_utils/blade_graph_executor.py` and
+  `tests/test_graph_setup_seam.py`. No vendored BLADE, solver, reward, PPO, encoder,
+  action-space, tick-loop, trainer, rollout, fuel-damage, scenario, preset or artifact file
+  was touched.
+  **APPEND-ONLY REVIEW CHAIN, two commits on one branch and one PR.**
+  (1) First candidate `45a0352312ae308df76a506a8e2e9907a9531a43` — the RUNTIME
+  IMPLEMENTATION was ACCEPTED; GPT requested corrections because the transcribed
+  `KILOMETERS_TO_NAUTICAL_MILES` was only compared against ANOTHER LITERAL rather than the
+  engine's own constant, because the continuous-time bound was described inaccurately as
+  exact engine ticks, and because the fallback prose contradicted the accepted
+  negative-speed `abs` normalization.
+  (2) The correction landed as the NEW CHILD COMMIT `39a16f2` — never amend, rebase,
+  squash, force-push or history rewrite. Its RUNTIME-RELEVANT executor token stream is
+  UNCHANGED from the first candidate; what it added is the real BLADE constant comparison,
+  and what it corrected are the bound / timing / fallback claims.
+  **PROOF OBLIGATIONS.** PO1 — the derivation really consults the LIVE BLADE selector
+  `get_weapon_with_highest_engagement_range()`, the formula, the `max(…, bound + 1)` floor
+  and every fallback branch behave as specified, and no peer aircraft, inventory, belief or
+  assignment can move the acting ego's wait. PO2 — against the REAL engine: the
+  redundant-salvo mechanism is exhibited by the flat-60 control arm and PREVENTED by the
+  derived wait, the weapon reserve survives, and the confirmed-kill guard still advances the
+  plan on the call the kill becomes visible (earlier than the bound), issuing RTB
+  immediately. PO3 — the two-argument attack command, the per-`(ego_id, target_id)` cooldown
+  identity, no-comms isolation and every frozen layer are preserved.
+  **VERIFIED at the approved head:** full base suite **246 passed, 4 skipped**; focused
+  suite **78 passed, 4 skipped**; standalone `tests/test_graph_setup_seam.py` under
+  `nlp_env` **28 passed, 0 skipped** — the real-BLADE tier RAN, the engine-constant
+  comparison RAN and the BONMIN tier RAN, with no `CRASH` and no `Traceback`; the executor
+  selftest green; `git diff --check` clean.
+  **NO scientific probe, training run, rollout or baseline was executed.** **This closes
+  DEFECT B ONLY — Defect C remains OPEN (§8).**
 
 ---
 
@@ -1258,14 +1376,16 @@ second factor is bundled in (§8).
   OPERABILITY ONLY: it also exposed three research-validity defects (next bullet), so its
   reward numbers are NOT scientific evidence about the fuel-damage cell. **What exists for
   the CORRECTED cell is IMPLEMENTATION evidence, not PERFORMANCE evidence.** The merged
-  Defect-A work carries real-BLADE and BONMIN-backed proof-test evidence (§7) — a real
-  `Game`, a real launched aircraft, a real executor-issued route replaced by the ride home,
-  and the setup-seam solver tier green under BONMIN — but **those tests validate
+  Defect-A and Defect-B work carries real-BLADE and BONMIN-backed proof-test evidence
+  (§7) — a real `Game`, a real launched aircraft, a real executor-issued route replaced by
+  the ride home, a real salvo whose derived wait prevents the redundant re-fire, and the
+  setup-seam solver tier green under BONMIN — but **those tests validate
   IMPLEMENTATION SEAMS ONLY**. **No scientific probe, training/performance run, rollout or
   baseline has measured the CORRECTED cell**, so NO SCIENTIFIC PERFORMANCE CLAIM about it
   exists and none may be made. The gate is therefore a RERUN of the SAME bounded
   probe shape — separately authorized, and only once Defects A, B and C **and** the
-  documentation/lock duty each carries have ALL closed. It must report:
+  documentation/lock duty each carries have ALL closed — which today means once DEFECT C
+  and its documentation/lock close. It must report:
   complete provenance; explicit denominators everywhere; the scheduled clean vs damaged
   populations; matched-pair yield and the paired reward delta with its pair denominator;
   failures by pipeline stage; how often the event actually fired, woke the selected ego,
@@ -1298,8 +1418,8 @@ second factor is bundled in (§8).
   24 transitions, two productive PPO updates and a final held-out numerical zero
   (`5.000007394910353e-7`, 4/4). That cell had no difficulty factor; **those numbers are
   not evidence about the fuel-damage cell** and must not be reused as its baseline.
-- **The three research-validity defects the first short probe exposed — DEFECT A is
-  CLOSED; DEFECTS B and C remain OPEN.** **SEQUENTIAL-DEFECT POLICY:** the DEFAULT
+- **The three research-validity defects the first short probe exposed — DEFECTS A and B
+  are CLOSED; DEFECT C remains OPEN.** **SEQUENTIAL-DEFECT POLICY:** the DEFAULT
   breakdown is A, then B, then C — each its own separately reviewed, separately locked
   task — and the probe rerun is a task of its own, never folded into a defect fix. That
   default is a working decision, NOT an absolute prohibition: if FOCUSED RECON proves that
@@ -1312,22 +1432,22 @@ second factor is bundled in (§8).
     the lock and its evidence are in §7, the contract in §5 Stages 4 and 5. It changed
     abort SEMANTICS only; the `k × 3` action surface, PPO, reward, fuel-damage mechanism
     and BLADE are untouched.
-  - **Defect B — PREMATURE ATTACK RE-FIRE EXHAUSTS WEAPONS: OPEN, and THE NEXT UNRESOLVED
-    CODE TASK.** `GraphPlanExecutor.kill_confirm_ticks` is CONFIGURABLE through the
-    executor's constructor (`kill_confirm_ticks=60` default, §5), but no caller passes it,
-    so the CURRENT path runs a FIXED 60-tick confirmation wait. A slower salvo still in
-    flight can therefore let that wait expire and a redundant second salvo consume the last
-    weapons — measured in the `post_update` damaged eval seed `1000003`,
-    where a B-2 reached its final known target with ZERO onboard weapons and then loitered
-    to fuel exhaustion. Code anchors: `GraphPlanExecutor.kill_confirm_ticks`,
-    `GraphPlanExecutor._command_for_ego`, `Game.handle_aircraft_attack`,
-    `weaponEngagement.launch_weapon`. **Defect B concerns REPLACING that current fixed wait
-    with an EVIDENCE-DERIVED one**: do NOT merely raise the default — DERIVE a conservative
-    confirmation wait from the ACTUAL auto-selected live weapon and the CURRENT engagement
-    distance, preserving current lethality and FROZEN BLADE behaviour. A
-    probabilistic-miss / weapons-exhaustion redesign stays OUT of scope
-    unless the evidence requires it. NOT IMPLEMENTED — nothing may be pre-claimed for it.
-  - **Defect C — RTB ISSUANCE is not physical RTB COMPLETION: OPEN, and follows B.**
+  - **Defect B — PREMATURE ATTACK RE-FIRE EXHAUSTED WEAPONS: CLOSED / APPROVED /
+    MERGED.** Approved `39a16f2`, integrated by `60a82d1` (PR #19) — the lock and its
+    evidence are in §7, the contract in §5 (Execution, Stage 1) and the routing in §6.
+    *The defect, historically:* `GraphPlanExecutor` armed a FIXED 60-tick confirmation wait
+    for every salvo (`kill_confirm_ticks` was constructor-configurable but no caller passed
+    it), so a slower salvo still in flight could let that wait expire and a redundant second
+    salvo consume the last weapons — measured in the first short probe's `post_update`
+    damaged eval seed `1000003`, where a B-2 reached its final known target with ZERO
+    onboard weapons and then loitered to fuel exhaustion. *The merged correction:* the wait
+    is DERIVED per salvo from the ACTUAL auto-selected live weapon and the CURRENT
+    engagement distance, with the configured value kept as its FLOOR and FALLBACK — the
+    default was NOT merely raised. Lethality, the two-argument attack command and the
+    FROZEN vendored BLADE engine are unchanged, and a probabilistic-miss /
+    weapons-exhaustion redesign remains OUT of scope.
+  - **Defect C — RTB ISSUANCE is not physical RTB COMPLETION: OPEN, and THE NEXT
+    UNRESOLVED CODE TASK.**
     `GraphPlanExecutor.is_done()` treats the `rtb_issued` lifecycle LATCH as RTB-resolved
     and `run_episode` stops when `is_done()` becomes true, so an episode can end while the
     aircraft is still airborne — measured in the `post_update` damaged eval seed `1000000`,
@@ -1335,10 +1455,11 @@ second factor is bundled in (§8).
     The correction must separate "RTB command issued" from "RTB physically resolved" (a
     non-dead ego must actually be landed / in an airbase before episode completion) while
     PRESERVING the single-issue RTB toggle protection. NOT IMPLEMENTED.
-  **Gating, unchanged by Defect A's closure:** the vendored BLADE engine stays FROZEN
-  unless separately authorized (§2); the LONG BASELINE stays BLOCKED / UNAUTHORIZED; and
-  the short probe is NOT rerun until A, B and C plus their documentation and locks have
-  ALL closed. No result may be pre-claimed for B, C or the rerun.
+  **Gating, unchanged by the closure of Defects A and B:** the vendored BLADE engine stays
+  FROZEN unless separately authorized (§2); the LONG BASELINE stays BLOCKED /
+  UNAUTHORIZED; and the short probe is NOT rerun until A, B and C plus their documentation
+  and locks have ALL closed — today that means DEFECT C and its documentation/lock. No
+  result may be pre-claimed for C or the rerun.
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
@@ -1365,7 +1486,7 @@ second factor is bundled in (§8).
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
-- **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` calibration** if p<1 lands.
+- **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` FLOOR calibration** if p<1 lands — the per-salvo TRAVEL component is now derived (§5, Defect B), so what is left open is how long to wait past a confirmed MISS before deliberately re-firing.
 - **`setup_episode` does not guard `split_meta["outcome"]` — LEGACY-PATH-ONLY since B3
   (`dd14ab4`).** `split_tasks` can return `warn-fallback` or `exhaust` — meaning a hidden
   target has NO known neighbour within `DETECTION_KM` and is therefore undiscoverable at
