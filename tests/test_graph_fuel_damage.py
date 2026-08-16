@@ -260,7 +260,10 @@ class _StubExecutor:
     def resync(self, *_a, **_k):
         return None
 
-    def is_done(self):
+    def is_done(self, _observation):
+        # Mirrors the production signature: completion is decided from the live
+        # observation, never from `rtb_issued`. This stub never completes, so these
+        # fixtures always run their full tick budget.
         return False
 
 
@@ -1836,6 +1839,252 @@ def test_f2_a_refused_live_window_is_an_accounted_run_stage_failure() -> None:
 # =============================================================================
 # Config surface + purity
 # =============================================================================
+
+# =============================================================================
+# PO-C -- an ego that has committed to return makes no further decisions (Defect C)
+# =============================================================================
+#
+# Physical completion means an episode keeps ticking while aircraft fly home. Those
+# extra ticks exist ONLY so the engine can resolve the lifecycle -- they must not become
+# extra decision points. Once `rtb_issued` is latched, the tick loop skips that ego's
+# whole Phase-1 chain: no sensing, no trigger, no wake, no policy call, no belief edit
+# and no resync. Peers are untouched.
+
+
+# The unassigned pop-up: 80 km out at t=0, closing 5 km per tick along the shared leg,
+# so it crosses the 50 km detection radius partway through the run -- on the SAME tick
+# for every ego, because they all fly the same leg at the same step. The crossing tick
+# is DERIVED from what the peers actually did rather than pinned to a literal, so the
+# proof is "the peers woke and this one did not", not an arithmetic coincidence.
+_POPUP_TARGET_ID = "popup-late"
+_POPUP_DISTANCE_KM = 80.0
+_POPUP_STEP_KM = 5.0
+_COMMON_BEARING_DEG = 30.0
+
+
+def _returning_ego_run(*, max_ticks=14, target_distance_km=30.0):
+    """Drive the REAL `run_episode` with a REAL `GraphPlanExecutor` over the stub world.
+
+    THE SYMMETRY THAT MAKES THIS FALSIFIABLE. Ego 0 starts with an EMPTY plan, so the
+    executor's pre-existing empty-plan branch orders it home on the very first tick. All
+    three egos then fly the IDENTICAL path at the IDENTICAL speed, and an UNASSIGNED red
+    airbase -- in no ego's `belief_tasks`, so a genuine pop-up -- sits just beyond the
+    50 km detection radius and drifts into range partway through the run. Every ego is
+    therefore at the same distance from the same pop-up at the same tick. The peers wake
+    on it; the returning ego, and only the returning ego, does not. Nothing about the
+    fixture prevents it from waking -- the guard does.
+
+    Only `_wake_decision` is replaced, by a pure RECORDER that edits nothing: the
+    encoder and the head decide nothing about the lifecycle, and stubbing them keeps
+    this deterministic and torch-light. Everything else is production code.
+    """
+    ctx = _FuelDamageCtx(target_distance_km=target_distance_km, n_agents=3)
+    returning, peers = ctx.agent_ids[0], ctx.agent_ids[1:]
+    solution = {aid: list(v) for aid, v in ctx.a_init.items()}
+    solution[returning] = []  # nothing left to do -> the executor orders it home
+    for aid in ctx.agent_ids:
+        ctx.beliefs[aid].solution = {k: list(v) for k, v in solution.items()}
+
+    # The pop-up: an enemy airbase nobody has a task for, beyond detection range at t=0.
+    popup_at = _point_at(_BASE, _POPUP_DISTANCE_KM, _COMMON_BEARING_DEG)
+    ctx.scenario.airbases.append(
+        _StubAirbase(_POPUP_TARGET_ID, popup_at.latitude, popup_at.longitude,
+                     side_id=_RED_SIDE, side_color="red", name="Floridistan Pop-up")
+    )
+
+    tasks = ctx.beliefs[returning].tasks
+    ctx.executor = GraphPlanExecutor(
+        tasks=tasks, solution=solution, agents=ctx.agents, arrival_threshold_km=50.0,
+    )
+    # Every ego flies the SAME leg at the SAME fixed step, so their distance to the
+    # pop-up is identical on every tick. No fuel burn: this fixture is about DECISIONS,
+    # and a mid-run death would end the very Phase-1 processing whose absence is proven.
+    ctx.env = _StubEnv(
+        ctx.scenario, targets={aid: popup_at for aid in ctx.agent_ids},
+        burn_fuel=False, step_km=_POPUP_STEP_KM,
+    )
+
+    sensed_calls, trigger_calls, wake_calls, resync_calls = [], [], [], []
+    issued = []
+    frozen = {}
+
+    real_sensed = ctx.executor.sensed_target_ids
+    real_resync = ctx.executor.resync
+    real_next = ctx.executor.next_actions
+    real_decide = graph_tick_loop.decide_triggers
+
+    def spy_sensed(observation, ego_id):
+        sensed_calls.append((str(ego_id), ctx.env.n_steps))
+        return real_sensed(observation, ego_id)
+
+    def spy_resync(new_solution, *, ego_id, tasks=None):
+        resync_calls.append((str(ego_id), ctx.env.n_steps))
+        return real_resync(new_solution, ego_id=ego_id, tasks=tasks)
+
+    def spy_next(observation):
+        commands = real_next(observation)
+        issued.append((ctx.env.n_steps, list(commands)))
+        # Phase 2 has run, so the latch is now whatever this tick made it. Freeze the
+        # returning ego's belief the moment it commits, and compare at the end.
+        if returning not in frozen and ctx.executor.rtb_issued.get(returning, False):
+            frozen[returning] = _belief_fingerprint(ctx.beliefs[returning])
+        return commands
+
+    def spy_decide(belief_tasks, belief_solution, sensed, eta=None, *,
+                   ego_id, clock, fuel_damage=False):
+        trigger_calls.append((str(ego_id), int(clock)))
+        return real_decide(belief_tasks, belief_solution, sensed,
+                           ego_id=ego_id, clock=clock, fuel_damage=fuel_damage)
+
+    def spy_wake(_policy, ego_id, _obs, _belief, _executor, _cfg, tick, **_kw):
+        wake_calls.append((str(ego_id), int(tick)))
+        return graph_tick_loop.Transition(
+            gobs=None, ego_id=str(ego_id), tick=int(tick),
+            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=0,
+            log_prob=0.0, entropy=0.0,
+        )
+
+    ctx.executor.sensed_target_ids = spy_sensed
+    ctx.executor.resync = spy_resync
+    ctx.executor.next_actions = spy_next
+    saved = (graph_tick_loop.decide_triggers, graph_tick_loop._wake_decision)
+    graph_tick_loop.decide_triggers = spy_decide
+    graph_tick_loop._wake_decision = spy_wake
+    try:
+        result = graph_tick_loop.run_episode(
+            None, ctx, GraphObservationConfig(detection_range_km=50.0),
+            max_ticks=max_ticks,
+        )
+    finally:
+        graph_tick_loop.decide_triggers, graph_tick_loop._wake_decision = saved
+
+    return {
+        "ctx": ctx, "result": result, "returning": returning, "peers": peers,
+        "sensed": sensed_calls, "triggers": trigger_calls, "wakes": wake_calls,
+        "resyncs": resync_calls, "issued": issued, "frozen": frozen,
+        "max_ticks": max_ticks,
+    }
+
+
+def _belief_fingerprint(belief):
+    return (
+        [str(t.steps[0].target_id) for t in belief.tasks],
+        {k: [tuple(a) for a in v] for k, v in belief.solution.items()},
+    )
+
+
+def test_poc_1_a_returning_ego_leaves_phase_1_entirely() -> None:
+    """PO-C.1. After the RTB order the ego is never sensed, triggered, woken or resynced.
+
+    The world is built so a still-processed ego WOULD wake every tick (its target is in
+    range from t=0 and unassigned in its belief), so the silence below is the guard, not
+    an accident of the fixture.
+    """
+    out = _returning_ego_run()
+    ego, ctx = out["returning"], out["ctx"]
+
+    rtb = [t for t, cmds in out["issued"] if "aircraft_return_to_base('%s')" % ego in cmds]
+    assert rtb == [0], rtb
+    assert ctx.executor.rtb_issued.get(ego) is True
+
+    # It WAS processed on the tick it committed (Phase 1 ran before Phase 2 issued the
+    # order), and the pop-up really did wake the peers later -- flying the same leg, at
+    # the same distance, on the same tick. Without those two facts the silence below
+    # would prove nothing.
+    assert (ego, 0) in out["triggers"], out["triggers"]
+    peer_wakes = sorted((e, t) for e, t in out["wakes"] if e in out["peers"])
+    assert peer_wakes, "no peer ever woke; the fixture proves nothing"
+    crossing = {t for _e, t in peer_wakes}
+    assert len(crossing) == 1, ("the peers did not cross together", peer_wakes)
+    sensed_tick = crossing.pop()
+    assert sensed_tick > 0, sensed_tick
+    assert peer_wakes == sorted((p, sensed_tick) for p in out["peers"]), peer_wakes
+
+    late = lambda calls: [(e, t) for e, t in calls if e == ego and t > 0]
+    assert late(out["triggers"]) == [], late(out["triggers"])
+    assert late(out["sensed"]) == [], late(out["sensed"])
+    assert late(out["wakes"]) == [], late(out["wakes"])
+    assert late(out["resyncs"]) == [], late(out["resyncs"])
+
+    # No transition is appended for it during the return.
+    assert [tr for tr in out["result"].trajectory
+            if tr.ego_id == ego and tr.tick > 0] == []
+
+
+def test_poc_2_the_returning_egos_belief_is_frozen_from_the_moment_it_commits() -> None:
+    """PO-C.2. The belief it carried into the return leg is the belief it ends with."""
+    out = _returning_ego_run()
+    ego, ctx = out["returning"], out["ctx"]
+
+    assert ego in out["frozen"], "the ego never committed to return"
+    assert _belief_fingerprint(ctx.beliefs[ego]) == out["frozen"][ego], (
+        "the returning ego's belief was edited after it committed to return"
+    )
+    # Concretely: the pop-up every peer discovered is absent from its task list.
+    returning_ids = [str(t.steps[0].target_id) for t in ctx.beliefs[ego].tasks]
+    assert _POPUP_TARGET_ID not in returning_ids, returning_ids
+    for peer in out["peers"]:
+        peer_ids = [str(t.steps[0].target_id) for t in ctx.beliefs[peer].tasks]
+        assert _POPUP_TARGET_ID in peer_ids, (peer, peer_ids)
+    # And its executor slice stayed the empty mission that produced the RTB.
+    assert ctx.executor.plans[ego] == []
+
+
+def test_poc_3_peers_continue_normally_while_a_peer_returns() -> None:
+    """PO-C.3. The guard is per-ego: everyone else keeps the full Phase-1 + Phase-2 path.
+
+    Also pins the two-phase backbone: exactly one `env.step` and one `next_actions` per
+    tick, unchanged by the guard.
+    """
+    out = _returning_ego_run()
+    ctx, ticks = out["ctx"], out["max_ticks"]
+
+    for peer in out["peers"]:
+        seen = sorted({t for e, t in out["triggers"] if e == peer})
+        assert seen == list(range(ticks)), (peer, seen)
+        assert [t for e, t in out["sensed"] if e == peer] != []
+
+    # Two-phase backbone: ONE snapshot, ONE step, ONE command pass per tick.
+    assert ctx.env.n_steps == ticks
+    assert len(out["issued"]) == ticks
+    assert out["result"].ticks == ticks
+
+
+def test_poc_4_no_peer_can_decide_whether_the_returning_ego_is_home_or_lost() -> None:
+    """PO-C.4. Classification reads the ego's OWN entries only (no-communication).
+
+    The same final world is re-presented with the peers moved through every lifecycle
+    state -- still flying, landed, removed -- and the returning ego's own verdict must
+    not move, nor may a peer's disappearance mark the returning ego dead.
+    """
+    out = _returning_ego_run()
+    ctx, ego, peers = out["ctx"], out["returning"], out["peers"]
+    executor, scenario = ctx.executor, ctx.scenario
+    home = scenario.get_airbase("base-blue")
+
+    baseline = executor._physical_state(ego, scenario)
+    assert baseline == "airborne", baseline
+
+    verdicts = set()
+    for where in ("air", "landed", "gone"):
+        peer_units = [scenario.get_aircraft(p) for p in peers]
+        try:
+            for unit in peer_units:
+                if unit is not None and where != "air":
+                    scenario.aircraft.remove(unit)
+                    if where == "landed":
+                        home.aircraft.append(unit)
+            verdicts.add(executor._physical_state(ego, scenario))
+        finally:  # restore, so each variant is judged against the same ego state
+            for unit in peer_units:
+                if unit is not None and unit not in scenario.aircraft:
+                    scenario.aircraft.append(unit)
+                if unit is not None and unit in home.aircraft:
+                    home.aircraft.remove(unit)
+
+    assert verdicts == {baseline}, verdicts
+    assert ego not in executor.dead, "a peer's lifecycle marked the returning ego dead"
+
 
 def test_rollout_config_mirrors_the_train_difficulty_cell() -> None:
     """ANTI-DRIFT: the two harnesses agree on the difficulty factor, field for field."""

@@ -30,6 +30,21 @@ DONE-ON-CONFIRMED-KILL:
   keeps the executor correct once task probability < 1.0, where a launch may
   miss — the ego re-engages instead of silently advancing past a survivor.)
 
+DONE-ON-PHYSICAL-RESOLUTION (the same principle, applied to the ride home):
+  ``is_done(observation)`` decides the PHYSICAL half of completion by reading the
+  LIVE observation for where each ego actually IS -- never by asking what was once
+  commanded. (Its other half, whether an ego's assignments are finished, is still
+  executor semantic state: ``plans``, the resolved steps and the ``done`` set. Only
+  the physical half needs the observation, and only it changed here.) Issuing
+  ``aircraft_return_to_base`` is an ORDER, not an outcome: the aircraft is still
+  airborne, still burning fuel, and may never reach home. A non-dead ego therefore
+  counts as resolved only once the engine has actually moved it into an airbase
+  inventory (``Game.land_aicraft``); an ego that burns out on the way home leaves
+  both the air and every inventory (``Game.remove_aircraft``) and is reconciled
+  into ``dead`` by that same check -- which is what lets the terminal reward charge
+  the airframe it really lost. ``rtb_issued`` keeps its ONE job: the single-issue
+  toggle guard. It is not, and must not be read as, a completion signal.
+
 WHY THIS IS A FRESH FILE (not a refactor of the retired minimal executor):
   This module is the sole BLADE translation layer. It was written fresh rather
   than refactored out of the earlier minimal demo executor (retired and deleted
@@ -73,6 +88,14 @@ from ..scheduling_utils import nearest_neighbor_order
 from .scenario_factory import iter_enemy_targets
 
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
+
+# The three PHYSICAL lifecycle states an ego can be in, as `_physical_state` reports
+# them. They are engine facts, not executor opinions: BLADE keeps a live aircraft in
+# exactly one of `scenario.aircraft` or some `airbase.aircraft`, and an aircraft in
+# neither has been removed. Completion is decided on these, never on what was ordered.
+_AIRBORNE = "airborne"
+_LANDED = "landed"
+_DEAD = "dead"
 
 # blade.utils.constants.KILOMETERS_TO_NAUTICAL_MILES -- the km -> nm UNIT constant the
 # FROZEN engine divides a platform's knots speed into, in `blade.utils.utils.
@@ -238,11 +261,20 @@ class GraphPlanExecutor:
         self.attack_cooldown: Dict[Tuple[str, str], int] = {}
         # Egos confirmed DEAD (crashed / removed from the sim). is_done() treats their
         # remaining assignments as terminally unsatisfiable -> we accept the lost task
-        # utility rather than hang forever. Populated by the dead-branch below.
+        # utility rather than hang forever. Populated by `_note_dead`, from BOTH
+        # physical-state reads: `_command_for_ego` (pre-step) and `is_done` (post-step).
+        # The post-step one is what makes a death on the RIDE HOME visible to the
+        # terminal reward, instead of being missed because the episode already stopped.
         self.dead: set[str] = set()
         # Single-issue RTB latch (aircraft_return_to_base is a TOGGLE in BLADE;
-        # issuing it twice cancels the RTB). Also latched for landed/dead egos so
-        # is_done() can terminate without an observation.
+        # issuing it twice cancels the RTB). Also latched for landed/dead egos, so the
+        # RTB branch stays a no-op once there is nothing left to order.
+        #
+        # THIS IS NOT A COMPLETION SIGNAL. It records that the ORDER went out, never
+        # that the aircraft got home; `is_done` decides completion from the live
+        # observation alone (see the module docstring). Reading this latch as
+        # "returned" is exactly the defect that let an episode end mid-flight and score
+        # a doomed aircraft as a survivor.
         #
         # LATENT INVARIANT: this single-issue latch is safe ONLY because the BLUE side
         # does NOT enable the engine doctrine AIRCRAFT_RTB_WHEN_OUT_OF_RANGE (confirmed
@@ -359,15 +391,65 @@ class GraphPlanExecutor:
         slice_ = new_solution.get(ego_key, new_solution.get(ego_id, []))
         self.plans[ego_key] = [tuple(t) for t in (slice_ or [])]
 
-    def is_done(self) -> bool:
-        """True iff every ego has no not-done assignments AND has RTB-resolved.
+    def is_done(self, observation: object) -> bool:
+        """True iff every ego is TERMINALLY RESOLVED against the live ``observation``.
 
-        RTB-resolved == rtb_issued latched (set by next_actions when an ego with an
-        empty plan is airborne->RTB, or landed/dead->latched). When
-        ``add_return_to_base`` is False, RTB is not required.
+        Two things must hold per ego, and they come from DIFFERENT sources -- which is
+        the point of the fix, since only the second one changed:
+
+          * ASSIGNMENTS -- read from EXECUTOR SEMANTIC STATE, exactly as before: this
+            ego's ``plans`` slice, the steps ``_resolve_step`` resolves against its own
+            ``tasks``, and the proximity-confirmed ``done`` set. No resolvable
+            assignment may have a target still missing from ``done``. Unchanged: a dead
+            ego's remaining assignments are terminally unsatisfiable (we accept the lost
+            utility rather than hang forever), and an unresolvable index stays
+            implicitly satisfied. NOTHING here reads the observation.
+          * PHYSICAL LIFECYCLE -- read from the LIVE OBSERVATION, and the only half that
+            needs it. When ``add_return_to_base`` is True, a non-dead ego must be
+            LANDED, i.e. actually sitting in some airbase inventory. Airborne is NOT
+            resolved, whatever was commanded: an ego on the ride home can still run its
+            tank dry. When ``add_return_to_base`` is False the physical check is skipped
+            entirely, preserving the no-RTB-required contract for callers that opted out.
+
+        What the fix removed is the reading of ``rtb_issued`` as completion. Executor
+        bookkeeping still decides the ASSIGNMENT half; it no longer decides the
+        PHYSICAL half.
+
+        SIDE EFFECT (deliberate, and the reason this needs the observation): an ego
+        that is neither airborne nor in any inventory has been removed by the engine,
+        so it is RECONCILED into ``dead`` here. The reconciliation pass covers every
+        ego BEFORE any verdict is returned, so an early "not done" cannot hide a peer's
+        death and the set the caller reads afterwards is complete for this tick. That
+        is what puts a burn-out on the ride home into ``EpisodeResult.n_dead``, and so
+        into the terminal reward's ``n_lost``.
+
+        NO-COMMS: this is lifecycle bookkeeping for the DRIVER, not an ego decision.
+        Nothing it computes reaches any ego's sensing, belief, plan or command, so
+        classifying one ego can never inform another.
+
+        Args:
+            observation: the live BLADE Scenario -- normally the one returned by this
+                tick's ``env.step``. REQUIRED, deliberately without a default: a
+                defaulted observation would silently restore the retired
+                command-issuance notion of completion.
+
+        Returns:
+            True iff every ego is terminally resolved.
         """
-        for ego_id in self.plans.keys():
+        # Pass 1: classify every ego and reconcile deaths (total, order-independent).
+        states: Dict[str, str] = {}
+        for ego_id in sorted(self.plans.keys()):
             if ego_id in self.dead:
+                states[ego_id] = _DEAD  # already reconciled; stays dead
+                continue
+            state = self._physical_state(ego_id, observation)
+            if state == _DEAD:
+                self._note_dead(ego_id)
+            states[ego_id] = state
+
+        # Pass 2: the verdict.
+        for ego_id, state in states.items():
+            if state == _DEAD:
                 continue  # crashed: assignments terminally unsatisfiable, RTB n/a
             for a in self.plans.get(ego_id, []):
                 step = self._resolve_step(ego_id, a)
@@ -375,9 +457,42 @@ class GraphPlanExecutor:
                     continue
                 if (ego_id, str(step.target_id)) not in self.done:
                     return False
-            if self.add_return_to_base and not self.rtb_issued.get(ego_id, False):
-                return False
+            if self.add_return_to_base and state != _LANDED:
+                return False  # the order went out; the aircraft is not home yet
         return True
+
+    # ---- physical lifecycle (the ONE classification site) --------------------
+
+    def _physical_state(self, ego_id: str, observation: object) -> str:
+        """Where the ego physically IS right now: ``_AIRBORNE`` / ``_LANDED`` / ``_DEAD``.
+
+        The three are exhaustive because the FROZEN engine keeps exactly one home for
+        every aircraft it still has: it flies in ``scenario.aircraft``; it lands into
+        an ``airbase.aircraft`` inventory (``Game.land_aicraft`` appends there, then
+        removes it from the air); and on ``current_fuel <= 0`` it is dropped from the
+        air with no inventory to land in (``Game.remove_aircraft``). Absent from both
+        lists therefore means removed, i.e. dead.
+
+        Pure: reads the observation and mutates nothing, and looks up ONLY ``ego_id``'s
+        own entries -- no peer state is consulted.
+        """
+        if _airborne(observation, ego_id):
+            return _AIRBORNE
+        if _airbase_of(observation, ego_id) is not None:
+            return _LANDED
+        return _DEAD
+
+    def _note_dead(self, ego_id: str) -> None:
+        """Record a physically-absent ego as dead (idempotent; internal state only).
+
+        Also latches ``rtb_issued``, so the RTB branch stays a no-op for an ego that
+        can no longer be commanded. That latch is bookkeeping ONLY: a dead ego emitted
+        no ``aircraft_return_to_base``, and anything measuring a REAL return must read
+        the emitted command stream instead (``graph_fuel_damage.FuelDamageController.
+        note_commands``), never this flag.
+        """
+        self.dead.add(ego_id)
+        self.rtb_issued[ego_id] = True
 
     # ---- sensing exposure (the trigger layer's eyes) --------------------------
 
@@ -432,16 +547,17 @@ class GraphPlanExecutor:
     # ---- single-ego command (the whole decision lives here) -------------------
 
     def _command_for_ego(self, ego_id: str, scenario: object) -> Optional[str]:
-        airborne = _airborne(scenario, ego_id)
-        in_airbase = airborne is False and _airbase_of(scenario, ego_id) is not None
+        # The SAME classifier `is_done` uses, so "where is this ego" has one answer per
+        # observation. This call sees the PRE-step world and `is_done` the POST-step
+        # one, which is why a death is reconciled from both sides of `env.step`.
+        state = self._physical_state(ego_id, scenario)
 
-        # Dead: not flying and not in any airbase (crashed / removed). Emit no
-        # command, record the death (so is_done() can stop waiting on its targets),
-        # and latch RTB so is_done()'s RTB check passes (internal state only).
-        if not airborne and not in_airbase:
-            self.dead.add(ego_id)
-            self.rtb_issued[ego_id] = True
+        # Dead: not flying and not in any airbase (crashed / removed). Emit no command
+        # and record the death, so is_done() stops waiting on its targets.
+        if state == _DEAD:
+            self._note_dead(ego_id)
             return None
+        airborne = state == _AIRBORNE
 
         eligible = self._eligible(ego_id, scenario)
 

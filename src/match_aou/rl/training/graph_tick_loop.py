@@ -43,6 +43,20 @@ Each belief edit is confined to the acting ego's belief (``ctx.beliefs[ego_id]``
 which is mutually independent from every peer's (``Belief.independent`` — see
 ``belief.py`` / ``graph_episode_setup``), so no edit can leak across egos.
 
+AN EGO THAT HAS COMMITTED TO RETURN LEAVES PHASE 1
+--------------------------------------------------
+Because completion is now PHYSICAL (``executor.is_done(observation)`` requires a
+non-dead ego to be back in an airbase inventory, not merely to have been ordered
+home), an episode keeps ticking while aircraft fly the ride home. Those extra ticks
+exist ONLY to let the engine resolve the lifecycle -- landing, or running the tank
+dry -- so once an ego's ``rtb_issued`` latch is set it is SKIPPED in Phase 1: no
+sensing, no trigger, no wake, no policy inference, no belief edit, no transition.
+Without that guard the returning ego would keep sensing targets it has already
+abandoned and manufacture fresh decisions out of the return leg, which is a change of
+research semantics, not a lifecycle fix. Peers are untouched and continue normally,
+and Phase 2 still runs for every ego every tick, so the two-phase structure and the
+one-snapshot no-comms property are exactly as before.
+
 EXOGENOUS EVENTS ENTER AT THE TOP OF A TICK, NEVER INSIDE PHASE 1
 -----------------------------------------------------------------
 FD-BASELINE-v1's fuel-damage event (``graph_fuel_damage``) is the first thing a tick
@@ -336,6 +350,12 @@ def run_episode(
         for ego_id in ctx.agent_ids:
             if ego_id in ctx.executor.dead:
                 continue  # crashed ego senses {} anyway; cheap early-out
+            if ctx.executor.rtb_issued.get(str(ego_id), False):
+                # COMMITTED TO RETURN (module docstring): its mission is over and the
+                # remaining ticks are the engine flying it home. Skipping the whole
+                # Phase-1 chain is what keeps the ride home from producing new
+                # decisions -- no sensing, no trigger, no wake, no belief edit.
+                continue
             belief = ctx.beliefs[ego_id]
             sensed = ctx.executor.sensed_target_ids(obs, ego_id)
             ego_fuel_damage = damaged_ego is not None and str(ego_id) == damaged_ego
@@ -381,7 +401,13 @@ def run_episode(
             ctx.game.record_step()
 
         # Executor owns the lifecycle; the loop only READS is_done() to decide to stop.
-        if ctx.executor.is_done():
+        # It is handed THIS tick's POST-STEP observation, because completion is a
+        # physical fact about the world the step just produced: a non-dead ego counts
+        # as resolved only once it is back in an airbase inventory, and an ego the
+        # engine removed mid-return is reconciled into `executor.dead` by that same
+        # call -- before the loop returns, so `n_dead` (and the terminal reward's
+        # `n_lost`) sees it.
+        if ctx.executor.is_done(obs):
             ended = "done"
             break
         if terminated:
