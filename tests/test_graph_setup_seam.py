@@ -1564,8 +1564,9 @@ def test_physical_classification_cannot_be_moved_by_a_peer() -> None:
 # the ride home takes a measurable number of ticks instead of resolving instantly.
 # The displacement is SOUTHWARD on purpose: this template's two red SAM facilities sit
 # NORTH of the blue base, and flying the return leg through their envelope would let a
-# surface-to-air kill masquerade as a fuel burn-out. The fixtures assert that no weapon
-# ever existed, so removal can only have come from `current_fuel <= 0`.
+# surface-to-air kill masquerade as a fuel burn-out. Staying south is a PRECAUTION, not
+# the proof -- the causal evidence is the `Game.remove_aircraft` witness below, which
+# records which of the engine's removal branches actually fired.
 _KM_PER_DEGREE_LATITUDE = 111.19492664455873
 _RETURN_DISTANCE_KM = 120.0
 
@@ -1607,6 +1608,44 @@ def _fly_home_with_real_blade(*, fuel_multiplier: float) -> Dict[str, Any]:
         record_every_seconds=10,
         recording_export_path=None,
     )
+
+    # THE CAUSAL WITNESS. TWO of the engine's three ways to take our ego out of the
+    # air call `Game.remove_aircraft`, and they are distinguishable AT THE CALL:
+    #   * the empty tank -- `update_all_aircraft_position` decrements `current_fuel` by
+    #     `fuel_rate / 3600` and calls `remove_aircraft` when the result is `<= 0`,
+    #     with nothing appended anywhere;
+    #   * the landing -- `land_aicraft` appends the replacement airframe to the homebase
+    #     inventory FIRST and only then calls `remove_aircraft`.
+    # So the live fuel reading plus "is this id already in an airbase inventory?"
+    # separate those two exactly.
+    #
+    # The THIRD way -- a weapon kill -- deliberately does NOT appear here:
+    # `weaponEngagement.weapon_endgame` splices the target straight out of
+    # `current_scenario.aircraft` and never calls `Game.remove_aircraft`. It is still
+    # excluded, and more strongly than a sampled weapon count could manage: an aircraft
+    # leaves the simulation exactly ONCE, so a shot-down ego would leave NO record here
+    # at all. Observing exactly one recorded removal, at `current_fuel <= 0`, is
+    # therefore incompatible with having been shot down.
+    #
+    # This wraps the bound method on THIS Game INSTANCE only; the FROZEN engine source
+    # is untouched, and the instance attribute is dropped in the `finally` below.
+    removals: List[Dict[str, Any]] = []
+    real_remove = game.remove_aircraft
+
+    def _witness_remove(aircraft_id):
+        live = game.current_scenario.get_aircraft(aircraft_id)
+        removals.append({
+            "id": str(aircraft_id),
+            "fuel": None if live is None else float(live.current_fuel),
+            "in_inventory": any(
+                str(getattr(ac, "id", "")) == str(aircraft_id)
+                for base in (getattr(game.current_scenario, "airbases", []) or [])
+                for ac in (getattr(base, "aircraft", []) or [])
+            ),
+        })
+        return real_remove(aircraft_id)
+
+    game.remove_aircraft = _witness_remove
     try:
         agents, tasks = ges._extract_world(obs, ATTACKING_SIDE_COLOR)
         agent = agents[0]
@@ -1699,6 +1738,8 @@ def _fly_home_with_real_blade(*, fuel_multiplier: float) -> Dict[str, Any]:
             "rtb_ticks": rtb_ticks, "wakes": wakes,
             "n_commands": sum(len(cmds) for _t, cmds in issued),
             "airborne": ego in in_air, "landed": ego in in_base,
+            "removals": list(removals),
+            "ego_removals": [r for r in removals if r["id"] == ego],
             "max_weapons": max(weapons_seen) if weapons_seen else 0,
             "last_fuel": fuel_seen[-1] if fuel_seen else None,
             "fuel_fell": bool(len(fuel_seen) > 1 and fuel_seen[-1] < fuel_seen[0]),
@@ -1706,6 +1747,8 @@ def _fly_home_with_real_blade(*, fuel_multiplier: float) -> Dict[str, Any]:
             "burn_per_tick": float(aircraft.fuel_rate) / 3600.0,
         }
     finally:
+        # Exact restore: drop the instance attribute, so the class method is live again.
+        game.__dict__.pop("remove_aircraft", None)
         env.close()
 
 
@@ -1728,7 +1771,17 @@ def test_blade_a_fuelled_ego_flies_home_and_lands_before_the_episode_ends() -> N
     assert result.ended == "done" and result.ticks < out["cap"], (result.ended, result.ticks)
     assert out["landed"] and not out["airborne"], out
     assert result.n_dead == 0 and out["ctx"].executor.dead == set()
-    assert out["max_weapons"] == 0, "a shot was fired; this is no longer a clean flight"
+
+    # The removal it DID go through is the landing branch, not the empty tank: fuel was
+    # still positive, and `land_aicraft` had already put the replacement airframe in the
+    # inventory before calling `remove_aircraft`.
+    assert len(out["ego_removals"]) == 1, out["ego_removals"]
+    landing = out["ego_removals"][0]
+    assert landing["fuel"] is not None and landing["fuel"] > 0.0, landing
+    assert landing["in_inventory"] is True, landing
+
+    # Secondary guard only: no weapon was seen in any per-tick sample of this world.
+    assert out["max_weapons"] == 0, "a shot was observed; this is no longer a clean flight"
 
 
 @_needs_blade
@@ -1752,14 +1805,25 @@ def test_blade_an_ego_that_burns_out_on_the_ride_home_is_counted_dead() -> None:
     assert not out["airborne"] and not out["landed"], (
         "the aircraft neither burned out nor landed: %r" % (out,)
     )
-    # The removal must be the EMPTY TANK and nothing else. `update_all_aircraft_position`
-    # removes an aircraft only at `current_fuel <= 0`; the other way to leave the sim is
-    # a weapon, so a world in which no weapon ever existed pins the cause.
-    assert out["max_weapons"] == 0, "a weapon killed it; this is not a fuel burn-out"
-    # The last tank reading before the removal held LESS than one tick of burn, so the
-    # very next `fuel_rate / 3600` decrement took it to <= 0 -- the engine's own rule.
+    # DIRECT CAUSAL EVIDENCE: the ego went through `Game.remove_aircraft` exactly once,
+    # holding `current_fuel <= 0` and with NO replacement airframe in any inventory.
+    # That is the empty-tank branch of `update_all_aircraft_position` and nothing else:
+    # `land_aicraft` would have shown positive fuel and an inventory entry, and a weapon
+    # kill would have produced no record here at all (it bypasses `remove_aircraft`),
+    # which it cannot do while also being the one removal that WAS recorded.
+    assert len(out["ego_removals"]) == 1, out["ego_removals"]
+    removal = out["ego_removals"][0]
+    assert removal["fuel"] is not None and removal["fuel"] <= 0.0, removal
+    assert removal["in_inventory"] is False, removal
+
+    # Supporting evidence, from the other side of the same rule: the last tank reading
+    # sampled before the removal held LESS than one tick of burn, so the very next
+    # `fuel_rate / 3600` decrement is exactly what took it to <= 0.
     assert out["fuel_fell"], out
     assert 0.0 < out["last_fuel"] <= out["burn_per_tick"], out
+
+    # Secondary guard only: no weapon was seen in any per-tick sample of this world.
+    assert out["max_weapons"] == 0, out["max_weapons"]
     assert ctx.executor.dead == {ego}, ctx.executor.dead
     assert result.n_dead == 1, result
 

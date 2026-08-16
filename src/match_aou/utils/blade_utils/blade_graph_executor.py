@@ -31,8 +31,11 @@ DONE-ON-CONFIRMED-KILL:
   miss — the ego re-engages instead of silently advancing past a survivor.)
 
 DONE-ON-PHYSICAL-RESOLUTION (the same principle, applied to the ride home):
-  ``is_done(observation)`` reads the LIVE observation and asks where each ego
-  physically IS -- it never asks what was once commanded. Issuing
+  ``is_done(observation)`` decides the PHYSICAL half of completion by reading the
+  LIVE observation for where each ego actually IS -- never by asking what was once
+  commanded. (Its other half, whether an ego's assignments are finished, is still
+  executor semantic state: ``plans``, the resolved steps and the ``done`` set. Only
+  the physical half needs the observation, and only it changed here.) Issuing
   ``aircraft_return_to_base`` is an ORDER, not an outcome: the aircraft is still
   airborne, still burning fuel, and may never reach home. A non-dead ego therefore
   counts as resolved only once the engine has actually moved it into an airbase
@@ -391,19 +394,26 @@ class GraphPlanExecutor:
     def is_done(self, observation: object) -> bool:
         """True iff every ego is TERMINALLY RESOLVED against the live ``observation``.
 
-        Two things must hold per ego, and BOTH are read from the world rather than
-        from executor bookkeeping:
+        Two things must hold per ego, and they come from DIFFERENT sources -- which is
+        the point of the fix, since only the second one changed:
 
-          * ASSIGNMENTS -- no resolvable assignment whose target is still not in
-            ``done``. Unchanged: a dead ego's remaining assignments are terminally
-            unsatisfiable (we accept the lost utility rather than hang forever), and an
-            unresolvable index stays implicitly satisfied.
-          * PHYSICAL LIFECYCLE -- when ``add_return_to_base`` is True, a non-dead ego
-            must be LANDED, i.e. actually sitting in some airbase inventory. Airborne
-            is NOT resolved, whatever was commanded: an ego on the ride home can still
-            run its tank dry. When ``add_return_to_base`` is False the physical check
-            is skipped entirely, preserving the no-RTB-required contract for callers
-            that opted out.
+          * ASSIGNMENTS -- read from EXECUTOR SEMANTIC STATE, exactly as before: this
+            ego's ``plans`` slice, the steps ``_resolve_step`` resolves against its own
+            ``tasks``, and the proximity-confirmed ``done`` set. No resolvable
+            assignment may have a target still missing from ``done``. Unchanged: a dead
+            ego's remaining assignments are terminally unsatisfiable (we accept the lost
+            utility rather than hang forever), and an unresolvable index stays
+            implicitly satisfied. NOTHING here reads the observation.
+          * PHYSICAL LIFECYCLE -- read from the LIVE OBSERVATION, and the only half that
+            needs it. When ``add_return_to_base`` is True, a non-dead ego must be
+            LANDED, i.e. actually sitting in some airbase inventory. Airborne is NOT
+            resolved, whatever was commanded: an ego on the ride home can still run its
+            tank dry. When ``add_return_to_base`` is False the physical check is skipped
+            entirely, preserving the no-RTB-required contract for callers that opted out.
+
+        What the fix removed is the reading of ``rtb_issued`` as completion. Executor
+        bookkeeping still decides the ASSIGNMENT half; it no longer decides the
+        PHYSICAL half.
 
         SIDE EFFECT (deliberate, and the reason this needs the observation): an ego
         that is neither airborne nor in any inventory has been removed by the engine,
