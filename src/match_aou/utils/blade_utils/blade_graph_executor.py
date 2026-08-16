@@ -74,13 +74,13 @@ from .scenario_factory import iter_enemy_targets
 
 Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
 
-# blade.utils.constants.KILOMETERS_TO_NAUTICAL_MILES -- the constant the FROZEN engine's
-# own weapon-flight model uses in `blade.utils.utils.get_next_coordinates`, which is what
-# `weaponEngagement.weapon_engagement` steps a launched weapon with every tick.
-# Transcribed rather than imported, exactly as `graph_fuel_damage` transcribes
-# NAUTICAL_MILES_TO_METERS: importing it would drag the engine into this module's import
-# closure (it is an import-purity ENTRY_MODULE and stays duck-typed / BLADE-free at
-# import time). The transcription is asserted against the engine in the BLADE test tier.
+# blade.utils.constants.KILOMETERS_TO_NAUTICAL_MILES -- the km -> nm UNIT constant the
+# FROZEN engine divides a platform's knots speed into, in `blade.utils.utils.
+# get_next_coordinates`. Transcribed rather than imported, exactly as `graph_fuel_damage`
+# transcribes NAUTICAL_MILES_TO_METERS: importing it would drag the engine into this
+# module's import closure (it is an import-purity ENTRY_MODULE and stays duck-typed /
+# BLADE-free at import time). The transcription is compared against the ENGINE'S OWN
+# `blade.utils.constants` value in the BLADE test tier, which is what would catch drift.
 KILOMETERS_TO_NAUTICAL_MILES = 0.539957
 
 
@@ -114,20 +114,30 @@ def _airbase_of(scenario: object, ego_id: str) -> Optional[str]:
 
 
 def _salvo_travel_ticks(weapon: object, distance_km: float) -> Optional[int]:
-    """Ticks a launched ``weapon`` needs to cross ``distance_km``, or None if underivable.
+    """A conservative full-distance travel BOUND for ``weapon``, in ticks (None if none).
 
-    A transcription of the FROZEN engine's own weapon-flight arithmetic. A weapon launched
-    by ``weaponEngagement.launch_weapon`` is stepped every tick by
-    ``blade.utils.utils.get_next_coordinates``, which converts kilometres to nautical
-    miles, divides by the platform's KNOTS speed to get hours (taking |speed|, as the
-    engine does) and turns that into whole seconds -- and one engine tick is one second
-    (``Game.update_game_state`` advances ``current_time`` by 1). The engine FLOORS that
-    figure to size its per-tick leg; we CEIL it, because this is a conservative bound on
-    when the salvo can have resolved, not a re-derivation of the engine's leg length.
+    Built from the FROZEN engine's own distance units and speed normalisation: kilometres
+    are converted to nautical miles with the engine's ``KILOMETERS_TO_NAUTICAL_MILES``,
+    divided by the platform's KNOTS speed to get hours and turned into seconds, which are
+    ticks because ``Game.update_game_state`` advances ``current_time`` by 1. The continuous
+    figure is CEILED, so the result is an upper bound on the crossing time of the whole
+    distance.
+
+    IT IS DELIBERATELY NOT AN EXACT RECONSTRUCTION of BLADE's discrete
+    launch / update / endgame schedule, and must not be read as the number of engine ticks
+    a salvo will actually take. The engine advances a new weapon once inside
+    ``weaponEngagement.launch_weapon``, can advance it again during the SAME
+    ``Game.update_game_state``, resolves the target through ``weapon_endgame`` as soon as
+    the remaining distance drops below 1 km rather than at 0, and the executor only
+    observes that result on a later call. Real engagements therefore resolve EARLIER than
+    this bound -- measured at ~47.2 km, the bound is 62 while the real confirmation landed
+    on executor call 60. Reproducing the engine's schedule exactly is not the job here:
+    the wait only has to be long enough, and a bound is what makes that safe without
+    re-implementing frozen engine internals.
 
     Speed is normalised with ``abs`` FIRST, exactly as the engine normalises it
-    (``platform_speed if platform_speed >= 0 else -platform_speed``), so a negatively
-    signed speed yields the same flight time the engine would actually fly.
+    (``platform_speed if platform_speed >= 0 else -platform_speed``), so a finite
+    negatively signed speed is accepted and yields the same bound as its magnitude.
 
     Returns None -- "cannot be derived, use the configured fallback" -- rather than
     guessing, when there is no weapon, when its speed is missing / non-numeric /
@@ -206,12 +216,14 @@ class GraphPlanExecutor:
         # (`Weapon.get_engagement_range` == speed * current_fuel / fuel_rate), NOT a speed
         # ranking -- so as a loadout is spent the auto-selected weapon can get SLOWER. In
         # `strike_training_4v5.json` the order is AIM-120 (2600 kt) -> AIM-9 (1500 kt) ->
-        # AGM-65 (600 kt): once the AIM-120 is gone an AIM-9 salvo needs ~62 ticks to
-        # cross 47.2 km and an AGM-65 salvo ~153 ticks, both BEYOND a fixed 60. A wait
-        # that expires mid-flight lets the executor issue a redundant salvo that burns the
-        # ego's last weapons -- measured in the first short probe. Over-sizing stays
-        # harmless: the proximity confirm-guard advances the instant the kill resolves, so
-        # the wait only throttles re-fire on a MISS (probability < 1.0).
+        # AGM-65 (600 kt). Once the AIM-120 is gone, the CONSERVATIVE BOUND on an AIM-9
+        # salvo crossing 47.2 km is 62 ticks and on an AGM-65 salvo ~153 (bounds, not
+        # measured engine ticks -- see `_salvo_travel_ticks`), both above a fixed 60. A
+        # wait that expires while the salvo is still airborne lets the executor issue a
+        # redundant salvo that burns the ego's last weapons -- measured in the first short
+        # probe. Over-sizing stays harmless: the proximity confirm-guard advances the
+        # instant the kill resolves, so the wait only throttles re-fire on a MISS
+        # (probability < 1.0).
         self.kill_confirm_ticks = int(kill_confirm_ticks)
 
         # done: the SOLE source of truth for "this ego CONFIRMED this target dead".
@@ -492,8 +504,9 @@ class GraphPlanExecutor:
         # NOT done-on-emit: emitting an attack does NOT mark done (that would be
         # unsafe once task probability < 1.0, where a launch may miss). We fire ONE
         # salvo, then hold (loiter in range, no command) for the wait DERIVED at issue
-        # time from the salvo actually about to fly (`_confirmation_wait_ticks`) while
-        # the weapon flies and the engine resolves the kill; the CONFIRM-GUARD above
+        # time from the salvo actually about to fly (`_confirmation_wait_ticks`, a
+        # conservative bound rather than an engine-exact flight time) while the weapon
+        # flies and the engine resolves the kill; the CONFIRM-GUARD above
         # marks done the instant get_target -> None, without waiting the rest of the
         # window out. If the window elapses with the target STILL alive (a future miss),
         # the cooldown reaches 0 and we re-engage. For lethality == 1.0 the guard always
@@ -537,19 +550,29 @@ class GraphPlanExecutor:
              executing the command -- ``next_actions`` only reads, and
              ``Game.handle_action`` execs each ego's command against its OWN aircraft.
           2. HOW LONG -- ``_salvo_travel_ticks`` on that weapon's LIVE speed and the
-             engagement distance ``_command_for_ego`` already computed for this tick.
+             engagement distance ``_command_for_ego`` already computed for this tick. That
+             is a CONSERVATIVE BOUND on crossing the whole distance, not a reconstruction
+             of the engine's discrete schedule; a real engagement resolves earlier.
 
-        The result is ``max(kill_confirm_ticks, travel + 1)``: the configured value stays
-        the FLOOR, and the ``+1`` is the discrete confirmation/order margin -- one full
-        tick beyond the conservative continuous travel estimate, because the confirm-guard
-        can only observe the kill on the tick AFTER the engine resolves it.
+        The result is ``max(kill_confirm_ticks, travel_bound + 1)``: the configured value
+        stays the FLOOR, and the ``+1`` is the discrete confirmation/order margin -- one
+        full tick beyond the conservative continuous bound, because the confirm-guard can
+        only observe a kill on the tick AFTER the engine resolves it.
 
         Falls back to the configured ``kill_confirm_ticks`` whenever the derivation has
-        nothing sound to stand on: no weapon selected (an empty rack, or a duck-typed
-        aircraft with no selector at all, as in the hand-built stub tiers), or a missing /
-        non-finite / non-positive speed. The fallback deliberately does NOT invent an
-        ammunition-management policy -- an ego with an empty rack still emits its attack
-        and the engine simply launches nothing, exactly as before.
+        nothing sound to stand on:
+          * no weapon selected -- an empty rack, or a duck-typed aircraft exposing no
+            selector at all, as in the hand-built stub tiers;
+          * a speed that is missing or non-numeric;
+          * a speed that is non-finite;
+          * a speed that is zero AFTER ``abs`` normalisation;
+          * an unusable (non-finite or negative) engagement distance.
+        A FINITE NEGATIVE speed is NOT a fallback case: ``_salvo_travel_ticks`` normalises
+        it with ``abs``, matching frozen BLADE's own
+        ``platform_speed if platform_speed >= 0 else -platform_speed``.
+        The fallback deliberately does NOT invent an ammunition-management policy -- an ego
+        with an empty rack still emits its attack and the engine simply launches nothing,
+        exactly as before.
 
         NO-COMMS: reads ONLY the acting ego's own aircraft object and its own engagement
         distance. No peer aircraft, inventory, belief or assignment is consulted, so no

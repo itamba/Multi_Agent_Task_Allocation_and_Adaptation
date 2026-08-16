@@ -36,16 +36,19 @@ P3  real-BLADE stale-route replacement (no solver): an airborne ego flying a rea
     waypoint and leaves a route that ends at the aircraft's actual home base.
 P4  the DERIVED attack-confirmation wait (pure): the wait armed after a salvo comes from
     the weapon the engine's own 2-arg attack will select and the engagement distance the
-    executor already computed, follows the engine's km -> nm -> knots -> seconds
-    arithmetic with a ceiling and a one-tick margin, keeps the configured
-    `kill_confirm_ticks` as its floor and its fallback, refuses to guess on unusable
-    weapon/speed data, cannot be moved by a peer, and leaves the per-(ego, target)
-    cooldown identity and the confirmed-kill bypass exactly as they were.
-P5  real-BLADE redundant-salvo regression (no solver): with the loadout in the state the
-    first short probe reached, a single AIM-9 salvo is left to fly to completion instead
-    of being re-fired over -- the AGM-65 reserve survives, the target still dies, and the
-    plan still advances the moment the kill is confirmed. A control arm restoring the
-    retired flat wait reproduces the probe's redundant salvo.
+    executor already computed; the travel term is a CONSERVATIVE full-distance bound in
+    the engine's units (km -> nm -> knots -> seconds, ceiled) plus a one-tick margin, NOT
+    a reconstruction of BLADE's discrete launch/update/endgame schedule; the configured
+    `kill_confirm_ticks` stays the floor and the fallback; unusable weapon/speed data is
+    refused rather than guessed; a peer cannot move the result; and the per-(ego, target)
+    cooldown identity and the confirmed-kill bypass are exactly as they were.
+P5  real-BLADE regression (no solver): with the loadout in the state the first short probe
+    reached, a single AIM-9 salvo is left to fly to completion instead of being re-fired
+    over -- the AGM-65 reserve survives, the target still dies, and the plan still advances
+    the moment the kill is confirmed. A control arm restoring the retired flat wait
+    exhibits the same premature-re-fire mechanism the probe hit. The BLADE tier is also
+    where the executor's transcribed km -> nm constant is compared against the ENGINE'S
+    OWN `blade.utils.constants` value.
 P2  private sensing isolation, through the INTEGRATED setup/tick seam: a hidden target
     that the setup really put in the world is reported as sensed by ONE ego, and the real
     `run_episode` Phase-1 chain is what carries it into that ego's belief and executor
@@ -528,12 +531,23 @@ def _wait_executor(kill_confirm_ticks: int = 60) -> Any:
     )
 
 
-def test_salvo_travel_ticks_transcribes_the_engine_flight_arithmetic() -> None:
+def test_salvo_travel_bound_uses_the_engine_units_and_ceiling() -> None:
     """P4a: km -> nm -> hours at the weapon's KNOTS speed -> seconds, CEILED.
 
-    The expected values are recomputed here from the engine's constant rather than copied
-    from the implementation, so a changed conversion, a lost `3600` or a swapped rounding
-    mode all fail.
+    What this pins is the BOUND's arithmetic: a changed conversion, a lost `3600` or a
+    swapped rounding mode all fail, because the expected values are recomputed here
+    rather than copied from the implementation.
+
+    What it does NOT do is compare anything against the running engine -- the constant
+    check below pins the executor's transcription against a LITERAL, which cannot see
+    drift in BLADE's own value. That comparison lives in the BLADE tier, where the engine
+    can be imported: see the `test_blade_transcribed_km_to_nm_...` test below.
+
+    And the bound is a BOUND: it is not the number of engine ticks a salvo takes. BLADE
+    advances a new weapon inside `launch_weapon`, may advance it again in the same
+    `update_game_state`, and resolves the target once the remaining distance is under
+    1 km -- so real engagements confirm EARLIER than this figure (measured in P5:
+    bound 62 at ~47.2 km, real confirmation on executor call 60).
     """
     import math
 
@@ -542,8 +556,9 @@ def test_salvo_travel_ticks_transcribes_the_engine_flight_arithmetic() -> None:
         _salvo_travel_ticks,
     )
 
-    # The transcription itself: this is `blade.utils.constants`' value, the one
-    # `blade.utils.utils.get_next_coordinates` divides the weapon's speed into.
+    # The executor's transcription, pinned against a LITERAL so this pure tier stays
+    # engine-free. This is NOT the drift check -- see the BLADE-tier test named in the
+    # docstring, which compares it with the engine's own constant.
     assert KILOMETERS_TO_NAUTICAL_MILES == 0.539957
 
     def expected(distance_km: float, speed_knots: float) -> int:
@@ -552,9 +567,9 @@ def test_salvo_travel_ticks_transcribes_the_engine_flight_arithmetic() -> None:
     # The three real loadout speeds of `strike_training_4v5.json`, at the observed
     # engagement distance and at the detection radius.
     cases = [
-        (47.2, 2600.0, 36),   # AIM-120 -- comfortably inside a fixed 60
-        (47.2, 1500.0, 62),   # AIM-9   -- ALREADY BEYOND a fixed 60: the defect
-        (47.2, 600.0, 153),   # AGM-65  -- far beyond it
+        (47.2, 2600.0, 36),   # AIM-120 -- bound comfortably inside a fixed 60
+        (47.2, 1500.0, 62),   # AIM-9   -- bound ALREADY ABOVE a fixed 60: the defect
+        (47.2, 600.0, 153),   # AGM-65  -- bound far above it
         (50.0, 2600.0, 38),
         (50.0, 1500.0, 65),
         (0.0, 1500.0, 0),     # degenerate but well defined: no flight, no wait
@@ -568,12 +583,17 @@ def test_salvo_travel_ticks_transcribes_the_engine_flight_arithmetic() -> None:
     # CEILING, not rounding and not truncation: 1 km at 1 kt is 1943.85 s -> 1944.
     assert _salvo_travel_ticks(_StubWeapon("w", 1.0, 1.0), 1.0) == 1944
 
-    # |speed|, exactly as the engine normalises it in `get_next_coordinates`.
+    # A FINITE NEGATIVE speed is accepted and normalised with |speed|, exactly as the
+    # engine normalises it in `get_next_coordinates` -- it is not a fallback case.
     assert _salvo_travel_ticks(_StubWeapon("w", -1500.0, 1.0), 47.2) == 62
 
 
 def test_salvo_travel_ticks_refuses_to_guess_on_unusable_data() -> None:
-    """P4b: every underivable input returns None -> the caller uses the configured wait."""
+    """P4b: every underivable input returns None -> the caller uses the configured wait.
+
+    A finite NEGATIVE speed is deliberately absent from this list: it is usable, and P4a
+    pins it as normalised with `abs` rather than refused.
+    """
     from match_aou.utils.blade_utils.blade_graph_executor import _salvo_travel_ticks
 
     assert _salvo_travel_ticks(None, 47.2) is None                        # no weapon
@@ -1018,11 +1038,11 @@ def test_blade_abort_replaces_a_stale_route_with_the_home_base_route() -> None:
 
 
 # =============================================================================
-# BLADE (no solver) -- P5: the redundant-salvo regression (Defect B)
+# BLADE (no solver) -- P5: the engine constant + the redundant-salvo regression (Defect B)
 # =============================================================================
 
-# Generous cap: the slowest rack entry (AGM-65, 600 kt) needs ~153 ticks at this range,
-# so a run that hits this bound has stopped advancing rather than merely taken its time.
+# Generous cap: the slowest rack entry (AGM-65, 600 kt) is bounded at ~153 ticks at this
+# range, so a run that hits this cap has stopped advancing rather than merely taken time.
 _MAX_ENGAGEMENT_CALLS = 400
 
 
@@ -1171,6 +1191,40 @@ def _engage_one_target_with_real_blade(
 
 
 @_needs_blade
+def test_blade_transcribed_km_to_nm_constant_matches_the_engine() -> None:
+    """P5a: the executor's transcribed km -> nm constant IS the frozen engine's own.
+
+    `blade_graph_executor` is an import-purity ENTRY_MODULE and stays BLADE-free at import
+    time, so it transcribes `KILOMETERS_TO_NAUTICAL_MILES` instead of importing it -- the
+    same trade `graph_fuel_damage` makes for NAUTICAL_MILES_TO_METERS. A transcription is
+    only safe if something compares it with the source, and only the BLADE tier can: the
+    engine import lives INSIDE this test body, so the pure tier still imports nothing from
+    BLADE and this test is skipped wherever the engine is absent.
+
+    This is the check that would catch drift; the literal pinned in P4a cannot.
+    """
+    from blade.utils.constants import (
+        KILOMETERS_TO_NAUTICAL_MILES as BLADE_KM_TO_NM,
+    )
+
+    from match_aou.utils.blade_utils.blade_graph_executor import (
+        KILOMETERS_TO_NAUTICAL_MILES as EXECUTOR_KM_TO_NM,
+    )
+
+    assert EXECUTOR_KM_TO_NM == BLADE_KM_TO_NM, (
+        "the executor's transcribed km -> nm constant (%r) has drifted from the engine's "
+        "own blade.utils.constants value (%r); every derived confirmation wait is scaled "
+        "by it" % (EXECUTOR_KM_TO_NM, BLADE_KM_TO_NM)
+    )
+
+    # It is the constant the engine's own weapon-flight step divides speed into, so pin
+    # the exact identity rather than merely "some float that happens to match".
+    import blade.utils.utils as blade_utils
+
+    assert blade_utils.KILOMETERS_TO_NAUTICAL_MILES == BLADE_KM_TO_NM
+
+
+@_needs_blade
 def test_blade_derived_wait_prevents_the_redundant_salvo() -> None:
     """P5: a slower auto-selected salvo is no longer re-fired over while it is airborne.
 
@@ -1181,19 +1235,32 @@ def test_blade_derived_wait_prevents_the_redundant_salvo() -> None:
     against the REAL engine at the executor's production default `kill_confirm_ticks=60`;
     the only difference is whether the wait is derived.
 
+    WHAT THE CONTROL ARM DOES AND DOES NOT PROVE. It reproduces the MECHANISM -- a flat
+    wait expiring while the auto-selected salvo is still airborne, a redundant command,
+    and the reserve consumed -- inside the same `DETECTION_KM = 50` engagement envelope.
+    It does NOT reproduce every detail of the original probe's world state, and nothing
+    here should be read as a re-run of that episode.
+
     THE CONTROL ARM'S SCHEDULE, which fixes every call index used here: the executor arms
     the cooldown on the firing call, decrements it once per later call, so a flat 60
     reaches 0 on call 60 and the earliest re-fire is call 61. The confirm-guard runs
     FIRST on every call, so a kill visible by call 61 is confirmed instead of re-fired.
 
-    TWO DISTANCES, both inside the single `DETECTION_KM = 50` attack envelope:
-      * 47.2 km -- the distance reconstructed from the probe's artifacts. Here the AIM-9
-        needs 62 s of flight against a flat 60-tick wait: the constant is ALREADY shorter
-        than the salvo it is supposed to cover, and the control arm survives only because
-        the kill lands one single tick before the re-fire. That one-tick margin is the
-        finding, not a safety property.
-      * 49.0 km -- the same envelope, one tick further out, where the margin is gone and
-        the control arm reproduces the probe's failure exactly.
+    BOUNDS ARE NOT ENGINE TICKS. `_salvo_travel_ticks` returns a conservative
+    full-distance bound; BLADE resolves earlier (it advances a weapon once inside
+    `launch_weapon`, may advance it again in the same `update_game_state`, and calls
+    `weapon_endgame` once the remaining distance is under 1 km). Both are measured here
+    and they differ, which is the point of asserting each separately.
+
+    TWO DISTANCES, both inside the single 50 km attack envelope:
+      * 47.2 km -- the distance reconstructed from the probe's artifacts. The bound is 62
+        and the derived wait 63 against a flat 60: the old constant was ALREADY below the
+        bound for the salvo it was covering. Real confirmation lands on call 60, one
+        single tick before the flat wait would have permitted a second command -- a
+        one-tick escape, not a safety margin.
+      * 49.0 km -- the same envelope, far enough out that the escape is gone (bound 64,
+        derived wait 65, real confirmation on call 62 against a re-fire on call 61), so
+        the control arm exhibits the premature re-fire and loses the reserve.
     """
     close = _engage_one_target_with_real_blade(47.2, fixed_wait=False)
     close_control = _engage_one_target_with_real_blade(47.2, fixed_wait=True)
@@ -1214,8 +1281,8 @@ def test_blade_derived_wait_prevents_the_redundant_salvo() -> None:
     for run in (close, far):
         assert abs(run["engagement_km"] - run["blade_engagement_km"]) < 1e-3, run
 
-    # ---- 47.2 km: the flat constant was already SHORTER than the salvo --------
-    # 47.2 km at 1500 kt is 61.17 s -> 62 ticks of flight, +1 margin -> 63.
+    # ---- 47.2 km: the flat constant was already BELOW the salvo's bound ------
+    # 47.2 km at 1500 kt is 61.17 s -> a conservative bound of 62, +1 margin -> 63.
     assert close["derived_wait"] == 63, close["derived_wait"]
     assert close["derived_wait"] > close["configured_wait"]
     # ... and the control arm's escape is exactly one tick wide: it confirms on call 60,
@@ -1223,8 +1290,8 @@ def test_blade_derived_wait_prevents_the_redundant_salvo() -> None:
     assert close_control["confirmed_at"] == 60, close_control["confirmed_at"]
     assert close_control["attack_calls"] == [0], close_control["attack_calls"]
 
-    # ---- 49.0 km: the control arm reproduces the probe's failure --------------
-    # 49.0 km at 1500 kt is 63.5 s -> 64 ticks of flight, +1 margin -> 65.
+    # ---- 49.0 km: the control arm exhibits the probe's mechanism --------------
+    # 49.0 km at 1500 kt is 63.5 s -> a conservative bound of 64, +1 margin -> 65.
     assert far["derived_wait"] == 65, far["derived_wait"]
     # THE SALVO IS STILL AIRBORNE when the flat wait expires: on call 61 the target is
     # alive, the AIM-9 pair is still in the air, and the AGM-65 reserve is still onboard.
@@ -1245,8 +1312,9 @@ def test_blade_derived_wait_prevents_the_redundant_salvo() -> None:
     assert far["weapons_still_in_flight"] == 0, far["weapons_still_in_flight"]
     assert far["target_destroyed"], "the single derived-wait salvo did not kill the target"
     # PLAN ADVANCEMENT IS NOT DELAYED: the confirm-guard advances on the same call the
-    # kill becomes visible (62), with 3 ticks still on the derived clock, and the now
-    # empty plan issues RTB immediately -- the longer wait throttles RE-FIRE only.
+    # kill becomes visible (62 -- EARLIER than the bound of 64, as expected), with 3 ticks
+    # still on the derived clock, and the now empty plan issues RTB immediately: the
+    # longer wait throttles RE-FIRE only.
     assert far["confirmed_at"] == 62, far["confirmed_at"]
     assert far["rtb_at"] == far["confirmed_at"], (far["rtb_at"], far["confirmed_at"])
     assert far["confirmed_at"] < far["derived_wait"], far
