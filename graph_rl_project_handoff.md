@@ -2,9 +2,11 @@
 
 **Supersedes all earlier handoffs.**
 
-Written 2026-08-11; updated 2026-08-14 for the final-cell PROBE HARNESS closure, and
+Written 2026-08-11; updated 2026-08-14 for the final-cell PROBE HARNESS closure,
 2026-08-15 to record the FIRST EXECUTED bounded short probe and the three
-research-validity defects it exposed (§3d).
+research-validity defects it exposed (§3d), and 2026-08-16 to record the CLOSURE of the
+FIRST of those three defects — **Defect A, ego-global `SELF_PRESERVATION_ABORT`, merged
+through PR #17**. Defects B and C remain OPEN.
 B1–B4, the first real post-B3 instrumented probe, the B4 observability follow-up (PR #7),
 **FD-BASELINE-v1** (PR #8), **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10), the repository
 code-hygiene cleanup (PR #11), the documentation hygiene (PR #12) and now the
@@ -17,10 +19,13 @@ the **operator harness a probe is driven from — preset, run layout and figures
 merged**. The bounded short probe HAS NOW BEEN RUN ONCE
 (`training_output_20260815_173029`, from clean `main` at
 `238062d7d284334432d9c39d7543fb0bbf39ea7c`). It passed every mechanical harness and
-accounting check **and** exposed three research-validity defects (§3d). The next task is
-therefore no longer the probe itself but a **Grade-A research-validity correction** of
-those defects, after which the SAME bounded probe shape is rerun once and reviewed. **A
-long baseline remains UNAUTHORIZED.**
+accounting check **and** exposed three research-validity defects (§3d). They are being
+corrected in sequence — A, then B, then C, as separate reviewed tasks by default, with the
+policy and its one recorded exception in `CLAUDE.md` §8: **Defect A is now CLOSED and
+MERGED** (PR #17), while
+**Defects B and C remain OPEN** — **Defect B is the next unresolved code task**. The SAME
+bounded probe shape is rerun ONCE only after all three, and the documentation/lock duty
+each carries, have closed. **A long baseline remains UNAUTHORIZED.**
 
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
@@ -43,6 +48,22 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
+- **CURRENT `main`:** `f094e0b32e5e67b79757edbfe4e73c1fe01b0a87`, committed
+  `2026-08-16T01:20:33+03:00` (the PR #17 merge). Any later work still performs its own
+  fresh exact-SHA initialization against the repository rather than trusting this line.
+- **DEFECT A (ego-global `SELF_PRESERVATION_ABORT`) — CLOSED / APPROVED / MERGED.**
+  Approved candidate `d56fda636ab5ec1a5cce6076f07acac5556d10cb`, integrated by merge
+  commit `f094e0b32e5e67b79757edbfe4e73c1fe01b0a87` (PR #17). The candidate was merged
+  with a MERGE COMMIT and preserved as its SECOND PARENT; candidate and integration share
+  the IDENTICAL tree `70e5af2446f0a1b0674eb10819c9451753260560`, and the
+  candidate→integration comparison contains ZERO changed files. Grade A under
+  `GPT_GITHUB`, mode SURGICAL, exactly five files. The first candidate
+  `c306455085de408c7bf383135c27e600ff3f1428` received REQUEST-FIXES for three
+  documentation inaccuracies; the correction landed as a NEW CHILD COMMIT on the same
+  branch and PR, with no amend, rebase, force-push or history rewrite. `CLAUDE.md` §5
+  (Stage 4 SELECTION, Stage 5 EFFECT) and §7 own the authoritative contract and lock.
+  **This closes DEFECT A ONLY.** No probe, training run, rollout or baseline was run for
+  it.
 - **B1 — CLOSED / MERGED / LOCKED.**
   `d6758ac1899621b2ceebcb63afb5e8577184cd91`, merged by
   `bd087c3c18b96f1fe847b4987c73f394a43249c1` (PR #2).
@@ -123,8 +144,9 @@ cross-references it rather than duplicating it.
   episode termination on RTB ISSUANCE rather than RTB COMPLETION. **Its post-update reward
   improvement is therefore NOT final scientific evidence about the fuel-damage cell**, and
   **a long baseline stays BLOCKED**. §3d records the run state, the three defects and the
-  decided direction; the correction is a FUTURE Grade-A task and is **not implemented at
-  the SHA above**.
+  decided direction. **Defect A of the three is now CORRECTED and MERGED** (see the
+  Defect-A bullet at the top of this section and `CLAUDE.md` §7); **Defects B and C are
+  still NOT implemented**, at that SHA or at current `main`.
 - **Repository documentation hygiene — CLOSED / APPROVED / MERGED.** Approved candidate
   `52064c2d306df7c8447d159df20e6e189a59bf85`, integrated by
   `5f78904e3af1e2e47386c9b0e01ddbaa273724f5` (PR #12); the approved candidate tree was
@@ -287,19 +309,29 @@ scheduled training iterations × 4 scheduled attempts, plus the fixed held-out m
 These facts say the instrument runs and accounts for itself. They do **not** authorize the
 long baseline, because the same run exposed the three research-validity defects below.
 
-**Defect A — `SELF_PRESERVATION_ABORT` is node-indexed, not an ego-global abort.**
+**Defect A — `SELF_PRESERVATION_ABORT` WAS node-indexed, not an ego-global abort.**
+**STATUS: CLOSED / APPROVED / MERGED through PR #17** — approved candidate
+`d56fda636ab5ec1a5cce6076f07acac5556d10cb`, integrated by
+`f094e0b32e5e67b79757edbfe4e73c1fe01b0a87`, identical tree
+`70e5af2446f0a1b0674eb10819c9451753260560` and a zero-file candidate→integration
+comparison. The observations below are preserved as HISTORICAL EVIDENCE about the probe's
+own SHA `238062d7d284334432d9c39d7543fb0bbf39ea7c`; they describe behaviour that no longer
+exists on current `main`.
 
 - At this SHA `graph_effect.apply_meta_action` removes only the assignment(s) whose
   `task_idx == node_v`, so SPA aborts ONE task rather than the ego's mission.
 - Probe playback showed a fuel-damaged KC-135 selecting SPA while its existing BLADE route
   continued and further assignments remained.
-- **User decision for the NEXT CODE TASK:** the desired behaviour is an **ego-global
-  mission abort** — selecting `SELF_PRESERVATION_ABORT` must clear ALL of that ego's
-  remaining assignments, so the executor reaches its empty-plan RTB path. **This is a
-  decision about future work; it is NOT implemented at the SHA above.**
-- The existing `k × 3` action-head structure is **not** authorized for redesign by this
-  record. The next code task determines the minimal contract-safe implementation and tests
-  it end to end.
+- **The decided behaviour — now IMPLEMENTED and MERGED:** an **ego-global mission
+  abort**. Selecting `SELF_PRESERVATION_ABORT` on ANY legal cell clears ALL of that ego's
+  remaining assignments, so the executor reaches its empty-plan RTB path. It was **NOT
+  implemented at the SHA above**; it IS implemented on current `main` (`f094e0b`).
+- The existing `k × 3` action-head structure was **not** redesigned: the action surface,
+  `NUM_META_ACTIONS`, the mask rules and the sampled/stored/PPO-re-scored `(node, meta)`
+  cell are all unchanged, and only the EFFECT of the abort cell became ego-global. The
+  merged implementation is proven end to end — pure effect layer, the real
+  `graph_tick_loop._wake_decision` chain, and a solver-free REAL-BLADE test in which the
+  stale route is replaced by the ride home (`CLAUDE.md` §7).
 - Execution-seam fact that narrows the diagnosis: `graph_tick_loop._wake_decision` already
   resyncs the edited ego plan before Phase 2, and an actually EMPTY plan should make
   `GraphPlanExecutor` emit `aircraft_return_to_base`, whose BLADE handling replaces the
@@ -346,27 +378,51 @@ long baseline, because the same run exposed the three research-validity defects 
 - Its post-update reward improvement **must NOT** be treated as final scientific evidence
   for the fuel-damage cell, because episode termination (Defect C) and abort semantics
   (Defect A) can distort the measured airframe penalty — precisely the quantity
-  FD-BASELINE-v1 exists to make real.
+  FD-BASELINE-v1 exists to make real. **Closing Defect A does NOT rehabilitate this run:**
+  it was executed at `238062d…`, before the correction existed, so its numbers remain
+  historical evidence about the OLD behaviour and are not evidence about current `main`.
 - **The long baseline remains BLOCKED / UNAUTHORIZED.**
-- After the fixes are reviewed and merged, rerun the SAME bounded short-probe shape ONCE
-  from the new clean exact `main` and perform a fresh artifact review before any long run.
+- After ALL THREE fixes are reviewed and merged — A is done, B and C are not — rerun the
+  SAME bounded short-probe shape ONCE from the new clean exact `main` and perform a fresh
+  artifact review before any long run. **A single closed defect does not unlock the
+  rerun.**
 
-## 4. Next tasks — the Grade-A validity correction, then a RERUN of the same bounded probe
+## 4. Next tasks — finish the validity correction (B, then C), then RERUN the same bounded probe
 
 Start with fresh exact-SHA initialization against the current `main`. **This documentation
 task neither authorizes nor runs anything; it records state only.**
 
-**Task 1 — the Grade-A research-validity correction (NEXT; no active code candidate
-exists).** Correct the three §3d defects: ego-global `SELF_PRESERVATION_ABORT`, an
-evidence-derived confirmation wait, and RTB COMPLETION rather than RTB issuance as the
-episode-completion condition. Expected implementation mode is **BUILD**, or SURGICAL only
-if recon proves the contract changes truly remain narrowly local. It touches §5-locked
-layers, so it is **Grade A** with declared proof obligations, and it must be dispatched by
-the next GPT orchestrator after exact-SHA initialization and task-focused recon. Nothing
-here pre-decides its design beyond the directions §3d records.
+**Task 0 — Defect A: DONE.** Ego-global `SELF_PRESERVATION_ABORT` is merged and locked
+(approved `d56fda6`, integrated `f094e0b`, PR #17 — §1, §3d, `CLAUDE.md` §5 and §7). It is
+listed here only so the remaining sequence is unambiguous; nothing about it is outstanding.
 
-**Task 2 — RERUN the same bounded short probe, ONCE, after Task 1 is reviewed and
-merged**, from the new clean exact `main`, followed by a fresh artifact review. The shape,
+**Task 1 — Defect B, the evidence-derived confirmation wait (NEXT UNRESOLVED CODE TASK).**
+`GraphPlanExecutor.kill_confirm_ticks` is CONFIGURABLE through the executor's constructor
+(default 60), but no caller passes it, so the CURRENT path runs a FIXED 60-tick
+confirmation wait; a slower salvo still in flight can therefore let that wait expire and a
+redundant second salvo consume the last weapons (§3d records the measured `1000003`
+sequence). Defect B concerns REPLACING that current fixed wait with an EVIDENCE-DERIVED
+one: not raising the default blindly, but DERIVING a conservative confirmation wait from
+the ACTUAL auto-selected live weapon and the CURRENT engagement distance, preserving
+current lethality and FROZEN BLADE behaviour; the probabilistic-miss /
+weapons-exhaustion redesign stays out
+of scope unless the evidence requires it. It touches §5-locked layers, so it is **Grade A**
+with declared proof obligations, and it must be dispatched by the next GPT orchestrator
+after exact-SHA initialization and task-focused recon. Expected implementation mode is
+**BUILD**, or SURGICAL only if recon proves the contract change truly remains narrowly
+local. Nothing here pre-decides its design beyond the direction §3d records, and **no
+result may be pre-claimed for it**.
+
+**Task 2 — Defect C, RTB COMPLETION rather than RTB issuance as the episode-completion
+condition (AFTER B).** `GraphPlanExecutor.is_done()` treats the `rtb_issued` lifecycle latch
+as RTB-resolved, so an episode can end while the aircraft is still airborne (§3d records the
+measured `1000000` case). The correction must separate "RTB command issued" from "RTB
+physically resolved" while PRESERVING the single-issue RTB toggle protection. Also Grade A,
+also dispatched only after its own exact-SHA initialization and recon. NOT IMPLEMENTED.
+
+**Task 3 — RERUN the same bounded short probe, ONCE, after Defects A, B and C are ALL
+reviewed and merged and their documentation/locks are ALL closed**, from the new clean exact
+`main`, followed by a fresh artifact review. The shape,
 execution discipline, reporting duties and validity gate below are UNCHANGED and are what
 gets rerun. The first run's numbers are not its expectation, exactly as §2's are not.
 
@@ -505,29 +561,45 @@ expectation.
 | Visual-artifact support lands — **DONE for PR #10** | Contract in `CLAUDE.md` §5, routing in §6, lock in §7, and the §8 note that the bounded probe MAY enable it — recorded without pre-claiming any result |
 | Probe harness lands — **DONE for PR #14** | Preset, `--config` precedence, three-kind `config_source` and the `plots/` figures recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the two-round fix chain; the retired four-panel `training_plot.png` removed from the contracts — recorded without pre-claiming any result |
 | FIRST final-cell short probe completes — **DONE for `training_output_20260815_173029`** | Run identity, exact code SHA, accounting and denominators, and the three research-validity defects it exposed recorded in §3d — as findings only, with no scientific claim about the cell and no long-baseline authorization |
-| §3d validity correction lands | Record the corrected `SELF_PRESERVATION_ABORT`, confirmation-wait and RTB-completion contracts in `CLAUDE.md` §5–§7 with their lock and fix chain — only once merged, never in advance |
+| §3d validity correction lands — **PARTIAL: DONE for DEFECT A ONLY (PR #17); DEFECTS B AND C STILL PENDING** | Record each corrected contract in `CLAUDE.md` §5–§7 with its own lock and fix chain, ONE DEFECT AT A TIME and only once that defect is merged, never in advance — a DOCUMENTATION-RECORDING rule, not a constraint on how the fixes are broken into tasks (`CLAUDE.md` §8 owns the sequential-defect policy). **Defect A — DONE:** the ego-global `SELF_PRESERVATION_ABORT` selection/effect contracts are in `CLAUDE.md` §5 (Stages 4 and 5), the lock, fix chain and evidence in §7, and the defect state in §8. **Defect B (confirmation wait) — NOT DONE. Defect C (RTB completion) — NOT DONE.** This row must NOT be marked complete until all three are recorded |
 | Probe RERUN completes on the corrected cell — **NEXT MEASUREMENT TRIGGER** | Record exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence and artifact completeness before authorizing a long baseline |
 
 ## 8. Next action
 
 Implementation for the final Phase-A baseline cell is COMPLETE and locked, its inspection
 surface is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), the
-**probe harness is CLOSED** (PR #14), and the bounded short probe has now been **EXECUTED
-ONCE** (§3d). **No active code candidate exists**, and **ownership is RELEASED once this
-record is integrated into `main`**.
+**probe harness is CLOSED** (PR #14), the bounded short probe has been **EXECUTED ONCE**
+(§3d), and the FIRST of the three defects it exposed — **Defect A, ego-global
+`SELF_PRESERVATION_ABORT` — is CLOSED / APPROVED / MERGED** (approved `d56fda6`,
+integrated `f094e0b`, PR #17, identical tree `70e5af2…`). Current `main` is
+`f094e0b32e5e67b79757edbfe4e73c1fe01b0a87` (`2026-08-16T01:20:33+03:00`).
 
-The next task is the **Grade-A research-validity correction** of the three §3d defects —
-ego-global `SELF_PRESERVATION_ABORT`, an evidence-derived confirmation wait, and RTB
-COMPLETION rather than RTB issuance as the episode-completion condition. Expected
-implementation mode is BUILD, or SURGICAL only if recon proves the contract changes truly
-remain narrowly local. It must be dispatched by the next GPT orchestrator after fresh
-exact-SHA initialization against the current `main` and task-focused recon; none of it is
-implemented at `238062d7d284334432d9c39d7543fb0bbf39ea7c`.
+**No active CODE candidate exists**, and the state below is written to be valid on BOTH
+sides of this record's own integration. **While this record is published and under review**
+the sole active candidate of any kind is the documentation/lock task itself — branch
+`task/defect-a-doc-lock`, draft PR #18 — and no other candidate should be claimed.
+**Once this record is integrated into `main`, no active candidate remains** and ownership
+is RELEASED for fresh-`main` Defect-B recon. The integrating merge's SHA is deliberately
+NOT named here: it does not exist while this is written, and inventing it would be a false
+provenance claim. **GitHub remains authoritative for live branch and PR state — resolve it
+there, never from this document.**
 
-Once that correction is reviewed and merged, the SAME bounded short probe (§4) is rerun
-ONCE from the new clean exact `main` and reviewed afresh, judged by the §4 validity gate
-rather than by whether reward improved. **A long baseline remains UNAUTHORIZED until that
-rerun has been executed and reviewed**, and no result may be pre-claimed for it.
+**The next unresolved code task is DEFECT B** — an evidence-derived confirmation wait,
+DERIVED from the ACTUAL auto-selected live weapon and the CURRENT engagement distance
+rather than from a blindly raised constant, preserving current lethality and FROZEN BLADE
+behaviour (§4 Task 1). **Defect C — RTB COMPLETION rather than RTB issuance as the
+episode-completion condition — follows it** (§4 Task 2). Both are Grade A, both are
+dispatched only after fresh exact-SHA initialization against the current `main` and
+task-focused recon, and **neither is implemented** — not at
+`238062d7d284334432d9c39d7543fb0bbf39ea7c` and not at current `main`. **No result may be
+pre-claimed for either.**
+
+Once Defects A, B and C are ALL reviewed and merged AND their documentation/locks are ALL
+closed, the SAME bounded short probe (§4) is rerun ONCE from the new clean exact `main` and
+reviewed afresh, judged by the §4 validity gate rather than by whether reward improved.
+**Defect A's closure alone does NOT unlock that rerun.** **A long baseline remains
+BLOCKED / UNAUTHORIZED until that rerun has been executed and reviewed**, and no result may
+be pre-claimed for it.
 
 Resolve live branch and PR state from GitHub; this document does not track it.
 
