@@ -189,7 +189,7 @@ EpisodeContext
              → build_action_mask → sample_action → apply_meta_action → executor.resync
        Phase 2: commands = executor.next_actions(obs)
                 fuel_damage.note_commands(commands)   # READ-ONLY measurement
-                obs = env.step(commands)              # ONE step for the whole tick
+                obs, _reward, terminated, truncated, _info = env.step(commands)
                 executor.is_done(obs)                 # PHYSICAL completion, POST-step
      until is_done / terminated / truncated → EpisodeResult(trajectory)
   → compute_episode_reward(ctx, result, cfg.reward_config()): fills Transition.reward
