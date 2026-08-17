@@ -96,9 +96,23 @@ NOTHING ELSE. It is never derived from how many targets the roster managed to na
 that dependency is what let a degraded roster report an episode with real confirmations
 as a successful ``0/0``. The roster is required measurement structure, not a
 best-effort label source: a structural failure (no beliefs, malformed task lists, t=0
-beliefs that disagree, or a confirmed target the roster does not contain) fails the
-attempt at the ``setup`` stage and is skipped and accounted like any other, while an
+beliefs that disagree, a missing world snapshot, or a confirmed target the roster does
+not contain) raises :class:`EpisodeRosterError` -- a :class:`MeasurementIntegrityError`,
+so it ABORTS the run rather than being accounted as a skipped episode -- while an
 unresolvable NAME degrades to ``<unnamed target>`` and changes no id and no count.
+
+WHICH TARGETS EXIST vs WHICH TARGETS WERE ALLOCATED
+----------------------------------------------------
+The roster's world comes from ``EpisodeContext.known_target_ids`` /
+``executed_target_ids``: RAW snapshots ``setup_episode`` takes before either solve. It
+must never come from ``ctx.oracle_tasks`` or from the beliefs, which are ALLOCATED-ONLY
+by ``solve_and_normalize``'s contract and therefore omit any target the solver did not
+select -- targets that are nonetheless in the world, sensible, attackable and
+confirmable. Reading an allocation as an inventory is what made the long baseline
+scientifically inconclusive: 143 of 800 training attempts were destroyed by a roster that
+under-counted its own world, and the fault was booked as ordinary episode attrition.
+``oracle_tasks`` / ``oracle_solution`` are unchanged and remain what the reward's oracle
+denominator reads -- that is a question about allocation, and it was always right.
 
 THE DIFFICULTY FACTOR (FD-BASELINE-v1) -- ONE FACTOR, MEASURED IN PAIRS
 ------------------------------------------------------------------------
@@ -1990,10 +2004,10 @@ def _build_generator(scen_dir: Path) -> ScenarioGenerator:
 #   * A DISPLAY failure -- one target's BLADE name cannot be resolved -- is nonfatal.
 #     The target keeps its id, its place in the roster and its contribution to every
 #     count; only the printed text degrades, to `_UNNAMED_TARGET`.
-#   * A STRUCTURAL failure -- absent or malformed beliefs / oracle tasks, t=0 beliefs
-#     that disagree, or a roster that does not cover the executed world -- FAILS THE
-#     ATTEMPT through the existing `skip_and_account_v1` machinery, attributed to the
-#     `setup` stage.
+#   * A STRUCTURAL failure -- absent or malformed beliefs, t=0 beliefs that disagree, a
+#     missing world snapshot, or a roster inconsistent with what the executor confirmed
+#     -- raises `EpisodeRosterError`, a `MeasurementIntegrityError`, and ABORTS the run.
+#     It is not an episode failure and never enters `skip_and_account_v1`.
 #
 # The second rule exists because of a real defect in the first version of this section:
 # it swallowed every structural exception and returned an empty roster, and the
@@ -2001,9 +2015,27 @@ def _build_generator(scen_dir: Path) -> ScenarioGenerator:
 # roster therefore turned an episode with real confirmations into a SUCCESSFUL
 # `0/0` measurement, and that false zero flowed straight into
 # `targets_confirmed_unique_mean` and its aliases. A research metric must never depend on
-# whether a name diagnostic worked: the authoritative count is now
-# `len(_unique_confirmed_target_ids(executor.done))` and nothing else, and a roster that
-# cannot describe the world that ran is a failed attempt, never a measured zero.
+# whether a name diagnostic worked: the authoritative count is
+# `len(_unique_confirmed_target_ids(executor.done))` and nothing else.
+#
+# WHERE THE WORLD COMES FROM -- the correction the long baseline forced.
+#
+# This section used to answer "which targets does this episode contain?" with
+# `ctx.beliefs` (known) and `ctx.oracle_tasks` (executed). Both are ALLOCATIONS, not
+# inventories: `solve_and_normalize` returns an allocated-only task list by contract, so
+# any target the solver left unselected is absent from them while still sitting in the
+# world the executor flies through, senses, attacks and confirms. The roster therefore
+# under-counted the world by exactly the unselected targets, and then failed the episode
+# for the discrepancy it had itself introduced -- as an accounted `setup` failure, which
+# is why 143 of the long baseline's 800 training attempts disappeared while every
+# preserved `executed_t0_scenario.json` held the full six-target world and 11 `complete`
+# manifests reported `3 known / 2 hidden / 5 total` against an authoritative 3 + 3 = 6.
+#
+# The world now comes from `EpisodeContext.known_target_ids` / `executed_target_ids` --
+# raw snapshots taken BEFORE either solve (see `graph_episode_setup`). Beliefs are still
+# checked, but as a SUBSET constraint rather than as the known-world denominator, and
+# `ctx.oracle_tasks` is not read here at all. It is unchanged and still correct for the
+# reward's oracle denominator, which is a question about allocation.
 
 def _ascii(text: Any) -> str:
     """Render a value for the cp1255 Windows console -- non-ASCII becomes ``?``.
@@ -2020,17 +2052,36 @@ def _format_names(names: Tuple[str, ...]) -> str:
     return json.dumps([_ascii(n) for n in names])
 
 
-class EpisodeRosterError(RuntimeError):
+class MeasurementIntegrityError(RuntimeError):
+    """The measurement itself is unsound -- INFRASTRUCTURE, never a scientific outcome.
+
+    Sibling of :class:`_VisualArtifactError` and routed the same way: it names no pipeline
+    stage because it did not happen in one, it must never be appended to the failure
+    ledger, never counted against a condition, never entered into
+    ``skip_and_account_v1`` -- and it ABORTS the run.
+
+    That routing is the correction. A data-integrity fault is not a property of the
+    episode; it is a property of the instrument, so every episode it touches is suspect
+    and the ones it does not touch cannot be trusted to be unaffected either. Accounting
+    it as a skipped ``setup`` attempt does the maximally wrong thing: the run continues,
+    the defect is invisible in the console, and the only trace is a shrinking scientific
+    denominator that reads as ordinary episode attrition. The long baseline did exactly
+    that -- 143 training attempts removed by a roster defect, over 83 iterations, while
+    the run reported itself healthy and reconciled.
+    """
+
+
+class EpisodeRosterError(MeasurementIntegrityError):
     """The episode's target roster could not be built, or does not describe what ran.
 
-    A STRUCTURAL failure of the measurement, not a display problem. It is raised, wrapped
-    as an ``EpisodeAttemptError("setup", ...)`` and accounted like any other failed
-    attempt, because the alternative -- reporting the episode as a successful zero -- is
-    the exact false-zero defect this class exists to prevent. It is NOT a new pipeline
-    stage: the roster is a t=0 fact about the context ``setup_episode`` produced, so a
-    roster that is missing, self-contradictory, or too small to cover the executed world
-    is a ``setup`` finding, and it appears in ``episode_failures.jsonl`` under its own
-    ``error_type`` so an audit can tell it apart from an exact-cardinality failure.
+    A STRUCTURAL failure of the measurement, not a display problem, and specifically not
+    an episode failure: the roster is a t=0 statement about the world ``setup_episode``
+    produced, so a roster that is missing, self-contradictory, or inconsistent with what
+    the executor confirmed means the instrument is misreading the world -- see
+    :class:`MeasurementIntegrityError` for why that aborts instead of being accounted.
+
+    The name is retained from before the routing change so an audit trail keeps reading:
+    what changed is where it goes, not what it means.
     """
 
 
@@ -2189,38 +2240,93 @@ def _ordered_target_ids(tasks: Any, what: str) -> List[str]:
     return list(dict.fromkeys(ids))
 
 
+def _world_snapshot_ids(ctx: Any, attribute: str, what: str) -> List[str]:
+    """One of the context's RAW t=0 world snapshots, validated as a list of target ids.
+
+    ``EpisodeContext.known_target_ids`` / ``executed_target_ids`` are captured before
+    either solve, so they state what the world CONTAINS rather than what a solver
+    ALLOCATED (``graph_episode_setup``). Validated rather than trusted, because reading a
+    world inventory off something that is not one is exactly the defect being closed: the
+    attribute must exist, be a non-string sequence, and hold only non-empty ids.
+
+    Deduplicated with first occurrence winning, matching :func:`_ordered_target_ids`, so
+    both sides of the subset checks below are normalized the same way.
+
+    Raises:
+        EpisodeRosterError: if the snapshot is absent, malformed, or empty.
+    """
+    raw = getattr(ctx, attribute, None)
+    if raw is None:
+        raise EpisodeRosterError(
+            "the episode context carries no %s (%s): the t=0 world inventory is "
+            "unknown, and an allocated-only task list is not a substitute for it"
+            % (what, attribute)
+        )
+    if isinstance(raw, (str, bytes)):
+        raise EpisodeRosterError(
+            "%s (%s) is a %s, not a sequence of target ids"
+            % (what, attribute, type(raw).__name__)
+        )
+    try:
+        values = list(raw)
+    except TypeError as exc:
+        raise EpisodeRosterError(
+            "%s (%s) is not iterable (%s)" % (what, attribute, type(raw).__name__)
+        ) from exc
+    ids: List[str] = []
+    for position, value in enumerate(values):
+        target_id = "" if value is None else str(value)
+        if not target_id:
+            raise EpisodeRosterError(
+                "%s (%s) entry %d is an empty target id: the snapshot would be silently "
+                "short by one target" % (what, attribute, position)
+            )
+        ids.append(target_id)
+    unique = list(dict.fromkeys(ids))
+    if not unique:
+        raise EpisodeRosterError(
+            "%s (%s) is empty, so the episode's world is unknown" % (what, attribute)
+        )
+    return unique
+
+
 def _episode_target_roster(ctx: Any) -> _TargetRoster:
     """Snapshot the known / hidden target roster of a freshly set-up episode.
 
-    CALL AFTER ``setup_episode`` AND BEFORE ``run_episode``, for two independent reasons:
-    the names are read out of the live scenario, which loses units as they are killed;
-    and the known set is read from ``ctx.beliefs``, which are byte-equal at t=0 and
-    legitimately DIVERGE per ego afterwards (that divergence is the no-communication
+    CALL AFTER ``setup_episode`` AND BEFORE ``run_episode``, because the NAMES are read
+    out of the live scenario, which loses units as they are killed, and because the belief
+    agreement check below is a t=0 statement (the N beliefs are byte-equal only then and
+    legitimately DIVERGE per ego afterwards -- that divergence is the no-communication
     guarantee, not a defect).
 
-      * KNOWN   -- the t=0 belief task list, in A_init's positional order.
-      * FULL    -- ``ctx.oracle_tasks``: the oracle is an independent solve over ALL
-        env-2 targets (B3), so this is the executed world, hidden half included.
-      * HIDDEN  -- full minus known, in oracle order. Derived by SUBTRACTION rather than
-        from ``ctx.placements``, which is deliberately id-free.
+      * KNOWN    -- ``ctx.known_target_ids``: every raw known-world target, captured
+        BEFORE the known solve filtered it down to the allocated ones.
+      * EXECUTED -- ``ctx.executed_target_ids``: every raw target in the authoritative
+        environment, captured BEFORE the oracle solve filtered it.
+      * HIDDEN   -- executed minus known, in executed-world order. Derived by SUBTRACTION
+        rather than from ``ctx.placements``, which is deliberately id-free.
 
-    REQUIRED MEASUREMENT STRUCTURE, not a best-effort diagnostic. Every structural
-    problem raises :class:`EpisodeRosterError`, which the caller accounts as a failed
-    ``setup`` attempt: no beliefs, a malformed belief or oracle task list, t=0 beliefs
-    that disagree (they are all minted from one A_init, so a disagreement is a real
-    no-communication defect and must never be averaged over or reported as one ego's
-    view), no oracle tasks, or a known target the executed world does not contain. The
-    earlier version swallowed all of these and returned an empty roster; that turned a
-    structural failure into a successful ``0/0`` measurement.
+    ``ctx.oracle_tasks`` IS NOT READ HERE, and must not be reintroduced. It is an
+    ALLOCATION over the executed world -- correct, and unchanged, for the reward's oracle
+    denominator, and short of the world by whatever the oracle did not select. Reading it
+    as the executed-world inventory is the defect this function was corrected for.
 
-    Only name RESOLUTION degrades (:func:`_resolve_target_name`), and it changes no id
-    and no count.
+    The beliefs are still checked, in the role they can actually play. They are
+    allocated-only too, so they are a SUBSET of the known world rather than its
+    denominator; a belief naming a target the known-world snapshot does not contain is a
+    real structural defect -- the egos were planned against something the world does not
+    hold -- and raises.
+
+    REQUIRED MEASUREMENT STRUCTURE, not a best-effort diagnostic. Every structural problem
+    raises :class:`EpisodeRosterError` -- a :class:`MeasurementIntegrityError`, so it
+    ABORTS the run rather than being accounted as a skipped episode. Only name RESOLUTION
+    degrades (:func:`_resolve_target_name`), and it changes no id and no count.
     """
     beliefs_map = getattr(ctx, "beliefs", None) or {}
     if not beliefs_map:
         raise EpisodeRosterError(
-            "the episode context carries no beliefs, so the t=0 known target set "
-            "cannot be established"
+            "the episode context carries no beliefs, so the t=0 belief agreement cannot "
+            "be established"
         )
 
     # Compared BEFORE deduplication so a divergence in order is caught too. This is a
@@ -2231,32 +2337,40 @@ def _episode_target_roster(ctx: Any) -> _TargetRoster:
                                           "belief of ego %s" % ego_id))
         for ego_id, belief in beliefs_map.items()
     ]
-    known_ids = per_ego[0][1]
+    belief_ids = per_ego[0][1]
     for ego_id, ids in per_ego[1:]:
-        if ids != known_ids:
+        if ids != belief_ids:
             raise EpisodeRosterError(
-                "the t=0 beliefs disagree on the known target set (ego %s vs ego %s): "
+                "the t=0 beliefs disagree on the planned target set (ego %s vs ego %s): "
                 "all beliefs are minted from one A_init, so this is a real defect and "
                 "not something to report as one ego's view"
                 % (per_ego[0][0], ego_id)
             )
 
-    executed_ids = _ordered_target_ids(getattr(ctx, "oracle_tasks", None),
-                                       "oracle")
-    if not executed_ids:
+    known_ids = _world_snapshot_ids(ctx, "known_target_ids", "the known-world snapshot")
+    executed_ids = _world_snapshot_ids(
+        ctx, "executed_target_ids", "the executed-world snapshot"
+    )
+
+    # A SUBSET check and never an equality one: a known target the solver did not select
+    # is legitimately in no belief, and that is not a defect in either direction.
+    known_set = set(known_ids)
+    planned_outside = [tid for tid in belief_ids if tid not in known_set]
+    if planned_outside:
         raise EpisodeRosterError(
-            "the oracle names no targets, so the executed world is unknown"
+            "%d t=0 belief target(s) are absent from the known-world snapshot (first: "
+            "%s): the egos were planned against a target the world does not hold"
+            % (len(planned_outside), ", ".join(planned_outside[:3]))
         )
 
-    executed_set = set(executed_ids)
-    unmatched = [tid for tid in known_ids if tid not in executed_set]
+    unmatched = [tid for tid in known_ids if tid not in set(executed_ids)]
     if unmatched:
         raise EpisodeRosterError(
-            "%d t=0 known target(s) are absent from the executed world: the roster "
-            "would not cover what runs" % len(unmatched)
+            "%d t=0 known target(s) are absent from the executed world (first: %s): the "
+            "roster would not cover what runs"
+            % (len(unmatched), ", ".join(unmatched[:3]))
         )
 
-    known_set = set(known_ids)
     hidden_ids = [tid for tid in executed_ids if tid not in known_set]
 
     # known + hidden now partitions the executed target set exactly: unique within each
@@ -2503,8 +2617,20 @@ class _AttemptArtifacts:
                                           authoritative env-2 game, before the fuel-damage
                                           controller exists and before the first tick;
       (the tick loop writes the playback recording into this same directory)
-      ``finalize()``                   -- require the recording, record the target counts,
-                                          and mark the manifest ``complete``.
+      ``sync_recordings()``            -- immediately after a COMPLETED ``run_episode``,
+                                          list the playback chunks that really exist and
+                                          record them while the manifest is still
+                                          ``incomplete``;
+      ``finalize()``                   -- require the whole bundle, reconcile expected
+                                          against observed target counts, and mark the
+                                          manifest ``complete``.
+
+    ``sync_recordings`` is split out of ``finalize`` because the two answer different
+    questions and an attempt can die between them. The long baseline left 17 real playback
+    files whose manifests never listed them: the episode had completed and exported its
+    recording, and a later validation failure meant ``finalize`` was never reached, so the
+    only record of the file was the file. An ``incomplete`` manifest is allowed to say the
+    attempt did not finish; it is not allowed to be silent about an artifact it holds.
 
     The manifest is rewritten after every step, so an attempt that dies mid-way leaves a
     truthful ``incomplete`` record of exactly what had been captured -- never a fabricated
@@ -2604,23 +2730,26 @@ class _AttemptArtifacts:
         self._executed_t0 = _ARTIFACT_EXECUTED_T0_SCENARIO
         self._write_manifest()
 
-    def finalize(self, *, expected: Dict[str, int], observed: Dict[str, int]) -> None:
-        """Require the complete bundle and mark the manifest ``complete``.
+    def sync_recordings(self) -> Tuple[str, ...]:
+        """List the playback chunks the completed run really wrote, into an INCOMPLETE manifest.
 
-        The recording is REQUIRED here and not fabricated anywhere: the tick-loop contract
-        exports one on every completed run and none when the loop raised, so a successful
-        attempt with no playback file means recording was not really armed -- an
-        infrastructure fault, not a quiet omission.
+        Called immediately after ``run_episode`` returns, before any measurement is
+        validated, so the manifest names the artifact from the first moment the artifact
+        exists. DISCOVERY ONLY -- nothing is created, renamed or fabricated here: the file
+        set is whatever the recorder produced, and the recorder is the tick loop's, driven
+        through the locked ``setup_episode(recording_export_path=...)`` contract.
+
+        The recording is REQUIRED and never fabricated: the tick-loop contract exports one
+        on every completed run and none when the loop raised, so a COMPLETED run with no
+        playback file means recording was not really armed -- an infrastructure fault, not
+        a quiet omission.
+
+        Returns:
+            The discovered chunk names, sorted.
+
+        Raises:
+            _VisualArtifactError: if the directory cannot be listed, or holds no playback.
         """
-        missing = [name for name, value in (
-            (_ARTIFACT_KNOWN_ONLY_SCENARIO, self._known_only),
-            (_ARTIFACT_EXECUTED_T0_SCENARIO, self._executed_t0),
-        ) if value is None]
-        if missing:
-            raise _VisualArtifactError(
-                "visual artifacts: %s was never captured for %s"
-                % (", ".join(missing), str(self.directory))
-            )
         try:
             recordings = sorted(
                 p.name for p in self.directory.glob(_ARTIFACT_RECORDING_GLOB)
@@ -2636,10 +2765,55 @@ class _AttemptArtifacts:
                 % (_ARTIFACT_RECORDING_GLOB, str(self.directory))
             )
         self._recordings = tuple(recordings)
-        self._targets = {
-            "expected": {k: int(v) for k, v in dict(expected).items()},
-            "observed": {k: int(v) for k, v in dict(observed).items()},
-        }
+        # Written while the status is still `incomplete`: if the attempt dies during the
+        # measurement validation that follows, this is the truthful record of a real file.
+        self._write_manifest()
+        return self._recordings
+
+    def finalize(self, *, expected: Dict[str, int], observed: Dict[str, int]) -> None:
+        """Require the whole bundle, reconcile the target counts, and mark it ``complete``.
+
+        ``complete`` is a CLAIM -- that this bundle holds the three artifacts and that they
+        describe the world the schedule asked for. It is therefore refused, loudly, when
+        the observed cardinality differs from the expected one: the long baseline shipped
+        11 `complete` manifests reporting ``3 known / 2 hidden / 5 total`` while their own
+        authoritative ``executed_t0_scenario.json`` held 3 + 3 = 6, and a manifest that
+        certifies a world its own files contradict is worse than no manifest.
+
+        On a mismatch the observed counts are still WRITTEN, and the status stays
+        ``incomplete``: the point is to record what was seen, not to hide it. The raise is
+        a :class:`_VisualArtifactError` -- infrastructure / data integrity -- so it aborts
+        the run and can never be booked as a scientific episode failure.
+
+        The playback comes from :meth:`sync_recordings`, which must have run first; this
+        method never discovers one of its own and never fabricates one.
+        """
+        missing = [name for name, value in (
+            (_ARTIFACT_KNOWN_ONLY_SCENARIO, self._known_only),
+            (_ARTIFACT_EXECUTED_T0_SCENARIO, self._executed_t0),
+            (_ARTIFACT_RECORDING_GLOB, self._recordings or None),
+        ) if value is None]
+        if missing:
+            raise _VisualArtifactError(
+                "visual artifacts: %s was never captured for %s"
+                % (", ".join(missing), str(self.directory))
+            )
+        expected_counts = {k: int(v) for k, v in dict(expected).items()}
+        observed_counts = {k: int(v) for k, v in dict(observed).items()}
+        self._targets = {"expected": expected_counts, "observed": observed_counts}
+        mismatched = [
+            "%s expected %d, observed %r" % (key, value, observed_counts.get(key))
+            for key, value in expected_counts.items()
+            if observed_counts.get(key) != value
+        ]
+        if mismatched:
+            # Recorded, then refused: the manifest stays `incomplete` and now says why.
+            self._write_manifest()
+            raise _VisualArtifactError(
+                "visual artifacts: %s cannot be marked complete -- the observed world "
+                "contradicts the scheduled cell (%s). The bundle is left incomplete."
+                % (str(self.directory), "; ".join(mismatched))
+            )
         self._status = _ARTIFACT_STATUS_COMPLETE
         self._write_manifest()
 
@@ -2670,6 +2844,36 @@ class _AttemptArtifacts:
                 "visual artifacts: could not write %s in %s: %s"
                 % (_ARTIFACT_MANIFEST, str(self.directory), exc)
             ) from exc
+
+
+def _require_scheduled_cell(roster: "_TargetRoster", cfg: TrainConfig) -> None:
+    """The roster must describe the cell the schedule asked for, or the run ABORTS.
+
+    ``TrainConfig`` states the cell exactly -- ``n_known`` known targets, ``n_hidden``
+    constructed ones, ``n_targets_emitted`` in the executed world -- and
+    ``setup_episode``'s construction path already enforces that cardinality LOUDLY on its
+    own side (exact ``len(placements) == n_hidden``, a known-target-loss check and a world
+    cardinality check). So a roster that disagrees is not a scenario that came out
+    differently; it is this module measuring the world wrongly, and every number derived
+    from it -- confirmation counts, denominators, manifest target blocks -- is suspect.
+
+    Raised as an :class:`EpisodeRosterError` for that reason: a measurement-integrity
+    fault, not a scientific episode outcome. Checked BEFORE the fuel-damage plan and
+    before ``run_episode``, so nothing is paid for and no partial measurement exists.
+    """
+    checks = (
+        ("known targets", len(roster.known_ids), int(cfg.n_known)),
+        ("hidden targets", len(roster.hidden_ids), int(cfg.n_hidden)),
+        ("executed targets", int(roster.total), int(cfg.n_targets_emitted)),
+    )
+    wrong = ["%s: observed %d, scheduled %d" % (what, got, want)
+             for what, got, want in checks if got != want]
+    if wrong:
+        raise EpisodeRosterError(
+            "the t=0 roster does not describe the scheduled cell (%s): the episode was "
+            "measured against a world the configuration did not ask for"
+            % "; ".join(wrong)
+        )
 
 
 def _recording_kwargs(artifacts: Optional[_AttemptArtifacts]) -> Dict[str, Any]:
@@ -2796,12 +3000,22 @@ def _run_one_episode(
     unique confirmed-target set is read off the executor after the run, and both survive
     the ``finally`` that closes the env because they are ints and strings.
 
-    The roster is REQUIRED measurement structure. A structural failure -- it cannot be
-    built, or it does not account for every confirmed target -- raises
-    :class:`EpisodeRosterError` and is wrapped as a ``setup`` attempt failure, so it is
-    skipped and accounted like any other. No new pipeline stage is introduced, and no
-    such attempt reaches a reward aggregate. Only NAME resolution degrades, and it
+    The roster is REQUIRED measurement structure, read from the context's RAW t=0 world
+    snapshots (``known_target_ids`` / ``executed_target_ids``) and never from the
+    allocated-only ``oracle_tasks``. A structural failure -- it cannot be built, it does
+    not describe the scheduled cell, or it does not account for every confirmed target --
+    raises :class:`EpisodeRosterError`, a :class:`MeasurementIntegrityError`. That is
+    INFRASTRUCTURE: it is NOT wrapped as an ``EpisodeAttemptError``, never reaches
+    ``episode_failures.jsonl``, never enters ``skip_and_account_v1``, cannot shrink a
+    scientific denominator, and ABORTS the run. Only NAME resolution degrades, and it
     changes nothing but the printed text.
+
+    THE POST-RUN ORDER IS PART OF THE CONTRACT. Once ``run_episode`` returns: the playback
+    is synchronized into the manifest, the unique confirmed-target ids are computed, they
+    are validated against the executed-world roster, and only then is the reward computed
+    and a successful outcome produced. A confirmed target outside that snapshot aborts as
+    data integrity -- it is never a post-hoc ``setup`` failure, and the recording it
+    already wrote is never left unlisted.
 
     FD-BASELINE-v1. ``fuel_damage_mode`` overrides ``cfg.fuel_damage_mode`` for this one
     attempt; evaluation passes a forced mode per matched-pair member and training passes
@@ -2870,15 +3084,28 @@ def _run_one_episode(
             artifacts.capture_executed_t0_scenario(ctx.game)
 
         # The roster is snapshotted HERE -- after setup, before a single tick -- because
-        # both of its sources are t=0 facts: the N beliefs are byte-equal only now, and
-        # the live scenario still holds every target it is about to lose to a kill.
-        # Read-only, but REQUIRED: a roster that cannot be established describes a
-        # context `setup_episode` should not have produced, so it fails the attempt at
-        # the `setup` stage rather than degrading into a successful zero measurement.
+        # its inputs are t=0 facts: the N beliefs are byte-equal only now, and the live
+        # scenario still holds every target it is about to lose to a kill. The WORLD half
+        # comes off the context's raw pre-solve snapshots, so it is not affected by what
+        # either solver selected.
+        # NOT wrapped as an `EpisodeAttemptError`: a roster fault is a
+        # `MeasurementIntegrityError`, so it propagates and the run stops. Accounting it
+        # as a skipped `setup` attempt is what let the long baseline lose 143 training
+        # attempts to a measurement defect while reporting itself reconciled. An
+        # UNEXPECTED exception raised inside the roster code is normalized into the same
+        # loud path, with its cause preserved -- an unforeseen internal error is still a
+        # roster that could not be established, and must not fall through to the broad
+        # episode handler below.
         try:
             roster = _episode_target_roster(ctx)
+            _require_scheduled_cell(roster, cfg)
+        except MeasurementIntegrityError:
+            raise
         except Exception as exc:
-            raise EpisodeAttemptError("setup", exc) from exc
+            raise EpisodeRosterError(
+                "the t=0 target roster could not be established (%s: %s)"
+                % (type(exc).__name__, exc)
+            ) from exc
 
         # The damage plan is a t=0 fact about the context setup produced -- the solved
         # routes, the untouched fuel -- so a plan that cannot be built (no eligible ego,
@@ -2900,32 +3127,49 @@ def _run_one_episode(
             )
         except Exception as exc:
             raise EpisodeAttemptError("run", exc) from exc
-        try:
-            # EXPLICIT RewardConfig: `graph_reward`'s own default is c = 0.0, so without
-            # this the death penalty FD-BASELINE-v1 depends on would silently be off.
-            # The formula is unchanged -- only the coefficient it already accepted.
-            ep_reward = compute_episode_reward(ctx, result, cfg.reward_config())
-        except Exception as exc:
-            raise EpisodeAttemptError("reward", exc) from exc
 
-        # THE AUTHORITATIVE COUNT, and the one line the review finding is about. It is
-        # `len()` of the deduplicated id set taken straight off the executor -- a target
-        # both egos confirmed is ONE target here -- and it is NOT derived from how many
-        # of those ids the roster managed to name. `result.confirmed_kills` below still
-        # reports the raw (ego, target) confirmation count, unchanged.
+        # ORDER MATTERS FROM HERE. The playback is synchronized first, then the world is
+        # validated, and only a world that validated is allowed to produce a reward and a
+        # successful outcome. The long baseline ran it the other way round: 17 episodes
+        # completed, exported a playback and computed a reward, and were then failed on a
+        # confirmed id -- leaving a real recording no manifest listed, and booking a
+        # measurement fault as a post-hoc `setup` episode failure.
+        if artifacts is not None:
+            artifacts.sync_recordings()
+
+        # THE AUTHORITATIVE COUNT. It is `len()` of the deduplicated id set taken straight
+        # off the executor -- a target both egos confirmed is ONE target here -- and it is
+        # NOT derived from how many of those ids the roster managed to name.
+        # `result.confirmed_kills` below still reports the raw (ego, target) confirmation
+        # count, unchanged.
         confirmed_ids = _unique_confirmed_target_ids(
             getattr(ctx.executor, "done", None)
         )
         targets_confirmed_unique = len(confirmed_ids)
 
-        # The name subsets are a PRESENTATION of that number. If they cannot account for
-        # every confirmed id, the roster does not describe the world that ran, and the
-        # attempt fails as a `setup` finding instead of printing a block whose names
-        # contradict its own total.
+        # A confirmed target outside the AUTHORITATIVE executed-world snapshot means the
+        # executor and the roster are describing different worlds. That is data integrity,
+        # not an episode outcome: it aborts, and it is never written to the ledger.
         try:
             known_confirmed, hidden_confirmed = roster.confirmed(confirmed_ids)
+        except MeasurementIntegrityError:
+            raise
         except Exception as exc:
-            raise EpisodeAttemptError("setup", exc) from exc
+            raise EpisodeRosterError(
+                "the confirmed targets could not be reconciled against the t=0 roster "
+                "(%s: %s)" % (type(exc).__name__, exc)
+            ) from exc
+
+        try:
+            # EXPLICIT RewardConfig: `graph_reward`'s own default is c = 0.0, so without
+            # this the death penalty FD-BASELINE-v1 depends on would silently be off.
+            # The formula is unchanged -- only the coefficient it already accepted, and
+            # it still reads the SAME allocated-only `ctx.oracle_tasks` /
+            # `ctx.oracle_solution` it always has. Computed only once the measurement is
+            # known to be sound.
+            ep_reward = compute_episode_reward(ctx, result, cfg.reward_config())
+        except Exception as exc:
+            raise EpisodeAttemptError("reward", exc) from exc
 
         # COMMAND HISTORY, from the controller's read of what `run_episode` actually
         # emitted -- NOT `executor.rtb_issued`. That field is a lifecycle latch which the
@@ -2935,9 +3179,10 @@ def _run_one_episode(
         fd_outcome = fuel_damage.outcome
         selected_ego_rtb = fd_outcome.rtb_command_issued
 
-        # The bundle is COMPLETE only now: the recording is exported by `run_episode`, so
-        # it cannot be required any earlier, and the observed target counts are the
-        # roster's -- the same numbers the OK block prints.
+        # The bundle is COMPLETE only now: its playback was synchronized above, its world
+        # validated, its reward computed. The observed target counts are the roster's --
+        # the same numbers the OK block prints -- and `finalize` refuses to certify a
+        # bundle whose observed cell contradicts the scheduled one.
         if artifacts is not None:
             artifacts.finalize(
                 expected={
@@ -3098,11 +3343,11 @@ def evaluate(
                     fuel_damage_mode=mode,
                     **_artifact_kwargs(artifacts),
                 )
-            except _VisualArtifactError:
-                # INFRASTRUCTURE, not science: it names no pipeline stage, must not enter
-                # the ledger or a condition tally, and must not be skipped. Re-raised
-                # ahead of the broad handler so the run stops loudly instead of recording
-                # a scientific failure that never happened.
+            except (_VisualArtifactError, MeasurementIntegrityError):
+                # INFRASTRUCTURE / DATA INTEGRITY, not science: neither names a pipeline
+                # stage, neither may enter the ledger or a condition tally, and neither
+                # may be skipped. Re-raised ahead of the broad handler so the run stops
+                # loudly instead of recording a scientific failure that never happened.
                 raise
             except Exception as exc:  # an eval failure must not abort training either
                 n_failed += 1
@@ -3547,12 +3792,14 @@ def train(
                         seed=seed, episode_tag=g, deterministic=False,
                         **_artifact_kwargs(artifacts),
                     )
-                except _VisualArtifactError:
-                    # INFRASTRUCTURE, not science. Re-raised ahead of the broad handler
-                    # so it can never be written to the ledger as a `generation` /
-                    # `setup` / `run` / `reward` failure, never enter `skip_and_account_v1`
-                    # and never shrink a denominator by masquerading as an episode
-                    # failure. The run stops.
+                except (_VisualArtifactError, MeasurementIntegrityError):
+                    # INFRASTRUCTURE / DATA INTEGRITY, not science. Re-raised ahead of the
+                    # broad handler so neither can be written to the ledger as a
+                    # `generation` / `setup` / `run` / `reward` failure, enter
+                    # `skip_and_account_v1`, or shrink a scientific denominator by
+                    # masquerading as an episode failure. The run stops. That routing is
+                    # the long baseline's lesson: a roster defect accounted as a `setup`
+                    # failure removed 143 training attempts in silence.
                     raise
                 except Exception as exc:  # never abort the run on one episode
                     # SKIP AND ACCOUNT: record it and move to the NEXT scheduled seed.

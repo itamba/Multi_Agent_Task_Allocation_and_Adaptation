@@ -1417,6 +1417,7 @@ def _run_stub_training(
     cfg: TrainConfig,
     *,
     failures=None,
+    integrity_failures=(),
     wakes_per_episode: int = 0,
     git=None,
     events=None,
@@ -1434,6 +1435,11 @@ def _run_stub_training(
     `failures` maps ``seed -> (pipeline_stage, message)``; that seed raises an
     `EpisodeAttemptError` from the given stage, which is precisely what
     `_run_one_episode` raises for a real exact-cardinality construction failure.
+    `integrity_failures` is a set of seeds that instead raise `EpisodeRosterError` -- a
+    `MeasurementIntegrityError`, which names no stage and must ABORT the run rather than
+    be accounted. The two knobs are deliberately separate: the whole correction is that
+    these are different kinds of event, and a test that could not tell them apart could
+    not show it.
     `wakes_per_episode` gives every SUCCESSFUL episode that many wakes -- 0 models the
     zero-wake case (real episodes, no gradient step, so no completed update).
 
@@ -1465,6 +1471,7 @@ def _run_stub_training(
     both happened. Each episode event carries its `episode_tag` as a fourth element.
     """
     failures = dict(failures or {})
+    integrity_seeds = set(int(x) for x in integrity_failures)
     n_wakes = int(wakes_per_episode)
     git_verdict = dict(_FAKE_GIT_OK if git is None else git)
     events = [] if events is None else events
@@ -1522,6 +1529,10 @@ def _run_stub_training(
                     1 for e in events if e[0] == "episode" and e[1] == "eval"
                 ),
             }
+        if seed in integrity_seeds:
+            raise graph_train.EpisodeRosterError(
+                "stubbed measurement-integrity fault at seed %d" % int(seed)
+            )
         if seed in failures:
             stage, message = failures[seed]
             raise EpisodeAttemptError(stage, ValueError(message))
@@ -2283,12 +2294,21 @@ class _FakeEnv:
 
 
 class _FakeCtx:
-    """The five `EpisodeContext` attributes the observability path actually reads."""
+    """The `EpisodeContext` attributes the observability path actually reads.
+
+    `known_target_ids` / `executed_target_ids` are the RAW t=0 world snapshots setup takes
+    BEFORE either solve. They are kept deliberately separate from `beliefs` (the
+    allocated-only known plan) and `oracle_tasks` (the allocated-only oracle), because the
+    whole defect being regressed is those two being read as world inventories.
+    """
 
     def __init__(self, *, beliefs, oracle_tasks, scenario, done,
+                 known_target_ids, executed_target_ids,
                  exported=None, export_error=None):
         self.beliefs = beliefs
         self.oracle_tasks = oracle_tasks
+        self.known_target_ids = known_target_ids
+        self.executed_target_ids = executed_target_ids
         self.game = _FakeGame(scenario, exported=exported, export_error=export_error)
         self.executor = _FakeExecutor(done)
         self.env = _FakeEnv()
@@ -2320,12 +2340,24 @@ class _FakeGenerator:
         return _FakeScenarioPath()
 
 
-def _reference_ctx(*, done, raise_names=(), known=3, hidden=3, extra_oracle=(),
+def _reference_ctx(*, done, raise_names=(), known=3, hidden=3,
+                   belief_ids=None, oracle_ids=None,
+                   known_snapshot=None, executed_snapshot=None,
                    exported=None, export_error=None):
     """A valid reference-cell context: `known` known + `hidden` hidden targets.
 
     Ids are `k0..`/`h0..` (never uuids, so a leak into a success block is unmistakable);
     names mimic the real generator's `Floridistan AFB #N` / `Hidden Airbase #NNN`.
+
+    THREE INDEPENDENT LAYERS, which is the point of the fixture after the world-truth fix:
+
+      * `known_snapshot` / `executed_snapshot` -- the RAW t=0 world, defaulting to the
+        full `known` + `hidden` cell. This is what the roster must read.
+      * `belief_ids` -- the ALLOCATED-ONLY known plan, defaulting to every known target.
+        Pass a strict subset to model a solver that left a known target unselected.
+      * `oracle_ids` -- the ALLOCATED-ONLY oracle, defaulting to the whole world. Pass a
+        strict subset to model an oracle that did not select some target. The roster must
+        be indifferent to it.
 
     `exported` / `export_error` configure the game's `export_scenario()` -- the visual
     artifact tests' only additional seam.
@@ -2335,10 +2367,16 @@ def _reference_ctx(*, done, raise_names=(), known=3, hidden=3, extra_oracle=(),
     names = {t: "Floridistan AFB #%d" % (i + 1) for i, t in enumerate(known_ids)}
     names.update({t: "Hidden Airbase #%03d" % (i + 1)
                   for i, t in enumerate(hidden_ids)})
-    belief_tasks = [_FakeTask(t) for t in known_ids]
+    planned = list(known_ids if belief_ids is None else belief_ids)
+    allocated = list(known_ids + hidden_ids if oracle_ids is None else oracle_ids)
+    belief_tasks = [_FakeTask(t) for t in planned]
     return _FakeCtx(
         beliefs={"ego_%d" % i: _FakeBelief(list(belief_tasks)) for i in range(3)},
-        oracle_tasks=[_FakeTask(t) for t in known_ids + hidden_ids + list(extra_oracle)],
+        oracle_tasks=[_FakeTask(t) for t in allocated],
+        known_target_ids=tuple(known_ids if known_snapshot is None else known_snapshot),
+        executed_target_ids=tuple(
+            known_ids + hidden_ids if executed_snapshot is None else executed_snapshot
+        ),
         scenario=_FakeScenario(names, raise_for=raise_names),
         done=done,
         exported=exported,
@@ -2428,12 +2466,33 @@ def test_a_broken_name_lookup_keeps_the_id_the_count_and_the_denominator() -> No
     assert set(out2.known_target_names) == {"<unnamed target>"}
 
 
-def test_a_structural_roster_failure_is_an_accounted_setup_failure() -> None:
-    """P1/P2. THE regression: a broken roster fails the attempt, never measures zero.
+def _integrity_raise(callable_, *args, **kwargs):
+    """Call something expected to abort as a measurement-integrity fault; return the error.
 
-    Each case below used to be swallowed into `_EMPTY_ROSTER`, which -- combined with a
-    count derived from classified names -- reported an episode holding real confirmations
-    as a successful `0/0`.
+    Asserts the whole routing contract in one place: it is an `EpisodeRosterError`, it is
+    a `MeasurementIntegrityError` (so both attempt handlers re-raise it ahead of their
+    broad `except Exception`), and it is NOT an `EpisodeAttemptError` -- which is what
+    keeps it out of the ledger, out of `skip_and_account_v1` and out of every scientific
+    denominator.
+    """
+    try:
+        callable_(*args, **kwargs)
+    except graph_train.MeasurementIntegrityError as exc:
+        assert isinstance(exc, graph_train.EpisodeRosterError), type(exc)
+        assert not isinstance(exc, EpisodeAttemptError), type(exc)
+        return exc
+    raise AssertionError("the call did not abort as a measurement-integrity fault")
+
+
+def test_a_structural_roster_failure_aborts_as_measurement_integrity() -> None:
+    """P2/P3. A broken roster ABORTS -- it is never a measured zero and never a skipped setup.
+
+    Two defects are regressed at once. The older one: each case below was once swallowed
+    into an empty roster which, combined with a count derived from classified names,
+    reported an episode holding real confirmations as a successful `0/0`. The newer one:
+    each was then booked as an accounted `setup` episode failure, which is how the long
+    baseline lost 143 training attempts to a measurement defect while reporting itself
+    reconciled. A fault in the instrument is not an outcome of the experiment.
     """
     done = {("ego_0", "k0"), ("ego_1", "h0")}
 
@@ -2449,66 +2508,60 @@ def test_a_structural_roster_failure_is_an_accounted_setup_failure() -> None:
     disagree = _reference_ctx(done=done)
     disagree.beliefs["ego_2"] = _FakeBelief([_FakeTask("k0"), _FakeTask("k1")])
 
-    # 4. no oracle tasks -> the executed world is unknown
-    no_oracle = _reference_ctx(done=done)
-    no_oracle.oracle_tasks = []
+    # 4. the executed-world snapshot is absent entirely
+    no_world = _reference_ctx(done=done)
+    del no_world.executed_target_ids
 
-    # 5. a known target the executed world does not contain
-    uncovered = _reference_ctx(done=done)
-    uncovered.oracle_tasks = [_FakeTask("h0")]
+    # 5. the executed-world snapshot is empty
+    empty_world = _reference_ctx(done=done, executed_snapshot=())
+
+    # 6. a known target the executed world does not contain
+    uncovered = _reference_ctx(done=done, known_snapshot=("k0", "k1", "gone"))
+
+    # 7. a PLANNED target the known world does not contain -- the egos were assigned
+    #    something that does not exist, which is the one direction that is still a defect
+    planned_ghost = _reference_ctx(done=done,
+                                   belief_ids=("k0", "k1", "not-in-the-world"))
 
     for label, ctx in (("no beliefs", no_beliefs), ("malformed task", malformed),
-                       ("beliefs disagree", disagree), ("no oracle", no_oracle),
-                       ("known not executed", uncovered)):
-        try:
-            _run_one_episode_against(ctx, confirmed_kills=2)
-        except EpisodeAttemptError as exc:
-            # Existing taxonomy, existing accounting path -- no new pipeline stage.
-            assert exc.stage == "setup", (label, exc.stage)
-            assert exc.stage in _PIPELINE_STAGES, (label, exc.stage)
-            assert isinstance(exc.original, graph_train.EpisodeRosterError), (
-                label, type(exc.original))
-        else:
-            raise AssertionError("%s produced a successful measurement" % label)
-        # The env is still closed on the failing path.
+                       ("beliefs disagree", disagree), ("no world snapshot", no_world),
+                       ("empty world snapshot", empty_world),
+                       ("known not executed", uncovered),
+                       ("planned not known", planned_ghost)):
+        exc = _integrity_raise(_run_one_episode_against, ctx, confirmed_kills=2)
+        assert str(exc), label
+        # The env is still closed on the aborting path.
         assert ctx.env.closed, label
 
 
 def test_a_confirmed_id_outside_the_roster_cannot_produce_a_record() -> None:
-    """P2. An unaccountable confirmation fails loudly instead of being dropped.
+    """P3. An unaccountable confirmation aborts loudly instead of being dropped or skipped.
 
     Silently discarding it would leave a block whose printed names no longer sum to its
-    own total, and an aggregate quietly counting fewer targets than were confirmed.
+    own total. Accounting it as a `setup` failure -- what the code used to do -- is worse
+    in a different way: the executor confirmed a target the t=0 snapshot never listed, so
+    the instrument and the world disagree, and that is not a property of this episode.
     """
     ctx = _reference_ctx(done={("ego_0", "k0"), ("ego_1", "ghost-target")})
-    try:
-        _run_one_episode_against(ctx, confirmed_kills=2)
-    except EpisodeAttemptError as exc:
-        assert exc.stage == "setup", exc.stage
-        assert isinstance(exc.original, graph_train.EpisodeRosterError)
-        assert "ghost-target" in str(exc.original), str(exc.original)
-    else:
-        raise AssertionError("an out-of-roster confirmation produced a record")
+    exc = _integrity_raise(_run_one_episode_against, ctx, confirmed_kills=2)
+    assert "ghost-target" in str(exc), str(exc)
     assert ctx.env.closed
 
     # The roster helper says the same thing on its own.
     roster = graph_train._TargetRoster(("k0",), ("A",), ("h0",), ("B",))
-    try:
-        roster.confirmed({"k0", "ghost-target"})
-    except graph_train.EpisodeRosterError:
-        pass
-    else:
-        raise AssertionError("_TargetRoster.confirmed accepted an unknown id")
+    _integrity_raise(roster.confirmed, {"k0", "ghost-target"})
 
 
-def test_a_roster_failure_contributes_no_false_zero_to_the_aggregates(
+def test_a_setup_failure_contributes_no_false_zero_to_the_aggregates(
     tmp_path: Path,
 ) -> None:
-    """P1/P2. A roster-failed attempt is a FAILURE, not a zero in the mean.
+    """P6. An ACCOUNTED episode failure is a FAILURE, not a zero in the mean.
 
-    Two scheduled episodes, one of which fails on roster structure. The authoritative
-    aggregate must be the successful episode's real count -- not the average of that
-    count and a fabricated 0.
+    Unchanged behaviour, re-asserted so the routing correction cannot be read as having
+    loosened it: a genuine `setup` episode failure (an exact-cardinality construction
+    refusal, say) is still skipped and accounted, and the authoritative aggregate is still
+    the successful episode's real count rather than the average of that count and a
+    fabricated 0.
     """
     cfg = TrainConfig(
         n_iterations=1, episodes_per_iteration=2, base_seed=0,
@@ -2516,7 +2569,7 @@ def test_a_roster_failure_contributes_no_false_zero_to_the_aggregates(
     )
     summary, _, state = _run_stub_training(
         cfg,
-        failures={1: ("setup", "roster: the t=0 beliefs disagree")},
+        failures={1: ("setup", "stubbed exact-cardinality construction refusal")},
         wakes_per_episode=1, capture_stdout=True,
     )
     out = state["stdout"]
@@ -2554,6 +2607,366 @@ def test_an_episode_outcome_cannot_omit_what_it_measured() -> None:
         raise AssertionError(
             "_EpisodeOutcome still constructs without stating what it measured"
         )
+
+
+# =============================================================================
+# T13b -- EXECUTED-WORLD ROSTER INTEGRITY (P1-P4, P6)
+# =============================================================================
+#
+# The long baseline exposed one root error: `_episode_target_roster` read
+# `ctx.oracle_tasks` (and the beliefs) as the episode's world. Both are ALLOCATIONS --
+# `solve_and_normalize` returns an allocated-only task list by contract -- so every
+# target the solver left unselected was missing from the roster while still sitting in
+# the executed world. The roster then failed the episode over its own under-count, as an
+# accounted `setup` failure, and 143 of 800 training attempts vanished while every
+# preserved `executed_t0_scenario.json` held the full six-target world.
+#
+# The tests below fix the two halves separately, because they are two different mistakes:
+# WHERE the world comes from (`known_target_ids` / `executed_target_ids`, raw and
+# pre-solve) and WHAT a violation means (measurement integrity, which aborts -- not
+# episode attrition, which is accounted).
+
+
+def test_oracle_allocation_is_not_the_world_inventory() -> None:
+    """P1. A target the ORACLE did not select is still in the world, and still in the roster.
+
+    The exact shape of the defect: `oracle_tasks` omits a known target, so a roster
+    derived from it would report 5 executed targets for a 6-target world -- the `3 known /
+    2 hidden / 5 total` that 11 `complete` manifests carried. Here the world snapshot is
+    intact, so the roster is 3 + 3 = 6 regardless of what the oracle allocated.
+    """
+    # The oracle allocated everything EXCEPT known target k1.
+    ctx = _reference_ctx(done={("ego_0", "k0")},
+                         oracle_ids=("k0", "k2", "h0", "h1", "h2"))
+    assert len(ctx.oracle_tasks) == 5, "the fixture did not model a short oracle"
+
+    out = _run_one_episode_against(ctx, confirmed_kills=1)
+    assert out.targets_total == 6
+    assert len(out.known_target_names) == 3 and len(out.hidden_target_names) == 3
+    # k1 is in the roster under its real name, not dropped and not renamed.
+    assert out.known_target_names == ("Floridistan AFB #1", "Floridistan AFB #2",
+                                      "Floridistan AFB #3")
+
+    # And an unselected HIDDEN target that is then CONFIRMED is a valid episode, and is
+    # classified as hidden -- not as an out-of-world confirmation.
+    ctx2 = _reference_ctx(done={("ego_0", "h2")},
+                          oracle_ids=("k0", "k1", "k2", "h0", "h1"))
+    assert "h2" not in {graph_train._task_target_id(t) for t in ctx2.oracle_tasks}
+    out2 = _run_one_episode_against(ctx2, confirmed_kills=1)
+    assert out2.targets_total == 6
+    assert out2.targets_confirmed_unique == 1
+    assert out2.hidden_confirmed_names == ("Hidden Airbase #003",)
+    assert out2.known_confirmed_names == ()
+
+
+def test_the_roster_never_reads_the_oracle_task_list() -> None:
+    """P1. Structural: `oracle_tasks` is not consulted at all, so it cannot come back.
+
+    An attribute that RAISES on access is the strongest available statement -- it fails
+    whether the read is direct, incidental or reintroduced by a later refactor.
+    """
+    class _ExplodingOracle:
+        def __get__(self, obj, owner=None):
+            raise AssertionError("_episode_target_roster read ctx.oracle_tasks")
+
+    class _Ctx(_FakeCtx):
+        oracle_tasks = _ExplodingOracle()
+
+        def __init__(self, source):
+            self.beliefs = source.beliefs
+            self.known_target_ids = source.known_target_ids
+            self.executed_target_ids = source.executed_target_ids
+            self.game = source.game
+            self.executor = source.executor
+            self.env = source.env
+
+    roster = graph_train._episode_target_roster(_Ctx(_reference_ctx(done=set())))
+    assert len(roster.known_ids) == 3 and len(roster.hidden_ids) == 3
+    assert roster.total == 6
+
+
+def test_belief_allocation_is_not_the_known_world_denominator() -> None:
+    """P2. Beliefs are an allocated-only SUBSET, checked as one -- never the known count.
+
+    A known target the solver did not allocate is in no belief and in every ego's world.
+    The old roster took the belief list AS the known set, so that target became "hidden"
+    (or, once the executed side was also allocated-only, vanished). The known count now
+    comes from the world snapshot, and the beliefs are constrained the only way they
+    truthfully can be: as a subset.
+    """
+    # Beliefs cover only k0 and k2; the world still holds k0, k1, k2.
+    ctx = _reference_ctx(done={("ego_0", "k1")}, belief_ids=("k0", "k2"))
+    out = _run_one_episode_against(ctx, confirmed_kills=1)
+
+    assert out.targets_total == 6
+    assert len(out.known_target_names) == 3, "the known count came from the beliefs"
+    assert len(out.hidden_target_names) == 3, "an unallocated known target became hidden"
+    # k1 -- in the world, in no belief -- is confirmed and classified KNOWN.
+    assert out.known_confirmed_names == ("Floridistan AFB #2",)
+    assert out.hidden_confirmed_names == ()
+
+    # Belief AGREEMENT is still enforced, and a belief naming a target outside the known
+    # world is still a real defect in the other direction.
+    disagree = _reference_ctx(done=set(), belief_ids=("k0", "k2"))
+    disagree.beliefs["ego_1"] = _FakeBelief([_FakeTask("k0")])
+    exc = _integrity_raise(graph_train._episode_target_roster, disagree)
+    assert "disagree" in str(exc), str(exc)
+
+    outside = _reference_ctx(done=set(), belief_ids=("k0", "off-world"))
+    exc2 = _integrity_raise(graph_train._episode_target_roster, outside)
+    assert "off-world" in str(exc2), str(exc2)
+
+
+def test_the_roster_must_match_the_scheduled_cell() -> None:
+    """P1/P3. A world that is not the configured cell is a measurement fault, not an episode.
+
+    `setup_episode` already enforces exact cardinality on its own side, so a disagreement
+    here means this module measured the world wrongly -- the `3/2/5` case, stated against
+    the config rather than against a manifest.
+    """
+    short = _reference_ctx(done={("ego_0", "k0")}, hidden=2)
+    assert len(short.executed_target_ids) == 5
+    exc = _integrity_raise(_run_one_episode_against, short, confirmed_kills=1)
+    assert "hidden targets: observed 2, scheduled 3" in str(exc), str(exc)
+    assert "executed targets: observed 5, scheduled 6" in str(exc), str(exc)
+
+    # The valid cell passes the same gate untouched.
+    roster = graph_train._episode_target_roster(_reference_ctx(done=set()))
+    graph_train._require_scheduled_cell(
+        roster, TrainConfig(n_iterations=1, n_known=3, n_hidden=3))
+
+
+def test_an_integrity_fault_aborts_the_run_and_writes_no_ledger_row(
+    tmp_path: Path,
+) -> None:
+    """P3. The run STOPS: no ledger row, no denominator shrink, no next scheduled attempt.
+
+    Four scheduled training episodes with the SECOND one faulting. Under the old routing
+    the run would have continued through all four and recorded one `setup` failure; under
+    the corrected routing it stops at the second and the schedule never reaches the third.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=4, base_seed=0,
+        output_dir=tmp_path / "abort", eval_every=0, checkpoint_every=0,
+    )
+    events: list = []
+    raised = None
+    try:
+        _run_stub_training(cfg, integrity_failures=(1,), wakes_per_episode=1,
+                           events=events, capture_stdout=True)
+    except BaseException as exc:  # noqa: BLE001 - the abort itself is under test
+        raised = exc
+
+    assert isinstance(raised, graph_train.EpisodeRosterError), raised
+    assert isinstance(raised, graph_train.MeasurementIntegrityError), raised
+    assert not isinstance(raised, EpisodeAttemptError), raised
+
+    # It stopped AT the faulting attempt: seeds 0 and 1 were attempted, 2 and 3 never.
+    assert _episode_seeds(events, "train") == [0, 1], events
+
+    # Nothing was booked as science: no ledger row, and no completed record either.
+    run_dir = Path(cfg.output_dir)
+    assert _read_records(run_dir, "episode_failures.jsonl") == []
+    assert _read_records(run_dir, "train_records.jsonl") == []
+
+
+def test_an_eval_integrity_fault_aborts_the_round(tmp_path: Path) -> None:
+    """P3. The EVAL handler re-raises it too -- both handlers, not just the training one.
+
+    The pre-update round runs before any training episode, so a faulting held-out seed
+    stops the run before a single training attempt exists.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "abort_eval", eval_every=1, eval_episodes=2,
+        eval_base_seed=1_000_000, checkpoint_every=0,
+    )
+    events: list = []
+    raised = None
+    try:
+        _run_stub_training(cfg, integrity_failures=(1_000_001,), wakes_per_episode=1,
+                           events=events, capture_stdout=True)
+    except BaseException as exc:  # noqa: BLE001 - the abort itself is under test
+        raised = exc
+
+    assert isinstance(raised, graph_train.MeasurementIntegrityError), raised
+    assert _episode_seeds(events, "train") == [], "training started after an eval fault"
+    run_dir = Path(cfg.output_dir)
+    assert _read_records(run_dir, "episode_failures.jsonl") == []
+    assert _read_records(run_dir, "eval_records.jsonl") == []
+
+
+def test_a_post_run_integrity_fault_leaves_the_real_playback_listed(
+    tmp_path: Path,
+) -> None:
+    """P4. A completed episode's recording is in its manifest even when validation then fails.
+
+    THE 17-file finding: those attempts ran `run_episode` to completion, exported a real
+    playback, and were then failed on a confirmed id. `finalize` was never reached, so the
+    only trace of the file was the file. The recording is now synchronized into the
+    manifest the moment the run returns -- while the status is still `incomplete` -- so an
+    aborted attempt is truthful about what it holds.
+    """
+    cfg = _va_cfg(tmp_path, name="ghost", visual_artifacts=True,
+                  eval_every=0, eval_episodes=0)
+    _summary, _calls, state = _run_training_with_real_episode_body(
+        cfg, ghost_confirmation_tags=(0,))
+
+    assert isinstance(state["raised"], graph_train.MeasurementIntegrityError), \
+        state["raised"]
+    assert "ghost-target" in str(state["raised"])
+    # Not science: nothing in the ledger.
+    assert _read_records(Path(cfg.output_dir), "episode_failures.jsonl") == []
+
+    bundle = _va_bundles(Path(cfg.output_dir))[0]
+    manifest = _va_manifest(bundle)
+    assert manifest["status"] == "incomplete"
+    real = sorted(p.name for p in bundle.glob("*.jsonl"))
+    assert real, "the stub run wrote no playback at all"
+    assert manifest["playback_recordings"] == real, manifest["playback_recordings"]
+    # The two scenarios captured before the fault are listed too.
+    assert manifest["known_only_scenario"] == "known_only_scenario.json"
+    assert manifest["executed_t0_scenario"] == "executed_t0_scenario.json"
+
+
+def test_finalize_refuses_to_certify_a_world_its_files_contradict(
+    tmp_path: Path,
+) -> None:
+    """P4. Expected 3/3/6 against observed 3/2/5 cannot become `complete`.
+
+    Driven directly, because the roster gate now stops such an episode earlier: this
+    asserts `finalize`'s OWN refusal, which is the last line of defence if anything ever
+    reaches it with mismatched counts again.
+    """
+    identity = graph_train._AttemptIdentity(
+        phase="train", iteration=0, updates_completed=0,
+        eval_round_ordinal=None, eval_episode_index=None, eval_pair_member=None,
+        attempt_ordinal=0, episode_index=0, seed=0, condition="clean", episode_tag=0,
+    )
+    bundle = graph_train._AttemptArtifacts(root=tmp_path / "va", identity=identity).open()
+    (bundle.directory / "known_only_scenario.json").write_text("{}", encoding="utf-8")
+    bundle._known_only = "known_only_scenario.json"
+    bundle._executed_t0 = "executed_t0_scenario.json"
+    (bundle.directory / "run Recording 000000 - 000100.jsonl").write_text(
+        "{}\n", encoding="utf-8")
+    assert bundle.sync_recordings() == ("run Recording 000000 - 000100.jsonl",)
+
+    expected = {"n_known": 3, "n_hidden": 3, "n_targets_executed": 6}
+    try:
+        bundle.finalize(expected=dict(expected),
+                        observed={"n_known": 3, "n_hidden": 2,
+                                  "n_targets_executed": 5,
+                                  "targets_confirmed_unique": 2})
+    except graph_train._VisualArtifactError as exc:
+        assert "hidden" in str(exc) and "incomplete" in str(exc), str(exc)
+    else:
+        raise AssertionError("finalize certified a world its own counts contradict")
+
+    manifest = _va_manifest(bundle.directory)
+    assert manifest["status"] == "incomplete"
+    # The observed counts are RECORDED, not hidden -- and the playback is still listed.
+    assert manifest["targets"]["observed"]["n_hidden"] == 2
+    assert manifest["targets"]["expected"]["n_hidden"] == 3
+    assert manifest["playback_recordings"] == ["run Recording 000000 - 000100.jsonl"]
+
+    # The matching cell is accepted, and lists every chunk.
+    (bundle.directory / "run Recording 000100 - 000200.jsonl").write_text(
+        "{}\n", encoding="utf-8")
+    bundle.sync_recordings()
+    bundle.finalize(expected=dict(expected),
+                    observed={"n_known": 3, "n_hidden": 3, "n_targets_executed": 6,
+                              "targets_confirmed_unique": 2})
+    done = _va_manifest(bundle.directory)
+    assert done["status"] == "complete"
+    assert done["playback_recordings"] == ["run Recording 000000 - 000100.jsonl",
+                                           "run Recording 000100 - 000200.jsonl"]
+
+
+def test_finalize_cannot_complete_without_a_synchronized_recording(
+    tmp_path: Path,
+) -> None:
+    """P4. No playback is ever fabricated: `finalize` refuses rather than inventing one."""
+    identity = graph_train._AttemptIdentity(
+        phase="train", iteration=0, updates_completed=0,
+        eval_round_ordinal=None, eval_episode_index=None, eval_pair_member=None,
+        attempt_ordinal=0, episode_index=0, seed=0, condition="clean", episode_tag=0,
+    )
+    bundle = graph_train._AttemptArtifacts(root=tmp_path / "va", identity=identity).open()
+    bundle._known_only = "known_only_scenario.json"
+    bundle._executed_t0 = "executed_t0_scenario.json"
+    try:
+        bundle.finalize(expected={"n_known": 3}, observed={"n_known": 3})
+    except graph_train._VisualArtifactError as exc:
+        assert graph_train._ARTIFACT_RECORDING_GLOB in str(exc), str(exc)
+    else:
+        raise AssertionError("finalize completed a bundle with no recording")
+    assert _va_manifest(bundle.directory)["status"] == "incomplete"
+    assert not list(bundle.directory.glob("*.jsonl")), "a recording was fabricated"
+
+    # And `sync_recordings` refuses too, rather than reporting an empty tuple.
+    try:
+        bundle.sync_recordings()
+    except graph_train._VisualArtifactError as exc:
+        assert "no BLADE playback" in str(exc), str(exc)
+    else:
+        raise AssertionError("sync_recordings accepted an empty directory")
+
+
+def test_a_valid_episode_is_unchanged_by_the_world_truth_fix() -> None:
+    """P6. When the oracle happens to cover the world, every observable is as before.
+
+    The invariance claim, stated over the outcome an attempt actually produces: totals,
+    name partitions, the unique-confirmed count, the reward, the trajectory and the
+    fuel-damage records are identical whether the oracle allocated the whole world or only
+    part of it. The roster is a read-only projection; nothing downstream may move with it.
+    """
+    done = {("ego_0", "k0"), ("ego_1", "k0"), ("ego_1", "k2"), ("ego_2", "h1")}
+    fields = ("targets_total", "targets_confirmed_unique", "known_target_names",
+              "hidden_target_names", "known_confirmed_names", "hidden_confirmed_names",
+              "reward", "ticks", "ended", "n_wakes", "confirmed_kills", "n_dead",
+              "trajectory", "fuel_damage_plan", "fuel_damage_outcome",
+              "selected_ego_rtb_issued")
+
+    full = _run_one_episode_against(_reference_ctx(done=done), confirmed_kills=len(done))
+    # The SAME world, measured while the oracle allocated only part of it.
+    partial = _run_one_episode_against(
+        _reference_ctx(done=done, oracle_ids=("k0", "h1")), confirmed_kills=len(done))
+
+    for name in fields:
+        assert getattr(full, name) == getattr(partial, name), name
+
+    # And the values are the reference-cell ones, not merely equal to each other.
+    assert full.targets_total == 6 and full.targets_confirmed_unique == 3
+    assert full.known_confirmed_names == ("Floridistan AFB #1", "Floridistan AFB #3")
+    assert full.hidden_confirmed_names == ("Hidden Airbase #002",)
+    assert full.confirmed_kills == 4 != full.targets_confirmed_unique
+
+
+def test_train_and_eval_accounting_are_unchanged_on_the_valid_path(
+    tmp_path: Path,
+) -> None:
+    """P6. A run with no integrity fault produces exactly the accounting it did before.
+
+    The routing change adds a new abort path; it must add nothing to the ordinary one.
+    """
+    cfg = TrainConfig(
+        n_iterations=2, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "valid", eval_every=1, eval_episodes=2,
+        eval_base_seed=1_000_000, checkpoint_every=0,
+    )
+    summary, events, _state = _run_stub_training(cfg, wakes_per_episode=1)
+
+    assert summary["accounting_reconciled"] is True
+    assert summary["train_episodes_attempted"] == 4
+    assert summary["train_episodes_successful"] == 4
+    assert summary["train_episodes_failed"] == 0
+    assert _read_records(Path(cfg.output_dir), "episode_failures.jsonl") == []
+    assert _episode_seeds(events, "train") == [0, 1, 2, 3]
+    # Matched-pair evaluation is untouched: 3 rounds x 2 members = 6 attempts per
+    # held-out seed, with both forced modes present in every round.
+    eval_seeds = _episode_seeds(events, "eval")
+    assert eval_seeds.count(1_000_000) == 6 and eval_seeds.count(1_000_001) == 6
+    assert len(eval_seeds) == 12
 
 
 # =============================================================================
@@ -3202,6 +3615,7 @@ def _run_training_with_real_episode_body(
     *,
     setup_error_seeds=(),
     export_error_tags=(),
+    ghost_confirmation_tags=(),
     emit_recording: bool = True,
 ):
     """Drive the REAL `train()` AND the REAL `_run_one_episode` over stubbed engine seams.
@@ -3267,7 +3681,14 @@ def _run_training_with_real_episode_body(
             raise RuntimeError("stubbed exact-cardinality failure at seed %d" % seed)
         export_error = (ValueError("stubbed export failure")
                         if tag in set(export_error_tags) else None)
-        ctx = _reference_ctx(done={("ego_0", "k0"), ("ego_1", "h1")},
+        # `ghost_confirmation_tags` puts a target OUTSIDE the executed world into the
+        # executor's confirmed set. The episode still runs to completion and still writes
+        # its playback -- the fault only surfaces in the post-run reconciliation, which is
+        # exactly the shape of the long baseline's 17 "completed then failed" attempts.
+        done = {("ego_0", "k0"), ("ego_1", "h1")}
+        if tag in set(ghost_confirmation_tags):
+            done.add(("ego_2", "ghost-target"))
+        ctx = _reference_ctx(done=done,
                              exported=_va_executed_t0_object(tag, seed),
                              export_error=export_error)
         ctx.recording_export_path = (
@@ -4476,12 +4897,35 @@ if __name__ == "__main__":
          test_unique_count_is_taken_directly_from_the_executor_done_set, False),
         ("a_broken_name_lookup_keeps_the_id_the_count_and_the_denominator",
          test_a_broken_name_lookup_keeps_the_id_the_count_and_the_denominator, False),
-        ("a_structural_roster_failure_is_an_accounted_setup_failure",
-         test_a_structural_roster_failure_is_an_accounted_setup_failure, False),
+        ("a_structural_roster_failure_aborts_as_measurement_integrity",
+         test_a_structural_roster_failure_aborts_as_measurement_integrity, False),
         ("a_confirmed_id_outside_the_roster_cannot_produce_a_record",
          test_a_confirmed_id_outside_the_roster_cannot_produce_a_record, False),
-        ("a_roster_failure_contributes_no_false_zero_to_the_aggregates",
-         test_a_roster_failure_contributes_no_false_zero_to_the_aggregates, True),
+        ("a_setup_failure_contributes_no_false_zero_to_the_aggregates",
+         test_a_setup_failure_contributes_no_false_zero_to_the_aggregates, True),
+        # --- T13b: executed-world roster integrity (P1-P4, P6) ---
+        ("oracle_allocation_is_not_the_world_inventory",
+         test_oracle_allocation_is_not_the_world_inventory, False),
+        ("the_roster_never_reads_the_oracle_task_list",
+         test_the_roster_never_reads_the_oracle_task_list, False),
+        ("belief_allocation_is_not_the_known_world_denominator",
+         test_belief_allocation_is_not_the_known_world_denominator, False),
+        ("the_roster_must_match_the_scheduled_cell",
+         test_the_roster_must_match_the_scheduled_cell, False),
+        ("an_integrity_fault_aborts_the_run_and_writes_no_ledger_row",
+         test_an_integrity_fault_aborts_the_run_and_writes_no_ledger_row, True),
+        ("an_eval_integrity_fault_aborts_the_round",
+         test_an_eval_integrity_fault_aborts_the_round, True),
+        ("a_post_run_integrity_fault_leaves_the_real_playback_listed",
+         test_a_post_run_integrity_fault_leaves_the_real_playback_listed, True),
+        ("finalize_refuses_to_certify_a_world_its_files_contradict",
+         test_finalize_refuses_to_certify_a_world_its_files_contradict, True),
+        ("finalize_cannot_complete_without_a_synchronized_recording",
+         test_finalize_cannot_complete_without_a_synchronized_recording, True),
+        ("a_valid_episode_is_unchanged_by_the_world_truth_fix",
+         test_a_valid_episode_is_unchanged_by_the_world_truth_fix, False),
+        ("train_and_eval_accounting_are_unchanged_on_the_valid_path",
+         test_train_and_eval_accounting_are_unchanged_on_the_valid_path, True),
         ("an_episode_outcome_cannot_omit_what_it_measured",
          test_an_episode_outcome_cannot_omit_what_it_measured, False),
         # --- P3: every eval round keeps its own scenario artifacts ---
