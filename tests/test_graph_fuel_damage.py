@@ -396,6 +396,12 @@ class _FuelDamageCtx:
         ]
         self.oracle_tasks = list(tasks)
         self.oracle_solution = dict(self.a_init)
+        # The RAW t=0 world snapshots setup takes BEFORE either solve. This fixture's
+        # world is entirely known -- `n_agents` targets, no constructed hidden half -- so
+        # the two snapshots coincide here. They are still kept separate from
+        # `oracle_tasks`, which is an ALLOCATION and only happens to cover the same set.
+        self.known_target_ids = tuple("tgt%d" % i for i in range(n_agents))
+        self.executed_target_ids = tuple(self.known_target_ids)
         self.game = _StubGame(self.scenario)
         self.executor = _StubExecutor(self.agent_ids)
         self.env = _StubEnv(self.scenario, targets=self.targets)
@@ -2222,8 +2228,14 @@ def _run_one_episode_against(ctx, *, seed: int, reward_spy=None):
     generator, and optionally the reward). The fuel-damage plan construction, the stage
     attribution and the outcome assembly are production code.
     """
+    # The cell is declared to match the world this fixture actually builds: `n_agents`
+    # known targets and no constructed hidden half. `_run_one_episode` now refuses a
+    # roster that does not describe its configured cell, so a config claiming 3 + 3 = 6
+    # against a 3-target stub world would be a (correctly) rejected measurement.
+    n_known = len(getattr(ctx, "known_target_ids", ()) or ())
     cfg = TrainConfig(n_iterations=1, episodes_per_iteration=1, base_seed=0,
-                      eval_every=0, checkpoint_every=0)
+                      eval_every=0, checkpoint_every=0,
+                      num_agents=n_known, n_known=n_known, n_hidden=0)
 
     class _Result:
         trajectory = []

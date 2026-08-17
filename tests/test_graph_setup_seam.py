@@ -49,6 +49,11 @@ P5  real-BLADE regression (no solver): with the loadout in the state the first s
     exhibits the same premature-re-fire mechanism the probe hit. The BLADE tier is also
     where the executor's transcribed km -> nm constant is compared against the ENGINE'S
     OWN `blade.utils.constants` value.
+P6  world truth vs oracle allocation (pure): both setup paths snapshot the t=0 target
+    roster from the RAW pre-solve task sets, so a target the solver leaves UNSELECTED --
+    absent from the allocated-only `belief_tasks` / `oracle_tasks` by contract -- is still
+    in `EpisodeContext.known_target_ids` / `executed_target_ids`. That separation is what
+    stops an allocation from being read as a world inventory.
 P2  private sensing isolation, through the INTEGRATED setup/tick seam: a hidden target
     that the setup really put in the world is reported as sensed by ONE ego, and the real
     `run_episode` Phase-1 chain is what carries it into that ego's belief and executor
@@ -80,6 +85,7 @@ SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))  # so match_aou.* imports resolve
 
 from match_aou.models import Location, Step, StepKind, Task  # noqa: E402
+from match_aou.rl.training import graph_episode_setup as _setup  # noqa: E402
 from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     ATTACKING_SIDE_COLOR,
     CONSTRUCTION_TARGET_CLASS,
@@ -87,6 +93,7 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     HIDDEN_TARGET_NAME_TEMPLATE,
     MAX_SIM_TICKS,
     EpisodeContext,
+    _finish_context,
     _rematerialize_known_tasks,
     _require_agent_ids_preserved,
     _require_airbase_only_targets,
@@ -94,6 +101,7 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     _select_hidden_prototype,
     _shared_launch_point,
     _task_target_id,
+    _world_target_ids,
     build_patched_scenario,
     setup_episode,
 )
@@ -460,6 +468,185 @@ def test_known_task_rematerialization_fails_loudly() -> None:
                    _rematerialize_known_tasks, [Task(steps=[], utility=1)], [])
     _expect_raises(RuntimeError, "blank known target id",
                    _rematerialize_known_tasks, env2, [""])
+
+
+# =============================================================================
+# PURE -- P6: the t=0 world snapshots come from the RAW, PRE-SOLVE task sets
+# =============================================================================
+#
+# `solve_and_normalize` returns an ALLOCATED-ONLY task list by contract, for BOTH solves.
+# So `belief_tasks` says what the egos were planned against and `oracle_tasks` says what
+# the oracle allocated -- neither is an inventory of what exists, and a target the solver
+# left unselected is missing from both while still being in the world, sensible,
+# attackable and confirmable. `EpisodeContext.known_target_ids` / `executed_target_ids`
+# are therefore captured BEFORE either solve, and these tests pin that ordering by using a
+# solver stub that DROPS a task.
+
+
+class _StubEnv:
+    def __init__(self, name: str) -> None:
+        self.name, self.closed = name, False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _agent(agent_id: str) -> Any:
+    """A minimal real `Agent` -- enough for `Belief` and `GraphPlanExecutor`."""
+    from match_aou.models import Agent
+    return Agent(
+        location=Location(32.0, 35.0), capabilities=[], budget=1000.0,
+        move_cost_function=lambda a, b: 0.0, speed=250.0,
+        return_location=Location(32.0, 35.0), agent_id=agent_id, side_color="blue",
+    )
+
+
+class _patched:
+    """Swap module attributes for the duration of a `with` block, then restore them.
+
+    Hand-rolled rather than `monkeypatch`, so this file's `__main__` runner (pytest is
+    absent from `nlp_env`) executes these tests too.
+    """
+
+    def __init__(self, module: Any, **attrs: Any) -> None:
+        self._module, self._attrs, self._saved = module, attrs, {}
+
+    def __enter__(self) -> "_patched":
+        for name, value in self._attrs.items():
+            self._saved[name] = getattr(self._module, name)
+            setattr(self._module, name, value)
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        for name, value in self._saved.items():
+            setattr(self._module, name, value)
+
+
+def test_world_target_ids_is_raw_ordered_and_strict() -> None:
+    """The snapshot helper: order preserved, duplicates collapsed, blanks refused."""
+    assert _world_target_ids([_task("t0"), _task("t1"), _task("t2")], "w") == \
+        ("t0", "t1", "t2")
+    # Two tasks may legitimately name ONE target; first use wins and order survives.
+    assert _world_target_ids([_task("b"), _task("a"), _task("b")], "w") == ("b", "a")
+    assert _world_target_ids([], "w") == ()
+    # A target-less task would silently SHORTEN the inventory, so it raises instead.
+    _expect_raises(RuntimeError, "blank target id in the world snapshot",
+                   _world_target_ids, [_task("t0"), Task(steps=[], utility=1)], "w")
+
+
+def test_finish_context_requires_a_coherent_world_snapshot() -> None:
+    """`_finish_context` verifies the snapshots rather than trusting its caller.
+
+    A future third setup path must not be able to reach a context carrying an empty world
+    inventory -- that is the one shape in which allocated-only data gets read as world
+    truth again.
+    """
+    agents = [_agent("ego_0")]
+    tasks = [_task("k0")]
+    common = dict(
+        game=None, env=None, obs=None, agents=agents, a_init={},
+        belief_tasks=tasks, oracle_solution={}, oracle_tasks=tasks, split_meta={},
+        detection_km=DETECTION_KM, recording_export_path=None, placements=(),
+    )
+    ctx = _finish_context(known_target_ids=("k0",),
+                          executed_target_ids=("k0", "h0"), **common)
+    assert ctx.known_target_ids == ("k0",)
+    assert ctx.executed_target_ids == ("k0", "h0")
+
+    _expect_raises(RuntimeError, "empty executed-world snapshot", _finish_context,
+                   known_target_ids=("k0",), executed_target_ids=(), **common)
+    _expect_raises(RuntimeError, "known target outside the executed world",
+                   _finish_context, known_target_ids=("k0", "ghost"),
+                   executed_target_ids=("k0",), **common)
+
+
+def _dropping_solver(drop: str):
+    """A `solve_and_normalize` stub that leaves ONE target unselected.
+
+    Exactly the locked contract's shape: it returns the ALLOCATED-ONLY task list, so the
+    dropped target is simply not in what it hands back.
+    """
+    def _solve(agents, tasks, precedence_relations=None):
+        kept = [t for t in tasks if _task_target_id(t) != drop]
+        solution = {str(a.id): [(i, 0, 0) for i in range(len(kept))] for a in agents}
+        return solution, kept, []
+    return _solve
+
+
+def test_legacy_path_snapshots_the_world_not_the_allocation() -> None:
+    """P6. Legacy: known ids come from raw `partial`, executed ids from raw `full`."""
+    agents = [_agent("ego_0")]
+    all_tasks = [_task("k0"), _task("k1"), _task("h0")]
+    partial = all_tasks[:2]
+
+    with _patched(
+        _setup,
+        _build_env=lambda *a, **k: (None, _StubEnv("env"), "obs"),
+        _extract_world=lambda obs, color: (agents, all_tasks),
+        split_tasks=lambda tasks, ratio, **k: (partial, all_tasks, {"outcome": "ok"}),
+        # k1 (known) and h0 (hidden) are both left UNSELECTED by their solves.
+        solve_and_normalize=_dropping_solver("k1"),
+    ):
+        ctx = setup_episode("{}", partial_ratio=0.5)
+
+    # The allocations really are short -- otherwise this test proves nothing.
+    planned = {_task_target_id(t) for t in ctx.beliefs["ego_0"].tasks}
+    allocated = {_task_target_id(t) for t in ctx.oracle_tasks}
+    assert planned == {"k0"} and allocated == {"k0", "h0"}
+
+    # The WORLD is whole in both halves, in raw order.
+    assert ctx.known_target_ids == ("k0", "k1")
+    assert ctx.executed_target_ids == ("k0", "k1", "h0")
+
+
+def test_construction_path_snapshots_the_world_not_the_allocation() -> None:
+    """P6. Construction: known ids from raw env-1, executed ids from raw env-2.
+
+    Both are taken before their own solve, and the env-2 one includes the hidden half.
+    """
+    agents = [_agent("ego_0")]
+    known_tasks = [_task("k0"), _task("k1")]
+    env2_tasks = known_tasks + [_task("h0")]
+    env1, env2 = _StubEnv("env1"), _StubEnv("env2")
+    built: List[Any] = []
+
+    def _build_env(scenario_json, **kwargs):
+        env = env1 if not built else env2
+        built.append(env)
+        return None, env, "obs%d" % len(built)
+
+    def _extract_world(obs, color):
+        return (agents, known_tasks if obs == "obs1" else env2_tasks)
+
+    with _patched(
+        _setup,
+        _build_env=_build_env,
+        _extract_world=_extract_world,
+        _require_airbase_only_targets=lambda obs, color: None,
+        _shared_launch_point=lambda agents_: Location(32.0, 35.0),
+        _require_agent_ids_preserved=lambda before, after: None,
+        place_hidden_targets=lambda *a, **k: ("<placement>",),
+        build_patched_scenario=lambda scenario_json, placements, **k: "{}",
+        geometric_fingerprint=lambda placements: (),
+        # k1 is a known target the KNOWN solve does not select; the oracle solve over
+        # env-2 then drops it as well. It is in neither allocated-only list.
+        solve_and_normalize=_dropping_solver("k1"),
+    ):
+        ctx = setup_episode("{}", n_hidden=1, placement_rng=random.Random(0))
+
+    assert env1.closed and not env2.closed, "env-1 must be closed, env-2 returned"
+
+    planned = {_task_target_id(t) for t in ctx.beliefs["ego_0"].tasks}
+    allocated = {_task_target_id(t) for t in ctx.oracle_tasks}
+    assert planned == {"k0"}, planned
+    assert allocated == {"k0", "h0"}, allocated
+
+    # The WORLD, raw and in order -- the hidden target included on the executed side.
+    assert ctx.known_target_ids == ("k0", "k1")
+    assert ctx.executed_target_ids == ("k0", "k1", "h0")
+    # And the allocated-only contracts are UNCHANGED for their own purposes.
+    assert len(ctx.beliefs["ego_0"].tasks) == 1
+    assert ctx.split_meta["known"] == 2 and ctx.split_meta["hidden"] == 1
 
 
 def test_legacy_context_has_an_empty_placement_audit() -> None:

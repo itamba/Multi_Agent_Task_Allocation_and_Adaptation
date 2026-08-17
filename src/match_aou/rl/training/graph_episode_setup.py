@@ -49,12 +49,26 @@ NO-COMMUNICATION FOUNDATION (load-bearing) — enforced by construction here:
     (``solve_and_normalize`` output). Passing the raw ``all_tasks`` would seed an
     unallocated task with no ASSIGNMENT edge that the graph would misread as a pop-up.
     On the construction path that list is the KNOWN half only: a hidden target exists
-    in the world and in the oracle, but in NO belief — it can enter one only through
-    the sensing ego's own trigger path.
+    in the world but in NO belief — it can enter one only through the sensing ego's
+    own trigger path.
   * The partial and full sets are solved TWICE, independently, so the oracle is
     never an alias of A_init (holds even when the split leaves partial == full).
   * ONE ``DETECTION_KM`` feeds the executor now and (later) the builder's
     ``detection_range_km`` — sensing == attack == arrival is a single radius.
+
+WORLD INVENTORY vs ORACLE ALLOCATION (do not conflate them)
+-----------------------------------------------------------
+``solve_and_normalize`` returns an ALLOCATED-ONLY task list by contract, for both solves.
+So ``belief_tasks`` is "the known targets the solver assigned", and ``oracle_tasks`` is
+"the targets the ORACLE assigned" — neither is an inventory of what exists. A target the
+solver left unselected is missing from both and is still physically in the world, still
+sensible, still attackable and still confirmable.
+
+``EpisodeContext.known_target_ids`` / ``executed_target_ids`` are therefore captured from
+the RAW task sets BEFORE their solves, and they are what any consumer asking "which
+targets does this episode contain?" must read. ``oracle_tasks`` / ``oracle_solution``
+remain exactly as they were — correct, and unchanged, for the reward's oracle denominator,
+which is a question about ALLOCATION.
 """
 
 from __future__ import annotations
@@ -626,6 +640,38 @@ def _rematerialize_known_tasks(
     return out
 
 
+def _world_target_ids(tasks: Sequence[Task], what: str) -> Tuple[str, ...]:
+    """The RAW target-id roster of a task set, in order — the t=0 world inventory.
+
+    Called on a task list as it comes out of ``_extract_world`` (or out of
+    ``split_tasks``), BEFORE ``solve_and_normalize`` ever sees it. That ordering is the
+    whole point: ``solve_and_normalize`` returns an ALLOCATED-ONLY list, so a task the
+    solver did not select is gone from its output while the target is still very much in
+    the world the executor will fly through. A snapshot taken after the solve therefore
+    describes the ALLOCATION, not the WORLD, and anything that reads it as a world
+    inventory under-counts by exactly the unselected targets.
+
+    Deduplicated by target id with first occurrence winning — the roster is a statement
+    about TARGETS, and two tasks may legitimately name one target. A task that names NO
+    target is a different thing entirely: it means the structure this snapshot is derived
+    from is not what it is assumed to be, and silently dropping it would shorten the
+    inventory. That RAISES.
+
+    Raises:
+        RuntimeError: on a task with no resolvable target id.
+    """
+    ids: List[str] = []
+    for position, task in enumerate(tasks):
+        target_id = _task_target_id(task)
+        if not target_id:
+            raise RuntimeError(
+                f"setup_episode: {what} task {position} names no target, so the t=0 "
+                "world roster cannot be derived from it"
+            )
+        ids.append(target_id)
+    return tuple(dict.fromkeys(ids))
+
+
 # =============================================================================
 # 3. Episode context (the handoff object the tick-loop consumes)
 # =============================================================================
@@ -667,6 +713,30 @@ class EpisodeContext:
     ``n_hidden=0`` probe). Carries geometry and no target uuid, because generated ids are
     not seed-derived (``CLAUDE.md`` section 8): reproducibility is judged by
     ``geometric_fingerprint(ctx.placements)``, never by id."""
+
+    known_target_ids: Tuple[str, ...] = ()
+    """Every RAW known-world target id, snapshotted BEFORE the known solve filtered it.
+
+    THE t=0 KNOWN-WORLD INVENTORY, and deliberately not the same thing as ``belief_tasks``
+    or the belief task lists built from them: ``solve_and_normalize`` returns an
+    ALLOCATED-ONLY list, so a known target the solver left unselected is absent from every
+    belief while still sitting in the world the egos fly through. Anything that needs to
+    know how many targets EXIST reads this; anything that needs to know what the egos were
+    PLANNED against reads the beliefs."""
+
+    executed_target_ids: Tuple[str, ...] = ()
+    """Every RAW target id in the AUTHORITATIVE returned environment, snapshotted BEFORE
+    the full oracle solve filtered it.
+
+    THE t=0 EXECUTED-WORLD INVENTORY — known half plus hidden half, in the world's own
+    order, with ``known_target_ids`` a subset of it. Distinct from ``oracle_tasks`` for
+    exactly the reason above: the oracle is an ALLOCATION over this world, so a target the
+    oracle did not select is missing from ``oracle_tasks`` and present here. Reading
+    ``oracle_tasks`` as a world inventory is the defect these two fields exist to close.
+
+    A RUNTIME SNAPSHOT, not a cross-run reproducibility identity: generated target uuids
+    are not seed-derived (``CLAUDE.md`` section 8), so these ids are never a comparison
+    key BETWEEN runs — that is still ``geometric_fingerprint(ctx.placements)``."""
 
 
 # =============================================================================
@@ -855,6 +925,13 @@ def _setup_episode_legacy(
         all_tasks, partial_ratio, detection_km=detection_km
     )
 
+    # --- 4b. The t=0 world snapshots, taken from the RAW split sets ------------
+    # Before either solve, because both solves return ALLOCATED-ONLY task lists: a target
+    # the solver leaves unselected is still in the world an ego flies through, and a
+    # snapshot taken afterwards would describe the allocation instead of the world.
+    known_target_ids = _world_target_ids(partial, "known (partial)")
+    executed_target_ids = _world_target_ids(full, "executed (full)")
+
     # --- 5. Solve the PARTIAL set -> A_init (the static plan egos start from) --
     a_init, belief_tasks, _ = solve_and_normalize(agents, partial)
 
@@ -877,6 +954,8 @@ def _setup_episode_legacy(
         detection_km=detection_km,
         recording_export_path=recording_export_path,
         placements=(),
+        known_target_ids=known_target_ids,
+        executed_target_ids=executed_target_ids,
     )
 
 
@@ -896,8 +975,11 @@ def _setup_episode_construction(
     Environment 1 is temporary and is closed on EVERY exit path (its ``finally``);
     environment 2 is the only one that reaches the caller, and it is closed too if
     anything downstream of its reset fails. Nothing built from environment 1 survives
-    except pure data: the normalized ``a_init`` assignments and the ORDERED list of known
-    target ids that A_init's positional indices refer to.
+    except pure data: the normalized ``a_init`` assignments, the ORDERED list of known
+    target ids that A_init's positional indices refer to (``known_target_order``, an
+    ALLOCATED-ONLY list), and the RAW known-world snapshot ``known_target_ids``. Those
+    last two are different lists on purpose — the first says what the egos were planned
+    against, the second says what exists — and only the second is a world inventory.
     """
     # ================= Environment 1 — TEMPORARY (never recorded) =================
     game1, env1, obs1 = _build_env(
@@ -912,7 +994,11 @@ def _setup_episode_construction(
         _require_airbase_only_targets(obs1, attacking_side_color)
 
         env1_agent_ids = [str(a.id) for a in agents1]
-        known_world_ids = [_task_target_id(t) for t in known_world_tasks]
+        # The t=0 KNOWN-WORLD snapshot, taken from the RAW env-1 extraction — before the
+        # known solve below, whose output is allocated-only and therefore not a world
+        # inventory. Strict: a task with no target id raises rather than shortening it.
+        known_target_ids = _world_target_ids(known_world_tasks, "known world")
+        known_world_ids = list(known_target_ids)
         launch_point = _shared_launch_point(agents1)
 
         # --- Solve the KNOWN set -> A_init (the static plan egos start from) ------
@@ -982,6 +1068,11 @@ def _setup_episode_construction(
                 f"{len(placements)} hidden"
             )
 
+        # The t=0 EXECUTED-WORLD snapshot, taken from the RAW env-2 extraction — before
+        # the oracle solve below, whose output is likewise allocated-only. Env-2 is the
+        # sole runtime source of truth, so this list IS the world the episode runs on.
+        executed_target_ids = _world_target_ids(all_tasks, "executed world")
+
         # A_init's positional indices, re-pointed at ENV-2 Task objects.
         belief_tasks = _rematerialize_known_tasks(all_tasks, known_target_order)
 
@@ -1020,6 +1111,8 @@ def _setup_episode_construction(
             detection_km=detection_km,
             recording_export_path=recording_export_path,
             placements=placements,
+            known_target_ids=known_target_ids,
+            executed_target_ids=executed_target_ids,
         )
     except BaseException:
         _close_quietly(env2)
@@ -1040,12 +1133,34 @@ def _finish_context(
     detection_km: float,
     recording_export_path: Optional[str],
     placements: Tuple[HiddenPlacement, ...],
+    known_target_ids: Tuple[str, ...],
+    executed_target_ids: Tuple[str, ...],
 ) -> EpisodeContext:
     """Mint the N independent beliefs + the ONE executor and package the context.
 
     Shared by both paths so the belief/executor construction — the no-communication
     foundation — has exactly ONE implementation regardless of how the world was built.
+
+    ``known_target_ids`` / ``executed_target_ids`` are the RAW pre-solve world snapshots
+    (see :class:`EpisodeContext`). They are REQUIRED keywords rather than defaulted, so a
+    future third path cannot reach a context that silently carries an empty world
+    inventory — the one shape in which allocated-only data gets read as world truth again.
+    Verified here rather than trusted: both must be non-empty, and the known half must be
+    a subset of the executed half.
     """
+    known_snapshot = tuple(str(t) for t in known_target_ids)
+    executed_snapshot = tuple(str(t) for t in executed_target_ids)
+    if not executed_snapshot:
+        raise RuntimeError(
+            "setup_episode: the executed-world target snapshot is empty, so nothing "
+            "downstream could state what world this episode runs on"
+        )
+    outside = [t for t in known_snapshot if t not in set(executed_snapshot)]
+    if outside:
+        raise RuntimeError(
+            f"setup_episode: {len(outside)} known target(s) {outside[:3]} are absent "
+            "from the executed world snapshot; the t=0 roster would not cover what runs"
+        )
     # N mutually-independent beliefs, one per ego id. All egos start byte-equal to
     # a_init at t=0, but each belief is a fresh deepcopy of the tasks + a fresh
     # _copy_solution of a_init, so a per-ego edit never leaks.
@@ -1078,6 +1193,8 @@ def _finish_context(
         # Single source of truth: recording is armed iff an export path was given.
         record=recording_export_path is not None,
         placements=placements,
+        known_target_ids=known_snapshot,
+        executed_target_ids=executed_snapshot,
     )
 
 
