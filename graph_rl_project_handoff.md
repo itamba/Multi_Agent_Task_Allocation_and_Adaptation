@@ -67,10 +67,16 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **CURRENT `main`:** `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`, committed
-  `2026-08-17T15:48:30+03:00` (the PR #24 merge, which integrated the roster/world-truth
-  CODE correction). Any later work still performs its own fresh exact-SHA initialization
-  against the repository rather than trusting this line — **GitHub is authoritative for
+- **CODE-INTEGRATION BASE of this documentation record:**
+  `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`, committed `2026-08-17T15:48:30+03:00` (the
+  PR #24 merge, which integrated the roster/world-truth CODE correction). **That SHA is the
+  base this documentation candidate was DERIVED ON — it is deliberately NOT a claim about
+  live `main`.** While this record was prepared, GitHub showed `main` at exactly that SHA;
+  **integrating this documentation record necessarily ADVANCES `main` past it**, so the
+  statement would be false the moment the record lands. Neither this documentation commit
+  nor its future merge can name its own SHA, and inventing either would be a false
+  provenance claim. **Every receiving orchestrator therefore resolves the live full `main`
+  SHA from GitHub and re-reads both documents at that SHA — GitHub is authoritative for
   live branch and PR state, never this document.**
 - **ROSTER / WORLD-TRUTH INTEGRITY — CLOSED / APPROVED / MERGED.** Approved candidate
   `36365f210e8a659a641a7713f612c7e0ec1d4665` (`2026-08-17T14:01:10+03:00`), reviewed
@@ -245,8 +251,13 @@ cross-references it rather than duplicating it.
   drives the pipeline through stubbed engine seams. The locks certify implementation; they
   say nothing about how the cell behaves. **The harness lock in particular measured
   nothing**: it certifies that a probe can be configured, run and read, not that the cell
-  learns anything. That measurement gap is now PARTLY closed — and only partly — by the
-  executed short probe recorded in the next bullet and detailed in §3d.
+  learns anything. **THAT SCIENTIFIC MEASUREMENT GAP IS STILL FULLY OPEN.** The executed
+  runs that followed — the first short probe (§3d), the corrected rerun (§3e) and the long
+  baseline (§3f) — expanded OPERATIONAL, DIAGNOSTIC and PLAYBACK evidence substantially:
+  they proved the harness runs and accounts for itself, exposed four real defects, and
+  witnessed three of those defects' corrections in real playback. **None of them closed any
+  part of the scientific PERFORMANCE-measurement gap**, because none of them is a valid
+  measurement of the cell (§3e, §3f, `CLAUDE.md` §8).
 - **FIRST BOUNDED SHORT PROBE OF THE FINAL FUEL-DAMAGE CELL — EXECUTED / REVIEWED /
   SCIENTIFICALLY INCONCLUSIVE.** Run `training_output_20260815_173029`, executed from a
   clean checkout at exact code SHA `238062d7d284334432d9c39d7543fb0bbf39ea7c`. It confirms
@@ -262,9 +273,12 @@ cross-references it rather than duplicating it.
   CORRECTED and MERGED** (see the Defect-A, Defect-B and Defect-C bullets at the top of
   this section and `CLAUDE.md` §7). That does NOT rehabilitate this run: it was executed at
   `238062d…`, before any of the three corrections existed, so its numbers remain historical
-  evidence about the OLD behaviour and are not evidence about current `main`. The
-  corrected-cell measurement is the SEPARATE rerun in §3e, and it is that rerun — never
-  this one — that passed the validity gate.
+  evidence about the OLD behaviour and are not evidence about the corrected code. The
+  SEPARATE corrected-cell rerun is recorded in §3e; it was **ORIGINALLY judged VALID**, and
+  **that former verdict is SUPERSEDED** by `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY
+  REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR` (§3e, §3f). **NO run of the fuel-damage
+  cell has passed the validity gate** — neither this probe, nor that rerun, nor the long
+  baseline.
 - **Repository documentation hygiene — CLOSED / APPROVED / MERGED.** Approved candidate
   `52064c2d306df7c8447d159df20e6e189a59bf85`, integrated by
   `5f78904e3af1e2e47386c9b0e01ddbaa273724f5` (PR #12); the approved candidate tree was
@@ -290,13 +304,27 @@ cross-references it rather than duplicating it.
   merged (PR #24). **While THIS record is published and under review, the sole active
   candidate of any kind is this documentation/lock task itself — branch
   `task/roster-world-truth-doc-lock` and its draft PR** — and no other candidate should be
-  claimed. **Once this record is integrated into `main` and that branch is retired, no
-  active candidate remains** and ownership is RELEASED to a fresh long-baseline
-  orchestrator (§4, §8). The integrating merge's SHA is deliberately NOT named here: it does
-  not exist while this is written, and inventing it would be a false provenance claim.
-  Branch cleanup is a separate post-merge action owned by the GPT orchestrator; the
-  preserved branches `task/roster-world-truth-fix`, `task/long-baseline-execution`,
-  `flat-final` and the `pre-cleanup` tag are untouched by this task.
+  claimed. **Once this record is integrated into `main` AND the post-merge repository
+  cleanup below is complete, no active candidate remains** and ownership is RELEASED to a
+  fresh long-baseline orchestrator (§4 Task 5, §8). The integrating merge's SHA is
+  deliberately NOT named here: it does not exist while this is written, and inventing it
+  would be a false provenance claim.
+- **POST-MERGE REPOSITORY CLEANUP — a GATE on the fresh long baseline, and a separate action
+  owned by the GPT orchestrator. THIS CC TASK DELETES NO BRANCH; it records the gate only.**
+  Before ownership is released, **all THREE obsolete task branches must be safely retired**:
+  - `task/roster-world-truth-fix` (the merged PR #24 code candidate);
+  - `task/long-baseline-execution` (the branch the inconclusive long baseline recorded);
+  - `task/roster-world-truth-doc-lock` (this documentation branch, once merged).
+
+  **Each deletion happens ONLY after that branch's tip is verified reachable from the
+  integrated `main` history or from its applicable merged PR** — safe deletion, never a
+  force delete of unreachable work; every reviewed candidate tip also stays reachable on
+  GitHub through `refs/pull/<n>/head`. **EXPLICITLY PRESERVED and NOT part of this cleanup:**
+  branch `flat-final` (`4d44c3454a5561a6cb9d7aed593d59a40068d6d7`), the annotated tag
+  `pre-cleanup` (peeling to `561b7cb7f2d873e584a8c0dabe71df8050f1b4ed`), **every preserved
+  scientific artifact** (`training_output_20260815_173029`,
+  `training_output_20260816_162130`, `training_output_long_baseline_100x8_seed0`), and all
+  GitHub PR refs and history.
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -876,11 +904,19 @@ remains active.**
 **Task 5 — ONE FRESH LONG BASELINE FROM SCRATCH. NEXT, and separately authorized.** This is
 the user-approved next step, and it is a RERUN, not a repair.
 
-- **Start in a NEW orchestrator**, only after **this documentation record is reviewed,
-  merged into `main`, and its branch `task/roster-world-truth-doc-lock` is retired** by the
-  post-merge cleanup the GPT orchestrator owns.
-- **Resolve a fresh exact `main` SHA** and **re-read BOTH documents at that SHA** before
-  anything else.
+- **Start in a NEW orchestrator, and only after ALL FIVE of the following hold** (§1 owns
+  the cleanup detail):
+  1. **PR #25 is approved and merged** into `main`;
+  2. the **resulting tree / repository state is verified**;
+  3. **all three obsolete task branches are safely retired** —
+     `task/roster-world-truth-fix`, `task/long-baseline-execution` and
+     `task/roster-world-truth-doc-lock` — each deleted only after its tip is verified
+     reachable from the integrated `main` history or its applicable merged PR, while
+     `flat-final`, the `pre-cleanup` tag, every preserved scientific artifact and all
+     GitHub PR refs and history are PRESERVED;
+  4. **GitHub shows no active task PR and no active candidate** of any kind;
+  5. the **live full `main` SHA is freshly resolved** and **BOTH documents are re-read at
+     that SHA** — never at any SHA named in this document.
 - **Use the SAME SCIENTIFIC CONTRACT as the preserved `long_baseline_contract.json`** (§3f
   states it, and the preserved file is the authority): the exact train seeds `[0, 800)` and
   held-out seeds `[1000000, 1000008)`, the 100 × 8 schedule, `eval_every = 5`, the
@@ -997,9 +1033,10 @@ scientifically INCONCLUSIVE.
 ## 6. Out of scope for the next task
 
 - **any training run driven from THIS documentation task** — it authorizes none. The fresh
-  long baseline is the next research task, and it starts only after this record is merged,
-  its branch `task/roster-world-truth-doc-lock` is retired, and live `main` is freshly
-  resolved (§4 Task 5);
+  long baseline is the next research task, and it starts only after PR #25 is merged, the
+  resulting state is verified, **all three obsolete task branches are safely retired**,
+  GitHub shows no active task PR or candidate, and live `main` is freshly resolved with both
+  documents re-read at that SHA (§4 Task 5, §1);
 - **changing the fresh long baseline's SCIENTIFIC contract.** It repeats the preserved
   `long_baseline_contract.json` exactly — same seeds, same 100 × 8 schedule, same evaluation
   cadence, same matched-pair design, same PPO settings, same cell geometry, same
@@ -1029,9 +1066,12 @@ scientifically INCONCLUSIVE.
   `training_output_20260816_162130` and `training_output_long_baseline_100x8_seed0` — an
   inconclusive run is still evidence, and its preserved artifacts are what made the roster
   defect provable;
-- **deleting `task/roster-world-truth-fix`, `task/long-baseline-execution`, `flat-final`,
-  `pre-cleanup` or this documentation branch** — branch cleanup is a separate post-merge
-  action owned by the GPT orchestrator;
+- **deleting ANY branch or tag from THIS CC task** — it retires nothing. Retiring the three
+  obsolete task branches (`task/roster-world-truth-fix`, `task/long-baseline-execution`,
+  `task/roster-world-truth-doc-lock`) is a separate post-merge action owned by the GPT
+  orchestrator and is a GATE on the fresh long baseline (§1, §4 Task 5);
+- **deleting or moving `flat-final` or the `pre-cleanup` tag** — they are permanently
+  preserved and are NOT part of that cleanup;
 - checkpoint loading/resume;
 - centralized critic / CTDE;
 - low-known-cell solver timeout unless the chosen cell needs `known ≤ 2`;
@@ -1070,8 +1110,11 @@ integrated `60a82d1`, PR #19, identical tree `ee86f07…`), **Defect C, physical
 completion** (approved `ea62e4e`, integrated `0de9f21`, PR #21, identical tree `6d05cc5…`)
 and **the FOURTH, SEPARATE roster / world-truth defect — allocation read as world
 inventory** (approved `36365f2`, integrated `f37ea1c`, PR #24, identical tree `f8015380…`,
-§3g). Current `main` is `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`
-(`2026-08-17T15:48:30+03:00`).
+§3g). The CODE-INTEGRATION BASE this record was derived on is
+`f37ea1c8559405d5de24a9c2dd9e740227acaeeb` (`2026-08-17T15:48:30+03:00`) — the SHA GitHub
+showed for `main` while this was prepared, **not a durable claim about live `main`, which
+this record's own integration necessarily advances.** Resolve the live full `main` SHA from
+GitHub (§1).
 
 **THE MEASUREMENT STATE, STATED PLAINLY.** A **LONG BASELINE HAS BEEN RUN** —
 `training_output_long_baseline_100x8_seed0` at exact code SHA
@@ -1086,17 +1129,28 @@ fuel-damage yield or PPO performance may be cited as scientific evidence about i
 sides of this record's own integration. **While this record is published and under review**
 the sole active candidate of any kind is the documentation/lock task itself — branch
 `task/roster-world-truth-doc-lock` and its draft PR — and no other candidate should be
-claimed. **Once this record is integrated into `main` and that branch is retired, no active
-candidate remains** and ownership is RELEASED to a fresh long-baseline orchestrator. The
-integrating merge's SHA is deliberately NOT named here: it does not exist while this is
-written, and inventing it would be a false provenance claim. **GitHub remains authoritative
-for live branch and PR state — resolve it there, never from this document.** Branch cleanup
-is a separate post-merge action owned by the GPT orchestrator; `task/roster-world-truth-fix`,
-`task/long-baseline-execution`, `flat-final` and `pre-cleanup` stay preserved and untouched.
+claimed. **Once this record is integrated into `main` AND the post-merge repository cleanup
+is complete, no active candidate remains** and ownership is RELEASED to a fresh
+long-baseline orchestrator. The integrating merge's SHA is deliberately NOT named here: it
+does not exist while this is written, and inventing it would be a false provenance claim.
+**GitHub remains authoritative for live branch and PR state — resolve it there, never from
+this document.**
+
+**THE CLEANUP GATE.** Branch cleanup is a separate post-merge action owned by the GPT
+orchestrator, and **THIS CC TASK RETIRES NOTHING.** Before ownership is released, **all
+three obsolete task branches must be safely retired** — `task/roster-world-truth-fix`,
+`task/long-baseline-execution` and `task/roster-world-truth-doc-lock` — **each deleted only
+after its tip is verified reachable from the integrated `main` history or its applicable
+merged PR.** **PRESERVED and outside that cleanup:** branch `flat-final`, the annotated tag
+`pre-cleanup`, every preserved scientific artifact, and all GitHub PR refs and history. §1
+states the gate in full and §4 Task 5 states the five conditions the next orchestrator
+starts on.
 
 **The next task is ONE FRESH LONG BASELINE FROM SCRATCH** (§4 Task 5). It starts in a NEW
-orchestrator, only after this record is reviewed, merged and its branch retired; it begins
-with **fresh live-`main` resolution and a re-read of both documents at that SHA**; and it
+orchestrator, only after PR #25 is approved and merged, the resulting state is verified, all
+three obsolete task branches are safely retired, and GitHub shows no active task PR or
+candidate; it begins with **fresh live-`main` resolution and a re-read of both documents at
+that SHA**; and it
 runs **the SAME scientific contract as the preserved `long_baseline_contract.json`** — the
 same train and held-out seeds, the 100 × 8 schedule, `eval_every = 5`, the matched
 forced-clean / forced-damaged pair design, the PPO settings, the 3-agent / 3-known / 3-hidden
