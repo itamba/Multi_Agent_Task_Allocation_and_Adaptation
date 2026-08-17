@@ -265,7 +265,39 @@ a functioning learning loop, but it is a SHORT PROBE, not a baseline.
 
 **Episode-setup (Stage 0) — `rl/training/graph_episode_setup.py` + `rl/training/belief.py`.**
 `setup_episode(scenario_json, ..., n_hidden=None, placement_rng=None) -> EpisodeContext`.
-Wires env via `_build_env` (`gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=…)`, `obs,info = env.reset()`, blue side by `side.name=="BLUE"`) → `_extract_world` (`create_agents_from_scenario` picks blue; `generate_all_enemy_tasks`) → `solve_and_normalize` twice → `_finish_context` (N `Belief`s + one `GraphPlanExecutor`). `EpisodeContext` carries `env, game, agents, agent_ids, beliefs, executor, a_init, oracle_solution, oracle_tasks, split_meta, observation` (the reset seed the loop reads first), `record`, and `placements`. `Belief.independent(tasks, solution)` mints an independent per-ego copy. `solve_and_normalize(agents, tasks) -> (solution, belief_tasks, unselected)` = `MatchAou(...).solve("bonmin")` → `post_solve_filter_and_level(...)` (allocated-only filter + `task_idx` remap + `level`); **never returns the raw pre-filter list**. Graph-native; imports NOTHING from the flat path. Independence + allocated-only proven in `_selftest`. `EpisodeContext.record: bool = False` — recording is ARMED iff a `recording_export_path` was given; setup never starts the recorder (the tick-loop drives it), and only the RETURNED env is ever armed.
+Wires env via `_build_env` (`gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=…)`, `obs,info = env.reset()`, blue side by `side.name=="BLUE"`) → `_extract_world` (`create_agents_from_scenario` picks blue; `generate_all_enemy_tasks`) → `solve_and_normalize` twice → `_finish_context` (N `Belief`s + one `GraphPlanExecutor`). `EpisodeContext` carries `env, game, agents, agent_ids, beliefs, executor, a_init, oracle_solution, oracle_tasks, split_meta, observation` (the reset seed the loop reads first), `record`, `placements`, and the two RAW pre-solve world snapshots `known_target_ids` / `executed_target_ids` (the roster-integrity contract below). `Belief.independent(tasks, solution)` mints an independent per-ego copy. `solve_and_normalize(agents, tasks) -> (solution, belief_tasks, unselected)` = `MatchAou(...).solve("bonmin")` → `post_solve_filter_and_level(...)` (allocated-only filter + `task_idx` remap + `level`); **never returns the raw pre-filter list**. Graph-native; imports NOTHING from the flat path. Independence + allocated-only proven in `_selftest`. `EpisodeContext.record: bool = False` — recording is ARMED iff a `recording_export_path` was given; setup never starts the recorder (the tick-loop drives it), and only the RETURNED env is ever armed.
+
+**WORLD INVENTORY IS NOT ORACLE ALLOCATION (locked by the roster-integrity fix,
+`36365f2`).** `solve_and_normalize` returns an **ALLOCATED-ONLY** task list by contract —
+for BOTH solves. So `belief_tasks` is "the known targets the solver assigned" and
+`oracle_tasks` is "the targets the ORACLE assigned"; **neither is an inventory of what
+exists.** A target the solver left unselected is absent from both and is nevertheless
+physically in the world, sensible, attackable and confirmable. Reading either one as a
+world inventory is the defect this contract closes, and it is what made the long baseline
+scientifically inconclusive (§7, §8).
+
+`EpisodeContext` therefore carries TWO IMMUTABLE RAW SNAPSHOTS, both taken by
+`_world_target_ids` **BEFORE** their solve ever runs, both deduplicated by target id with
+first occurrence winning, and both raising on a task that names no target (silently
+dropping one would shorten the inventory):
+
+- **`known_target_ids`** — every raw KNOWN-world target id, captured before the known
+  solve filtered it. The t=0 known-world inventory.
+- **`executed_target_ids`** — every raw target id in the AUTHORITATIVE returned
+  environment, in the world's own order, captured before the oracle solve filtered it.
+  The t=0 EXECUTED-world inventory: known half plus hidden half.
+
+Both are set on BOTH paths (the legacy path snapshots `split_tasks`' `partial` / `full`),
+and `_finish_context` takes them as REQUIRED keywords rather than defaulted ones — so a
+future third path cannot reach a context silently carrying an empty world inventory, the
+one shape in which allocated-only data gets read as world truth again. It VERIFIES rather
+than trusts: the executed snapshot must be non-empty and the known half must be a SUBSET
+of it, else `RuntimeError`. **Anything asking "which targets does this episode contain?"
+reads these two fields.** `oracle_tasks` / `oracle_solution` are UNCHANGED and remain
+exactly right for the reward's oracle denominator — that is a question about ALLOCATION,
+and it was always correct. These ids are a RUNTIME snapshot, never a cross-run
+reproducibility key: generated target uuids are not seed-derived (§8), so cross-run
+comparison is still `geometric_fingerprint(ctx.placements)`.
 
 **PATH SELECTION (`_resolve_construction_mode`, runs BEFORE any BLADE object exists).**
 `n_hidden` and `placement_rng` are a PAIR. Both omitted → the LEGACY split path
@@ -505,9 +537,12 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   `kills_mean` / `eval_kills_mean` are compatibility aliases fed from the same corrected
   number. Names are presentation only. A name lookup may degrade to `<unnamed target>`
   without changing an id or count, while malformed/inconsistent roster structure raises
-  `EpisodeRosterError`, becomes an accounted `setup` failure, and never contributes a
-  false successful zero. Reward and PPO semantics are unchanged; the reward already
-  deduplicated by target id.
+  `EpisodeRosterError` and never contributes a false successful zero. Reward and PPO
+  semantics are unchanged; the reward already deduplicated by target id.
+  **PR #7's ROUTING of that error is SUPERSEDED and must not be restated:** it was an
+  accounted `setup` failure then; since `36365f2` (§7) `EpisodeRosterError` is a
+  `MeasurementIntegrityError` and ABORTS the run as INFRASTRUCTURE — see the
+  roster/world-truth integrity contract below.
 - **Per-round eval scenario preservation (PR #7).** `eval_episode_tag` gives every eval
   round a deterministic, disjoint file-tag namespace. Tags affect artifact names only:
   every round still evaluates the same fixed held-out seed band. `TrainConfig.validate`
@@ -537,8 +572,11 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
     iteration, `updates_completed`, eval round / episode / pair-member ordinals, attempt
     ordinal, training episode index, exact seed, scheduled condition, exact
     `episode_tag`), plus target-count expectations vs observations. `status` is
-    `incomplete` until the bundle is whole and `complete` only once the three files
-    exist; a bundle may be read as full only when it is `complete`.
+    `incomplete` until the bundle is whole, and — since `36365f2` — `complete` only once
+    the three files exist AND the observed world cardinality RECONCILES with the scheduled
+    cell; a bundle may be read as full only when it is `complete`. See the
+    roster/world-truth integrity contract below for the two corrections this claim
+    depends on (`sync_recordings`, and `finalize`'s reconciliation).
 
   **Failure routing.** An artifact filesystem / serialization failure is INFRASTRUCTURE:
   it raises `_VisualArtifactError`, which the train and eval attempt handlers re-raise
@@ -561,6 +599,66 @@ held-out band are all exactly as B1–B3 (§5, §7) left them.
   inputs, the solver, the reward, fuel-damage semantics, the failure taxonomy and BLADE
   are all unchanged. The resolved flag is recorded in `run_config.json` through the
   existing `asdict(cfg)` path and echoed in the startup header.
+
+**Roster / world-truth integrity (PR #24) — `rl/training/graph_train.py` +
+`rl/training/graph_episode_setup.py`.**
+The *measurement-integrity* half of the trainer contract, and the correction that a real
+long baseline forced. It changed NO pipeline layer: the reward formula, PPO,
+oracle allocation, fuel-damage semantics, B2 placement, seed formulas, the evaluation
+schedule, the tick loop, the executor, the generator and vendored BLADE are all exactly as
+their own locks left them (§7).
+
+- **The roster's WORLD comes from the two raw pre-solve snapshots, never from an
+  allocation.** `_episode_target_roster(ctx)` reads `ctx.known_target_ids` (KNOWN) and
+  `ctx.executed_target_ids` (EXECUTED) through the validating accessor
+  `_world_snapshot_ids`, and derives HIDDEN by SUBTRACTION — executed minus known, in
+  EXECUTED-WORLD ORDER (`ctx.placements` is deliberately id-free, so it cannot supply
+  hidden ids). **`ctx.oracle_tasks` IS NOT READ THERE AT ALL** and must not be
+  reintroduced. The BELIEFS are still checked, but only in the role they can play: they
+  are allocated-only too, so they are a **SUBSET** constraint on the known world, never
+  its denominator — a belief naming a target the known snapshot does not hold still
+  raises, because the egos would have been planned against something the world does not
+  contain. The t=0 belief-agreement check is unchanged.
+- **`MeasurementIntegrityError` — INFRASTRUCTURE, never a scientific outcome.**
+  `EpisodeRosterError` is now a subclass of it (the NAME is retained so an audit trail
+  keeps reading; what changed is where it GOES, not what it means). It is a sibling of
+  `_VisualArtifactError` and routed identically: it names no pipeline stage because it did
+  not happen in one, and it **ABORTS the run**. It is NEVER wrapped in
+  `EpisodeAttemptError`, never appended to `episode_failures.jsonl`, never counted against
+  a condition tally, and never enters `skip_and_account_v1` — so it can no longer shrink a
+  scientific denominator while reading as ordinary episode attrition. Both attempt handlers
+  re-raise it AHEAD of their broad `except Exception` (`except (_VisualArtifactError,
+  MeasurementIntegrityError)`), and an UNEXPECTED exception raised inside the roster code is
+  normalized into the same loud path with its cause preserved. **This is a deliberate
+  reversal of PR #7's routing**, and the reason is that a data-integrity fault is a property
+  of the INSTRUMENT, not of the episode: every episode it touches is suspect, and the ones
+  it does not touch cannot be assumed unaffected.
+- **`_require_scheduled_cell(roster, cfg)` — the roster must describe the cell the
+  schedule asked for.** `n_known` known, `n_hidden` hidden, `n_targets_emitted` executed,
+  or `EpisodeRosterError`. `setup_episode`'s construction path already enforces that
+  cardinality loudly on its own side, so a roster that disagrees is not a scenario that
+  came out differently — it is this module measuring the world wrongly. Checked BEFORE the
+  fuel-damage plan and BEFORE `run_episode`, so nothing is paid for and no partial
+  measurement exists.
+- **ORDER AFTER `run_episode` IS CONTRACTUAL: synchronize the playback, validate the
+  world, and only then compute a reward.** `_AttemptArtifacts.sync_recordings()` runs
+  immediately after `run_episode` returns and DISCOVERS the playback chunks the completed
+  run really wrote into the still-`incomplete` manifest — nothing is created, renamed or
+  fabricated; a completed run with no playback file is itself a `_VisualArtifactError`,
+  because the tick-loop contract exports one on every completed run and none when the loop
+  raised. Only then is the confirmed-id set reconciled against the executed-world snapshot,
+  and only a world that validated is allowed to produce a reward and a successful outcome.
+  The long baseline ran it the other way round, which is how 17 episodes exported a real
+  recording that no manifest listed.
+- **A manifest cannot claim `complete` against its own files.** `_AttemptArtifacts.finalize`
+  requires all three artifacts AND reconciles expected vs observed target counts; on a
+  mismatch it still WRITES the observed counts, leaves the status `incomplete`, and raises
+  `_VisualArtifactError`. `complete` is a CLAIM, so a manifest certifying a world its own
+  `executed_t0_scenario.json` contradicts is worse than no manifest.
+- **The authoritative count is unchanged**, and is still
+  `len(_unique_confirmed_target_ids(executor.done))` and nothing else — never derived from
+  how many ids the roster managed to NAME. A name that will not resolve still degrades to
+  `<unnamed target>` and changes no id and no count.
 
 **Experiment harness: JSON presets, run layout and the three figures (PR #14) —
 `rl/training/graph_train.py` + `configs/graph_train/final_cell_probe.json`.**
@@ -734,11 +832,13 @@ second factor is bundled in (§8).
 | … | Go to |
 |---|---|
 | Change episode setup / solve+normalize / Belief | `rl/training/graph_episode_setup.py`, `rl/training/belief.py` |
+| Ask "which targets does this episode CONTAIN?" (world inventory, NOT allocation) | `rl/training/graph_episode_setup.py` (`EpisodeContext.known_target_ids` / `executed_target_ids`, `_world_target_ids`, and `_finish_context`'s required-keyword non-empty + subset verification). Both are RAW snapshots taken BEFORE their solve. **Never** answer it from `oracle_tasks`, `belief_tasks` or the beliefs — `solve_and_normalize` is allocated-only by contract, so those omit every unselected target. See the §5 roster-integrity contract |
 | Change the CONSTRUCTION seam (solve → place → patch → reload) | `rl/training/graph_episode_setup.py` → `_setup_episode_construction`, plus its helpers `_resolve_construction_mode`, `_shared_launch_point`, `_require_airbase_only_targets`, `_select_hidden_prototype`, `build_patched_scenario`, `_require_agent_ids_preserved`, `_rematerialize_known_tasks`, `_build_env` / `_extract_world` / `_close_quietly` / `_finish_context` |
 | Change the LEGACY split path (retained, not deleted) | `rl/training/graph_episode_setup.py` → `_setup_episode_legacy`, `split_tasks` |
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance` + `config_source`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures under `plots/`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
+| Change how a run FAILS on a measurement/data-integrity fault (as opposed to an episode fault) | `rl/training/graph_train.py` (`MeasurementIntegrityError`, its subclass `EpisodeRosterError`, `_world_snapshot_ids`, `_episode_target_roster`, `_require_scheduled_cell`, and the `except (_VisualArtifactError, MeasurementIntegrityError)` re-raises in the train and eval attempt handlers). It ABORTS the run and is NEVER written to `episode_failures.jsonl`, counted against a condition, or entered into `skip_and_account_v1` — that routing is the §5 roster-integrity contract and deliberately reverses PR #7's |
 | Configure a run from a FILE, or add a preset | `configs/graph_train/final_cell_probe.json` (the ONLY repository preset: the bounded short probe) + `rl/training/graph_train.py` (`--config`, `load_config_file`, `resolve_train_config`, `_effective_argv`, `_explicit_cli_dests`, `_CLI_FIELD_BY_DEST` / `_CLI_PPO_FIELD_BY_DEST`). Presets name `TrainConfig` FIELDS; precedence is defaults < preset < explicitly typed flags. See the §5 harness contract |
 | Change what a run RECORDS about where its config came from | `rl/training/graph_train.py` (`config_source_record`, `_CONFIG_SOURCE_KINDS` = `config_file` / `cli_defaults` / `direct_config`, `write_run_config`). Always a structured object, never `null`; `resolved_from` is required, never inferred |
 | Change a FIGURE (or add one) | `rl/training/graph_train.py` (`plot_training`, `_plots_dir`, `_plot_training_performance`, `_plot_policy_diagnostics`, `_plot_measurement_health`, `_PLOT_FILENAMES`, `_PLOT_X_LABEL` / `_PLOT_X_SEMANTICS`, `_xy`, `plot_training_subprocess`). Figures go to `<run_dir>/plots/`; the two presentation invariants in §5 (condition means vs complete-pair delta, and the honest x-axis) are contractual |
@@ -748,7 +848,7 @@ second factor is bundled in (§8).
 | Change the FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. |
 | Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched pairs, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
 | Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`). Rollouts run the seeded MIXTURE only — matched pairs are an evaluation construct and live in `graph_train.evaluate`. |
-| Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `finalize` / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
+| Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `sync_recordings` / `finalize` (which reconciles expected vs observed world counts before it will say `complete`) / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
@@ -1121,9 +1221,11 @@ second factor is bundled in (§8).
   reward, PPO, executor, tick-loop, scenario content and seed semantics are unchanged.
   Every successful attempt now prints one immediate `OK` block; unique-target aggregates
   are derived directly from unique target ids and never from display names; structural
-  roster defects become accounted `setup` failures instead of false successful zeros;
-  and each eval round keeps a disjoint scenario-tag namespace while reusing the same
-  held-out seeds. Grade A under `GPT_GITHUB`: candidate
+  roster defects were routed to accounted `setup` failures instead of false successful
+  zeros — **that ROUTING is SUPERSEDED: since `36365f2` such a fault is a
+  `MeasurementIntegrityError` and ABORTS the run**, and the false-successful-zero fix this
+  PR made is unaffected; and each eval round keeps a disjoint scenario-tag namespace while
+  reusing the same held-out seeds. Grade A under `GPT_GITHUB`: candidate
   `24241690572a7a5264e24348db5e9412b41bc47a` received REQUEST-FIXES because a degraded
   roster could silently report a false `0/0` and its docstring claimed the helper never
   raised. The correction landed as a NEW commit, never amend/rebase/force-push, and
@@ -1491,8 +1593,14 @@ second factor is bundled in (§8).
   A and B already closed, the three-defect CODE correction is complete, but that is an
   implementation fact, not a scientific result (§8 owns the gate).
 
-- **CORRECTED-CELL BOUNDED SHORT PROBE — EXECUTED / INDEPENDENTLY REVIEWED / VALID
-  MEASUREMENT.** The measurement is attributable to exact clean code SHA
+- **CORRECTED-CELL BOUNDED SHORT PROBE — EXECUTED / INDEPENDENTLY REVIEWED / VERDICT
+  SUPERSEDED: SCIENTIFICALLY INCONCLUSIVE.** **READ THE SUPERSEDING VERDICT BELOW BEFORE
+  ANY NUMBER IN THIS ENTRY.** Everything recorded here about run IDENTITY, invocation,
+  provenance, accounting, artifact completeness and playback is PRESERVED HISTORICAL
+  EVIDENCE and unchanged; what changed is the SCIENTIFIC verdict, which the later
+  roster-integrity review invalidated (the superseding-verdict paragraph at the end of this
+  entry, and the roster fix's own lock further below). The measurement is attributable to
+  exact clean code SHA
   `900ff0b24898eccfa2e35d2db05c4e0229c64ce3` (committed `2026-08-16T15:26:55+03:00`), the
   `main` head produced by the Defect-C documentation merge (PR #22). Per §7's hash
   convention this entry is keyed to the MEASURED CODE SHA; the documentation commit that
@@ -1517,15 +1625,21 @@ second factor is bundled in (§8).
   start-up, `conda run` dispatch, imports and interpreter teardown, so it is NOT the wall
   clock and must not be labelled as one. **No code, configuration, preset or
   research-semantic change accompanied the run.**
-  **VALIDITY VERDICT — VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS**, judged against
-  the pre-declared validity gate and NOT against whether reward improved: exact clean Git
+  **VALIDITY VERDICT AS ORIGINALLY REVIEWED — `VALID MEASUREMENT / CORRECTED SHORT-PROBE
+  PASS`. THAT VERDICT IS SUPERSEDED AND NO LONGER HOLDS** (see the superseding-verdict
+  paragraph at the end of this entry); it is quoted here only so the review history stays
+  legible. As originally judged, against the pre-declared validity gate and NOT against
+  whether reward improved: exact clean Git
   provenance is complete; `run_summary.json:accounting_reconciled = true`; no
   INFRASTRUCTURE failure occurred (no `_VisualArtifactError`, and both recorded failures
   sit inside the `generation`/`setup`/`run`/`reward` episode taxonomy); BOTH evaluation
   rounds carry **4/4 complete matched pairs**; and PPO-update and artifact evidence are
-  complete. **This closes the research-validity gate the FIRST probe exposed.** Defects
-  A, B and C remain CLOSED / APPROVED / MERGED and are now OPERATIONALLY WITNESSED in a
-  real corrected-cell measurement rather than in proof tests alone.
+  complete. At the time of that review this was read as closing the research-validity
+  gate the FIRST probe exposed; **that reading is SUPERSEDED — the gate was not closed by
+  this run** (end of this entry). What DOES survive unaffected: Defects A, B and C remain
+  CLOSED / APPROVED / MERGED and are OPERATIONALLY WITNESSED in real playback from this run
+  rather than in proof tests alone — the roster defect concerns which targets the
+  MEASUREMENT counted, not whether those three corrections work.
   **ACCOUNTING — every denominator explicit, `skip_and_account_v1` unchanged.**
   **24 scheduled attempts** (8 train + 16 eval), **22 successful**, **2 failed, both at
   `setup`**. By condition: **clean 11 attempted / 10 successful / 1 failed**; **damaged 13
@@ -1632,60 +1746,243 @@ second factor is bundled in (§8).
   `episode_failures.jsonl=20c022a14971afb2776e774a268dbf0e6e6c0221fd2ac5e24dbe77e6c2f29784`,
   `run_summary.json=3038b754c82fb2dcb56d97632af4a24faa27dde68d2499701c228e3a208751fa`,
   `checkpoints/ckpt_iter0001.pt=605a05fde0084050fb66821e8da234bacacf1039a13f9bd0bd446876b9c2ba71`.
+  **SUPERSEDING VERDICT (recorded with the roster-integrity lock below) — `INCONCLUSIVE —
+  LATER ROSTER/DATA-INTEGRITY REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR`.** This run's
+  own ledger records clean train seed 4 as an ACCOUNTED `setup` `EpisodeRosterError`. The
+  approved roster-integrity correction (`36365f2`, below) establishes what that error
+  actually was: a MEASUREMENT/DATA-INTEGRITY fault, which must ABORT the run — not an
+  episode outcome that may quietly shrink a scientific denominator. So one of this probe's
+  24 scheduled attempts was removed from the population by an instrument defect while the
+  run reported itself reconciled, and a denominator produced that way cannot be read as
+  sound. **CONSEQUENCES, stated exactly.** (i) The reward numbers, per-condition means,
+  paired deltas, death counts, fuel-damage yield and PPO-productivity figures above are NO
+  LONGER SCIENTIFIC EVIDENCE about the fuel-damage cell; they remain identifiable as raw
+  historical outputs of this run and nothing more. (ii) The claim that this run PASSED or
+  permanently released the long-baseline validity gate is WITHDRAWN. (iii) Everything
+  factual is RETAINED and unchanged — the run identity, the one invocation and its exit
+  code, the preset blob and `cli_overrides = []`, the complete provenance, the two elapsed
+  quantities, the mechanical accounting, the 24/24 artifact bundles, the evidence hashes,
+  and the three playback witnesses. (iv) The earlier review was NOT wrong about what it
+  inspected; it was made against documentation that then described `EpisodeRosterError` as
+  an accounted `setup` failure, so the fault presented itself as ordinary episode attrition.
+  The verdict changed because that ROUTING was later found to be the defect. (v) This is
+  **NOT** a fourth defect in Defects A, B or C — their corrections remain merged and
+  witnessed; it is a SEPARATE roster/source-of-truth defect, closed by `36365f2`.
+
+- **FIRST LONG BASELINE — EXECUTED / INDEPENDENTLY REVIEWED / `INCONCLUSIVE —
+  ROSTER/DATA INTEGRITY FAILED`.** The engineering verdict was `REQUEST FIXES`. The run is
+  attributable to exact code SHA `c30b6982ba605d60976cc303256da4b5528b0e63`
+  (`2026-08-16T21:47:25+03:00`, the PR #23 merge), recorded Git branch
+  `task/long-baseline-execution`, `dirty=false`, `dirty_path_count=0`, Windows /
+  `nlp_env` (CPython 3.12.3), vendored BLADE, BONMIN available and probed `ok`. Per §7's
+  hash convention this entry is keyed to the MEASURED CODE SHA. **No tracked file changed
+  for the measurement** — it is a run of merged code, not a candidate.
+  **RUN IDENTITY.** Run directory `training_output_long_baseline_100x8_seed0`. Exactly ONE
+  invocation, native exit code **0**:
+  `PYTHONPATH=src conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config training_output_long_baseline_100x8_seed0/long_baseline_contract.json`.
+  `config_source.resolved_from = config_file`, `cli_overrides = []` — **no typed override
+  and no ad-hoc knob**; `difficulty.factor = fuel_damage_baseline_v1`,
+  `aircraft_penalty_coeff = 2.25`, `reward.formula_changed = false`. **Elapsed time is TWO
+  DISTINCT QUANTITIES and they are never merged:** the harness's own
+  `run_summary.json:run_seconds = 7764.3988857`, and the externally measured invocation
+  wall clock of **7778.704310178757 s** (`timing.txt`:
+  `PROBE_START_UTC = 2026-08-16T19:18:32.509409Z` →
+  `PROBE_END_UTC = 2026-08-16T21:28:11.191698Z`). The harness figure excludes process
+  start-up, `conda run` dispatch, imports and teardown, so it is NOT the wall clock.
+  **THE SCIENTIFIC CONTRACT** (from the preserved `long_baseline_contract.json`, which is a
+  MEASUREMENT contract and deliberately **not** a repository preset): 100 scheduled
+  training iterations × 8 training attempts, train seeds `[0, 800)`; evaluation every 5
+  iterations over 8 FIXED held-out seeds `[1000000, 1000008)`, each seed evaluated as
+  `forced_clean` AND `forced_damaged`; **21 evaluation rounds** including the initial
+  `pre_update`; the final 3-agent / 3-known / 3-hidden cell with its 200 km / 100 km
+  geometry and `include_sams = false`; FD-BASELINE-v1 unchanged (`seeded_mixture`,
+  `P(damaged) = 0.5`, leg progress `0.3`, RTB margin `1.10`); visual artifacts enabled for
+  every scheduled attempt; `checkpoint_every = 10` → **10 checkpoints**.
+  **MECHANICAL ACCOUNTING — historical fact, and NOT validity.** **1,136 scheduled
+  attempts, 860 successful, 276 failed.** Training 800 attempted / 566 successful / 234
+  failed; evaluation 336 attempted / 294 successful / 42 failed;
+  `accounting_reconciled = true`; **100 productive iterations and 100 PPO updates**
+  (`updates_completed = 100`). Every one of those counts reconciles, and **that is exactly
+  the problem**: a run can be perfectly self-consistent about a population an instrument
+  defect silently shrank, so these counts must never be offered as evidence that the
+  measurement was sound.
+  **FAILURE BREAKDOWN** (`failures_by_pipeline_stage` = `{"setup": 276}`;
+  `failures_by_error_type` = `{"RuntimeError": 101, "EpisodeRosterError": 143,
+  "FuelDamageError": 32}`; `failures_by_condition` = `{"clean": 123, "damaged": 153}`):
+  - **143 `EpisodeRosterError`, ALL in training, spread over 83 distinct iterations** — 75
+    clean and 68 damaged. Two shapes: **126 PRE-run** roster failures claiming a t=0 known
+    target was absent from the executed world (125 naming one target, 1 naming two), and
+    **17 POST-run** failures raised after a real episode and a real playback because a
+    CONFIRMED target id fell outside the incorrectly shortened roster.
+  - **101 B2 exact-cardinality `RuntimeError`** — 59 train, 42 eval.
+  - **32 `FuelDamageError`**, every one a DAMAGED TRAINING attempt.
+  **INDEPENDENT ARTIFACT REVIEW — what falsified the run.** Every one of the 126 pre-run
+  roster failures had a FULL SIX-TARGET authoritative `executed_t0_scenario.json`; the 17
+  post-run failures left real playback files their `incomplete` manifests did not list; and
+  **11 `complete` manifests reported observed `3 known / 2 hidden / 5 total` while their own
+  authoritative executed-t0 scenarios held `3 + 3 = 6`** (re-verified here across all 1,136
+  preserved manifests: 860 `complete`, 276 `incomplete`, and exactly 11 of the complete ones
+  carrying that `5`-total observation). **ROOT CAUSE: allocated-only solver output was being
+  read as world inventory** — closed by `36365f2` below.
+  **VERDICT: engineering `REQUEST FIXES`; scientific `INCONCLUSIVE — ROSTER/DATA INTEGRITY
+  FAILED`.** **Do NOT report this run's reward improvement, per-condition means, paired
+  deltas, survival, fuel-damage yield or PPO performance as scientific evidence.** Those
+  values are present in the preserved records and may be referred to ONLY as raw historical
+  outputs of an inconclusive run; they are deliberately not tabulated here, precisely so
+  they cannot be lifted out of context as a baseline. **The 101 B2 and 32 fuel-window
+  failures are NOT corrected by `36365f2`** — they remain EXPECTED scientific outcomes under
+  the current contract (§8) and must not be relaxed, retried, retuned or reclassified.
+  **PRESERVATION.** The run directory is preserved and must not be modified, moved, copied,
+  repackaged, deleted or regenerated. **EVIDENCE SHA-256** (verified read-only against the
+  preserved run directory before being recorded here):
+  `long_baseline_contract.json=18d0dede02b8b89cfff8867aefdd68901d995f1664dcbba7342e26a9bbed02ac`,
+  `run_config.json=fae72de5f7c10ec5c9264330510d9ab9fac8af34c5270f1912a0f4d36b9526e2`,
+  `run_summary.json=6ea6842ed981219c7dd45fb9cbc63587a7e4c26d57a7602c7f6676aaa31d2848`,
+  `train_records.jsonl=d9d94f9a18448565a31a45c2ec950d1882e7b130e3cd16a181acc1074b4aa96c`,
+  `eval_records.jsonl=e378da7ff7c3cb21d63ca016fa5d0911fe6209a87d757467b89a64fc043b7edb`,
+  `episode_failures.jsonl=dcf7871e16102a5b9d090a16276603d47611763fdfbb125c584978edbd3cac32`,
+  `timing.txt=828d5c0d390c2e082ca4d22c652c8d36b51b23c5140c29139651897f8b8fa10a`,
+  `long_baseline_console.log=00d35661b6246091d1e199944c90571233606f76c8d571287215d9b218b60233`.
+  The review package additionally carried
+  `review_metadata/package_manifest.json=a5b7acd5d607958e54b81e8ba2f354155f18c19a9803432bbbee1f0e9fbfb2c4`
+  and
+  `review_metadata/playback_audit.jsonl=4c5bbb1c9cd629c20dde761137f8b2fd9e83ff2b5b4a398410b2abf7c7242137`,
+  inside a review ZIP whose own SHA-256 is
+  `b22aecec7b1c99d3689ce6ad34d8c467473bb7a50d0d3bd25a3a5f4c370440af`; those two live in the
+  review package rather than in the preserved run directory, so they are recorded from the
+  review record rather than re-derived here.
+
+- **ROSTER / WORLD-TRUTH INTEGRITY: executed-world inventory separated from oracle
+  allocation — CLOSED / APPROVED / MERGED.** Approved candidate SHA
+  `36365f210e8a659a641a7713f612c7e0ec1d4665` (`2026-08-17T14:01:10+03:00`), reviewed
+  `APPROVE`, integrated by `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`
+  (`2026-08-17T15:48:30+03:00`, PR #24). **Candidate and integration share the IDENTICAL
+  tree `f801538080f2ad282766d32346580189fa949f0c`, so the integrated tree is exactly the
+  reviewed tree.** Grade A under `GPT_GITHUB`. The technical contract is in §5
+  ("Roster / world-truth integrity" and the Stage-0 "WORLD INVENTORY IS NOT ORACLE
+  ALLOCATION" block); the routing is in §6. This entry records the LOCK, not the mechanism.
+  **THE DEFECT — a FOURTH, SEPARATE one, not a regression in Defects A, B or C.** The
+  trainer answered "which targets does this episode contain?" from `ctx.beliefs` (known) and
+  `ctx.oracle_tasks` (executed). Both are ALLOCATIONS: `solve_and_normalize` returns an
+  allocated-only task list by contract, so every target the solver did not select was
+  missing from them while still sitting in the world the executor flew through, sensed,
+  attacked and confirmed. The roster therefore under-counted its own world and then FAILED
+  the episode for the discrepancy it had itself introduced — **as an accounted `setup`
+  failure**, which is why the long baseline above lost 143 of 800 training attempts to a
+  measurement defect across 83 iterations while reporting itself healthy and reconciled.
+  **THE APPROVED SEMANTICS.** `solve_and_normalize()` REMAINS allocated-only, and
+  `belief_tasks` / `oracle_tasks` REMAIN allocations rather than world inventories —
+  nothing about the oracle denominator changed. `known_target_ids` snapshots all raw
+  known-world target ids before solver filtering; `executed_target_ids` snapshots all raw
+  AUTHORITATIVE-world target ids before solver filtering; belief ids must agree across egos
+  at t=0 and be a SUBSET of the known snapshot; hidden ids are executed MINUS known in
+  executed-world order. The approved 3-known / 3-hidden / 6-total cell is checked
+  (`_require_scheduled_cell`) BEFORE fuel-damage planning and before execution.
+  Roster/world-integrity faults ABORT train and eval as
+  INFRASTRUCTURE / DATA-INTEGRITY failures (`MeasurementIntegrityError`, with
+  `EpisodeRosterError` as its subclass): they do NOT enter `EpisodeAttemptError`,
+  `episode_failures.jsonl`, `skip_and_account_v1`, condition failure tallies, or any
+  scientific denominator. After `run_episode`, playback synchronization
+  (`_AttemptArtifacts.sync_recordings`) and confirmed-id validation happen BEFORE the
+  reward; an `incomplete` manifest truthfully lists real playback that was already written;
+  and a manifest cannot become `complete` when expected and observed world counts disagree.
+  **Reward, PPO, oracle allocation, fuel damage, B2, seeds, schedules, the tick loop, the
+  executor, the generator and vendored BLADE were UNCHANGED.**
+  **REVIEWED SCOPE: FIVE files** — `src/match_aou/rl/training/graph_episode_setup.py`,
+  `src/match_aou/rl/training/graph_train.py`, `tests/test_graph_setup_seam.py`,
+  `tests/test_graph_train.py`, `tests/test_graph_fuel_damage.py`.
+  **ACCEPTED IMPLEMENTATION EVIDENCE:** focused base-environment suite **207 passed, 4
+  skipped**; full suite **272 passed, 4 skipped**; standalone `tests/test_graph_train.py`
+  under `nlp_env` **119 passed**; standalone `tests/test_graph_fuel_damage.py` **41
+  passed**; standalone `tests/test_graph_setup_seam.py` **39 passed, 0 skipped**, including
+  the real-BLADE and BONMIN tiers; `git diff --check` clean.
+  **NO training run, probe, rollout, seed sweep or baseline rerun occurred during the
+  correction.** **CONSEQUENCE FOR THE TWO AFFECTED MEASUREMENTS:** the long baseline above
+  is `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`, and the corrected-cell short probe's
+  `VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS` verdict is SUPERSEDED by
+  `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY REVIEW INVALIDATED THE SCIENTIFIC
+  DENOMINATOR`. This lock certifies the CODE correction; it is **not** a measurement of the
+  cell, and no result may be pre-claimed for the rerun §8 authorizes.
 
 ---
 
 ## 8. OPEN (not built)
 
-- **THE VALIDITY GATE IS PASSED — the corrected-cell short probe is EXECUTED,
-  INDEPENDENTLY REVIEWED and VALID; the LONG BASELINE has still NOT been run.** Difficulty
-  selection is CLOSED (below) and FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so
-  the open question was never *what* to build but *how the built cell behaves* — and that
-  question now has ONE BOUNDED ANSWER. The bounded short probe has been run TWICE, and the
-  two runs mean different things:
-  - **First run — `training_output_20260815_173029`**, from clean `main` at
+- **A LONG BASELINE HAS BEEN RUN AND IT IS SCIENTIFICALLY INCONCLUSIVE. NO VALID
+  MEASUREMENT OF THE FUEL-DAMAGE CELL EXISTS. A FRESH long baseline is the next authorized
+  research task.** Difficulty selection is CLOSED (below) and FD-BASELINE-v1 is merged and
+  locked (`a8669f4`, §7), so the open question was never *what* to build but *how the built
+  cell behaves* — and that question currently has **NO sound answer at any scale**. Three
+  runs of the merged cell exist, and none of them is a valid measurement:
+  - **First short probe — `training_output_20260815_173029`**, from clean `main` at
     `238062d7d284334432d9c39d7543fb0bbf39ea7c`. It established HARNESS AND ACCOUNTING
     OPERABILITY ONLY and exposed three research-validity defects (next bullet), so **its
     reward numbers are NOT scientific evidence about the fuel-damage cell** and remain
     historical evidence about the PRE-CORRECTION behaviour.
-  - **Corrected rerun — `training_output_20260816_162130`**, from a clean checkout at exact
-    code SHA `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, one invocation of the reviewed
-    preset through `--config`, native exit code 0, `cli_overrides = []`. Independently
-    reviewed and recorded in §7 as **VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS**:
-    complete clean provenance, `accounting_reconciled = true`, no infrastructure failure,
-    **4/4 complete matched pairs in BOTH evaluation rounds**, two productive PPO updates
-    (`updates_completed = 2`), 24/24 artifact bundles accounted (22 `complete`, 2
-    `incomplete` matching the two `setup` failures), and all three defect corrections
-    OPERATIONALLY WITNESSED in real playback. **This closes the research-validity gate the
-    first probe opened.**
-  **What the gate's passing does and does not authorize.** The corrected cell now has real
-  PERFORMANCE evidence at SHORT-PROBE scale — §7 records every number with its
-  denominator — but that is a bounded 24-attempt probe, **not** a baseline and **not** an
-  estimate of converged policy performance. **NO LONG BASELINE HAS BEEN RUN**, and none may
-  have its result pre-claimed. The long baseline is UNBLOCKED as a next research task, not
-  as an entitlement to a particular outcome.
-  **The next research task**, once THIS documentation record is integrated into `main` and
-  its branch `task/corrected-short-probe-doc-lock` is retired, is **fresh exact-SHA
-  long-baseline RECON followed by long-baseline EXECUTION**, separately authorized and
-  starting from a freshly resolved live `main`. **Its shape, duration, seed schedule and
-  CLI contract are deliberately NOT fixed here** — they are derived in that recon from the
-  newly merged documents, never invented in a documentation task. No result may be
-  pre-claimed for it. The reporting duties are unchanged and are what the corrected rerun
-  already satisfied: complete provenance; explicit denominators everywhere; the scheduled
+  - **Corrected short-probe rerun — `training_output_20260816_162130`**, from a clean
+    checkout at exact code SHA `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, one invocation of
+    the reviewed preset through `--config`, native exit code 0, `cli_overrides = []`. It was
+    originally reviewed as `VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS`; **that verdict
+    is SUPERSEDED** by `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY REVIEW INVALIDATED THE
+    SCIENTIFIC DENOMINATOR` (§7). Its own ledger accounts clean train seed 4 as a `setup`
+    `EpisodeRosterError`, and the approved roster-integrity correction (`36365f2`)
+    establishes that such a fault is a measurement/data-integrity failure that must ABORT —
+    not an episode outcome that may shrink a denominator. **Its reward and performance
+    numbers are therefore no longer scientific evidence**, and the claim that it PASSED or
+    permanently released the long-baseline validity gate is WITHDRAWN. What it DOES still
+    establish is preserved: its run identity, provenance, mechanical accounting, artifact
+    completeness, and the OPERATIONAL WITNESSING of all three defect corrections in real
+    playback.
+  - **First long baseline — `training_output_long_baseline_100x8_seed0`**, from exact code
+    SHA `c30b6982ba605d60976cc303256da4b5528b0e63`, one invocation with `cli_overrides = []`
+    and native exit code 0. **EXECUTED, independently reviewed, engineering `REQUEST
+    FIXES`, scientific `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`** (§7 owns the full
+    record, contract, denominators, failure breakdown and evidence hashes). 1,136 scheduled
+    attempts, 860 successful, 276 failed, `accounting_reconciled = true` and 100 PPO
+    updates — and **143 training attempts were nevertheless destroyed by the roster defect
+    across 83 iterations while the run reported itself healthy**, with 11 `complete`
+    manifests claiming a five-target world their own authoritative executed-t0 scenarios
+    contradicted. **Do not report its reward, paired deltas, survival, fuel-damage yield or
+    PPO performance as scientific evidence**; they are raw historical outputs only. It is
+    preserved and must not be modified, moved, repackaged, deleted or regenerated.
+  **What this authorizes and what it does not.** The roster/world-truth defect is CLOSED in
+  CODE (`36365f2`, integrated `f37ea1c`, PR #24 — §5, §7), so the long baseline is
+  RE-RUNNABLE; it is **not** rehabilitated, resumable or repairable. **The next research
+  task is ONE FRESH LONG BASELINE FROM SCRATCH**, separately authorized, started in a new
+  orchestrator only after THIS documentation record is integrated into `main` and its branch
+  `task/roster-world-truth-doc-lock` is retired, and beginning with a freshly resolved exact
+  live `main` SHA and a re-read of both documents at that SHA. It uses **the SAME scientific
+  contract as the preserved `long_baseline_contract.json`** — the same train and eval seeds,
+  the 100 × 8 schedule, the evaluation cadence, the matched-pair design, the PPO settings,
+  the cell geometry and the FD-BASELINE-v1 parameters, all unchanged. The **ONLY**
+  operational difference is a NEW output directory, so the preserved invalid run is never
+  overwritten; a directory name is not a scientific parameter. **Do not resume from a
+  checkpoint, do not reuse or "repair" the old run, execute ONCE, judge validity BEFORE
+  interpreting performance, and compare against the old run only as ENGINEERING evidence —
+  never as a valid scientific baseline.** No result may be pre-claimed for it. The reporting
+  duties are unchanged: complete provenance; explicit denominators everywhere; the scheduled
   clean vs damaged populations; matched-pair yield and the paired reward delta with its
   pair denominator; failures by pipeline stage; how often the event actually fired, woke
   the selected ego, produced a real RTB command, or ended in a death; reward headroom; and
   whether the PPO updates were productive. A held-out mean is never read without its
   denominator; `graph_reward` remains FROZEN unless a separately reviewed p<1 design
   requires an explicit reward-contract change.
+  **The 101 B2 exact-cardinality and 32 fuel-window failures the long baseline recorded are
+  NOT corrected by `36365f2`, and they are NOT defects.** They remain EXPECTED SCIENTIFIC
+  OUTCOMES under the current contract — `skip_and_account_v1` attempts each seed once,
+  records it once and reports the smaller successful population next to its denominator (§5,
+  and the exact-cardinality bullet below) — and they must not be relaxed, retried, retuned
+  or reclassified. Only the ROSTER fault changed category, because only it was an instrument
+  defect.
   **The deferred over-safety observation is a HYPOTHESIS, not a defect and not a semantic
   change.** The corrected rerun's playback shows a B-2 at 50.07 km from a second hidden
   target — against the 50 km `DETECTION_KM` threshold — on the sampled frame before it
   enters RTB, and the preserved artifact does not persist that wake's selected meta-action,
   so the attribution is PLAUSIBLE BUT NOT PROVEN (§7). It is recorded as a future research
   hypothesis about policy calibration, relevant to a later variable-FD-severity experiment.
-  **It opens no defect, changes no reward, retunes no policy, and neither invalidates nor
-  blocks the corrected probe or the long baseline.**
+  **It opens no defect, changes no reward, retunes no policy, and it is not what
+  invalidated either measurement** — the roster/data-integrity fault is. It neither blocks
+  nor shapes the fresh long baseline.
   **The harness both probes ran on is MERGED and LOCKED** (`61e539e`, §7): driven by the
   repository preset `configs/graph_train/final_cell_probe.json` via `--config`, writing
   `run_config.json` (with `provenance` and a structured `config_source`), the three jsonl
@@ -1696,13 +1993,18 @@ second factor is bundled in (§8).
   assumption); and the held-out per-condition means are each over their own successful
   subset, so the within-seed claim is the matched-pair delta over COMPLETE pairs alone
   (§5). What counts as a VALID measurement — as opposed to a favourable one — is stated in
-  the handoff: a probe that produces no reward improvement, or no productive update, is a
-  valid NEGATIVE observation, not a technical failure.
-  Both runs used `--visual-artifacts` (§5, `24d1835`; the repository preset enables it). It
-  preserves each successful attempt's known-only scenario, executed t=0 scenario and BLADE
-  playback for inspection, and it is an observation surface only: enabling it neither
-  authorizes a run nor changes anything a run measures, and artifact completeness is
-  reported ALONGSIDE the scientific denominators, never in place of one.
+  the handoff: a run that produces no reward improvement, or no productive update, is a
+  valid NEGATIVE observation, not a technical failure. A run whose DENOMINATOR was corrupted
+  by an instrument defect is the opposite case — not a negative result but no result, which
+  is exactly why `MeasurementIntegrityError` now aborts instead of being accounted (§5).
+  All three runs used `--visual-artifacts` (§5, `24d1835`; the repository preset enables
+  it, and the long baseline's contract set it explicitly). It preserves each attempt's
+  known-only scenario, executed t=0 scenario and BLADE playback for inspection, and it is an
+  observation surface only: enabling it neither authorizes a run nor changes anything a run
+  measures, and artifact completeness is reported ALONGSIDE the scientific denominators,
+  never in place of one. **It is also what made the roster defect provable** — the preserved
+  authoritative executed-t0 scenarios are what showed the full six-target world behind every
+  under-counted roster.
   *Historical, and about the EASY PRE-FD CELL only:* the clean-code probe at
   `a3f0838616990987bcb8a51665fa75d84edf5952` measured pre-update headroom
   (`-0.4999997395829586`, 4/4), train yield 7/8 with one accounted seed-2 `setup` failure,
@@ -1753,14 +2055,37 @@ second factor is bundled in (§8).
     toggle guard, and an ego that has committed to return leaves Phase 1 while peers
     continue. The vendored BLADE engine is unchanged.
   **Gating, as it now stands:** the vendored BLADE engine stays FROZEN unless separately
-  authorized (§2). The ONE authorized corrected-cell short-probe rerun **HAS been
-  executed AND independently reviewed** — `training_output_20260816_162130` at
-  `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, verdict VALID (§7) — so the LONG BASELINE
-  is no longer blocked on it and becomes the next research task once this documentation
-  record is integrated and its branch is retired (the gate bullet above). All three
-  defects are now OPERATIONALLY WITNESSED in that measurement, not only in proof tests.
-  **No long-baseline result may be pre-claimed**, and the corrected rerun's own numbers
-  are short-probe observations, never a baseline expectation.
+  authorized (§2). The ONE authorized corrected-cell short-probe rerun **HAS been executed
+  AND independently reviewed** — `training_output_20260816_162130` at
+  `900ff0b24898eccfa2e35d2db05c4e0229c64ce3` — and all three of these defects are
+  OPERATIONALLY WITNESSED in its real playback, not only in proof tests. **That witnessing
+  survives intact**; what did NOT survive is that run's scientific verdict, which a LATER
+  roster/data-integrity review superseded (§7, and the gate bullet above). The distinction
+  is exact: Defects A, B and C are about what the SIMULATION did, and the roster defect is
+  about which targets the MEASUREMENT counted. **A long baseline HAS since been run and is
+  scientifically INCONCLUSIVE for that separate reason**; the fresh long baseline the gate
+  bullet authorizes is what is outstanding. **No long-baseline result may be pre-claimed**,
+  and neither short probe's numbers are a baseline expectation.
+- **A FOURTH, SEPARATE defect — the ROSTER read an ALLOCATION as a WORLD INVENTORY:
+  CLOSED / APPROVED / MERGED.** Approved `36365f2`, integrated by `f37ea1c` (PR #24, tree
+  `f8015380`) — the lock and its evidence are in §7, the contract in §5 (the Stage-0
+  "WORLD INVENTORY IS NOT ORACLE ALLOCATION" block and the roster-integrity block), the
+  routing in §6. **It is NOT a regression in Defects A, B or C** — their corrections remain
+  merged, witnessed and untouched. *The defect, historically:* `_episode_target_roster`
+  answered "which targets does this episode contain?" from `ctx.beliefs` and
+  `ctx.oracle_tasks`, both ALLOCATED-ONLY by `solve_and_normalize`'s contract, so any target
+  the solver left unselected was missing from the roster while still in the world the
+  executor flew through — and the episode was then FAILED for that self-inflicted
+  discrepancy AS AN ACCOUNTED `setup` FAILURE. *The merged correction:* the world comes from
+  the two RAW pre-solve snapshots `EpisodeContext.known_target_ids` / `executed_target_ids`;
+  the beliefs are a SUBSET constraint, not a denominator; `_require_scheduled_cell` checks
+  the scheduled cell before anything is paid for; and a roster/world-integrity fault is a
+  `MeasurementIntegrityError` that ABORTS the run as INFRASTRUCTURE instead of shrinking a
+  scientific denominator. Reward, PPO, the oracle allocation, fuel damage, B2, the seeds,
+  the schedules, the tick loop, the executor, the generator and FROZEN BLADE are all
+  unchanged. **Consequence, and it is the reason this bullet exists:** both prior
+  measurements of the merged cell are now scientifically INCONCLUSIVE (§7), so the cell has
+  NO valid measurement at any scale.
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
