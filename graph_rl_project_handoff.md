@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — Harness Closure / Final-Cell Probe Handoff
+# Multi-Agent Graph RL — Roster-Integrity Closure / Long-Baseline Rerun Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -8,10 +8,18 @@ research-validity defects it exposed (§3d), 2026-08-16 to record the CLOSURE of
 THREE of those defects — **Defect A, ego-global `SELF_PRESERVATION_ABORT`, merged through
 PR #17**, **Defect B, the attack-confirmation wait derived from the salvo about to fly,
 merged through PR #19**, and **Defect C, physical RTB completion, merged through
-PR #21** — and 2026-08-16 again to record the **CORRECTED-CELL SHORT-PROBE RERUN**
-(§3e). **The three-defect CODE correction is COMPLETE, the rerun is EXECUTED,
-INDEPENDENTLY REVIEWED and VALID, and the long-baseline validity gate is PASSED. No long
-baseline has been run.**
+PR #21** — 2026-08-16 again to record the **CORRECTED-CELL SHORT-PROBE RERUN** (§3e), and
+**2026-08-17 to record the FIRST EXECUTED LONG BASELINE, the FOURTH and SEPARATE
+roster/world-truth defect it exposed, and that defect's merged correction (PR #24)**
+(§3f, §3g).
+
+**THE STATE, STATED PLAINLY.** The three-defect CODE correction is COMPLETE and remains
+merged. A **LONG BASELINE HAS BEEN RUN** — `training_output_long_baseline_100x8_seed0` —
+and it is **SCIENTIFICALLY INCONCLUSIVE: ROSTER/DATA INTEGRITY FAILED**. The roster defect
+behind it is **CLOSED in code** (approved `36365f2`, integrated `f37ea1c`, PR #24), and it
+also **SUPERSEDES the short-probe rerun's `VALID` verdict**. **NO VALID MEASUREMENT OF THE
+FUEL-DAMAGE CELL EXISTS AT ANY SCALE.** The next research task is ONE FRESH LONG BASELINE
+FROM SCRATCH, on the same scientific contract, into a new output directory.
 B1–B4, the first real post-B3 instrumented probe, the B4 observability follow-up (PR #7),
 **FD-BASELINE-v1** (PR #8), **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10), the repository
 code-hygiene cleanup (PR #11), the documentation hygiene (PR #12) and now the
@@ -21,19 +29,22 @@ scenario construction and matched-pair evaluation are exactly as their own locks
 
 Baseline **difficulty selection is finished**, the **inspection surface is in place**, and
 the **operator harness a probe is driven from — preset, run layout and figures — is
-merged**. The bounded short probe has now been run TWICE. The FIRST run
-(`training_output_20260815_173029`, from clean `main` at
-`238062d7d284334432d9c39d7543fb0bbf39ea7c`) passed every mechanical harness and accounting
-check **and** exposed three research-validity defects (§3d). They were corrected in
-sequence — A, then B, then C, as separate reviewed tasks, with the policy recorded in
-`CLAUDE.md` §8: **all three are CLOSED and MERGED** (PR #17, PR #19 and PR #21). The SAME
-bounded probe shape was then rerun ONCE from the corrected `main`
-(`training_output_20260816_162130`, exact code SHA
-`900ff0b24898eccfa2e35d2db05c4e0229c64ce3`) and independently reviewed:
-**VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS** (§3e). **The validity gate is PASSED.**
-The corrected cell therefore has real PERFORMANCE evidence at SHORT-PROBE scale — bounded,
-24 scheduled attempts, never a baseline. **No long baseline has been run**, and no
-long-baseline result may be pre-claimed.
+merged**. THREE runs of the merged cell now exist and **not one of them is a valid
+measurement.** The FIRST short probe (`training_output_20260815_173029`, from clean `main`
+at `238062d7d284334432d9c39d7543fb0bbf39ea7c`) passed every mechanical harness and
+accounting check **and** exposed three research-validity defects (§3d). They were corrected
+in sequence — A, then B, then C, as separate reviewed tasks: **all three are CLOSED and
+MERGED** (PR #17, PR #19 and PR #21). The SAME bounded probe shape was rerun ONCE from the
+corrected `main` (`training_output_20260816_162130`, exact code SHA
+`900ff0b24898eccfa2e35d2db05c4e0229c64ce3`) and reviewed `VALID` (§3e) — **and that verdict
+has since been SUPERSEDED** (§3f). The LONG BASELINE was then executed
+(`training_output_long_baseline_100x8_seed0`, exact code SHA
+`c30b6982ba605d60976cc303256da4b5528b0e63`) and independently reviewed as **engineering
+`REQUEST FIXES`, scientific `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`** (§3f): a roster
+that read ALLOCATED-ONLY solver output as world inventory destroyed 143 of its 800 training
+attempts while the run reported itself reconciled. That FOURTH, SEPARATE defect is now
+**CLOSED / APPROVED / MERGED** (§3g, PR #24). **No long-baseline result may be
+pre-claimed**, and the rerun the gate authorizes is judged on validity before performance.
 
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
@@ -56,21 +67,66 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **CURRENT `main`:** `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, committed
-  `2026-08-16T15:26:55+03:00` (the PR #22 merge, which integrated the Defect-C
-  documentation lock). This is also the exact code SHA the corrected short-probe rerun was
-  measured at. Any later work still performs its own fresh exact-SHA initialization
-  against the repository rather than trusting this line.
-- **CORRECTED-CELL SHORT-PROBE RERUN — EXECUTED / INDEPENDENTLY REVIEWED / VALID.**
+- **CODE-INTEGRATION BASE of this documentation record:**
+  `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`, committed `2026-08-17T15:48:30+03:00` (the
+  PR #24 merge, which integrated the roster/world-truth CODE correction). **That SHA is the
+  base this documentation candidate was DERIVED ON — it is deliberately NOT a claim about
+  live `main`.** While this record was prepared, GitHub showed `main` at exactly that SHA;
+  **integrating this documentation record necessarily ADVANCES `main` past it**, so the
+  statement would be false the moment the record lands. Neither this documentation commit
+  nor its future merge can name its own SHA, and inventing either would be a false
+  provenance claim. **Every receiving orchestrator therefore resolves the live full `main`
+  SHA from GitHub and re-reads both documents at that SHA — GitHub is authoritative for
+  live branch and PR state, never this document.**
+- **ROSTER / WORLD-TRUTH INTEGRITY — CLOSED / APPROVED / MERGED.** Approved candidate
+  `36365f210e8a659a641a7713f612c7e0ec1d4665` (`2026-08-17T14:01:10+03:00`), reviewed
+  `APPROVE`, integrated by `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`
+  (`2026-08-17T15:48:30+03:00`, PR #24). Candidate and integration share the IDENTICAL tree
+  `f801538080f2ad282766d32346580189fa949f0c`, so the integrated tree is exactly the reviewed
+  tree. Grade A under `GPT_GITHUB`, FIVE files
+  (`src/match_aou/rl/training/graph_episode_setup.py`,
+  `src/match_aou/rl/training/graph_train.py`, `tests/test_graph_setup_seam.py`,
+  `tests/test_graph_train.py`, `tests/test_graph_fuel_damage.py`). **The approved
+  semantics:** `solve_and_normalize()` stays ALLOCATED-ONLY and `belief_tasks` /
+  `oracle_tasks` stay ALLOCATIONS — **an allocation is not a world inventory**. The world
+  now comes from two RAW pre-solve snapshots, `EpisodeContext.known_target_ids` and
+  `executed_target_ids`; beliefs are a SUBSET constraint on the known world rather than its
+  denominator; hidden ids are executed minus known in executed-world order;
+  `_require_scheduled_cell` checks the approved 3-known / 3-hidden / 6-total cell before
+  fuel planning and before execution; and a roster/world-integrity fault is a
+  `MeasurementIntegrityError` that **ABORTS** train and eval as infrastructure /
+  data-integrity — never `EpisodeAttemptError`, `episode_failures.jsonl`,
+  `skip_and_account_v1`, a condition tally or any scientific denominator. After
+  `run_episode`, playback synchronization and confirmed-id validation precede the reward; an
+  `incomplete` manifest truthfully lists real playback already written; and a manifest
+  cannot become `complete` when expected and observed world counts disagree. Reward, PPO,
+  the oracle allocation, fuel damage, B2, the seeds, the schedules, the tick loop, the
+  executor, the generator and vendored BLADE are UNCHANGED. `CLAUDE.md` §5 owns the
+  contract, §6 the routing, §7 the lock. **No training run, probe, rollout, seed sweep or
+  baseline rerun occurred during the correction.** §3g summarizes it.
+- **FIRST LONG BASELINE — EXECUTED / INDEPENDENTLY REVIEWED / SCIENTIFICALLY
+  INCONCLUSIVE.** Run `training_output_long_baseline_100x8_seed0` at exact code SHA
+  `c30b6982ba605d60976cc303256da4b5528b0e63`, one invocation, `cli_overrides = []`, native
+  exit code 0. Engineering verdict **`REQUEST FIXES`**; scientific verdict **`INCONCLUSIVE —
+  ROSTER/DATA INTEGRITY FAILED`**. §3f records its exact contract, timing, accounting,
+  failure breakdown and evidence hashes; `CLAUDE.md` §7 owns the authoritative record and §8
+  the gate. **It changed no tracked file** — a run of merged code, not a candidate. Its
+  reward, paired-delta, survival, fuel-damage-yield and PPO-performance outputs are **raw
+  historical outputs only and are not scientific evidence.** It is PRESERVED and must not be
+  modified, moved, repackaged, deleted or regenerated.
+- **CORRECTED-CELL SHORT-PROBE RERUN — EXECUTED / REVIEWED / VERDICT SUPERSEDED.**
   Run `training_output_20260816_162130`, from a clean checkout at exact code SHA
   `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, ONE invocation of the reviewed preset with
-  no typed override. Verdict **VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS**, so the
-  long-baseline validity gate is **PASSED**. §3e records its provenance, accounting,
-  matched-pair denominators, failures, rewards, PPO evidence, event/RTB/death outcomes,
-  artifact completeness and playback witnesses; `CLAUDE.md` §7 owns the authoritative
-  measurement record and the evidence hashes, and §8 owns the gate. **It changed no
-  tracked file** — it is a run of merged code, not a candidate. **No long baseline has
-  been run.**
+  no typed override. Originally reviewed **`VALID MEASUREMENT / CORRECTED SHORT-PROBE
+  PASS`**; **that verdict is SUPERSEDED** by **`INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY
+  REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR`** (§3f). Its own ledger accounts clean
+  train seed 4 as a `setup` `EpisodeRosterError`, and PR #24 establishes that such a fault
+  must ABORT rather than shrink a denominator — so **its reward and performance numbers are
+  no longer scientific evidence, and it did not pass or release the long-baseline validity
+  gate.** RETAINED unchanged: its run identity, invocation, provenance, mechanical
+  accounting, artifact completeness, playback witnesses, and the OPERATIONAL WITNESSING of
+  all three defect corrections. §3e records it and marks the supersession; `CLAUDE.md` §7
+  owns the authoritative record and the evidence hashes. **It changed no tracked file.**
 - **DEFECT C (RTB ISSUANCE is not physical RTB COMPLETION) — CLOSED / APPROVED /
   MERGED.** Approved candidate `ea62e4e33eb8d17b773d9742aa8dfd577fe3d98b`, integrated by
   merge commit `0de9f21eb9e8904f06f836f4ecd010bc46c788b6` (PR #21). The candidate was
@@ -195,8 +251,13 @@ cross-references it rather than duplicating it.
   drives the pipeline through stubbed engine seams. The locks certify implementation; they
   say nothing about how the cell behaves. **The harness lock in particular measured
   nothing**: it certifies that a probe can be configured, run and read, not that the cell
-  learns anything. That measurement gap is now PARTLY closed — and only partly — by the
-  executed short probe recorded in the next bullet and detailed in §3d.
+  learns anything. **THAT SCIENTIFIC MEASUREMENT GAP IS STILL FULLY OPEN.** The executed
+  runs that followed — the first short probe (§3d), the corrected rerun (§3e) and the long
+  baseline (§3f) — expanded OPERATIONAL, DIAGNOSTIC and PLAYBACK evidence substantially:
+  they proved the harness runs and accounts for itself, exposed four real defects, and
+  witnessed three of those defects' corrections in real playback. **None of them closed any
+  part of the scientific PERFORMANCE-measurement gap**, because none of them is a valid
+  measurement of the cell (§3e, §3f, `CLAUDE.md` §8).
 - **FIRST BOUNDED SHORT PROBE OF THE FINAL FUEL-DAMAGE CELL — EXECUTED / REVIEWED /
   SCIENTIFICALLY INCONCLUSIVE.** Run `training_output_20260815_173029`, executed from a
   clean checkout at exact code SHA `238062d7d284334432d9c39d7543fb0bbf39ea7c`. It confirms
@@ -212,9 +273,12 @@ cross-references it rather than duplicating it.
   CORRECTED and MERGED** (see the Defect-A, Defect-B and Defect-C bullets at the top of
   this section and `CLAUDE.md` §7). That does NOT rehabilitate this run: it was executed at
   `238062d…`, before any of the three corrections existed, so its numbers remain historical
-  evidence about the OLD behaviour and are not evidence about current `main`. The
-  corrected-cell measurement is the SEPARATE rerun in §3e, and it is that rerun — never
-  this one — that passed the validity gate.
+  evidence about the OLD behaviour and are not evidence about the corrected code. The
+  SEPARATE corrected-cell rerun is recorded in §3e; it was **ORIGINALLY judged VALID**, and
+  **that former verdict is SUPERSEDED** by `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY
+  REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR` (§3e, §3f). **NO run of the fuel-damage
+  cell has passed the validity gate** — neither this probe, nor that rerun, nor the long
+  baseline.
 - **Repository documentation hygiene — CLOSED / APPROVED / MERGED.** Approved candidate
   `52064c2d306df7c8447d159df20e6e189a59bf85`, integrated by
   `5f78904e3af1e2e47386c9b0e01ddbaa273724f5` (PR #12); the approved candidate tree was
@@ -232,11 +296,35 @@ cross-references it rather than duplicating it.
   implementation branch `task/final-cell-visual-artifacts` was likewise verified and
   deleted. `flat-final` (`4d44c3454a5561a6cb9d7aed593d59a40068d6d7`) and the `pre-cleanup`
   tag (peeling to `561b7cb7f2d873e584a8c0dabe71df8050f1b4ed`) are untouched.
-  **Ownership is RELEASED once this closure record is integrated into `main`.** No further
-  repository-hygiene task follows it. **Live branch and PR state — including whatever
-  delivered this record — must be resolved from GitHub, never from this document**, and the
-  next orchestrator performs fresh exact-SHA initialization: **resolve the current full
-  `main` SHA from the repository** rather than reusing any SHA named here.
+  No further repository-hygiene task follows it. **Live branch and PR state — including
+  whatever delivered this record — must be resolved from GitHub, never from this document**,
+  and the next orchestrator performs fresh exact-SHA initialization: **resolve the current
+  full `main` SHA from the repository** rather than reusing any SHA named here.
+- **NO ACTIVE CODE CANDIDATE EXISTS.** The roster/world-truth fix was the last one and it is
+  merged (PR #24). **While THIS record is published and under review, the sole active
+  candidate of any kind is this documentation/lock task itself — branch
+  `task/roster-world-truth-doc-lock` and its draft PR** — and no other candidate should be
+  claimed. **Once this record is integrated into `main` AND the post-merge repository
+  cleanup below is complete, no active candidate remains** and ownership is RELEASED to a
+  fresh long-baseline orchestrator (§4 Task 5, §8). The integrating merge's SHA is
+  deliberately NOT named here: it does not exist while this is written, and inventing it
+  would be a false provenance claim.
+- **POST-MERGE REPOSITORY CLEANUP — a GATE on the fresh long baseline, and a separate action
+  owned by the GPT orchestrator. THIS CC TASK DELETES NO BRANCH; it records the gate only.**
+  Before ownership is released, **all THREE obsolete task branches must be safely retired**:
+  - `task/roster-world-truth-fix` (the merged PR #24 code candidate);
+  - `task/long-baseline-execution` (the branch the inconclusive long baseline recorded);
+  - `task/roster-world-truth-doc-lock` (this documentation branch, once merged).
+
+  **Each deletion happens ONLY after that branch's tip is verified reachable from the
+  integrated `main` history or from its applicable merged PR** — safe deletion, never a
+  force delete of unreachable work; every reviewed candidate tip also stays reachable on
+  GitHub through `refs/pull/<n>/head`. **EXPLICITLY PRESERVED and NOT part of this cleanup:**
+  branch `flat-final` (`4d44c3454a5561a6cb9d7aed593d59a40068d6d7`), the annotated tag
+  `pre-cleanup` (peeling to `561b7cb7f2d873e584a8c0dabe71df8050f1b4ed`), **every preserved
+  scientific artifact** (`training_output_20260815_173029`,
+  `training_output_20260816_162130`, `training_output_long_baseline_100x8_seed0`), and all
+  GitHub PR refs and history.
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -498,14 +586,26 @@ exists on current `main`.
   historical evidence about the OLD behaviour and are not evidence about current `main`.
 - All three fixes were reviewed and merged, their documentation/lock duty closed, and the
   SAME bounded short-probe shape was then rerun ONCE from the corrected `main`. **That
-  rerun is recorded in §3e and it is the corrected-cell measurement**; closing the three
-  defects never constituted one by itself.
-- **The long baseline was BLOCKED at the time this section was written. It is no longer
-  blocked on the rerun** — §3e passed the validity gate. It remains subject to its own
-  separately authorized recon and execution, and no long-baseline result may be
+  rerun is recorded in §3e**; closing the three defects never constituted a measurement by
+  itself.
+- **The gate language written in this section is SUPERSEDED.** At the time it was written
+  the long baseline was blocked on that rerun, and the rerun was then read as releasing it.
+  Neither statement survives: the rerun's verdict is SUPERSEDED (§3e), a long baseline was
+  subsequently RUN and is `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED` (§3f), and what is
+  outstanding is **one FRESH long baseline** (§4 Task 5). No long-baseline result may be
   pre-claimed.
 
-## 3e. The corrected-cell short-probe RERUN — EXECUTED / REVIEWED / VALID
+## 3e. The corrected-cell short-probe RERUN — EXECUTED / REVIEWED / VERDICT SUPERSEDED
+
+> **READ THIS FIRST.** This section's ORIGINAL verdict was `VALID MEASUREMENT / CORRECTED
+> SHORT-PROBE PASS`. **It is SUPERSEDED** by `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY
+> REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR` (§3f, §3g; `CLAUDE.md` §7). Every FACT
+> below — identity, invocation, provenance, accounting, artifact completeness, playback
+> witnesses — is PRESERVED and unchanged, and the operational witnessing of Defects A, B and
+> C stands. What no longer holds is the SCIENTIFIC reading: **the reward numbers, the
+> per-condition means, the paired deltas, the death counts and the PPO-productivity figures
+> below are raw historical outputs and NOT scientific evidence about the fuel-damage cell**,
+> and this run did **not** pass or release the long-baseline validity gate.
 
 Run identifier `training_output_20260816_162130`, executed from a clean checkout at exact
 code SHA `900ff0b24898eccfa2e35d2db05c4e0229c64ce3` (`2026-08-16T15:26:55+03:00`), in the
@@ -528,10 +628,17 @@ externally measured invocation wall clock of **223.117 s** (the preserved probe 
 2026-08-16T13:25:07.3008671Z`). The harness figure excludes process start-up, `conda run`
 dispatch, imports and teardown, so it is NOT the wall clock.
 
-**Verdict: VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS**, judged by the §4 validity gate
-and not by whether reward improved — complete clean provenance; `accounting_reconciled =
-true`; no INFRASTRUCTURE failure; **4/4 complete matched pairs in BOTH rounds**; complete
-PPO-update and artifact evidence.
+**Verdict AS ORIGINALLY REVIEWED: `VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS`** —
+judged by the §4 validity gate and not by whether reward improved: complete clean
+provenance; `accounting_reconciled = true`; no INFRASTRUCTURE failure; **4/4 complete
+matched pairs in BOTH rounds**; complete PPO-update and artifact evidence. **THAT VERDICT IS
+SUPERSEDED AND NO LONGER HOLDS** — see the box at the top of this section and §3f. The
+reason is the `EpisodeRosterError` in the failure list below: at review time the documents
+described it as an accounted `setup` failure, so it presented as ordinary episode attrition;
+PR #24 establishes it was a MEASUREMENT/DATA-INTEGRITY fault that must ABORT the run, which
+means one of the 24 scheduled attempts left this population through an instrument defect and
+the denominator cannot be read as sound. The earlier review was not wrong about what it
+inspected — the ROUTING it judged against was.
 
 **Accounting — `skip_and_account_v1`, every denominator explicit.** **24 scheduled
 attempts, 22 successful, 2 failed, both at `setup`.** Clean **11 attempted / 10 successful
@@ -620,10 +727,139 @@ alone, which is a different ego in a different episode phase — so it is **plau
 proven** that the B-2 crossed the threshold between samples and selected
 `SELF_PRESERVATION_ABORT`. Treat possible over-conservatism as a future research hypothesis
 about policy calibration, relevant to a later variable-FD-severity experiment. **It opens no
-defect, changes no reward, retunes no policy, and neither invalidates nor blocks this probe
-or the long baseline.**
+defect, changes no reward, retunes no policy, and it is NOT what superseded this probe's
+verdict** — the roster/data-integrity fault is (§3f). It neither blocks nor shapes the fresh
+long baseline.
 
-## 4. Next task — the short-probe sequence is COMPLETE; the LONG BASELINE is next
+## 3f. The FIRST executed LONG BASELINE — INCONCLUSIVE: ROSTER/DATA INTEGRITY FAILED
+
+Run identifier `training_output_long_baseline_100x8_seed0`, executed at exact code SHA
+`c30b6982ba605d60976cc303256da4b5528b0e63` (`2026-08-16T21:47:25+03:00`, the PR #23 merge),
+recorded Git branch `task/long-baseline-execution`, `dirty=false`, `dirty_path_count=0`.
+`CLAUDE.md` §7 owns the authoritative measurement record and the evidence hashes; §8 owns
+the gate. Summarized here far enough to hand over. **It changed no tracked file** — a run of
+merged code, not a candidate.
+
+**Exact provenance and configuration.** ONE invocation, native exit code **0**:
+
+```text
+PYTHONPATH=src conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config training_output_long_baseline_100x8_seed0/long_baseline_contract.json
+```
+
+`config_source.resolved_from = config_file`, `cli_overrides = []` — **no typed override, no
+ad-hoc knob**; `difficulty.factor = fuel_damage_baseline_v1`,
+`aircraft_penalty_coeff = 2.25`, `reward.formula_changed = false`; Windows / `nlp_env`
+(CPython 3.12.3), vendored BLADE, BONMIN available and probed `ok`. **Elapsed time is TWO
+DISTINCT QUANTITIES, never merged:** the harness's own
+`run_summary.json:run_seconds = 7764.3988857`, and the externally measured invocation wall
+clock of **7778.704310178757 s** (`timing.txt`:
+`PROBE_START_UTC = 2026-08-16T19:18:32.509409Z` →
+`PROBE_END_UTC = 2026-08-16T21:28:11.191698Z`). The harness figure excludes process
+start-up, `conda run` dispatch, imports and teardown, so it is NOT the wall clock.
+
+**The scientific contract** (from the preserved `long_baseline_contract.json`, a MEASUREMENT
+contract and deliberately not a repository preset — **this is the contract the rerun in §4
+repeats unchanged**): 100 scheduled training iterations × 8 training attempts, train seeds
+`[0, 800)`; evaluation every 5 iterations over 8 FIXED held-out seeds `[1000000, 1000008)`,
+each seed evaluated `forced_clean` AND `forced_damaged`; **21 evaluation rounds** including
+the initial `pre_update`; 3 agents / 3 known / 3 hidden; FD-BASELINE-v1 unchanged; visual
+artifacts enabled for every scheduled attempt; 10 checkpoints.
+
+**Verdict: engineering `REQUEST FIXES`; scientific `INCONCLUSIVE — ROSTER/DATA INTEGRITY
+FAILED`.**
+
+**Mechanical accounting — historical fact, and NOT validity.** **1,136 scheduled attempts,
+860 successful, 276 failed.** Training 800 / 566 / 234; evaluation 336 / 294 / 42;
+`accounting_reconciled = true`; **100 productive iterations and 100 PPO updates.** Every
+count reconciles — **and that is the point**: a run can be perfectly self-consistent about a
+population an instrument defect silently shrank, so these numbers must never be offered as
+evidence that the measurement was sound.
+
+**Failures by error type** (all 276 booked at pipeline stage `setup`; by condition, clean 123
+/ damaged 153):
+
+| Error | Count | Where |
+|---|---:|---|
+| `EpisodeRosterError` | 143 | ALL training, over **83 distinct iterations** — 75 clean, 68 damaged |
+| B2 exact-cardinality `RuntimeError` | 101 | 59 train, 42 eval |
+| `FuelDamageError` | 32 | every one a DAMAGED training attempt |
+
+The 143 roster failures have two shapes: **126 PRE-run**, claiming a t=0 known target was
+absent from the executed world (125 naming one target, 1 naming two), and **17 POST-run**,
+raised after a real episode and a real playback because a CONFIRMED target id fell outside
+the incorrectly shortened roster.
+
+**What the independent artifact review established.** Every one of the 126 pre-run roster
+failures had a FULL SIX-TARGET authoritative `executed_t0_scenario.json`; the 17 post-run
+failures left real playback files their `incomplete` manifests did not list; and **11
+`complete` manifests reported observed `3 known / 2 hidden / 5 total` while their own
+authoritative executed-t0 scenarios held `3 + 3 = 6`**. **Root cause: allocated-only solver
+output was being read as world inventory** — closed by §3g.
+
+**What must NOT be reported from this run.** Its reward improvement, per-condition means,
+paired deltas, survival, fuel-damage yield and PPO performance are **NOT scientific
+evidence.** They remain in the preserved records and may be referred to only as raw
+historical outputs of an inconclusive run; they are deliberately not tabulated here so they
+cannot be lifted out of context as a baseline.
+
+**What is NOT a defect here.** The **101 B2 exact-cardinality and 32 fuel-window failures
+are NOT corrected by PR #24** and are not faults. They are EXPECTED SCIENTIFIC OUTCOMES
+under the current contract (`skip_and_account_v1`: attempt once, record once, report the
+smaller successful population next to its denominator) and **must not be relaxed, retried,
+retuned or reclassified.** Only the ROSTER fault changed category, because only it was an
+instrument defect.
+
+**Preservation.** The run directory is preserved and must not be modified, moved, copied,
+repackaged, deleted or regenerated. `CLAUDE.md` §7 records the eight verified artifact
+SHA-256 hashes plus the two review-package hashes and the review ZIP's own hash.
+
+## 3g. What PR #24 closed — roster / world-truth integrity
+
+Authoritative contract: `CLAUDE.md` §5 (the Stage-0 "WORLD INVENTORY IS NOT ORACLE
+ALLOCATION" block and the "Roster / world-truth integrity" block); routing in §6; lock and
+verification in §7. Summarized here only far enough to hand over.
+
+**The defect — a FOURTH, SEPARATE one.** It is **not** a regression in Defects A, B or C;
+their corrections remain merged and operationally witnessed. `_episode_target_roster`
+answered "which targets does this episode contain?" from `ctx.beliefs` (known) and
+`ctx.oracle_tasks` (executed). Both are **ALLOCATIONS**: `solve_and_normalize` returns an
+allocated-only task list by contract, so every target the solver did not select was absent
+from them while still sitting in the world the executor flew through, sensed, attacked and
+confirmed. The roster under-counted its own world, then FAILED the episode for the
+discrepancy it had itself introduced — **as an accounted `setup` failure**, which is how the
+long baseline lost 143 training attempts to a measurement defect while reporting itself
+healthy and reconciled.
+
+**The merged correction.** `solve_and_normalize()` stays allocated-only and the oracle
+denominator is untouched — what changed is where "the world" comes from:
+`EpisodeContext.known_target_ids` and `executed_target_ids`, two RAW snapshots taken BEFORE
+their solves, verified non-empty with known ⊆ executed, and required (not defaulted) at
+`_finish_context`. Beliefs became a SUBSET constraint on the known world instead of its
+denominator; hidden ids are executed minus known in executed-world order;
+`_require_scheduled_cell` checks the approved 3 / 3 / 6 cell before fuel planning and before
+execution; and roster/world-integrity faults are `MeasurementIntegrityError` (with
+`EpisodeRosterError` as its subclass) which **ABORT** the run as infrastructure /
+data integrity — never entering `EpisodeAttemptError`, `episode_failures.jsonl`,
+`skip_and_account_v1`, a condition tally or a scientific denominator. **That deliberately
+reverses PR #7's routing**, because a data-integrity fault is a property of the INSTRUMENT,
+not of the episode. After `run_episode` the order is contractual: synchronize the playback
+(`_AttemptArtifacts.sync_recordings`, discovery only — nothing created or fabricated),
+validate the confirmed ids against the executed-world snapshot, and only then compute a
+reward; `finalize` refuses to mark a bundle `complete` when expected and observed world
+counts disagree, writing the observed counts and leaving the status `incomplete`.
+
+**What did NOT change.** Reward, PPO, the oracle allocation, fuel-damage semantics, B2
+placement, the seed formulas, the evaluation schedule, the tick loop, the executor, the
+generator and vendored BLADE.
+
+**Verification at the approved head** (`CLAUDE.md` §7 has the full statement): focused
+base-environment suite 207 passed / 4 skipped; full suite 272 passed / 4 skipped; standalone
+`nlp_env` `tests/test_graph_train.py` 119 passed, `tests/test_graph_fuel_damage.py` 41
+passed, `tests/test_graph_setup_seam.py` 39 passed / 0 skipped including the real-BLADE and
+BONMIN tiers; `git diff --check` clean. **No training run, probe, rollout, seed sweep or
+baseline rerun occurred during the correction.**
+
+## 4. Next task — ONE FRESH LONG BASELINE, on the same contract, into a new directory
 
 Start with fresh exact-SHA initialization against the current `main`. **This documentation
 task neither authorizes nor runs anything; it records state only, and it does NOT authorize
@@ -649,36 +885,59 @@ comes from executor semantic state while the physical half comes from `_physical
 while peers continue, and the reward formula and FROZEN BLADE are unchanged. Nothing about
 it is outstanding. **The three-defect CODE correction is COMPLETE.**
 
-**Task 3 — RERUN the bounded short probe on the corrected cell: DONE / REVIEWED / VALID.**
-Executed ONCE as `training_output_20260816_162130` from a clean checkout at exact code SHA
-`900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, through the merged repository preset with no
-typed override, and independently reviewed as **VALID MEASUREMENT / CORRECTED SHORT-PROBE
-PASS**. §3e records it in full and `CLAUDE.md` §7 owns the authoritative measurement record
-and evidence hashes. **All three defect corrections are now operationally witnessed in real
-playback**, not only in proof tests. The validity gate below is what it was judged against,
-and it PASSED. Nothing about this task is outstanding.
+**Task 3 — RERUN the bounded short probe on the corrected cell: DONE / REVIEWED / VERDICT
+SUPERSEDED.** Executed ONCE as `training_output_20260816_162130` from a clean checkout at
+exact code SHA `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, through the merged repository
+preset with no typed override. Originally reviewed `VALID MEASUREMENT / CORRECTED
+SHORT-PROBE PASS`; **that verdict is SUPERSEDED** by `INCONCLUSIVE — LATER
+ROSTER/DATA-INTEGRITY REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR` (§3e, §3f). **All three
+defect corrections ARE operationally witnessed in its real playback**, not only in proof
+tests, and that witnessing survives. Nothing about this task is outstanding as WORK; what
+changed is that it did not, after all, release the validity gate.
 
-**Task 4 — the LONG BASELINE. NEXT, and separately authorized.** It becomes the next
-research task **once this documentation record is merged into `main` and its branch
-`task/corrected-short-probe-doc-lock` is retired**. It begins with **fresh live-`main`
-resolution** and derives its **exact execution contract from the newly merged documents** —
-`CLAUDE.md` §5 and §8 plus this handoff at that resolved SHA. **Its shape, duration, seed
-schedule, iteration count, evaluation cadence and CLI invocation are deliberately NOT
-stated here**: fixing them in a documentation task would invent a research contract that no
-recon has produced. That derivation, and the authorization to run anything, belong to the
-long-baseline session itself. **No long-baseline result may be pre-claimed** — not reward
-improvement, not productive-update yield, not survival, not anything else.
+**Task 4 — Defect 4, roster / world-truth integrity: DONE.** Approved `36365f2`, integrated
+`f37ea1c`, PR #24, identical tree `f8015380` (§1, §3g, `CLAUDE.md` §5, §6, §7). Allocation is
+no longer read as world inventory, and a roster/data-integrity fault ABORTS instead of
+shrinking a scientific denominator. Nothing about it is outstanding. **No code candidate
+remains active.**
 
-**What the corrected rerun already fixed about the probe's shape** is that the shape is no
-longer a question for the SHORT probe: it is the merged repository preset
-`configs/graph_train/final_cell_probe.json` (PR #14, §3c), run through `--config` —
-2 scheduled training iterations, 4 scheduled attempts each, base seed 0, four fixed
-held-out seeds from 1_000_000 with matched forced-clean / forced-damaged members in a
-`pre_update` and a `post_update` round, the final 3-agent / 3-known / 3-hidden cell,
-FD-BASELINE-v1, and visual artifacts enabled. **That is the SHORT-probe shape and it must
-not be assumed to be the long baseline's.**
+**Task 5 — ONE FRESH LONG BASELINE FROM SCRATCH. NEXT, and separately authorized.** This is
+the user-approved next step, and it is a RERUN, not a repair.
 
-**Execution discipline (unchanged, and what the corrected rerun satisfied).** Run from a
+- **Start in a NEW orchestrator, and only after ALL FIVE of the following hold** (§1 owns
+  the cleanup detail):
+  1. **PR #25 is approved and merged** into `main`;
+  2. the **resulting tree / repository state is verified**;
+  3. **all three obsolete task branches are safely retired** —
+     `task/roster-world-truth-fix`, `task/long-baseline-execution` and
+     `task/roster-world-truth-doc-lock` — each deleted only after its tip is verified
+     reachable from the integrated `main` history or its applicable merged PR, while
+     `flat-final`, the `pre-cleanup` tag, every preserved scientific artifact and all
+     GitHub PR refs and history are PRESERVED;
+  4. **GitHub shows no active task PR and no active candidate** of any kind;
+  5. the **live full `main` SHA is freshly resolved** and **BOTH documents are re-read at
+     that SHA** — never at any SHA named in this document.
+- **Use the SAME SCIENTIFIC CONTRACT as the preserved `long_baseline_contract.json`** (§3f
+  states it, and the preserved file is the authority): the exact train seeds `[0, 800)` and
+  held-out seeds `[1000000, 1000008)`, the 100 × 8 schedule, `eval_every = 5`, the
+  matched forced-clean / forced-damaged pair design, the PPO settings, the 3-agent /
+  3-known / 3-hidden cell geometry and the FD-BASELINE-v1 parameters — **all unchanged.**
+- **Use a NEW output directory**, so the preserved invalid run is never overwritten. **The
+  output-directory identity is the ONLY operational difference, and it is not a scientific
+  parameter change.**
+- **Do NOT resume from a checkpoint. Do NOT reuse or "repair" the old run. Execute ONCE.**
+- **Judge VALIDITY before interpreting PERFORMANCE** (the gate below).
+- Compare against the old run **only as ENGINEERING evidence** — never as a valid
+  scientific baseline.
+- **No result may be pre-claimed** — not reward improvement, not productive-update yield,
+  not survival, not anything else.
+- **The 101 B2 exact-cardinality and 32 fuel-window failures the old run recorded are NOT
+  corrected by PR #24 and are NOT defects** (§3f). They remain expected scientific outcomes
+  under this contract and must not be relaxed, retried, retuned or reclassified.
+- **This documentation task authorizes NO run.** Nothing here permits CC to execute
+  training.
+
+**Execution discipline (unchanged).** Run from a
 clean checkout at an exact resolved `main` SHA, with COMPLETE Git provenance (`train`
 refuses otherwise — `CLAUDE.md` §8), on the merged cell as the configuration configures it:
 no ad-hoc knob changes, no second difficulty factor, no retry of a failed seed, no band
@@ -700,21 +959,26 @@ records exactly which fields a preset supplied and which a flag overrode.
   how many an `incomplete` one, reported ALONGSIDE the scientific denominators and never
   in place of one.
 
-**What makes a run VALID — as opposed to favourable.** This is the gate the corrected
-short-probe rerun was judged by and passed, and it carries forward. A run counts as a valid
-measurement when ALL of:
+**What makes a run VALID — as opposed to favourable.** The gate carries forward, and PR #24
+made its DATA-INTEGRITY clause enforceable in code rather than only in review. A run counts
+as a valid measurement when ALL of:
 
 - Git provenance is COMPLETE and the checkout was clean;
 - `run_summary.json:accounting_reconciled` is true — the ledger and the record counts
   agree;
-- no INFRASTRUCTURE failure occurred (a `_VisualArtifactError` or any crash outside the
-  `generation` / `setup` / `run` / `reward` episode taxonomy aborts the run and is not a
-  scientific result);
+- no INFRASTRUCTURE or DATA-INTEGRITY failure occurred. A `_VisualArtifactError`, a
+  `MeasurementIntegrityError` / `EpisodeRosterError`, or any crash outside the
+  `generation` / `setup` / `run` / `reward` episode taxonomy ABORTS the run and is not a
+  scientific result. **Since PR #24 a roster/world-truth fault can no longer present itself
+  as ordinary episode attrition** — that disguise is exactly what made both prior runs
+  inconclusive;
 - **at least one COMPLETED matched pair exists in BOTH the `pre_update` and the
   `post_update` round** — a pair counts only when both its members completed.
 
 If either round yields no completed matched pair, or accounting / data integrity fails, the
-run is **INCONCLUSIVE**.
+run is **INCONCLUSIVE**. Both prior runs of the merged cell failed this gate on the
+data-integrity clause (§3e, §3f), which is why **no valid measurement of the fuel-damage
+cell exists at any scale.**
 
 **A negative result is still a valid result.** No reward improvement, or zero productive
 PPO updates (`updates_completed = 0`), is a valid NEGATIVE SCIENTIFIC OBSERVATION about the
@@ -725,9 +989,9 @@ Productive-update yield is one of the quantities being measured.
 denominator; an all-failed batch reports `null`, never `0.0`; an empty successful-pair
 population is `null` too; and the held-out per-condition means are each over their own
 successful subset, so the within-seed claim is the matched-pair delta alone (`CLAUDE.md`
-§5). **Do not pre-claim any result**, and do not reuse §2's or §3e's numbers as the long
-baseline's expectation — §2 measured a different, easier cell, and §3e is a bounded
-24-attempt probe.
+§5). **Do not pre-claim any result**, and do not reuse §2's, §3e's or §3f's numbers as this
+rerun's expectation — §2 measured a different, easier cell, and §3e and §3f are both
+scientifically INCONCLUSIVE.
 
 ## 5. Closed decisions
 
@@ -744,8 +1008,16 @@ baseline's expectation — §2 measured a different, easier cell, and §3e is a 
 - B4: complete provenance precondition, `skip_and_account_v1`, fixed held-out band,
   explicit denominators, six run artifacts, true pre-update evaluation and disjoint
   all-failed / zero-wake / productive states.
-- PR #7: per-episode `OK` blocks, direct unique-target-id counts, accounted structural
-  roster failures and disjoint per-round eval artifact namespaces.
+- PR #7: per-episode `OK` blocks, direct unique-target-id counts, no false successful
+  zeros from a degraded roster, and disjoint per-round eval artifact namespaces. **Its
+  routing of a structural roster fault to an accounted `setup` failure is SUPERSEDED** by
+  PR #24 (next-but-one entry).
+- PR #24 (roster / world-truth integrity): an ALLOCATION is never a world inventory; the
+  world comes from the raw pre-solve `known_target_ids` / `executed_target_ids` snapshots;
+  beliefs are a subset constraint, not a denominator; the scheduled cell is verified before
+  anything is paid for; and a roster/world-integrity fault is a `MeasurementIntegrityError`
+  that ABORTS the run instead of entering `skip_and_account_v1` or any scientific
+  denominator.
 - PR #8 (FD-BASELINE-v1): fuel damage is the ONE selected difficulty factor; deterministic
   private RNG domain; matched forced-clean / forced-damaged evaluation pairs on the same
   held-out seed; the strict window validated twice (planned, then live before mutation);
@@ -760,29 +1032,46 @@ baseline's expectation — §2 measured a different, easier cell, and §3e is a 
 
 ## 6. Out of scope for the next task
 
-- **any training run driven from THIS documentation task** — it authorizes none. The long
-  baseline is the next research task, and it starts only after this record is merged, its
-  branch is retired, live `main` is freshly resolved and its own contract is derived there
-  (§4 Task 4);
-- **inventing the long baseline's shape, duration, seed schedule or CLI invocation in a
-  documentation task** — those are recon outputs, not editorial choices;
+- **any training run driven from THIS documentation task** — it authorizes none. The fresh
+  long baseline is the next research task, and it starts only after PR #25 is merged, the
+  resulting state is verified, **all three obsolete task branches are safely retired**,
+  GitHub shows no active task PR or candidate, and live `main` is freshly resolved with both
+  documents re-read at that SHA (§4 Task 5, §1);
+- **changing the fresh long baseline's SCIENTIFIC contract.** It repeats the preserved
+  `long_baseline_contract.json` exactly — same seeds, same 100 × 8 schedule, same evaluation
+  cadence, same matched-pair design, same PPO settings, same cell geometry, same
+  FD-BASELINE-v1 parameters. The ONLY permitted operational difference is a NEW output
+  directory. Re-deriving, "improving" or retuning any of those values is out of scope here
+  and in the rerun;
 - selecting or enabling a SECOND difficulty factor (`probability < 1`, hostile fire/SAMs,
   dense reward) — each is its own research change;
-- **reopening Defects A, B or C, or acting on the §3e over-safety hypothesis** — the three
-  defects are closed, approved, merged and now operationally witnessed, and the hypothesis
-  is a future research question about policy calibration, not a defect, a reward change or
-  a retune;
+- **reopening Defects A, B or C, the roster/world-truth defect, or acting on the §3e
+  over-safety hypothesis** — all four defects are closed, approved and merged, the first
+  three are operationally witnessed, and the hypothesis is a future research question about
+  policy calibration, not a defect, a reward change or a retune;
+- **relaxing, retrying, retuning or reclassifying the B2 exact-cardinality or fuel-window
+  failures** — PR #24 did not correct them because they are not faults; they are expected
+  scientific outcomes under `skip_and_account_v1` (§3f);
 - reworking the merged FD-BASELINE-v1 mechanism, the merged visual-artifact surface or
   the merged probe harness (preset, `--config` precedence, `config_source`, run layout,
   the three figures), or their reviewed research decisions — a run RUNS what is merged.
-  The §3d validity correction was the ONE authorized exception, it was scoped to those
-  three defects alone (abort semantics, the confirmation wait, RTB completion), and it is
-  now CLOSED; it never was a licence to retune the cell, the reward, the seeds or the
-  harness;
+  The §3d validity correction and the §3g roster correction were the ONLY authorized
+  exceptions, each scoped to its own defect — abort semantics, the confirmation wait, RTB
+  completion, and world-inventory-versus-allocation — and all are now CLOSED; none ever was
+  a licence to retune the cell, the reward, the seeds or the harness;
 - extending artifact capture (per-seed filters, new artifact kinds, artifact-derived
   metrics) — a run uses what is merged;
-- **modifying, repackaging, moving or deleting any preserved scientific artifact**, in
-  particular `training_output_20260815_173029` and `training_output_20260816_162130`;
+- **modifying, repackaging, moving, copying, deleting or regenerating any preserved
+  scientific artifact**, in particular `training_output_20260815_173029`,
+  `training_output_20260816_162130` and `training_output_long_baseline_100x8_seed0` — an
+  inconclusive run is still evidence, and its preserved artifacts are what made the roster
+  defect provable;
+- **deleting ANY branch or tag from THIS CC task** — it retires nothing. Retiring the three
+  obsolete task branches (`task/roster-world-truth-fix`, `task/long-baseline-execution`,
+  `task/roster-world-truth-doc-lock`) is a separate post-merge action owned by the GPT
+  orchestrator and is a GATE on the fresh long baseline (§1, §4 Task 5);
+- **deleting or moving `flat-final` or the `pre-cleanup` tag** — they are permanently
+  preserved and are NOT part of that cleanup;
 - checkpoint loading/resume;
 - centralized critic / CTDE;
 - low-known-cell solver timeout unless the chosen cell needs `known ≤ 2`;
@@ -804,53 +1093,87 @@ baseline's expectation — §2 measured a different, easier cell, and §3e is a 
 | Probe harness lands — **DONE for PR #14** | Preset, `--config` precedence, three-kind `config_source` and the `plots/` figures recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the two-round fix chain; the retired four-panel `training_plot.png` removed from the contracts — recorded without pre-claiming any result |
 | FIRST final-cell short probe completes — **DONE for `training_output_20260815_173029`** | Run identity, exact code SHA, accounting and denominators, and the three research-validity defects it exposed recorded in §3d — as findings only, with no scientific claim about the cell and no long-baseline authorization |
 | §3d validity correction lands — **DONE: ALL THREE DEFECTS RECORDED and their locks integrated (PR #18, PR #20, PR #22)** | Record each corrected contract in `CLAUDE.md` §5–§7 with its own lock and fix chain, ONE DEFECT AT A TIME and only once that defect is merged, never in advance — a DOCUMENTATION-RECORDING rule, not a constraint on how the fixes are broken into tasks (`CLAUDE.md` §8 owns the sequential-defect policy, which is historical workflow context). **Defect A — DONE:** the ego-global `SELF_PRESERVATION_ABORT` selection/effect contracts are in `CLAUDE.md` §5 (Stages 4 and 5), the lock, fix chain and evidence in §7, and the defect state in §8. **Defect B — DONE:** the derived attack-confirmation wait contract is in `CLAUDE.md` §5 (Execution, Stage 1), routed in §6, with the lock, append-only fix chain and evidence in §7 and the defect state in §8. **Defect C — DONE:** the physical-completion contract is in `CLAUDE.md` §4 (the terminal loop) and §5 (Execution, Stage 1, and the tick loop), routed in §6, with the lock, append-only fix chain and evidence in §7 and the defect state in §8. The three-defect correction is COMPLETE: every lock is integrated into `main`, and the corrected-cell rerun in the row below has since witnessed all three operationally |
-| Probe RERUN completes on the corrected cell — **DONE for `training_output_20260816_162130`** | Exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence, artifact completeness and playback witnesses recorded in §3e, with the authoritative measurement record and evidence hashes in `CLAUDE.md` §7 and the gate in §8. Verdict VALID — the long-baseline validity gate is PASSED |
-| LONG BASELINE completes — **NEXT MEASUREMENT TRIGGER; NOT RUN** | Record its exact derived contract and resolved configuration, complete provenance, every denominator, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, productive-update yield and artifact completeness — judged by the §4 validity gate, never by whether reward improved. No result may be pre-claimed |
+| Probe RERUN completes on the corrected cell — **DONE for `training_output_20260816_162130`; VERDICT LATER SUPERSEDED** | Exact config, provenance, denominators, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, update evidence, artifact completeness and playback witnesses recorded in §3e, with the authoritative measurement record and evidence hashes in `CLAUDE.md` §7 and the gate in §8. **Its original `VALID` verdict is SUPERSEDED by `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR`; the historical facts are retained and the supersession is stated wherever the verdict appears** |
+| FIRST LONG BASELINE completes — **DONE for `training_output_long_baseline_100x8_seed0`; INCONCLUSIVE** | Exact contract and resolved configuration, complete provenance, the two elapsed quantities, every denominator, the failure breakdown by error type and by condition, the artifact findings and the evidence hashes recorded in §3f, with the authoritative measurement record in `CLAUDE.md` §7 and the gate in §8. **Verdict: engineering `REQUEST FIXES`, scientific `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`; its reward, paired-delta, survival, fuel-damage-yield and PPO-performance outputs are raw historical outputs and NOT scientific evidence** |
+| Roster / world-truth correction lands — **DONE for PR #24** | Allocation-is-not-inventory and the two raw pre-solve snapshots recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the identical-tree evidence; the superseded PR-#7 routing corrected at its own site; the two affected measurements' verdicts revised in §7; and §8 updated so it no longer claims a passed gate or an unrun long baseline. §3g summarizes it here — recorded without pre-claiming any result |
+| FRESH LONG BASELINE completes — **NEXT MEASUREMENT TRIGGER; NOT YET RUN** | Record its resolved configuration (the SAME contract as `long_baseline_contract.json`, new output directory), complete provenance, every denominator, clean/damaged and matched-pair populations, failures by stage, event/wake/RTB/death outcomes, reward headroom, productive-update yield and artifact completeness — judged by the §4 validity gate, never by whether reward improved. No result may be pre-claimed |
 
 ## 8. Next action
 
 Implementation for the final Phase-A baseline cell is COMPLETE and locked, its inspection
-surface is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), the
-**probe harness is CLOSED** (PR #14), the bounded short probe was **EXECUTED a first time**
-(§3d), **ALL THREE of the defects it exposed are CLOSED / APPROVED / MERGED** — **Defect A,
-ego-global `SELF_PRESERVATION_ABORT`** (approved `d56fda6`, integrated `f094e0b`, PR #17,
-identical tree `70e5af2…`), **Defect B, the attack-confirmation wait derived from the salvo
-about to fly** (approved `39a16f2`, integrated `60a82d1`, PR #19, identical tree
-`ee86f07…`) and **Defect C, physical RTB completion** (approved `ea62e4e`, integrated
-`0de9f21`, PR #21, identical tree `6d05cc5…`) — and the **CORRECTED-CELL SHORT-PROBE RERUN
-has been EXECUTED, INDEPENDENTLY REVIEWED and judged VALID** (`training_output_20260816_162130`
-at exact code SHA `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`, §3e, `CLAUDE.md` §7).
-**The three-defect CODE correction is COMPLETE and the long-baseline validity gate is
-PASSED.** Current `main` is `900ff0b24898eccfa2e35d2db05c4e0229c64ce3`
-(`2026-08-16T15:26:55+03:00`).
+surface is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), and the
+**probe harness is CLOSED** (PR #14). **FOUR defects have now been found, corrected,
+approved and merged** — **Defect A, ego-global `SELF_PRESERVATION_ABORT`** (approved
+`d56fda6`, integrated `f094e0b`, PR #17, identical tree `70e5af2…`), **Defect B, the
+attack-confirmation wait derived from the salvo about to fly** (approved `39a16f2`,
+integrated `60a82d1`, PR #19, identical tree `ee86f07…`), **Defect C, physical RTB
+completion** (approved `ea62e4e`, integrated `0de9f21`, PR #21, identical tree `6d05cc5…`)
+and **the FOURTH, SEPARATE roster / world-truth defect — allocation read as world
+inventory** (approved `36365f2`, integrated `f37ea1c`, PR #24, identical tree `f8015380…`,
+§3g). The CODE-INTEGRATION BASE this record was derived on is
+`f37ea1c8559405d5de24a9c2dd9e740227acaeeb` (`2026-08-17T15:48:30+03:00`) — the SHA GitHub
+showed for `main` while this was prepared, **not a durable claim about live `main`, which
+this record's own integration necessarily advances.** Resolve the live full `main` SHA from
+GitHub (§1).
+
+**THE MEASUREMENT STATE, STATED PLAINLY.** A **LONG BASELINE HAS BEEN RUN** —
+`training_output_long_baseline_100x8_seed0` at exact code SHA
+`c30b6982ba605d60976cc303256da4b5528b0e63` — and it is **engineering `REQUEST FIXES`,
+scientific `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`** (§3f). The corrected short-probe
+rerun's `VALID` verdict is **SUPERSEDED** by `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY
+REVIEW INVALIDATED THE SCIENTIFIC DENOMINATOR` (§3e). **NO VALID MEASUREMENT OF THE
+FUEL-DAMAGE CELL EXISTS AT ANY SCALE**, and no run's reward, paired delta, survival,
+fuel-damage yield or PPO performance may be cited as scientific evidence about it.
 
 **No active CODE candidate exists**, and the state below is written to be valid on BOTH
 sides of this record's own integration. **While this record is published and under review**
 the sole active candidate of any kind is the documentation/lock task itself — branch
-`task/corrected-short-probe-doc-lock` and its draft PR — and no other candidate should be
-claimed. **Once this record is integrated into `main` and that branch is retired, no active
-candidate remains** and ownership is RELEASED for the LONG BASELINE. The integrating
-merge's SHA is deliberately NOT named here: it does not exist while this is written, and
-inventing it would be a false provenance claim. **GitHub remains authoritative for live
-branch and PR state — resolve it there, never from this document.**
+`task/roster-world-truth-doc-lock` and its draft PR — and no other candidate should be
+claimed. **Once this record is integrated into `main` AND the post-merge repository cleanup
+is complete, no active candidate remains** and ownership is RELEASED to a fresh
+long-baseline orchestrator. The integrating merge's SHA is deliberately NOT named here: it
+does not exist while this is written, and inventing it would be a false provenance claim.
+**GitHub remains authoritative for live branch and PR state — resolve it there, never from
+this document.**
 
-**The next task is the LONG BASELINE** (§4 Task 4). It starts only after this record is
-merged and its branch retired, it begins with **fresh live-`main` resolution**, and it
-**derives its exact execution contract — shape, duration, seed schedule, evaluation cadence
-and CLI invocation — from the newly merged documents at that resolved SHA**. None of those
-values is stated anywhere in this documentation task, deliberately: they are recon outputs,
-not editorial choices. It is judged by the §4 validity gate rather than by whether reward
-improved, and **no result may be pre-claimed** — not reward improvement, productive-update
-yield, survival or anything else.
+**THE CLEANUP GATE.** Branch cleanup is a separate post-merge action owned by the GPT
+orchestrator, and **THIS CC TASK RETIRES NOTHING.** Before ownership is released, **all
+three obsolete task branches must be safely retired** — `task/roster-world-truth-fix`,
+`task/long-baseline-execution` and `task/roster-world-truth-doc-lock` — **each deleted only
+after its tip is verified reachable from the integrated `main` history or its applicable
+merged PR.** **PRESERVED and outside that cleanup:** branch `flat-final`, the annotated tag
+`pre-cleanup`, every preserved scientific artifact, and all GitHub PR refs and history. §1
+states the gate in full and §4 Task 5 states the five conditions the next orchestrator
+starts on.
 
-**What evidence exists, stated precisely.** The corrected cell now has BOTH implementation
-evidence (real-BLADE and BONMIN-backed proof tests behind three locks) AND real
-**SHORT-PROBE performance evidence** with every denominator explicit (§3e). That evidence
-is bounded — 24 scheduled attempts, 22 successful, two evaluation rounds — and it is **not
-a baseline and not an estimate of converged policy performance**. **NO LONG BASELINE HAS
-BEEN RUN.** The §3e over-safety observation is a deferred **research hypothesis** about
-policy calibration, not a defect and not a semantic change; it opens nothing and blocks
-nothing.
+**The next task is ONE FRESH LONG BASELINE FROM SCRATCH** (§4 Task 5). It starts in a NEW
+orchestrator, only after PR #25 is approved and merged, the resulting state is verified, all
+three obsolete task branches are safely retired, and GitHub shows no active task PR or
+candidate; it begins with **fresh live-`main` resolution and a re-read of both documents at
+that SHA**; and it
+runs **the SAME scientific contract as the preserved `long_baseline_contract.json`** — the
+same train and held-out seeds, the 100 × 8 schedule, `eval_every = 5`, the matched
+forced-clean / forced-damaged pair design, the PPO settings, the 3-agent / 3-known / 3-hidden
+cell and the FD-BASELINE-v1 parameters, all unchanged. **The ONLY operational difference is a
+NEW output directory**, so the preserved invalid run is never overwritten; that is not a
+scientific parameter change. **Do not resume from a checkpoint, do not reuse or "repair" the
+old run, execute ONCE, judge validity BEFORE interpreting performance, and treat the old run
+as engineering evidence only.** It is judged by the §4 validity gate rather than by whether
+reward improved, and **no result may be pre-claimed** — not reward improvement,
+productive-update yield, survival or anything else. **This document authorizes no run.**
+
+**What evidence exists, stated precisely.** The corrected cell has **IMPLEMENTATION
+evidence** — real-BLADE and BONMIN-backed proof tests behind four locks — and **NO VALID
+PERFORMANCE EVIDENCE AT ANY SCALE.** Three runs of it exist: the first short probe (§3d,
+pre-correction behaviour only), the corrected short-probe rerun (§3e, verdict SUPERSEDED)
+and the first long baseline (§3f, `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`). All three
+are PRESERVED, and their reward, paired-delta, survival, fuel-damage-yield and
+PPO-performance outputs are **raw historical outputs, never scientific evidence about the
+cell.** Their mechanical accounting reconciled in every case, which is precisely the lesson:
+a self-consistent ledger over a population an instrument defect shrank is not a measurement.
+The §3e over-safety observation is a deferred **research hypothesis** about policy
+calibration, not a defect and not a semantic change; it opens nothing and blocks nothing, and
+it is not what superseded any verdict.
 
 Resolve live branch and PR state from GitHub; this document does not track it.
 
