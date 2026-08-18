@@ -1902,18 +1902,138 @@ second factor is bundled in (§8).
   `VALID MEASUREMENT / CORRECTED SHORT-PROBE PASS` verdict is SUPERSEDED by
   `INCONCLUSIVE — LATER ROSTER/DATA-INTEGRITY REVIEW INVALIDATED THE SCIENTIFIC
   DENOMINATOR`. This lock certifies the CODE correction; it is **not** a measurement of the
-  cell, and no result may be pre-claimed for the rerun §8 authorizes.
+  cell, and no result may be pre-claimed for the rerun §8 then authorized. **That rerun has
+  since been EXECUTED, independently reviewed and APPROVED — see the VALID long-baseline
+  entry below, which is the authoritative measurement of this cell.**
+
+- **PHASE-A LONG BASELINE (RERUN) — EXECUTED / INDEPENDENTLY REVIEWED / `APPROVE — VALID
+  MEASUREMENT`. THE FIRST SCIENTIFICALLY VALID MEASUREMENT OF THE FUEL-DAMAGE CELL.** The
+  measurement is attributable to exact clean code SHA
+  `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc` (committed `2026-08-17 19:25:42 Asia/Jerusalem`),
+  the `main` head produced by the roster-integrity documentation merge (PR #25). Per §7's
+  hash convention this entry is keyed to the MEASURED CODE SHA; the documentation commit that
+  creates it, and the merge that integrates it, cannot name their own SHAs and are
+  deliberately not invented here. **No tracked file changed for the measurement** — it is a
+  run of already-reviewed merged code, not a candidate.
+  **RUN IDENTITY.** Run directory
+  `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`. Exactly ONE invocation,
+  native exit code **0**, `PYTHONPATH=src`, from the repository root:
+  `conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf/long_baseline_contract.json`.
+  `config_source.resolved_from = config_file` and **`cli_overrides = []`** — the reviewed
+  measurement contract with NO typed override and NO ad-hoc knob. Provenance complete:
+  `git.available=true`, exact SHA, `branch` resolved, `dirty=false`, `dirty_path_count=0`,
+  Windows / `nlp_env` (CPython 3.12.3), torch 2.7.1+cpu, gymnasium 1.0.0, vendored BLADE,
+  BONMIN available; `difficulty.factor = fuel_damage_baseline_v1` with
+  `aircraft_penalty_coeff = 2.25` and `reward.formula_changed = false`. **Elapsed time is TWO
+  DISTINCT QUANTITIES and they are never merged:** the harness's own
+  `run_summary.json:run_seconds = 8493.042731400012`, and the externally measured invocation
+  wall clock of **8509.632915974 s** (`timing.txt`:
+  `PROBE_START_UTC = 2026-08-17T22:32:34.530300100Z` →
+  `PROBE_END_UTC = 2026-08-18T00:54:24.166136300Z`). The harness figure excludes process
+  start-up, `conda run` dispatch, imports and teardown, so it is NOT the wall clock.
+  **CONTRACT FIDELITY.** The scientific contract is the preserved authoritative
+  `long_baseline_contract.json` of the invalid first long baseline (SHA-256
+  `18d0dede…02ac`), cloned with **exactly ONE field changed — `output_dir`**. Verified before
+  execution: 27 keys, identical key SETS and identical key ORDER, exactly one differing key,
+  every other value identical. So the train seeds `[0, 800)`, the held-out seeds
+  `[1000000, 1000008)`, the 100 × 8 schedule, `eval_every = 5`, the matched
+  forced-clean / forced-damaged pair design, the PPO settings, the 3-agent / 3-known /
+  3-hidden cell with its 200 km / 100 km geometry, `include_sams = false` and every
+  FD-BASELINE-v1 parameter are UNCHANGED. **A directory name is not a scientific parameter.**
+  **ACCOUNTING — every denominator explicit, `skip_and_account_v1` unchanged.**
+  **1,136 scheduled attempts, 993 successful, 143 failed**, `accounting_reconciled = true`.
+  Training 800 attempted / 699 successful / 101 failed, every success wake-bearing;
+  evaluation 336 attempted / 294 successful / 42 failed across **21 rounds**. **ZERO
+  `EpisodeRosterError`, ZERO `MeasurementIntegrityError`, ZERO `_VisualArtifactError`, and
+  zero crash outside the `generation`/`setup`/`run`/`reward` episode taxonomy** — every one
+  of the 143 failures is an accounted episode failure, each recorded exactly once, with no
+  retry, no substitution and no band shift.
+  **FAILURES — both families are EXPECTED SCIENTIFIC OUTCOMES, not defects.** Exactly **101
+  B2 exact-cardinality `RuntimeError`** and exactly **42 `FuelDamageError`**, all at stage
+  `setup`. The independent review established two exact set relations: the 101 B2 failures
+  are **exactly the same scheduled attempts as in the invalid old long run**, and
+  `EpisodeRosterError` went **143 (old) → 0 (new)**, with the **10 additional
+  `FuelDamageError` attempts relative to the old run being exactly attempts that were
+  `EpisodeRosterError` there**. Held-out seed **`1000005`** fails B2 for BOTH matched members
+  in ALL 21 evaluation rounds, so the matched-pair yield is a STRUCTURAL **7/8 in every
+  round** — a property of that seed's world, not stochastic attrition.
+  **LEARNING — reported only after the validity gate passed.** 100 scheduled iterations gave
+  **100/100 productive PPO updates** (`updates_completed = 100`) over **2,566 transitions**,
+  with 0 zero-wake and 0 all-failed iterations. The matched held-out paired reward delta
+  improved from **−0.375000 over 7/8 pairs** at `pre_update` to **−0.071429 over 7/8 pairs**
+  at the final `post_update`, and evaluation aircraft deaths fell from **7 to 0**. Final
+  clean reward reached **0 on all 7** exact-cardinality-feasible held-out worlds; final
+  damaged reward reached **0 on 5 of those 7**, with the residual damaged cost concentrated
+  in exactly two worlds — seed **1000004** (`−0.333333`, 4/6 targets, 0 deaths) and seed
+  **1000007** (`−0.166667`, 5/6 targets, 0 deaths), i.e. both PRESERVED THE AIRCRAFT at the
+  cost of incomplete target coverage. In all **7** completed damaged held-out worlds the
+  deterministic fuel-damage decision changed from `PLAN_COMPLIANCE` before training to
+  `SELF_PRESERVATION_ABORT` after training, and selected playback witnesses independently
+  confirm this as a REAL PHYSICAL behavioural change including survival and RTB under the
+  final policy. **The two per-condition means are each over their own successful subset**, so
+  the within-seed claim is the matched-pair delta alone (§5).
+  **FUEL-EXPOSURE CAVEAT — state it against the right denominator.** Successful damaged
+  TRAINING episodes number **324** while damage events actually fired **323** times; the one
+  non-firing successful damaged training episode is **seed 424** (iteration 53), whose
+  selected ego returned before reaching the 0.30 leg-progress trigger. **No defect is
+  inferred** — a fuel-damage PLAN existed and every LIVE quantity is recorded as `n/a`, so
+  the artifacts record that the event did not fire and do not record why. **Evaluation
+  exposure is COMPLETE: 147 / 147** successful damaged eval episodes fired and woke their
+  selected ego.
+  **ARTIFACT COMPLETENESS — reported ALONGSIDE the scientific denominators, never in place of
+  one.** 1,136 bundles and 1,136 manifests: **993 `complete`** (exactly the successful
+  attempts) and **143 `incomplete`** (exactly the failed ones). **All 993 complete bundles
+  reconcile expected against observed 3 known / 3 hidden / 6 executed targets** — the
+  five-target contradiction that falsified the old run does not occur once. No incomplete
+  bundle fabricated a playback, and no completed run left an unlisted one.
+  **INDEPENDENT REVIEW.** A read-only evidence package
+  `long_baseline_rerun_737b4bf_gpt_review.zip` (SHA-256
+  `f2582c0ca7f460a5f51bd515aeb0506f0476e8e06e4039312b7371858a08b932`) carried the core
+  evidence of both runs, all 1,136 original manifests, selected raw playback bundles and
+  derived audits. The GPT verdict is **`APPROVE — VALID MEASUREMENT`**.
+  **EVIDENCE SHA-256** (verified read-only against the preserved run directory):
+  `long_baseline_contract.json=f5b5984317ea503862fcf76670bac0f4c3f147f39d8daf969ab90009ff438c1f`,
+  `run_config.json=eeb4f449ead84b5cf7a72c6248a810169e8eb5f36fa7ba94384cab8a9bd1fb4a`,
+  `run_summary.json=ee32e8b7b6735351700d19fc560c840307c19c0af7a446525e09dc586154b71d`,
+  `train_records.jsonl=29c2a40bce2267af5aff60d281258e27eadd432db2291f3a2d0f29854a4cc1bd`,
+  `eval_records.jsonl=116022680a7d8df97466c7c43faa7b6ff5b3b783403709f5d285bca66ca1995f`,
+  `episode_failures.jsonl=313990a1428d8bde71c25db6bbc55b33a731ef942d0dff994e1e06b16a4b6ea1`,
+  `timing.txt=27a11d9867f88dc04ec6f5d9d1ff75c1fc51aefbaa5bdc9ddf61fbd3b92b4a9c`,
+  `long_baseline_rerun_console.log=be3c97d3106b8d18523d433e60e98dd06a1d98f00051d9752b9b01d25deff9a6`.
+  **PRESERVATION.** This run directory is preserved and must not be modified, moved, copied,
+  repackaged, deleted or regenerated — and neither may the invalid
+  `training_output_long_baseline_100x8_seed0`, which remains preserved and explicitly
+  scientifically INCONCLUSIVE.
+  **PHASE-A SCIENTIFIC CONCLUSION — VALID BASELINE.** The first scientifically valid
+  long-baseline measurement of FD-BASELINE-v1 was obtained from the clean actor-only,
+  no-communication graph-RL stack at measured code SHA
+  `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`. Across the seven exact-cardinality-feasible
+  held-out matched worlds, the paired fuel-damage reward penalty improved from `−0.375000`
+  before training to `−0.071429` after 100 productive PPO updates, while evaluation aircraft
+  deaths fell from 7 to 0. In all seven completed damaged held-out worlds the deterministic
+  policy changed from `PLAN_COMPLIANCE` before training to `SELF_PRESERVATION_ABORT` after
+  training. Final clean performance reached reward 0 on all seven feasible worlds; final
+  damaged performance reached reward 0 on five, while the remaining two preserved the
+  aircraft at the cost of incomplete target coverage. These results establish **end-to-end
+  learnability and meaningful ego-local runtime adaptation in the locked Phase-A reference
+  cell.** **THE EXPLICIT NON-CLAIMS:** they do **NOT** establish global optimality, **NOT**
+  monotonic convergence, **NOT** generalization beyond this fixed cell and this held-out seed
+  set, and **NOT** any benefit from centralized training. Those are subsequent research
+  questions. **PHASE A IS CLOSED BY THIS ENTRY.**
 
 ---
 
 ## 8. OPEN (not built)
 
-- **A LONG BASELINE HAS BEEN RUN AND IT IS SCIENTIFICALLY INCONCLUSIVE. NO VALID
-  MEASUREMENT OF THE FUEL-DAMAGE CELL EXISTS. A FRESH long baseline is the next authorized
-  research task.** Difficulty selection is CLOSED (below) and FD-BASELINE-v1 is merged and
-  locked (`a8669f4`, §7), so the open question was never *what* to build but *how the built
-  cell behaves* — and that question currently has **NO sound answer at any scale**. Three
-  runs of the merged cell exist, and none of them is a valid measurement:
+- **PHASE A IS CLOSED. A SCIENTIFICALLY VALID LONG-BASELINE MEASUREMENT OF THE FUEL-DAMAGE
+  CELL EXISTS (measured code SHA `737b4bf`, §7). The next research task is PHASE-B
+  CENTRALIZED-CRITIC / CTDE DESIGN** (its own bullet below). Difficulty selection is CLOSED
+  (below) and FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so the open question was
+  never *what* to build but *how the built cell behaves* — and for THIS cell that question is
+  now ANSWERED by the approved rerun
+  `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, whose full record,
+  denominators, explicit NON-CLAIMS and evidence hashes are in §7. **FOUR runs of the merged
+  cell exist. The first three are NOT valid measurements and survive as HISTORY ONLY:**
   - **First short probe — `training_output_20260815_173029`**, from clean `main` at
     `238062d7d284334432d9c39d7543fb0bbf39ea7c`. It established HARNESS AND ACCOUNTING
     OPERABILITY ONLY and exposed three research-validity defects (next bullet), so **its
@@ -1945,30 +2065,37 @@ second factor is bundled in (§8).
     contradicted. **Do not report its reward, paired deltas, survival, fuel-damage yield or
     PPO performance as scientific evidence**; they are raw historical outputs only. It is
     preserved and must not be modified, moved, repackaged, deleted or regenerated.
-  **What this authorizes and what it does not.** The roster/world-truth defect is CLOSED in
-  CODE (`36365f2`, integrated `f37ea1c`, PR #24 — §5, §7), so the long baseline is
-  RE-RUNNABLE; it is **not** rehabilitated, resumable or repairable. **The next research
-  task is ONE FRESH LONG BASELINE FROM SCRATCH**, separately authorized, started in a new
-  orchestrator only after THIS documentation record is integrated into `main` and its branch
-  `task/roster-world-truth-doc-lock` is retired, and beginning with a freshly resolved exact
-  live `main` SHA and a re-read of both documents at that SHA. It uses **the SAME scientific
-  contract as the preserved `long_baseline_contract.json`** — the same train and eval seeds,
-  the 100 × 8 schedule, the evaluation cadence, the matched-pair design, the PPO settings,
-  the cell geometry and the FD-BASELINE-v1 parameters, all unchanged. The **ONLY**
-  operational difference is a NEW output directory, so the preserved invalid run is never
-  overwritten; a directory name is not a scientific parameter. **Do not resume from a
-  checkpoint, do not reuse or "repair" the old run, execute ONCE, judge validity BEFORE
-  interpreting performance, and compare against the old run only as ENGINEERING evidence —
-  never as a valid scientific baseline.** No result may be pre-claimed for it. The reporting
-  duties are unchanged: complete provenance; explicit denominators everywhere; the scheduled
-  clean vs damaged populations; matched-pair yield and the paired reward delta with its
-  pair denominator; failures by pipeline stage; how often the event actually fired, woke
-  the selected ego, produced a real RTB command, or ended in a death; reward headroom; and
-  whether the PPO updates were productive. A held-out mean is never read without its
-  denominator; `graph_reward` remains FROZEN unless a separately reviewed p<1 design
-  requires an explicit reward-contract change.
-  **The 101 B2 exact-cardinality and 32 fuel-window failures the long baseline recorded are
-  NOT corrected by `36365f2`, and they are NOT defects.** They remain EXPECTED SCIENTIFIC
+  - **Phase-A long baseline (RERUN) — `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`**,
+    from a clean checkout at exact code SHA `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`, ONE
+    invocation of the preserved measurement contract through `--config`, native exit code 0,
+    `cli_overrides = []`. **EXECUTED, independently reviewed, `APPROVE — VALID
+    MEASUREMENT`.** **THIS IS THE AUTHORITATIVE MEASUREMENT OF THE CELL** and the only one
+    whose reward, paired-delta, survival, event-yield and PPO numbers are scientific
+    evidence. §7 owns the full record; the headline is 1,136 scheduled / 993 successful /
+    143 accounted episode failures with `accounting_reconciled = true` and ZERO
+    infrastructure or data-integrity faults, 100/100 productive PPO updates, a matched
+    paired delta of `−0.375000 → −0.071429` over a structural 7/8 pairs, and evaluation
+    deaths `7 → 0`.
+  **What this establishes and what it does not.** The roster/world-truth defect was closed in
+  CODE (`36365f2`, integrated `f37ea1c`, PR #24 — §5, §7), the authorized rerun was then
+  executed ONCE on the SAME scientific contract into a NEW output directory, and it PASSED
+  the validity gate. **Phase A is therefore CLOSED**, and **the long baseline is NOT to be
+  re-run, resumed, repaired, extended or re-tuned** — a valid measurement exists, and
+  re-running it would not make it more valid. The approved result establishes end-to-end
+  learnability and meaningful ego-local runtime adaptation in the LOCKED Phase-A reference
+  cell. It establishes **NO global optimality, NO monotonic convergence, NO generalization
+  beyond this fixed cell and this held-out seed set, and NO benefit from centralized
+  training** (§7 states these non-claims in full, and they must be carried forward verbatim
+  in meaning). The interpretation rules survive unchanged: a held-out mean is never read
+  without its denominator; an all-failed batch reports `null`, never `0.0`; an empty
+  successful-pair population is `null` too; the held-out per-condition means are each over
+  their own successful subset, so the within-seed claim is the matched-pair delta over
+  COMPLETE pairs alone; and `graph_reward` remains FROZEN unless a separately reviewed p<1
+  design requires an explicit reward-contract change. The invalid old long run may be
+  compared against **only as ENGINEERING evidence** — never as a scientific baseline.
+  **The B2 exact-cardinality and fuel-window failures BOTH long baselines recorded — 101 and
+  32 in the invalid first run, 101 and 42 in the approved rerun — are NOT corrected by
+  `36365f2`, and they are NOT defects.** They remain EXPECTED SCIENTIFIC
   OUTCOMES under the current contract — `skip_and_account_v1` attempts each seed once,
   records it once and reports the smaller successful population next to its denominator (§5,
   and the exact-cardinality bullet below) — and they must not be relaxed, retried, retuned
@@ -1981,13 +2108,16 @@ second factor is bundled in (§8).
   so the attribution is PLAUSIBLE BUT NOT PROVEN (§7). It is recorded as a future research
   hypothesis about policy calibration, relevant to a later variable-FD-severity experiment.
   **It opens no defect, changes no reward, retunes no policy, and it is not what
-  invalidated either measurement** — the roster/data-integrity fault is. It neither blocks
-  nor shapes the fresh long baseline.
-  **The harness both probes ran on is MERGED and LOCKED** (`61e539e`, §7): driven by the
-  repository preset `configs/graph_train/final_cell_probe.json` via `--config`, writing
+  invalidated either measurement** — the roster/data-integrity fault is. It neither blocked
+  nor shaped the Phase-A long baseline, and it remains a deferred hypothesis for a later
+  variable-FD-severity experiment.
+  **The harness every one of these runs used is MERGED and LOCKED** (`61e539e`, §7): driven
+  through `--config` — the SHORT PROBES by the repository preset
+  `configs/graph_train/final_cell_probe.json`, the TWO LONG BASELINES by their own
+  measurement contract, which is deliberately NOT a repository preset — and writing
   `run_config.json` (with `provenance` and a structured `config_source`), the three jsonl
   records, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures under
-  `plots/`. Two reading rules survive unchanged: the preset schedules TWO ITERATIONS, which
+  `plots/`. Two reading rules survive unchanged: the PRESET schedules TWO ITERATIONS, which
   does not guarantee two PRODUCTIVE PPO updates (`updates_completed` may be 0, 1 or 2 —
   the corrected rerun measured 2, but that yield is always a MEASUREMENT, never an
   assumption); and the held-out per-condition means are each over their own successful
@@ -1997,8 +2127,8 @@ second factor is bundled in (§8).
   valid NEGATIVE observation, not a technical failure. A run whose DENOMINATOR was corrupted
   by an instrument defect is the opposite case — not a negative result but no result, which
   is exactly why `MeasurementIntegrityError` now aborts instead of being accounted (§5).
-  All three runs used `--visual-artifacts` (§5, `24d1835`; the repository preset enables
-  it, and the long baseline's contract set it explicitly). It preserves each attempt's
+  All four runs used `--visual-artifacts` (§5, `24d1835`; the repository preset enables
+  it, and both long-baseline contracts set it explicitly). It preserves each attempt's
   known-only scenario, executed t=0 scenario and BLADE playback for inspection, and it is an
   observation surface only: enabling it neither authorizes a run nor changes anything a run
   measures, and artifact completeness is reported ALONGSIDE the scientific denominators,
@@ -2060,12 +2190,14 @@ second factor is bundled in (§8).
   `900ff0b24898eccfa2e35d2db05c4e0229c64ce3` — and all three of these defects are
   OPERATIONALLY WITNESSED in its real playback, not only in proof tests. **That witnessing
   survives intact**; what did NOT survive is that run's scientific verdict, which a LATER
-  roster/data-integrity review superseded (§7, and the gate bullet above). The distinction
+  roster/data-integrity review superseded (§7, and the first §8 bullet above). The distinction
   is exact: Defects A, B and C are about what the SIMULATION did, and the roster defect is
-  about which targets the MEASUREMENT counted. **A long baseline HAS since been run and is
-  scientifically INCONCLUSIVE for that separate reason**; the fresh long baseline the gate
-  bullet authorizes is what is outstanding. **No long-baseline result may be pre-claimed**,
-  and neither short probe's numbers are a baseline expectation.
+  about which targets the MEASUREMENT counted. **A FIRST long baseline was run and was
+  scientifically INCONCLUSIVE for that separate reason; the roster defect was then corrected
+  and the authorized rerun PASSED the validity gate**, so the cell now has a valid
+  measurement (`737b4bf`, §7) and nothing about these three defects is outstanding. Neither
+  short probe's numbers, and none of the invalid first long baseline's numbers, are a
+  baseline expectation — the approved rerun is the only scientific baseline.
 - **A FOURTH, SEPARATE defect — the ROSTER read an ALLOCATION as a WORLD INVENTORY:
   CLOSED / APPROVED / MERGED.** Approved `36365f2`, integrated by `f37ea1c` (PR #24, tree
   `f8015380`) — the lock and its evidence are in §7, the contract in §5 (the Stage-0
@@ -2083,9 +2215,10 @@ second factor is bundled in (§8).
   `MeasurementIntegrityError` that ABORTS the run as INFRASTRUCTURE instead of shrinking a
   scientific denominator. Reward, PPO, the oracle allocation, fuel damage, B2, the seeds,
   the schedules, the tick loop, the executor, the generator and FROZEN BLADE are all
-  unchanged. **Consequence, and it is the reason this bullet exists:** both prior
-  measurements of the merged cell are now scientifically INCONCLUSIVE (§7), so the cell has
-  NO valid measurement at any scale.
+  unchanged. **Consequence, and it is the reason this bullet exists:** the two measurements
+  of the merged cell that PRECEDED this correction are permanently and scientifically
+  INCONCLUSIVE (§7). The correction is what made a sound measurement possible: the rerun that
+  followed it PASSED the validity gate and is the cell's valid baseline (`737b4bf`, §7).
 - **Complete Git provenance is REQUIRED for a real training run (`1b48145`).** `train`
   raises before policy, generator, episode or optimizer work unless BOTH the full commit SHA
   and the clean/dirty verdict were determined, so a run cannot be launched from a checkout
@@ -2093,7 +2226,27 @@ second factor is bundled in (§8).
   hazard, not a blocker: it WARNS and runs. Consequence for tooling: anything driving
   `train` outside a working checkout must inject the verdict (the tests patch
   `_git_provenance`) rather than expect it to be optional.
-- **Centralized critic / value head (CTDE):** size-agnostic value estimator off `GraphEncoder.pool()`; needs a dedicated CTDE design (training on all-agent info while keeping execution no-comms). **A new planning chat.**
+- **Centralized critic / value head (CTDE) — PHASE B, AND THE NEXT AUTHORIZED RESEARCH
+  TASK** (Phase A is closed by the valid baseline, §7). A size-agnostic value estimator off
+  the existing `GraphEncoder.pool()` hook; there is still **NO value head today**, and
+  `graph_ppo` remains actor-only with its PHASE-B SEAM comments marking where the critic
+  joins. **This task starts as DESIGN / RECON, not implementation.** The next orchestrator
+  must NOT begin by writing a critic; it must first resolve a fresh live `main` SHA, re-read
+  BOTH documents at that SHA, and then produce a design that states:
+  - the **size-agnostic** value estimator over a varying task/agent graph;
+  - how **decentralized no-communication EXECUTION is preserved exactly** — §3 is not
+    weakened by centralized TRAINING, and an ego must still act only on its own sensing;
+  - **exactly which privileged all-agent information the critic may read, and that it is
+    available during TRAINING ONLY** — enumerated explicitly, never implied;
+  - **actor / critic separation** and the proof obligations that keep the training-only
+    privilege from leaking into the acting path;
+  - a clean **actor-only vs CTDE comparison ON THE LOCKED PHASE-A REFERENCE CELL**, judged
+    against the approved Phase-A baseline (§7) under the same validity gate, **BEFORE** any
+    further environment difficulty is added.
+  **No CTDE benefit may be pre-claimed** — the approved Phase-A result explicitly does not
+  establish one. Difficulty expansions (`probability < 1`, SAMs, a stochastic/partial
+  fuel-degradation variant, dense reward) are SEPARATE later research changes and must not
+  be bundled into this one.
 - **Baseline difficulty selection — CLOSED for the current cell by FD-BASELINE-v1
   (`a8669f4`).** Exactly ONE factor was selected, implemented and locked: `fuel_damage`
   (§5, §7). The following were considered and **NOT selected**; each remains a DEFERRED,
@@ -2107,8 +2260,9 @@ second factor is bundled in (§8).
   - **Dense / per-wake reward** — still out. It was never a consequence of selecting a
     difficulty factor, and is not one now.
   Reopening any of them is a new research-design decision with its own semantics,
-  observability, proof obligations and bounded implementation/lock task — and, per the
-  gate above, it comes AFTER the final-cell probe, not instead of it.
+  observability, proof obligations and bounded implementation/lock task. The Phase-A
+  baseline they were deferred behind is now MEASURED (§7), so the ordering constraint that
+  remains is the phase boundary: they come AFTER Phase-B CTDE design, never bundled into it.
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
@@ -2191,7 +2345,8 @@ second factor is bundled in (§8).
   rollout and the other is a 2×4 diagnostic probe on the easy reference cell.
   **Both predate FD-BASELINE-v1** (`a8669f4`): the target counts are unchanged, but that
   cell carried NO difficulty factor and no death penalty, so neither number describes the
-  fuel-damage cell's headroom. Only the pending final-cell probe (the gate above) can.
+  fuel-damage cell's headroom. That headroom is now measured by the approved Phase-A long
+  baseline (`737b4bf`, §7), which is the only valid source for it.
   *Historical, pre-B3 only:* the cell emitted no hidden targets and measured 0 wakes at
   `reward=+0.0000` because nothing existed to discover; that result is invalid as
   learning evidence. The authoritative target-count fields for future runs are the
