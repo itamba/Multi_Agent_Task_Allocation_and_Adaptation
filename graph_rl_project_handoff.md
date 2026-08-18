@@ -73,17 +73,24 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **CODE-INTEGRATION BASE of this documentation record:**
-  `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`, committed `2026-08-17T15:48:30+03:00` (the
-  PR #24 merge, which integrated the roster/world-truth CODE correction). **That SHA is the
-  base this documentation candidate was DERIVED ON — it is deliberately NOT a claim about
-  live `main`.** While this record was prepared, GitHub showed `main` at exactly that SHA;
-  **integrating this documentation record necessarily ADVANCES `main` past it**, so the
-  statement would be false the moment the record lands. Neither this documentation commit
-  nor its future merge can name its own SHA, and inventing either would be a false
-  provenance claim. **Every receiving orchestrator therefore resolves the live full `main`
-  SHA from GitHub and re-reads both documents at that SHA — GitHub is authoritative for
-  live branch and PR state, never this document.**
+- **BASE of THIS documentation record:** `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`,
+  committed `2026-08-17 19:25:42 Asia/Jerusalem` — the `main` head produced by the
+  roster-integrity documentation merge (PR #25). **That is the exact base this Phase-A
+  closure / Phase-B handoff documentation candidate was DERIVED ON.**
+  **That same SHA carries TWO DISTINCT ROLES, and they must not be conflated:** it is
+  (a) the BASE this documentation candidate was branched from, and (b) the MEASURED CODE
+  SHA of the approved Phase-A long baseline (§3h). Role (b) is a durable measurement
+  identity; role (a) is a statement about this record's derivation only. **Neither role is
+  a claim about live `main`.** **Integrating this documentation record necessarily ADVANCES
+  `main` past that base**, so treating it as a live head would be false the moment the
+  record lands. Neither this documentation commit nor its future merge can name its own
+  SHA, and inventing either would be a false provenance claim. **Every receiving
+  orchestrator therefore resolves the live full `main` SHA from GitHub and re-reads both
+  documents at that SHA — GitHub is authoritative for live branch and PR state, never this
+  document.** *(The PR #24 roster/world-truth CODE integration commit
+  `f37ea1c8559405d5de24a9c2dd9e740227acaeeb` was the base of the PREVIOUS documentation
+  record, not of this one; it remains recorded as that code integration in the next bullet
+  and in §3g.)*
 - **ROSTER / WORLD-TRUTH INTEGRITY — CLOSED / APPROVED / MERGED.** Approved candidate
   `36365f210e8a659a641a7713f612c7e0ec1d4665` (`2026-08-17T14:01:10+03:00`), reviewed
   `APPROVE`, integrated by `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`
