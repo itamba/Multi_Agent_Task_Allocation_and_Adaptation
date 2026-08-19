@@ -51,15 +51,19 @@ its seed no matter what else consumes global randomness. Each record carries
 ``ctx.placements`` carries the id-free geometric fingerprint of the hidden half. The
 PPO loop inherits this per-episode pattern.
 
-FD-BASELINE-v1
---------------
-The cell's ONE difficulty factor -- the seeded, ego-local, one-shot fuel-damage event of
+FUEL DAMAGE (FD-BASELINE-v1 AND FD-VARIABLE-SEVERITY-v1)
+--------------------------------------------------------
+The cell's difficulty factor -- the seeded, ego-local, one-shot fuel-damage event of
 ``graph_fuel_damage`` -- is mirrored here field for field from ``TrainConfig``, and so is
 the ``aircraft_penalty_coeff`` the reward is called with. A rollout that scored deaths as
-free while a training run charged 2.25 would not be diagnosing the same episode. This
-harness runs the seeded MIXTURE only: matched forced-clean / forced-damaged pairs are an
-EVALUATION construct and live in ``graph_train.evaluate``, so no paired delta is computed
-or reported here.
+free while a training run charged 2.25 would not be diagnosing the same episode. Both
+seeded designs are selectable (``seeded_mixture`` and ``seeded_variable``, the latter
+adding the mild/severe split at ``fuel_damage_mild_probability``), and a rollout's records
+carry whichever severity its episodes drew.
+
+This harness runs the seeded MIXTURE only: matched forced-clean / forced-damaged pairs and
+clean/mild/severe triads are an EVALUATION construct and live in
+``graph_train.evaluate``, so no within-seed delta is computed or reported here.
 
 This module imports ONLY the locked public interfaces; it modifies no existing file.
 Windows-safe: pathlib paths and ASCII-only console output (cp1255 console).
@@ -102,6 +106,13 @@ from ...utils.blade_utils.scenario_generator import (
 # parents[4] is the repo root (training -> rl -> match_aou -> src -> repo root).
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _BASE_SCENARIO = _REPO_ROOT / "data" / "scenarios" / "strike_training_4v5.json"
+
+# The fuel-damage modes a ROLLOUT may be configured with -- the two seeded mixtures and
+# `off`. Mirrors `graph_train._TRAINING_FUEL_DAMAGE_MODES`: a forced mode is a member of
+# a matched EVALUATION group, and this harness runs no matched groups.
+_ROLLOUT_FUEL_DAMAGE_MODES = (
+    FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE, FuelDamageMode.SEEDED_VARIABLE,
+)
 
 # The three meta-action columns, in enum order (0..2). Fixed key set for the counts.
 _META_NAMES = [MetaAction(i).name for i in range(len(MetaAction))]
@@ -155,15 +166,22 @@ class RolloutConfig:
     randomize_red_airbase_positions: bool = True
     stretch_target_ratio: float = 0.5
 
-    # --- FD-BASELINE-v1 (mirrors TrainConfig field for field) ---------------------
+    # --- FUEL DAMAGE (mirrors TrainConfig field for field) ------------------------
     # A diagnostic rollout must build the SAME episode a training run does, difficulty
     # factor included -- that is the whole point of the anti-drift mirror. The condition
     # is the seeded mixture here too, so a rollout of seeds 0..N sees the same
     # clean/damaged pattern the trainer would schedule for those seeds.
+    #
+    # `seeded_variable` (FD-VARIABLE-SEVERITY-v1) is selectable here as well, and adds
+    # the mild/severe split with the same `fuel_damage_mild_probability`. What a rollout
+    # does NOT do is matched groups: pairs and triads are an EVALUATION construct and
+    # live in `graph_train.evaluate`. A rollout runs the seeded MIXTURE only, which is
+    # exactly the population a training batch is drawn from.
     fuel_damage_mode: str = FuelDamageMode.SEEDED_MIXTURE
     fuel_damage_probability: float = 0.5
     fuel_damage_leg_progress: float = 0.30
     fuel_damage_rtb_margin: float = 1.10
+    fuel_damage_mild_probability: float = 0.5
     aircraft_penalty_coeff: float = 2.25
 
     # ------------------------------------------------------------------
@@ -176,6 +194,7 @@ class RolloutConfig:
             probability=float(self.fuel_damage_probability),
             leg_progress_threshold=float(self.fuel_damage_leg_progress),
             rtb_safety_margin=float(self.fuel_damage_rtb_margin),
+            mild_probability=float(self.fuel_damage_mild_probability),
         )
 
     def reward_config(self) -> RewardConfig:
@@ -239,15 +258,13 @@ class RolloutConfig:
                 "ship target semantics are a separate design task."
             )
 
-        # FD-BASELINE-v1: same verdicts as the trainer, from the same parameter object,
-        # so a cell that is invalid for a training run is invalid for a rollout too.
-        if self.fuel_damage_mode not in (
-            FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE,
-        ):
+        # Fuel damage: same verdicts as the trainer, from the same parameter object, so
+        # a cell that is invalid for a training run is invalid for a rollout too.
+        if self.fuel_damage_mode not in _ROLLOUT_FUEL_DAMAGE_MODES:
             raise ValueError(
-                "fuel_damage_mode must be %r or %r for a rollout -- the forced modes are "
-                "evaluation pair members, not a mixture, and this harness runs no pairs."
-                % (FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE)
+                "fuel_damage_mode must be one of %r for a rollout -- the forced modes "
+                "are evaluation group members, not a mixture, and this harness runs no "
+                "matched groups." % (list(_ROLLOUT_FUEL_DAMAGE_MODES),)
             )
         self.fuel_damage_parameters().validate()
         if float(self.aircraft_penalty_coeff) < 0.0:
@@ -562,17 +579,26 @@ def _summarize(
         if r["ended"] in ended_counts:
             ended_counts[r["ended"]] += 1
 
-    # FD-BASELINE-v1: how the seeded mixture actually landed over the OK episodes, and
-    # whether the scheduled events fired. Counts only -- a diagnostic rollout runs no
-    # matched pairs, so it has no paired delta to report and does not invent one.
+    # How the seeded mixture actually landed over the OK episodes, and whether the
+    # scheduled events fired. Counts only -- a diagnostic rollout runs no matched groups,
+    # so it has no within-seed delta to report and does not invent one.
+    #
+    # `fuel_damage_conditions` keeps counting CONDITIONS, so its meaning never changes.
+    # `fuel_damage_cells` is the finer split (clean / mild / severe under a
+    # variable-severity mode, and identical to the conditions otherwise), reported
+    # alongside rather than instead.
     fd_conditions: Dict[str, int] = {}
+    fd_cells: Dict[str, int] = {}
     fd_applied = 0
     fd_wakes = 0
     for r in records:
         plan = r.get("fuel_damage_plan") or {}
         outcome = r.get("fuel_damage_outcome") or {}
         condition = str(plan.get("condition", "unknown"))
+        severity = plan.get("severity")
+        cell = str(severity) if severity else condition
         fd_conditions[condition] = fd_conditions.get(condition, 0) + 1
+        fd_cells[cell] = fd_cells.get(cell, 0) + 1
         fd_applied += 1 if outcome.get("fired") else 0
         fd_wakes += 1 if outcome.get("wake_occurred") else 0
 
@@ -590,6 +616,8 @@ def _summarize(
         "fuel_damage_mode": str(cfg.fuel_damage_mode),
         "aircraft_penalty_coeff": float(cfg.aircraft_penalty_coeff),
         "fuel_damage_conditions": fd_conditions,
+        "fuel_damage_cells": fd_cells,
+        "fuel_damage_mild_probability": float(cfg.fuel_damage_mild_probability),
         "fuel_damage_events_applied": fd_applied,
         "fuel_damage_wakes": fd_wakes,
         "setup_seconds_mean": _stats(setup_secs)["mean"],
@@ -622,9 +650,9 @@ def _print_summary(s: Dict[str, Any]) -> None:
     print("ended:     done=%d  terminated=%d  truncated=%d"
           % (ec["done"], ec["terminated"], ec["truncated"]))
     print("ticks:     mean=%.1f" % s["ticks_mean"])
-    print("fuel dmg:  mode=%s  penalty_c=%s  conditions=%s  applied=%d  fd_wakes=%d"
+    print("fuel dmg:  mode=%s  penalty_c=%s  cells=%s  applied=%d  fd_wakes=%d"
           % (s["fuel_damage_mode"], s["aircraft_penalty_coeff"],
-             s["fuel_damage_conditions"], s["fuel_damage_events_applied"],
+             s["fuel_damage_cells"], s["fuel_damage_events_applied"],
              s["fuel_damage_wakes"]))
     print("timing:    setup_mean=%.1fs  episode_mean=%.1fs"
           % (s["setup_seconds_mean"], s["episode_seconds_mean"]))

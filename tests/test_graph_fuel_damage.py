@@ -69,6 +69,8 @@ Run: python -m pytest tests/test_graph_fuel_damage.py -v
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import inspect
 import io
 import json
 import math
@@ -108,11 +110,24 @@ from match_aou.rl.observation.graph_builder import (  # noqa: E402
     GraphObservationConfig,
     build_graph_observation,
 )
-from match_aou.rl.training import graph_tick_loop, graph_train  # noqa: E402
+from match_aou.rl.observation import graph_builder  # noqa: E402
+from match_aou.rl.observation.graph_builder import (  # noqa: E402
+    TASK_FEATURE_DIM,
+)
+from match_aou.rl.training import (  # noqa: E402
+    graph_fuel_damage,
+    graph_tick_loop,
+    graph_train,
+)
 from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     CONDITION_CLEAN,
     CONDITION_DAMAGED,
     NAUTICAL_MILES_TO_METERS,
+    SEVERITIES,
+    SEVERITY_MILD,
+    SEVERITY_SEVERE,
+    TARGET_POLICY_LIVE_SEVERITY_MIDPOINT,
+    TARGET_POLICY_PLANNED_MIDPOINT,
     FuelDamageController,
     FuelDamageError,
     FuelDamageMode,
@@ -121,16 +136,20 @@ from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     build_fuel_damage_controller,
     build_fuel_damage_plan,
     derive_fuel_damage_seed,
+    derive_fuel_damage_severity_seed,
     fuel_for_distance_km,
     interpolate_great_circle,
     measure_window,
     plan_fuel_damage,
     resolve_condition,
+    resolve_severity,
     rtb_command_for,
+    severity_band,
 )
 from match_aou.rl.training.graph_rollout import RolloutConfig  # noqa: E402
 from match_aou.rl.training.graph_train import (  # noqa: E402
     EpisodeAttemptError,
+    MeasurementIntegrityError,
     TrainConfig,
     eval_member_tag,
 )
@@ -2098,7 +2117,7 @@ def test_rollout_config_mirrors_the_train_difficulty_cell() -> None:
     r = RolloutConfig()
     for name in ("fuel_damage_mode", "fuel_damage_probability",
                  "fuel_damage_leg_progress", "fuel_damage_rtb_margin",
-                 "aircraft_penalty_coeff"):
+                 "fuel_damage_mild_probability", "aircraft_penalty_coeff"):
         assert getattr(t, name) == getattr(r, name), (
             "RolloutConfig.%s (%r) drifted from TrainConfig.%s (%r)"
             % (name, getattr(r, name), name, getattr(t, name))
@@ -2108,17 +2127,29 @@ def test_rollout_config_mirrors_the_train_difficulty_cell() -> None:
 
 
 def test_the_configs_refuse_a_forced_mode_and_bad_parameters() -> None:
-    """A forced mode is an EVAL pair member; it is not a training mixture."""
-    for cfg in (TrainConfig(n_iterations=1, fuel_damage_mode=FuelDamageMode.FORCED_DAMAGED),
-                RolloutConfig(fuel_damage_mode=FuelDamageMode.FORCED_CLEAN)):
-        try:
-            cfg.validate()
-        except ValueError as exc:
-            assert "evaluation pair member" in str(exc) or "pair member" in str(exc)
-        else:
-            raise AssertionError("a forced mode was accepted as a training mode")
+    """A forced mode is an EVAL group member; it is not a training mixture.
+
+    All FOUR forced modes are refused by both harnesses -- the two severity ones are
+    evaluation members exactly as the original two are, and a training run configured
+    with one would condition every episode identically.
+    """
+    for mode in (FuelDamageMode.FORCED_DAMAGED, FuelDamageMode.FORCED_CLEAN,
+                 FuelDamageMode.FORCED_MILD, FuelDamageMode.FORCED_SEVERE):
+        for cfg in (TrainConfig(n_iterations=1, fuel_damage_mode=mode),
+                    RolloutConfig(fuel_damage_mode=mode)):
+            try:
+                cfg.validate()
+            except ValueError as exc:
+                assert "group member" in str(exc), str(exc)
+            else:
+                raise AssertionError(
+                    "%s accepted the forced mode %r as a training mode"
+                    % (type(cfg).__name__, mode)
+                )
 
     for kwargs in ({"fuel_damage_probability": 1.5},
+                   {"fuel_damage_mild_probability": 1.5},
+                   {"fuel_damage_mild_probability": -0.1},
                    {"fuel_damage_leg_progress": 0.0},
                    {"fuel_damage_leg_progress": 1.0},
                    {"fuel_damage_rtb_margin": 0.9},
@@ -2192,6 +2223,840 @@ def test_the_component_has_no_blade_torch_or_solver_dependency() -> None:
     assert json.loads(control_line[len("RESULT:"):]) is True, (
         "the root package no longer imports pyomo -- re-check this module's exemption"
     )
+
+
+# =============================================================================
+# FD-VARIABLE-SEVERITY-v1 -- PO1: legacy preservation + deterministic severity
+# =============================================================================
+
+_VARIABLE = FuelDamageParameters(mode=FuelDamageMode.SEEDED_VARIABLE)
+_MILD = FuelDamageParameters(mode=FuelDamageMode.FORCED_MILD)
+_SEVERE = FuelDamageParameters(mode=FuelDamageMode.FORCED_SEVERE)
+
+
+def test_vs_po1_the_legacy_v1_rng_domain_and_draw_order_are_untouched() -> None:
+    """PO1. The severity factor cannot move ANY legacy FD-v1 decision.
+
+    THE LOAD-BEARING CLAIM OF THE WHOLE TASK. An approved long-baseline measurement
+    exists on the legacy design, so if adding severity had shifted the v1 stream -- which
+    taking the mild/severe bit from it would have done -- every legacy seed would select
+    a different ego and that measurement would be irreproducible rather than extended.
+
+    Proven three ways: the domain string and derived seeds are unchanged, the seeded
+    mixture assigns the identical condition under both designs, and the two domains are
+    genuinely different streams.
+    """
+    assert graph_fuel_damage.FUEL_DAMAGE_RNG_DOMAIN == "fuel_damage_v1"
+    assert graph_fuel_damage.FUEL_DAMAGE_SEVERITY_RNG_DOMAIN == "fuel_damage_severity_v1"
+
+    for seed in range(64):
+        # (a) the v1 derivation is EXACTLY the documented digest, recomputed here from
+        # the spec rather than imported, so a change to the function fails this test.
+        payload = ("fuel_damage_v1:%d" % seed).encode("ascii")
+        expected = int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+        assert derive_fuel_damage_seed(seed) == expected, seed
+
+        # (b) the SEVERITY domain is a different digest over a different string, so it
+        # cannot be a re-labelled read of the same stream.
+        sev_payload = ("fuel_damage_severity_v1:%d" % seed).encode("ascii")
+        sev_expected = int.from_bytes(hashlib.sha256(sev_payload).digest()[:8], "big")
+        assert derive_fuel_damage_severity_seed(seed) == sev_expected, seed
+        assert derive_fuel_damage_severity_seed(seed) != derive_fuel_damage_seed(seed)
+
+        # (c) the clean/damaged assignment is IDENTICAL under both seeded designs.
+        assert (resolve_condition(episode_seed=seed, params=_PARAMS)
+                == resolve_condition(episode_seed=seed, params=_VARIABLE)), seed
+
+    # (d) a LEGACY mode never acquires a severity, and never consults that domain.
+    for params in (_PARAMS,
+                   FuelDamageParameters(mode=FuelDamageMode.FORCED_DAMAGED),
+                   FuelDamageParameters(mode=FuelDamageMode.FORCED_CLEAN),
+                   FuelDamageParameters(mode=FuelDamageMode.OFF)):
+        assert params.variable_severity is False
+        assert params.target_policy == TARGET_POLICY_PLANNED_MIDPOINT
+        for seed in range(16):
+            assert resolve_severity(episode_seed=seed, params=params) is None
+
+
+def test_vs_po1_the_legacy_damaged_plan_is_field_identical_to_the_formula() -> None:
+    """PO1. A legacy damaged plan's PHYSICS is unchanged, field by field.
+
+    The legacy band and the severe band are the same interval, so the risk is that
+    generalizing the arithmetic silently moved the legacy value. This recomputes the
+    pre-severity formula independently -- the midpoint of `[rtb_floor, continue_req)`
+    against the PROJECTED fuel -- and requires the plan to match it exactly.
+    """
+    for seed in range(24):
+        if resolve_condition(episode_seed=seed, params=_PARAMS) != CONDITION_DAMAGED:
+            continue
+        plan = build_fuel_damage_plan(
+            _FuelDamageCtx(), episode_seed=seed, params=_PARAMS
+        )
+        assert plan.severity is None, "a legacy plan must carry NO severity label"
+        assert plan.target_policy == TARGET_POLICY_PLANNED_MIDPOINT
+        assert plan.severity_derived_seed is None
+        assert plan.mild_probability is None
+        # The pre-severity formula, recomputed from the plan's own recorded bounds.
+        expected = 0.5 * (plan.rtb_fuel_floor + plan.continue_fuel_requirement)
+        assert plan.post_damage_fuel == expected, seed
+        assert (plan.rtb_fuel_floor <= plan.post_damage_fuel
+                < plan.continue_fuel_requirement)
+        assert plan.post_damage_fuel < plan.projected_fuel_at_event
+
+
+def test_vs_po1_severity_is_deterministic_and_matches_the_distribution() -> None:
+    """PO1. Severity is a pure function of the seed, at 50% clean / 25% / 25%.
+
+    Determinism is proven against deliberately hostile RNG state: global `random` and
+    torch are re-seeded differently between the two reads, so a severity that leaked out
+    of its private domain would diverge here.
+    """
+    first = {}
+    for seed in range(512):
+        random.seed(seed * 7 + 1)
+        torch.manual_seed(seed * 13 + 5)
+        first[seed] = resolve_severity(episode_seed=seed, params=_VARIABLE)
+    for seed in range(512):
+        random.seed(999 - seed)
+        torch.manual_seed(seed + 4242)
+        assert resolve_severity(episode_seed=seed, params=_VARIABLE) == first[seed], seed
+
+    # The approved contract: P(clean) = 0.50, P(mild) = 0.25, P(severe) = 0.25. Sampled
+    # over 512 seeds, so the tolerance is a sanity band, not an exact frequency claim.
+    counts = {None: 0, SEVERITY_MILD: 0, SEVERITY_SEVERE: 0}
+    for seed in range(512):
+        counts[first[seed]] += 1
+    assert counts[None] + counts[SEVERITY_MILD] + counts[SEVERITY_SEVERE] == 512
+    for label, want in ((None, 0.50), (SEVERITY_MILD, 0.25), (SEVERITY_SEVERE, 0.25)):
+        got = counts[label] / 512.0
+        assert abs(got - want) < 0.07, (label, got, want, counts)
+
+    # Every damaged episode has a severity, and every clean one has none -- a severity is
+    # a refinement of `damaged`, never a third condition.
+    for seed in range(128):
+        damaged = (resolve_condition(episode_seed=seed, params=_VARIABLE)
+                   == CONDITION_DAMAGED)
+        severity = resolve_severity(episode_seed=seed, params=_VARIABLE)
+        assert damaged == (severity in SEVERITIES), seed
+
+    # The conditional knob is REAL: at P(mild|damaged) = 0 every damaged episode is
+    # severe, at 1 every one is mild, and the clean/damaged split is unmoved either way.
+    for p_mild, expected in ((0.0, SEVERITY_SEVERE), (1.0, SEVERITY_MILD)):
+        params = FuelDamageParameters(mode=FuelDamageMode.SEEDED_VARIABLE,
+                                      mild_probability=p_mild)
+        for seed in range(64):
+            assert (resolve_condition(episode_seed=seed, params=params)
+                    == resolve_condition(episode_seed=seed, params=_PARAMS)), seed
+            if resolve_condition(episode_seed=seed, params=params) == CONDITION_DAMAGED:
+                assert resolve_severity(episode_seed=seed, params=params) == expected
+
+
+def test_vs_po1_forced_mild_and_forced_severe_select_the_same_ego() -> None:
+    """PO1. The triad's two damaged members are the SAME episode, damaged differently.
+
+    This is what makes a matched triad a TRIAD: mild and severe must differ in the fuel
+    band alone -- same ego, same route, same event point, same measured window -- so
+    their reward difference cannot be attributed to which aircraft was hit. It also holds
+    against the SEEDED episode and against LEGACY `forced_damaged`, which is the property
+    that keeps the new design comparable with the approved baseline.
+    """
+    for seed in range(16):
+        mild = build_fuel_damage_plan(_FuelDamageCtx(), episode_seed=seed, params=_MILD)
+        severe = build_fuel_damage_plan(
+            _FuelDamageCtx(), episode_seed=seed, params=_SEVERE
+        )
+        assert mild.severity == SEVERITY_MILD and severe.severity == SEVERITY_SEVERE
+        # Same ego, same predicted route, same event point, same measured window.
+        assert mild.ego_id == severe.ego_id, seed
+        assert mild.route_points == severe.route_points, seed
+        assert (mild.event_latitude, mild.event_longitude) == (
+            severe.event_latitude, severe.event_longitude), seed
+        assert mild.rtb_fuel_floor == severe.rtb_fuel_floor, seed
+        assert mild.continue_fuel_requirement == severe.continue_fuel_requirement, seed
+        assert mild.derived_seed == severe.derived_seed, seed
+        assert (mild.severity_derived_seed == severe.severity_derived_seed
+                == derive_fuel_damage_severity_seed(seed))
+        # ...and only the BAND differs.
+        assert mild.planned_band_low != severe.planned_band_low, seed
+        assert mild.post_damage_fuel > severe.post_damage_fuel, seed
+
+        # The same ego the SEEDED variable episode and the LEGACY design would pick.
+        for params in (_VARIABLE, _PARAMS,
+                       FuelDamageParameters(mode=FuelDamageMode.FORCED_DAMAGED)):
+            if resolve_condition(episode_seed=seed, params=params) != CONDITION_DAMAGED:
+                continue
+            other = build_fuel_damage_plan(
+                _FuelDamageCtx(), episode_seed=seed, params=params
+            )
+            assert other.ego_id == mild.ego_id, (seed, params.mode)
+
+
+def test_vs_po1_rerunning_a_seed_reproduces_the_plan_and_the_outcome() -> None:
+    """PO1. Same seed, same mode -> field-equivalent plan AND field-equivalent event."""
+    for mode in (FuelDamageMode.SEEDED_VARIABLE, FuelDamageMode.FORCED_MILD,
+                 FuelDamageMode.FORCED_SEVERE):
+        params = FuelDamageParameters(mode=mode)
+        for seed in (1, 5, 11):
+            if resolve_condition(episode_seed=seed, params=params) != CONDITION_DAMAGED:
+                continue
+            outcomes, plans = [], []
+            for repeat in range(2):
+                random.seed(repeat * 31 + 7)   # hostile: different RNG state each time
+                torch.manual_seed(repeat * 17 + 3)
+                ctx = _FuelDamageCtx()
+                controller = build_fuel_damage_controller(
+                    ctx, episode_seed=seed, params=params
+                )
+                plans.append(controller.plan.to_record())
+                for tick in range(4000):
+                    if controller.maybe_apply(ctx.scenario, tick):
+                        break
+                    ctx.env.step([])
+                outcomes.append(controller.outcome.to_record())
+            assert plans[0] == plans[1], (mode, seed)
+            assert outcomes[0] == outcomes[1], (mode, seed)
+            assert outcomes[0]["fired"] is True, (mode, seed)
+
+
+# =============================================================================
+# FD-VARIABLE-SEVERITY-v1 -- PO2: physical validity + no-communication
+# =============================================================================
+
+def _fire(params, *, seed=1, ctx=None):
+    """Run one episode's event to completion; returns (controller, ctx, tick)."""
+    ctx = ctx or _FuelDamageCtx()
+    controller = build_fuel_damage_controller(ctx, episode_seed=seed, params=params)
+    for tick in range(4000):
+        if controller.maybe_apply(ctx.scenario, tick):
+            return controller, ctx, tick
+        ctx.env.step([])
+    raise AssertionError("the event never fired")
+
+
+def test_vs_po2_the_live_severity_inequalities_hold_exactly() -> None:
+    """PO2. THE PHYSICS. Mild and severe land in their declared LIVE intervals.
+
+        MILD    F_rtb < F_cont < F_after < F_before
+        SEVERE  F_rtb <= F_after < F_cont <= F_before
+
+    Measured at the LIVE event state -- the aircraft's real position and real fuel -- and
+    against the bounds the mutation was really validated with, not the pre-run
+    projection. The two are different numbers by construction (the engine burns fuel on
+    route-less ticks too), which is exactly why the live measurement is the one that
+    defines the severity.
+    """
+    for seed in (1, 3, 5, 7, 11):
+        mild, _mild_ctx, _t = _fire(_MILD, seed=seed)
+        out = mild.outcome
+        assert out.severity == SEVERITY_MILD
+        assert (out.live_rtb_fuel_floor
+                < out.live_continue_fuel_requirement
+                < out.fuel_after
+                < out.fuel_before), (seed, out)
+        # A mild loss leaves continuation feasible -- a POSITIVE margin -- which is the
+        # single number that separates the two severities physically.
+        assert out.continuation_margin > 0.0, seed
+        assert 0.0 < out.fuel_after_fraction_of_max <= 1.0
+
+        severe, _severe_ctx, _t2 = _fire(_SEVERE, seed=seed)
+        sout = severe.outcome
+        assert sout.severity == SEVERITY_SEVERE
+        assert (sout.live_rtb_fuel_floor
+                <= sout.fuel_after
+                < sout.live_continue_fuel_requirement
+                <= sout.fuel_before), (seed, sout)
+        assert sout.continuation_margin < 0.0, seed
+
+        # BOTH severities keep flying home FEASIBLE -- the reserve contract is never
+        # traded away for difficulty; a severe event is a decision, not a kill.
+        for o in (out, sout):
+            assert o.fuel_after >= o.live_rtb_fuel_floor, seed
+        # ...and severe really is the harsher of the two, on the same world.
+        assert sout.fuel_after < out.fuel_after, seed
+        # The two members hit the SAME ego at the SAME window -- only the band differs.
+        assert mild.plan.ego_id == severe.plan.ego_id
+        assert abs(out.live_continue_fuel_requirement
+                   - sout.live_continue_fuel_requirement) < 1e-6
+
+        # The applied value is the LIVE band's midpoint, not the planned one: the live
+        # window is measured from a position the projection only approximated.
+        assert abs(out.fuel_after
+                   - 0.5 * (out.live_band_low + out.live_band_high)) < 1e-9
+        assert mild.plan.post_damage_fuel != out.fuel_after, (
+            "a variable-severity event must derive its target from the LIVE band"
+        )
+
+
+def test_vs_po2_the_severity_band_helper_is_the_one_arithmetic_site() -> None:
+    """PO2. The band intervals are exactly as declared, including their inclusivity."""
+    window = measure_window(
+        position=_point_at(_BASE, 60.0, 30.0),
+        route=[_point_at(_BASE, 250.0, 30.0)],
+        home_base=_BASE, speed_knots=1303.0, fuel_rate=6700.0, margin=1.10,
+    )
+    fuel_before = window.continue_fuel_requirement * 4.0
+
+    mild = severity_band(window=window, fuel_before=fuel_before,
+                         severity=SEVERITY_MILD)
+    assert (mild.low, mild.high) == (window.continue_fuel_requirement, fuel_before)
+    assert mild.low_inclusive is False and mild.high_inclusive is False
+    assert mild.target == 0.5 * (mild.low + mild.high)
+    assert mild.contains(mild.target)
+    assert not mild.contains(mild.low) and not mild.contains(mild.high)
+
+    severe = severity_band(window=window, fuel_before=fuel_before,
+                           severity=SEVERITY_SEVERE)
+    assert (severe.low, severe.high) == (window.rtb_fuel_floor,
+                                         window.continue_fuel_requirement)
+    assert severe.low_inclusive is True and severe.high_inclusive is False
+    assert severe.contains(severe.low) and not severe.contains(severe.high)
+
+    # `None` IS the legacy interval -- the same interval as severe. That identity is what
+    # makes "severe reproduces the legacy physics" checkable rather than merely asserted.
+    legacy = severity_band(window=window, fuel_before=fuel_before, severity=None)
+    assert (legacy.low, legacy.high) == (severe.low, severe.high)
+    assert legacy.target == severe.target
+
+    try:
+        severity_band(window=window, fuel_before=fuel_before, severity="catastrophic")
+    except FuelDamageError:
+        pass
+    else:
+        raise AssertionError("an unknown severity was accepted")
+
+
+def test_vs_po2_an_invalid_band_raises_before_the_mutation() -> None:
+    """PO2. A refused event leaves `current_fuel` untouched and stays unfired.
+
+    Nothing is clamped, downgraded to the other severity, or converted to clean: the
+    approved policy is that a physically impossible band is an accounted `run`-stage
+    FAILURE, not a quietly different episode.
+    """
+    # MILD needs live fuel STRICTLY above the continue requirement. Drain the tank below
+    # it and the interval collapses.
+    ctx = _FuelDamageCtx()
+    controller = build_fuel_damage_controller(ctx, episode_seed=1, params=_MILD)
+    ego = str(controller.plan.ego_id)
+    aircraft = ctx.scenario.get_aircraft(ego)
+    for _ in range(4000):
+        if (controller.observed_progress(ctx.scenario) or 0.0) >= 0.30:
+            break
+        ctx.env.step([])
+    live = controller.live_bounds(aircraft)
+    aircraft.current_fuel = live.continue_fuel_requirement * 0.5
+    before = aircraft.current_fuel
+    try:
+        controller.maybe_apply(ctx.scenario, 123)
+    except FuelDamageError as exc:
+        assert "continue requirement" in str(exc), str(exc)
+    else:
+        raise AssertionError("an impossible MILD band was accepted")
+    assert aircraft.current_fuel == before, "the engine was mutated before the refusal"
+    assert controller.fired is False
+    assert controller.outcome.fired is False
+    assert controller.outcome.fuel_after is None
+
+    # A degenerate window (continue requirement == RTB floor) leaves SEVERE no interior.
+    flat = measure_window(
+        position=_BASE, route=[_BASE], home_base=_BASE,
+        speed_knots=1303.0, fuel_rate=6700.0, margin=1.10,
+    )
+    band = severity_band(window=flat, fuel_before=1000.0, severity=SEVERITY_SEVERE)
+    try:
+        graph_fuel_damage._require_valid_band(
+            band, ego_id="ego0", fuel_before=1000.0, window=flat, where="live"
+        )
+    except FuelDamageError as exc:
+        assert "empty" in str(exc), str(exc)
+    else:
+        raise AssertionError("a zero-width band was accepted")
+
+
+def test_vs_po2_the_event_stays_top_of_tick_ego_local_and_order_independent() -> None:
+    """PO2. The no-communication properties are UNCHANGED by the severity split.
+
+    Re-proves, for the new modes, exactly what the legacy factor is proven to guarantee:
+    ONE mutation, applied before any ego senses, visible only in the damaged ego's own
+    fuel, with Phase-1 ego order irrelevant and peers untouched.
+    """
+    for params in (_MILD, _SEVERE):
+        ctx = _FuelDamageCtx()
+        controller = build_fuel_damage_controller(ctx, episode_seed=1, params=params)
+        ego = str(controller.plan.ego_id)
+        peers = [a for a in ctx.agent_ids if a != ego]
+        peer_fuel_before = {
+            p: ctx.scenario.get_aircraft(p).current_fuel for p in peers
+        }
+
+        woken, mutations = [], []
+        for tick in range(4000):
+            fired = controller.maybe_apply(ctx.scenario, tick)
+            if fired is not None:
+                mutations.append((tick, fired))
+                # EVERY ego -- the first one included -- reads the post-event world,
+                # because the mutation precedes the per-ego loop.
+                snapshot = {
+                    a: ctx.scenario.get_aircraft(a).current_fuel
+                    for a in ctx.agent_ids
+                    if ctx.scenario.get_aircraft(a) is not None
+                }
+                assert snapshot[ego] == controller.outcome.fuel_after
+                for order in (ctx.agent_ids, list(reversed(ctx.agent_ids))):
+                    seen = {a: snapshot[a] for a in order if a in snapshot}
+                    assert seen == {a: snapshot[a] for a in snapshot}, "order mattered"
+                woken = [a for a in ctx.agent_ids if a == fired]
+            ctx.env.step([])
+            if mutations and tick > mutations[0][0] + 50:
+                break
+
+        # ONE mutation, ONE woken ego, and it is the selected one.
+        assert len(mutations) == 1, (params.mode, mutations)
+        assert woken == [ego]
+        # Peers lost only what the engine burns; the damage never reached them. The
+        # damaged ego is strictly worse off than any peer's ordinary burn.
+        for p in peers:
+            live = ctx.scenario.get_aircraft(p)
+            if live is None:
+                continue
+            burned = peer_fuel_before[p] - live.current_fuel
+            assert burned >= 0.0
+            assert burned < abs(controller.outcome.fuel_before
+                                - controller.outcome.fuel_after), p
+
+
+def test_vs_po2_no_severity_label_reaches_the_observation() -> None:
+    """PO2. The policy is told NOTHING about severity -- only its own live fuel.
+
+    The anti-shortcut premise of the whole experiment. If a severity label reached the
+    graph, the actor could read the answer instead of inferring it, and the measurement
+    would be of a labelled classifier rather than of an adaptive policy.
+    """
+    # The graph's feature width is untouched, and the builder knows nothing about the
+    # fuel-damage layer at all.
+    assert TASK_FEATURE_DIM == 6
+    builder_source = Path(
+        inspect.getsourcefile(graph_builder)
+    ).read_text(encoding="utf-8")
+    for forbidden in ("severity", "mild", "graph_fuel_damage"):
+        assert forbidden not in builder_source.lower(), forbidden
+
+    # What DOES change is the damaged ego's own fuel_norm, and it changes by the
+    # severity: a mild event leaves a fuller tank than a severe one on the same world.
+    norms = {}
+    for params in (_MILD, _SEVERE):
+        controller, ctx, _tick = _fire(params, seed=1)
+        ego = str(controller.plan.ego_id)
+        gobs = build_graph_observation(
+            ctx.scenario, ego,
+            tasks=ctx.beliefs[ego].tasks, solution=ctx.beliefs[ego].solution,
+            config=GraphObservationConfig(detection_range_km=50.0),
+        )
+        row = gobs.agent_ids.index(ego)
+        norms[params.mode] = float(gobs.agent_features[row, 0])
+        # Peers stay FEATURELESS, so the damaged value is unreachable from any peer row.
+        for i, aid in enumerate(gobs.agent_ids):
+            if aid != ego:
+                assert float(gobs.agent_features[i, 0]) == 0.0, aid
+    assert norms[FuelDamageMode.FORCED_MILD] > norms[FuelDamageMode.FORCED_SEVERE], norms
+
+
+# =============================================================================
+# FD-VARIABLE-SEVERITY-v1 -- PO3: matched triad + durable measurement
+# =============================================================================
+
+def _variable_cfg(tmp_path: Path, **kwargs) -> TrainConfig:
+    """A minimal variable-severity training config for the stub-driven trainer tests."""
+    base = dict(n_iterations=1, episodes_per_iteration=4, base_seed=0,
+                output_dir=tmp_path / "run", eval_every=1, eval_episodes=3,
+                eval_base_seed=1_000_000, checkpoint_every=0,
+                fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE)
+    base.update(kwargs)
+    return TrainConfig(**base)
+
+
+def _skip_plotting() -> bool:
+    """True when matplotlib is unavailable (plots are optional, never a hard dep)."""
+    try:
+        import matplotlib  # noqa: F401
+    except ImportError:
+        return True
+    return False
+
+
+def test_vs_po3_a_held_out_seed_is_evaluated_as_a_clean_mild_severe_triad(
+    tmp_path: Path,
+) -> None:
+    """PO3. Three members per held-out seed: same seed, forced cells, disjoint tags."""
+    cfg = _variable_cfg(tmp_path)
+    assert cfg.eval_group_kind == "triad" and cfg.eval_group_size == 3
+    assert cfg.reported_cells == (CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE)
+    _summary, events = _run_stub_training(cfg)
+
+    evals = [e for e in events if e[0] == "episode" and e[1] == "eval"]
+    # One PRE-UPDATE round and one post-update round, each 3 seeds x 3 members.
+    assert len(evals) == 2 * 3 * 3, len(evals)
+
+    first_round = evals[:9]
+    seeds = [e[2] for e in first_round]
+    tags = [e[3] for e in first_round]
+    modes = [e[4] for e in first_round]
+
+    # Each held-out seed appears exactly three times, adjacently -- one triad.
+    assert seeds == [1_000_000] * 3 + [1_000_001] * 3 + [1_000_002] * 3, seeds
+    # ...once forced clean, once forced mild and once forced severe.
+    assert modes == [FuelDamageMode.FORCED_CLEAN, FuelDamageMode.FORCED_MILD,
+                     FuelDamageMode.FORCED_SEVERE] * 3, modes
+    # ...and every member writes to a DIFFERENT scenario file.
+    assert len(set(tags)) == 9, tags
+    assert tags == [eval_member_tag(round_ordinal=0, e=e, member=m, group_size=3)
+                    for e in range(3) for m in (0, 1, 2)]
+    # The second round's tags are disjoint from the first's (rounds never overwrite).
+    assert not (set(tags) & set(e[3] for e in evals[9:]))
+
+    # The scenario files really coexist on disk: 9 per round, none overwritten.
+    scen = sorted(p.name for p in (tmp_path / "run" / "scenarios").glob("*.json"))
+    assert len(scen) == len(set(scen)) >= 18, scen
+
+    # LEGACY EVALUATION IS UNCHANGED: a seeded_mixture run still runs PAIRS.
+    legacy_cfg = TrainConfig(n_iterations=1, episodes_per_iteration=1, base_seed=0,
+                             output_dir=tmp_path / "legacy", eval_every=1,
+                             eval_episodes=3, eval_base_seed=1_000_000,
+                             checkpoint_every=0)
+    assert legacy_cfg.eval_group_kind == "pair" and legacy_cfg.eval_group_size == 2
+    _s2, legacy_events = _run_stub_training(legacy_cfg)
+    legacy_evals = [e for e in legacy_events if e[1] == "eval"]
+    assert len(legacy_evals) == 2 * 3 * 2, "a legacy run silently became a triad"
+    assert [e[4] for e in legacy_evals[:6]] == [
+        FuelDamageMode.FORCED_CLEAN, FuelDamageMode.FORCED_DAMAGED] * 3
+
+
+def test_vs_po3_every_delta_and_rate_travels_with_its_denominator(
+    tmp_path: Path,
+) -> None:
+    """PO3. The three deltas come from COMPLETE triads only, and say so.
+
+    The tempting repair -- differencing the two members that survived when the third
+    failed -- would report a within-seed comparison that was never measured. What is
+    locked here is that an incomplete triad contributes to NO delta, and that every rate
+    and every mean is reported next to the population it was taken over.
+    """
+    cfg = _variable_cfg(tmp_path)
+    # Fail the SEVERE member of the middle held-out seed, in every round.
+    summary, _events = _run_stub_training(
+        cfg, failing_eval=(1_000_001, FuelDamageMode.FORCED_SEVERE)
+    )
+
+    for ev in summary["eval_records"]:
+        assert ev["eval_group_kind"] == "triad" and ev["eval_group_size"] == 3
+        assert ev["n_groups_attempted"] == 3
+        # Two complete triads: the middle seed lost a member and contributes to none of
+        # the deltas, even though its clean and mild members both succeeded.
+        assert ev["n_groups_successful"] == 2, ev
+        assert ev["group_success_fraction"] == 2 / 3
+        assert ev["n_attempted"] == 9 and ev["n_successful"] == 8 and ev["n_failed"] == 1
+        # Per-cell denominators, including the one that lost a member.
+        assert ev["eval_n_clean_attempted"] == 3 and ev["eval_n_clean_successful"] == 3
+        assert ev["eval_n_mild_attempted"] == 3 and ev["eval_n_mild_successful"] == 3
+        assert ev["eval_n_severe_attempted"] == 3
+        assert ev["eval_n_severe_successful"] == 2
+        assert ev["eval_n_severe_failed"] == 1
+        # `damaged` still pools the two severities -- its meaning is unchanged.
+        assert ev["eval_n_damaged_attempted"] == 6
+        assert ev["eval_n_damaged_successful"] == 5
+        # All three deltas exist, are named, and are over the SAME complete population.
+        assert ev["eval_delta_keys"] == [
+            "eval_delta_mild_minus_clean", "eval_delta_severe_minus_clean",
+            "eval_delta_severe_minus_mild",
+        ]
+        for key in ev["eval_delta_keys"]:
+            assert ev[key] is not None, key
+        assert ev["eval_delta_over"] == "groups_with_all_members_successful"
+        # The stub's rewards are clean -0.5 / mild -0.3 / severe -0.7, so the deltas are
+        # exact and the arithmetic is checkable rather than merely present.
+        assert abs(ev["eval_delta_mild_minus_clean"] - 0.2) < 1e-9
+        assert abs(ev["eval_delta_severe_minus_clean"] + 0.2) < 1e-9
+        assert abs(ev["eval_delta_severe_minus_mild"] + 0.4) < 1e-9
+        # The LEGACY damaged-minus-clean key is null under a triad: there is no single
+        # damaged member to difference, and inventing one would be a false measurement.
+        assert ev["eval_paired_reward_delta"] is None
+        # THE PRIMARY BEHAVIOURAL MEASUREMENT, per severity, over FD WAKES.
+        assert ev["eval_n_mild_fd_wakes"] == 3
+        assert ev["eval_n_severe_fd_wakes"] == 2
+        assert ev["eval_fd_meta_action_counts_mild"]["PLAN_COMPLIANCE"] == 3
+        assert ev["eval_fd_meta_action_counts_severe"]["SELF_PRESERVATION_ABORT"] == 2
+        assert ev["eval_fd_meta_action_rates_mild"]["SELF_PRESERVATION_ABORT"] == 0.0
+        assert ev["eval_fd_meta_action_rates_severe"]["SELF_PRESERVATION_ABORT"] == 1.0
+        # The held-out SEED band is 3 wide however many attempts each seed took.
+        assert ev["seed_band"]["stop"] - ev["seed_band"]["start"] == 3
+
+    # Every failure is in the ledger exactly once, under its own CONDITION.
+    ledger = [json.loads(line) for line in
+              (tmp_path / "run" / "episode_failures.jsonl").read_text(
+                  encoding="utf-8").splitlines() if line.strip()]
+    assert all(r["condition"] == CONDITION_DAMAGED for r in ledger), ledger
+    assert summary["accounting_reconciled"] is True
+
+
+def test_vs_po3_an_empty_triad_population_is_null_not_zero(tmp_path: Path) -> None:
+    """PO3. No complete triad -> `null` for every delta, never 0.0 ('no effect')."""
+    cfg = _variable_cfg(tmp_path, eval_episodes=2)
+    summary, _events = _run_stub_training(
+        cfg, failing_eval=("*", FuelDamageMode.FORCED_SEVERE)
+    )
+    for ev in summary["eval_records"]:
+        assert ev["n_groups_successful"] == 0
+        for key in ev["eval_delta_keys"]:
+            assert ev[key] is None, key
+        assert ev["eval_reward_mean_severe"] is None
+        assert ev["eval_n_severe_fd_wakes"] == 0
+        # A rate with no denominator is MISSING, not zero.
+        for rate in ev["eval_fd_meta_action_rates_severe"].values():
+            assert rate is None
+        # The members that did run are still reported.
+        assert ev["eval_reward_mean_clean"] is not None
+        assert ev["eval_reward_mean_mild"] is not None
+    assert summary["final_eval_groups_successful"] == 0
+    assert all(v is None for v in summary["final_eval_group_deltas"].values())
+
+
+def test_vs_po3_the_durable_stream_exposes_every_per_attempt_measurement(
+    tmp_path: Path,
+) -> None:
+    """PO3. `episode_outcomes.jsonl` carries one auditable row per SUCCESSFUL attempt.
+
+    The aggregate records cannot be un-averaged, so the distributional question this
+    experiment exists to answer needs a per-episode stream. What is locked here is that
+    it is written for every successful attempt, carries the identity / event / outcome
+    fields the analysis needs, and does NOT duplicate the failure ledger.
+    """
+    cfg = _variable_cfg(tmp_path)
+    summary, _events = _run_stub_training(
+        cfg, failing_eval=(1_000_001, FuelDamageMode.FORCED_SEVERE)
+    )
+    path = tmp_path / "run" / graph_train._EPISODE_OUTCOMES_FILENAME
+    rows = [json.loads(line) for line in
+            path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    # ONE row per successful attempt, and NOTHING for the failed one -- the two files
+    # are disjoint, so reading both cannot double-count an attempt.
+    n_success = (summary["train_episodes_successful"]
+                 + summary["eval_episodes_successful"])
+    assert len(rows) == n_success, (len(rows), n_success)
+    assert summary["episode_outcomes_recorded"] == len(rows)
+    ledger = [json.loads(line) for line in
+              (tmp_path / "run" / "episode_failures.jsonl").read_text(
+                  encoding="utf-8").splitlines() if line.strip()]
+    assert ledger, "the fixture must actually fail something"
+    assert summary["eval_episodes_failed"] == len(ledger)
+
+    required = (
+        "schema", "phase", "iteration", "updates_completed", "attempt_ordinal",
+        "seed", "episode_tag", "fuel_damage_mode", "cell", "condition", "severity",
+        "fd_derived_seed", "fd_severity_derived_seed", "fd_ego_id", "fd_fired",
+        "fd_event_tick", "fd_observed_progress", "fd_fuel_before", "fd_fuel_after",
+        "fd_damage_factor", "fd_fuel_after_fraction_of_max",
+        "fd_live_rtb_fuel_floor", "fd_live_continue_fuel_requirement",
+        "fd_continuation_margin", "fd_wake_occurred", "fd_wake_meta_action",
+        "fd_wake_meta_action_name", "fd_rtb_command_issued",
+        "reward", "n_dead", "targets_confirmed_unique", "targets_total",
+        "ended", "ticks",
+    )
+    for row in rows:
+        for key in required:
+            assert key in row, key
+        assert row["cell"] in (CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE)
+        # A clean row states ABSENCE as null, never as a zero that would read as an
+        # empty tank or as tick zero.
+        if row["cell"] == CONDITION_CLEAN:
+            assert row["severity"] is None
+            assert row["fd_fuel_after"] is None
+            assert row["fd_event_tick"] is None
+            assert row["fd_wake_meta_action_name"] is None
+        else:
+            assert row["severity"] == row["cell"]
+            assert row["condition"] == CONDITION_DAMAGED
+            assert row["fd_wake_meta_action_name"] in (
+                "PLAN_COMPLIANCE", "SELF_PRESERVATION_ABORT")
+
+    # Both phases are present, and eval rows carry their group coordinates.
+    phases = {r["phase"] for r in rows}
+    assert {"train", "pre_update", "post_update"} <= phases, phases
+    for row in rows:
+        if row["phase"] == "train":
+            assert row["episode_index"] is not None
+            assert row["eval_group_member"] is None
+        else:
+            assert row["eval_group_member"] in (0, 1, 2)
+            assert row["eval_episode_index"] is not None
+
+
+def test_vs_po3_the_summary_is_rebuilt_from_the_durable_files_alone(
+    tmp_path: Path,
+) -> None:
+    """PO3. Summary and plots are derivable from the run directory, with no run state.
+
+    `build_run_summary` re-reads the jsonl artifacts, so the severity-response table it
+    publishes cannot describe a run the files do not -- the one-metric-path discipline,
+    extended to the new stream.
+    """
+    cfg = _variable_cfg(tmp_path)
+    summary, _events = _run_stub_training(cfg)
+
+    rebuilt = graph_train.build_run_summary(tmp_path / "run", cfg=cfg)
+    for key in ("severity_response", "episode_outcomes_recorded",
+                "final_eval_group_deltas", "eval_group_cells", "difficulty_factor",
+                "fuel_damage_totals"):
+        assert rebuilt[key] == summary[key], key
+    assert rebuilt["difficulty_factor"] == "fuel_damage_variable_severity_v1"
+    assert rebuilt["eval_group_kind"] == "triad"
+
+    # The severity-response table is per phase and per cell, and its RATES are over FD
+    # WAKES -- a smaller population than the episode count, because an event can fire
+    # without ever waking the policy.
+    response = rebuilt["severity_response"]
+    assert set(response) >= {"train", "pre_update", "post_update"}
+    for phase, cells in response.items():
+        for cell, stats in cells.items():
+            assert stats["rates_over"] == "fd_wakes"
+            assert stats["n_fd_wakes"] <= stats["n_episodes"]
+            for name, rate in stats["meta_action_rates"].items():
+                if stats["n_fd_wakes"] == 0:
+                    assert rate is None, (phase, cell, name)
+                else:
+                    assert abs(rate - stats["meta_action_counts"][name]
+                               / stats["n_fd_wakes"]) < 1e-9
+    # The behavioural split the stub encoded is visible in the table: mild complies,
+    # severe aborts.
+    post = response["post_update"]
+    assert post[SEVERITY_MILD]["meta_action_rates"]["PLAN_COMPLIANCE"] == 1.0
+    assert post[SEVERITY_SEVERE]["meta_action_rates"]["SELF_PRESERVATION_ABORT"] == 1.0
+
+    # The summary is persisted WITHOUT the embedded record lists -- the jsonl files stay
+    # the single record.
+    written = json.loads(
+        (tmp_path / "run" / "run_summary.json").read_text(encoding="utf-8")
+    )
+    assert "episode_outcome_records" not in written
+    assert written["severity_response"] == rebuilt["severity_response"]
+
+    # And the figures render from those files alone, with no policy and no torch.
+    if not _skip_plotting():
+        written_paths = graph_train.plot_training_subprocess(tmp_path / "run")
+        assert [p.name for p in written_paths] == list(graph_train._PLOT_FILENAMES)
+        for p in written_paths:
+            assert p.exists() and p.stat().st_size > 1000, p
+
+
+def test_vs_po3_a_cell_the_run_does_not_report_aborts_as_data_integrity() -> None:
+    """PO3. An episode whose plan disagrees with its schedule can never vanish quietly.
+
+    Storage is per cell, and `to_record` emits only the run's declared cells -- so an
+    outcome carrying an undeclared cell would keep its reward inside the round totals
+    while disappearing from every per-cell mean and denominator. That is a measurement
+    disagreeing with its own accounting, so it is INFRASTRUCTURE and it aborts, exactly
+    as a roster fault does.
+    """
+    tally = graph_train._ConditionTally((CONDITION_CLEAN, CONDITION_DAMAGED))
+    out = graph_train._EpisodeOutcome(
+        trajectory=[], reward=-0.5, ticks=1, ended="done", n_wakes=0,
+        confirmed_kills=0, n_dead=0, seconds=0.0, targets_confirmed_unique=0,
+        targets_total=6, known_target_names=(), hidden_target_names=(),
+        known_confirmed_names=(), hidden_confirmed_names=(),
+        fuel_damage_plan={"condition": CONDITION_DAMAGED, "severity": SEVERITY_MILD},
+        fuel_damage_outcome={"fired": True, "wake_occurred": False},
+        selected_ego_rtb_issued=None,
+    )
+    try:
+        tally.success(out)
+    except MeasurementIntegrityError as exc:
+        assert "mild" in str(exc), str(exc)
+    else:
+        raise AssertionError("an undeclared cell was silently absorbed")
+    # It is INFRASTRUCTURE, never an accounted episode failure.
+    assert not issubclass(MeasurementIntegrityError, EpisodeAttemptError)
+    # The same guard protects the DENOMINATOR side.
+    try:
+        tally.attempt(SEVERITY_SEVERE)
+    except MeasurementIntegrityError:
+        pass
+    else:
+        raise AssertionError("an undeclared cell was scheduled without complaint")
+
+
+def test_vs_po3_the_run_config_records_the_severity_contract(tmp_path: Path) -> None:
+    """PO3. A run states its design in its own config: modes, split, group and deltas."""
+    payload = json.loads(_write_run_config_to_string(_variable_cfg(tmp_path)))
+    difficulty = payload["difficulty"]
+    assert difficulty["factor"] == "fuel_damage_variable_severity_v1"
+    fd = difficulty["fuel_damage"]
+    assert fd["mode"] == FuelDamageMode.SEEDED_VARIABLE
+    assert fd["variable_severity"] is True
+    assert fd["mild_probability"] == 0.5
+    assert fd["severity_rng_domain"] == "fuel_damage_severity_v1"
+    assert fd["rng_domain"] == "fuel_damage_v1", "the legacy domain must be recorded too"
+    assert fd["target_policy"] == TARGET_POLICY_LIVE_SEVERITY_MIDPOINT
+    assert fd["severities"] == [SEVERITY_MILD, SEVERITY_SEVERE]
+    # The approved three-way distribution, written out rather than left to be derived.
+    assert difficulty["scheduled_cell_probabilities"] == {
+        CONDITION_CLEAN: 0.5, SEVERITY_MILD: 0.25, SEVERITY_SEVERE: 0.25,
+    }
+    assert difficulty["eval_group_kind"] == "triad"
+    assert difficulty["eval_group_cells"] == [
+        CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE]
+    assert difficulty["eval_group_modes"] == [
+        FuelDamageMode.FORCED_CLEAN, FuelDamageMode.FORCED_MILD,
+        FuelDamageMode.FORCED_SEVERE]
+    assert difficulty["eval_group_members_per_seed"] == 3
+    assert difficulty["eval_group_deltas"] == [
+        "eval_delta_mild_minus_clean", "eval_delta_severe_minus_clean",
+        "eval_delta_severe_minus_mild"]
+    # The reward is UNCHANGED -- the factor changes the world, never the objective.
+    assert difficulty["reward"]["formula_changed"] is False
+    assert difficulty["reward"]["aircraft_penalty_coeff"] == 2.25
+
+    # A LEGACY run's config still says exactly what it always said.
+    legacy = json.loads(_write_run_config_to_string(TrainConfig(n_iterations=1)))
+    assert legacy["difficulty"]["factor"] == "fuel_damage_baseline_v1"
+    assert legacy["difficulty"]["fuel_damage"]["variable_severity"] is False
+    assert legacy["difficulty"]["scheduled_cell_probabilities"] is None
+    assert legacy["difficulty"]["eval_group_kind"] == "pair"
+    assert legacy["difficulty"]["eval_pair_conditions"] == [
+        CONDITION_CLEAN, CONDITION_DAMAGED]
+
+
+def test_vs_po3_the_severity_knob_reaches_both_harnesses_and_the_cli() -> None:
+    """PO3. Configuration parity: trainer, rollout and CLI agree on the new factor."""
+    t = TrainConfig(n_iterations=1, fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE,
+                    fuel_damage_mild_probability=0.25)
+    r = RolloutConfig(fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE,
+                      fuel_damage_mild_probability=0.25)
+    assert t.fuel_damage_parameters() == r.fuel_damage_parameters()
+    assert t.fuel_damage_parameters().mild_probability == 0.25
+    t.validate()
+    r.validate()
+
+    # The CLI exposes the mode and the conditional, and its defaults are read off the
+    # dataclass -- so the two cannot drift.
+    parser = graph_train._build_arg_parser()
+    args = parser.parse_args(["--fuel-damage-mode", FuelDamageMode.SEEDED_VARIABLE,
+                              "--fuel-damage-mild-probability", "0.25"])
+    assert args.fuel_damage_mode == FuelDamageMode.SEEDED_VARIABLE
+    assert args.fuel_damage_mild_probability == 0.25
+    default = TrainConfig(n_iterations=1)
+    assert (parser.parse_args([]).fuel_damage_mild_probability
+            == default.fuel_damage_mild_probability)
+    # The dest -> field mapping covers the new knob, so a JSON preset and the flag reach
+    # the same field.
+    assert (graph_train._CLI_FIELD_BY_DEST["fuel_damage_mild_probability"]
+            == "fuel_damage_mild_probability")
+
+    # A degenerate conditional WARNS (a researcher may probe it) and never raises.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        TrainConfig(n_iterations=1,
+                    fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE,
+                    fuel_damage_mild_probability=1.0).validate()
+    assert "[WARN]" in buf.getvalue() and "same severity" in buf.getvalue()
 
 
 # =============================================================================
@@ -2344,16 +3209,34 @@ def _run_stub_training(cfg: TrainConfig, *, failing_seeds=(), failing_eval=None)
 
         params = cfg_.fuel_damage_parameters(fuel_damage_mode)
         condition = resolve_condition(episode_seed=seed, params=params)
+        # The stub plan must report the SAME cell the schedule resolved -- the tally
+        # refuses an episode whose plan disagrees with its own scheduling, and a stub
+        # that omitted the severity would be exercising that refusal instead of the
+        # feature. `resolve_severity` is the production function, so the stub cannot
+        # drift from it.
+        severity = resolve_severity(episode_seed=seed, params=params)
         damaged = condition == CONDITION_DAMAGED
+        # A severity-dependent reward, so a matched triad has a real within-seed
+        # structure to difference: severe costs more than mild, and both cost more than
+        # clean. Arbitrary magnitudes -- what is under test is the ARITHMETIC over
+        # complete groups, not the values.
+        reward = -0.5 + {None: 0.0, SEVERITY_MILD: 0.2, SEVERITY_SEVERE: -0.2}.get(
+            severity, 0.1 if damaged else 0.0
+        )
+        meta = (None if not damaged
+                else (MetaAction.PLAN_COMPLIANCE.value if severity == SEVERITY_MILD
+                      else MetaAction.SELF_PRESERVATION_ABORT.value))
         return graph_train._EpisodeOutcome(
-            trajectory=[_StubTransition()], reward=-0.5 + (0.1 if damaged else 0.0),
+            trajectory=[_StubTransition()], reward=reward,
             ticks=42, ended="done", n_wakes=1, confirmed_kills=1, n_dead=0,
             seconds=0.01, targets_confirmed_unique=1, targets_total=6,
             known_target_names=("A",), hidden_target_names=("B",),
             known_confirmed_names=("A",), hidden_confirmed_names=(),
-            fuel_damage_plan={"condition": condition, "ego_id": "ego0" if damaged else None},
-            fuel_damage_outcome={"condition": condition, "fired": damaged,
-                                 "wake_occurred": damaged, "wake_meta_action": None},
+            fuel_damage_plan={"condition": condition, "severity": severity,
+                              "ego_id": "ego0" if damaged else None},
+            fuel_damage_outcome={"condition": condition, "severity": severity,
+                                 "fired": damaged, "wake_occurred": damaged,
+                                 "wake_meta_action": meta},
             selected_ego_rtb_issued=True if damaged else None,
         )
 

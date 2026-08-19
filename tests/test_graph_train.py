@@ -2011,7 +2011,7 @@ def test_a_failed_attempt_prints_no_ok_block_and_still_accounts(tmp_path: Path) 
     assert headers == ["[train iter=0 ep=0 seed=0] OK",
                        "[train iter=0 ep=2 seed=2] OK"], headers
     assert "seed=1] OK" not in out, out
-    assert "[iter 0 ep 1] FAILED (seed=1, cond=damaged, stage=setup)" in out, out
+    assert "[iter 0 ep 1] FAILED (seed=1, cell=damaged, stage=setup)" in out, out
 
     # Accounting is untouched by the new output.
     assert summary["train_episodes_attempted"] == 3
@@ -3430,8 +3430,10 @@ def test_plot_separates_performance_from_diagnostics_and_health() -> None:
     assert source.count("fig.savefig(") == 3
     assert "plt.subplots(3, 1" in inspect.getsource(
         graph_train._plot_training_performance), "performance is not 3 panels"
-    assert "plt.subplots(2, 1" in inspect.getsource(
-        graph_train._plot_policy_diagnostics), "diagnostics is not 2 panels"
+    # Diagnostics gained the FD-wake severity-response panel (mix / entropy / response);
+    # it stayed INSIDE the diagnostics figure rather than becoming a fourth file.
+    assert "plt.subplots(3, 1" in inspect.getsource(
+        graph_train._plot_policy_diagnostics), "diagnostics is not 3 panels"
     assert "plt.subplots(3, 1" in inspect.getsource(
         graph_train._plot_measurement_health), "health is not 3 panels"
     # The retired single dashboard is gone as an OUTPUT (its name survives only in the
@@ -3444,42 +3446,48 @@ def test_plot_separates_performance_from_diagnostics_and_health() -> None:
     # The honest placement survives: training at updates_completed_before, eval at
     # updates_completed. Neither was moved to make a curve look better.
     assert '_xy(\n        train_records, "updates_completed_before", "train_reward_mean"\n    )' in source
-    assert '_xy(eval_records, "updates_completed", "eval_reward_mean_clean")' in source
+    assert '_xy(eval_records, "updates_completed", "eval_reward_mean_%s" % cell)' in source
 
 
-def test_performance_plot_draws_clean_damaged_and_delta_distinctly() -> None:
-    """PO2. The held-out panel is PER CONDITION, and the delta is the paired field.
+def test_performance_plot_draws_every_cell_and_delta_distinctly() -> None:
+    """PO2. The held-out panel is PER CELL, and the deltas are the matched fields.
 
-    The three series must come from three different record fields. The specific thing
-    forbidden here is the retired dashboard's behaviour: drawing the pooled
-    `eval_reward_mean` as THE held-out signal, which averages across the very factor the
-    matched pairs exist to isolate.
+    The series must come from different record fields, one per reporting cell, and the
+    deltas from the declared matched-difference keys. The specific thing forbidden here
+    is the retired dashboard's behaviour: drawing the pooled `eval_reward_mean` as THE
+    held-out signal, which averages across the very factor the matched groups exist to
+    isolate.
+
+    The cell list is read from the RECORDS (`_record_cells`), so the same function draws
+    a legacy clean/damaged pair round and a clean/mild/severe triad round without being
+    told which it is -- `--plot <run_dir>` has no TrainConfig to ask.
     """
     source = inspect.getsource(graph_train._plot_training_performance)
-    assert '"eval_reward_mean_clean"' in source
-    assert '"eval_reward_mean_damaged"' in source
-    assert '"eval_paired_reward_delta"' in source
+    assert "_record_cells(eval_records)" in source
+    assert "_record_delta_keys(eval_records)" in source
+    assert '"eval_reward_mean_%s" % cell' in source
     # Training reward and the held-out series are not the same panel: three axes, and
     # the train series is drawn on the first.
     assert "plt.subplots(3, 1" in source
-    assert source.index('"train_reward_mean"') < source.index('"eval_reward_mean_clean"')
+    assert (source.index('"train_reward_mean"')
+            < source.index('"eval_reward_mean_%s" % cell'))
     # The pooled series appears ONLY inside the legacy fallback branch -- i.e. after the
-    # per-condition series have been found empty -- and is labelled as pooled.
-    assert "if not clean_y and not dmg_y:" in source
-    assert source.index("if not clean_y and not dmg_y:") < source.index('"eval_reward_mean"')
+    # per-cell series have been found empty -- and is labelled as pooled.
+    assert "if not drew_any:" in source
+    assert source.index("if not drew_any:") < source.index('"eval_reward_mean")')
     assert "POOLED" in source
 
 
 def test_measurement_health_keeps_every_denominator() -> None:
     """PO2. Coverage moved to its own figure, and NOTHING was dropped on the way.
 
-    The four fractions the packet requires, plus the pair fraction that the
-    episode-level one cannot express: two surviving halves of two different pairs are
-    two successful episodes and ZERO complete pairs.
+    The fractions the packet requires, plus the matched-GROUP fraction that the
+    episode-level one cannot express: two surviving members of two different groups are
+    two successful episodes and ZERO complete groups.
     """
     source = inspect.getsource(graph_train._plot_measurement_health)
     for key in ("success_fraction", "wake_fraction_of_successful",
-                "pair_success_fraction"):
+                "group_success_fraction"):
         assert '"%s"' % key in source, key
     # Both record streams are read, so "eval success_fraction" is really eval's.
     assert "(train_records, \"updates_completed_before\", \"success_fraction\"" in source
@@ -4700,32 +4708,34 @@ def test_explicit_dests_read_argv_none_as_the_real_command_line() -> None:
         sys.argv = real_argv
 
 
-def test_health_plot_exposes_per_condition_eval_denominators() -> None:
-    """PO3. The two condition means carry their own completion counts.
+def test_health_plot_exposes_per_cell_eval_denominators() -> None:
+    """PO3. Every cell mean carries its own completion count.
 
-    `eval_reward_mean_clean` and `eval_reward_mean_damaged` are each a mean over THAT
-    condition's successful episodes, so when one condition fails more held-out seeds the
-    two curves are not averages over the same seeds and their gap is not a within-seed
-    effect. The per-condition attempted/successful counts are what make that inspectable,
-    and they come from existing record fields -- no evaluation semantics change.
+    `eval_reward_mean_<cell>` is a mean over THAT cell's successful episodes, so when one
+    cell fails more held-out seeds the curves are not averages over the same seeds and
+    their gaps are not within-seed effects. The per-cell attempted/successful counts are
+    what make that inspectable, and they come from existing record fields -- no
+    evaluation semantics change.
     """
     source = inspect.getsource(graph_train._plot_measurement_health)
-    assert '"eval_n_%s_%s" % (condition, suffix)' in source
+    assert '"eval_n_%s_%s" % (cell, suffix)' in source
     assert "attempted" in source and "successful" in source
-    assert "CONDITION_CLEAN" in source and "CONDITION_DAMAGED" in source
-    # It says WHY the panel exists: the two condition means are not a within-seed
-    # comparison, while the paired delta is.
+    assert "_record_cells(eval_records)" in source
+    # The abort-rate denominator is drawn too: a rate over one FD wake and the same rate
+    # over eight are different findings, and only this panel shows which it was.
+    assert '"eval_n_%s_fd_wakes" % cell' in source
+    # It says WHY the panel exists: the cell means are not a within-seed comparison,
+    # while the matched deltas are.
     assert "denominator" in source.lower()
 
-    # The performance figure must label its condition series honestly, and reserve the
-    # within-seed claim for the paired delta.
+    # The performance figure must label its cell series honestly, and reserve the
+    # within-seed claim for the matched deltas.
     perf = inspect.getsource(graph_train._plot_training_performance)
-    assert "mean over SUCCESSFUL forced_clean episodes" in perf
-    assert "mean over SUCCESSFUL forced_damaged episodes" in perf
-    assert "each mean over THAT condition's successful" in perf
+    assert "mean over SUCCESSFUL forced_%s episodes" in perf
+    assert "each mean over THAT cell's successful" in perf
     assert "WITHIN-SEED" in perf
-    # The paired delta still comes from the matched field only -- unchanged semantics.
-    assert '"eval_paired_reward_delta"' in perf
+    # The deltas still come from the declared matched keys only -- unchanged semantics.
+    assert "_record_delta_keys(eval_records)" in perf
 
 
 def test_per_condition_denominators_survive_an_asymmetric_round(tmp_path: Path) -> None:
@@ -4955,8 +4965,8 @@ if __name__ == "__main__":
          test_xy_drops_missing_rewards_and_anchors_pre_update_at_zero, False),
         ("plot_separates_performance_from_diagnostics_and_health",
          test_plot_separates_performance_from_diagnostics_and_health, False),
-        ("performance_plot_draws_clean_damaged_and_delta_distinctly",
-         test_performance_plot_draws_clean_damaged_and_delta_distinctly, False),
+        ("performance_plot_draws_every_cell_and_delta_distinctly",
+         test_performance_plot_draws_every_cell_and_delta_distinctly, False),
         ("measurement_health_keeps_every_denominator",
          test_measurement_health_keeps_every_denominator, False),
         ("plot_renders_every_figure_from_jsonl",
@@ -5028,8 +5038,8 @@ if __name__ == "__main__":
          test_main_with_argv_none_still_sees_the_real_command_line, True),
         ("explicit_dests_read_argv_none_as_the_real_command_line",
          test_explicit_dests_read_argv_none_as_the_real_command_line, False),
-        ("health_plot_exposes_per_condition_eval_denominators",
-         test_health_plot_exposes_per_condition_eval_denominators, False),
+        ("health_plot_exposes_per_cell_eval_denominators",
+         test_health_plot_exposes_per_cell_eval_denominators, False),
         ("per_condition_denominators_survive_an_asymmetric_round",
          test_per_condition_denominators_survive_an_asymmetric_round, True),
     ]
