@@ -1653,10 +1653,12 @@ def test_f1_the_trainer_reports_the_command_not_the_latch() -> None:
     )
     assert out.fuel_damage_outcome["rtb_command_issued"] is False
 
-    # And the tally counts commands, so this episode contributes no RTB.
+    # And the tally counts commands, so this episode contributes no RTB. The episode was
+    # SCHEDULED damaged and executed damaged, so it passes the scheduled-vs-executed
+    # guard and is folded in normally.
     tally = graph_train._ConditionTally()
     tally.attempt(CONDITION_DAMAGED)
-    tally.success(out)
+    tally.success(out, expected_cell=CONDITION_DAMAGED)
     assert tally.to_record()["fuel_damage_rtb_issued"] == 0
 
 
@@ -2674,6 +2676,14 @@ def _variable_cfg(tmp_path: Path, **kwargs) -> TrainConfig:
     return TrainConfig(**base)
 
 
+def _jsonl(path: Path) -> list:
+    """Read a jsonl artifact into a list of dicts (missing file -> empty list)."""
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in
+            path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
 def _skip_plotting() -> bool:
     """True when matplotlib is unavailable (plots are optional, never a hard dep)."""
     try:
@@ -2967,7 +2977,7 @@ def test_vs_po3_a_cell_the_run_does_not_report_aborts_as_data_integrity() -> Non
         selected_ego_rtb_issued=None,
     )
     try:
-        tally.success(out)
+        tally.success(out, expected_cell=CONDITION_DAMAGED)
     except MeasurementIntegrityError as exc:
         assert "mild" in str(exc), str(exc)
     else:
@@ -2981,6 +2991,128 @@ def test_vs_po3_a_cell_the_run_does_not_report_aborts_as_data_integrity() -> Non
         pass
     else:
         raise AssertionError("an undeclared cell was scheduled without complaint")
+    # ...and a SCHEDULE naming a cell this tally cannot report is refused too, so the
+    # two sides of the comparison are both required to be reportable before they are
+    # compared.
+    try:
+        tally.success(out, expected_cell=SEVERITY_SEVERE)
+    except MeasurementIntegrityError as exc:
+        assert "scheduled under cell" in str(exc), str(exc)
+    else:
+        raise AssertionError("an undeclared SCHEDULED cell was accepted")
+
+
+def test_vs_po3_a_scheduled_cell_that_executes_as_another_aborts(tmp_path: Path) -> None:
+    """PO3. SCHEDULED cell != EXECUTED cell is a measurement-integrity abort.
+
+    THE FAULT MEMBERSHIP ALONE CANNOT CATCH. Under FD-VARIABLE-SEVERITY-v1 a scheduled
+    `mild` that executed as `severe` names a cell the run legitimately reports, so a
+    membership test accepts it -- and then books the ATTEMPT in mild's denominator and
+    the REWARD in severe's. Both cells are corrupted at once: mild reads as a failure
+    that never happened, severe as a success that was never scheduled, and a matched
+    triad's within-seed delta would be taken between two members the schedule never
+    paired. Equality with the scheduled cell is the only check that sees it.
+
+    Proven at three levels: the tally in isolation, the real TRAINING call site, and the
+    real EVALUATION call site -- the last two because the guard is only worth anything
+    if both production sites actually pass their scheduled cell into it.
+    """
+    cells = (CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE)
+
+    def _damaged_outcome(severity):
+        return graph_train._EpisodeOutcome(
+            trajectory=[_StubTransition()], reward=-0.9, ticks=7, ended="done",
+            n_wakes=1, confirmed_kills=1, n_dead=2, seconds=0.01,
+            targets_confirmed_unique=1, targets_total=6,
+            known_target_names=("A",), hidden_target_names=("B",),
+            known_confirmed_names=("A",), hidden_confirmed_names=(),
+            fuel_damage_plan={"condition": CONDITION_DAMAGED, "severity": severity},
+            fuel_damage_outcome={"condition": CONDITION_DAMAGED, "severity": severity,
+                                 "fired": True, "wake_occurred": True,
+                                 "wake_meta_action":
+                                     MetaAction.SELF_PRESERVATION_ABORT.value},
+            selected_ego_rtb_issued=True,
+        )
+
+    # ---- (1) the tally in isolation: rejected, and NOTHING is mutated ----
+    tally = graph_train._ConditionTally(cells)
+    tally.attempt(SEVERITY_MILD)
+
+    def snapshot(t):
+        return {
+            "attempted": dict(t.attempted), "failed": dict(t.failed),
+            "rewards": {k: list(v) for k, v in t.rewards.items()},
+            "fd_fired": dict(t.fd_fired), "fd_wakes": dict(t.fd_wakes),
+            "fd_meta": {k: dict(v) for k, v in t.fd_meta.items()},
+            "events_applied": t.events_applied, "wakes": t.wakes,
+            "rtb_issued": t.rtb_issued, "deaths": t.deaths,
+        }
+
+    before = snapshot(tally)
+    try:
+        tally.success(_damaged_outcome(SEVERITY_SEVERE), expected_cell=SEVERITY_MILD)
+    except MeasurementIntegrityError as exc:
+        message = str(exc)
+        assert "SCHEDULED as 'mild'" in message, message
+        assert "EXECUTED as 'severe'" in message, message
+    else:
+        raise AssertionError(
+            "a mild-scheduled attempt was folded in as a severe success"
+        )
+    # The rejected episode left NO trace: not a reward, not an FD counter, not a death.
+    assert snapshot(tally) == before, "a rejected episode mutated the tally"
+    assert tally.successful(SEVERITY_MILD) == 0
+    assert tally.successful(SEVERITY_SEVERE) == 0
+    assert tally.mean(SEVERITY_SEVERE) is None
+    assert (tally.events_applied, tally.wakes, tally.rtb_issued, tally.deaths) == (
+        0, 0, 0, 0)
+    # ...and the matching case is still accepted, so the guard rejects the fault rather
+    # than the feature.
+    assert tally.success(
+        _damaged_outcome(SEVERITY_MILD), expected_cell=SEVERITY_MILD) == SEVERITY_MILD
+    assert tally.successful(SEVERITY_MILD) == 1
+
+    # ---- (2) the real TRAINING call site ----
+    # Seed 1 is a scheduled MILD training episode; the stub executes it as SEVERE.
+    cfg = _variable_cfg(tmp_path / "train_site")
+    assert resolve_severity(
+        episode_seed=1, params=cfg.fuel_damage_parameters()) == SEVERITY_MILD
+    try:
+        _run_stub_training(cfg, mislabel_train_seed=1)
+    except MeasurementIntegrityError as exc:
+        assert "SCHEDULED as 'mild'" in str(exc), str(exc)
+    else:
+        raise AssertionError("the TRAINING call site accepted a mismatched episode")
+    run_dir = tmp_path / "train_site" / "run"
+    # It ABORTED: it is never an accounted scientific failure, and the rejected attempt
+    # left no successful outcome record behind.
+    ledger = _jsonl(run_dir / "episode_failures.jsonl")
+    assert ledger == [], ledger
+    outcomes = _jsonl(run_dir / graph_train._EPISODE_OUTCOMES_FILENAME)
+    assert all(row["seed"] != 1 for row in outcomes), outcomes
+    assert all(row["phase"] != "train" or row["cell"] == CONDITION_CLEAN
+               for row in outcomes), "a mismatched training episode was recorded"
+
+    # ---- (3) the real EVALUATION call site ----
+    # The forced-MILD member of a held-out triad, executed as severe.
+    cfg2 = _variable_cfg(tmp_path / "eval_site")
+    try:
+        _run_stub_training(
+            cfg2, mislabel_eval=(1_000_000, FuelDamageMode.FORCED_MILD)
+        )
+    except MeasurementIntegrityError as exc:
+        assert "SCHEDULED as 'mild'" in str(exc), str(exc)
+    else:
+        raise AssertionError("the EVALUATION call site accepted a mismatched member")
+    run_dir2 = tmp_path / "eval_site" / "run"
+    assert _jsonl(run_dir2 / "episode_failures.jsonl") == []
+    for row in _jsonl(run_dir2 / graph_train._EPISODE_OUTCOMES_FILENAME):
+        # The clean member of that seed ran first and is legitimately recorded; the
+        # mismatched mild member must not be, and the severe member never ran.
+        assert not (row["seed"] == 1_000_000 and row["cell"] != CONDITION_CLEAN), row
+    # No eval round was ever completed, so no matched-group delta was computed from a
+    # group whose member was rejected.
+    assert _jsonl(run_dir2 / "eval_records.jsonl") == []
 
 
 def test_vs_po3_the_run_config_records_the_severity_contract(tmp_path: Path) -> None:
@@ -3170,16 +3302,26 @@ class _StubUpdater:
         }
 
 
-def _run_stub_training(cfg: TrainConfig, *, failing_seeds=(), failing_eval=None):
+def _run_stub_training(cfg: TrainConfig, *, failing_seeds=(), failing_eval=None,
+                       mislabel_train_seed=None, mislabel_eval=None):
     """Drive the REAL `train()` with the BLADE + solver episode body stubbed.
 
-    Everything under test stays real: the loop, the seed and pair schedule, the tag
-    allocation, the ledger, the condition accounting and the record writers.
+    Everything under test stays real: the loop, the seed and group schedule, the tag
+    allocation, the ledger, the cell accounting and the record writers.
     ``failing_eval`` is ``(seed_or_"*", mode)`` -- the eval member that raises.
+
+    ``mislabel_train_seed`` / ``mislabel_eval`` make one attempt return an outcome whose
+    executed plan reports the OTHER severity than the one its schedule resolved. That is
+    not a situation the production pipeline can currently produce -- which is exactly why
+    it has to be injected to be testable at all: the guard it exercises exists so that if
+    the schedule and the executed plan ever DO diverge, the run stops instead of booking
+    the attempt in one cell and the reward in another. ``mislabel_eval`` is
+    ``(seed, mode)``.
     """
     events = []
     failing_seeds = set(failing_seeds)
     fail_seed, fail_mode = failing_eval if failing_eval else (None, None)
+    mislabel_seed, mislabel_mode = mislabel_eval if mislabel_eval else (None, None)
 
     saved = {
         "_run_one_episode": graph_train._run_one_episode,
@@ -3216,6 +3358,18 @@ def _run_stub_training(cfg: TrainConfig, *, failing_seeds=(), failing_eval=None)
         # drift from it.
         severity = resolve_severity(episode_seed=seed, params=params)
         damaged = condition == CONDITION_DAMAGED
+        # INJECTED DIVERGENCE: report the other severity than the one scheduled, for the
+        # one attempt under test. Everything else about the outcome stays consistent, so
+        # what the guard sees is exactly a scheduled/executed cell disagreement.
+        mislabelled = (
+            (phase == "train" and seed == mislabel_train_seed)
+            or (phase == "eval" and mislabel_mode is not None
+                and fuel_damage_mode == mislabel_mode
+                and (mislabel_seed == "*" or seed == mislabel_seed))
+        )
+        if mislabelled and severity in SEVERITIES:
+            severity = (SEVERITY_SEVERE if severity == SEVERITY_MILD
+                        else SEVERITY_MILD)
         # A severity-dependent reward, so a matched triad has a real within-seed
         # structure to difference: severe costs more than mild, and both cost more than
         # clean. Arbitrary magnitudes -- what is under test is the ARITHMETIC over

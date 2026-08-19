@@ -1828,22 +1828,49 @@ class _ConditionTally:
     def failure(self, cell: str) -> None:
         self.failed[str(cell)] = self.failed.get(str(cell), 0) + 1
 
-    def success(self, out: "_EpisodeOutcome") -> str:
+    def success(self, out: "_EpisodeOutcome", *, expected_cell: str) -> str:
         """Fold one successful episode in; returns the CELL it was counted under.
 
-        THE CELL MUST BE ONE THIS TALLY REPORTS. It is read from the plan the episode
-        really ran with, while the attempt was counted under the cell the SCHEDULE
-        resolved, so a disagreement means the episode that ran is not the episode that
-        was scheduled -- a mild member that produced a severe plan, or a legacy run that
-        somehow produced a severity. Accepting it would put the reward in a bucket
-        ``to_record`` never emits: the episode would still be inside the round's totals
-        while vanishing from every per-cell mean and denominator, which is precisely a
-        measurement that disagrees with its own accounting. So it is INFRASTRUCTURE and
-        it aborts, exactly as a roster fault does.
+        THE EXECUTED CELL MUST BE THE SCHEDULED ONE. ``expected_cell`` is the cell the
+        SCHEDULE resolved before the episode was built -- the same value
+        :meth:`attempt` counted the denominator under -- and ``cell`` is read from the
+        plan the episode REALLY ran with. Requiring equality, rather than mere
+        membership, is the whole guarantee: under FD-VARIABLE-SEVERITY-v1 a scheduled
+        ``mild`` that executed as ``severe`` is a legal member of ``self.cells``, so a
+        membership test accepts it and silently books the attempt in one cell and the
+        reward in another. That corrupts BOTH denominators at once -- the scheduled cell
+        reads as a failure that never happened, the executed cell as a success that was
+        never scheduled -- and it is exactly the matched-group integrity fault the triad
+        design exists to make measurable.
+
+        ``expected_cell`` is a REQUIRED keyword, deliberately: an optional one would let
+        a future call site skip the check by omission, which is the same class of defect
+        one level up. Both production call sites know the scheduled cell before the
+        episode runs and must state it here.
+
+        THREE DISJOINT FAULTS, each named separately because they are different
+        diagnoses:
+
+          1. the SCHEDULE named a cell this tally does not report -- the schedule and the
+             tally were built from different configs;
+          2. the EXECUTION reports a cell this run does not report at all -- a legacy run
+             that produced a severity, or a severity outside the declared set;
+          3. both are reportable but they DISAGREE -- the matched-group fault above.
+
+        All three are INFRASTRUCTURE and abort, exactly as a roster fault does. Every
+        check runs BEFORE any state is mutated, so a rejected episode leaves the tally
+        byte-unchanged and can never be half-counted.
         """
         plan = out.fuel_damage_plan or {}
         outcome = out.fuel_damage_outcome or {}
         cell = _outcome_cell(plan)
+        expected = str(expected_cell)
+        if expected not in self.rewards:
+            raise MeasurementIntegrityError(
+                "a successful episode was scheduled under cell %r, which this run does "
+                "not report (cells: %r); the schedule and the tally disagree about what "
+                "this run measures." % (expected, list(self.cells))
+            )
         if cell not in self.rewards:
             raise MeasurementIntegrityError(
                 "a successful episode reports cell %r, which this run does not report "
@@ -1851,6 +1878,16 @@ class _ConditionTally:
                 "that counted the attempt, so its reward would be missing from every "
                 "per-cell mean while still inside the round's totals."
                 % (cell, list(self.cells))
+            )
+        if cell != expected:
+            raise MeasurementIntegrityError(
+                "a successful episode was SCHEDULED as %r but EXECUTED as %r. The "
+                "attempt was already counted in %r's denominator, so folding its reward "
+                "into %r would report a failure that never happened in one cell and a "
+                "success that was never scheduled in the other -- and, for a matched "
+                "group, a within-seed delta between two members that are not the "
+                "members the schedule paired. Cells: %r."
+                % (expected, cell, expected, cell, list(self.cells))
             )
         self.rewards[cell].append(float(out.reward))
         if outcome.get("fired"):
@@ -3863,7 +3900,12 @@ def evaluate(
                 "[eval stage=%s ep=%d %s seed=%d]"
                 % (_ascii(stage), e, cell, seed), out
             ))
-            member_rewards[tally.success(out)] = out.reward
+            # `cell` is THIS member's scheduled cell, from the matched-group schedule a
+            # few lines above. Passing it is what makes the guard a scheduled-vs-executed
+            # comparison rather than a membership test, and it runs BEFORE the member
+            # reward is recorded -- so a mismatched member can never enter a matched
+            # group, and therefore never enter a within-seed delta.
+            member_rewards[tally.success(out, expected_cell=cell)] = out.reward
             _append_episode_outcome_record(outcomes_path, _episode_outcome_record(
                 out,
                 phase=str(stage),
@@ -4434,7 +4476,11 @@ def train(
                     "[train iter=%d ep=%d seed=%d]" % (iteration, g, seed), out
                 ))
 
-                tally.success(out)
+                # `cell` is this attempt's scheduled cell, resolved from the seed before
+                # the episode was built and already counted by `tally.attempt(cell)`.
+                # The guard runs FIRST, so a mismatched episode reaches neither the
+                # durable outcome stream nor the PPO buffer below.
+                tally.success(out, expected_cell=cell)
                 _append_episode_outcome_record(outcomes_path, _episode_outcome_record(
                     out,
                     phase=_ARTIFACT_PHASE_TRAIN,
