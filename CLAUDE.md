@@ -946,9 +946,14 @@ stream — `rl/training/graph_train.py`.**
   the cells ARE the conditions, the pooling is the identity, and every emitted key keeps
   exactly the value it had.
 - **PRIMARY BEHAVIOURAL EVIDENCE: the severity-conditioned FD-WAKE META-ACTION RESPONSE**,
-  not reward. It is tracked per cell with its OWN denominator — **FD WAKES**, which is
-  smaller than the cell's successful-episode count (an event can fire without the policy
-  ever being woken by it), so it is stored and reported separately rather than inferred.
+  not reward. It is tracked per cell with its OWN denominator — **FD WAKES**, which is at
+  most the cell's successful-episode count and CAN be smaller (an event can fire without
+  the policy ever being woken by it), so it is stored and reported separately rather than
+  inferred. `_ConditionTally.success` counts EVERY successful episode of the cell but
+  increments `fd_wakes[cell]` only on `wake_occurred`, so `fd_wakes[cell] <=
+  successful(cell)` — with EQUALITY when every successful episode in that cell did produce
+  an FD wake. The point of the separate denominator is that the two CAN diverge, never
+  that they must.
   Rates are `None`, never `0.0`, on an empty wake population. **"Mild must always choose
   `PLAN_COMPLIANCE`" is NOT encoded anywhere as a correctness rule and must not be** —
   opportunistic engagement under a survivable loss can be rational; what is measured is
