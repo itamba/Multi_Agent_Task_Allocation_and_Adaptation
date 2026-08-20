@@ -285,7 +285,7 @@ import traceback
 from dataclasses import asdict, dataclass, field, fields as dataclass_fields
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 
@@ -298,11 +298,15 @@ from .graph_fuel_damage import (
     CONDITION_CLEAN,
     CONDITION_DAMAGED,
     CONDITIONS,
+    SEVERITIES,
+    SEVERITY_MILD,
+    SEVERITY_SEVERE,
     FuelDamageMode,
     FuelDamageOutcome,
     FuelDamageParameters,
     build_fuel_damage_controller,
     resolve_condition,
+    resolve_severity,
 )
 from .graph_ppo import EpisodeRecord, PPOBuffer, PPOConfig, PPOUpdater
 from .graph_reward import RewardConfig, compute_episode_reward
@@ -392,16 +396,67 @@ _EVAL_PAIR_MEMBERS = (
     (CONDITION_DAMAGED, FuelDamageMode.FORCED_DAMAGED),
 )
 
-# Eval scenario tags are allocated per PAIR MEMBER, not per seed: member m of held-out
-# episode e takes tag slot `e * _EVAL_PAIR_SIZE + m` inside the round's namespace, so the
-# clean and damaged worlds of one seed are written to two distinct files and neither
-# overwrites the other. `TrainConfig.validate` sizes the namespace against this.
+# Eval scenario tags are allocated per GROUP MEMBER, not per seed: member m of held-out
+# episode e takes tag slot `e * group_size + m` inside the round's namespace, so the
+# members of one seed are written to distinct files and none overwrites another.
+# `TrainConfig.validate` sizes the namespace against the group size the run will use.
 _EVAL_PAIR_SIZE = len(_EVAL_PAIR_MEMBERS)
+
+# --- FD-VARIABLE-SEVERITY-v1 constants ----------------------------------------
+# The THREE members of a matched evaluation TRIAD, in the order they are attempted. All
+# three use the SAME held-out seed -- hence the same generated world, the same solved
+# A_init, the same hidden geometry and (for the two damaged members) the SAME selected
+# ego -- and differ only in the fuel-damage event. A triad, rather than the legacy pair,
+# is what lets "did the actor respond DIFFERENTLY to a survivable loss than to an
+# unsurvivable one?" be asked within a single world instead of across worlds.
+#
+# A member is `(CELL, mode)`. The CELL is the label the member is reported under, and for
+# a damaged member of a triad it IS the severity -- which is why the clean member reuses
+# the existing `forced_clean` mode rather than needing a new one.
+_EVAL_TRIAD_MEMBERS = (
+    (CONDITION_CLEAN, FuelDamageMode.FORCED_CLEAN),
+    (SEVERITY_MILD, FuelDamageMode.FORCED_MILD),
+    (SEVERITY_SEVERE, FuelDamageMode.FORCED_SEVERE),
+)
+
+# The within-seed differences each design reports, as `(cell, reference_cell)` pairs.
+# EVERY one of them is averaged over COMPLETE matched groups only -- a group with a
+# failed member contributes to none of them, is never repaired with its surviving
+# members, and is still visible in the attempt counts.
+_EVAL_PAIR_DELTAS = ((CONDITION_DAMAGED, CONDITION_CLEAN),)
+_EVAL_TRIAD_DELTAS = (
+    (SEVERITY_MILD, CONDITION_CLEAN),
+    (SEVERITY_SEVERE, CONDITION_CLEAN),
+    (SEVERITY_SEVERE, SEVERITY_MILD),
+)
+
+# What a matched group is CALLED in a record, so a reader never has to count members.
+_EVAL_GROUP_KIND_PAIR = "pair"
+_EVAL_GROUP_KIND_TRIAD = "triad"
+
+# The modes a TRAINING run may be configured with. The forced modes belong to an
+# evaluation group member: setting one here would condition every training episode
+# identically, which is a mixture of one.
+_TRAINING_FUEL_DAMAGE_MODES = (
+    FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE, FuelDamageMode.SEEDED_VARIABLE,
+)
+
+# The durable per-SUCCESSFUL-ATTEMPT record stream (see `_episode_outcome_record`). One
+# canonical file, deliberately not several overlapping ones: the aggregate per-iteration
+# and per-round records cannot answer a distributional question ("how did the actor
+# respond to MILD, episode by episode?"), and inventing a second stream per question is
+# how two files start disagreeing. Failed attempts stay in `episode_failures.jsonl` --
+# this stream never duplicates the ledger.
+_EPISODE_OUTCOMES_FILENAME = "episode_outcomes.jsonl"
+_EPISODE_OUTCOME_SCHEMA = "graph_train_episode_outcome"
+_EPISODE_OUTCOME_VERSION = 1
 
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
 # them into the summary would create a second, divergeable metric path.
-_SUMMARY_RECORD_KEYS = ("train_records", "eval_records", "failure_records")
+_SUMMARY_RECORD_KEYS = (
+    "train_records", "eval_records", "failure_records", "episode_outcome_records",
+)
 
 # --- VISUAL ARTIFACTS (opt-in, OFF by default) --------------------------------
 # One directory per SELECTED attempt under `<run_dir>/visual_artifacts/`, holding the
@@ -492,6 +547,7 @@ _CLI_FIELD_BY_DEST = {
     "stretch_target_ratio": "stretch_target_ratio",
     "fuel_damage_mode": "fuel_damage_mode",
     "fuel_damage_probability": "fuel_damage_probability",
+    "fuel_damage_mild_probability": "fuel_damage_mild_probability",
     "fuel_damage_leg_progress": "fuel_damage_leg_progress",
     "fuel_damage_rtb_margin": "fuel_damage_rtb_margin",
     "aircraft_penalty_coeff": "aircraft_penalty_coeff",
@@ -688,10 +744,21 @@ class TrainConfig:
     #   fuel_damage_leg_progress: the event fires at ~30% of the ego's first planned leg.
     #   fuel_damage_rtb_margin  : the engine's own 1.10 reserve, applied to both ends of
     #                             the strict window.
+    #
+    # FD-VARIABLE-SEVERITY-v1 is selected by setting `fuel_damage_mode` to
+    # `seeded_variable` instead. It keeps every knob above -- the same P(damaged), the
+    # same trigger point, the same reserve -- and adds ONE:
+    #   fuel_damage_mild_probability : P(mild | damaged). With P(damaged) = 0.5 this is
+    #                             the approved 0.50 clean / 0.25 mild / 0.25 severe
+    #                             distribution. Ignored (but still recorded) by the
+    #                             legacy modes, which have no severity.
+    # A `seeded_variable` run evaluates each held-out seed as a clean / mild / severe
+    # matched TRIAD; a legacy run keeps its clean / damaged matched PAIR.
     fuel_damage_mode: str = FuelDamageMode.SEEDED_MIXTURE
     fuel_damage_probability: float = 0.5
     fuel_damage_leg_progress: float = 0.30
     fuel_damage_rtb_margin: float = 1.10
+    fuel_damage_mild_probability: float = 0.5
 
     # The death penalty coefficient `c`, ACTIVATED here (graph_reward's default is 0.0 and
     # its FORMULA is untouched). At 2.25 a lost airframe costs 2.25 max-utility targets,
@@ -756,16 +823,60 @@ class TrainConfig:
         """The ONE site that turns this config into a :class:`FuelDamageParameters`.
 
         ``mode`` overrides only the mode -- evaluation forces ``forced_clean`` /
-        ``forced_damaged`` per pair member while keeping the threshold and the margin
-        identical to training, which is what makes an eval measurement describe the same
-        event the training episodes contained.
+        ``forced_damaged`` (or ``forced_mild`` / ``forced_severe``) per group member
+        while keeping the threshold, the margin and the two probabilities identical to
+        training, which is what makes an eval measurement describe the same event the
+        training episodes contained.
         """
         return FuelDamageParameters(
             mode=str(self.fuel_damage_mode if mode is None else mode),
             probability=float(self.fuel_damage_probability),
             leg_progress_threshold=float(self.fuel_damage_leg_progress),
             rtb_safety_margin=float(self.fuel_damage_rtb_margin),
+            mild_probability=float(self.fuel_damage_mild_probability),
         )
+
+    # ------------------------------------------------------------------
+    # THE MATCHED-EVALUATION GROUP. Its shape is decided by the run's TRAINING mode and
+    # by nothing else -- never by an individual member's forced mode, which would make
+    # the question "how many members does a held-out seed get?" unanswerable from inside
+    # one of them.
+    @property
+    def variable_severity(self) -> bool:
+        """True iff this run uses FD-VARIABLE-SEVERITY-v1 rather than the legacy design."""
+        return str(self.fuel_damage_mode) == FuelDamageMode.SEEDED_VARIABLE
+
+    @property
+    def eval_group_members(self) -> Tuple[Tuple[str, str], ...]:
+        """The matched group's ``(cell, forced mode)`` members, in attempt order."""
+        return (_EVAL_TRIAD_MEMBERS if self.variable_severity
+                else _EVAL_PAIR_MEMBERS)
+
+    @property
+    def eval_group_size(self) -> int:
+        """Attempts per held-out SEED (2 for a pair, 3 for a triad)."""
+        return len(self.eval_group_members)
+
+    @property
+    def eval_group_kind(self) -> str:
+        """``pair`` or ``triad`` -- what a record calls this run's matched group."""
+        return (_EVAL_GROUP_KIND_TRIAD if self.variable_severity
+                else _EVAL_GROUP_KIND_PAIR)
+
+    @property
+    def eval_group_deltas(self) -> Tuple[Tuple[str, str], ...]:
+        """The within-seed ``(cell, reference cell)`` differences this run reports."""
+        return _EVAL_TRIAD_DELTAS if self.variable_severity else _EVAL_PAIR_DELTAS
+
+    @property
+    def reported_cells(self) -> Tuple[str, ...]:
+        """The labels episodes are reported under: clean/damaged, or clean/mild/severe.
+
+        A CELL is a reporting label, not a new condition: ``mild`` and ``severe``
+        episodes are both DAMAGED, and every clean/damaged count keeps exactly the
+        meaning it had (:meth:`_ConditionTally.to_record` derives those by pooling).
+        """
+        return tuple(cell for cell, _mode in self.eval_group_members)
 
     def reward_config(self) -> RewardConfig:
         """The ONE site that turns this config into a :class:`RewardConfig`.
@@ -872,15 +983,12 @@ class TrainConfig:
         # rollout harness and the component itself cannot disagree about what is legal).
         # `fuel_damage_mode` is a TRAINING mode: the forced modes belong to an evaluation
         # pair member and would make every training episode identically conditioned.
-        if self.fuel_damage_mode not in (
-            FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE
-        ):
+        if self.fuel_damage_mode not in _TRAINING_FUEL_DAMAGE_MODES:
             raise ValueError(
-                "fuel_damage_mode must be %r or %r for a TRAINING run -- %r forces every "
-                "training episode into one condition, which is an evaluation pair "
+                "fuel_damage_mode must be one of %r for a TRAINING run -- %r forces every "
+                "training episode into one condition, which is an evaluation group "
                 "member, not a mixture."
-                % (FuelDamageMode.OFF, FuelDamageMode.SEEDED_MIXTURE,
-                   self.fuel_damage_mode)
+                % (list(_TRAINING_FUEL_DAMAGE_MODES), self.fuel_damage_mode)
             )
         self.fuel_damage_parameters().validate()
         if float(self.aircraft_penalty_coeff) < 0.0:
@@ -899,6 +1007,15 @@ class TrainConfig:
                   "SAME condition, so the run carries no clean/damaged contrast to "
                   "learn the abort decision from. Proceeding."
                   % float(self.fuel_damage_probability))
+        if (self.variable_severity
+                and float(self.fuel_damage_mild_probability) in (0.0, 1.0)):
+            # The whole point of the variable-severity design is that a damaged episode
+            # is NOT reliably severe. At 0 or 1 it is again, and the actor can go back to
+            # reading the event itself instead of its own fuel.
+            print("[WARN] fuel_damage_mild_probability=%r: every DAMAGED training "
+                  "episode gets the same severity, so the run carries no mild/severe "
+                  "contrast and the variable-severity factor degenerates to a fixed one. "
+                  "Proceeding." % float(self.fuel_damage_mild_probability))
         if float(self.aircraft_penalty_coeff) == 0.0:
             print("[WARN] aircraft_penalty_coeff=0.0: losing an aircraft costs NOTHING, "
                   "so flying the tank dry is never worse than aborting and the "
@@ -934,16 +1051,19 @@ class TrainConfig:
         # --- the eval scenario-TAG namespace must stay disjoint (see eval_episode_tag)
         # These are artifact-NAMING bounds, not seed bounds, but a violation is the same
         # class of silent loss: one round's scenario JSON overwriting another's.
-        # Each held-out seed is now attempted TWICE per round (a matched clean/damaged
-        # pair), and each member needs its own tag so the two worlds coexist as files.
-        if int(self.eval_episodes) * _EVAL_PAIR_SIZE > _EVAL_ROUND_TAG_STRIDE:
+        # Each held-out seed is attempted ONCE PER MATCHED-GROUP MEMBER per round -- two
+        # for the legacy clean/damaged pair, three for a clean/mild/severe triad -- and
+        # each member needs its own tag so the worlds coexist as files. The size is taken
+        # from THIS config's group, so a variable-severity run is sized for three.
+        group_size = self.eval_group_size
+        if int(self.eval_episodes) * group_size > _EVAL_ROUND_TAG_STRIDE:
             raise ValueError(
-                "eval_episodes (%d) x %d matched pair members (%d tags) exceeds one eval "
+                "eval_episodes (%d) x %d matched %s members (%d tags) exceeds one eval "
                 "round's scenario-tag namespace (%d): consecutive eval rounds would write "
                 "over each other's scenario files. Raise _EVAL_ROUND_TAG_STRIDE or "
                 "shorten the eval band."
-                % (int(self.eval_episodes), _EVAL_PAIR_SIZE,
-                   int(self.eval_episodes) * _EVAL_PAIR_SIZE, _EVAL_ROUND_TAG_STRIDE)
+                % (int(self.eval_episodes), group_size, self.eval_group_kind,
+                   int(self.eval_episodes) * group_size, _EVAL_ROUND_TAG_STRIDE)
             )
         if self.total_episodes > _EVAL_EPISODE_TAG_BASE:
             raise ValueError(
@@ -1290,28 +1410,65 @@ def eval_episode_tag(*, round_ordinal: int, e: int) -> int:
     return _EVAL_EPISODE_TAG_BASE + r * _EVAL_ROUND_TAG_STRIDE + i
 
 
-def eval_member_tag(*, round_ordinal: int, e: int, member: int) -> int:
-    """Scenario TAG for ONE member of held-out episode ``e``'s matched pair.
+def eval_member_tag(
+    *, round_ordinal: int, e: int, member: int, group_size: int = _EVAL_PAIR_SIZE
+) -> int:
+    """Scenario TAG for ONE member of held-out episode ``e``'s matched group.
 
     FD-BASELINE-v1 evaluates every held-out geometry TWICE per round -- once forced clean
     and once forced damaged -- on the SAME seed, so that the reward difference is
-    attributable to the event and not to the world. Both members would therefore be
-    written to the same ``episode_<tag>_scenario.json`` and the second would destroy the
-    first's artifact, which is the same silent loss :func:`eval_episode_tag` exists to
-    prevent one level up.
+    attributable to the event and not to the world. FD-VARIABLE-SEVERITY-v1 evaluates it
+    THREE times, adding a mild and a severe member in place of the single damaged one.
+    Every member would otherwise be written to the same
+    ``episode_<tag>_scenario.json`` and the later ones would destroy the first's
+    artifact, which is the same silent loss :func:`eval_episode_tag` exists to prevent
+    one level up.
 
     So each member takes its own slot inside the round's namespace: episode ``e``'s
-    members occupy ``e * 2`` and ``e * 2 + 1``. The SEEDS are untouched -- both members
-    run :func:`eval_seed` of ``e`` -- and that is the entire point: identical geometry,
-    disjoint artifacts. :meth:`TrainConfig.validate` sizes the namespace for the doubling
-    up front; :func:`eval_episode_tag`'s own range guard is the second line of defence.
+    members occupy ``e * group_size + m``. The SEEDS are untouched -- every member runs
+    :func:`eval_seed` of ``e`` -- and that is the entire point: identical geometry,
+    disjoint artifacts. :meth:`TrainConfig.validate` sizes the namespace for the run's
+    own group up front; :func:`eval_episode_tag`'s own range guard is the second line of
+    defence.
+
+    ``group_size`` defaults to the legacy PAIR width so an existing caller (and an
+    existing record's tag arithmetic) is unchanged. A caller that evaluates triads passes
+    3; the two layouts are different tag allocations of the same namespace and are never
+    mixed within one run.
     """
     m = int(member)
-    if not (0 <= m < _EVAL_PAIR_SIZE):
-        raise ValueError(
-            "eval pair member must be in [0, %d), got %d" % (_EVAL_PAIR_SIZE, m)
-        )
-    return eval_episode_tag(round_ordinal=round_ordinal, e=int(e) * _EVAL_PAIR_SIZE + m)
+    size = int(group_size)
+    if size < 1:
+        raise ValueError("eval group size must be >= 1, got %d" % size)
+    if not (0 <= m < size):
+        raise ValueError("eval group member must be in [0, %d), got %d" % (size, m))
+    return eval_episode_tag(round_ordinal=round_ordinal, e=int(e) * size + m)
+
+
+def cell_condition(cell: str) -> str:
+    """The CONDITION a reporting cell belongs to -- ``clean`` or ``damaged``.
+
+    A severity cell (``mild`` / ``severe``) IS a damaged episode, so this is the mapping
+    that lets every clean/damaged count keep its existing meaning while the finer cells
+    are reported alongside. One site, so pooling can never be spelled two ways.
+    """
+    return CONDITION_DAMAGED if str(cell) in SEVERITIES else str(cell)
+
+
+def _outcome_cell(plan_record: Dict[str, Any]) -> str:
+    """The cell a COMPLETED episode is reported under, from its own plan record.
+
+    Read off the plan the episode really ran with rather than re-derived from the seed,
+    so a successful attempt is always counted under the event it actually contained.
+    """
+    severity = (plan_record or {}).get("severity")
+    return (str(severity) if severity
+            else str((plan_record or {}).get("condition", CONDITION_CLEAN)))
+
+
+def _delta_key(cell: str, reference: str) -> str:
+    """The flat record key carrying the ``cell - reference`` within-seed difference."""
+    return "eval_delta_%s_minus_%s" % (str(cell), str(reference))
 
 
 # =============================================================================
@@ -1446,6 +1603,139 @@ def _append_failure_record(path: Optional[Path], record: Dict[str, Any]) -> None
         fh.flush()
 
 
+def _episode_outcome_record(
+    out: "_EpisodeOutcome",
+    *,
+    phase: str,
+    iteration: Optional[int],
+    updates_completed: int,
+    updates_completed_before: Optional[int],
+    attempt_ordinal: int,
+    episode_index: Optional[int],
+    eval_round_ordinal: Optional[int],
+    eval_episode_index: Optional[int],
+    eval_group_member: Optional[int],
+    seed: int,
+    episode_tag: int,
+    fuel_damage_mode: str,
+) -> Dict[str, Any]:
+    """ONE durable record per SUCCESSFUL attempt, for ``episode_outcomes.jsonl``.
+
+    WHY THIS FILE EXISTS. The per-iteration and per-round records are AGGREGATES: they
+    say a round's mild episodes averaged some reward and produced some abort rate, which
+    is enough to plot a curve and not enough to inspect a distribution. The question this
+    experiment is built to answer -- did the actor respond DIFFERENTLY to a survivable
+    fuel loss than to an unsurvivable one, and in which worlds -- is per episode, and an
+    aggregate cannot be un-averaged afterwards. So every completed attempt states its own
+    identity, its own event and its own outcome, once, in one canonical stream.
+
+    IT DOES NOT DUPLICATE THE LEDGER. A FAILED attempt is written to
+    ``episode_failures.jsonl`` under ``skip_and_account_v1`` and appears here NOT AT ALL;
+    the two files are disjoint by construction, so no attempt can be counted twice by
+    reading both.
+
+    MISSING IS ``null``, NEVER ``0``. A clean episode has no fuel reading, an event that
+    did not fire has no tick, and a wake that did not happen has no meta-action -- each
+    of those is an absence, and a zero would read as a measurement (an empty tank, tick
+    zero, ``PLAN_COMPLIANCE``). Every FD number here is copied verbatim from the
+    component's own frozen records (:meth:`FuelDamagePlan.to_record` /
+    :meth:`FuelDamageOutcome.to_record`); nothing is recomputed, so this stream cannot
+    disagree with the aggregate that summarizes it.
+    """
+    plan = out.fuel_damage_plan or {}
+    outcome = out.fuel_damage_outcome or {}
+    meta = outcome.get("wake_meta_action")
+    return {
+        "schema": _EPISODE_OUTCOME_SCHEMA,
+        "schema_version": _EPISODE_OUTCOME_VERSION,
+        # --- identity: which scheduled attempt this was ---
+        "phase": str(phase),
+        "iteration": None if iteration is None else int(iteration),
+        "updates_completed": int(updates_completed),
+        "updates_completed_before": (
+            None if updates_completed_before is None else int(updates_completed_before)
+        ),
+        "attempt_ordinal": int(attempt_ordinal),
+        "episode_index": None if episode_index is None else int(episode_index),
+        "eval_round_ordinal": (
+            None if eval_round_ordinal is None else int(eval_round_ordinal)
+        ),
+        "eval_episode_index": (
+            None if eval_episode_index is None else int(eval_episode_index)
+        ),
+        "eval_group_member": (
+            None if eval_group_member is None else int(eval_group_member)
+        ),
+        "seed": int(seed),
+        "episode_tag": int(episode_tag),
+        "fuel_damage_mode": str(fuel_damage_mode),
+        # --- the cell this episode is reported under, and its two components ---
+        "cell": _outcome_cell(plan),
+        "condition": plan.get("condition"),
+        "severity": plan.get("severity"),
+        # --- the event: what was planned, and what really happened ---
+        # Both derived seeds travel with the record so the draws that produced this
+        # episode can be reproduced from the artifact alone, without the run's config.
+        "fd_derived_seed": plan.get("derived_seed"),
+        "fd_severity_derived_seed": plan.get("severity_derived_seed"),
+        "fd_target_policy": plan.get("target_policy"),
+        "fd_ego_id": plan.get("ego_id"),
+        "fd_fired": outcome.get("fired"),
+        "fd_event_tick": outcome.get("event_tick"),
+        "fd_observed_progress": outcome.get("observed_progress"),
+        "fd_fuel_before": outcome.get("fuel_before"),
+        "fd_fuel_after": outcome.get("fuel_after"),
+        "fd_damage_factor": outcome.get("damage_factor"),
+        "fd_fuel_after_fraction_of_max": outcome.get("fuel_after_fraction_of_max"),
+        "fd_max_fuel": outcome.get("max_fuel"),
+        # The LIVE bounds the mutation was really validated against, and the margin that
+        # physically separates mild from severe: positive => continuing stays feasible.
+        "fd_live_rtb_fuel_floor": outcome.get("live_rtb_fuel_floor"),
+        "fd_live_continue_fuel_requirement": outcome.get(
+            "live_continue_fuel_requirement"),
+        "fd_continuation_margin": outcome.get("continuation_margin"),
+        "fd_live_band_low": outcome.get("live_band_low"),
+        "fd_live_band_high": outcome.get("live_band_high"),
+        # The PLANNED bounds, kept under their own names so a reader always knows which
+        # window a number came from (see `_fuel_damage_lines`).
+        "fd_planned_rtb_fuel_floor": plan.get("rtb_fuel_floor"),
+        "fd_planned_continue_fuel_requirement": plan.get("continue_fuel_requirement"),
+        # --- the behavioural measurement ---
+        "fd_wake_occurred": outcome.get("wake_occurred"),
+        "fd_wake_meta_action": meta,
+        "fd_wake_meta_action_name": None if meta is None else MetaAction(int(meta)).name,
+        # COMMAND HISTORY, not the executor's lifecycle latch.
+        "fd_rtb_command_issued": out.selected_ego_rtb_issued,
+        # --- the episode's outcome ---
+        "reward": float(out.reward),
+        "n_dead": int(out.n_dead),
+        "targets_confirmed_unique": int(out.targets_confirmed_unique),
+        "targets_total": int(out.targets_total),
+        "target_confirmation_count_semantics": _TARGET_CONFIRMATION_SEMANTICS,
+        "n_wakes": int(out.n_wakes),
+        "ended": str(out.ended),
+        "ticks": int(out.ticks),
+        "seconds": float(out.seconds),
+    }
+
+
+def _append_episode_outcome_record(
+    path: Optional[Path], record: Dict[str, Any]
+) -> None:
+    """Append ONE record to ``episode_outcomes.jsonl`` and flush it immediately.
+
+    Same durability discipline as :func:`_append_failure_record`: opened in append mode
+    per record and flushed before returning, so a run killed mid-batch still leaves a
+    complete account of every attempt that had already completed. ``path=None`` disables
+    the stream (used by callers that have no run directory).
+    """
+    if path is None:
+        return
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+        fh.flush()
+
+
 def _empty_meta_counts() -> Dict[str, int]:
     """A zeroed count dict over the three fixed meta-action names."""
     return {name: 0 for name in _META_NAMES}
@@ -1466,19 +1756,34 @@ def _meta_fractions(counts: Dict[str, int]) -> Dict[str, float]:
 
 
 class _ConditionTally:
-    """Per-condition attempt accounting + FD event counters for ONE batch or eval round.
+    """Per-CELL attempt accounting + FD event counters for ONE batch or eval round.
 
-    ONE site behind every clean/damaged number a record carries, so the training loop and
-    the evaluation round cannot drift into counting the same thing two ways. It holds
-    ATTEMPTS (which include failures, and are therefore the denominators) separately from
-    the reward population (successes only) -- the distinction :func:`_stats_or_none`
-    exists to protect, applied per condition.
+    ONE site behind every clean/damaged (and, under FD-VARIABLE-SEVERITY-v1, every
+    mild/severe) number a record carries, so the training loop and the evaluation round
+    cannot drift into counting the same thing two ways. It holds ATTEMPTS (which include
+    failures, and are therefore the denominators) separately from the reward population
+    (successes only) -- the distinction :func:`_stats_or_none` exists to protect, applied
+    per cell.
+
+    A CELL IS A REPORTING LABEL, NOT A NEW CONDITION. Storage is per cell -- ``clean`` /
+    ``damaged`` for a legacy run, ``clean`` / ``mild`` / ``severe`` for a
+    variable-severity one -- and the clean/damaged keys are DERIVED from it by pooling
+    (:func:`cell_condition`). For a legacy run the cells ARE the conditions, so the
+    pooling is the identity and every emitted key keeps exactly the value it had.
 
     The FD counters answer the questions an operator needs in order to trust a damaged
     batch at all: did the events actually fire (``events_applied``), did they actually
     wake the intended ego (``wakes``), and did anything come of it (``rtb_issued``,
     ``deaths``). A damaged round with zero applied events would produce clean-looking
     numbers under a damaged label, and these counters are what makes that visible.
+
+    THE FD-WAKE META-ACTION MIX IS TRACKED PER CELL, and it is the PRIMARY behavioural
+    measurement of the variable-severity experiment: the scientific question is not
+    whether reward changed but whether the actor ABORTS DIFFERENTLY when a loss is
+    survivable than when it is not. Its denominator is FD wakes in that cell, which is
+    smaller than the cell's successful-episode count (an event can fire without the
+    policy ever being woken by it), so it is stored and reported separately rather than
+    inferred.
 
     ``rtb_issued`` counts EMITTED ``aircraft_return_to_base`` COMMANDS, taken from
     ``_EpisodeOutcome.selected_ego_rtb_issued`` which the fuel-damage controller derives
@@ -1487,54 +1792,182 @@ class _ConditionTally:
     would let one episode register as an RTB *and* a death.
     """
 
-    def __init__(self) -> None:
-        self.attempted: Dict[str, int] = {c: 0 for c in CONDITIONS}
-        self.failed: Dict[str, int] = {c: 0 for c in CONDITIONS}
-        self.rewards: Dict[str, List[float]] = {c: [] for c in CONDITIONS}
+    def __init__(self, cells: Sequence[str] = CONDITIONS) -> None:
+        # Every reported cell is present from the start, so a cell that saw no attempt
+        # reports an explicit 0 / None instead of vanishing from the record.
+        self.cells: Tuple[str, ...] = tuple(str(c) for c in cells)
+        self.attempted: Dict[str, int] = {c: 0 for c in self.cells}
+        self.failed: Dict[str, int] = {c: 0 for c in self.cells}
+        self.rewards: Dict[str, List[float]] = {c: [] for c in self.cells}
+        # FD-wake behaviour per cell: the meta-action the fuel-damage wake selected.
+        self.fd_fired: Dict[str, int] = {c: 0 for c in self.cells}
+        self.fd_wakes: Dict[str, int] = {c: 0 for c in self.cells}
+        self.fd_meta: Dict[str, Dict[str, int]] = {
+            c: _empty_meta_counts() for c in self.cells
+        }
         self.events_applied = 0
         self.wakes = 0
         self.rtb_issued = 0
         self.deaths = 0
 
-    def attempt(self, condition: str) -> None:
-        """Count one SCHEDULED attempt, before it is known whether it will succeed."""
-        self.attempted[str(condition)] = self.attempted.get(str(condition), 0) + 1
+    def attempt(self, cell: str) -> None:
+        """Count one SCHEDULED attempt, before it is known whether it will succeed.
 
-    def failure(self, condition: str) -> None:
-        self.failed[str(condition)] = self.failed.get(str(condition), 0) + 1
+        The schedule and this tally are built from the same
+        :attr:`TrainConfig.reported_cells`, so an unknown cell here means the two were
+        built from different configs -- a denominator that would never be reported.
+        """
+        if str(cell) not in self.attempted:
+            raise MeasurementIntegrityError(
+                "a scheduled attempt names cell %r, which this run does not report "
+                "(cells: %r); its denominator would be invisible."
+                % (cell, list(self.cells))
+            )
+        self.attempted[str(cell)] += 1
 
-    def success(self, out: "_EpisodeOutcome") -> str:
-        """Fold one successful episode in; returns the condition it was counted under."""
+    def failure(self, cell: str) -> None:
+        self.failed[str(cell)] = self.failed.get(str(cell), 0) + 1
+
+    def success(self, out: "_EpisodeOutcome", *, expected_cell: str) -> str:
+        """Fold one successful episode in; returns the CELL it was counted under.
+
+        THE EXECUTED CELL MUST BE THE SCHEDULED ONE. ``expected_cell`` is the cell the
+        SCHEDULE resolved before the episode was built -- the same value
+        :meth:`attempt` counted the denominator under -- and ``cell`` is read from the
+        plan the episode REALLY ran with. Requiring equality, rather than mere
+        membership, is the whole guarantee: under FD-VARIABLE-SEVERITY-v1 a scheduled
+        ``mild`` that executed as ``severe`` is a legal member of ``self.cells``, so a
+        membership test accepts it and silently books the attempt in one cell and the
+        reward in another. That corrupts BOTH denominators at once -- the scheduled cell
+        reads as a failure that never happened, the executed cell as a success that was
+        never scheduled -- and it is exactly the matched-group integrity fault the triad
+        design exists to make measurable.
+
+        ``expected_cell`` is a REQUIRED keyword, deliberately: an optional one would let
+        a future call site skip the check by omission, which is the same class of defect
+        one level up. Both production call sites know the scheduled cell before the
+        episode runs and must state it here.
+
+        THREE DISJOINT FAULTS, each named separately because they are different
+        diagnoses:
+
+          1. the SCHEDULE named a cell this tally does not report -- the schedule and the
+             tally were built from different configs;
+          2. the EXECUTION reports a cell this run does not report at all -- a legacy run
+             that produced a severity, or a severity outside the declared set;
+          3. both are reportable but they DISAGREE -- the matched-group fault above.
+
+        All three are INFRASTRUCTURE and abort, exactly as a roster fault does. Every
+        check runs BEFORE any state is mutated, so a rejected episode leaves the tally
+        byte-unchanged and can never be half-counted.
+        """
         plan = out.fuel_damage_plan or {}
         outcome = out.fuel_damage_outcome or {}
-        condition = str(plan.get("condition", CONDITION_CLEAN))
-        self.rewards.setdefault(condition, []).append(float(out.reward))
+        cell = _outcome_cell(plan)
+        expected = str(expected_cell)
+        if expected not in self.rewards:
+            raise MeasurementIntegrityError(
+                "a successful episode was scheduled under cell %r, which this run does "
+                "not report (cells: %r); the schedule and the tally disagree about what "
+                "this run measures." % (expected, list(self.cells))
+            )
+        if cell not in self.rewards:
+            raise MeasurementIntegrityError(
+                "a successful episode reports cell %r, which this run does not report "
+                "(cells: %r). The executed fuel-damage plan disagrees with the schedule "
+                "that counted the attempt, so its reward would be missing from every "
+                "per-cell mean while still inside the round's totals."
+                % (cell, list(self.cells))
+            )
+        if cell != expected:
+            raise MeasurementIntegrityError(
+                "a successful episode was SCHEDULED as %r but EXECUTED as %r. The "
+                "attempt was already counted in %r's denominator, so folding its reward "
+                "into %r would report a failure that never happened in one cell and a "
+                "success that was never scheduled in the other -- and, for a matched "
+                "group, a within-seed delta between two members that are not the "
+                "members the schedule paired. Cells: %r."
+                % (expected, cell, expected, cell, list(self.cells))
+            )
+        self.rewards[cell].append(float(out.reward))
         if outcome.get("fired"):
             self.events_applied += 1
+            self.fd_fired[cell] = self.fd_fired.get(cell, 0) + 1
         if outcome.get("wake_occurred"):
             self.wakes += 1
+            self.fd_wakes[cell] = self.fd_wakes.get(cell, 0) + 1
+            meta = outcome.get("wake_meta_action")
+            if meta is not None:
+                bucket = self.fd_meta.setdefault(cell, _empty_meta_counts())
+                name = MetaAction(int(meta)).name
+                bucket[name] = bucket.get(name, 0) + 1
         if out.selected_ego_rtb_issued:
             self.rtb_issued += 1
         self.deaths += int(out.n_dead)
-        return condition
+        return cell
 
-    def successful(self, condition: str) -> int:
-        return len(self.rewards.get(str(condition), []))
+    # ---- per-cell reads ---------------------------------------------------------
+    def successful(self, cell: str) -> int:
+        return len(self.rewards.get(str(cell), []))
 
-    def mean(self, condition: str) -> Optional[float]:
-        """Mean reward over that condition's SUCCESSFUL episodes, ``None`` if none."""
-        return _stats_or_none(self.rewards.get(str(condition), []))["mean"]
+    def mean(self, cell: str) -> Optional[float]:
+        """Mean reward over that cell's SUCCESSFUL episodes, ``None`` if none."""
+        return _stats_or_none(self.rewards.get(str(cell), []))["mean"]
+
+    # ---- condition reads, DERIVED by pooling the cells that belong to them -------
+    def _cells_of(self, condition: str) -> Tuple[str, ...]:
+        return tuple(c for c in self.cells if cell_condition(c) == str(condition))
+
+    def condition_attempted(self, condition: str) -> int:
+        return sum(int(self.attempted.get(c, 0)) for c in self._cells_of(condition))
+
+    def condition_failed(self, condition: str) -> int:
+        return sum(int(self.failed.get(c, 0)) for c in self._cells_of(condition))
+
+    def condition_rewards(self, condition: str) -> List[float]:
+        pooled: List[float] = []
+        for c in self._cells_of(condition):
+            pooled.extend(self.rewards.get(c, []))
+        return pooled
 
     def to_record(self, prefix: str = "") -> Dict[str, Any]:
         """The tally as flat scalars. ``prefix`` namespaces the eval copy of the keys."""
         out: Dict[str, Any] = {}
+        # The clean/damaged keys, ALWAYS emitted and always meaning the same thing. For a
+        # variable-severity run `damaged` pools mild and severe, which is the truthful
+        # reading of "how many damaged episodes were there" -- and the finer cells are
+        # emitted below rather than instead.
         for condition in CONDITIONS:
-            out["%sn_%s_attempted" % (prefix, condition)] = int(
-                self.attempted.get(condition, 0))
-            out["%sn_%s_successful" % (prefix, condition)] = self.successful(condition)
-            out["%sn_%s_failed" % (prefix, condition)] = int(
-                self.failed.get(condition, 0))
-            out["%sreward_mean_%s" % (prefix, condition)] = self.mean(condition)
+            pooled = self.condition_rewards(condition)
+            out["%sn_%s_attempted" % (prefix, condition)] = self.condition_attempted(
+                condition)
+            out["%sn_%s_successful" % (prefix, condition)] = len(pooled)
+            out["%sn_%s_failed" % (prefix, condition)] = self.condition_failed(condition)
+            out["%sreward_mean_%s" % (prefix, condition)] = _stats_or_none(pooled)["mean"]
+        # The SEVERITY cells, only when this run has them -- a legacy record must not
+        # sprout mild/severe keys it could never populate.
+        for cell in self.cells:
+            if cell in CONDITIONS:
+                continue
+            out["%sn_%s_attempted" % (prefix, cell)] = int(self.attempted.get(cell, 0))
+            out["%sn_%s_successful" % (prefix, cell)] = self.successful(cell)
+            out["%sn_%s_failed" % (prefix, cell)] = int(self.failed.get(cell, 0))
+            out["%sreward_mean_%s" % (prefix, cell)] = self.mean(cell)
+        # PER-CELL FD-wake behaviour, for every DAMAGED cell of this run (the legacy
+        # `damaged` cell included, so a legacy run gains the same measurement). Counts
+        # are exact; the rates carry their own denominator and are `None` -- never 0.0 --
+        # when there was no FD wake to take a rate over.
+        for cell in self.cells:
+            if cell_condition(cell) != CONDITION_DAMAGED:
+                continue
+            counts = self.fd_meta.get(cell, _empty_meta_counts())
+            denom = int(self.fd_wakes.get(cell, 0))
+            out["%sn_%s_fd_fired" % (prefix, cell)] = int(self.fd_fired.get(cell, 0))
+            out["%sn_%s_fd_wakes" % (prefix, cell)] = denom
+            out["%sfd_meta_action_counts_%s" % (prefix, cell)] = dict(counts)
+            out["%sfd_meta_action_rates_%s" % (prefix, cell)] = {
+                name: _fraction(int(counts.get(name, 0)), denom) for name in _META_NAMES
+            }
         out["%sfuel_damage_events_applied" % prefix] = int(self.events_applied)
         out["%sfuel_damage_wakes" % prefix] = int(self.wakes)
         out["%sfuel_damage_rtb_issued" % prefix] = int(self.rtb_issued)
@@ -1844,6 +2277,35 @@ def collect_provenance(
     }
 
 
+def _difficulty_factor_name(cfg: TrainConfig) -> str:
+    """The run's difficulty-factor IDENTIFIER, for provenance and for the header.
+
+    Two designs share one mechanism, so one name would make an artifact ambiguous about
+    which experiment produced it. A ``seeded_variable`` run is
+    ``fuel_damage_variable_severity_v1``; everything else keeps the merged, measured
+    ``fuel_damage_baseline_v1`` exactly as it was.
+    """
+    return ("fuel_damage_variable_severity_v1" if cfg.variable_severity
+            else "fuel_damage_baseline_v1")
+
+
+def _scheduled_cell_probabilities(cfg: TrainConfig) -> Dict[str, float]:
+    """The scheduled clean/mild/severe distribution as three explicit numbers.
+
+    ``P(damaged)`` and ``P(mild | damaged)`` are the knobs, but the thing a reader wants
+    to check against the approved design is the flat 0.50 / 0.25 / 0.25. Recording the
+    product rather than leaving it to be multiplied is what makes a mis-set conditional
+    visible in the artifact instead of only in the results.
+    """
+    p_damaged = float(cfg.fuel_damage_probability)
+    p_mild = float(cfg.fuel_damage_mild_probability)
+    return {
+        CONDITION_CLEAN: 1.0 - p_damaged,
+        SEVERITY_MILD: p_damaged * p_mild,
+        SEVERITY_SEVERE: p_damaged * (1.0 - p_mild),
+    }
+
+
 def write_run_config(
     run_dir: Path,
     cfg: TrainConfig,
@@ -1909,10 +2371,26 @@ def write_run_config(
         # exact objects the run built, so a reader never has to re-derive them from the
         # flat config fields above.
         "difficulty": {
-            "factor": "fuel_damage_baseline_v1",
+            "factor": _difficulty_factor_name(cfg),
             "fuel_damage": cfg.fuel_damage_parameters().to_record(),
-            "eval_pair_conditions": [c for c, _mode in _EVAL_PAIR_MEMBERS],
-            "eval_pair_members_per_seed": _EVAL_PAIR_SIZE,
+            # The AUTHORITATIVE description of this run's matched evaluation group.
+            "eval_group_kind": cfg.eval_group_kind,
+            "eval_group_cells": list(cfg.reported_cells),
+            "eval_group_modes": [mode for _cell, mode in cfg.eval_group_members],
+            "eval_group_members_per_seed": cfg.eval_group_size,
+            "eval_group_deltas": [
+                _delta_key(cell, ref) for cell, ref in cfg.eval_group_deltas
+            ],
+            # The scheduled three-way distribution, written out so a reader never has to
+            # multiply two conditionals to learn what the run actually sampled. `null`
+            # under a legacy mode, which has no severity to distribute.
+            "scheduled_cell_probabilities": (
+                _scheduled_cell_probabilities(cfg) if cfg.variable_severity else None
+            ),
+            # LEGACY KEY, kept so an existing reader still resolves: the member CELLS.
+            # `eval_group_cells` is the authoritative name.
+            "eval_pair_conditions": list(cfg.reported_cells),
+            "eval_pair_members_per_seed": cfg.eval_group_size,
             "reward": {
                 "aircraft_penalty_coeff": float(cfg.reward_config().aircraft_penalty_coeff),
                 "regret_epsilon": float(cfg.reward_config().regret_epsilon),
@@ -2407,15 +2885,23 @@ def _fuel_damage_lines(out: "_EpisodeOutcome") -> List[str]:
     meta = outcome.get("wake_meta_action")
     meta_name = "n/a" if meta is None else MetaAction(int(meta)).name
     rtb = out.selected_ego_rtb_issued
+    severity = plan.get("severity")
     return [
-        "  fuel_damage=damaged ego=%s fired=%s tick=%s progress=%s"
-        % (_ascii(plan.get("ego_id")), outcome.get("fired"),
+        "  fuel_damage=%s ego=%s fired=%s tick=%s progress=%s"
+        % (_ascii(severity) if severity else "damaged",
+           _ascii(plan.get("ego_id")), outcome.get("fired"),
            _fmt_opt(outcome.get("event_tick"), "%d"),
            _fmt_opt(outcome.get("observed_progress"), "%.3f")),
-        "  fuel_before=%s fuel_after=%s factor=%s"
+        # `continue_margin` is the sign that says which severity this PHYSICALLY was:
+        # positive means the ego could still finish its route and get home, negative
+        # means it could not. Printed next to the fuel so a reader can check the label
+        # against the physics rather than trusting it.
+        "  fuel_before=%s fuel_after=%s factor=%s fuel_after/max=%s continue_margin=%s"
         % (_fmt_opt(outcome.get("fuel_before"), "%.1f"),
            _fmt_opt(outcome.get("fuel_after"), "%.1f"),
-           _fmt_opt(outcome.get("damage_factor"), "%.4f")),
+           _fmt_opt(outcome.get("damage_factor"), "%.4f"),
+           _fmt_opt(outcome.get("fuel_after_fraction_of_max"), "%.4f"),
+           _fmt_opt(outcome.get("continuation_margin"), "%+.1f")),
         # PLANNED and LIVE bounds side by side, never merged: the planned pair is the
         # preflight window, the live pair is what the mutation was really validated
         # against, and reporting one under the other's name would hide the difference the
@@ -2526,6 +3012,11 @@ class _AttemptIdentity:
         episode_index: the run-wide training episode index ``g``; ``None`` for evaluation.
         seed: the exact episode seed.
         condition: the SCHEDULED fuel-damage condition (``clean`` / ``damaged``).
+        severity: the SCHEDULED severity (``mild`` / ``severe``) under
+            FD-VARIABLE-SEVERITY-v1; ``None`` for a clean member and for every attempt of
+            a legacy run. Carried because the two DAMAGED members of a matched triad
+            share a condition and would otherwise be distinguishable only by their tag --
+            a bundle has to be able to say which severity it holds.
         episode_tag: the exact scenario tag the generator was called with -- the link from
             this bundle back to the run's own ``scenarios/episode_<tag>_scenario.json``.
     """
@@ -2541,6 +3032,10 @@ class _AttemptIdentity:
     seed: int
     condition: str
     episode_tag: int
+    # Defaulted, and last, so every existing construction site stays valid: a legacy run
+    # has no severity to state, and being forced to pass `None` everywhere would add a
+    # field to the schedule rather than to the record.
+    severity: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.phase not in _ARTIFACT_PHASES:
@@ -2571,15 +3066,19 @@ class _AttemptIdentity:
         own disjoint tag slot (:func:`eval_member_tag`). The remaining fields are there to
         be READABLE at a glance; the manifest, not this name, is the record.
         """
+        # The severity, when there is one, REPLACES the condition in the name rather than
+        # being appended to it: `mild` and `severe` already say `damaged`, and the two
+        # damaged members of a triad must not both read as `..._damaged_...`.
+        label = str(self.severity or self.condition)
         if self.phase == _ARTIFACT_PHASE_TRAIN:
             return "train_iter%04d_ep%06d_seed%d_%s_tag%06d" % (
                 int(self.iteration), int(self.episode_index), int(self.seed),
-                str(self.condition), int(self.episode_tag),
+                label, int(self.episode_tag),
             )
         return "%s_r%03d_e%03d_m%d_seed%d_%s_tag%06d" % (
             str(self.phase), int(self.eval_round_ordinal),
             int(self.eval_episode_index), int(self.eval_pair_member),
-            int(self.seed), str(self.condition), int(self.episode_tag),
+            int(self.seed), label, int(self.episode_tag),
         )
 
     def to_record(self) -> Dict[str, Any]:
@@ -2601,6 +3100,7 @@ class _AttemptIdentity:
                 None if self.episode_index is None else int(self.episode_index)),
             "seed": int(self.seed),
             "condition": str(self.condition),
+            "severity": None if self.severity is None else str(self.severity),
             "episode_tag": int(self.episode_tag),
         }
 
@@ -3239,6 +3739,7 @@ def evaluate(
     updates_completed: int = 0,
     round_ordinal: int = 0,
     failures_path: Optional[Path] = None,
+    outcomes_path: Optional[Path] = None,
     artifacts_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Run ``cfg.eval_episodes`` deterministic episodes on the FIXED eval seed band.
@@ -3267,22 +3768,33 @@ def evaluate(
     stop overwriting each other's scenario JSON while doing it. ``pre_update`` is
     ordinal 0 and each later ``post_update`` round takes the next.
 
-    MATCHED CLEAN/DAMAGED PAIRS (FD-BASELINE-v1). Every held-out seed is attempted TWICE
-    -- once ``forced_clean`` and once ``forced_damaged`` -- and the two members share
-    EVERYTHING except the event: the same ``eval_seed``, hence the same generator world,
-    the same solved ``A_init`` and the same hidden-placement geometry (the placement rng
-    is derived from the episode seed, not from the mode). Their reward difference is
-    therefore attributable to the fuel-damage event rather than to scenario variance,
-    which an unpaired clean-vs-damaged comparison across different seeds could never
-    claim. Only the artifact TAGS differ (:func:`eval_member_tag`), so the two worlds
-    coexist as files.
+    MATCHED GROUPS. Every held-out seed is attempted once per group MEMBER, and the
+    members share EVERYTHING except the event: the same ``eval_seed``, hence the same
+    generator world, the same solved ``A_init``, the same hidden-placement geometry (the
+    placement rng is derived from the episode seed, not from the mode) and -- for the
+    damaged members -- the same selected ego (the severity draw lives in its own rng
+    domain, so it cannot move the ego selection). Their reward differences are therefore
+    attributable to the fuel-damage event rather than to scenario variance, which an
+    unmatched comparison across different seeds could never claim. Only the artifact TAGS
+    differ (:func:`eval_member_tag`), so the worlds coexist as files.
+
+      * FD-BASELINE-v1 -> a PAIR: ``forced_clean`` and ``forced_damaged``.
+      * FD-VARIABLE-SEVERITY-v1 -> a TRIAD: ``forced_clean``, ``forced_mild`` and
+        ``forced_severe``. The extra member is what makes "did the actor respond
+        DIFFERENTLY to a survivable loss than to an unsurvivable one?" a within-seed
+        question instead of a between-worlds one.
+
+    The shape comes from ``cfg`` (:attr:`TrainConfig.eval_group_members`), so a legacy
+    run keeps its pair and only a ``seeded_variable`` run evaluates triads. Evaluation
+    never silently becomes a triad.
 
     Three denominators are reported and none substitutes for another: ``n_attempted``
-    counts EPISODE attempts (two per seed), ``n_clean_attempted`` / ``n_damaged_attempted``
-    split that by condition, and ``n_pairs_successful`` counts the seeds where BOTH
-    members completed. ``eval_paired_reward_delta`` is averaged over that last population
-    ALONE -- a pair with a failed member contributes to no delta, is never repaired with
-    the surviving member, and is still visible in the attempt counts.
+    counts EPISODE attempts (group size per seed), the per-cell
+    ``n_<cell>_attempted`` keys split that by reporting cell, and
+    ``n_groups_successful`` counts the seeds where EVERY member completed. Every
+    within-seed delta is averaged over that last population ALONE -- a group with a
+    failed member contributes to no delta, is never repaired with its surviving members,
+    and is still visible in the attempt counts.
 
     ``artifacts_root`` is the visual-artifact switch for this round: ``None`` (the
     default) captures nothing, and a path makes every scheduled member preserve its
@@ -3299,23 +3811,34 @@ def evaluate(
     wakes: List[float] = []
     meta_counts = _empty_meta_counts()
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
-    tally = _ConditionTally()
-    pair_deltas: List[float] = []
+    members = cfg.eval_group_members
+    group_size = cfg.eval_group_size
+    tally = _ConditionTally(cfg.reported_cells)
+    # One list per declared within-seed difference, each filled ONLY from complete
+    # groups. Pre-seeded with every declared key so a delta this run reports is present
+    # (as `None`) even when no group completed -- a missing key and a missing measurement
+    # are different things to a reader.
+    group_deltas: Dict[Tuple[str, str], List[float]] = {
+        pair: [] for pair in cfg.eval_group_deltas
+    }
     n_failed = 0
-    n_pairs = int(cfg.eval_episodes)
-    n_attempted = n_pairs * _EVAL_PAIR_SIZE
+    n_groups = int(cfg.eval_episodes)
+    n_groups_successful = 0
+    n_attempted = n_groups * group_size
     t0 = time.perf_counter()
 
-    for e in range(n_pairs):
+    for e in range(n_groups):
         seed = eval_seed(cfg, e)
-        # Both members of this pair, keyed by condition; a member that failed is simply
-        # absent, which is what makes the "both succeeded" test below a membership test
+        # Every member of this group, keyed by CELL; a member that failed is simply
+        # absent, which is what makes the "all succeeded" test below a membership test
         # rather than a sentinel comparison.
         member_rewards: Dict[str, float] = {}
 
-        for member, (condition, mode) in enumerate(_EVAL_PAIR_MEMBERS):
-            tag = eval_member_tag(round_ordinal=round_ordinal, e=e, member=member)
-            tally.attempt(condition)
+        for member, (cell, mode) in enumerate(members):
+            tag = eval_member_tag(round_ordinal=round_ordinal, e=e, member=member,
+                                  group_size=group_size)
+            condition = cell_condition(cell)
+            tally.attempt(cell)
             artifacts = None
             if artifacts_root is not None:
                 artifacts = _AttemptArtifacts(
@@ -3327,10 +3850,11 @@ def evaluate(
                         eval_round_ordinal=int(round_ordinal),
                         eval_episode_index=int(e),
                         eval_pair_member=int(member),
-                        attempt_ordinal=e * _EVAL_PAIR_SIZE + member,
+                        attempt_ordinal=e * group_size + member,
                         episode_index=None,
                         seed=int(seed),
                         condition=str(condition),
+                        severity=(str(cell) if cell in SEVERITIES else None),
                         episode_tag=int(tag),
                     ),
                 )
@@ -3351,30 +3875,52 @@ def evaluate(
                 raise
             except Exception as exc:  # an eval failure must not abort training either
                 n_failed += 1
-                tally.failure(condition)
+                tally.failure(cell)
                 _append_failure_record(failures_path, _failure_record(
                     phase="eval",
                     evaluation_stage=stage,
                     updates_completed=updates_completed,
                     iteration=iteration,
-                    attempt_ordinal=e * _EVAL_PAIR_SIZE + member,
+                    attempt_ordinal=e * group_size + member,
                     episode_index=None,
-                    eval_tag="eval_e%d_%s_tag%d" % (e, condition, tag),
+                    eval_tag="eval_e%d_%s_tag%d" % (e, cell, tag),
                     seed=seed,
+                    # The ledger keeps naming the CONDITION, so `failures_by_condition`
+                    # means what it always did; the finer cell is in the tag.
                     condition=condition,
                     exc=exc,
                 ))
                 print("  [eval %s e%d %s] FAILED (seed=%d): %s: %s"
-                      % (stage, e, condition, seed, type(exc).__name__, exc))
+                      % (stage, e, cell, seed, type(exc).__name__, exc))
                 traceback.print_exc()
                 continue
             # Printed BEFORE the next attempt starts, so a long eval round is readable
             # while it runs rather than only in the round's summary line.
             print(_format_episode_block(
                 "[eval stage=%s ep=%d %s seed=%d]"
-                % (_ascii(stage), e, condition, seed), out
+                % (_ascii(stage), e, cell, seed), out
             ))
-            member_rewards[tally.success(out)] = out.reward
+            # `cell` is THIS member's scheduled cell, from the matched-group schedule a
+            # few lines above. Passing it is what makes the guard a scheduled-vs-executed
+            # comparison rather than a membership test, and it runs BEFORE the member
+            # reward is recorded -- so a mismatched member can never enter a matched
+            # group, and therefore never enter a within-seed delta.
+            member_rewards[tally.success(out, expected_cell=cell)] = out.reward
+            _append_episode_outcome_record(outcomes_path, _episode_outcome_record(
+                out,
+                phase=str(stage),
+                iteration=iteration,
+                updates_completed=int(updates_completed),
+                updates_completed_before=int(updates_completed),
+                attempt_ordinal=e * group_size + member,
+                episode_index=None,
+                eval_round_ordinal=int(round_ordinal),
+                eval_episode_index=int(e),
+                eval_group_member=int(member),
+                seed=int(seed),
+                episode_tag=int(tag),
+                fuel_damage_mode=str(mode),
+            ))
             rewards.append(out.reward)
             unique_confirmed.append(float(out.targets_confirmed_unique))
             wakes.append(float(out.n_wakes))
@@ -3382,13 +3928,18 @@ def evaluate(
             if out.ended in ended_counts:
                 ended_counts[out.ended] += 1
 
-        # A COMPLETE pair only. A half-pair is not a paired measurement, and filling the
-        # gap with the surviving member would report a within-seed difference that was
-        # never measured.
-        if CONDITION_CLEAN in member_rewards and CONDITION_DAMAGED in member_rewards:
-            pair_deltas.append(
-                member_rewards[CONDITION_DAMAGED] - member_rewards[CONDITION_CLEAN]
-            )
+        # A COMPLETE group only. A partial group is not a matched measurement, and
+        # filling the gap with the surviving members would report a within-seed
+        # difference that was never measured. The test is over EVERY declared member, so
+        # a triad needs all three -- a clean+mild pair inside a failed triad yields no
+        # mild-minus-clean delta either, because the group it belonged to is incomplete.
+        if all(cell in member_rewards for cell, _mode in members):
+            n_groups_successful += 1
+            for pair in group_deltas:
+                cell, reference = pair
+                group_deltas[pair].append(
+                    member_rewards[cell] - member_rewards[reference]
+                )
 
     n_successful = len(rewards)
     episodes_with_wakes = sum(1 for w in wakes if w > 0)
@@ -3396,6 +3947,17 @@ def evaluate(
     # ONE arithmetic site behind BOTH the authoritative key and its legacy alias, so the
     # two can never drift apart and the alias can never revert to the (ego,target) count.
     unique_confirmed_mean = _stats_or_none(unique_confirmed)["mean"]
+    # Every declared within-seed difference as a FLAT key, so a plot or a notebook can
+    # read one by name without decoding a nested structure. `eval_delta_keys` names them,
+    # so a reader does not have to know the design to find them.
+    delta_record: Dict[str, Any] = {}
+    for (cell, reference), values in group_deltas.items():
+        stats = _stats_or_none(values)
+        key = _delta_key(cell, reference)
+        delta_record[key] = stats["mean"]
+        delta_record["%s_min" % key] = stats["min"]
+        delta_record["%s_max" % key] = stats["max"]
+    legacy_delta_key = _delta_key(CONDITION_DAMAGED, CONDITION_CLEAN)
     return {
         "evaluation_stage": str(stage),
         "updates_completed": int(updates_completed),
@@ -3403,30 +3965,49 @@ def evaluate(
         # Which scenario-tag namespace this round's worlds were written under -- the
         # link from a record back to the `episode_<tag>_scenario.json` files it ran on.
         "eval_round_ordinal": int(round_ordinal),
-        "episode_tag_start": eval_member_tag(round_ordinal=round_ordinal, e=0, member=0),
+        "episode_tag_start": eval_member_tag(round_ordinal=round_ordinal, e=0, member=0,
+                                             group_size=group_size),
         # --- attempt accounting: the AUTHORITATIVE names ---
-        # `n_attempted` counts EPISODE attempts, which is `n_pairs * 2` since FD-BASELINE
-        # evaluates each held-out seed forced-clean and forced-damaged.
+        # `n_attempted` counts EPISODE attempts, which is `n_groups * group_size` since
+        # every held-out seed is run once per matched-group member.
         "n_attempted": n_attempted,
         "n_successful": n_successful,
         "n_failed": n_failed,
         "success_fraction": _fraction(n_successful, n_attempted),
         "episodes_with_wakes": int(episodes_with_wakes),
         "wake_fraction_of_successful": _fraction(episodes_with_wakes, n_successful),
-        # --- FD-BASELINE-v1: matched-pair accounting, with its OWN denominator ---
-        "n_pairs_attempted": n_pairs,
-        "n_pairs_successful": len(pair_deltas),
-        "pair_success_fraction": _fraction(len(pair_deltas), n_pairs),
-        # mean(R_damaged - R_clean) over pairs whose BOTH members completed. None (never
-        # 0.0) when no pair did: 0.0 would say "the event changed nothing", which is a
-        # measurement, not an absence of one.
-        "eval_paired_reward_delta": _stats_or_none(pair_deltas)["mean"],
-        "eval_paired_reward_delta_min": _stats_or_none(pair_deltas)["min"],
-        "eval_paired_reward_delta_max": _stats_or_none(pair_deltas)["max"],
+        # --- MATCHED-GROUP accounting, with its OWN denominator ---
+        # The AUTHORITATIVE generic names. `eval_group_kind` / `eval_group_size` say
+        # which design produced them, so "how many complete groups" never has to be
+        # inferred from a member count.
+        "eval_group_kind": str(cfg.eval_group_kind),
+        "eval_group_size": int(group_size),
+        "eval_group_cells": list(cfg.reported_cells),
+        "n_groups_attempted": n_groups,
+        "n_groups_successful": int(n_groups_successful),
+        "group_success_fraction": _fraction(n_groups_successful, n_groups),
+        # Every within-seed difference this design declares, over COMPLETE groups only.
+        # None (never 0.0) when no group completed: 0.0 would say "the event changed
+        # nothing", which is a measurement, not an absence of one.
+        "eval_delta_keys": [_delta_key(c, r_) for c, r_ in cfg.eval_group_deltas],
+        "eval_delta_over": "groups_with_all_members_successful",
+        **delta_record,
+        # --- LEGACY ALIASES, kept so every existing reader still resolves ---
+        # `n_pairs_*` are the same quantity as `n_groups_*` (complete matched groups);
+        # for a legacy run they are literally pairs, and `eval_group_kind` says when they
+        # are not. `eval_paired_reward_delta` is the damaged-minus-clean difference and
+        # is therefore `None` under a TRIAD, where there is no single damaged member to
+        # difference against -- the three named deltas above carry that round's result.
+        "n_pairs_attempted": n_groups,
+        "n_pairs_successful": int(n_groups_successful),
+        "pair_success_fraction": _fraction(n_groups_successful, n_groups),
+        "eval_paired_reward_delta": delta_record.get(legacy_delta_key),
+        "eval_paired_reward_delta_min": delta_record.get("%s_min" % legacy_delta_key),
+        "eval_paired_reward_delta_max": delta_record.get("%s_max" % legacy_delta_key),
         "paired_delta_over": "pairs_with_both_members_successful",
         # --- aggregates over the SUCCESSFUL subset only (None when it is empty) ---
-        # `eval_reward_mean` spans BOTH conditions; the per-condition means below are the
-        # ones to read when the question is about the difficulty factor.
+        # `eval_reward_mean` spans EVERY cell; the per-cell means below are the ones to
+        # read when the question is about the difficulty factor.
         "eval_reward_mean": r["mean"],
         "eval_reward_min": r["min"],
         "eval_reward_max": r["max"],
@@ -3437,17 +4018,18 @@ def evaluate(
         "eval_wakes_mean": _stats_or_none(wakes)["mean"],
         "aggregates_over": "successful_episodes",
         "meta_action_counts": dict(meta_counts),
-        # Per-condition attempt counts, per-condition reward means, and the FD event
-        # counters (applied / wakes / RTBs / deaths) -- all through the ONE tally site.
+        # Per-cell attempt counts, per-cell reward means, the per-cell FD-wake
+        # meta-action mix, and the FD event counters (applied / wakes / RTBs / deaths) --
+        # all through the ONE tally site.
         **tally.to_record(prefix="eval_"),
         "meta_action_fractions": _meta_fractions(meta_counts),
         "ended_counts": dict(ended_counts),
         "seed_band": {
             # SEEDS, not attempts: the band is `eval_episodes` wide however many times
-            # each of its seeds is run. Doubling the attempts (matched pairs) must not
-            # look like a widened held-out band.
+            # each of its seeds is run. Multiplying the attempts (a matched pair or
+            # triad) must not look like a widened held-out band.
             "start": int(cfg.eval_base_seed),
-            "stop": int(cfg.eval_base_seed) + n_pairs,
+            "stop": int(cfg.eval_base_seed) + n_groups,
             "half_open": True,
         },
         # --- compatibility names kept so pre-B4 readers still parse a record ---
@@ -3467,24 +4049,57 @@ def evaluate(
 # =============================================================================
 
 def _print_eval_pair_line(ev: Dict[str, Any]) -> None:
-    """One line summarizing an eval round's MATCHED-PAIR result.
+    """One (or two) lines summarizing an eval round's MATCHED-GROUP result.
 
     Printed next to every eval summary because the round's headline
-    ``eval_reward_mean`` spans both conditions and therefore answers no question about
-    the difficulty factor. The paired delta always appears with its own denominator --
-    a delta over 1 of 4 complete pairs is a different claim from the same number over
-    4 of 4, and the two must never be printed as if they were the same.
+    ``eval_reward_mean`` spans every cell and therefore answers no question about the
+    difficulty factor. Every delta appears with its own denominator -- a delta over 1 of
+    4 complete groups is a different claim from the same number over 4 of 4, and the two
+    must never be printed as if they were the same.
+
+    A legacy PAIR round prints the same quantities it always did, with the delta now
+    NAMED (``damaged_minus_clean``) rather than labelled ``delta`` -- the one wording
+    change, and it is the wording that stops being ambiguous the moment a design has more
+    than one delta. A TRIAD round prints the three cell means, its three named deltas,
+    and on a second line the FD-wake ABORT RATE per severity -- the primary behavioural
+    measurement, and the one an operator most wants to watch while a run is still going.
     """
-    print("            fd pairs: clean R=%s | damaged R=%s | delta=%s over %s/%s pair(s) "
-          "| applied=%s wakes=%s rtb=%s dead=%s"
-          % (_fmt_opt(ev.get("eval_reward_mean_clean")),
-             _fmt_opt(ev.get("eval_reward_mean_damaged")),
-             _fmt_opt(ev.get("eval_paired_reward_delta")),
-             ev.get("n_pairs_successful"), ev.get("n_pairs_attempted"),
+    cells = list(ev.get("eval_group_cells") or list(CONDITIONS))
+    kind = str(ev.get("eval_group_kind", _EVAL_GROUP_KIND_PAIR))
+    means = " | ".join(
+        "%s R=%s" % (cell, _fmt_opt(ev.get("eval_reward_mean_%s" % cell)))
+        for cell in cells
+    )
+    deltas = " ".join(
+        "%s=%s" % (key.replace("eval_delta_", ""), _fmt_opt(ev.get(key)))
+        for key in (ev.get("eval_delta_keys") or [])
+    )
+    print("            fd %ss: %s | %s over %s/%s %s(s) | applied=%s wakes=%s rtb=%s "
+          "dead=%s"
+          % (kind, means, deltas,
+             ev.get("n_groups_successful", ev.get("n_pairs_successful")),
+             ev.get("n_groups_attempted", ev.get("n_pairs_attempted")), kind,
              ev.get("eval_fuel_damage_events_applied"),
              ev.get("eval_fuel_damage_wakes"),
              ev.get("eval_fuel_damage_rtb_issued"),
              ev.get("eval_deaths")))
+    # The severity-response line, only when there are severities to compare. Abort RATE
+    # travels with the FD-wake count it is a rate over, because a 100% abort rate over
+    # one wake and over eight are different findings.
+    severity_cells = [c for c in cells if c in SEVERITIES]
+    if severity_cells:
+        abort = MetaAction.SELF_PRESERVATION_ABORT.name
+        comply = MetaAction.PLAN_COMPLIANCE.name
+        print("            fd response: %s"
+              % " | ".join(
+                  "%s abort=%s comply=%s over %s fd-wake(s)"
+                  % (cell,
+                     _fmt_opt((ev.get("eval_fd_meta_action_rates_%s" % cell) or {})
+                              .get(abort), "%.2f"),
+                     _fmt_opt((ev.get("eval_fd_meta_action_rates_%s" % cell) or {})
+                              .get(comply), "%.2f"),
+                     ev.get("eval_n_%s_fd_wakes" % cell))
+                  for cell in severity_cells))
 
 
 def save_checkpoint(
@@ -3607,6 +4222,9 @@ def train(
     train_records_path = run_dir / "train_records.jsonl"
     eval_records_path = run_dir / "eval_records.jsonl"
     failures_path = run_dir / "episode_failures.jsonl"
+    # The durable per-SUCCESSFUL-ATTEMPT stream. Disjoint from the failure ledger by
+    # construction: an attempt appears in exactly one of the two files.
+    outcomes_path = run_dir / _EPISODE_OUTCOMES_FILENAME
 
     # Written BEFORE the completeness gate below, so a refused run still leaves an
     # inspectable record of what was attempted and why it was refused.
@@ -3629,11 +4247,12 @@ def train(
               "path(s)). The exact code that produced this run exists only on this "
               "machine." % (git_info["commit"], git_info["dirty_path_count"]))
 
-    # Truncate the ledger: it describes THIS run, and appending to a previous run's
-    # failures in a reused directory would silently corrupt the accounting. After the
-    # gate, so a refused run never destroys an earlier run's ledger.
-    with open(failures_path, "w", encoding="utf-8"):
-        pass
+    # Truncate the ledger and the outcome stream: they describe THIS run, and appending
+    # to a previous run's records in a reused directory would silently corrupt the
+    # accounting. After the gate, so a refused run never destroys an earlier run's files.
+    for append_only_path in (failures_path, outcomes_path):
+        with open(append_only_path, "w", encoding="utf-8"):
+            pass
 
     # Match the rollout/selftest PlaybackRecorder override (harmless when recording is
     # off, which it always is here). Lazy import: engine boundary.
@@ -3653,10 +4272,11 @@ def train(
     print("base_seed=%d  train seeds [%d, %d)"
           % (cfg.base_seed, cfg.base_seed, cfg.base_seed + cfg.total_episodes))
     if cfg.eval_enabled:
-        print("eval: every %d iter, %d held-out seed(s) x %d matched member(s) = %d "
-              "episode(s), FIXED seeds [%d, %d)"
-              % (cfg.eval_every, cfg.eval_episodes, _EVAL_PAIR_SIZE,
-                 cfg.eval_episodes * _EVAL_PAIR_SIZE, cfg.eval_base_seed,
+        print("eval: every %d iter, %d held-out seed(s) x %d matched %s member(s) "
+              "(%s) = %d episode(s), FIXED seeds [%d, %d)"
+              % (cfg.eval_every, cfg.eval_episodes, cfg.eval_group_size,
+                 cfg.eval_group_kind, "/".join(cfg.reported_cells),
+                 cfg.eval_episodes * cfg.eval_group_size, cfg.eval_base_seed,
                  cfg.eval_base_seed + cfg.eval_episodes))
     else:
         print("eval: DISABLED")
@@ -3676,13 +4296,25 @@ def train(
     print("          stretch=%s  sams=%s" % (cfg.stretch_target_ratio, cfg.include_sams))
     # The ONE difficulty factor, echoed before compute is spent -- an operator who meant
     # to run the hard cell and typed the easy one sees it here, not in the results.
-    print("difficulty (FD-BASELINE-v1): fuel_damage mode=%s p(damaged)=%.2f "
+    print("difficulty (%s): fuel_damage mode=%s p(damaged)=%.2f "
           "leg_progress=%.2f rtb_margin=%.2f"
-          % (cfg.fuel_damage_mode, cfg.fuel_damage_probability,
-             cfg.fuel_damage_leg_progress, cfg.fuel_damage_rtb_margin))
+          % (_difficulty_factor_name(cfg), cfg.fuel_damage_mode,
+             cfg.fuel_damage_probability, cfg.fuel_damage_leg_progress,
+             cfg.fuel_damage_rtb_margin))
+    if cfg.variable_severity:
+        # The three-way distribution, stated as the numbers a reader will look for
+        # rather than as the two conditionals it is stored as.
+        p_damaged = float(cfg.fuel_damage_probability)
+        p_mild = float(cfg.fuel_damage_mild_probability)
+        print("          severity: p(mild|damaged)=%.2f -> clean %.2f / mild %.2f / "
+              "severe %.2f. MILD leaves continuation+RTB feasible; SEVERE does not. "
+              "The policy is told NEITHER -- only its own live fuel changes."
+              % (p_mild, 1.0 - p_damaged, p_damaged * p_mild,
+                 p_damaged * (1.0 - p_mild)))
     print("          reward aircraft_penalty_coeff=%.2f (graph_reward formula UNCHANGED); "
-          "eval uses matched forced-clean / forced-damaged pairs on the SAME seed"
-          % cfg.aircraft_penalty_coeff)
+          "eval uses matched %s (%s) on the SAME seed"
+          % (cfg.aircraft_penalty_coeff, cfg.eval_group_kind + "s",
+             " / ".join("forced_%s" % c for c in cfg.reported_cells)))
     print("legacy split surface (NOT used by the construction path): "
           "num_red_airbases=%r partial_ratio=%s -> known/hidden = %s"
           % (cfg.num_red_airbases, cfg.partial_ratio,
@@ -3731,6 +4363,7 @@ def train(
                           stage=_EVAL_STAGE_PRE_UPDATE, updates_completed=0,
                           round_ordinal=eval_round_ordinal,
                           failures_path=failures_path,
+                          outcomes_path=outcomes_path,
                           artifacts_root=artifacts_root)
             eval_round_ordinal += 1
             eval_records.append(ev)
@@ -3749,7 +4382,10 @@ def train(
             rewards: List[float] = []
             unique_confirmed: List[float] = []
             ticks: List[float] = []
-            tally = _ConditionTally()
+            # The batch is tallied under the SAME cells evaluation reports, so a
+            # training record and an eval record of one run split the damaged half the
+            # same way and can be read side by side.
+            tally = _ConditionTally(cfg.reported_cells)
             n_failed_iter = 0
             n_attempted_iter = int(cfg.episodes_per_iteration)
             # How much learning stands behind the episodes collected BELOW -- they are
@@ -3761,13 +4397,16 @@ def train(
             for j in range(cfg.episodes_per_iteration):
                 g = global_episode_index(cfg, iteration, j)
                 seed = train_seed(cfg, iteration, j)
-                # The SCHEDULED condition, resolved from the seed and the mode alone.
-                # Known before the episode is built and still known if it never builds,
-                # which is what lets a failure be accounted under its own condition.
-                condition = resolve_condition(
-                    episode_seed=seed, params=cfg.fuel_damage_parameters()
-                )
-                tally.attempt(condition)
+                # The SCHEDULED cell, resolved from the seed and the mode alone. Known
+                # before the episode is built and still known if it never builds, which
+                # is what lets a failure be accounted under its own cell. Under a legacy
+                # mode the cell IS the condition; under `seeded_variable` a damaged
+                # episode's cell is its severity.
+                fd_params = cfg.fuel_damage_parameters()
+                condition = resolve_condition(episode_seed=seed, params=fd_params)
+                severity = resolve_severity(episode_seed=seed, params=fd_params)
+                cell = str(severity) if severity else str(condition)
+                tally.attempt(cell)
                 artifacts = None
                 if artifacts_root is not None:
                     artifacts = _AttemptArtifacts(
@@ -3783,6 +4422,7 @@ def train(
                             episode_index=int(g),
                             seed=int(seed),
                             condition=str(condition),
+                            severity=severity,
                             episode_tag=int(g),
                         ),
                     )
@@ -3806,7 +4446,7 @@ def train(
                     # This seed is spent -- no retry, no substitute, no shift of the
                     # band. `j` continues, so the schedule is untouched.
                     n_failed_iter += 1
-                    tally.failure(condition)
+                    tally.failure(cell)
                     _append_failure_record(failures_path, _failure_record(
                         phase="train",
                         evaluation_stage=None,
@@ -3816,11 +4456,13 @@ def train(
                         episode_index=g,
                         eval_tag=None,
                         seed=seed,
+                        # The ledger keeps naming the CONDITION, so
+                        # `failures_by_condition` means what it always did.
                         condition=condition,
                         exc=exc,
                     ))
-                    print("  [iter %d ep %d] FAILED (seed=%d, cond=%s, stage=%s): %s: %s"
-                          % (iteration, g, seed, condition,
+                    print("  [iter %d ep %d] FAILED (seed=%d, cell=%s, stage=%s): %s: %s"
+                          % (iteration, g, seed, cell,
                              getattr(exc, "stage", "unknown"),
                              type(getattr(exc, "original", exc)).__name__,
                              getattr(exc, "original", exc)))
@@ -3834,7 +4476,26 @@ def train(
                     "[train iter=%d ep=%d seed=%d]" % (iteration, g, seed), out
                 ))
 
-                tally.success(out)
+                # `cell` is this attempt's scheduled cell, resolved from the seed before
+                # the episode was built and already counted by `tally.attempt(cell)`.
+                # The guard runs FIRST, so a mismatched episode reaches neither the
+                # durable outcome stream nor the PPO buffer below.
+                tally.success(out, expected_cell=cell)
+                _append_episode_outcome_record(outcomes_path, _episode_outcome_record(
+                    out,
+                    phase=_ARTIFACT_PHASE_TRAIN,
+                    iteration=int(iteration),
+                    updates_completed=int(updates_completed),
+                    updates_completed_before=int(updates_before),
+                    attempt_ordinal=int(j),
+                    episode_index=int(g),
+                    eval_round_ordinal=None,
+                    eval_episode_index=None,
+                    eval_group_member=None,
+                    seed=int(seed),
+                    episode_tag=int(g),
+                    fuel_damage_mode=str(cfg.fuel_damage_mode),
+                ))
                 buf.add(EpisodeRecord.from_trajectory(
                     out.trajectory, out.reward, seed=seed, episode_index=g,
                 ))
@@ -3954,14 +4615,18 @@ def train(
                      record["total_loss"], record["entropy"], record["approx_kl"],
                      record["clip_fraction"], record["grad_norm"],
                      record["iteration_seconds"], flag))
-            # The difficulty factor's own line: the clean/damaged split of the batch, the
-            # two conditional means, and whether the scheduled events actually happened.
-            print("           fd: clean %d/%d R=%s | damaged %d/%d R=%s | "
-                  "applied=%d wakes=%d rtb=%d dead=%d"
-                  % (record["n_clean_successful"], record["n_clean_attempted"],
-                     _fmt_opt(record["reward_mean_clean"]),
-                     record["n_damaged_successful"], record["n_damaged_attempted"],
-                     _fmt_opt(record["reward_mean_damaged"]),
+            # The difficulty factor's own line: the batch's split by CELL, each cell's
+            # conditional mean, and whether the scheduled events actually happened. For a
+            # legacy run the cells are clean/damaged and this is the line it always was;
+            # for a variable-severity run the damaged half is shown as mild and severe,
+            # which is the split the run exists to measure.
+            print("           fd: %s | applied=%d wakes=%d rtb=%d dead=%d"
+                  % (" | ".join(
+                         "%s %d/%d R=%s"
+                         % (cell, record["n_%s_successful" % cell],
+                            record["n_%s_attempted" % cell],
+                            _fmt_opt(record["reward_mean_%s" % cell]))
+                         for cell in cfg.reported_cells),
                      record["fuel_damage_events_applied"],
                      record["fuel_damage_wakes"], record["fuel_damage_rtb_issued"],
                      record["deaths"]))
@@ -3973,6 +4638,7 @@ def train(
                               updates_completed=updates_completed,
                               round_ordinal=eval_round_ordinal,
                               failures_path=failures_path,
+                              outcomes_path=outcomes_path,
                               artifacts_root=artifacts_root)
                 eval_round_ordinal += 1
                 eval_records.append(ev)
@@ -4003,6 +4669,7 @@ def train(
                           updates_completed=updates_completed,
                           round_ordinal=eval_round_ordinal,
                           failures_path=failures_path,
+                          outcomes_path=outcomes_path,
                           artifacts_root=artifacts_root)
             eval_round_ordinal += 1
             eval_records.append(ev)
@@ -4112,7 +4779,98 @@ def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         "n_pairs_successful": record.get("n_pairs_successful"),
         "n_pairs_attempted": record.get("n_pairs_attempted"),
         "paired_delta_over": record.get("paired_delta_over"),
+        # --- the matched GROUP, generically: every cell mean and every declared delta,
+        # each with its own denominator. Under a legacy PAIR round these repeat what the
+        # keys above say; under a TRIAD they are the only complete statement of it.
+        "eval_group_kind": record.get("eval_group_kind"),
+        "eval_group_cells": record.get("eval_group_cells"),
+        "n_groups_successful": record.get("n_groups_successful"),
+        "n_groups_attempted": record.get("n_groups_attempted"),
+        "eval_delta_over": record.get("eval_delta_over"),
+        "cell_reward_means": {
+            cell: record.get("eval_reward_mean_%s" % cell)
+            for cell in (record.get("eval_group_cells") or list(CONDITIONS))
+        },
+        "cell_successful": {
+            cell: record.get("eval_n_%s_successful" % cell)
+            for cell in (record.get("eval_group_cells") or list(CONDITIONS))
+        },
+        "group_deltas": {
+            key: record.get(key) for key in (record.get("eval_delta_keys") or [])
+        },
+        # THE PRIMARY BEHAVIOURAL MEASUREMENT: what the FD wake chose, per damaged cell,
+        # over the FD wakes that actually happened in it.
+        "fd_wake_meta_action_counts": {
+            cell: record.get("eval_fd_meta_action_counts_%s" % cell)
+            for cell in (record.get("eval_group_cells") or list(CONDITIONS))
+            if record.get("eval_fd_meta_action_counts_%s" % cell) is not None
+        },
+        "fd_wakes_by_cell": {
+            cell: record.get("eval_n_%s_fd_wakes" % cell)
+            for cell in (record.get("eval_group_cells") or list(CONDITIONS))
+            if record.get("eval_n_%s_fd_wakes" % cell) is not None
+        },
     }
+
+
+def _severity_response_from_outcomes(
+    outcome_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The severity-response table, DERIVED FROM THE DURABLE PER-ATTEMPT STREAM.
+
+    The run summary must not claim anything an artifact does not already state, so this
+    reads ``episode_outcomes.jsonl`` rather than an in-memory aggregate: a summary that
+    could describe a run its own files do not is the failure mode the whole one-metric-
+    path discipline exists to prevent (:func:`build_run_summary`).
+
+    For every phase and every reporting cell it reports, over SUCCESSFUL attempts:
+    how many episodes, how many fired an event, how many produced an FD WAKE, and the
+    meta-action that wake chose. The rates are over FD WAKES -- the only population in
+    which the actor was actually asked -- and are ``None``, never ``0.0``, when that
+    population is empty.
+    """
+    by_phase: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for rec in outcome_records:
+        phase = str(rec.get("phase", "unknown"))
+        cell = str(rec.get("cell", CONDITION_CLEAN))
+        bucket = by_phase.setdefault(phase, {}).setdefault(cell, {
+            "n_episodes": 0, "n_fd_fired": 0, "n_fd_wakes": 0,
+            "meta_action_counts": _empty_meta_counts(),
+            "rewards": [],
+            "n_dead": 0, "n_rtb_command": 0,
+        })
+        bucket["n_episodes"] += 1
+        bucket["rewards"].append(float(rec.get("reward", 0.0)))
+        bucket["n_dead"] += int(rec.get("n_dead", 0) or 0)
+        if rec.get("fd_fired"):
+            bucket["n_fd_fired"] += 1
+        if rec.get("fd_rtb_command_issued"):
+            bucket["n_rtb_command"] += 1
+        if rec.get("fd_wake_occurred"):
+            bucket["n_fd_wakes"] += 1
+            name = rec.get("fd_wake_meta_action_name")
+            if name in bucket["meta_action_counts"]:
+                bucket["meta_action_counts"][name] += 1
+    out: Dict[str, Any] = {}
+    for phase, cells in by_phase.items():
+        out[phase] = {}
+        for cell, bucket in cells.items():
+            denom = int(bucket["n_fd_wakes"])
+            out[phase][cell] = {
+                "n_episodes": int(bucket["n_episodes"]),
+                "n_fd_fired": int(bucket["n_fd_fired"]),
+                "n_fd_wakes": denom,
+                "n_rtb_command_issued": int(bucket["n_rtb_command"]),
+                "n_dead": int(bucket["n_dead"]),
+                "reward_mean": _stats_or_none(bucket["rewards"])["mean"],
+                "meta_action_counts": dict(bucket["meta_action_counts"]),
+                "meta_action_rates": {
+                    name: _fraction(int(bucket["meta_action_counts"][name]), denom)
+                    for name in _META_NAMES
+                },
+                "rates_over": "fd_wakes",
+            }
+    return out
 
 
 def _summarize(
@@ -4120,6 +4878,7 @@ def _summarize(
     eval_records: List[Dict[str, Any]],
     failure_records: List[Dict[str, Any]],
     *,
+    outcome_records: Optional[List[Dict[str, Any]]] = None,
     cfg: Optional[TrainConfig] = None,
     run_dir: Path,
     run_seconds: Optional[float] = None,
@@ -4190,22 +4949,44 @@ def _summarize(
         fd_totals["eval_%s" % key] = sum(
             int(r.get("eval_%s" % key, 0) or 0) for r in eval_records
         )
-    for condition in CONDITIONS:
+    # Cells, not only conditions: the two severities are summed as well when this run
+    # has them, so a variable-severity run's per-cell yield is in the summary and not
+    # only in the per-round records. Reading a key that a legacy record never wrote
+    # simply sums zero, which is the correct total for a cell that never existed.
+    reported_cells = (
+        tuple(cfg.reported_cells) if cfg is not None else tuple(CONDITIONS)
+    )
+    for cell in tuple(CONDITIONS) + tuple(
+        c for c in reported_cells if c not in CONDITIONS
+    ):
         for suffix in ("attempted", "successful", "failed"):
-            fd_totals["train_%s_%s" % (condition, suffix)] = sum(
-                int(r.get("n_%s_%s" % (condition, suffix), 0) or 0)
+            fd_totals["train_%s_%s" % (cell, suffix)] = sum(
+                int(r.get("n_%s_%s" % (cell, suffix), 0) or 0)
                 for r in train_records
             )
-            fd_totals["eval_%s_%s" % (condition, suffix)] = sum(
-                int(r.get("eval_n_%s_%s" % (condition, suffix), 0) or 0)
+            fd_totals["eval_%s_%s" % (cell, suffix)] = sum(
+                int(r.get("eval_n_%s_%s" % (cell, suffix), 0) or 0)
                 for r in eval_records
             )
-    fd_totals["eval_pairs_attempted"] = sum(
-        int(r.get("n_pairs_attempted", 0) or 0) for r in eval_records
+    # Complete matched GROUPS. `pairs` is the legacy name of the same quantity, so both
+    # are emitted from the SAME sum rather than counted twice.
+    groups_attempted = sum(
+        int(r.get("n_groups_attempted", r.get("n_pairs_attempted", 0)) or 0)
+        for r in eval_records
     )
-    fd_totals["eval_pairs_successful"] = sum(
-        int(r.get("n_pairs_successful", 0) or 0) for r in eval_records
+    groups_successful = sum(
+        int(r.get("n_groups_successful", r.get("n_pairs_successful", 0)) or 0)
+        for r in eval_records
     )
+    fd_totals["eval_groups_attempted"] = groups_attempted
+    fd_totals["eval_groups_successful"] = groups_successful
+    fd_totals["eval_pairs_attempted"] = groups_attempted
+    fd_totals["eval_pairs_successful"] = groups_successful
+
+    # The severity-response table, derived from the DURABLE per-attempt stream so the
+    # summary states nothing the artifacts do not.
+    outcome_rows = list(outcome_records or [])
+    severity_response = _severity_response_from_outcomes(outcome_rows)
 
     run_path = Path(run_dir)
     summary: Dict[str, Any] = {
@@ -4248,19 +5029,58 @@ def _summarize(
         "failures_by_pipeline_stage": _count_by(failure_records, "pipeline_stage"),
         "failures_by_error_type": _count_by(failure_records, "error_type"),
         "failures_by_condition": _count_by(failure_records, "condition"),
-        # --- FD-BASELINE-v1: the difficulty factor's own accounting ---
-        "difficulty_factor": "fuel_damage_baseline_v1",
+        # --- the difficulty factor's own accounting ---
+        "difficulty_factor": (
+            "fuel_damage_baseline_v1" if cfg is None else _difficulty_factor_name(cfg)
+        ),
         "fuel_damage_mode": (
             None if cfg is None else str(cfg.fuel_damage_mode)
         ),
+        "fuel_damage_mild_probability": (
+            None if cfg is None or not cfg.variable_severity
+            else float(cfg.fuel_damage_mild_probability)
+        ),
+        # The RECORDS are authoritative (they describe what ran), the config is the
+        # fallback for a run whose records predate the field, and `None` only when
+        # neither can say -- never a guessed default that a reader could not distinguish
+        # from a measured one.
+        "eval_group_kind": (
+            (eval_records[-1].get("eval_group_kind") if eval_records else None)
+            or (None if cfg is None else cfg.eval_group_kind)
+        ),
+        "eval_group_cells": list(reported_cells),
         "aircraft_penalty_coeff": (
             None if cfg is None else float(cfg.aircraft_penalty_coeff)
         ),
         "fuel_damage_totals": fd_totals,
-        # The one held-out number the factor is measured by, taken from the LAST round
-        # and always carrying its pair denominator.
+        # THE PRIMARY BEHAVIOURAL MEASUREMENT of the variable-severity design, derived
+        # from `episode_outcomes.jsonl`: per phase and per cell, what the fuel-damage
+        # wake chose, over the FD wakes it is a rate of. Empty for a run with no durable
+        # outcome stream (a pre-feature run directory), never fabricated.
+        "severity_response": severity_response,
+        "severity_response_source": _EPISODE_OUTCOMES_FILENAME,
+        "episode_outcomes_recorded": len(outcome_rows),
+        # The held-out numbers the factor is measured by, taken from the LAST round and
+        # always carrying their group denominator. `final_eval_paired_reward_delta` is
+        # the LEGACY damaged-minus-clean key and is `null` for a triad run, whose three
+        # named deltas are in `final_eval_group_deltas`.
         "final_eval_paired_reward_delta": (
             eval_records[-1].get("eval_paired_reward_delta") if eval_records else None
+        ),
+        "final_eval_group_deltas": (
+            {key: eval_records[-1].get(key)
+             for key in (eval_records[-1].get("eval_delta_keys") or [])}
+            if eval_records else None
+        ),
+        "final_eval_groups_successful": (
+            eval_records[-1].get("n_groups_successful",
+                                 eval_records[-1].get("n_pairs_successful"))
+            if eval_records else None
+        ),
+        "final_eval_groups_attempted": (
+            eval_records[-1].get("n_groups_attempted",
+                                 eval_records[-1].get("n_pairs_attempted"))
+            if eval_records else None
         ),
         "final_eval_pairs_successful": (
             eval_records[-1].get("n_pairs_successful") if eval_records else None
@@ -4288,6 +5108,7 @@ def _summarize(
         "train_records_path": str(run_path / "train_records.jsonl"),
         "eval_records_path": str(run_path / "eval_records.jsonl"),
         "failures_path": str(run_path / "episode_failures.jsonl"),
+        "episode_outcomes_path": str(run_path / _EPISODE_OUTCOMES_FILENAME),
         "run_config_path": str(run_path / "run_config.json"),
         "run_summary_path": str(run_path / "run_summary.json"),
         # Figures live under `<run_dir>/plots/`, one claim per file. Listed by NAME so a
@@ -4316,6 +5137,7 @@ def _summarize(
     summary["train_records"] = train_records
     summary["eval_records"] = eval_records
     summary["failure_records"] = failure_records
+    summary["episode_outcome_records"] = outcome_rows
     return summary
 
 
@@ -4338,6 +5160,10 @@ def build_run_summary(
         _read_jsonl(run_path / "train_records.jsonl"),
         _read_jsonl(run_path / "eval_records.jsonl"),
         _read_jsonl(run_path / "episode_failures.jsonl"),
+        # The per-attempt stream is read here too, so every aggregate derived from it is
+        # derived from the FILE -- a missing file is simply an empty population, never a
+        # fabricated one.
+        outcome_records=_read_jsonl(run_path / _EPISODE_OUTCOMES_FILENAME),
         cfg=cfg,
         run_dir=run_path,
         run_seconds=run_seconds,
@@ -4404,32 +5230,59 @@ def _print_summary(s: Dict[str, Any]) -> None:
                               ("final      ", s["final_eval"])):
             if digest is None:
                 continue
-            print("eval fd:    %s clean R=%s (%s ok) | damaged R=%s (%s ok) | "
-                  "delta=%s over %s/%s pair(s)"
-                  % (label, _fmt_opt(digest["eval_reward_mean_clean"]),
-                     digest["n_clean_successful"],
-                     _fmt_opt(digest["eval_reward_mean_damaged"]),
-                     digest["n_damaged_successful"],
-                     _fmt_opt(digest["eval_paired_reward_delta"]),
-                     digest["n_pairs_successful"], digest["n_pairs_attempted"]))
+            cells = digest.get("eval_group_cells") or list(CONDITIONS)
+            means = digest.get("cell_reward_means") or {}
+            oks = digest.get("cell_successful") or {}
+            deltas = digest.get("group_deltas") or {}
+            print("eval fd:    %s %s | %s over %s/%s %s(s)"
+                  % (label,
+                     " | ".join("%s R=%s (%s ok)"
+                                % (c, _fmt_opt(means.get(c)), oks.get(c))
+                                for c in cells),
+                     " ".join("%s=%s" % (k.replace("eval_delta_", ""), _fmt_opt(v))
+                              for k, v in deltas.items()) or "no delta",
+                     digest.get("n_groups_successful"),
+                     digest.get("n_groups_attempted"),
+                     digest.get("eval_group_kind") or _EVAL_GROUP_KIND_PAIR))
     else:
         print("eval R:     (disabled)")
     fd = s["fuel_damage_totals"]
-    print("fuel dmg:   mode=%s  penalty_c=%s"
-          % (s["fuel_damage_mode"], s["aircraft_penalty_coeff"]))
-    print("            train: clean %d/%d ok, damaged %d/%d ok, events=%d wakes=%d "
-          "rtb=%d dead=%d"
-          % (fd["train_clean_successful"], fd["train_clean_attempted"],
-             fd["train_damaged_successful"], fd["train_damaged_attempted"],
-             fd["train_fuel_damage_events_applied"], fd["train_fuel_damage_wakes"],
-             fd["train_fuel_damage_rtb_issued"], fd["train_deaths"]))
-    print("            eval:  clean %d/%d ok, damaged %d/%d ok, events=%d wakes=%d "
-          "rtb=%d dead=%d  pairs %d/%d"
-          % (fd["eval_clean_successful"], fd["eval_clean_attempted"],
-             fd["eval_damaged_successful"], fd["eval_damaged_attempted"],
-             fd["eval_fuel_damage_events_applied"], fd["eval_fuel_damage_wakes"],
-             fd["eval_fuel_damage_rtb_issued"], fd["eval_deaths"],
-             fd["eval_pairs_successful"], fd["eval_pairs_attempted"]))
+    cells = list(s.get("eval_group_cells") or CONDITIONS)
+    print("fuel dmg:   mode=%s  penalty_c=%s  factor=%s"
+          % (s["fuel_damage_mode"], s["aircraft_penalty_coeff"],
+             s.get("difficulty_factor")))
+    for phase in ("train", "eval"):
+        print("            %-6s %s, events=%d wakes=%d rtb=%d dead=%d%s"
+              % (phase + ":",
+                 ", ".join("%s %d/%d ok"
+                           % (c, fd.get("%s_%s_successful" % (phase, c), 0),
+                              fd.get("%s_%s_attempted" % (phase, c), 0))
+                           for c in cells),
+                 fd["%s_fuel_damage_events_applied" % phase],
+                 fd["%s_fuel_damage_wakes" % phase],
+                 fd["%s_fuel_damage_rtb_issued" % phase],
+                 fd["%s_deaths" % phase],
+                 ("  %s %d/%d" % (s.get("eval_group_kind") or _EVAL_GROUP_KIND_PAIR,
+                                  fd["eval_groups_successful"],
+                                  fd["eval_groups_attempted"])
+                  if phase == "eval" else "")))
+    # THE PRIMARY BEHAVIOURAL MEASUREMENT, printed only when the run has severities to
+    # compare -- for a legacy run there is one damaged cell and no comparison to make.
+    response = s.get("severity_response") or {}
+    if any(c in SEVERITIES for c in cells):
+        abort = MetaAction.SELF_PRESERVATION_ABORT.name
+        for phase in sorted(response):
+            per_cell = response[phase]
+            severities = [c for c in cells if c in SEVERITIES and c in per_cell]
+            if not severities:
+                continue
+            print("            severity response [%s]: %s   (rates over FD WAKES)"
+                  % (phase,
+                     " | ".join(
+                         "%s abort=%s over %d wake(s)"
+                         % (c, _fmt_opt(per_cell[c]["meta_action_rates"][abort], "%.2f"),
+                            per_cell[c]["n_fd_wakes"])
+                         for c in severities)))
     print("failures:   %d recorded  by phase=%s  by stage=%s%s"
           % (s["failures_recorded"], s["failures_by_phase"],
              s["failures_by_pipeline_stage"],
@@ -4441,6 +5294,8 @@ def _print_summary(s: Dict[str, Any]) -> None:
     print("records:    %s" % s["train_records_path"])
     print("            %s" % s["eval_records_path"])
     print("            %s" % s["failures_path"])
+    print("            %s  (%d successful attempt(s))"
+          % (s.get("episode_outcomes_path"), s.get("episode_outcomes_recorded", 0)))
     print("            %s" % s["run_summary_path"])
     print("-" * 78)
 
@@ -4478,6 +5333,70 @@ def _xy(
     return xs, ys
 
 
+def _xy_first(
+    records: List[Dict[str, Any]], x_key: str, *y_keys: str
+) -> Tuple[List[float], List[float]]:
+    """:func:`_xy` over the FIRST of ``y_keys`` that yields any point.
+
+    The matched-group keys were renamed from ``*_pairs_*`` to the design-neutral
+    ``*_groups_*`` when triads arrived, and both are written by every current run. A run
+    directory produced BEFORE that -- the preserved Phase-A baseline among them -- carries
+    only the legacy names, and `--plot <run_dir>` must keep drawing its complete-pair
+    coverage rather than silently losing a series that the records do contain.
+    """
+    for key in y_keys:
+        xs, ys = _xy(records, x_key, key)
+        if ys:
+            return xs, ys
+    return [], []
+
+
+def _record_cells(eval_records: List[Dict[str, Any]]) -> List[str]:
+    """The reporting CELLS a run's eval records use, taken from the records themselves.
+
+    A figure is drawn from jsonl alone -- ``--plot <run_dir>`` has no ``TrainConfig`` --
+    so the design has to be read off the file. The LAST round is authoritative (a run
+    does not change design mid-flight), and a record that predates the field falls back
+    to the legacy clean/damaged pair, which is what such a file actually contains.
+    """
+    for rec in reversed(eval_records or []):
+        cells = rec.get("eval_group_cells")
+        if cells:
+            return [str(c) for c in cells]
+    return list(CONDITIONS)
+
+
+def _record_delta_keys(eval_records: List[Dict[str, Any]]) -> List[str]:
+    """The within-seed delta KEYS a run's eval records carry, from the records.
+
+    Same rule as :func:`_record_cells`; the fallback is the legacy
+    ``eval_paired_reward_delta``, so a pre-severity run still plots the one delta it has.
+    """
+    for rec in reversed(eval_records or []):
+        keys = rec.get("eval_delta_keys")
+        if keys:
+            return [str(k) for k in keys]
+    return ["eval_paired_reward_delta"]
+
+
+# One colour per reporting cell, fixed so the same cell reads the same way on every
+# figure of every run. The ordering is deliberate: clean is the reference (green),
+# severe is the case the factor exists to create (red), and mild sits between them.
+_CELL_STYLE = {
+    CONDITION_CLEAN: ("tab:green", "o"),
+    CONDITION_DAMAGED: ("tab:red", "s"),
+    SEVERITY_MILD: ("tab:orange", "^"),
+    SEVERITY_SEVERE: ("tab:red", "s"),
+}
+
+# Distinct styles for however many within-seed deltas a design declares (one for a pair,
+# three for a triad), by position rather than by name -- a delta is identified by its
+# legend entry, which spells out the two cells it differences.
+_DELTA_STYLE = (
+    ("tab:purple", "D"), ("tab:orange", "^"), ("tab:brown", "v"), ("tab:cyan", "P"),
+)
+
+
 def _plots_dir(run_dir: Union[str, Path]) -> Path:
     """``<run_dir>/plots`` -- the ONE place a figure is ever written.
 
@@ -4512,28 +5431,31 @@ def _plot_training_performance(
 
       1. TRAINING reward (``train_reward_mean``) -- the stochastic policy on the
          training seed band, averaged over that batch's SUCCESSFUL episodes only.
-      2. HELD-OUT matched evaluation, ONE SERIES PER CONDITION
-         (``eval_reward_mean_clean`` / ``eval_reward_mean_damaged``). Both members of a
-         matched pair run the same fixed held-out seed -- the same generated world, the
-         same A_init, the same hidden geometry -- and differ only in the fuel-damage
-         condition. Pooling them into a single "eval reward" curve, which is what the
-         retired dashboard drew, averages across the very factor the cell was built to
-         study, so that pooled series is NOT drawn here as the held-out signal. It
-         appears only as an explicitly labelled fallback for pre-FD records that carry
-         no per-condition means at all.
+      2. HELD-OUT matched evaluation, ONE SERIES PER REPORTING CELL -- clean/damaged for
+         a legacy run, clean/mild/severe for a variable-severity one. Every member of a
+         matched group runs the same fixed held-out seed -- the same generated world, the
+         same A_init, the same hidden geometry, the same selected ego -- and they differ
+         only in the fuel-damage event. Pooling them into a single "eval reward" curve,
+         which is what the retired dashboard drew, averages across the very factor the
+         cell was built to study, so that pooled series is NOT drawn here as the held-out
+         signal. It appears only as an explicitly labelled fallback for pre-FD records
+         that carry no per-cell means at all.
 
-         WHAT THESE TWO SERIES ARE NOT: a within-seed comparison. Each is a mean over
-         ITS OWN condition's SUCCESSFUL episodes, and the two conditions can fail a
-         different number of held-out seeds, so the curves are not necessarily averages
-         over the same completed seeds. Their vertical gap is therefore suggestive, not
-         a measurement. The panel title and both legend entries say so, and
-         ``measurement_health.png`` carries the per-condition completion counts that
-         make the asymmetry inspectable.
-      3. The MATCHED-PAIR delta (``eval_paired_reward_delta`` = mean of
-         ``R_damaged - R_clean`` over pairs whose BOTH members completed) -- the one
-         number that isolates the difficulty factor, and the ONLY within-seed
-         comparison on this figure, with 0 marked. A half-pair contributes nothing to
-         it, which is exactly why it stays valid when panel 2's two populations differ.
+         WHAT THESE SERIES ARE NOT: a within-seed comparison. Each is a mean over ITS OWN
+         cell's SUCCESSFUL episodes, and different cells can fail a different number of
+         held-out seeds, so the curves are not necessarily averages over the same
+         completed seeds. Their vertical gaps are therefore suggestive, not measurements.
+         The panel title and every legend entry say so, and ``measurement_health.png``
+         carries the per-cell completion counts that make the asymmetry inspectable.
+      3. The MATCHED within-seed DELTAS, over groups whose EVERY member completed --
+         ``damaged - clean`` for a legacy pair, and ``mild - clean`` / ``severe - clean``
+         / ``severe - mild`` for a triad. These are the numbers that isolate the
+         difficulty factor and the ONLY within-seed comparisons on this figure, with 0
+         marked. An incomplete group contributes to none of them, which is exactly why
+         they stay valid when panel 2's populations differ. For the variable-severity
+         design, ``severe - mild`` is the one that answers the experiment's question
+         directly: it differences two DAMAGED runs of the same world, so it cannot be
+         explained by the world at all.
 
     Panels 1 and 2 mark ``R = 0``: the reward is oracle-normalized regret, so 0 is the
     perfect-information optimum -- a ceiling, not an arbitrary gridline. That is also
@@ -4546,9 +5468,13 @@ def _plot_training_performance(
     )
     if not curve_y:  # pre-B4 records carry the value under its old name
         curve_x, curve_y = _xy(train_records, "updates_completed_before", "baseline")
-    clean_x, clean_y = _xy(eval_records, "updates_completed", "eval_reward_mean_clean")
-    dmg_x, dmg_y = _xy(eval_records, "updates_completed", "eval_reward_mean_damaged")
-    delta_x, delta_y = _xy(eval_records, "updates_completed", "eval_paired_reward_delta")
+    # The CELLS and the DELTAS are read off the records themselves, so a pair round draws
+    # two series and one delta while a triad round draws three and three -- without this
+    # function having to know which design produced the file it is plotting.
+    cells = _record_cells(eval_records)
+    delta_keys = _record_delta_keys(eval_records)
+    kind = str((eval_records[-1].get("eval_group_kind") if eval_records else None)
+               or _EVAL_GROUP_KIND_PAIR)
 
     fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
 
@@ -4565,46 +5491,58 @@ def _plot_training_performance(
     ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
-    # --- Panel 2: HELD-OUT matched evaluation, one series per condition ---
+    # --- Panel 2: HELD-OUT matched evaluation, one series per CELL ---
     ax = axes[1]
     ax.axhline(0.0, linestyle="--", linewidth=1.0, color="0.4",
                label="oracle optimum (R = 0)")
-    if clean_y:
-        ax.plot(clean_x, clean_y, color="tab:green", linewidth=2.2,
-                marker="o", markersize=5,
-                label="held-out CLEAN -- mean over SUCCESSFUL forced_clean episodes")
-    if dmg_y:
-        ax.plot(dmg_x, dmg_y, color="tab:red", linewidth=2.2,
-                marker="s", markersize=5,
-                label="held-out DAMAGED -- mean over SUCCESSFUL forced_damaged episodes")
-    if not clean_y and not dmg_y:
-        # Pre-FD records have no per-condition means. Drawing the pooled mean is then
-        # the only held-out information that exists -- labelled as pooled, so it can
-        # never be mistaken for a per-condition measurement.
+    drew_any = False
+    for cell in cells:
+        color, marker = _CELL_STYLE.get(cell, ("tab:blue", "o"))
+        xs, ys = _xy(eval_records, "updates_completed", "eval_reward_mean_%s" % cell)
+        if ys:
+            drew_any = True
+            ax.plot(xs, ys, color=color, linewidth=2.2, marker=marker, markersize=5,
+                    label="held-out %s -- mean over SUCCESSFUL forced_%s episodes"
+                          % (cell.upper(), cell))
+    if not drew_any:
+        # Pre-FD records have no per-cell means. Drawing the pooled mean is then the
+        # only held-out information that exists -- labelled as pooled, so it can never
+        # be mistaken for a per-cell measurement.
         pooled_x, pooled_y = _xy(eval_records, "updates_completed", "eval_reward_mean")
         if pooled_y:
             ax.plot(pooled_x, pooled_y, color="0.35", linewidth=1.8, linestyle=":",
                     marker="o", markersize=4,
-                    label="held-out mean R -- BOTH CONDITIONS POOLED (legacy records)")
+                    label="held-out mean R -- ALL CONDITIONS POOLED (legacy records)")
     ax.set_ylabel("episode reward R")
-    ax.set_title("HELD-OUT BY CONDITION -- each mean over THAT condition's successful "
-                 "episodes", fontsize=11)
+    ax.set_title("HELD-OUT BY %s -- each mean over THAT cell's successful episodes"
+                 % ("SEVERITY" if any(c in SEVERITIES for c in cells)
+                    else "CONDITION"), fontsize=11)
     ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
-    # --- Panel 3: the matched-pair delta ---
+    # --- Panel 3: the matched within-seed delta(s) ---
     ax = axes[2]
     ax.axhline(0.0, linestyle="--", linewidth=1.0, color="0.4",
                label="no measured effect (delta = 0)")
-    if delta_y:
-        ax.plot(delta_x, delta_y, color="tab:purple", linewidth=2.0,
-                marker="D", markersize=5,
-                label="mean(R_damaged - R_clean) over COMPLETE pairs "
-                      "(denominators: %s)" % _PLOT_MEASUREMENT_HEALTH)
-    ax.set_ylabel("paired reward delta")
+    for i, key in enumerate(delta_keys):
+        color, marker = _DELTA_STYLE[i % len(_DELTA_STYLE)]
+        # A pre-severity run carries the damaged-minus-clean difference only under the
+        # legacy key, so an old run directory still plots its one delta.
+        xs, ys = _xy_first(
+            eval_records, "updates_completed", key,
+            *(("eval_paired_reward_delta",)
+              if key == _delta_key(CONDITION_DAMAGED, CONDITION_CLEAN) else ()),
+        )
+        if ys:
+            ax.plot(xs, ys, color=color, linewidth=2.0, marker=marker, markersize=5,
+                    label="mean(%s) over COMPLETE %ss"
+                          % (key.replace("eval_delta_", "").replace("_minus_", " - "),
+                             kind))
+    ax.set_ylabel("matched reward delta")
     ax.set_xlabel(_PLOT_X_LABEL)
-    ax.set_title("MATCHED-PAIR fuel-damage delta -- the WITHIN-SEED comparison, "
-                 "COMPLETE pairs only", fontsize=11)
+    ax.set_title("MATCHED-%s fuel-damage delta(s) -- the WITHIN-SEED comparison, "
+                 "COMPLETE %ss only (denominators: %s)"
+                 % (kind.upper(), kind, _PLOT_MEASUREMENT_HEALTH), fontsize=11)
     # Upper right: a damaging event makes the delta negative, so the top of this panel
     # is the half that stays empty in the case the figure exists to show.
     ax.legend(loc="upper right", fontsize=8)
@@ -4622,16 +5560,31 @@ def _plot_policy_diagnostics(
     plt: Any,
     plots_dir: Path,
     train_records: List[Dict[str, Any]],
+    eval_records: List[Dict[str, Any]],
 ) -> Path:
-    """DIAGNOSTICS over the TRAINING decisions only: meta-action mix and entropy.
+    """DIAGNOSTICS: what the policy DID -- overall mix, entropy, and the FD response.
 
-    Neither panel is a performance claim; both describe what the policy was DOING while
-    it generated the training batches. The mix says which meta-actions were sampled and
-    entropy is its collapse detector -- a mix that flattens onto PLAN_COMPLIANCE (always
-    legal, the easy local optimum) while entropy falls is the failure these two panels
-    exist to make visible before a reward curve is over-read.
+    No panel here is a performance claim; they describe the policy's BEHAVIOUR. The mix
+    says which meta-actions were sampled and entropy is its collapse detector -- a mix
+    that flattens onto PLAN_COMPLIANCE (always legal, the easy local optimum) while
+    entropy falls is the failure the first two panels exist to make visible before a
+    reward curve is over-read.
 
-    Each point is one training batch, placed at the updates its GENERATING policy had
+    Panel 3 is THE PRIMARY BEHAVIOURAL MEASUREMENT of FD-VARIABLE-SEVERITY-v1: the
+    fraction of held-out FUEL-DAMAGE WAKES that chose ``SELF_PRESERVATION_ABORT``, drawn
+    as one series PER DAMAGED CELL. The experiment's question is not whether reward moved
+    but whether the actor aborts differently when a fuel loss is SURVIVABLE than when it
+    is not -- two series that track each other say it learned "damage => abort" and never
+    read its gauge; two that separate say it did. A legacy run has one damaged cell and
+    therefore one series, which is still a real measurement (how often the event produced
+    an abort at all) and is drawn the same way.
+
+    ITS DENOMINATOR IS FD WAKES, NOT EPISODES, and that distinction is load-bearing: an
+    event can fire without the policy ever being woken by it, so dividing by episodes
+    would silently deflate every rate. The counts behind these fractions are in
+    ``measurement_health.png`` and in ``run_summary.json:/severity_response``.
+
+    Each training point is one batch, placed at the updates its GENERATING policy had
     received -- not at an iteration index -- so the panels line up with the performance
     figure. The titles say "batch" rather than "iteration" for exactly that reason.
     """
@@ -4646,7 +5599,7 @@ def _plot_policy_diagnostics(
         for name in _META_NAMES
     }
 
-    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
 
     ax = axes[0]
     for name, color in zip(_META_NAMES, ("tab:green", "tab:orange", "tab:purple")):
@@ -4663,9 +5616,43 @@ def _plot_policy_diagnostics(
     ax.plot(train_x, entropies, color="tab:brown", linewidth=1.6,
             marker=".", markersize=4)
     ax.set_ylabel("policy entropy (nats)")
-    ax.set_xlabel(_PLOT_X_LABEL)
     ax.set_title("Policy entropy per TRAINING batch (collapse detector for the mix "
                  "above)", fontsize=11)
+    ax.grid(alpha=0.25)
+
+    # --- Panel 3: the FD-wake severity response (the primary behavioural measurement)
+    ax = axes[2]
+    abort = MetaAction.SELF_PRESERVATION_ABORT.name
+    damaged_cells = [c for c in _record_cells(eval_records)
+                     if cell_condition(c) == CONDITION_DAMAGED]
+    drew_any = False
+    for cell in damaged_cells:
+        color, marker = _CELL_STYLE.get(cell, ("tab:red", "s"))
+        xs: List[float] = []
+        ys: List[float] = []
+        for rec in eval_records:
+            rates = rec.get("eval_fd_meta_action_rates_%s" % cell) or {}
+            rate = rates.get(abort)
+            x = rec.get("updates_completed")
+            # A round in which the cell had NO fd wake reports `None` and is DROPPED,
+            # not drawn at 0: 0.0 would claim the actor was asked and chose not to
+            # abort, which is a measurement, and there was none.
+            if rate is None or x is None:
+                continue
+            xs.append(float(x))
+            ys.append(float(rate))
+        if ys:
+            drew_any = True
+            ax.plot(xs, ys, color=color, linewidth=2.0, marker=marker, markersize=5,
+                    label="held-out %s: SELF_PRESERVATION_ABORT rate" % cell.upper())
+    ax.set_ylabel("fraction of FD wakes")
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xlabel(_PLOT_X_LABEL)
+    ax.set_title("HELD-OUT FUEL-DAMAGE RESPONSE -- abort rate per damaged cell, over "
+                 "FD WAKES (not episodes)%s"
+                 % ("" if drew_any else "  [no FD wake recorded]"), fontsize=11)
+    if drew_any:
+        ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
     fig.tight_layout(rect=(0, 0.03, 1, 1))
@@ -4698,25 +5685,32 @@ def _plot_measurement_health(
         policy at all -- a successful zero-wake episode is real, and contributes no
         transition);
       * eval EPISODE ``success_fraction``;
-      * eval ``pair_success_fraction`` (pairs whose BOTH members completed / pairs
-        attempted) -- the denominator of the matched-pair delta specifically, which the
-        episode-level fraction does not give: two surviving halves of two different
-        pairs are two successful episodes and zero pairs.
+      * eval ``group_success_fraction`` (groups whose EVERY member completed / groups
+        attempted) -- the denominator of the matched deltas specifically, which the
+        episode-level fraction does not give: two surviving members of two different
+        groups are two successful episodes and zero complete groups. A TRIAD is strictly
+        harder to complete than a pair, because all three members must succeed, so this
+        series is the one that says how much within-seed evidence a run really produced.
 
     Panel 2 -- the absolute counts those fractions came from, so a small denominator is
     visible as a small number and not only as a ratio.
 
-    Panel 3 -- PER-CONDITION held-out completion, attempted vs successful for
-    ``forced_clean`` and ``forced_damaged`` separately. This is the denominator behind
-    the performance figure's two condition curves, and it is the panel that says whether
+    Panel 3 -- PER-CELL held-out completion, attempted vs successful for each forced
+    member separately, plus the FD-WAKE count per damaged cell. This is the denominator
+    behind the performance figure's cell curves, and it is the panel that says whether
     those curves are comparable at all: each is a mean over its OWN successful subset,
-    so if one condition completes fewer held-out seeds than the other, the two means are
-    not taken over the same seeds and their gap is not a within-seed effect. (The
-    matched-pair delta is unaffected -- it uses only pairs whose BOTH members completed,
-    which is why it, and not the gap, is the figure's causal claim.) Drawn straight from
-    the existing ``eval_n_<condition>_attempted`` / ``_successful`` record fields; no
-    evaluation semantics and no new quantity are involved.
+    so if one cell completes fewer held-out seeds than another, the means are not taken
+    over the same seeds and their gap is not a within-seed effect. (The matched deltas
+    are unaffected -- they use only groups whose EVERY member completed, which is why
+    they, and not the gaps, are the figure's causal claim.) The FD-wake series is the
+    denominator of ``policy_diagnostics.png``'s abort rates, which is a SMALLER
+    population than the episode count: an event can fire without ever waking the policy.
+    Drawn straight from the existing ``eval_n_<cell>_*`` record fields; no evaluation
+    semantics and no new quantity are involved.
     """
+    cells = _record_cells(eval_records)
+    kind = str((eval_records[-1].get("eval_group_kind") if eval_records else None)
+               or _EVAL_GROUP_KIND_PAIR)
     fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
 
     ax = axes[0]
@@ -4727,11 +5721,16 @@ def _plot_measurement_health(
          "tab:cyan", "--", ".", "successful train episodes WITH wakes"),
         (eval_records, "updates_completed", "success_fraction",
          "tab:red", "-", "o", "eval episodes: successful / attempted"),
-        (eval_records, "updates_completed", "pair_success_fraction",
-         "tab:purple", "--", "D", "eval matched PAIRS: complete / attempted"),
+        (eval_records, "updates_completed", "group_success_fraction",
+         "tab:purple", "--", "D",
+         "eval matched %sS: complete / attempted" % kind.upper()),
     )
     for records, x_key, y_key, color, style, marker, label in series:
-        xs, ys = _xy(records, x_key, y_key)
+        # The matched-group fraction falls back to its legacy `pair_` name so a
+        # pre-severity run directory still plots its complete-pair coverage.
+        xs, ys = _xy_first(records, x_key, y_key,
+                           *(("pair_success_fraction",)
+                             if y_key == "group_success_fraction" else ()))
         if ys:
             ax.plot(xs, ys, color=color, linestyle=style, marker=marker,
                     markersize=4, linewidth=1.6, label=label)
@@ -4752,11 +5751,13 @@ def _plot_measurement_health(
          "tab:red", "--", "o", "eval episodes attempted"),
         (eval_records, "updates_completed", "n_successful",
          "tab:red", "-", "o", "eval episodes successful"),
-        (eval_records, "updates_completed", "n_pairs_successful",
-         "tab:purple", "-", "D", "eval complete pairs"),
+        (eval_records, "updates_completed", "n_groups_successful",
+         "tab:purple", "-", "D", "eval complete %ss" % kind),
     )
     for records, x_key, y_key, color, style, marker, label in counts:
-        xs, ys = _xy(records, x_key, y_key)
+        xs, ys = _xy_first(records, x_key, y_key,
+                           *(("n_pairs_successful",)
+                             if y_key == "n_groups_successful" else ()))
         if ys:
             ax.plot(xs, ys, color=color, linestyle=style, marker=marker,
                     markersize=4, linewidth=1.4, label=label)
@@ -4770,29 +5771,39 @@ def _plot_measurement_health(
     # denominators). Attempted and successful are drawn in ONE colour per condition,
     # separated by linestyle, so the gap between them IS that condition's failures.
     ax = axes[2]
-    per_condition = (
-        (CONDITION_CLEAN, "tab:green", "o"),
-        (CONDITION_DAMAGED, "tab:red", "s"),
-    )
-    for condition, color, marker in per_condition:
+    for cell in cells:
+        color, marker = _CELL_STYLE.get(cell, ("tab:blue", "o"))
         # ATTEMPTED is a pale wide line, SUCCESSFUL a crisp one on top of it, so what
-        # the eye reads is the GAP BETWEEN THEM -- that condition's failures. Both
-        # conditions attempt the same seeds, so their attempted lines coincide exactly;
-        # drawing them at equal weight would hide one behind the other and make the
-        # panel look like it had lost a series.
+        # the eye reads is the GAP BETWEEN THEM -- that cell's failures. Every cell
+        # attempts the same seeds, so their attempted lines coincide exactly; drawing
+        # them at equal weight would hide one behind another and make the panel look
+        # like it had lost a series.
         for suffix, style, width, alpha in (("attempted", "--", 3.2, 0.30),
                                             ("successful", "-", 1.7, 1.0)):
             xs, ys = _xy(eval_records, "updates_completed",
-                         "eval_n_%s_%s" % (condition, suffix))
+                         "eval_n_%s_%s" % (cell, suffix))
             if ys:
                 ax.plot(xs, ys, color=color, linestyle=style, marker=marker,
                         markersize=4, linewidth=width, alpha=alpha,
-                        label="held-out %s: %s" % (condition.upper(), suffix))
-    ax.set_ylabel("held-out episodes")
+                        label="held-out %s: %s" % (cell.upper(), suffix))
+    # The FD-WAKE counts behind panel 3 of `policy_diagnostics.png`. A rate over one
+    # wake and the same rate over eight are different findings, and this is where the
+    # difference is visible.
+    for cell in cells:
+        if cell_condition(cell) != CONDITION_DAMAGED:
+            continue
+        color, _marker = _CELL_STYLE.get(cell, ("tab:red", "s"))
+        xs, ys = _xy(eval_records, "updates_completed", "eval_n_%s_fd_wakes" % cell)
+        if ys:
+            ax.plot(xs, ys, color=color, linestyle=":", marker="x", markersize=5,
+                    linewidth=1.4,
+                    label="held-out %s: FD WAKES (abort-rate denominator)"
+                          % cell.upper())
+    ax.set_ylabel("held-out episodes / wakes")
     ax.set_ylim(bottom=0)
     ax.set_xlabel(_PLOT_X_LABEL)
-    ax.set_title("PER-CONDITION held-out completion -- the denominators of the two "
-                 "condition means", fontsize=11)
+    ax.set_title("PER-CELL held-out completion -- the denominators of the cell means "
+                 "and of the abort rates", fontsize=11)
     ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
@@ -4860,7 +5871,7 @@ def plot_training(run_dir: Union[str, Path]) -> List[Path]:
 
     written = [
         _plot_training_performance(plt, plots_dir, train_records, eval_records),
-        _plot_policy_diagnostics(plt, plots_dir, train_records),
+        _plot_policy_diagnostics(plt, plots_dir, train_records, eval_records),
         _plot_measurement_health(plt, plots_dir, train_records, eval_records),
     ]
     for path in written:
@@ -5292,14 +6303,22 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     # --- FD-BASELINE-v1: the difficulty factor. Defaults read off TrainConfig. ---
     p.add_argument("--fuel-damage-mode", type=str,
                    default=d_cfg.fuel_damage_mode,
-                   choices=[FuelDamageMode.SEEDED_MIXTURE, FuelDamageMode.OFF],
-                   help="fuel-damage scheduling for TRAINING episodes; the forced modes "
-                        "belong to an evaluation pair member and are not selectable here "
-                        "(default: %(default)s)")
+                   choices=list(_TRAINING_FUEL_DAMAGE_MODES),
+                   help="fuel-damage scheduling for TRAINING episodes; %r adds the "
+                        "mild/severe split and evaluates matched clean/mild/severe "
+                        "triads. The forced modes belong to an evaluation group member "
+                        "and are not selectable here (default: %%(default)s)"
+                        % FuelDamageMode.SEEDED_VARIABLE)
     p.add_argument("--fuel-damage-probability", type=float,
                    default=d_cfg.fuel_damage_probability,
-                   help="P(damaged) per training episode under the seeded mixture "
+                   help="P(damaged) per training episode under either seeded mode "
                         "(default: %(default)s)")
+    p.add_argument("--fuel-damage-mild-probability", type=float,
+                   default=d_cfg.fuel_damage_mild_probability,
+                   help="P(mild | damaged) under %r -- with P(damaged)=0.5 this gives "
+                        "the approved 0.50 clean / 0.25 mild / 0.25 severe split. "
+                        "Ignored by the legacy modes (default: %%(default)s)"
+                        % FuelDamageMode.SEEDED_VARIABLE)
     p.add_argument("--fuel-damage-leg-progress", type=float,
                    default=d_cfg.fuel_damage_leg_progress,
                    help="fraction of the ego's FIRST planned leg at which the event "

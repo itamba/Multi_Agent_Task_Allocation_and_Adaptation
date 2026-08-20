@@ -96,8 +96,33 @@ The event is EGO-LOCAL and ONE-SHOT, and three properties keep it that way:
      POST-damage ``fuel_norm``: ``_compute_fuel_norm`` reads the live object this module
      already mutated.
 
-DETERMINISM AND THE RNG DOMAIN
-------------------------------
+FD-VARIABLE-SEVERITY-v1: THE SAME EVENT, WITH TWO PHYSICAL SEVERITIES
+---------------------------------------------------------------------
+The design above makes EVERY damaged episode structurally severe, so "damaged" and
+"continuing is infeasible" are the same fact and an actor can learn the shortcut
+``fuel damage => abort`` without ever reading its fuel gauge. The variable-severity modes
+(:attr:`FuelDamageMode.VARIABLE`) split the damaged half into two physically different
+cases, measured at the LIVE event state against the same BLADE arithmetic:
+
+    MILD    continue_requirement < post_damage_fuel < fuel_before
+            -- a real loss, but completing the route and returning is STILL feasible;
+    SEVERE  rtb_floor <= post_damage_fuel < continue_requirement
+            -- flying home stays feasible, continuing does not (the legacy interval).
+
+The post-damage value is the MIDPOINT of whichever band applies, derived at the event
+tick from the live window and the live fuel rather than fixed before the run: mild and
+severe are statements about the fuel the ego really holds where it really is, and a value
+chosen from a projection could only be CHECKED against that, never guaranteed to land in
+the right band of it. The LEGACY modes are untouched -- same seeds, same conditions, same
+selected egos, same planned-midpoint target, same four checks -- because an approved
+measurement exists on them.
+
+The policy is never told which case it is in. No severity feature reaches
+``GraphObservation``; the only thing that changes in the ego's input is its own real
+``fuel_norm``, which is exactly what the decision has to be read off.
+
+DETERMINISM AND THE RNG DOMAINS
+-------------------------------
 The clean/damaged draw and the ego selection come from a PRIVATE rng domain derived from
 the episode seed alone (:func:`derive_fuel_damage_seed`): a SHA-256 of
 ``"fuel_damage_v1:<seed>"``. Not ``hash()`` (salted per process), not global ``random``
@@ -110,6 +135,15 @@ The two draws are taken in a FIXED ORDER from one rng: the mixture bit first (dr
 in forced modes, so the stream position is identical), then the ego. A forced-damaged
 episode therefore selects the same ego a seeded-mixture episode of the same seed would --
 which is what makes the matched clean/damaged evaluation pair comparable.
+
+SEVERITY HAS ITS OWN DOMAIN, ``"fuel_damage_severity_v1"``
+(:func:`derive_fuel_damage_severity_seed`), and that separation is load-bearing rather
+than tidy. Taking the mild/severe bit from the v1 stream would insert a draw between the
+mixture bit and the ego selection, changing WHICH EGO every damaged episode picks -- which
+would silently invalidate the approved FD-BASELINE-v1 measurement instead of extending it.
+With two domains the decisions are orthogonal: severity cannot move the ego, the ego
+cannot move severity, and the three members of a matched clean/mild/severe TRIAD run the
+same world, the same ``A_init``, the same hidden geometry and the same selected ego.
 
 PURITY
 ------
@@ -150,6 +184,12 @@ __all__ = [
     "CONDITION_DAMAGED",
     "CONDITIONS",
     "FUEL_DAMAGE_RNG_DOMAIN",
+    "FUEL_DAMAGE_SEVERITY_RNG_DOMAIN",
+    "SEVERITIES",
+    "SEVERITY_MILD",
+    "SEVERITY_SEVERE",
+    "TARGET_POLICY_LIVE_SEVERITY_MIDPOINT",
+    "TARGET_POLICY_PLANNED_MIDPOINT",
     "FuelDamageController",
     "FuelDamageError",
     "FuelDamageMode",
@@ -159,11 +199,14 @@ __all__ = [
     "build_fuel_damage_controller",
     "build_fuel_damage_plan",
     "derive_fuel_damage_seed",
+    "derive_fuel_damage_severity_seed",
     "fuel_for_distance_km",
     "measure_window",
     "plan_fuel_damage",
     "resolve_condition",
+    "resolve_severity",
     "rtb_command_for",
+    "severity_band",
 ]
 
 
@@ -191,10 +234,25 @@ DEFAULT_LEG_PROGRESS_THRESHOLD = 0.30
 # The approved training mixture: half the scheduled training episodes are damaged.
 DEFAULT_DAMAGE_PROBABILITY = 0.5
 
+# VARIABLE SEVERITY (FD-VARIABLE-SEVERITY-v1): P(mild | damaged). The approved
+# distribution is P(clean) = 0.50, P(mild) = 0.25, P(severe) = 0.25, which is exactly
+# `DEFAULT_DAMAGE_PROBABILITY = 0.5` for "is it damaged at all" and this value for "and
+# if so, how badly". The conditional is a SEPARATE, explicitly recorded knob rather than
+# a hard-coded branch, because it is the parameter the whole experiment turns on.
+DEFAULT_MILD_PROBABILITY = 0.5
+
 # The private rng domain string (see the module docstring). Bump the suffix if the draw
 # ORDER or the derivation ever changes -- the point of a versioned domain is that a run's
 # clean/damaged assignment can be reproduced from its seed alone, forever.
 FUEL_DAMAGE_RNG_DOMAIN = "fuel_damage_v1"
+
+# A SECOND, INDEPENDENT domain for the mild/severe draw. It is deliberately not another
+# value taken from the v1 stream: drawing severity there would shift the position every
+# later v1 draw reads from, which would change WHICH EGO a damaged episode selects and so
+# make every legacy FD-v1 seed irreproducible. Two domains keep the two decisions
+# orthogonal -- a run's clean/damaged assignment and its selected ego are byte-identical
+# whether or not severity exists, and the severity of a seed is reproducible on its own.
+FUEL_DAMAGE_SEVERITY_RNG_DOMAIN = "fuel_damage_severity_v1"
 
 # The leg the event is scheduled on. 1-based, matching `graph_hidden_placement._Leg.index`.
 EVENT_LEG_INDEX = 1
@@ -202,6 +260,28 @@ EVENT_LEG_INDEX = 1
 CONDITION_CLEAN = "clean"
 CONDITION_DAMAGED = "damaged"
 CONDITIONS = (CONDITION_CLEAN, CONDITION_DAMAGED)
+
+# The two DAMAGED severities of FD-VARIABLE-SEVERITY-v1. A severity is a refinement of
+# `CONDITION_DAMAGED`, never a third condition: both mild and severe episodes ARE damaged
+# episodes, and every clean/damaged count keeps its existing meaning.
+SEVERITY_MILD = "mild"
+SEVERITY_SEVERE = "severe"
+SEVERITIES = (SEVERITY_MILD, SEVERITY_SEVERE)
+
+# How a plan's post-damage fuel target was chosen -- recorded on the plan so a reader
+# never has to infer it from the mode.
+#
+#   PLANNED_MIDPOINT       -- LEGACY FD-BASELINE-v1, unchanged: the midpoint of the
+#                             PLANNED window, chosen before the run and only VALIDATED
+#                             against the live state.
+#   LIVE_SEVERITY_MIDPOINT -- FD-VARIABLE-SEVERITY-v1: the midpoint of the LIVE feasible
+#                             severity band, derived at the event tick from the live
+#                             window and the live fuel. The plan still carries a
+#                             PROJECTED target under the same field, which is what the
+#                             preflight feasibility check is made against; it is not the
+#                             value applied.
+TARGET_POLICY_PLANNED_MIDPOINT = "planned_midpoint_v1"
+TARGET_POLICY_LIVE_SEVERITY_MIDPOINT = "live_severity_midpoint_v1"
 
 # Numerical floor for a quantity that must be strictly positive to divide by or to
 # describe a real leg. Well below any physical value here (fuel is in thousands of lbs,
@@ -221,19 +301,45 @@ class FuelDamageError(RuntimeError):
 
 
 class FuelDamageMode:
-    """How an episode's clean/damaged condition is decided. A closed set of strings.
+    """How an episode's clean/damaged condition -- and its SEVERITY -- is decided.
 
-    Strings rather than an enum so a mode round-trips through ``run_config.json`` and a
-    jsonl record as itself, with no decoding step between the artifact and the reader.
+    A closed set of strings rather than an enum, so a mode round-trips through
+    ``run_config.json`` and a jsonl record as itself, with no decoding step between the
+    artifact and the reader.
+
+    THE LEGACY FD-BASELINE-v1 MODES. Every damaged episode is structurally SEVERE: safe
+    RTB stays feasible and continuing does not. They are unchanged by
+    FD-VARIABLE-SEVERITY-v1 -- same seeds, same conditions, same selected egos, same
+    planned-midpoint target -- because a merged, measured baseline exists on them and a
+    factor that quietly moved it would invalidate that measurement rather than extend it.
 
       * ``off``            -- the factor is disabled entirely; every episode is clean and
                               no controller is built. This is the pre-FD behaviour.
       * ``seeded_mixture`` -- TRAINING. The condition is a deterministic function of the
                               episode seed (see :func:`resolve_condition`).
-      * ``forced_clean``   -- EVALUATION, member A of a matched pair.
+      * ``forced_clean``   -- EVALUATION, member A of a matched pair, and also the CLEAN
+                              member of a variable-severity matched TRIAD.
       * ``forced_damaged`` -- EVALUATION, member B of a matched pair. Same generator seed
                               and same placement seed as member A, so the two run the
                               SAME world and differ only in the event.
+
+    THE VARIABLE-SEVERITY MODES (FD-VARIABLE-SEVERITY-v1). They exist because a
+    uniformly severe event lets a trained actor learn the shortcut "fuel damage =>
+    abort": the label is redundant with the physics. Splitting the damaged half into a
+    band where continuing REMAINS feasible and a band where it does not makes the
+    response a real decision that has to be read off the ego's own live fuel.
+
+      * ``seeded_variable`` -- TRAINING. The clean/damaged draw is EXACTLY the
+                               ``seeded_mixture`` draw (same domain, same order, same
+                               probability), and a damaged episode is additionally
+                               assigned a severity from its own domain
+                               (:func:`resolve_severity`).
+      * ``forced_mild``     -- EVALUATION, the MILD member of a matched triad.
+      * ``forced_severe``   -- EVALUATION, the SEVERE member of a matched triad.
+
+    The policy is never told which of these ran: no severity label reaches
+    ``GraphObservation``, and the only thing that changes in the ego's input is its own
+    real ``fuel_norm``.
     """
 
     OFF = "off"
@@ -241,7 +347,21 @@ class FuelDamageMode:
     FORCED_CLEAN = "forced_clean"
     FORCED_DAMAGED = "forced_damaged"
 
-    ALL = (OFF, SEEDED_MIXTURE, FORCED_CLEAN, FORCED_DAMAGED)
+    SEEDED_VARIABLE = "seeded_variable"
+    FORCED_MILD = "forced_mild"
+    FORCED_SEVERE = "forced_severe"
+
+    # The modes that carry a mild/severe severity. `forced_clean` is deliberately NOT
+    # here: it is shared by both designs (a clean member has no severity in either), and
+    # listing it would make "is this a variable-severity run?" unanswerable from the mode
+    # of one evaluation member.
+    VARIABLE = (SEEDED_VARIABLE, FORCED_MILD, FORCED_SEVERE)
+    LEGACY = (OFF, SEEDED_MIXTURE, FORCED_CLEAN, FORCED_DAMAGED)
+
+    ALL = LEGACY + VARIABLE
+
+    # mode -> the severity it forces, for the two modes that force one.
+    _FORCED_SEVERITY = {FORCED_MILD: SEVERITY_MILD, FORCED_SEVERE: SEVERITY_SEVERE}
 
 
 @dataclass(frozen=True)
@@ -260,12 +380,19 @@ class FuelDamageParameters:
         rtb_safety_margin: the reserve multiplier applied to BOTH ends of the window. The
             engine's own value is :data:`DEFAULT_RTB_SAFETY_MARGIN`; anything below 1.0
             would describe a reserve smaller than the fuel actually needed.
+        mild_probability: P(mild | damaged) under ``seeded_variable``. Ignored by every
+            LEGACY mode and by the forced severity modes, but still recorded, because it
+            is what a rerun of the same TRAINING config would use. Together with
+            ``probability`` it IS the approved 0.50 / 0.25 / 0.25 distribution, stated as
+            two independent numbers rather than as one three-way table so that
+            "how often is anything damaged" stays the same knob it has always been.
     """
 
     mode: str = FuelDamageMode.SEEDED_MIXTURE
     probability: float = DEFAULT_DAMAGE_PROBABILITY
     leg_progress_threshold: float = DEFAULT_LEG_PROGRESS_THRESHOLD
     rtb_safety_margin: float = DEFAULT_RTB_SAFETY_MARGIN
+    mild_probability: float = DEFAULT_MILD_PROBABILITY
 
     def validate(self) -> None:
         """Refuse a self-inconsistent parameter set before any episode is built."""
@@ -277,6 +404,11 @@ class FuelDamageParameters:
         if not (0.0 <= float(self.probability) <= 1.0):
             raise ValueError(
                 "fuel-damage probability must be in [0, 1], got %r" % (self.probability,)
+            )
+        if not (0.0 <= float(self.mild_probability) <= 1.0):
+            raise ValueError(
+                "fuel-damage mild probability (P(mild | damaged)) must be in [0, 1], "
+                "got %r" % (self.mild_probability,)
             )
         if not (0.0 < float(self.leg_progress_threshold) < 1.0):
             raise ValueError(
@@ -295,6 +427,24 @@ class FuelDamageParameters:
         """False only for :attr:`FuelDamageMode.OFF` -- the pre-FD behaviour."""
         return self.mode != FuelDamageMode.OFF
 
+    @property
+    def variable_severity(self) -> bool:
+        """True iff this mode assigns a mild/severe SEVERITY to a damaged episode.
+
+        The ONE predicate behind every "is this the variable-severity design?" decision
+        in this module and in its two harnesses, so the answer cannot be spelled two
+        ways. ``forced_clean`` is False here even inside a variable-severity run: a clean
+        member has no severity, and asking a member's own mode is not how a RUN's design
+        is decided (the trainer keys that off its TRAINING mode).
+        """
+        return self.mode in FuelDamageMode.VARIABLE
+
+    @property
+    def target_policy(self) -> str:
+        """How a damaged episode's post-damage fuel is chosen under this mode."""
+        return (TARGET_POLICY_LIVE_SEVERITY_MIDPOINT if self.variable_severity
+                else TARGET_POLICY_PLANNED_MIDPOINT)
+
     def to_record(self) -> Dict[str, Any]:
         """The parameter set as plain JSON scalars, for ``run_config.json`` / records."""
         return {
@@ -304,6 +454,14 @@ class FuelDamageParameters:
             "rtb_safety_margin": float(self.rtb_safety_margin),
             "rng_domain": FUEL_DAMAGE_RNG_DOMAIN,
             "event_leg_index": EVENT_LEG_INDEX,
+            # --- FD-VARIABLE-SEVERITY-v1 -------------------------------------------
+            # Always present, so one schema reads both designs; `variable_severity`
+            # says whether the two severity fields describe this run at all.
+            "variable_severity": bool(self.variable_severity),
+            "mild_probability": float(self.mild_probability),
+            "severity_rng_domain": FUEL_DAMAGE_SEVERITY_RNG_DOMAIN,
+            "severities": list(SEVERITIES),
+            "target_policy": str(self.target_policy),
         }
 
 
@@ -331,9 +489,35 @@ def derive_fuel_damage_seed(episode_seed: int) -> int:
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
 
 
+def derive_fuel_damage_severity_seed(episode_seed: int) -> int:
+    """Derive the SEVERITY domain's private rng seed from the episode seed.
+
+    ``SHA-256("fuel_damage_severity_v1:<seed>")``, first 8 bytes big-endian -- the same
+    construction as :func:`derive_fuel_damage_seed`, over a DIFFERENT domain string.
+
+    WHY A SECOND DOMAIN RATHER THAN A SECOND DRAW. The v1 stream is consumed in a fixed
+    order -- mixture bit, then ego -- and that order is what makes a forced-damaged
+    evaluation member select the ego its seeded counterpart would. Taking severity from
+    that same stream would insert a draw between the two and change every damaged
+    episode's selected ego, which would silently invalidate the approved FD-BASELINE-v1
+    measurement rather than extend it. With two domains the two decisions are
+    independent by construction: severity cannot move the ego, and the ego cannot move
+    severity.
+    """
+    payload = (
+        "%s:%d" % (FUEL_DAMAGE_SEVERITY_RNG_DOMAIN, int(episode_seed))
+    ).encode("ascii")
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+
+
 def _fuel_damage_rng(episode_seed: int) -> random.Random:
     """A fresh, private :class:`random.Random` for one episode seed."""
     return random.Random(derive_fuel_damage_seed(episode_seed))
+
+
+def _fuel_damage_severity_rng(episode_seed: int) -> random.Random:
+    """A fresh, private :class:`random.Random` in the SEVERITY domain."""
+    return random.Random(derive_fuel_damage_severity_seed(episode_seed))
 
 
 def resolve_condition(*, episode_seed: int, params: FuelDamageParameters) -> str:
@@ -347,6 +531,12 @@ def resolve_condition(*, episode_seed: int, params: FuelDamageParameters) -> str
     including the forced ones. It is discarded there, but taking it keeps the stream
     position identical, so :func:`plan_fuel_damage`'s ego selection is the same draw
     whether the episode was scheduled by the mixture or forced by an evaluation pair.
+
+    ``seeded_variable`` resolves the condition through EXACTLY this path -- the same
+    domain, the same single draw, the same ``probability`` -- so a seed's clean/damaged
+    assignment is identical under the legacy and the variable design. Only what happens
+    to a damaged episode afterwards differs (:func:`resolve_severity`), and the two
+    forced severity modes force ``damaged`` the way ``forced_damaged`` does.
     """
     params.validate()
     if params.mode == FuelDamageMode.OFF:
@@ -355,9 +545,45 @@ def resolve_condition(*, episode_seed: int, params: FuelDamageParameters) -> str
     drawn = rng.random() < float(params.probability)
     if params.mode == FuelDamageMode.FORCED_CLEAN:
         return CONDITION_CLEAN
-    if params.mode == FuelDamageMode.FORCED_DAMAGED:
+    if params.mode in (FuelDamageMode.FORCED_DAMAGED, FuelDamageMode.FORCED_MILD,
+                       FuelDamageMode.FORCED_SEVERE):
         return CONDITION_DAMAGED
     return CONDITION_DAMAGED if drawn else CONDITION_CLEAN
+
+
+def resolve_severity(
+    *, episode_seed: int, params: FuelDamageParameters
+) -> Optional[str]:
+    """The SCHEDULED severity of a damaged episode -- ``mild``, ``severe`` or ``None``.
+
+    PURE, world-free, and a function of the episode seed ALONE within its own versioned
+    domain, for the same three reasons :func:`derive_fuel_damage_seed` gives: it must be
+    unreachable from global ``random`` / torch / the placement stream, stable across
+    processes and releases, and well mixed over consecutive seeds.
+
+    ``None`` means "this episode has no severity", which is a different statement from
+    "mild" and is returned in exactly two cases: a LEGACY mode (whose damaged episodes
+    are all structurally severe but carry no severity LABEL, and must keep reporting
+    ``null`` so a legacy record is never re-read as a variable-severity one), and a
+    CLEAN episode under any mode.
+
+    Under ``seeded_variable`` the single draw is ``rng.random() < mild_probability``.
+    The forced severity modes take that draw too and discard it: it costs nothing, keeps
+    the stream position identical across the three members of a matched triad, and means
+    a later severity-domain draw (should one ever be added) cannot make a forced member
+    diverge from the seeded episode it is supposed to reproduce.
+    """
+    params.validate()
+    if not params.variable_severity:
+        return None
+    if resolve_condition(episode_seed=episode_seed, params=params) != CONDITION_DAMAGED:
+        return None
+    drawn = (_fuel_damage_severity_rng(episode_seed).random()
+             < float(params.mild_probability))
+    forced = FuelDamageMode._FORCED_SEVERITY.get(params.mode)
+    if forced is not None:
+        return forced
+    return SEVERITY_MILD if drawn else SEVERITY_SEVERE
 
 
 # =============================================================================
@@ -502,6 +728,158 @@ def measure_window(
     )
 
 
+@dataclass(frozen=True)
+class _SeverityBand:
+    """The feasible post-damage fuel interval for ONE severity, and its midpoint.
+
+    ``[low, high]`` with explicit inclusivity, because the two bands are genuinely
+    different intervals and collapsing that difference is how a mild event would be
+    allowed to land exactly on the boundary that makes continuing infeasible:
+
+      * SEVERE (and LEGACY FD-BASELINE-v1, which has the same interval)
+        ``[rtb_fuel_floor, continue_fuel_requirement)`` -- flying straight home stays
+        feasible with the engine's reserve, completing the route and returning does not.
+      * MILD ``(continue_fuel_requirement, fuel_before)`` -- OPEN at both ends. Above the
+        continue requirement, so completing the route AND returning is still genuinely
+        feasible; strictly below the pre-damage fuel, so the event is a real LOSS rather
+        than a relabelled no-op.
+
+    ``target`` is the MIDPOINT, the approved deterministic choice and the point furthest
+    from both ends, so neither bound is decided by floating-point noise.
+    """
+
+    severity: Optional[str]
+    low: float
+    high: float
+    low_inclusive: bool
+    high_inclusive: bool
+    target: float
+
+    @property
+    def width(self) -> float:
+        return float(self.high) - float(self.low)
+
+    def contains(self, value: float) -> bool:
+        """Is ``value`` inside this interval, honouring both inclusivity flags?"""
+        v = float(value)
+        low_ok = (v >= self.low) if self.low_inclusive else (v > self.low)
+        high_ok = (v <= self.high) if self.high_inclusive else (v < self.high)
+        return low_ok and high_ok
+
+    def describe(self) -> str:
+        """``[lo, hi)`` style text for an error message."""
+        return "%s%.3f, %.3f%s" % (
+            "[" if self.low_inclusive else "(", self.low, self.high,
+            "]" if self.high_inclusive else ")",
+        )
+
+
+def severity_band(
+    *, window: _Window, fuel_before: float, severity: Optional[str]
+) -> _SeverityBand:
+    """The feasible band for ``severity``, measured against ``window``.
+
+    THE ONE ARITHMETIC SITE for both severities and for the legacy design, called TWICE
+    per damaged episode with the same severity and a different window: once at plan time
+    against the PROJECTED window and projected fuel, and once at fire time against the
+    LIVE window and the LIVE fuel. Sharing it is the point -- a planned band and a live
+    band computed by two similar-looking expressions could drift apart, and the live
+    re-measurement exists precisely so the two are comparable.
+
+    ``severity is None`` selects the LEGACY FD-BASELINE-v1 interval, which is the same
+    interval as ``severe``. That is not a coincidence to be tidied away: the legacy
+    design's every damaged episode IS the severe case, and stating it as one shared
+    interval is what makes "severe reproduces the legacy physics" checkable rather than
+    merely asserted. What still differs is WHERE the interval is measured -- legacy
+    chooses its target from the PLANNED window and only validates it live, while the
+    variable design derives the target from the LIVE window (see
+    :data:`TARGET_POLICY_LIVE_SEVERITY_MIDPOINT`).
+
+    Raises:
+        FuelDamageError: on an unknown severity string. Never falls back to a band.
+    """
+    if severity is not None and severity not in SEVERITIES:
+        raise FuelDamageError(
+            "severity must be one of %r or None, got %r" % (list(SEVERITIES), severity)
+        )
+    if severity == SEVERITY_MILD:
+        low = float(window.continue_fuel_requirement)
+        high = float(fuel_before)
+        low_inclusive = False
+        high_inclusive = False
+    else:  # SEVERE, and the legacy design's single band
+        low = float(window.rtb_fuel_floor)
+        high = float(window.continue_fuel_requirement)
+        low_inclusive = True
+        high_inclusive = False
+    return _SeverityBand(
+        severity=severity, low=low, high=high,
+        low_inclusive=low_inclusive, high_inclusive=high_inclusive,
+        target=0.5 * (low + high),
+    )
+
+
+def _require_valid_band(
+    band: _SeverityBand,
+    *,
+    ego_id: str,
+    fuel_before: float,
+    window: _Window,
+    where: str,
+) -> float:
+    """Validate ``band`` and return its target, or raise. NOTHING is clamped.
+
+    Four facts, checked in this order and each with its own message, because "the event
+    could not be applied" is not one failure but four different physical situations:
+
+      1. the interval is NON-DEGENERATE -- a band of zero (or negative) width has no
+         interior, so there is no quantity that means what the severity says;
+      2. the midpoint really lies inside it, honouring the inclusivity that distinguishes
+         mild from severe;
+      3. the mutation is a real LOSS (strictly below the pre-damage fuel);
+      4. flying straight home stays feasible -- the target is at or above the RTB floor,
+         which the reserve contract requires of BOTH severities. For severe it is the
+         band's own lower bound; for mild it follows from the window being non-empty, and
+         it is checked anyway rather than argued, because it is the one property a
+         difficulty factor must never quietly lose.
+
+    ``where`` is ``"planned"`` or ``"live"`` and appears in every message, so a reader of
+    an accounted failure knows immediately whether the preflight projection or the real
+    event state refused it -- they are different findings and land in different pipeline
+    stages.
+    """
+    label = band.severity or "legacy"
+    if not (band.width > _EPS):
+        raise FuelDamageError(
+            "ego %s: no %s %s fuel band -- the interval %s is empty, so there is no "
+            "post-damage quantity that means %r. RTB floor %.3f over %.1f km, continue "
+            "requirement %.3f over %.1f km, fuel before %.3f."
+            % (ego_id, where, label, band.describe(), label, window.rtb_fuel_floor,
+               window.rtb_distance_km, window.continue_fuel_requirement,
+               window.continue_distance_km, float(fuel_before))
+        )
+    if not band.contains(band.target):
+        raise FuelDamageError(
+            "ego %s: the %s %s post-damage fuel %.6f is not inside its own band %s"
+            % (ego_id, where, label, band.target, band.describe())
+        )
+    if not (band.target < float(fuel_before)):
+        raise FuelDamageError(
+            "ego %s: the %s %s post-damage fuel %.6f is not below the pre-damage fuel "
+            "%.6f, so the event would not be a loss"
+            % (ego_id, where, label, band.target, float(fuel_before))
+        )
+    if band.target < window.rtb_fuel_floor:
+        raise FuelDamageError(
+            "ego %s: the %s %s post-damage fuel %.6f is below the RTB floor %.3f over "
+            "%.1f km; the ego could not fly home with the reserve, so the event would be "
+            "a kill rather than a decision"
+            % (ego_id, where, label, band.target, window.rtb_fuel_floor,
+               window.rtb_distance_km)
+        )
+    return float(band.target)
+
+
 # =============================================================================
 # 3. The plan: plain, testable data describing the scheduled event
 # =============================================================================
@@ -553,9 +931,30 @@ class FuelDamagePlan:
             underestimate of consumption by construction -- the engine also burns
             ``fuel_rate / 3600`` on ticks where the aircraft does not move (the launch
             tick has no route yet) -- which is exactly why the live re-check exists.
-        post_damage_fuel: the deterministic value the live aircraft is set to -- the
-            MIDPOINT of the planned strict window, re-validated against the live one
-            before it is applied.
+        post_damage_fuel: the PLANNED post-damage fuel. Under the LEGACY design this is
+            the value the live aircraft is set to -- the midpoint of the planned strict
+            window, re-validated against the live one before it is applied. Under
+            FD-VARIABLE-SEVERITY-v1 it is a PROJECTION only: the midpoint of the planned
+            SEVERITY band, which the preflight feasibility check is made against, while
+            the value really applied is derived at the event tick from the LIVE band.
+            ``target_policy`` says which of the two this field is, so a reader never has
+            to infer it from the mode.
+        severity: ``mild`` / ``severe`` under a variable-severity mode; ``None`` for a
+            clean episode AND for every LEGACY damaged episode. ``None`` is a real
+            statement -- "this episode carries no severity label" -- and is deliberately
+            not spelled ``severe`` for the legacy design even though the legacy band and
+            the severe band coincide, so a legacy record can never be re-read as a
+            variable-severity one.
+        severity_derived_seed: :func:`derive_fuel_damage_severity_seed` of the episode
+            seed, recorded so the severity draw is reproducible from the artifact alone.
+            ``None`` under a legacy mode, which never consults that domain.
+        mild_probability: P(mild | damaged) the severity was drawn with; ``None`` under a
+            legacy mode.
+        target_policy: :data:`TARGET_POLICY_PLANNED_MIDPOINT` or
+            :data:`TARGET_POLICY_LIVE_SEVERITY_MIDPOINT`.
+        planned_band_low / planned_band_high: the PLANNED severity band the projected
+            target was taken from, recorded next to it so the projection can be checked
+            without re-deriving the window.
         speed_knots / fuel_rate / max_fuel / fuel_at_launch: the live aircraft parameters
             the arithmetic used, recorded so a window can be re-derived from the record.
     """
@@ -586,9 +985,22 @@ class FuelDamagePlan:
     max_fuel: Optional[float] = None
     fuel_at_launch: Optional[float] = None
 
+    # --- FD-VARIABLE-SEVERITY-v1 (all None under a LEGACY mode) ---
+    severity: Optional[str] = None
+    severity_derived_seed: Optional[int] = None
+    mild_probability: Optional[float] = None
+    target_policy: str = TARGET_POLICY_PLANNED_MIDPOINT
+    planned_band_low: Optional[float] = None
+    planned_band_high: Optional[float] = None
+
     @property
     def is_damaged(self) -> bool:
         return self.condition == CONDITION_DAMAGED
+
+    @property
+    def is_variable_severity(self) -> bool:
+        """True iff the applied target is derived from the LIVE band, not the plan."""
+        return self.target_policy == TARGET_POLICY_LIVE_SEVERITY_MIDPOINT
 
     @property
     def event_location(self) -> Optional[Location]:
@@ -644,6 +1056,13 @@ class FuelDamagePlan:
             "fuel_rate": self.fuel_rate,
             "max_fuel": self.max_fuel,
             "fuel_at_launch": self.fuel_at_launch,
+            # --- FD-VARIABLE-SEVERITY-v1 ---
+            "severity": self.severity,
+            "severity_derived_seed": self.severity_derived_seed,
+            "mild_probability": self.mild_probability,
+            "target_policy": str(self.target_policy),
+            "planned_band_low": self.planned_band_low,
+            "planned_band_high": self.planned_band_high,
         }
 
 
@@ -691,6 +1110,47 @@ class FuelDamageOutcome:
     wake_occurred: bool = False
     wake_meta_action: Optional[int] = None
     rtb_command_issued: Optional[bool] = None
+    # --- FD-VARIABLE-SEVERITY-v1 ---
+    # `severity` is the plan's, repeated here so the outcome record stands alone; the
+    # two live band ends are what the applied target was really taken from under the
+    # variable design, and are `None` under the legacy one (whose target came from the
+    # plan and was only VALIDATED live).
+    severity: Optional[str] = None
+    live_band_low: Optional[float] = None
+    live_band_high: Optional[float] = None
+    max_fuel: Optional[float] = None
+
+    @property
+    def continuation_margin(self) -> Optional[float]:
+        """``fuel_after - live_continue_fuel_requirement``, or ``None``.
+
+        THE quantity that separates the two severities physically, in the units the
+        engine burns: POSITIVE means the ego can still complete its route and return
+        with the reserve (mild), NEGATIVE means it cannot (severe). Derived here, at one
+        site, rather than by every reader subtracting two recorded fields -- a reader who
+        subtracted the PLANNED requirement instead would get a number that looks right
+        and describes a state the episode was never in.
+        """
+        if self.fuel_after is None or self.live_continue_fuel_requirement is None:
+            return None
+        return float(self.fuel_after) - float(self.live_continue_fuel_requirement)
+
+    @property
+    def fuel_after_fraction_of_max(self) -> Optional[float]:
+        """``fuel_after / max_fuel`` -- the tank state as the graph's own ``fuel_norm``.
+
+        ``damage_factor`` is ``fuel_after / fuel_before``, which says how much of the
+        tank the EVENT took; this says how full the tank IS afterwards, which is the
+        quantity the policy actually observes (``graph_builder._compute_fuel_norm``
+        normalizes by ``max_fuel``). Both are reported because they answer different
+        questions and neither can be derived from the other without ``fuel_before``.
+        """
+        if self.fuel_after is None or not self.max_fuel:
+            return None
+        max_fuel = float(self.max_fuel)
+        if not math.isfinite(max_fuel) or max_fuel <= _EPS:
+            return None
+        return float(self.fuel_after) / max_fuel
 
     def to_record(self) -> Dict[str, Any]:
         """The outcome as plain JSON scalars."""
@@ -712,6 +1172,13 @@ class FuelDamageOutcome:
             "wake_occurred": bool(self.wake_occurred),
             "wake_meta_action": self.wake_meta_action,
             "rtb_command_issued": self.rtb_command_issued,
+            # --- FD-VARIABLE-SEVERITY-v1 ---
+            "severity": self.severity,
+            "live_band_low": self.live_band_low,
+            "live_band_high": self.live_band_high,
+            "max_fuel": self.max_fuel,
+            "continuation_margin": self.continuation_margin,
+            "fuel_after_fraction_of_max": self.fuel_after_fraction_of_max,
         }
 
 
@@ -734,6 +1201,8 @@ def plan_fuel_damage(
     max_fuel: Optional[float],
     fuel_at_launch: Optional[float],
     params: FuelDamageParameters,
+    severity: Optional[str] = None,
+    severity_derived_seed: Optional[int] = None,
 ) -> FuelDamagePlan:
     """Build (and VALIDATE) the strict fuel window for one episode.
 
@@ -756,29 +1225,68 @@ def plan_fuel_damage(
          choose;
       3. ``projected_fuel_at_event >= continue_fuel_requirement`` -- the ego COULD have
          continued before the damage. Without this the episode would not contain a
-         decision at all: the plan was already infeasible and the event changed nothing;
-      4. the chosen ``post_damage_fuel`` really lies inside ``[floor, requirement)`` and
-         strictly below the projected fuel, so the mutation is a genuine LOSS.
+         decision at all: the plan was already infeasible and the event changed nothing.
+         MILD needs this STRICTLY (its band is bounded above by the pre-damage fuel and
+         below by the continue requirement, so an equality would leave no interior), and
+         :func:`_require_valid_band`'s width check is what enforces that;
+      4. the chosen ``post_damage_fuel`` really lies inside its severity's own band, is
+         strictly below the projected fuel, and stays at or above the RTB floor
+         (:func:`_require_valid_band`).
 
-    The chosen value is the MIDPOINT of the window -- the approved deterministic choice,
+    The chosen value is the MIDPOINT of the band -- the approved deterministic choice,
     and the one furthest from both ends, so neither bound is decided by floating-point
     noise.
 
+    ``severity`` selects the band (:func:`severity_band`). ``None`` is the LEGACY
+    FD-BASELINE-v1 design and produces byte-identical arithmetic to the pre-severity
+    code: the same interval, the same midpoint, the same four checks. Under a
+    variable-severity mode the value computed here is a PROJECTION used for the preflight
+    feasibility verdict, and the value really applied is re-derived from the LIVE band at
+    the event tick -- ``target_policy`` records which of the two this plan carries.
+
     Raises:
         FuelDamageError: if any of the four facts does not hold, or if a required input
-            is missing for a damaged condition. Never returns a clean plan instead.
+            is missing for a damaged condition. Never returns a clean plan instead, and
+            never substitutes the other severity's band.
     """
     params.validate()
     if condition not in CONDITIONS:
         raise FuelDamageError("condition must be one of %r, got %r" % (list(CONDITIONS), condition))
+    if severity is not None and severity not in SEVERITIES:
+        raise FuelDamageError(
+            "severity must be one of %r or None, got %r" % (list(SEVERITIES), severity)
+        )
+    # A severity is a property of a DAMAGED episode. Labelling a clean one would make
+    # "which cell is this episode in?" answerable two contradictory ways.
+    if condition == CONDITION_CLEAN and severity is not None:
+        raise FuelDamageError(
+            "a clean episode cannot carry a severity, got %r" % (severity,)
+        )
+    if params.variable_severity and condition == CONDITION_DAMAGED and severity is None:
+        raise FuelDamageError(
+            "mode %r is a variable-severity mode, so a damaged episode must carry a "
+            "severity; none was supplied" % (params.mode,)
+        )
 
     eligible = tuple(str(e) for e in eligible_ego_ids)
     if condition == CONDITION_CLEAN:
+        # `severity_derived_seed` is recorded on a CLEAN plan too, for exactly the reason
+        # `derived_seed` already is: it identifies the private domain the episode's draws
+        # came from, and an artifact that names it can be reproduced without knowing
+        # which branch the episode took.
         return FuelDamagePlan(
             condition=CONDITION_CLEAN,
             mode=str(mode),
             derived_seed=int(derived_seed),
             eligible_ego_ids=eligible,
+            severity=None,
+            severity_derived_seed=(
+                None if severity_derived_seed is None else int(severity_derived_seed)
+            ),
+            mild_probability=(
+                float(params.mild_probability) if params.variable_severity else None
+            ),
+            target_policy=params.target_policy,
         )
 
     # ---- required inputs for a damaged plan --------------------------------------
@@ -872,21 +1380,16 @@ def plan_fuel_damage(
             % (ego_id, projected_fuel_at_event, continue_fuel_requirement)
         )
 
-    post_damage_fuel = 0.5 * (rtb_fuel_floor + continue_fuel_requirement)
-
-    # (4) the chosen value really is inside the window and really is a loss.
-    if not (rtb_fuel_floor <= post_damage_fuel < continue_fuel_requirement):
-        raise FuelDamageError(
-            "ego %s: the selected post-damage fuel %.6f is not inside the strict window "
-            "[%.6f, %.6f)" % (ego_id, post_damage_fuel, rtb_fuel_floor,
-                              continue_fuel_requirement)
-        )
-    if not (post_damage_fuel < projected_fuel_at_event):
-        raise FuelDamageError(
-            "ego %s: the selected post-damage fuel %.6f is not below the projected fuel "
-            "%.6f, so the event would not be a loss"
-            % (ego_id, post_damage_fuel, projected_fuel_at_event)
-        )
+    # (4) the severity's own band, and the midpoint it yields. `severity is None` is the
+    # LEGACY interval `[rtb_floor, continue_req)`, so this is the unchanged legacy
+    # arithmetic; a variable-severity mode selects mild or severe instead.
+    band = severity_band(
+        window=window, fuel_before=projected_fuel_at_event, severity=severity
+    )
+    post_damage_fuel = _require_valid_band(
+        band, ego_id=str(ego_id), fuel_before=projected_fuel_at_event,
+        window=window, where="planned",
+    )
 
     return FuelDamagePlan(
         condition=CONDITION_DAMAGED,
@@ -918,6 +1421,16 @@ def plan_fuel_damage(
         fuel_rate=float(fuel_rate),
         max_fuel=None if max_fuel is None else float(max_fuel),
         fuel_at_launch=launch_fuel,
+        severity=severity,
+        severity_derived_seed=(
+            None if severity_derived_seed is None else int(severity_derived_seed)
+        ),
+        mild_probability=(
+            float(params.mild_probability) if params.variable_severity else None
+        ),
+        target_policy=params.target_policy,
+        planned_band_low=float(band.low),
+        planned_band_high=float(band.high),
     )
 
 
@@ -997,6 +1510,7 @@ class FuelDamageController:
         self._fuel_before: Optional[float] = None
         self._fuel_after: Optional[float] = None
         self._live_window: Optional[_Window] = None
+        self._live_band: Optional[_SeverityBand] = None
         self._wake_occurred = False
         self._wake_meta_action: Optional[int] = None
         # COMMAND HISTORY, not the executor's lifecycle latch: None until the episode
@@ -1071,53 +1585,18 @@ class FuelDamageController:
             margin=float(self.plan.rtb_safety_margin or 0.0),
         )
 
-    def maybe_apply(self, scenario: Any, tick: int) -> Optional[str]:
-        """Apply the event if this is the first tick at or past the threshold.
+    def _live_legacy_target(
+        self, *, ego_id: str, tick: int, fuel_before: float, live: _Window
+    ) -> float:
+        """LEGACY FD-BASELINE-v1's live validation. BYTE-FOR-BYTE the merged behaviour.
 
-        CALL ONCE PER TICK, AT THE START OF PHASE 1, BEFORE ANY EGO IS PROCESSED. That
-        ordering is not a convenience: every ego must sense and decide against the same
-        post-event snapshot, or the outcome would depend on Phase-1 ego iteration order
-        and the no-communication guarantee would be gone.
-
-        THE WINDOW IS RE-VALIDATED AGAINST THE LIVE AIRCRAFT BEFORE ANYTHING IS MUTATED
-        (see :meth:`live_bounds` for why the planned bounds are not sufficient). All four
-        facts must hold at the ego's actual position, with its actual fuel:
-
-          1. the mutation is a LOSS -- live fuel is strictly above the target;
-          2. live fuel is at or above the LIVE continue requirement, i.e. the ego really
-             could have completed its route and returned had the event not happened.
-             Without this the episode contains no decision: the plan was already
-             infeasible and the event changed nothing;
-          3. the target is at or above the LIVE RTB floor -- flying straight home stays
-             feasible with the engine's 1.10 reserve;
-          4. the target is strictly below the LIVE continue requirement -- completing the
-             route and returning does not.
-
-        Returns:
-            The damaged ego's id on the tick the event fires (the caller must wake exactly
-            that ego with ``TriggerKind.FUEL_DAMAGE``), and ``None`` on every other tick --
-            including every tick of a clean episode and every tick after the event.
-
-        Raises:
-            FuelDamageError: if any of the four facts fails at the live state. Raised
-                BEFORE the mutation, so a refused event leaves the engine untouched; the
-                attempt is then accounted as a ``run``-stage failure by
-                ``skip_and_account_v1``. Nothing is clamped, weakened or re-planned.
+        Lifted out of :meth:`maybe_apply` unchanged -- the same four checks, in the same
+        ORDER, with the same messages. The order is part of the contract, not an
+        implementation detail: which check fires first is what an accounted ``run``-stage
+        failure reports, and reordering them would silently relabel a class of already
+        measured failures.
         """
-        if self._fired or not self.plan.is_damaged:
-            return None
-        ego_id = str(self.plan.ego_id)
-        aircraft = _find_live_aircraft(scenario, ego_id)
-        if aircraft is None:
-            return None  # not airborne yet, or already removed by the engine
-        progress = self._progress_of(aircraft)
-        if progress is None or progress < float(self.plan.progress_threshold or 0.0):
-            return None
-
-        fuel_before = float(getattr(aircraft, "current_fuel", 0.0))
         target = float(self.plan.post_damage_fuel or 0.0)
-        live = self.live_bounds(aircraft)
-
         # (1) the mutation must be a LOSS. Implied by (2) and (4) together, but checked
         # first and separately because it is the most direct thing that can be wrong and
         # deserves its own message.
@@ -1159,6 +1638,107 @@ class FuelDamageController:
                 % (ego_id, int(tick), target, live.continue_fuel_requirement,
                    live.continue_distance_km)
             )
+        return target
+
+    def _live_variable_target(
+        self, *, ego_id: str, tick: int, fuel_before: float, live: _Window,
+        live_band: _SeverityBand,
+    ) -> float:
+        """FD-VARIABLE-SEVERITY-v1's live derivation: the LIVE band's own midpoint.
+
+        The premise is checked FIRST and separately: the ego must really have been able
+        to complete its route and return had the event not happened. For SEVERE that is
+        the same statement the legacy design makes; for MILD it is additionally what
+        makes the band ``(continue_requirement, fuel_before)`` non-empty, so a violation
+        has to be reported as the missing premise it is rather than as an empty interval
+        the reader would then have to diagnose.
+
+        Everything after it is :func:`_require_valid_band`, which is also what the plan
+        was validated with -- one site for both measurements of the same band.
+        """
+        if fuel_before < live.continue_fuel_requirement:
+            raise FuelDamageError(
+                "ego %s: at tick %d the live fuel (%.3f) is already below the LIVE "
+                "continue requirement (%.3f over %.1f km); the plan was infeasible "
+                "before any damage, so a %s event would create no decision. Planned "
+                "requirement was %.3f over %.1f km."
+                % (ego_id, int(tick), fuel_before, live.continue_fuel_requirement,
+                   live.continue_distance_km, str(self.plan.severity),
+                   float(self.plan.continue_fuel_requirement or 0.0),
+                   float(self.plan.continue_distance_km or 0.0))
+            )
+        return _require_valid_band(
+            live_band, ego_id=ego_id, fuel_before=fuel_before,
+            window=live, where="live",
+        )
+
+    def maybe_apply(self, scenario: Any, tick: int) -> Optional[str]:
+        """Apply the event if this is the first tick at or past the threshold.
+
+        CALL ONCE PER TICK, AT THE START OF PHASE 1, BEFORE ANY EGO IS PROCESSED. That
+        ordering is not a convenience: every ego must sense and decide against the same
+        post-event snapshot, or the outcome would depend on Phase-1 ego iteration order
+        and the no-communication guarantee would be gone.
+
+        THE WINDOW IS RE-VALIDATED AGAINST THE LIVE AIRCRAFT BEFORE ANYTHING IS MUTATED
+        (see :meth:`live_bounds` for why the planned bounds are not sufficient).
+
+        WHICH TARGET IS APPLIED DEPENDS ON THE DESIGN, and the plan says which:
+
+          * LEGACY FD-BASELINE-v1 (``target_policy == planned_midpoint_v1``) applies the
+            PLANNED value and validates it against the live state. UNCHANGED.
+          * FD-VARIABLE-SEVERITY-v1 (``live_severity_midpoint_v1``) DERIVES the value
+            here, as the midpoint of the severity's band measured at the live state
+            (:func:`severity_band`). A mild event has to leave continuation genuinely
+            feasible and a severe one has to leave it genuinely infeasible, and both
+            statements are about the fuel the ego really holds at the point it really
+            reached -- a target fixed before the run could only be checked against that,
+            never guaranteed to sit in the right band of it.
+
+        The two designs' live checks live in :meth:`_live_legacy_target` and
+        :meth:`_live_variable_target`, kept apart precisely so the legacy CHECK ORDER --
+        which decides what an already-measured ``run``-stage failure reports -- cannot be
+        disturbed by the new one. Both require the same physical facts: the ego really
+        could have continued before the event, the mutation is a real LOSS, and the
+        result still affords flying straight home with the engine's reserve.
+
+        Returns:
+            The damaged ego's id on the tick the event fires (the caller must wake exactly
+            that ego with ``TriggerKind.FUEL_DAMAGE``), and ``None`` on every other tick --
+            including every tick of a clean episode and every tick after the event.
+
+        Raises:
+            FuelDamageError: if any fact fails at the live state. Raised BEFORE the
+                mutation, so a refused event leaves the engine untouched; the attempt is
+                then accounted as a ``run``-stage failure by ``skip_and_account_v1``.
+                Nothing is clamped, weakened, re-planned, downgraded to the other
+                severity, or converted to a clean episode.
+        """
+        if self._fired or not self.plan.is_damaged:
+            return None
+        ego_id = str(self.plan.ego_id)
+        aircraft = _find_live_aircraft(scenario, ego_id)
+        if aircraft is None:
+            return None  # not airborne yet, or already removed by the engine
+        progress = self._progress_of(aircraft)
+        if progress is None or progress < float(self.plan.progress_threshold or 0.0):
+            return None
+
+        fuel_before = float(getattr(aircraft, "current_fuel", 0.0))
+        live = self.live_bounds(aircraft)
+        live_band = severity_band(
+            window=live, fuel_before=fuel_before, severity=self.plan.severity
+        )
+
+        if self.plan.is_variable_severity:
+            target = self._live_variable_target(
+                ego_id=ego_id, tick=tick, fuel_before=fuel_before,
+                live=live, live_band=live_band,
+            )
+        else:
+            target = self._live_legacy_target(
+                ego_id=ego_id, tick=tick, fuel_before=fuel_before, live=live,
+            )
 
         # THE mutation: the real BLADE aircraft, exactly once, in the real fuel units the
         # engine decrements every tick. Not an observation-only simulation -- the engine
@@ -1173,6 +1753,10 @@ class FuelDamageController:
         self._fuel_before = fuel_before
         self._fuel_after = target
         self._live_window = live
+        # Recorded only for the design that DERIVED its target from this band; under the
+        # legacy design the band was a yardstick, not a source, and reporting it as
+        # `live_band_*` would suggest the target came from it.
+        self._live_band = live_band if self.plan.is_variable_severity else None
         return ego_id
 
     def note_commands(self, commands: Sequence[str]) -> None:
@@ -1242,6 +1826,12 @@ class FuelDamageController:
             wake_occurred=self._wake_occurred,
             wake_meta_action=self._wake_meta_action,
             rtb_command_issued=self._rtb_command_issued,
+            severity=self.plan.severity,
+            live_band_low=(
+                None if self._live_band is None else float(self._live_band.low)),
+            live_band_high=(
+                None if self._live_band is None else float(self._live_band.high)),
+            max_fuel=self.plan.max_fuel,
         )
 
 
@@ -1308,7 +1898,14 @@ def build_fuel_damage_plan(
     """
     params.validate()
     condition = resolve_condition(episode_seed=episode_seed, params=params)
+    severity = resolve_severity(episode_seed=episode_seed, params=params)
     derived_seed = derive_fuel_damage_seed(episode_seed)
+    # Recorded only when it was really consulted: a legacy plan carrying a severity seed
+    # would claim a draw that never happened.
+    severity_derived_seed = (
+        derive_fuel_damage_severity_seed(episode_seed)
+        if params.variable_severity else None
+    )
     a_init = dict(getattr(ctx, "a_init", None) or {})
     eligible = _eligible_ego_ids(a_init)
 
@@ -1318,6 +1915,7 @@ def build_fuel_damage_plan(
             eligible_ego_ids=eligible, ego_id=None, launch_point=None,
             home_base=None, route_points=None, speed_knots=None, fuel_rate=None,
             max_fuel=None, fuel_at_launch=None, params=params,
+            severity=None, severity_derived_seed=severity_derived_seed,
         )
 
     if not eligible:
@@ -1393,6 +1991,8 @@ def build_fuel_damage_plan(
         max_fuel=getattr(aircraft, "max_fuel", None),
         fuel_at_launch=getattr(aircraft, "current_fuel", None),
         params=params,
+        severity=severity,
+        severity_derived_seed=severity_derived_seed,
     )
 
 
