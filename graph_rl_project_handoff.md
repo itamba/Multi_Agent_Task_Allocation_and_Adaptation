@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — Phase-A Closure / Phase-B CTDE Handoff
+# Multi-Agent Graph RL — Phase-A Closure / PRE-PHASE-B VARIABLE-SEVERITY BASELINE Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -12,7 +12,9 @@ PR #21** — 2026-08-16 again to record the **CORRECTED-CELL SHORT-PROBE RERUN**
 2026-08-17 to record the FIRST EXECUTED LONG BASELINE, the FOURTH and SEPARATE
 roster/world-truth defect it exposed, and that defect's merged correction (PR #24)
 (§3f, §3g), and **2026-08-18 to record the APPROVED Phase-A LONG-BASELINE RERUN, to CLOSE
-PHASE A, and to hand off to PHASE-B CENTRALIZED-CRITIC / CTDE DESIGN** (§3h, §4).
+PHASE A** (§3h), and **2026-08-20 to record the MERGED FD-VARIABLE-SEVERITY-v1 research
+factor (PR #27) and the DELIBERATE research-order change that puts an ADDITIONAL
+actor-only variable-severity baseline BEFORE Phase-B CTDE** (§3i, §4).
 
 **THE STATE, STATED PLAINLY.** **PHASE A IS CLOSED.** The authorized long-baseline rerun —
 `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, measured code SHA
@@ -21,9 +23,21 @@ PHASE A, and to hand off to PHASE-B CENTRALIZED-CRITIC / CTDE DESIGN** (§3h, §
 **`APPROVE — VALID MEASUREMENT`**. It is **the FIRST scientifically valid measurement of the
 fuel-damage cell** (§3h; `CLAUDE.md` §7 owns the authoritative record). The three-defect
 CODE correction and the FOURTH roster/world-truth correction (PR #24) all remain merged, and
-they are what made a sound measurement possible. **The next research task is PHASE-B
-CENTRALIZED-CRITIC / CTDE DESIGN** (§4) — and it begins as DESIGN / RECON, not
-implementation. **The long baseline is NOT to be re-run, resumed, repaired or re-tuned.**
+they are what made a sound measurement possible. **The long baseline is NOT to be re-run,
+resumed, repaired or re-tuned.**
+
+**AND THE RESEARCH ORDER HAS DELIBERATELY CHANGED.** By user/orchestrator decision, an
+**ADDITIONAL ACTOR-ONLY BASELINE ON THE MERGED FD-VARIABLE-SEVERITY-v1 FACTOR COMES BEFORE
+PHASE-B CTDE.** The factor's CODE is CLOSED / APPROVED / MERGED — approved candidate
+`eecc9b5d91bce4a98a070a29307cc12af0d4c4a3`, integrated `177e969446ef6c01c729484f2ea9969c94a27330`,
+PR #27 (§3i) — and **NO variable-severity scientific baseline has been executed**, so no
+result may be pre-claimed. **The current phase is therefore the PRE-PHASE-B ADDITIONAL
+ACTOR-ONLY VARIABLE-SEVERITY BASELINE** (§4), and **Phase-B CTDE design follows only after
+that measurement is executed and independently reviewed.** This is an explicit ordering
+decision, **not** a reopening of Phase A: the Phase-A reference baseline stays CLOSED,
+VALID and IMMUTABLE, and the branch `phase-a-baseline`
+(`4f0068847b017795717c5f0e331f647bcfc30547`) preserving its code state must not move.
+`p(destroy) < 1` remains a SEPARATE, later research task and was NOT implemented by PR #27.
 B1–B4, the first real post-B3 instrumented probe, the B4 observability follow-up (PR #7),
 **FD-BASELINE-v1** (PR #8), **FINAL-CELL-VISUAL-ARTIFACTS** (PR #10), the repository
 code-hygiene cleanup (PR #11), the documentation hygiene (PR #12) and now the
@@ -73,24 +87,40 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **BASE of THIS documentation record:** `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`,
-  committed `2026-08-17 19:25:42 Asia/Jerusalem` — the `main` head produced by the
-  roster-integrity documentation merge (PR #25). **That is the exact base this Phase-A
-  closure / Phase-B handoff documentation candidate was DERIVED ON.**
-  **That same SHA carries TWO DISTINCT ROLES, and they must not be conflated:** it is
-  (a) the BASE this documentation candidate was branched from, and (b) the MEASURED CODE
-  SHA of the approved Phase-A long baseline (§3h). Role (b) is a durable measurement
-  identity; role (a) is a statement about this record's derivation only. **Neither role is
-  a claim about live `main`.** **Integrating this documentation record necessarily ADVANCES
-  `main` past that base**, so treating it as a live head would be false the moment the
-  record lands. Neither this documentation commit nor its future merge can name its own
-  SHA, and inventing either would be a false provenance claim. **Every receiving
-  orchestrator therefore resolves the live full `main` SHA from GitHub and re-reads both
-  documents at that SHA — GitHub is authoritative for live branch and PR state, never this
-  document.** *(The PR #24 roster/world-truth CODE integration commit
-  `f37ea1c8559405d5de24a9c2dd9e740227acaeeb` was the base of the PREVIOUS documentation
-  record, not of this one; it remains recorded as that code integration in the next bullet
-  and in §3g.)*
+- **BASE of THIS documentation record:** `177e969446ef6c01c729484f2ea9969c94a27330`,
+  committed `2026-08-20 12:15:28 Asia/Jerusalem` — the `main` head produced by the
+  FD-VARIABLE-SEVERITY-v1 CODE merge (PR #27). **That is the exact base this
+  variable-severity documentation/lock candidate was DERIVED ON**, and it is a statement
+  about this record's derivation only — **not** a claim about live `main`, which this
+  record's own integration necessarily advances past it. Neither this documentation commit
+  nor its future merge can name its own SHA, and inventing either would be a false
+  provenance claim. **Every receiving orchestrator therefore resolves the live full `main`
+  SHA from GitHub and re-reads both documents at that SHA — GitHub is authoritative for
+  live branch and PR state, never this document.**
+- **THE PHASE-A MEASURED CODE SHA IS A DIFFERENT, DURABLE THING:**
+  `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc` (`2026-08-17 19:25:42 Asia/Jerusalem`, the
+  `main` head from the roster-integrity documentation merge, PR #25) is the exact code SHA
+  the approved Phase-A long baseline was measured at (§3h). It is a durable MEASUREMENT
+  identity and must never be read as a live head or as this record's base. The code state
+  it names is preserved on the branch **`phase-a-baseline` =
+  `4f0068847b017795717c5f0e331f647bcfc30547`**, which **must not move**. *(The PR #24
+  roster/world-truth CODE integration commit `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`
+  was the base of an EARLIER documentation record; it remains recorded as that code
+  integration in the next bullet and in §3g.)*
+- **FD-VARIABLE-SEVERITY-v1 CODE — CLOSED / APPROVED / MERGED.** Approved candidate
+  `eecc9b5d91bce4a98a070a29307cc12af0d4c4a3`, integrated by
+  `177e969446ef6c01c729484f2ea9969c94a27330` (`2026-08-20 12:15:28 Asia/Jerusalem`,
+  PR #27). Ordered merge parents: `4f0068847b017795717c5f0e331f647bcfc30547`, then
+  `eecc9b5…`. Candidate and integration share the IDENTICAL tree
+  `37ebd8c56266fdd862cc7244c5f22a6ac95e438c`, and the candidate→integration comparison
+  contains ZERO changed files. Grade A under `GPT_GITHUB`; append-only fix chain
+  `73752d872a8cd17f703790ef41bee46a734170bb` (REQUEST FIXES) → `eecc9b5…` (APPROVED);
+  FIVE files (`src/match_aou/rl/training/graph_fuel_damage.py`,
+  `src/match_aou/rl/training/graph_train.py`,
+  `src/match_aou/rl/training/graph_rollout.py`, `tests/test_graph_fuel_damage.py`,
+  `tests/test_graph_train.py`). `CLAUDE.md` §5 owns the contract, §6 the routing, §7 the
+  lock. **NO scientific baseline, training run, probe or rollout was executed for PR #27**,
+  and nothing about the variable-severity cell's behaviour is known. §3i summarizes it.
 - **ROSTER / WORLD-TRUTH INTEGRITY — CLOSED / APPROVED / MERGED.** Approved candidate
   `36365f210e8a659a641a7713f612c7e0ec1d4665` (`2026-08-17T14:01:10+03:00`), reviewed
   `APPROVE`, integrated by `f37ea1c8559405d5de24a9c2dd9e740227acaeeb`
@@ -313,17 +343,18 @@ cross-references it rather than duplicating it.
   whatever delivered this record — must be resolved from GitHub, never from this document**,
   and the next orchestrator performs fresh exact-SHA initialization: **resolve the current
   full `main` SHA from the repository** rather than reusing any SHA named here.
-- **NO ACTIVE CODE CANDIDATE EXISTS.** The roster/world-truth fix was the last one and it is
-  merged (PR #24); it was integrated as `main` = `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`
-  (PR #25), the three obsolete task branches were retired, and the Phase-A long-baseline
-  rerun was then measured at exactly that SHA (§3h). **While THIS record is published and
-  under review, the sole active candidate of any kind is this Phase-A closure /
-  Phase-B handoff documentation task itself — branch
-  `task/phase-a-baseline-valid-doc-lock` and its draft PR** — and no other candidate should
-  be claimed. **Once this record is integrated into `main`, no active candidate remains** and
-  ownership is RELEASED to a **Phase-B CTDE design orchestrator** (§4, §8). The integrating
-  merge's SHA is deliberately NOT named here: it does not exist while this is written, and
-  inventing it would be a false provenance claim.
+- **NO ACTIVE CODE CANDIDATE EXISTS.** The FD-VARIABLE-SEVERITY-v1 factor was the last CODE
+  candidate and it is merged (approved `eecc9b5…`, integrated
+  `177e969446ef6c01c729484f2ea9969c94a27330`, PR #27 — §3i). **While THIS record is
+  published and under review, the sole active candidate of any kind is this
+  variable-severity documentation/lock task itself — branch
+  `task/variable-fd-severity-doc-lock` and its draft PR** — and no other candidate should
+  be claimed; **ownership rests with the GPT ADDITIONAL-BASELINE ORCHESTRATOR while it is
+  active.** **Once this record is integrated into `main`, no active candidate remains** and
+  ownership is RELEASED to the orchestrator that executes the additional actor-only
+  variable-severity baseline (§4 Task 7, §8). The integrating merge's SHA is deliberately
+  NOT named here: it does not exist while this is written, and inventing it would be a false
+  provenance claim.
 - **POST-MERGE REPOSITORY CLEANUP — DONE.** *(Historical: this was a GATE on the long-baseline
   rerun, and it was satisfied before that run. It is recorded here as completed, not as
   outstanding work.)* All THREE obsolete task branches were safely retired
@@ -342,8 +373,13 @@ cross-references it rather than duplicating it.
   scientific artifact** (`training_output_20260815_173029`,
   `training_output_20260816_162130`, `training_output_long_baseline_100x8_seed0`, and now
   the approved `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`), and all
-  GitHub PR refs and history. **The same discipline applies to
-  `task/phase-a-baseline-valid-doc-lock` once THIS record is merged.**
+  GitHub PR refs and history. **The branch `phase-a-baseline`
+  (`4f0068847b017795717c5f0e331f647bcfc30547`), which preserves the Phase-A reference code
+  state, is likewise PRESERVED and must not move.** **The same discipline applies to
+  `task/variable-fd-severity-baseline` (the merged PR #27 implementation branch) and to
+  `task/variable-fd-severity-doc-lock` once THIS record is merged** — retirement is the GPT
+  orchestrator's action, only after each tip is verified reachable from integrated `main`,
+  and it is NOT part of this documentation task.
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -952,51 +988,169 @@ generalization beyond this fixed cell and this held-out seed set, and **NOT** an
 from centralized training. Those are subsequent research questions — the first of which is
 §4.
 
-## 4. Next task — PHASE-B CENTRALIZED-CRITIC / CTDE DESIGN
+## 3i. What PR #27 closed — FD-VARIABLE-SEVERITY-v1 (CODE ONLY; NOT MEASURED)
+
+**CODE CLOSED / APPROVED / MERGED. NO SCIENTIFIC RESULT EXISTS.** Approved candidate
+`eecc9b5d91bce4a98a070a29307cc12af0d4c4a3`, integrated
+`177e969446ef6c01c729484f2ea9969c94a27330` (PR #27), identical tree
+`37ebd8c56266fdd862cc7244c5f22a6ac95e438c`, zero changed files candidate→integration.
+Grade A under `GPT_GITHUB`. `CLAUDE.md` §5 owns the full contract, §6 the routing and §7
+the lock; this section is the volatile summary only.
+
+**WHAT IT IS.** An ADDITIONAL actor-only difficulty design layered on FD-BASELINE-v1. Under
+the legacy factor every damaged episode is structurally SEVERE, so "damaged" and
+"continuing is infeasible" are the same fact and an actor can learn `fuel damage ⇒ abort`
+without reading its own fuel gauge. The extension splits the damaged half into a MILD case
+where continuing remains genuinely feasible and a SEVERE case where it does not.
+
+**WHAT IT PRESERVES — and this is the load-bearing half.** The LEGACY modes (`off`,
+`seeded_mixture`, `forced_clean`, `forced_damaged`) are UNCHANGED: same seeds, same
+conditions, same selected egos, same planned-midpoint target. Severity is drawn from its
+OWN deterministic domain `fuel_damage_severity_v1`, kept separate from the legacy
+`fuel_damage_v1` domain precisely so it cannot shift the condition/ego stream — drawing it
+in the v1 stream would change WHICH EGO every damaged episode selects and would invalidate
+the approved Phase-A measurement instead of extending it.
+
+**THE TWO LIVE BANDS**, measured at the event tick against the live window and live fuel
+(`F_rtb` = RTB floor, `F_cont` = continue requirement, both carrying the 1.10 reserve):
+
+- **MILD** — `F_rtb < F_cont < F_after < F_before`: a real loss, safe RTB feasible,
+  continuation and eventual return STILL feasible.
+- **SEVERE** — `F_rtb ≤ F_after < F_cont ≤ F_before`: a real loss, safe RTB feasible,
+  continuation infeasible. This is exactly the legacy interval.
+
+The post-damage value is the band's MIDPOINT derived from the LIVE state. An invalid band
+raises BEFORE the mutation; **nothing is clamped, retried, downgraded to the other
+severity, given a replacement ego, or converted to a clean episode.**
+
+**TRAINING DISTRIBUTION.** `fuel_damage_mode = seeded_variable` with
+`P(damaged) = 0.50` and `P(mild | damaged) = 0.50` ⇒ the approved flat
+**0.50 clean / 0.25 mild / 0.25 severe**.
+
+**EVALUATION.** A matched **CLEAN / MILD / SEVERE TRIAD** per held-out seed — same seed,
+same generated world, same hidden geometry, the same deterministically selected ego for
+both damaged members, distinct artifact tags. **A complete triad requires all three
+members to succeed**, and the three within-seed deltas (`mild − clean`, `severe − clean`,
+`severe − mild`) are over COMPLETE triads only. The **PRIMARY behavioural evidence is the
+severity-conditioned FD-wake meta-action response**, reported per cell with its own FD-wake
+denominators — **not** reward, and **"mild must choose `PLAN_COMPLIANCE`" is NOT a
+correctness rule**; opportunistic engagement under a survivable loss can be rational.
+Successful attempts get one durable record each in **`episode_outcomes.jsonl`** (failures
+stay in `episode_failures.jsonl`; the two streams are disjoint), and the summary's
+severity-response table is DERIVED from that file rather than from a parallel in-memory
+aggregate.
+
+**NO-COMMS AND SCOPE ARE UNCHANGED.** The actor receives NO severity label — no severity
+feature reaches `GraphObservation`, and only its own real `fuel_norm` changes. Target
+destruction stays deterministic at `probability = 1`; weapon lethality, `graph_reward`, the
+frozen solver, PPO and BLADE are untouched. **`p(destroy) < 1` was NOT implemented here**
+and remains a separate future Grade-A research task.
+
+**THE REVIEW FIX (Grade-A fix chain, append-only).** The first candidate
+`73752d872a8cd17f703790ef41bee46a734170bb` received **REQUEST FIXES**: `_ConditionTally.
+success` checked only that the EXECUTED cell was a LEGAL cell, so a scheduled MILD attempt
+that executed as SEVERE passed the membership test and booked the ATTEMPT in one cell's
+denominator and the REWARD in another — corrupting BOTH scientific denominators at once and
+letting a triad delta be taken between members the schedule never paired. The approved child
+`eecc9b5…` makes the scheduled cell a REQUIRED keyword and requires **scheduled == executed
+EQUALITY before any successful accounting**; both production call sites pass their scheduled
+cell and the guard runs FIRST, so a mismatched episode reaches neither the tally counters and
+rewards, nor a matched-group member reward or delta, nor `episode_outcomes.jsonl`, nor the
+PPO buffer. A mismatch is a `MeasurementIntegrityError` INFRASTRUCTURE abort — never an
+accounted scientific episode failure. **It has NOT been observed in the real simulator**: the
+regression test injects the divergence through a stub, because normal production does not
+currently generate it.
+
+**REVIEWED EVIDENCE at the approved head.** `tests/test_graph_fuel_damage.py` **60 passed**;
+`tests/test_graph_train.py` **119 passed**; both standalone `nlp_env` runners **60 / 119
+passed**; full suite **291 passed, 4 skipped**; `git diff --check` clean.
+`graph_train --selftest` — TEST 1 passed, TEST 2 passed, **TEST 3 failed IDENTICALLY TO THE
+BASE** on the already-known B2 seed-2 exact-cardinality case: a pre-existing expected outcome
+of the current contract, **not a PR #27 regression**.
+
+**NO scientific baseline, long training run, probe, rollout or artifact-generating smoke was
+executed for PR #27.** Nothing here is evidence about the variable-severity cell, and no
+result may be pre-claimed. §4 owns the next authorized measurement.
+
+## 4. Next task — THE ADDITIONAL ACTOR-ONLY FD-VARIABLE-SEVERITY-v1 BASELINE
 
 Start with fresh exact-SHA initialization against the current `main`. **This documentation
 task neither authorizes nor runs anything; it records state only, and it does NOT authorize
-CC to run training or to implement a critic.**
+CC to run training, to execute the baseline described below, or to implement a critic.**
 
-**Tasks 0–5 are ALL DONE.** Defect A (ego-global `SELF_PRESERVATION_ABORT`, approved
-`d56fda6`, PR #17), Defect B (evidence-derived attack-confirmation wait, approved `39a16f2`,
-PR #19) and Defect C (physical RTB completion, approved `ea62e4e`, PR #21) closed the
-three-defect CODE correction. The corrected-cell short-probe rerun ran and was reviewed, and
-its verdict was later SUPERSEDED (§3e). Defect 4, roster / world-truth integrity, closed
-(approved `36365f2`, integrated `f37ea1c`, PR #24 — §3g). **Task 5, ONE FRESH LONG BASELINE
-FROM SCRATCH, has been EXECUTED, independently reviewed and APPROVED (§3h)** — it is the
-Phase-A baseline. **Nothing in Tasks 0–5 is outstanding, and the long baseline is NOT to be
-re-run, resumed, repaired, extended or re-tuned.**
+**THE ORDERING, STATED ONCE.** By explicit user/orchestrator decision the approved order is:
+**(1)** preserve the original Phase-A reference baseline; **(2)** implement (DONE, PR #27)
+and then MEASURE (NOT DONE) the additional actor-only FD-VARIABLE-SEVERITY-v1 baseline;
+**(3)** only then proceed to Phase-B CTDE design. This **supersedes** the previous handoff's
+statement that Phase-B CTDE was immediately next and that a stochastic/partial
+fuel-degradation variant was deferred until after Phase B — FD-VARIABLE-SEVERITY-v1 is that
+variant's approved form. **It is NOT a reopening of Phase A.** The Phase-A baseline stays
+CLOSED, VALID and IMMUTABLE (§3h), and `phase-a-baseline`
+(`4f0068847b017795717c5f0e331f647bcfc30547`) must not move.
 
-**Task 6 — CENTRALIZED CRITIC / CTDE DESIGN. NEXT, and separately authorized.** This is the
-user-approved next step and the beginning of **Phase B**.
+**Tasks 0–5 are ALL DONE.** Defect A (`d56fda6`, PR #17), Defect B (`39a16f2`, PR #19) and
+Defect C (`ea62e4e`, PR #21) closed the three-defect CODE correction. The corrected-cell
+short-probe rerun ran and its verdict was later SUPERSEDED (§3e). Defect 4, roster /
+world-truth integrity, closed (`36365f2`, integrated `f37ea1c`, PR #24 — §3g). **Task 5, ONE
+FRESH LONG BASELINE FROM SCRATCH, has been EXECUTED, independently reviewed and APPROVED
+(§3h)** — it is the Phase-A baseline. **Nothing in Tasks 0–5 is outstanding, and the Phase-A
+long baseline is NOT to be re-run, resumed, repaired, extended or re-tuned.**
 
-- **Start in a NEW orchestrator**, and begin by **resolving the live full `main` SHA fresh**
-  and **re-reading BOTH documents at that SHA** — never at any SHA named in this document.
-- **It begins as DESIGN / RECON. Do NOT immediately implement a critic.** `CLAUDE.md` §5 and
-  §8 already state that the centralized critic is OPEN, that `GraphEncoder.pool()` is its
-  reserved hook, that there is **no value head today**, and that `graph_ppo` is actor-only
-  with PHASE-B SEAM comments. **Preserve that contract**; the design task's output is a
-  reviewed design, not a merged critic.
-- **The design must state, explicitly:**
-  1. the **size-agnostic** value estimator over a varying task/agent graph, off
-     `GraphEncoder.pool()`;
-  2. how **decentralized NO-COMMUNICATION EXECUTION is preserved exactly** — `CLAUDE.md` §3
-     is not weakened by centralized TRAINING, peer nodes stay featureless, and an ego still
-     acts only on its own sensing;
-  3. **exactly which privileged all-agent information the critic may read, enumerated, and
-     that it is available during TRAINING ONLY** — never implied, never inferred from what
-     happens to be reachable;
-  4. **actor / critic separation** and the proof obligations that keep the training-only
-     privilege from leaking into the acting path;
-  5. a clean **actor-only vs CTDE comparison ON THE LOCKED PHASE-A REFERENCE CELL**, judged
-     against the approved Phase-A baseline (§3h) under the SAME validity gate, **BEFORE** any
-     further environment difficulty is added.
-- **No CTDE benefit may be pre-claimed.** The approved Phase-A result explicitly establishes
-  none, and a CTDE design that measures no improvement is a valid negative result.
-- **Do not bundle difficulty expansions into Phase B** (§5, §6): `probability < 1`, SAMs /
-  enemies that shoot back, a stochastic/partial fuel-degradation variant and dense/per-wake
-  reward all remain SEPARATE later research changes.
+**Task 6 — FD-VARIABLE-SEVERITY-v1 CODE. DONE (§3i, PR #27).** Merged and locked; no
+measurement.
+
+**Task 7 — THE BOUNDED 50 × 8 ACTOR-ONLY VARIABLE-SEVERITY BASELINE. NEXT, and separately
+authorized.** It is a MEASUREMENT task, not an implementation task: no code, test, config or
+preset change belongs in it.
+
+- **Start in a NEW orchestrator**, resolve the live full `main` SHA fresh, and re-read BOTH
+  documents at that SHA — never at any SHA named in this document.
+- **The approved run shape** (recorded as a CONTRACT and a NEXT ACTION, never as evidence):
+  - **50 scheduled training iterations × 8 scheduled training attempts = 400 scheduled
+    training attempts**, `base_seed = 0`;
+  - **evaluation every 5 iterations, INCLUDING the initial `pre_update` round ⇒ 11
+    evaluation rounds**;
+  - **8 fixed held-out seeds in the EXISTING eval band**, each evaluated as a matched
+    **clean / mild / severe TRIAD** ⇒ **11 × 8 × 3 = 264 scheduled evaluation attempts**;
+  - **664 scheduled attempts in total; NO early stopping.**
+- Training runs `fuel_damage_mode = seeded_variable` at the approved
+  **0.50 clean / 0.25 mild / 0.25 severe** distribution. Everything else is the LOCKED cell:
+  3 agents, 3 known + 3 hidden, 200 km / 100 km geometry, `DETECTION_KM = 50`,
+  `include_sams = false`, `probability = 1`, frozen solver and BLADE, unchanged
+  `graph_reward` formula with `aircraft_penalty_coeff = 2.25`, unchanged PPO.
+- **The run task chooses a FRESH, NON-OVERWRITING output directory and captures its own
+  provenance.** No output directory, artifact hash or figure is invented in this
+  documentation record, and none may be.
+- **ONE invocation, driven through `--config` from its own measurement contract file** (the
+  long-baseline pattern, deliberately NOT a repository preset), with `cli_overrides = []`.
+- **The PRIMARY behavioural evidence is the severity-conditioned FD-WAKE meta-action
+  response** — mild and severe meta-action counts, rates, and explicit wake denominators —
+  **not reward**. Also report clean / mild / severe reward means, the three matched deltas
+  (`mild − clean`, `severe − clean`, `severe − mild`) over COMPLETE TRIADS ONLY,
+  attempted / successful / failed counts, and RTB / death / target-coverage outcomes.
+- **`p(destroy) < 1`, SAMs and dense reward are NOT part of this baseline** and must not be
+  bundled into it.
+
+**Task 8 — PHASE-B CENTRALIZED-CRITIC / CTDE DESIGN. DEFERRED until Task 7 is executed and
+independently reviewed.** It is no longer the immediately-next task. When authorized it
+still begins as **DESIGN / RECON, not implementation**, and the design must state:
+
+1. the **size-agnostic** value estimator over a varying task/agent graph, off
+   `GraphEncoder.pool()`;
+2. how **decentralized NO-COMMUNICATION EXECUTION is preserved exactly** — `CLAUDE.md` §3 is
+   not weakened by centralized TRAINING, peer nodes stay featureless, and an ego still acts
+   only on its own sensing;
+3. **exactly which privileged all-agent information the critic may read, enumerated, and
+   that it is available during TRAINING ONLY**;
+4. **actor / critic separation** and the proof obligations that keep the training-only
+   privilege from leaking into the acting path;
+5. a clean **actor-only vs CTDE comparison ON THE LOCKED PHASE-A REFERENCE CELL**, judged
+   against the approved Phase-A baseline (§3h) under the SAME validity gate.
+
+**No CTDE benefit may be pre-claimed**, and **no variable-severity result may be
+pre-claimed either.** `CLAUDE.md` §5 and §8 still state that the centralized critic is OPEN,
+that there is **no value head today**, and that `graph_ppo` is actor-only with PHASE-B SEAM
+comments — preserve that contract.
 
 **What makes a run VALID — carried forward unchanged, and it now has a passing precedent.**
 A run counts as a valid measurement when ALL of:
@@ -1004,26 +1158,30 @@ A run counts as a valid measurement when ALL of:
 - Git provenance is COMPLETE and the checkout was clean;
 - `run_summary.json:accounting_reconciled` is true;
 - no INFRASTRUCTURE or DATA-INTEGRITY failure occurred. A `_VisualArtifactError`, a
-  `MeasurementIntegrityError` / `EpisodeRosterError`, or any crash outside the
+  `MeasurementIntegrityError` / `EpisodeRosterError` — including the scheduled-vs-executed
+  CELL mismatch PR #27 added (§3i) — or any crash outside the
   `generation` / `setup` / `run` / `reward` episode taxonomy ABORTS the run and is not a
   scientific result;
-- **at least one COMPLETED matched pair exists in BOTH the `pre_update` and the
-  `post_update` round** — a pair counts only when both its members completed.
+- **at least one COMPLETED matched group exists in BOTH the `pre_update` and the
+  `post_update` round.** A group counts only when EVERY member completed — two members for
+  a legacy pair, **all three for a variable-severity triad.**
 
 The Phase-A rerun (§3h) satisfied all four; the two runs before it did not, on the
 data-integrity clause (§3e, §3f).
 
-**A negative result is still a valid result.** No improvement, or zero productive PPO
-updates, is a valid NEGATIVE SCIENTIFIC OBSERVATION — not a technical failure, and not
-grounds to re-run, re-tune or re-seed.
+**A negative result is still a valid result.** No improvement, no severity-conditioned
+behavioural difference, or zero productive PPO updates, is a valid NEGATIVE SCIENTIFIC
+OBSERVATION — not a technical failure, and not grounds to re-run, re-tune or re-seed.
 
 **Interpretation rules survive unchanged:** a held-out mean is never read without its
-denominator; an all-failed batch reports `null`, never `0.0`; an empty successful-pair
-population is `null` too; and the held-out per-condition means are each over their own
-successful subset, so the within-seed claim is the matched-pair delta alone (`CLAUDE.md`
-§5). **Do not reuse §2's, §3e's or §3f's numbers as any expectation** — §2 measured a
+denominator; an all-failed batch reports `null`, never `0.0`; an empty successful-group
+population is `null` too; the per-condition / per-cell means are each over their own
+successful subset, so the within-seed claims are the matched deltas over COMPLETE groups
+alone (`CLAUDE.md` §5); and FD-wake meta-action rates are reported over FD WAKES, never over
+episodes. **Do not reuse §2's, §3e's or §3f's numbers as any expectation** — §2 measured a
 different, easier cell, and §3e and §3f are both scientifically INCONCLUSIVE. **§3h is the
-only scientific baseline.**
+only scientific baseline, and it is a baseline of the LEGACY FD-BASELINE-v1 design — it is
+NOT an expectation for the variable-severity cell.**
 
 ## 5. Closed decisions
 
@@ -1066,34 +1224,62 @@ only scientific baseline.**
   `737b4bf` is the cell's ONE valid baseline; the long baseline is not re-run, resumed,
   repaired or re-tuned; the earlier three runs are history only; and the Phase-A conclusion
   carries its explicit non-claims (no global optimality, no monotonic convergence, no
-  generalization beyond this fixed cell and held-out seed set, no CTDE benefit).
-- **PHASE B IS CENTRALIZED-CRITIC / CTDE DESIGN (§4)**, and it starts as design/recon with
-  decentralized no-communication execution preserved exactly.
+  generalization beyond this fixed cell and held-out seed set, no CTDE benefit). **It is a
+  baseline of the LEGACY FD-BASELINE-v1 design**, and the branch `phase-a-baseline`
+  (`4f0068847b017795717c5f0e331f647bcfc30547`) preserving its code state is IMMUTABLE.
+- PR #27 (FD-VARIABLE-SEVERITY-v1): the legacy modes are preserved byte-for-byte in
+  behaviour; severity is drawn from its OWN `fuel_damage_severity_v1` domain so the legacy
+  condition/ego stream cannot shift; MILD leaves continuation feasible and SEVERE does not,
+  both measured and validated at the LIVE event state with no clamp, retry, downgrade or
+  conversion to clean; evaluation is a matched clean/mild/severe TRIAD whose deltas are over
+  COMPLETE triads only; the actor receives NO severity label; successful attempts get one
+  durable `episode_outcomes.jsonl` record and the severity-response summary is derived from
+  it; and a scheduled-vs-executed CELL mismatch is a `MeasurementIntegrityError` that ABORTS
+  rather than entering any scientific denominator. **Target destruction stays deterministic
+  at `probability = 1`.**
+- **THE RESEARCH ORDER WAS DELIBERATELY CHANGED (§4).** The ADDITIONAL actor-only
+  FD-VARIABLE-SEVERITY-v1 baseline is measured BEFORE Phase-B CTDE, not after. Phase A stays
+  closed and its reference baseline stays immutable; **PHASE B REMAINS
+  CENTRALIZED-CRITIC / CTDE DESIGN**, deferred behind that measurement, and when authorized
+  it still starts as design/recon with decentralized no-communication execution preserved
+  exactly.
 
 ## 6. Out of scope for the next task
 
-The next task is **Phase-B CTDE DESIGN** (§4). Out of scope for it:
+The next task is the **ADDITIONAL ACTOR-ONLY FD-VARIABLE-SEVERITY-v1 BASELINE** (§4,
+Task 7). Out of scope for it:
 
 - **any training run driven from THIS documentation task** — it authorizes none;
-- **IMPLEMENTING a centralized critic before its design is reviewed and approved.** CTDE is
-  no longer deferred — it IS the next task — but Task 6 delivers a DESIGN. Merging a value
-  head, changing `graph_ppo` from actor-only, or adding a value loss without that reviewed
-  design is out of scope;
-- **weakening decentralized no-communication EXECUTION in any way.** Centralized TRAINING
-  information must never reach the acting path: peer nodes stay featureless, an ego still
-  acts only on its own sensing, and `CLAUDE.md` §3 is not up for renegotiation as a
-  side-effect of Phase B;
+- **CHANGING ANY CODE, TEST, CONFIG OR PRESET.** Task 7 is a MEASUREMENT: it RUNS what PR
+  #27 merged. Retuning the severity bands, the mixture, the RTB margin, the leg-progress
+  threshold, the reward coefficient, the seeds, the schedule or the harness is out of
+  scope, and so is "fixing" anything the run reveals — a finding becomes its own reviewed
+  task;
+- **PHASE-B CTDE, in design or implementation.** It is DEFERRED behind Task 7 (§4, Task 8).
+  Merging a value head, changing `graph_ppo` from actor-only, or adding a value loss is out
+  of scope, and so is starting the CTDE design before the variable-severity measurement is
+  executed and reviewed;
+- **weakening decentralized no-communication EXECUTION in any way.** No severity label may
+  reach the acting path: peer nodes stay featureless, an ego still acts only on its own
+  sensing and its own fuel, and `CLAUDE.md` §3 is not up for renegotiation;
 - **re-running, resuming, repairing, extending or re-tuning the Phase-A long baseline.** A
   valid measurement exists (§3h); re-running it would not make it more valid. Its scientific
   contract — seeds, the 100 × 8 schedule, evaluation cadence, matched-pair design, PPO
-  settings, cell geometry and FD-BASELINE-v1 parameters — is frozen as the comparison
-  basis for the actor-only vs CTDE experiment;
+  settings, cell geometry and FD-BASELINE-v1 parameters — is frozen as the reference
+  baseline. **The variable-severity baseline is an ADDITIONAL run, not a replacement,
+  a rerun or an extension of it;**
 - **re-interpreting the approved Phase-A result, or claiming more than it establishes.** The
   non-claims in §3h are binding: no global optimality, no monotonic convergence, no
-  generalization beyond this fixed cell and held-out seed set, no CTDE benefit;
-- selecting or enabling a SECOND difficulty factor (`probability < 1`, hostile fire/SAMs,
-  dense/per-wake reward, or a stochastic/partial fuel-degradation variant) — each is its own
-  research change, and none may be bundled into Phase B (see the future-topic note below);
+  generalization beyond this fixed cell and held-out seed set, no CTDE benefit. **It is a
+  baseline of the LEGACY FD-BASELINE-v1 design and is not an expectation for the
+  variable-severity cell;**
+- **pre-claiming ANY variable-severity result.** PR #27 merged CODE only (§3i); nothing
+  about that cell's behaviour is known, and a null or negative severity response is a valid
+  observation;
+- selecting or enabling a FURTHER difficulty factor — **`probability < 1` / stochastic
+  target destruction, hostile fire / SAMs, and dense/per-wake reward all remain SEPARATE,
+  still-deferred research changes**, none of them implemented by PR #27 and none of them
+  bundleable into Task 7 or Task 8;
 - **reopening Defects A, B or C, the roster/world-truth defect, or acting on the §3e
   over-safety hypothesis** — all four defects are closed, approved and merged, the first
   three are operationally witnessed, and the hypothesis is a future research question about
@@ -1118,8 +1304,12 @@ The next task is **Phase-B CTDE DESIGN** (§4). Out of scope for it:
   inconclusive run is still evidence, and preserved artifacts are what made the roster
   defect provable and the Phase-A result reviewable;
 - **deleting ANY branch or tag from THIS CC task** — it retires nothing. Retiring
-  `task/phase-a-baseline-valid-doc-lock` after merge is a separate action owned by the GPT
-  orchestrator, performed only after its tip is verified reachable from integrated `main`;
+  `task/variable-fd-severity-doc-lock` (or the merged implementation branch
+  `task/variable-fd-severity-baseline`) after merge is a separate action owned by the GPT
+  orchestrator, performed only after each tip is verified reachable from integrated `main`;
+- **moving or deleting `phase-a-baseline`
+  (`4f0068847b017795717c5f0e331f647bcfc30547`)** — it preserves the Phase-A reference code
+  state and is IMMUTABLE;
 - **deleting or moving `flat-final` or the `pre-cleanup` tag** — they are permanently
   preserved;
 - checkpoint loading/resume;
@@ -1129,15 +1319,18 @@ The next task is **Phase-B CTDE DESIGN** (§4). Out of scope for it:
   documentation audit were closed by PR #11's follow-up hygiene task, and Phase B neither
   needs nor may reopen them.
 
-**FUTURE DESIGN TOPIC, recorded only so it is not lost — NOT authorized, NOT specified.**
-After CTDE is designed and validated, the user intends to consider a SEPARATE
-stochastic/partial fuel-degradation difficulty in which RTB remains feasible but mission
-continuation is not deterministically forced to be impossible — i.e. a softer, less
-binary version of the FD-BASELINE-v1 window. **No severity value, distribution, timing law,
-trigger rule or reward semantics is defined or implied here**, and nothing about
-FD-BASELINE-v1 changes. It would be its own research-design decision with its own
-semantics, observability, proof obligations and bounded implementation/lock task, and it
-comes after Phase B, never bundled into it.
+**THE FORMER "FUTURE DESIGN TOPIC" IS NOW REALIZED — and its ordering was deliberately
+inverted.** Earlier handoffs recorded, as an unauthorized and unspecified future topic, a
+SEPARATE stochastic/partial fuel-degradation difficulty in which RTB stays feasible but
+mission continuation is not deterministically forced to be impossible — a softer, less
+binary version of the FD-BASELINE-v1 window — to be considered **after** Phase B. **That
+topic is FD-VARIABLE-SEVERITY-v1: it is now specified, implemented, reviewed and MERGED
+(§3i, PR #27), and by explicit decision its baseline is measured BEFORE Phase B, not
+after** (§4). FD-BASELINE-v1 itself is unchanged, and the Phase-A reference baseline
+measured on it is untouched. What remains genuinely future and unauthorized is the rest of
+the deferred list — `p(destroy) < 1`, hostile fire / SAMs and dense/per-wake reward — each
+still its own research-design decision with its own semantics, observability, proof
+obligations and bounded implementation/lock task.
 
 ## 7. Documentation duties
 
@@ -1156,38 +1349,41 @@ comes after Phase B, never bundled into it.
 | FIRST LONG BASELINE completes — **DONE for `training_output_long_baseline_100x8_seed0`; INCONCLUSIVE** | Exact contract and resolved configuration, complete provenance, the two elapsed quantities, every denominator, the failure breakdown by error type and by condition, the artifact findings and the evidence hashes recorded in §3f, with the authoritative measurement record in `CLAUDE.md` §7 and the gate in §8. **Verdict: engineering `REQUEST FIXES`, scientific `INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`; its reward, paired-delta, survival, fuel-damage-yield and PPO-performance outputs are raw historical outputs and NOT scientific evidence** |
 | Roster / world-truth correction lands — **DONE for PR #24** | Allocation-is-not-inventory and the two raw pre-solve snapshots recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the identical-tree evidence; the superseded PR-#7 routing corrected at its own site; the two affected measurements' verdicts revised in §7; and §8 updated so it no longer claims a passed gate or an unrun long baseline. §3g summarizes it here — recorded without pre-claiming any result |
 | FRESH LONG BASELINE completes — **DONE for `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`; `APPROVE — VALID MEASUREMENT`** | Resolved configuration (the SAME contract as the preserved `long_baseline_contract.json`, differing ONLY in `output_dir`), complete provenance, the two elapsed quantities, every denominator, clean/damaged and matched-pair populations, failures by stage and error type, event/wake/RTB/death outcomes, reward headroom, productive-update yield and artifact completeness recorded in §3h, with the authoritative record, the Phase-A conclusion, its explicit NON-CLAIMS and the evidence hashes in `CLAUDE.md` §7 and the phase state in §8. **Validity was judged BEFORE performance and PASSED on all five clauses. This CLOSES PHASE A** |
-| PHASE-B CTDE DESIGN completes — **NEXT TRIGGER; NOT YET STARTED** | Record the reviewed design in `CLAUDE.md` — the size-agnostic value estimator off `GraphEncoder.pool()`, the EXPLICIT enumeration of training-only privileged information, the actor/critic separation and its proof obligations, and the preserved no-communication execution invariant (§3) — plus the planned actor-only vs CTDE comparison on the LOCKED Phase-A reference cell judged under the SAME validity gate. Design first; implementation is a separate later task. **No CTDE benefit may be pre-claimed**, and a measured null result is a valid negative observation |
+| FD-VARIABLE-SEVERITY-v1 CODE lands — **DONE for PR #27** | Legacy preservation, the independent severity RNG domain, the two live mild/severe bands, the live-midpoint target policy, the matched clean/mild/severe TRIAD evaluation, the durable `episode_outcomes.jsonl` stream and the scheduled-vs-executed CELL measurement-integrity abort recorded as contracts in `CLAUDE.md` §5, routed in §6, locked in §7 with the append-only fix chain and the identical-tree / zero-diff integration proof; §2's locked-layer wording widened to both designs; §8's research ordering corrected to put the additional actor-only baseline BEFORE Phase-B CTDE. §3i summarizes it here — **recorded without pre-claiming any result, and `p(destroy) < 1` explicitly NOT implemented** |
+| THE ADDITIONAL ACTOR-ONLY VARIABLE-SEVERITY BASELINE completes — **NEXT TRIGGER; NOT YET STARTED** | Record the run identity, the exact measured code SHA, the resolved configuration and its one invocation, complete provenance, both elapsed quantities, EVERY denominator (attempted / successful / failed, per cell and overall), the failure breakdown by stage and error type, the clean / mild / severe reward means, the three matched deltas over COMPLETE TRIADS ONLY, the severity-conditioned FD-wake meta-action counts and rates WITH their wake denominators, RTB / death / target-coverage outcomes, artifact completeness and the evidence hashes — in `CLAUDE.md` §7 with the phase state in §8, and summarized here. **Validity is judged BEFORE performance; a null or negative severity response is a valid observation** |
+| PHASE-B CTDE DESIGN completes — **DEFERRED behind the trigger above; NOT YET STARTED** | Record the reviewed design in `CLAUDE.md` — the size-agnostic value estimator off `GraphEncoder.pool()`, the EXPLICIT enumeration of training-only privileged information, the actor/critic separation and its proof obligations, and the preserved no-communication execution invariant (§3) — plus the planned actor-only vs CTDE comparison on the LOCKED Phase-A reference cell judged under the SAME validity gate. Design first; implementation is a separate later task. **No CTDE benefit may be pre-claimed**, and a measured null result is a valid negative observation |
 
 ## 8. Next action
 
 Implementation for the Phase-A baseline cell is COMPLETE and locked, its inspection surface
-is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), and the **probe
-harness is CLOSED** (PR #14). **FOUR defects were found, corrected, approved and merged** —
-**Defect A, ego-global `SELF_PRESERVATION_ABORT`** (approved `d56fda6`, integrated `f094e0b`,
-PR #17, identical tree `70e5af2...`), **Defect B, the attack-confirmation wait derived from
-the salvo about to fly** (approved `39a16f2`, integrated `60a82d1`, PR #19, identical tree
-`ee86f07...`), **Defect C, physical RTB completion** (approved `ea62e4e`, integrated
-`0de9f21`, PR #21, identical tree `6d05cc5...`) and **the FOURTH, SEPARATE roster /
-world-truth defect — allocation read as world inventory** (approved `36365f2`, integrated
-`f37ea1c`, PR #24, identical tree `f8015380...`, §3g). Those corrections were integrated as
-`main` = `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc` (PR #25), which is **the exact code SHA
-the Phase-A baseline was measured at.** That SHA is durable as a MEASUREMENT identity; it is
-**not** a durable claim about live `main`, which this record's own integration necessarily
-advances. Resolve the live full `main` SHA from GitHub (§1).
+is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), the **probe
+harness is CLOSED** (PR #14), and the **FD-VARIABLE-SEVERITY-v1 research factor is CLOSED /
+APPROVED / MERGED** (PR #27, §3i). **FOUR defects were found, corrected, approved and
+merged** — **Defect A, ego-global `SELF_PRESERVATION_ABORT`** (approved `d56fda6`,
+integrated `f094e0b`, PR #17), **Defect B, the attack-confirmation wait derived from the
+salvo about to fly** (approved `39a16f2`, integrated `60a82d1`, PR #19), **Defect C,
+physical RTB completion** (approved `ea62e4e`, integrated `0de9f21`, PR #21) and **the
+FOURTH, SEPARATE roster / world-truth defect — allocation read as world inventory**
+(approved `36365f2`, integrated `f37ea1c`, PR #24, §3g). Those corrections were integrated
+as `main` = `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc` (PR #25), which is **the exact code
+SHA the Phase-A baseline was measured at** — a durable MEASUREMENT identity, **not** a claim
+about live `main`. **This record's BASE is a different SHA:**
+`177e969446ef6c01c729484f2ea9969c94a27330`, the PR #27 CODE merge (§1). Resolve the live
+full `main` SHA from GitHub.
 
-**THE MEASUREMENT STATE, STATED PLAINLY. PHASE A IS CLOSED.** The authorized long-baseline
-rerun — `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` at exact code SHA
+**THE MEASUREMENT STATE, STATED PLAINLY. PHASE A IS CLOSED, AND ITS BASELINE IS
+IMMUTABLE.** The authorized long-baseline rerun —
+`training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` at exact code SHA
 `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`, ONE invocation, native exit 0,
 `cli_overrides = []` — was independently reviewed **`APPROVE — VALID MEASUREMENT`** and is
 **the FIRST scientifically valid measurement of the fuel-damage cell** (§3h). It passed the
-validity gate on all five clauses BEFORE any performance was read: complete provenance on a
-clean checkout, `accounting_reconciled = true`, ZERO infrastructure or data-integrity
-faults, and a completed matched pair in both the `pre_update` and the final `post_update`
-round. **It is the ONLY run whose reward, paired delta, survival, fuel-damage yield and PPO
-performance are scientific evidence about this cell.** The three earlier runs remain
-preserved and are HISTORY ONLY: the first short probe (§3d, pre-correction behaviour), the
-corrected short-probe rerun (§3e, verdict SUPERSEDED) and the first long baseline (§3f,
-`INCONCLUSIVE — ROSTER/DATA INTEGRITY FAILED`). Their mechanical accounting reconciled in
+validity gate on all clauses BEFORE any performance was read. **It is the ONLY run whose
+reward, paired delta, survival, fuel-damage yield and PPO performance are scientific
+evidence about this cell**, it is a measurement of the **LEGACY FD-BASELINE-v1** design, and
+the branch **`phase-a-baseline` = `4f0068847b017795717c5f0e331f647bcfc30547`** preserves its
+code state and must not move. The three earlier runs remain preserved and are HISTORY ONLY:
+the first short probe (§3d), the corrected short-probe rerun (§3e, verdict SUPERSEDED) and
+the first long baseline (§3f, `INCONCLUSIVE`). Their mechanical accounting reconciled in
 every case, which is precisely the lesson: **a self-consistent ledger over a population an
 instrument defect shrank is not a measurement.**
 
@@ -1198,39 +1394,68 @@ updates, evaluation deaths `7 → 0`, and a deterministic shift from `PLAN_COMPL
 `SELF_PRESERVATION_ABORT` in all seven completed damaged held-out worlds, corroborated by
 physical playback. It establishes **NO global optimality, NO monotonic convergence, NO
 generalization beyond this fixed cell and this held-out seed set, and NO benefit from
-centralized training.** Those non-claims are binding on every downstream document.
+centralized training.** Those non-claims are binding on every downstream document, and
+**none of these numbers is an expectation for the variable-severity cell.**
+
+**THE CURRENT PHASE IS THE PRE-PHASE-B ADDITIONAL ACTOR-ONLY VARIABLE-SEVERITY BASELINE.**
+The FD-VARIABLE-SEVERITY-v1 CODE is merged and locked (approved `eecc9b5…`, integrated
+`177e969…`, identical tree `37ebd8c…`, zero changed files candidate→integration, PR #27),
+and **NO variable-severity scientific baseline has been executed** — nothing about that
+cell's behaviour is known, and no result may be pre-claimed. This ordering is a DELIBERATE
+user/orchestrator decision that supersedes the previous handoff's "Phase-B CTDE is next": an
+additional actor-only stress baseline is taken FIRST, so the actor-only response to a
+survivable-versus-unsurvivable loss is known before any centralized-critic comparison is
+attempted. **It is not a reopening of Phase A.** `p(destroy) < 1` was NOT implemented by
+PR #27 and remains a separate, later research task.
 
 **No active CODE candidate exists**, and the state below is written to be valid on BOTH
 sides of this record's own integration. **While this record is published and under review**
 the sole active candidate of any kind is this documentation/lock task itself — branch
-`task/phase-a-baseline-valid-doc-lock` and its draft PR — and no other candidate should be
-claimed. **Once this record is integrated into `main`, no active candidate remains** and
-ownership is RELEASED to a **Phase-B CTDE design orchestrator**. The integrating merge's SHA
+`task/variable-fd-severity-doc-lock` and its draft PR — and no other candidate should be
+claimed; **ownership rests with the GPT ADDITIONAL-BASELINE ORCHESTRATOR while it is
+active.** **Once this record is integrated into `main`, no active candidate remains** and
+ownership is RELEASED to the orchestrator that executes Task 7. The integrating merge's SHA
 is deliberately NOT named here: it does not exist while this is written, and inventing it
 would be a false provenance claim. **GitHub remains authoritative for live branch and PR
 state — resolve it there, never from this document.** Retiring
-`task/phase-a-baseline-valid-doc-lock` after merge is a separate action owned by the GPT
-orchestrator, done only once its tip is verified reachable from integrated `main`;
-`flat-final`, the `pre-cleanup` tag, every preserved scientific artifact and all GitHub PR
-refs and history stay PRESERVED.
+`task/variable-fd-severity-doc-lock` and the merged implementation branch
+`task/variable-fd-severity-baseline` after merge is a separate action owned by the GPT
+orchestrator, done only once each tip is verified reachable from integrated `main`;
+`phase-a-baseline`, `flat-final`, the `pre-cleanup` tag, every preserved scientific artifact
+and all GitHub PR refs and history stay PRESERVED.
 
-**The next task is PHASE-B CENTRALIZED-CRITIC / CTDE DESIGN** (§4, Task 6). It starts in a
-NEW orchestrator, only after this record is approved and merged and GitHub shows no active
-task PR or candidate; it begins with **fresh live-`main` resolution and a re-read of both
-documents at that SHA**; and it begins as **DESIGN / RECON, not implementation.** The design
-must state the size-agnostic value estimator off `GraphEncoder.pool()`, how decentralized
-no-communication EXECUTION is preserved exactly, **exactly which privileged all-agent
-information the critic may read and that it is TRAINING-ONLY**, the actor/critic separation
-with its proof obligations, and a clean actor-only vs CTDE comparison **on the LOCKED
-Phase-A reference cell** under the SAME validity gate — before any further environment
-difficulty is added. **No CTDE benefit may be pre-claimed**, and a measured null result is a
-valid negative observation. Difficulty expansions (`probability < 1`, SAMs, a
-stochastic/partial fuel-degradation variant, dense reward) remain separate later research
-changes and must not be bundled in (§6).
+**The next task is THE BOUNDED 50 × 8 ACTOR-ONLY FD-VARIABLE-SEVERITY-v1 BASELINE** (§4,
+Task 7). It starts in a NEW orchestrator, only after this record is approved and merged and
+GitHub shows no active task PR or candidate; it begins with **fresh live-`main` resolution
+and a re-read of both documents at that SHA**; and it is a **MEASUREMENT task — it changes
+no code, test, config or preset.** The approved shape: **50 scheduled training iterations ×
+8 scheduled training attempts = 400** at `base_seed = 0`; evaluation every 5 iterations
+including the initial `pre_update` ⇒ **11 rounds**; **8 fixed held-out seeds** in the
+existing eval band, each a matched **clean / mild / severe TRIAD** ⇒ **11 × 8 × 3 = 264**
+scheduled evaluation attempts; **664 scheduled attempts total; NO early stopping**; ONE
+invocation through `--config` from its own measurement contract with `cli_overrides = []`;
+a FRESH, NON-OVERWRITING output directory chosen by that task, whose name and artifact
+hashes are deliberately NOT invented here. The **PRIMARY behavioural evidence is the
+severity-conditioned FD-wake meta-action response with its own wake denominators**, not
+reward, and the only within-seed claims are the three deltas over COMPLETE triads.
+**Validity is judged BEFORE performance**, and **a null or negative severity response is a
+valid negative observation**, not a technical failure and not grounds to re-run or re-tune.
+
+**PHASE-B CENTRALIZED-CRITIC / CTDE DESIGN is DEFERRED behind that measurement** (§4,
+Task 8) and is **no longer the immediately-next task.** When it is authorized it begins as
+**DESIGN / RECON, not implementation**, and must state the size-agnostic value estimator off
+`GraphEncoder.pool()`, how decentralized no-communication EXECUTION is preserved exactly,
+**exactly which privileged all-agent information the critic may read and that it is
+TRAINING-ONLY**, the actor/critic separation with its proof obligations, and a clean
+actor-only vs CTDE comparison **on the LOCKED Phase-A reference cell** under the SAME
+validity gate. **No CTDE benefit may be pre-claimed.** The remaining difficulty expansions
+(`probability < 1`, SAMs, dense reward) stay separate later research changes and must not be
+bundled in (§6).
 
 **The Phase-A long baseline is NOT to be re-run, resumed, repaired, extended or re-tuned.**
 A valid measurement exists; re-running it would not make it more valid. Its scientific
-contract is frozen as the comparison basis for the actor-only vs CTDE experiment.
+contract is frozen as the reference baseline, and the variable-severity run is an
+ADDITIONAL measurement beside it, never a replacement for it.
 
 Resolve live branch and PR state from GitHub; this document does not track it.
 

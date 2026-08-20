@@ -114,7 +114,9 @@ cleanup began) — **this document describes the graph model only.**
 
 ### 🛑 The BUILT graph layers are stable & reviewed
 Every graph layer in §5 — the nine pipeline stages plus the trainer contract and the
-FD-BASELINE-v1 difficulty factor — is BUILT, REVIEWED, and LOCKED (see §7 commits). Their **interfaces are contracts** — change them only through the same recon→prompt→review→lock discipline, and never in a way that weakens the no-communication guarantee (§3).
+difficulty-factor layer in BOTH its designs (the LEGACY FD-BASELINE-v1 and its
+FD-VARIABLE-SEVERITY-v1 mild/severe extension) — is BUILT, REVIEWED, and LOCKED (see
+§7 commits). Their **interfaces are contracts** — change them only through the same recon→prompt→review→lock discipline, and never in a way that weakens the no-communication guarantee (§3).
 
 ---
 
@@ -738,14 +740,24 @@ changes is how a run is CONFIGURED and how its results are PRESENTED.
   so 0 is the OPTIMUM and plotting a total data loss there would invert its meaning; the
   gap is accounted for in `measurement_health.png`.
 
-**FD-BASELINE-v1 — the difficulty factor — `rl/training/graph_fuel_damage.py`**
-(consumed by `graph_tick_loop.run_episode`, `graph_train` and `graph_rollout`).
+**FD-BASELINE-v1 — the LEGACY difficulty factor, and the PRESERVED Phase-A semantics —
+`rl/training/graph_fuel_damage.py`** (consumed by `graph_tick_loop.run_episode`,
+`graph_train` and `graph_rollout`).
 
-THE **ONE** SELECTED DIFFICULTY FACTOR of the current final Phase-A baseline cell. The
+THE **ONE** SELECTED DIFFICULTY FACTOR of the Phase-A reference baseline cell, and the
+design the approved Phase-A long-baseline measurement (`737b4bf`, §7) was taken on. The
 scenario is otherwise UNCHANGED: 3 agents, 3 known + 3 route-relative hidden airbase
 targets, 200 km / 100 km geometry, `DETECTION_KM = 50`, `include_sams=False`,
 `probability = 1`, unchanged BLADE weapon lethality, frozen solver, unchanged PPO. No
 second factor is bundled in (§8).
+
+**THIS CONTRACT IS UNCHANGED BY FD-VARIABLE-SEVERITY-v1** (the block that follows). The
+legacy modes — `off`, `seeded_mixture`, `forced_clean`, `forced_damaged`
+(`FuelDamageMode.LEGACY`) — keep the same seeds, the same conditions, the same selected
+egos, the same PLANNED-midpoint target (`TARGET_POLICY_PLANNED_MIDPOINT`) and the same
+live check order. That preservation is load-bearing rather than tidy: an approved
+measurement exists on these modes, and a factor that quietly moved them would invalidate
+that baseline instead of extending it.
 
 - **Deterministic private RNG domain.** `derive_fuel_damage_seed` is
   `SHA-256("fuel_damage_v1:<episode_seed>")`, so the clean/damaged draw and the ego
@@ -825,6 +837,177 @@ second factor is bundled in (§8).
   duck-typed attributes. That is what makes the whole factor hand-testable and keeps it
   safe inside `graph_tick_loop`'s import-purity closure.
 
+**FD-VARIABLE-SEVERITY-v1 — the mild/severe extension of the SAME event —
+`rl/training/graph_fuel_damage.py` + `rl/training/graph_train.py` +
+`rl/training/graph_rollout.py`.**
+
+MERGED AND LOCKED (`eecc9b5`, §7), **NOT YET MEASURED** — no variable-severity baseline
+has been executed, and none may be pre-claimed (§8). It is an ADDITIONAL actor-only
+stress design layered on the legacy factor, not a replacement for it and not a reopening
+of the closed Phase-A reference.
+
+- **WHY.** Under FD-BASELINE-v1 every damaged episode is structurally SEVERE, so
+  "damaged" and "continuing is infeasible" are the SAME fact and a trained actor can
+  learn the shortcut `fuel damage ⇒ abort` without ever reading its own fuel gauge. The
+  variable design splits the damaged half into a band where continuing REMAINS feasible
+  and a band where it does not, which is what makes the response a real decision that has
+  to be read off the ego's own live fuel.
+- **The modes.** `FuelDamageMode.VARIABLE` = `seeded_variable` (TRAINING),
+  `forced_mild` and `forced_severe` (the two damaged EVALUATION members).
+  `forced_clean` is DELIBERATELY NOT in that tuple — a clean member has no severity under
+  either design, and listing it would make "is this a variable-severity run?"
+  unanswerable from one evaluation member's mode. `FuelDamageParameters.variable_severity`
+  is the ONE predicate behind that question; a RUN's design is keyed off its TRAINING
+  mode (`TrainConfig.variable_severity` ⇔ `fuel_damage_mode == seeded_variable`).
+- **The scheduled distribution.** `seeded_variable` draws the clean/damaged bit with
+  EXACTLY the `seeded_mixture` draw — same domain, same order, same `probability` — and a
+  damaged episode is THEN assigned a severity. With `fuel_damage_probability = 0.50` and
+  `fuel_damage_mild_probability = P(mild | damaged) = 0.50` that is the approved flat
+  **0.50 clean / 0.25 mild / 0.25 severe**. It is stated as TWO independent knobs so that
+  "how often is anything damaged" stays the knob it has always been, and
+  `_scheduled_cell_probabilities` records the PRODUCT in `run_config.json` so a mis-set
+  conditional is visible in the artifact rather than only in the results.
+- **SEVERITY HAS ITS OWN RNG DOMAIN, AND THE SEPARATION IS LOAD-BEARING.** The legacy
+  condition/ego draws stay in `fuel_damage_v1` (`derive_fuel_damage_seed`); severity comes
+  from `fuel_damage_severity_v1` (`derive_fuel_damage_severity_seed`), same SHA-256
+  construction, separate stream. Taking the mild/severe bit from the v1 stream would
+  insert a draw BETWEEN the mixture bit and the ego selection and change WHICH EGO every
+  damaged episode picks — silently invalidating the approved FD-BASELINE-v1 measurement
+  instead of extending it. With two domains the decisions are orthogonal: severity cannot
+  move the ego and the ego cannot move severity. `resolve_severity` returns `None` under
+  every legacy mode — "this episode carries no severity LABEL", which is a different
+  statement from "this episode was mild", so a legacy record is never re-read as a
+  variable one — and the forced severity modes still TAKE the draw and discard it, so a
+  forced member's stream position matches its seeded counterpart's.
+- **THE TWO LIVE BANDS** (`severity_band`, the ONE arithmetic site for both severities AND
+  for the legacy design), measured against the same `measure_window` output — `F_rtb` =
+  `rtb_fuel_floor`, `F_cont` = `continue_fuel_requirement`, both already carrying the
+  `margin = 1.10` reserve:
+  - **MILD** — the OPEN interval `(F_cont, F_before)`: `F_rtb < F_cont < F_after <
+    F_before`. A real LOSS (strictly below the pre-damage fuel), safe RTB feasible, and
+    completing the remaining route and THEN returning still genuinely feasible.
+  - **SEVERE** — the half-open interval `[F_rtb, F_cont)`: `F_rtb ≤ F_after < F_cont ≤
+    F_before`. A real loss, safe RTB feasible, continuation infeasible. **This is exactly
+    the legacy interval**, which is why "severe reproduces the legacy physics" is
+    checkable rather than merely asserted. What still differs is WHERE the interval is
+    measured, below.
+- **TARGET POLICY — the one behavioural difference from legacy.** The legacy design keeps
+  `TARGET_POLICY_PLANNED_MIDPOINT`: it applies the PLANNED value and validates it live.
+  The variable design uses `TARGET_POLICY_LIVE_SEVERITY_MIDPOINT` — the post-damage fuel
+  is DERIVED at the event tick as the midpoint of the severity's band measured from the
+  LIVE window and the LIVE fuel. Mild and severe are statements about the fuel the ego
+  really holds where it really is, and a value fixed before the run could only be CHECKED
+  against that, never guaranteed to land in the right band of it. The midpoint is the
+  point furthest from both ends, so neither bound is decided by floating-point noise.
+  `FuelDamageController.maybe_apply` keeps the two designs' live checks in separate
+  helpers (`_live_legacy_target` / `_live_variable_target`) precisely so the legacy CHECK
+  ORDER — which decides what an already-measured `run`-stage failure reports — cannot be
+  disturbed.
+- **FAILURE POLICY IS UNCHANGED AND STILL LOUD.** `_require_valid_band` checks four facts
+  in order (non-degenerate interval; the midpoint really inside it, honouring the
+  inclusivity that distinguishes mild from severe; a real loss; safe RTB still
+  affordable), each with its own message and a `planned` / `live` label. It raises BEFORE
+  the mutation, so a refused event leaves the engine untouched. **NOTHING is clamped,
+  weakened, re-planned, retried, downgraded to the other severity, given a replacement
+  ego, or converted to a clean episode** — a silent downgrade would move the population
+  every per-condition statistic is reported over. The attempt lands in
+  `skip_and_account_v1` exactly as before.
+- **NO-COMMUNICATION AND OBSERVABILITY ARE UNCHANGED.** The actor is never told which
+  case it is in: **no severity label reaches `GraphObservation`**, no severity feature and
+  no new node/edge/column exist, and the only thing that changes in the ego's input is its
+  OWN real `fuel_norm` — which is exactly what the decision has to be read off. Peer graph
+  rows stay featureless, so no peer fuel leaks. The layer's PURITY is unchanged (no BLADE,
+  gymnasium, torch, solver, file I/O or module-global randomness).
+- **WHAT IS EXPLICITLY NOT IN THIS DESIGN.** Target destruction stays DETERMINISTIC at
+  `probability = 1`; BLADE weapon lethality, the frozen solver, `graph_reward`'s formula,
+  PPO, the encoder, the action space, `DETECTION_KM`, B2 placement, the seed schedules and
+  the vendored engine are all unchanged. **`p(destroy) < 1` is a SEPARATE future Grade-A
+  research task and was NOT implemented here** (§8).
+
+**FD-VARIABLE-SEVERITY-v1 measurement surface — matched TRIADS and the durable outcome
+stream — `rl/training/graph_train.py`.**
+
+- **The matched CLEAN / MILD / SEVERE TRIAD** (`_EVAL_TRIAD_MEMBERS`, in attempt order,
+  each member a `(cell, mode)` pair). All three members use the SAME held-out seed —
+  hence the same generated world, the same solved `A_init`, the same hidden geometry, and
+  for the two damaged members the SAME deterministically selected ego — and differ ONLY in
+  the fuel-damage event. That is what lets "did the actor respond DIFFERENTLY to a
+  survivable loss than to an unsurvivable one?" be asked WITHIN one world rather than
+  across worlds. The clean member reuses the existing `forced_clean` mode rather than
+  needing a new one. Members carry DISTINCT artifact tags (`eval_member_tag`, slot
+  `e·group_size + m`), and `TrainConfig.validate` sizes the tag namespace against the
+  group size the run will really use. **A legacy run keeps its clean/damaged PAIR and
+  evaluation NEVER silently becomes a triad** — only a `seeded_variable` run evaluates
+  triads; `TrainConfig.eval_group_kind` reports `pair` or `triad` so a reader never has to
+  count members.
+- **A CELL IS A REPORTING LABEL, NOT A NEW CONDITION.** `_ConditionTally` stores per CELL
+  — `clean` / `damaged` for a legacy run, `clean` / `mild` / `severe` for a variable one —
+  and the clean/damaged keys are DERIVED by pooling (`cell_condition`). For a legacy run
+  the cells ARE the conditions, the pooling is the identity, and every emitted key keeps
+  exactly the value it had.
+- **PRIMARY BEHAVIOURAL EVIDENCE: the severity-conditioned FD-WAKE META-ACTION RESPONSE**,
+  not reward. It is tracked per cell with its OWN denominator — **FD WAKES**, which is at
+  most the cell's successful-episode count and CAN be smaller (an event can fire without
+  the policy ever being woken by it), so it is stored and reported separately rather than
+  inferred. `_ConditionTally.success` counts EVERY successful episode of the cell but
+  increments `fd_wakes[cell]` only on `wake_occurred`, so `fd_wakes[cell] <=
+  successful(cell)` — with EQUALITY when every successful episode in that cell did produce
+  an FD wake. The point of the separate denominator is that the two CAN diverge, never
+  that they must.
+  Rates are `None`, never `0.0`, on an empty wake population. **"Mild must always choose
+  `PLAN_COMPLIANCE`" is NOT encoded anywhere as a correctness rule and must not be** —
+  opportunistic engagement under a survivable loss can be rational; what is measured is
+  whether the response DIFFERS, not whether it matches a prescribed label.
+- **THE THREE WITHIN-SEED DELTAS** (`_EVAL_TRIAD_DELTAS`): `mild − clean`,
+  `severe − clean`, `severe − mild`. **Every one is averaged over COMPLETE matched groups
+  ONLY** — a triad needs ALL THREE members to succeed, a group with a failed member
+  contributes to NONE of the deltas, is never repaired from its surviving members (a
+  clean+mild pair inside a failed triad yields no mild−clean delta either), and is still
+  visible in the attempt counts. The per-cell reward MEANS remain each over THAT cell's
+  own successful subset, so — exactly as for the legacy pair (§5, the two presentation
+  invariants) — the only within-seed claims are the deltas.
+- **`episode_outcomes.jsonl` — ONE durable record per SUCCESSFUL attempt.** The
+  per-iteration and per-round records are AGGREGATES, and an aggregate cannot be
+  un-averaged: "how did the actor respond to MILD, episode by episode, and in which
+  worlds?" is a per-episode question. Each record states its own identity, event and
+  outcome once, appended and FLUSHED immediately, so a run killed mid-batch still accounts
+  for every completed attempt. **It never duplicates the ledger** — failed attempts stay
+  in `episode_failures.jsonl` and appear here NOT AT ALL, so the two files are disjoint by
+  construction. **Missing is `null`, never `0`** (a clean episode has no fuel reading, an
+  unfired event has no tick, an absent wake has no meta-action; a zero would read as a
+  measurement). **`run_summary.json:/severity_response` is DERIVED FROM THIS FILE**
+  (`_severity_response_from_outcomes`, with `severity_response_source` naming it), not
+  from a separate in-memory aggregate — one metric path, so the summary cannot describe a
+  run its own artifacts do not.
+- **Everything the legacy reporting surface carried is preserved**: attempted /
+  successful / failed counts per cell, per-cell reward means, RTB command yield (still
+  from `FuelDamageOutcome.rtb_command_issued`, i.e. real Phase-2 COMMAND HISTORY, never
+  the executor's `rtb_issued` latch), deaths and target coverage. The legacy
+  damaged−clean delta key is `null` under a triad run, whose three named deltas are the
+  complete statement of it.
+
+**SCHEDULED CELL vs EXECUTED CELL — a measurement-integrity abort
+(`_ConditionTally.success`, the approved review fix `eecc9b5`).**
+`success(out, *, expected_cell)` takes the SCHEDULE's cell as a **REQUIRED keyword** and
+requires `executed_cell == expected_cell` — **equality, not membership**. Membership alone
+cannot see the fault: under FD-VARIABLE-SEVERITY-v1 a scheduled `mild` that executed as
+`severe` names a cell the run legitimately reports, so a membership test ACCEPTS it and
+books the ATTEMPT in one cell's denominator and the REWARD in another. **That corrupts
+BOTH denominators at once** — the scheduled cell reads as a failure that never happened,
+the executed cell as a success that was never scheduled — and a triad's within-seed delta
+would be taken between two members the schedule never paired. The keyword is required
+deliberately: an optional one would let a future call site skip the check by omission.
+Three disjoint faults are named separately (the SCHEDULE names an unreported cell; the
+EXECUTION reports an unreported cell; both reportable but DISAGREEING), all are
+`MeasurementIntegrityError`, and every check runs BEFORE any state is mutated, so a
+rejected episode leaves the tally byte-unchanged. **BOTH production call sites pass their
+scheduled cell and the guard runs FIRST**, so a mismatched episode reaches NEITHER the
+per-cell counters and rewards, NOR a matched-group member reward or delta, NOR
+`episode_outcomes.jsonl`, NOR the PPO buffer. It ABORTS the run as INFRASTRUCTURE exactly
+as a roster fault does — never an accounted scientific episode failure. **This has NOT
+been observed in the real simulator**: the regression test INJECTS the divergence through
+a stub, because normal production does not currently generate it.
+
 ---
 
 ## 6. File map — "I want to…"
@@ -838,16 +1021,19 @@ second factor is bundled in (§8).
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance` + `config_source`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures under `plots/`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
-| Change how a run FAILS on a measurement/data-integrity fault (as opposed to an episode fault) | `rl/training/graph_train.py` (`MeasurementIntegrityError`, its subclass `EpisodeRosterError`, `_world_snapshot_ids`, `_episode_target_roster`, `_require_scheduled_cell`, and the `except (_VisualArtifactError, MeasurementIntegrityError)` re-raises in the train and eval attempt handlers). It ABORTS the run and is NEVER written to `episode_failures.jsonl`, counted against a condition, or entered into `skip_and_account_v1` — that routing is the §5 roster-integrity contract and deliberately reverses PR #7's |
+| Change how a run FAILS on a measurement/data-integrity fault (as opposed to an episode fault) | `rl/training/graph_train.py` (`MeasurementIntegrityError`, its subclass `EpisodeRosterError`, `_world_snapshot_ids`, `_episode_target_roster`, `_require_scheduled_cell`, and the `except (_VisualArtifactError, MeasurementIntegrityError)` re-raises in the train and eval attempt handlers) — plus `_ConditionTally.attempt` and `_ConditionTally.success(out, *, expected_cell)`, whose scheduled-vs-executed CELL equality check is routed identically (§5). It ABORTS the run and is NEVER written to `episode_failures.jsonl`, counted against a condition, folded into a matched group, appended to `episode_outcomes.jsonl`, added to the PPO buffer, or entered into `skip_and_account_v1` — that routing is the §5 roster-integrity contract and deliberately reverses PR #7's |
 | Configure a run from a FILE, or add a preset | `configs/graph_train/final_cell_probe.json` (the ONLY repository preset: the bounded short probe) + `rl/training/graph_train.py` (`--config`, `load_config_file`, `resolve_train_config`, `_effective_argv`, `_explicit_cli_dests`, `_CLI_FIELD_BY_DEST` / `_CLI_PPO_FIELD_BY_DEST`). Presets name `TrainConfig` FIELDS; precedence is defaults < preset < explicitly typed flags. See the §5 harness contract |
 | Change what a run RECORDS about where its config came from | `rl/training/graph_train.py` (`config_source_record`, `_CONFIG_SOURCE_KINDS` = `config_file` / `cli_defaults` / `direct_config`, `write_run_config`). Always a structured object, never `null`; `resolved_from` is required, never inferred |
 | Change a FIGURE (or add one) | `rl/training/graph_train.py` (`plot_training`, `_plots_dir`, `_plot_training_performance`, `_plot_policy_diagnostics`, `_plot_measurement_health`, `_PLOT_FILENAMES`, `_PLOT_X_LABEL` / `_PLOT_X_SEMANTICS`, `_xy`, `plot_training_subprocess`). Figures go to `<run_dir>/plots/`; the two presentation invariants in §5 (condition means vs complete-pair delta, and the honest x-axis) are contractual |
 | Change the training scenario cell (target counts) | `rl/training/graph_train.py` (`TrainConfig.num_agents` / `n_known` / `n_hidden` / `min_target_distance_km` / `min_known_separation_km`, `build_variation_config`); mirrored field-for-field on `rl/training/graph_rollout.py` (`RolloutConfig`). The generator writes `n_known`; setup patches in `n_hidden`, so **emitted targets are `n_known + n_hidden`** (`TrainConfig.n_targets_emitted`). Legacy `num_red_airbases` / `partial_ratio` / `derived_split` / `split_preview` survive and are still tested but are NOT consulted by the construction path (B1, `d6758ac`). |
 | Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. `predict_route` imports `nearest_neighbor_order` from `utils/scheduling_utils.py`, NOT from any executor module. |
 | Change the SHARED intra-level nearest-neighbor ordering (route prediction + execution at once) | `utils/scheduling_utils.py` (`nearest_neighbor_order`). ONE implementation with TWO consumers — `blade_graph_executor.GraphPlanExecutor._eligible` and `graph_hidden_placement.predict_route`. Changing it changes BOTH; that shared identity is the route-fidelity invariant (`2a3f89c`). Pinned by `tests/test_graph_executor_nn_ordering.py`. |
-| Change the FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. |
-| Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched pairs, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
-| Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`). Rollouts run the seeded MIXTURE only — matched pairs are an evaluation construct and live in `graph_train.evaluate`. |
+| Change the LEGACY FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) — the PRESERVED Phase-A semantics | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. **The approved Phase-A measurement lives on these modes — do not move them; the mild/severe extension has its own row below.** |
+| Change the FD-VARIABLE-SEVERITY-v1 MECHANISM (severity draw, the two live bands, the live-midpoint target) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode.VARIABLE` = `seeded_variable` / `forced_mild` / `forced_severe`, `SEVERITY_MILD` / `SEVERITY_SEVERE` / `SEVERITIES`, `FUEL_DAMAGE_SEVERITY_RNG_DOMAIN`, `derive_fuel_damage_severity_seed`, `resolve_severity`, `FuelDamageParameters.mild_probability` / `variable_severity` / `target_policy`, `TARGET_POLICY_LIVE_SEVERITY_MIDPOINT`, `severity_band` / `_SeverityBand` / `_require_valid_band`, and `FuelDamageController._live_variable_target` beside the untouched `_live_legacy_target`). The severity domain is SEPARATE from `fuel_damage_v1` on purpose (§5) — merging them would move the ego every damaged episode selects and invalidate the approved Phase-A baseline. Same PURITY rules as the row above. |
+| Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_mild_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched groups, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
+| Change the matched CLEAN/MILD/SEVERE TRIAD evaluation, or a within-seed DELTA | `rl/training/graph_train.py` (`_EVAL_TRIAD_MEMBERS`, `_EVAL_TRIAD_DELTAS` beside the unchanged `_EVAL_PAIR_MEMBERS` / `_EVAL_PAIR_DELTAS`, `_EVAL_GROUP_KIND_PAIR` / `_EVAL_GROUP_KIND_TRIAD`, `TrainConfig.variable_severity` / `eval_group_members` / `eval_group_size` / `eval_group_kind` / `eval_group_deltas` / `reported_cells`, `_scheduled_cell_probabilities`, `_difficulty_factor_name`, and `evaluate`'s complete-group test). A legacy run keeps its PAIR; only a `seeded_variable` run evaluates triads. **Every delta is over COMPLETE groups only** — see §5. |
+| Read what an episode ACTUALLY did, per successful attempt (not an aggregate) | `rl/training/graph_train.py` (`_EPISODE_OUTCOMES_FILENAME` = `episode_outcomes.jsonl`, `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes` and the `severity_response` / `severity_response_source` / `episode_outcomes_recorded` keys of `run_summary.json`). SUCCESSFUL attempts only — failures stay in `episode_failures.jsonl` and the two streams are disjoint by construction. The severity-response table is DERIVED from this file, never from a parallel in-memory aggregate. |
+| Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`; `fuel_damage_mild_probability` mirrors the training knob and `seeded_variable` is selectable here too). Rollouts run a SEEDED design only — `seeded_mixture` or `seeded_variable` — because matched pairs and triads are an evaluation construct and live in `graph_train.evaluate`. |
 | Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `sync_recordings` / `finalize` (which reconciles expected vs observed world counts before it will say `complete`) / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
@@ -2021,13 +2207,76 @@ second factor is bundled in (§8).
   set, and **NOT** any benefit from centralized training. Those are subsequent research
   questions. **PHASE A IS CLOSED BY THIS ENTRY.**
 
+- `eecc9b5` — **FD-VARIABLE-SEVERITY-v1: the mild/severe fuel-damage research factor with
+  matched clean/mild/severe evaluation — CLOSED / APPROVED / MERGED.** Approved candidate
+  SHA `eecc9b5d91bce4a98a070a29307cc12af0d4c4a3`, integrated by merge commit
+  `177e969446ef6c01c729484f2ea9969c94a27330` (`2026-08-20 12:15:28 Asia/Jerusalem`,
+  PR #27). The candidate was merged with a MERGE COMMIT and preserved as its SECOND
+  PARENT (ordered parents: `4f0068847b017795717c5f0e331f647bcfc30547`, then
+  `eecc9b5…`); candidate and integration share the IDENTICAL tree
+  `37ebd8c56266fdd862cc7244c5f22a6ac95e438c` (verified locally), and the
+  candidate→integration comparison contains ZERO changed files. Grade A under
+  `GPT_GITHUB`. The technical contract is in §5 (the FD-VARIABLE-SEVERITY-v1 mechanism
+  block, its measurement-surface block, and the scheduled-vs-executed cell block) and the
+  routing in §6. This entry records the LOCK, not the mechanism.
+  **THE RESEARCH PROBLEM.** Under the merged FD-BASELINE-v1 design EVERY damaged episode
+  is structurally SEVERE, so "damaged" and "continuing is infeasible" are the SAME fact
+  and a trained actor can learn the shortcut `fuel damage ⇒ abort` without ever reading
+  its own fuel gauge. The approved extension splits the damaged half into a MILD band
+  where continuing remains genuinely feasible and a SEVERE band where it does not, so the
+  response has to be read off the ego's own live fuel. **The LEGACY modes are UNCHANGED —
+  same seeds, same conditions, same selected egos, same planned-midpoint target — because
+  an approved measurement exists on them** (`737b4bf`, the entry above), and a factor that
+  moved them would invalidate that baseline instead of extending it.
+  **APPEND-ONLY FIX CHAIN, two commits on one branch and one PR** — never amend, rebase,
+  squash, force-push or history rewrite. First candidate
+  `73752d872a8cd17f703790ef41bee46a734170bb` (parent `4f00688…`) received REQUEST-FIXES on
+  ONE measurement-integrity defect; the correction landed as the NEW CHILD COMMIT
+  `eecc9b5…` (parent `73752d8…`), touching TWO files
+  (`src/match_aou/rl/training/graph_train.py`, `tests/test_graph_fuel_damage.py`).
+  **THE FINDING AND ITS CLOSURE.** `_ConditionTally.success` checked only that the EXECUTED
+  cell was a LEGAL cell of the run. Under the new design that membership test ACCEPTS a
+  scheduled `mild` that executed as `severe` — booking the ATTEMPT in one cell's
+  denominator and the REWARD in another, corrupting BOTH at once, and letting a triad's
+  within-seed delta be taken between two members the schedule never paired. The approved
+  fix makes `expected_cell` a REQUIRED keyword and requires scheduled == executed
+  EQUALITY before ANY accounting, with both production call sites (training and
+  evaluation) passing their scheduled cell and the guard running FIRST — so a mismatched
+  episode reaches neither the tally, nor a matched-group member reward or delta, nor
+  `episode_outcomes.jsonl`, nor the PPO buffer. A mismatch is a
+  `MeasurementIntegrityError` INFRASTRUCTURE abort, never an accounted scientific episode
+  failure. **It has NOT been observed in the real simulator**: the regression test INJECTS
+  the divergence through a stub, because normal production does not currently generate it.
+  **CUMULATIVE REVIEWED SCOPE: EXACTLY FIVE FILES** —
+  `src/match_aou/rl/training/graph_fuel_damage.py`,
+  `src/match_aou/rl/training/graph_train.py`,
+  `src/match_aou/rl/training/graph_rollout.py`, `tests/test_graph_fuel_damage.py` and
+  `tests/test_graph_train.py`. No vendored BLADE, solver, `graph_reward`, PPO, encoder,
+  action-space, tick-loop, executor, episode-setup, hidden-placement, generator, scenario,
+  preset, config or README file was touched. Target destruction remains DETERMINISTIC at
+  `probability = 1` — **`p(destroy) < 1` was NOT implemented here and remains a separate
+  future Grade-A research task** (§8).
+  **ACCEPTED EVIDENCE at the approved head:** `tests/test_graph_fuel_damage.py`
+  **60 passed**; `tests/test_graph_train.py` **119 passed**; both standalone `nlp_env`
+  `__main__` runners **60 passed / 119 passed**; full suite **291 passed, 4 skipped**;
+  `git diff --check` clean. `graph_train --selftest` — TEST 1 passed, TEST 2 passed, and
+  **TEST 3 failed IDENTICALLY TO THE BASE** on the already-known B2 seed-2
+  exact-cardinality case (§8): a pre-existing expected outcome of the current contract,
+  **not a PR #27 regression**.
+  **NO scientific baseline, long training run, probe, rollout or artifact-generating smoke
+  was executed for PR #27.** Nothing in this lock is a measurement of the variable-severity
+  cell, and none may be pre-claimed — §8 owns the gate and the next authorized measurement
+  contract.
+
 ---
 
 ## 8. OPEN (not built)
 
 - **PHASE A IS CLOSED. A SCIENTIFICALLY VALID LONG-BASELINE MEASUREMENT OF THE FUEL-DAMAGE
-  CELL EXISTS (measured code SHA `737b4bf`, §7). The next research task is PHASE-B
-  CENTRALIZED-CRITIC / CTDE DESIGN** (its own bullet below). Difficulty selection is CLOSED
+  CELL EXISTS (measured code SHA `737b4bf`, §7). THE NEXT RESEARCH TASK IS THE ADDITIONAL
+  ACTOR-ONLY FD-VARIABLE-SEVERITY-v1 BASELINE, NOT PHASE-B CTDE** — see the
+  research-ordering bullet immediately below, which supersedes the earlier ordering.
+  Difficulty selection is CLOSED
   (below) and FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so the open question was
   never *what* to build but *how the built cell behaves* — and for THIS cell that question is
   now ANSWERED by the approved rerun
@@ -2226,11 +2475,68 @@ second factor is bundled in (§8).
   hazard, not a blocker: it WARNS and runs. Consequence for tooling: anything driving
   `train` outside a working checkout must inject the verdict (the tests patch
   `_git_provenance`) rather than expect it to be optional.
-- **Centralized critic / value head (CTDE) — PHASE B, AND THE NEXT AUTHORIZED RESEARCH
-  TASK** (Phase A is closed by the valid baseline, §7). A size-agnostic value estimator off
+- **RESEARCH ORDERING — DELIBERATELY CHANGED. AN ADDITIONAL ACTOR-ONLY
+  VARIABLE-SEVERITY BASELINE COMES BEFORE PHASE-B CTDE.** This is an explicit
+  user/orchestrator decision, **not** an accidental Phase-A reopening and **not** a
+  correction of anything. The approved order is:
+  1. **PRESERVE the original Phase-A reference baseline.** It is CLOSED, VALID and
+     IMMUTABLE — measured code SHA `737b4bf` on the FD-BASELINE-v1 design, run
+     `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` (§7). The branch
+     `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`) preserves the code
+     state and must not move. **Nothing below redefines, reopens, re-runs, extends or
+     supersedes it.**
+  2. **IMPLEMENT (done) and then MEASURE (not done) the ADDITIONAL actor-only
+     FD-VARIABLE-SEVERITY-v1 baseline.** The code is merged and locked (`eecc9b5`,
+     integrated `177e969`, PR #27 — §5, §7). **NO variable-severity scientific baseline
+     has been executed**, so no result may be pre-claimed; the next authorized measurement
+     contract is its own bullet below.
+  3. **ONLY AFTER that measurement is executed and independently reviewed, proceed to
+     PHASE-B CTDE DESIGN.**
+  **THIS SUPERSEDES the two earlier ordering claims** that Phase-B CTDE was immediately
+  next and that a stochastic/partial fuel-degradation variant was deferred until AFTER
+  Phase B. FD-VARIABLE-SEVERITY-v1 is that variant's approved form, it is an ADDITIONAL
+  actor-only stress baseline rather than a replacement for the Phase-A reference, and it
+  is deliberately taken BEFORE centralized training so the actor-only behaviour under a
+  survivable-vs-unsurvivable loss is known before any centralized-critic comparison is
+  attempted. **`p(destroy) < 1`, SAMs and dense reward are UNAFFECTED and remain separate,
+  still-deferred future research changes** (see the difficulty-selection bullet below);
+  none of them is part of FD-VARIABLE-SEVERITY-v1 and none may be bundled into its
+  baseline.
+- **THE NEXT AUTHORIZED MEASUREMENT CONTRACT — the bounded actor-only
+  FD-VARIABLE-SEVERITY-v1 baseline. PLANNED, NOT EXECUTED.** Recorded here as the NEXT
+  ACTION and as a run SHAPE; it is **not** a run, **not** evidence, and carries **no**
+  expected result. The approved shape:
+  - **50 scheduled training iterations × 8 scheduled training attempts = 400 scheduled
+    training attempts**, `base_seed = 0`;
+  - **evaluation every 5 iterations, INCLUDING the initial `pre_update` round ⇒ 11
+    evaluation rounds**;
+  - **8 fixed held-out seeds in the EXISTING eval band**, each evaluated as a matched
+    **clean / mild / severe TRIAD** ⇒ **11 × 8 × 3 = 264 scheduled evaluation attempts**;
+  - **664 scheduled attempts in total; NO early stopping.**
+  Training runs `fuel_damage_mode = seeded_variable` at the approved
+  **0.50 clean / 0.25 mild / 0.25 severe** distribution (§5). Everything else is the
+  LOCKED cell: 3 agents, 3 known + 3 hidden, 200 km / 100 km geometry,
+  `DETECTION_KM = 50`, `include_sams = false`, `probability = 1`, frozen solver and BLADE,
+  unchanged `graph_reward` formula with `aircraft_penalty_coeff = 2.25`, unchanged PPO.
+  **The run task chooses a FRESH, NON-OVERWRITING output directory and captures its own
+  provenance** — no directory name, artifact hash or output figure is invented here.
+  The interpretation rules carry over unchanged and are not optional: the PRIMARY
+  behavioural evidence is the severity-conditioned FD-WAKE meta-action response with its
+  own FD-wake denominators; a mean is never read without its denominator; the only
+  within-seed claims are the three deltas over COMPLETE triads; an empty population is
+  `null`, never `0.0`; and a run that shows no reward improvement or no productive update
+  is a valid NEGATIVE observation, not a technical failure. **"Mild must choose
+  `PLAN_COMPLIANCE`" is NOT a correctness criterion** (§5).
+- **Centralized critic / value head (CTDE) — PHASE B. DEFERRED BEHIND THE ADDITIONAL
+  ACTOR-ONLY VARIABLE-SEVERITY BASELINE ABOVE** (Phase A is closed by the valid baseline,
+  §7; the variable-severity baseline is merged but NOT yet measured). **It is no longer
+  the immediately-next task**, and it may not begin until that measurement is executed and
+  independently reviewed. When it is authorized, it is a size-agnostic
+  value estimator off
   the existing `GraphEncoder.pool()` hook; there is still **NO value head today**, and
   `graph_ppo` remains actor-only with its PHASE-B SEAM comments marking where the critic
-  joins. **This task starts as DESIGN / RECON, not implementation.** The next orchestrator
+  joins. **This task starts as DESIGN / RECON, not implementation.** The orchestrator that
+  takes it up
   must NOT begin by writing a critic; it must first resolve a fresh live `main` SHA, re-read
   BOTH documents at that SHA, and then produce a design that states:
   - the **size-agnostic** value estimator over a varying task/agent graph;
@@ -2244,9 +2550,11 @@ second factor is bundled in (§8).
     against the approved Phase-A baseline (§7) under the same validity gate, **BEFORE** any
     further environment difficulty is added.
   **No CTDE benefit may be pre-claimed** — the approved Phase-A result explicitly does not
-  establish one. Difficulty expansions (`probability < 1`, SAMs, a stochastic/partial
-  fuel-degradation variant, dense reward) are SEPARATE later research changes and must not
-  be bundled into this one.
+  establish one, and neither will the variable-severity baseline. The remaining difficulty
+  expansions (`probability < 1`, SAMs, dense reward) are SEPARATE later research changes
+  and must not be bundled into this one. **The stochastic/partial fuel-degradation variant
+  is NO LONGER on that deferred list**: its approved form is FD-VARIABLE-SEVERITY-v1, it is
+  merged (`eecc9b5`, §5, §7), and its baseline is scheduled BEFORE this task, not after.
 - **Baseline difficulty selection — CLOSED for the current cell by FD-BASELINE-v1
   (`a8669f4`).** Exactly ONE factor was selected, implemented and locked: `fuel_damage`
   (§5, §7). The following were considered and **NOT selected**; each remains a DEFERRED,
@@ -2263,6 +2571,16 @@ second factor is bundled in (§8).
   observability, proof obligations and bounded implementation/lock task. The Phase-A
   baseline they were deferred behind is now MEASURED (§7), so the ordering constraint that
   remains is the phase boundary: they come AFTER Phase-B CTDE design, never bundled into it.
+  **`probability < 1` in particular is UNCHANGED by FD-VARIABLE-SEVERITY-v1 and is still
+  out.** That factor merged a mild/severe split of the FUEL-DAMAGE EVENT; target
+  destruction stays deterministic at `probability = 1`, and nothing in PR #27 implemented
+  stochastic target destruction. It remains a separate future Grade-A research task.
+  **What DID change is the ordering, not this list**: exactly ONE additional difficulty
+  design — FD-VARIABLE-SEVERITY-v1, the approved form of the stochastic/partial
+  fuel-degradation variant — was selected, implemented and locked after FD-BASELINE-v1
+  (`eecc9b5`, §5, §7), and its actor-only baseline is scheduled BEFORE Phase-B CTDE (see
+  the research-ordering bullet above). Every entry in the list above stays deferred behind
+  the phase boundary exactly as stated.
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
