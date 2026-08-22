@@ -308,9 +308,20 @@ from .graph_fuel_damage import (
     resolve_condition,
     resolve_severity,
 )
-from .graph_ppo import EpisodeRecord, PPOBuffer, PPOConfig, PPOUpdater
+from .graph_ppo import (
+    CTDEBuffer,
+    CTDEConfig,
+    CTDEEpisodeRecord,
+    CTDEUpdater,
+    EpisodeRecord,
+    PPOBuffer,
+    PPOConfig,
+    PPOUpdater,
+    build_central_critic,
+)
 from .graph_reward import RewardConfig, compute_episode_reward
 from .graph_tick_loop import build_policy, run_episode
+from ..observation.central_graph_builder import CentralStateRecorder
 from ..action.graph_action import MetaAction
 from ...models import StepKind
 from ...utils.blade_utils.scenario_generator import (
@@ -519,6 +530,26 @@ _PLOT_X_SEMANTICS = (
 # Nested PPO knobs live under this key, mirroring the dataclass.
 _CONFIG_PPO_KEY = "ppo"
 
+# The nested CTDE block, the sibling of `"ppo"`. Read only by a `ctde` run; a preset may
+# still declare it under `actor_only` (it is simply unused), exactly as a preset may
+# declare PPO knobs an iteration never reaches.
+_CONFIG_CTDE_KEY = "ctde"
+
+# --- THE TWO TRAINING MODES (Phase B) ----------------------------------------------
+# `actor_only` is the DEFAULT and is the Phase-A reference path the approved long
+# baseline was measured on: no central critic, no central observation, no value loss,
+# and the episode-mean-baseline credit assignment of `compute_returns_and_advantages`.
+# `ctde` adds a centralized value estimator during TRAINING only.
+#
+# These are two DISJOINT code paths, not one path with a coefficient. `actor_only` is
+# never expressed as "ctde with value_coeff = 0": that would still build a critic, still
+# capture central states and still replace the episode-mean baseline with a learned one,
+# so it would not be the Phase-A path at all. Whichever mode a run selects, EXECUTION is
+# identical and fully decentralized -- evaluation and inference are actor-only in both.
+TRAINING_MODE_ACTOR_ONLY = "actor_only"
+TRAINING_MODE_CTDE = "ctde"
+TRAINING_MODES = (TRAINING_MODE_ACTOR_ONLY, TRAINING_MODE_CTDE)
+
 # JSON has no comments, so a preset may carry any number of underscore-prefixed keys as
 # prose. Everything else must be a real field name -- an unrecognized key is REFUSED
 # rather than ignored, because a typo that silently leaves a knob at its default is a
@@ -552,6 +583,7 @@ _CLI_FIELD_BY_DEST = {
     "fuel_damage_rtb_margin": "fuel_damage_rtb_margin",
     "aircraft_penalty_coeff": "aircraft_penalty_coeff",
     "visual_artifacts": "visual_artifacts",
+    "training_mode": "training_mode",
 }
 
 # CLI dest -> PPOConfig field (the nested block).
@@ -661,6 +693,9 @@ class TrainConfig:
             anchors the training seed band.
         output_dir: the run directory; defaults to ``training_output_<timestamp>``.
         ppo: the frozen :class:`PPOConfig` (never mutated mid-run).
+        training_mode: ``actor_only`` (default, the Phase-A reference path) or ``ctde``
+            (a centralized critic during TRAINING only). See :data:`TRAINING_MODES`.
+        ctde: the frozen :class:`CTDEConfig`. Read ONLY when ``training_mode == "ctde"``.
         checkpoint_every: save a checkpoint every N iterations (and at the end).
         eval_every: run a deterministic eval round every N iterations (and at the end).
             ``<= 0`` disables evaluation entirely.
@@ -699,6 +734,16 @@ class TrainConfig:
     base_seed: int = 0
     output_dir: Union[str, Path] = ""       # "" -> training_output_<timestamp>
     ppo: PPOConfig = field(default_factory=PPOConfig)
+
+    # --- PHASE B: which TRAINING algorithm this run uses ---------------------------
+    # `actor_only` (the DEFAULT) is the Phase-A reference path, byte-for-byte what the
+    # approved long baseline was measured on. `ctde` adds a centralized critic during
+    # training only. EXECUTION IS DECENTRALIZED IN BOTH: evaluation and inference run
+    # the actor alone, on its own private observation, with no critic present. The
+    # nested `ctde` block is read ONLY by a `ctde` run; under `actor_only` no critic and
+    # no central observation is ever constructed (see `TRAINING_MODES`).
+    training_mode: str = TRAINING_MODE_ACTOR_ONLY
+    ctde: CTDEConfig = field(default_factory=CTDEConfig)
 
     checkpoint_every: int = 10
     eval_every: int = 5
@@ -803,6 +848,20 @@ class TrainConfig:
     def eval_enabled(self) -> bool:
         """True iff evaluation rounds run at all (both knobs must be positive)."""
         return self.eval_every > 0 and self.eval_episodes > 0
+
+    @property
+    def ctde_enabled(self) -> bool:
+        """True iff this run trains with the Phase-B centralized critic.
+
+        THE ONE predicate behind every CTDE branch in this module, so "is this a CTDE
+        run?" has a single answer and cannot be re-derived (differently) at three call
+        sites. It reads the TRAINING mode and nothing else -- notably not
+        ``ctde.value_coeff``, because a coefficient is not a mode (:data:`TRAINING_MODES`).
+
+        It says nothing about EXECUTION: evaluation and inference are actor-only in both
+        modes.
+        """
+        return str(self.training_mode) == TRAINING_MODE_CTDE
 
     @property
     def n_targets_emitted(self) -> int:
@@ -943,6 +1002,29 @@ class TrainConfig:
             )
         if not (0.0 < float(self.partial_ratio) <= 1.0):
             raise ValueError(f"partial_ratio must be in (0, 1], got {self.partial_ratio}")
+
+        # An UNRECOGNIZED training mode raises rather than silently falling back to
+        # `actor_only`: a run that quietly trained the Phase-A algorithm while its config
+        # said `ctde` (or the reverse) would be a mislabelled measurement, which is worse
+        # than a crash. `ctde_enabled` is the only reader of this field.
+        if str(self.training_mode) not in TRAINING_MODES:
+            raise ValueError(
+                "training_mode must be one of %s, got %r"
+                % (list(TRAINING_MODES), self.training_mode)
+            )
+        if self.ctde_enabled:
+            if not (0.0 <= float(self.ctde.gae_lambda) <= 1.0):
+                raise ValueError(
+                    "ctde.gae_lambda must be in [0, 1], got %r" % (self.ctde.gae_lambda,)
+                )
+            if float(self.ctde.critic_lr) <= 0.0:
+                raise ValueError(
+                    "ctde.critic_lr must be > 0, got %r" % (self.ctde.critic_lr,)
+                )
+            if float(self.ctde.value_coeff) < 0.0:
+                raise ValueError(
+                    "ctde.value_coeff must be >= 0, got %r" % (self.ctde.value_coeff,)
+                )
 
         # --- the construction cell: shape errors RAISE, before any compute ---
         if int(self.num_agents) < 1:
@@ -1102,14 +1184,20 @@ def _ppo_field_names() -> Tuple[str, ...]:
     return tuple(f.name for f in dataclass_fields(PPOConfig))
 
 
+def _ctde_field_names() -> Tuple[str, ...]:
+    """Every :class:`CTDEConfig` field name a preset's ``"ctde"`` block may set."""
+    return tuple(f.name for f in dataclass_fields(CTDEConfig))
+
+
 def load_config_file(path: Union[str, Path]) -> Dict[str, Any]:
     """Read a JSON preset and return the :class:`TrainConfig` overrides it declares.
 
     STDLIB ONLY -- ``json``, no YAML and no new dependency. The file is a flat object of
-    ``TrainConfig`` FIELD names, plus an optional nested ``"ppo"`` object of
-    :class:`PPOConfig` field names::
+    ``TrainConfig`` FIELD names, plus optional nested ``"ppo"`` / ``"ctde"`` objects of
+    :class:`PPOConfig` / :class:`CTDEConfig` field names::
 
-        {"_comment": "...", "n_iterations": 2, "base_seed": 0, "ppo": {"lr": 0.0003}}
+        {"_comment": "...", "n_iterations": 2, "base_seed": 0, "ppo": {"lr": 0.0003},
+         "training_mode": "ctde", "ctde": {"gae_lambda": 0.95}}
 
     Naming FIELDS rather than CLI flags is deliberate: ``TrainConfig`` is the contract,
     and a second parallel naming scheme would be a second place for the two to drift.
@@ -1119,7 +1207,8 @@ def load_config_file(path: Union[str, Path]) -> Dict[str, Any]:
       * an UNRECOGNIZED key raises. A misspelled knob that is quietly ignored produces a
         run whose file says one thing and whose behaviour is another -- the config would
         stop describing the measurement;
-      * ``"ppo"`` must be an object, and its keys are checked the same way;
+      * ``"ppo"`` and ``"ctde"`` must be objects, and their keys are checked the same
+        way, through ONE loop so a nested block cannot be added with weaker strictness;
       * a list becomes a tuple ONLY for the fields whose dataclass form is a tuple
         (:data:`_CONFIG_TUPLE_FIELDS`), so a preset copied out of a previous run's
         ``run_config.json:/train_config`` loads back into the config it came from.
@@ -1145,29 +1234,35 @@ def load_config_file(path: Union[str, Path]) -> Dict[str, Any]:
         )
 
     known = set(_config_field_names())
-    ppo_known = set(_ppo_field_names())
+    nested_known = {
+        _CONFIG_PPO_KEY: (set(_ppo_field_names()), "PPOConfig"),
+        _CONFIG_CTDE_KEY: (set(_ctde_field_names()), "CTDEConfig"),
+    }
     values: Dict[str, Any] = {}
     for key, value in raw.items():
         if str(key).startswith(_CONFIG_COMMENT_PREFIX):
             continue
-        if key == _CONFIG_PPO_KEY:
+        if key in nested_known:
+            # The nested blocks (`ppo`, `ctde`) are checked exactly like the flat keys:
+            # object-shaped, and every field name real. One loop for both, so a future
+            # third block cannot be added with weaker strictness than its siblings.
+            block_known, block_what = nested_known[key]
             if not isinstance(value, dict):
                 raise ValueError(
-                    "config file %s: %r must be a JSON object of PPOConfig fields, "
-                    "got %s"
-                    % (str(cfg_path), _CONFIG_PPO_KEY, type(value).__name__)
+                    "config file %s: %r must be a JSON object of %s fields, got %s"
+                    % (str(cfg_path), key, block_what, type(value).__name__)
                 )
-            ppo_values = {
+            block_values = {
                 k: v for k, v in value.items()
                 if not str(k).startswith(_CONFIG_COMMENT_PREFIX)
             }
-            unknown = sorted(set(ppo_values) - ppo_known)
+            unknown = sorted(set(block_values) - block_known)
             if unknown:
                 raise ValueError(
-                    "config file %s: unknown PPOConfig field(s) %s; known fields are %s"
-                    % (str(cfg_path), unknown, sorted(ppo_known))
+                    "config file %s: unknown %s field(s) %s; known fields are %s"
+                    % (str(cfg_path), block_what, unknown, sorted(block_known))
                 )
-            values[_CONFIG_PPO_KEY] = ppo_values
+            values[key] = block_values
             continue
         if key not in known:
             raise ValueError(
@@ -1303,6 +1398,10 @@ def resolve_train_config(
     """
     values = dict(config_values or {})
     ppo_values = dict(values.pop(_CONFIG_PPO_KEY, {}) or {})
+    # The CTDE block has no CLI flags of its own, so it is a preset-only layer: there is
+    # nothing for layer 3 to override, and the resolved object is simply the defaults
+    # updated by whatever the preset declared.
+    ctde_values = dict(values.pop(_CONFIG_CTDE_KEY, {}) or {})
 
     # Layer 1: the argparse defaults (== the dataclass defaults) for every mapped flag.
     kwargs: Dict[str, Any] = {}
@@ -1339,7 +1438,9 @@ def resolve_train_config(
             "preset. How long to train is the one decision that is never defaulted."
         )
 
-    cfg = TrainConfig(ppo=PPOConfig(**ppo_kwargs), **kwargs)
+    cfg = TrainConfig(
+        ppo=PPOConfig(**ppo_kwargs), ctde=CTDEConfig(**ctde_values), **kwargs
+    )
     # This function is reached only from a COMMAND LINE, so the kind is one of the two
     # CLI values -- which of them is exactly whether a preset was named.
     config_source = config_source_record(
@@ -1348,7 +1449,9 @@ def resolve_train_config(
         ),
         config_path=config_path,
         config_fields=(
-            list(values) + ["%s.%s" % (_CONFIG_PPO_KEY, k) for k in ppo_values]
+            list(values)
+            + ["%s.%s" % (_CONFIG_PPO_KEY, k) for k in ppo_values]
+            + ["%s.%s" % (_CONFIG_CTDE_KEY, k) for k in ctde_values]
         ),
         cli_overrides=overridden,
     )
@@ -2365,6 +2468,19 @@ def write_run_config(
             "ensure_discovery_chain": False,
             "strict_geometry": True,
             "setup_mode": "construction",
+        },
+        # PHASE B: WHICH TRAINING ALGORITHM RAN, stated rather than inferred. A reader
+        # must not have to deduce it from whether a `ctde` block happens to be present
+        # (it always is -- it has dataclass defaults), so `mode` and `ctde_enabled` say
+        # it outright and `ctde` is `null` when the run did not use one.
+        # `execution` is recorded as a CONSTANT because it is one: evaluation and
+        # inference are actor-only decentralized in BOTH modes, and no CTDE run may be
+        # read as having changed how actions are taken.
+        "training": {
+            "mode": str(cfg.training_mode),
+            "ctde_enabled": bool(cfg.ctde_enabled),
+            "ctde": asdict(cfg.ctde) if cfg.ctde_enabled else None,
+            "execution": "decentralized_actor_only",
         },
         # FD-BASELINE-v1: the run's ONE difficulty factor and the reward coefficient that
         # gives it teeth, recorded next to the cell they modify. `resolved_*` names the
@@ -3400,6 +3516,33 @@ def _artifact_kwargs(artifacts: Optional[_AttemptArtifacts]) -> Dict[str, Any]:
     return {"artifacts": artifacts}
 
 
+def _ctde_kwargs(recorder: Optional[CentralStateRecorder]) -> Dict[str, Any]:
+    """``_run_one_episode``'s CTDE keyword -- or NOTHING on an ``actor_only`` run.
+
+    The SAME rule as :func:`_artifact_kwargs`, and for the same reason: an
+    ``actor_only`` run must call ``_run_one_episode`` with exactly the arguments it did
+    before Phase B existed, not with a new keyword carrying ``None``. That is also the
+    stronger invariance claim -- "the actor-only call is byte-unchanged" rather than
+    "the actor-only call passes a falsy value" -- and it is what keeps existing callers
+    that stub ``_run_one_episode`` with a fixed signature working.
+    """
+    if recorder is None:
+        return {}
+    return {"central_recorder": recorder}
+
+
+def _central_kwargs(recorder: Optional[CentralStateRecorder]) -> Dict[str, Any]:
+    """``run_episode``'s CTDE keyword -- or NOTHING when there is no recorder.
+
+    :func:`_ctde_kwargs` one level down: on an ``actor_only`` run the tick loop is
+    called exactly as it was before Phase B, so no central state is constructed and the
+    episode is byte-identical to the Phase-A one.
+    """
+    if recorder is None:
+        return {}
+    return {"central": recorder}
+
+
 # =============================================================================
 # 4. One episode (shared by training and evaluation)
 # =============================================================================
@@ -3473,6 +3616,7 @@ def _run_one_episode(
     deterministic: bool,
     fuel_damage_mode: Optional[str] = None,
     artifacts: Optional[_AttemptArtifacts] = None,
+    central_recorder: Optional[CentralStateRecorder] = None,
 ) -> _EpisodeOutcome:
     """Generate -> setup -> run -> reward for ONE episode; always closes its env.
 
@@ -3539,6 +3683,16 @@ def _run_one_episode(
     reward. A capture failure raises :class:`_VisualArtifactError`, NOT an
     :class:`EpisodeAttemptError`: it is infrastructure, it belongs in no pipeline stage,
     and the callers re-raise it instead of accounting it as a failed episode.
+
+    PHASE-B CTDE. ``central_recorder`` is ``None`` unless the run's ``training_mode`` is
+    ``ctde`` AND this is a TRAINING attempt; on that ``None`` path this function is
+    byte-unchanged and ``run_episode`` receives no CTDE keyword at all
+    (:func:`_central_kwargs`), so no central state is ever built. When supplied it is
+    filled during the run with ONE central state per actor decision, aligned 1:1 with
+    ``EpisodeResult.trajectory``, and the CALLER reads ``recorder.samples`` afterwards.
+    It is deliberately caller-owned rather than returned on :class:`_EpisodeOutcome`:
+    privileged state is not part of what an episode REPORTS, and evaluation must be
+    unable to obtain it -- ``evaluate`` never constructs one.
     """
     random.seed(seed)
     torch.manual_seed(seed)
@@ -3624,6 +3778,9 @@ def _run_one_episode(
                 deterministic=deterministic,
                 max_ticks=cfg.max_ticks,
                 fuel_damage=fuel_damage,
+                # Absent entirely on an actor_only run (`_central_kwargs`), so the tick
+                # loop is called exactly as it was before Phase B.
+                **_central_kwargs(central_recorder),
             )
         except Exception as exc:
             raise EpisodeAttemptError("run", exc) from exc
@@ -4104,9 +4261,10 @@ def _print_eval_pair_line(ev: Dict[str, Any]) -> None:
 
 def save_checkpoint(
     policy: Any,
-    updater: PPOUpdater,
+    updater: Union[PPOUpdater, CTDEUpdater],
     iteration: int,
     ckpt_dir: Path,
+    critic: Optional[Any] = None,
 ) -> Path:
     """Save encoder + head + optimizer state (and provenance) to ``ckpt_iter<NNNN>.pt``.
 
@@ -4115,22 +4273,39 @@ def save_checkpoint(
     ``PPOConfig`` is stored as a plain dict (not the dataclass) so a loader never needs
     to unpickle a project class.
 
+    THE ACTOR-ONLY PAYLOAD IS UNCHANGED. With ``critic is None`` -- which is every
+    ``actor_only`` run -- the saved object holds EXACTLY the five keys it always held
+    (``iteration`` / ``encoder`` / ``head`` / ``optimizer`` / ``ppo_config``), with the
+    same meanings. Nothing was renamed and nothing was added, not even a mode label: a
+    Phase-A checkpoint must stay readable by anything that could read one before.
+
+    A CTDE run saves the ACTUAL CTDE training state, which is strictly more: the same
+    five keys (``encoder`` / ``head`` / ``optimizer`` are the ACTOR's), plus
+    ``training_mode`` and the critic's own ``critic_encoder`` / ``value_head`` /
+    ``critic_optimizer`` / ``ctde_config``. There is deliberately NO second
+    "actor export" file -- the actor portion of this one payload is already sufficient
+    for later inference, precisely because the actor's keys did not move.
+
     There is intentionally NO loader here: restoring a run is a separate, deferred task
     (it needs decisions about the seed schedule and the scenario stream that saving
     does not). ``tests/test_graph_train.py`` proves the saved payload round-trips.
     """
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     path = ckpt_dir / ("ckpt_iter%04d.pt" % int(iteration))
-    torch.save(
-        {
-            "iteration": int(iteration),
-            "encoder": policy.encoder.state_dict(),
-            "head": policy.head.state_dict(),
-            "optimizer": updater.optimizer.state_dict(),
-            "ppo_config": asdict(updater.cfg),
-        },
-        path,
-    )
+    payload: Dict[str, Any] = {
+        "iteration": int(iteration),
+        "encoder": policy.encoder.state_dict(),
+        "head": policy.head.state_dict(),
+        "optimizer": updater.optimizer.state_dict(),
+        "ppo_config": asdict(updater.cfg),
+    }
+    if critic is not None:
+        payload["training_mode"] = TRAINING_MODE_CTDE
+        payload["critic_encoder"] = critic.encoder.state_dict()
+        payload["value_head"] = critic.value_head.state_dict()
+        payload["critic_optimizer"] = updater.critic_optimizer.state_dict()
+        payload["ctde_config"] = asdict(updater.ctde_cfg)
+    torch.save(payload, path)
     return path
 
 
@@ -4263,7 +4438,18 @@ def train(
     # rebuilding the updater per iteration would silently discard Adam's moments.
     torch.manual_seed(cfg.base_seed)
     policy = build_policy()
-    updater = PPOUpdater(policy, cfg.ppo)
+    # PHASE B. The critic and the CTDE updater exist ONLY on a `ctde` run. On an
+    # `actor_only` run `critic` stays None, `PPOUpdater` is built exactly as before, and
+    # nothing below constructs a central observation -- which is what makes "actor_only
+    # is unchanged" a structural fact rather than a claim about a coefficient. Like the
+    # policy, the critic is built ONCE: it carries training state (its weights AND its
+    # Adam moments) across every iteration.
+    critic = build_central_critic() if cfg.ctde_enabled else None
+    updater: Union[PPOUpdater, CTDEUpdater]
+    if critic is not None:
+        updater = CTDEUpdater(policy, critic, cfg.ppo, cfg.ctde)
+    else:
+        updater = PPOUpdater(policy, cfg.ppo)
     gen = _build_generator(scen_dir)
 
     print("=" * 78)
@@ -4281,6 +4467,16 @@ def train(
     else:
         print("eval: DISABLED")
     print("ppo: %s" % (asdict(cfg.ppo),))
+    # The training algorithm, echoed BEFORE any compute is spent, next to the same
+    # standing reminder the record carries: CTDE changes TRAINING only.
+    if cfg.ctde_enabled:
+        print("training_mode: %s (centralized critic during TRAINING only; "
+              "evaluation and inference stay decentralized actor-only)"
+              % TRAINING_MODE_CTDE)
+        print("ctde: %s" % (asdict(cfg.ctde),))
+    else:
+        print("training_mode: %s (no critic, no central observation)"
+              % TRAINING_MODE_ACTOR_ONLY)
     # The construction cell as the run will really build it. This is the standing
     # defence against a config that reads plausibly and generates something else: the
     # operator sees the EMITTED target count, not a derived one, before compute is spent.
@@ -4376,7 +4572,14 @@ def train(
 
         for iteration in range(cfg.n_iterations):
             t_iter = time.perf_counter()
-            buf = PPOBuffer()
+            # One buffer kind per training mode. They are separate classes rather than
+            # one buffer with a flag because they hold different things: the actor-only
+            # buffer stores PER-EGO chains (the Phase-A credit structure), the CTDE
+            # buffer stores the episode's GLOBAL decision sequence beside its central
+            # states.
+            buf: Union[PPOBuffer, CTDEBuffer] = (
+                CTDEBuffer() if cfg.ctde_enabled else PPOBuffer()
+            )
             meta_counts = _empty_meta_counts()
             ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
             rewards: List[float] = []
@@ -4426,11 +4629,20 @@ def train(
                             episode_tag=int(g),
                         ),
                     )
+                # A FRESH recorder per attempt, on a CTDE run only. Per attempt because
+                # its samples belong to exactly one episode's decision sequence, and a
+                # reused one would splice two episodes' states into a single GAE chain.
+                # `None` on an actor_only run -> no keyword is passed at all.
+                central_recorder = (
+                    CentralStateRecorder() if cfg.ctde_enabled else None
+                )
                 try:
                     out = _run_one_episode(
                         policy, gen, cfg,
                         seed=seed, episode_tag=g, deterministic=False,
                         **_artifact_kwargs(artifacts),
+                        # Absent entirely unless this is a CTDE run (`_ctde_kwargs`).
+                        **_ctde_kwargs(central_recorder),
                     )
                 except (_VisualArtifactError, MeasurementIntegrityError):
                     # INFRASTRUCTURE / DATA INTEGRITY, not science. Re-raised ahead of the
@@ -4496,9 +4708,21 @@ def train(
                     episode_tag=int(g),
                     fuel_damage_mode=str(cfg.fuel_damage_mode),
                 ))
-                buf.add(EpisodeRecord.from_trajectory(
-                    out.trajectory, out.reward, seed=seed, episode_index=g,
-                ))
+                # The SAME episode, recorded under the credit structure its training
+                # mode uses. CTDE keeps the GLOBAL decision order beside the central
+                # states captured during the run; `CTDEEpisodeRecord` validates the 1:1
+                # alignment on construction, so a drifted capture seam fails LOUD here
+                # rather than silently mispairing a value with a decision.
+                if cfg.ctde_enabled:
+                    buf.add(CTDEEpisodeRecord.from_episode(
+                        out.trajectory,
+                        central_recorder.samples if central_recorder else [],
+                        out.reward, seed=seed, episode_index=g,
+                    ))
+                else:
+                    buf.add(EpisodeRecord.from_trajectory(
+                        out.trajectory, out.reward, seed=seed, episode_index=g,
+                    ))
                 rewards.append(out.reward)
                 unique_confirmed.append(float(out.targets_confirmed_unique))
                 ticks.append(float(out.ticks))
@@ -4657,7 +4881,9 @@ def train(
 
             # ---- periodic checkpoint ----
             if cfg.checkpoint_every > 0 and ((iteration + 1) % cfg.checkpoint_every == 0):
-                path = save_checkpoint(policy, updater, iteration, ckpt_dir)
+                path = save_checkpoint(
+                    policy, updater, iteration, ckpt_dir, critic=critic
+                )
                 last_ckpt_iteration = iteration
                 print("  [ckpt @iter %d] %s" % (iteration, path.name))
 
@@ -4682,7 +4908,9 @@ def train(
             _print_eval_pair_line(ev)
 
     if last_ckpt_iteration != cfg.n_iterations - 1:
-        path = save_checkpoint(policy, updater, cfg.n_iterations - 1, ckpt_dir)
+        path = save_checkpoint(
+            policy, updater, cfg.n_iterations - 1, ckpt_dir, critic=critic
+        )
         print("  [ckpt @iter %d, final] %s" % (cfg.n_iterations - 1, path.name))
 
     # Re-read the jsonl artifacts rather than summarizing the in-memory lists: the
@@ -6333,6 +6561,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    default=d_cfg.aircraft_penalty_coeff,
                    help="death-penalty coefficient c passed to graph_reward (whose "
                         "FORMULA is unchanged); 0 makes losing an aircraft free "
+                        "(default: %(default)s)")
+    # --- PHASE B: which TRAINING algorithm runs. Execution is decentralized in both. ---
+    p.add_argument("--training-mode", type=str, choices=list(TRAINING_MODES),
+                   default=d_cfg.training_mode,
+                   help="actor_only = the Phase-A reference path (no critic, no central "
+                        "observation); ctde = a centralized critic during TRAINING only. "
+                        "Evaluation and inference are actor-only either way "
                         "(default: %(default)s)")
     # --- visual artifacts: opt-in, and the flag's absence IS the default ---
     p.add_argument("--visual-artifacts", action="store_true",
