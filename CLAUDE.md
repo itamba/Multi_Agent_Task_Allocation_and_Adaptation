@@ -2273,9 +2273,14 @@ a stub, because normal production does not currently generate it.
 ## 8. OPEN (not built)
 
 - **PHASE A IS CLOSED. A SCIENTIFICALLY VALID LONG-BASELINE MEASUREMENT OF THE FUEL-DAMAGE
-  CELL EXISTS (measured code SHA `737b4bf`, §7). THE NEXT RESEARCH TASK IS THE ADDITIONAL
-  ACTOR-ONLY FD-VARIABLE-SEVERITY-v1 BASELINE, NOT PHASE-B CTDE** — see the
-  research-ordering bullet immediately below, which supersedes the earlier ordering.
+  CELL EXISTS (measured code SHA `737b4bf`, §7). THE ADDITIONAL ACTOR-ONLY
+  FD-VARIABLE-SEVERITY-v1 BASELINE AND PHASE-B CTDE NOW PROCEED CONCURRENTLY** — that
+  measurement is pinned to an immutable DETACHED snapshot, and CTDE design and
+  implementation proceed beside it in a separate writable task branch. **The earlier serial
+  claim — that CTDE may begin ONLY AFTER that measurement — is SUPERSEDED as of
+  2026-08-22**; what survives is the INTEGRATION gate. See the research-ordering bullet
+  immediately below, which owns the current rule, the snapshot identity, the ownership
+  split and that gate.
   Difficulty selection is CLOSED
   (below) and FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so the open question was
   never *what* to build but *how the built cell behaves* — and for THIS cell that question is
@@ -2475,37 +2480,71 @@ a stub, because normal production does not currently generate it.
   hazard, not a blocker: it WARNS and runs. Consequence for tooling: anything driving
   `train` outside a working checkout must inject the verdict (the tests patch
   `_git_provenance`) rather than expect it to be optional.
-- **RESEARCH ORDERING — DELIBERATELY CHANGED. AN ADDITIONAL ACTOR-ONLY
-  VARIABLE-SEVERITY BASELINE COMES BEFORE PHASE-B CTDE.** This is an explicit
-  user/orchestrator decision, **not** an accidental Phase-A reopening and **not** a
-  correction of anything. The approved order is:
+- **RESEARCH ORDERING — SUPERSEDED AGAIN ON 2026-08-22. THE VARIABLE-SEVERITY MEASUREMENT
+  AND PHASE-B CTDE NOW PROCEED IN PARALLEL.** This is an explicit user/orchestrator
+  decision, **not** an accidental Phase-A reopening, **not** a correction of anything, and
+  **not** a change to any technical CTDE contract. The approved order is:
   1. **PRESERVE the original Phase-A reference baseline.** It is CLOSED, VALID and
      IMMUTABLE — measured code SHA `737b4bf` on the FD-BASELINE-v1 design, run
      `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` (§7). The branch
      `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`) preserves the code
      state and must not move. **Nothing below redefines, reopens, re-runs, extends or
      supersedes it.**
-  2. **IMPLEMENT (done) and then MEASURE (not done) the ADDITIONAL actor-only
-     FD-VARIABLE-SEVERITY-v1 baseline.** The code is merged and locked (`eecc9b5`,
-     integrated `177e969`, PR #27 — §5, §7). **NO variable-severity scientific baseline
-     has been executed**, so no result may be pre-claimed; the next authorized measurement
-     contract is its own bullet below.
-  3. **ONLY AFTER that measurement is executed and independently reviewed, proceed to
-     PHASE-B CTDE DESIGN.**
-  **THIS SUPERSEDES the two earlier ordering claims** that Phase-B CTDE was immediately
-  next and that a stochastic/partial fuel-degradation variant was deferred until AFTER
-  Phase B. FD-VARIABLE-SEVERITY-v1 is that variant's approved form, it is an ADDITIONAL
-  actor-only stress baseline rather than a replacement for the Phase-A reference, and it
-  is deliberately taken BEFORE centralized training so the actor-only behaviour under a
-  survivable-vs-unsurvivable loss is known before any centralized-critic comparison is
-  attempted. **`p(destroy) < 1`, SAMs and dense reward are UNAFFECTED and remain separate,
-  still-deferred future research changes** (see the difficulty-selection bullet below);
-  none of them is part of FD-VARIABLE-SEVERITY-v1 and none may be bundled into its
+  2. **IMPLEMENT (done) and MEASURE (RUNNING, NOT COMPLETED) the ADDITIONAL actor-only
+     FD-VARIABLE-SEVERITY-v1 baseline — ON A PINNED, IMMUTABLE, DETACHED SNAPSHOT.** The
+     code is merged and locked (`eecc9b5`, integrated `177e969`, PR #27 — §5, §7). As of
+     2026-08-22 the measurement is LOCKED to exact SHA
+     `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
+     `dd881478b8e2e521054d09bc865437f1308be1a2`, executed from a DETACHED, clean snapshot
+     worktree that carries no task branch and is READ-ONLY with respect to the shared
+     repository. **NO variable-severity scientific baseline has COMPLETED**, so no result
+     may be pre-claimed and an UNFINISHED run is not evidence of anything. It is, and
+     remains, an **ACTOR-ONLY measurement OF THAT PINNED SHA**: repository work landing
+     after `bf1e045f…` — Phase-B CTDE included — is simply not in the measured tree, so it
+     can neither be attributed to that run nor contaminate it. The run shape is its own
+     bullet below.
+  3. **PHASE-B CTDE DESIGN AND IMPLEMENTATION MAY PROCEED CONCURRENTLY**, in a SEPARATE
+     writable task branch / worktree, WHILE that measurement runs. It is no longer gated on
+     the measurement's completion. What is still gated is INTEGRATION — item 4.
+  4. **CTDE MUST NOT BE MERGED INTO `main` until the variable-severity measurement has
+     COMPLETED and received an INDEPENDENT VALIDITY VERDICT**, unless the user explicitly
+     changes that rule later. **And before that eventual integration — only AFTER the
+     variable-severity measurement has been reviewed VALID — a NEW immutable actor-only
+     pre-CTDE reference is preserved from the THEN-CURRENT actor-only state.** That
+     reference is deliberately NOT chosen or created here; its exact name is a later
+     repository-convention decision. The existing branch `phase-a-baseline`
+     (`4f0068847b017795717c5f0e331f647bcfc30547`) is historical provenance for the ORIGINAL
+     valid Phase-A reference, is NEVER moved, and is NOT repurposed as that new reference.
+  **OWNERSHIP, WHILE THE TWO RUN IN PARALLEL.** The CTDE GPT orchestrator is the SOLE
+  WRITABLE repository owner. The FD measurement orchestrator is READ-ONLY on its detached
+  snapshot and owns no writable task branch, PR or shared working tree. That split is what
+  makes parallel work safe: only one side can write, and the side that measures cannot see
+  the other side's changes.
+  **THIS SUPERSEDES THE SERIAL ORDER THIS BULLET ITSELF PREVIOUSLY STATED** — that CTDE
+  design could begin only after the variable-severity measurement was executed and
+  independently reviewed. That serial rule is HISTORY as of 2026-08-22 and must not be
+  restated as live. **It also still supersedes the two ORIGINAL ordering claims** that
+  Phase-B CTDE was immediately next and that a stochastic/partial fuel-degradation variant
+  was deferred until AFTER Phase B. FD-VARIABLE-SEVERITY-v1 is that variant's approved
+  form, it is an ADDITIONAL actor-only stress baseline rather than a replacement for the
+  Phase-A reference, and its PURPOSE is unchanged: the actor-only response to a
+  survivable-vs-unsurvivable loss is measured independently of centralized training — which
+  a pinned, detached snapshot preserves exactly, and which is precisely why the two may now
+  run at the same time. **`p(destroy) < 1`, SAMs and dense reward are UNAFFECTED and remain
+  separate, still-deferred future research changes** (see the difficulty-selection bullet
+  below); none of them is part of FD-VARIABLE-SEVERITY-v1 and none may be bundled into its
   baseline.
-- **THE NEXT AUTHORIZED MEASUREMENT CONTRACT — the bounded actor-only
-  FD-VARIABLE-SEVERITY-v1 baseline. PLANNED, NOT EXECUTED.** Recorded here as the NEXT
-  ACTION and as a run SHAPE; it is **not** a run, **not** evidence, and carries **no**
-  expected result. The approved shape:
+- **THE AUTHORIZED MEASUREMENT CONTRACT — the bounded actor-only FD-VARIABLE-SEVERITY-v1
+  baseline. RUNNING ON A PINNED IMMUTABLE SNAPSHOT; NOT COMPLETED, NOT REVIEWED.** As of
+  2026-08-22 this measurement is LOCKED to exact SHA
+  `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
+  `dd881478b8e2e521054d09bc865437f1308be1a2`, in a DETACHED, clean snapshot worktree that
+  is READ-ONLY with respect to the shared repository. Recorded here as a run SHAPE and a
+  run IDENTITY; it is **not** a result, **not** evidence, and carries **no** expected
+  result — **an unfinished run may never be reported, summarized or reasoned about as a
+  scientific finding.** Because the snapshot is pinned and detached, later `main` work —
+  Phase-B CTDE included — lies outside the measured tree and can neither be attributed to
+  this run nor contaminate it. The approved shape:
   - **50 scheduled training iterations × 8 scheduled training attempts = 400 scheduled
     training attempts**, `base_seed = 0`;
   - **evaluation every 5 iterations, INCLUDING the initial `pre_update` round ⇒ 11
@@ -2527,16 +2566,25 @@ a stub, because normal production does not currently generate it.
   `null`, never `0.0`; and a run that shows no reward improvement or no productive update
   is a valid NEGATIVE observation, not a technical failure. **"Mild must choose
   `PLAN_COMPLIANCE`" is NOT a correctness criterion** (§5).
-- **Centralized critic / value head (CTDE) — PHASE B. DEFERRED BEHIND THE ADDITIONAL
-  ACTOR-ONLY VARIABLE-SEVERITY BASELINE ABOVE** (Phase A is closed by the valid baseline,
-  §7; the variable-severity baseline is merged but NOT yet measured). **It is no longer
-  the immediately-next task**, and it may not begin until that measurement is executed and
-  independently reviewed. When it is authorized, it is a size-agnostic
-  value estimator off
-  the existing `GraphEncoder.pool()` hook; there is still **NO value head today**, and
-  `graph_ppo` remains actor-only with its PHASE-B SEAM comments marking where the critic
-  joins. **This task starts as DESIGN / RECON, not implementation.** The orchestrator that
-  takes it up
+- **Centralized critic / value head (CTDE) — PHASE B. DESIGN AND IMPLEMENTATION AUTHORIZED
+  TO PROCEED CONCURRENTLY WITH THE PINNED VARIABLE-SEVERITY MEASUREMENT (2026-08-22);
+  INTEGRATION INTO `main` STILL GATED.** (Phase A is closed by the valid baseline, §7; the
+  variable-severity factor is merged, and its baseline is RUNNING on the pinned detached
+  snapshot `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` and is NOT completed or reviewed.)
+  **The former rule that this task may not BEGIN until that measurement is executed and
+  independently reviewed is SUPERSEDED.** What survives is the MERGE gate: **no CTDE change
+  may be merged into `main` until the variable-severity measurement has COMPLETED and
+  received an INDEPENDENT VALIDITY VERDICT**, unless the user explicitly changes that rule
+  later — and before that integration a NEW immutable actor-only pre-CTDE reference is
+  preserved from the then-current actor-only state (deliberately NOT chosen or created
+  here; `phase-a-baseline` is historical provenance for the ORIGINAL Phase-A reference and
+  is never moved or repurposed for it). **NOTHING TECHNICAL ABOUT THIS TASK CHANGED**: it
+  is still a size-agnostic value estimator off the existing `GraphEncoder.pool()` hook,
+  there is still **NO value head today**, and `graph_ppo` remains actor-only with its
+  PHASE-B SEAM comments marking where the critic joins. **Everything below remains an OPEN
+  DESIGN REQUIREMENT** — no CTDE architecture, critic-input set, PPO/GAE, checkpoint or
+  configuration decision is locked by this record. **This task still starts as DESIGN /
+  RECON.** The orchestrator that takes it up
   must NOT begin by writing a critic; it must first resolve a fresh live `main` SHA, re-read
   BOTH documents at that SHA, and then produce a design that states:
   - the **size-agnostic** value estimator over a varying task/agent graph;
@@ -2549,12 +2597,16 @@ a stub, because normal production does not currently generate it.
   - a clean **actor-only vs CTDE comparison ON THE LOCKED PHASE-A REFERENCE CELL**, judged
     against the approved Phase-A baseline (§7) under the same validity gate, **BEFORE** any
     further environment difficulty is added.
-  **No CTDE benefit may be pre-claimed** — the approved Phase-A result explicitly does not
-  establish one, and neither will the variable-severity baseline. The remaining difficulty
-  expansions (`probability < 1`, SAMs, dense reward) are SEPARATE later research changes
-  and must not be bundled into this one. **The stochastic/partial fuel-degradation variant
-  is NO LONGER on that deferred list**: its approved form is FD-VARIABLE-SEVERITY-v1, it is
-  merged (`eecc9b5`, §5, §7), and its baseline is scheduled BEFORE this task, not after.
+  **No CTDE benefit may be pre-claimed** — not from the approved Phase-A result, which
+  explicitly does not establish one; not from the variable-severity baseline, which will
+  not establish one either; and **not from CTDE implementation work, engineering tests or
+  a passing test suite, none of which measure anything scientific.** A CTDE claim requires
+  its own executed, independently reviewed comparison. The remaining difficulty expansions
+  (`probability < 1`, SAMs, dense reward) are SEPARATE later research changes and must not
+  be bundled into this one. **The stochastic/partial fuel-degradation variant is NO LONGER
+  on that deferred list**: its approved form is FD-VARIABLE-SEVERITY-v1, it is merged
+  (`eecc9b5`, §5, §7), and since 2026-08-22 its baseline runs CONCURRENTLY with this task
+  on a pinned snapshot rather than strictly before it.
 - **Baseline difficulty selection — CLOSED for the current cell by FD-BASELINE-v1
   (`a8669f4`).** Exactly ONE factor was selected, implemented and locked: `fuel_damage`
   (§5, §7). The following were considered and **NOT selected**; each remains a DEFERRED,
@@ -2578,9 +2630,10 @@ a stub, because normal production does not currently generate it.
   **What DID change is the ordering, not this list**: exactly ONE additional difficulty
   design — FD-VARIABLE-SEVERITY-v1, the approved form of the stochastic/partial
   fuel-degradation variant — was selected, implemented and locked after FD-BASELINE-v1
-  (`eecc9b5`, §5, §7), and its actor-only baseline is scheduled BEFORE Phase-B CTDE (see
-  the research-ordering bullet above). Every entry in the list above stays deferred behind
-  the phase boundary exactly as stated.
+  (`eecc9b5`, §5, §7), and since 2026-08-22 its actor-only baseline runs CONCURRENTLY with
+  Phase-B CTDE design and implementation, on a pinned immutable snapshot (see the
+  research-ordering bullet above, which owns the supersession). Every entry in the list
+  above stays deferred behind the phase boundary exactly as stated.
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
