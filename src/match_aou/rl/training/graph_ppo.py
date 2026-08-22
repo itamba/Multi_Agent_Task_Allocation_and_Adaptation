@@ -778,7 +778,10 @@ class CTDEConfig:
             and the actor is not; sharing one rate would make them tune together for no
             reason.
         value_coeff: weight on the critic's MSE value loss. It scales the CRITIC's own
-            loss only -- it is not a knob that turns CTDE off (see the section header).
+            loss only -- it is not a knob that turns CTDE off (see the section header),
+            and ``TrainConfig.validate`` REFUSES ``0`` under ``training_mode='ctde'``:
+            a zero coefficient would leave the critic untrained while its advantages
+            were still driving the actor, which is neither training mode.
         gae_lambda: the GAE trace-decay ``lambda``. 1.0 would be the plain Monte-Carlo
             advantage (maximum variance, zero bias); 0 would be the one-step TD residual
             (minimum variance, maximum bias). 0.95 is the canonical middle.
@@ -803,9 +806,17 @@ class ValueHead(torch.nn.Module):
     targets are destroyed and aircraft are lost, and the head's input width never
     changes.
 
-    The output layer uses a small init std so the initial value function is ~0
-    everywhere, which keeps the first CTDE advantages close to the raw returns instead
-    of to an arbitrary random baseline.
+    INITIALIZATION, stated as the code has it: both layers are orthogonally initialized
+    through :func:`_ctde_layer_init` with zero bias -- the hidden layer at its default
+    gain ``sqrt(2)``, and the OUTPUT layer at ``std=1.0``, the conventional gain for a
+    value head (an actor's policy head uses a deliberately small ``0.01`` instead, to
+    start near-uniform; a value head does not).
+
+    So the UNTRAINED critic is an arbitrary small-magnitude function of the state, NOT
+    zero everywhere. Nothing here relies on it being zero: the advantages the actor
+    consumes are normalized across the whole batch in
+    :func:`compute_ctde_advantages`, which subtracts the batch mean, so an offset the
+    untrained critic applies uniformly across a batch cancels there rather than here.
     """
 
     def __init__(self, embed_dim: int, hidden_dim: int = 64):

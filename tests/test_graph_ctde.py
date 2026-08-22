@@ -456,6 +456,75 @@ def test_the_poison_is_live_a_ctde_run_hits_it(tmp_path):
     assert raised, "a ctde run did not reach any central-CTDE construction site"
 
 
+def test_ctde_refuses_a_zero_value_coefficient():
+    """F1: `ctde` + `value_coeff = 0` is REJECTED before any training work.
+
+    Such a run would build central observations and take its advantages from the critic
+    while never training it -- the baseline would stay a frozen random function. That is
+    neither the `actor_only` reference algorithm nor the approved CTDE one, and it would
+    be recorded and read as CTDE.
+    """
+    cfg = graph_train.TrainConfig(
+        n_iterations=1,
+        training_mode=graph_train.TRAINING_MODE_CTDE,
+        ctde=CTDEConfig(value_coeff=0.0),
+    )
+    try:
+        cfg.validate()
+        raised = None
+    except ValueError as exc:
+        raised = str(exc)
+    assert raised is not None, "ctde with value_coeff=0 was accepted"
+    assert "value_coeff" in raised and "> 0" in raised
+    # A negative coefficient is refused too, and the approved default is accepted.
+    for bad in (-1e-9, -0.5):
+        try:
+            graph_train.TrainConfig(
+                n_iterations=1, training_mode=graph_train.TRAINING_MODE_CTDE,
+                ctde=CTDEConfig(value_coeff=bad),
+            ).validate()
+            assert False, "ctde accepted value_coeff=%r" % (bad,)
+        except ValueError:
+            pass
+    graph_train.TrainConfig(
+        n_iterations=1, training_mode=graph_train.TRAINING_MODE_CTDE,
+    ).validate()
+
+
+def test_the_approved_ctde_defaults_are_unchanged():
+    """F1: the fix is a BOUND, not a retune -- the approved defaults still stand."""
+    d = CTDEConfig()
+    assert d.value_coeff == 0.5
+    assert d.critic_lr == 3e-4
+    assert d.gae_lambda == 0.95
+    assert graph_train.TrainConfig(n_iterations=1).ctde == d
+
+
+def test_actor_only_is_unaffected_by_unused_ctde_configuration():
+    """F1: `actor_only` validation semantics are untouched.
+
+    An `actor_only` run never reads the CTDE block, so a value it would refuse under
+    `ctde` -- including 0 -- must not make an actor_only config invalid. That keeps
+    `value_coeff` from acting as a mode selector: `ctde_enabled` reads `training_mode`
+    and nothing else.
+    """
+    for coeff in (0.0, -3.0, 0.5):
+        cfg = graph_train.TrainConfig(
+            n_iterations=1,
+            training_mode=graph_train.TRAINING_MODE_ACTOR_ONLY,
+            ctde=CTDEConfig(value_coeff=coeff),
+        )
+        cfg.validate()
+        assert not cfg.ctde_enabled
+    # And an absurd CTDE block still does not make an actor_only run a CTDE run.
+    weird = graph_train.TrainConfig(
+        n_iterations=1, ctde=CTDEConfig(value_coeff=0.0, critic_lr=-1.0),
+    )
+    weird.validate()
+    assert weird.training_mode == graph_train.TRAINING_MODE_ACTOR_ONLY
+    assert not weird.ctde_enabled
+
+
 def test_actor_only_checkpoint_payload_keys_are_exactly_the_phase_a_five(tmp_path):
     """PO1: `critic=None` saves the pre-CTDE payload -- no renames, no extra keys."""
     torch.manual_seed(0)
@@ -513,6 +582,124 @@ def test_ctde_credit_does_not_call_the_actor_only_credit_function():
     finally:
         graph_ppo.compute_returns_and_advantages = saved
     assert batch.n_transitions == 1
+
+
+# The sentinel critic diagnostics `_SentinelCTDEUpdater` returns. Deliberately values
+# nothing in the pipeline could produce by accident, so a record carrying them can only
+# have COPIED them out of the updater's own dict.
+_CRITIC_SENTINELS = {
+    "value_loss": 12.5,
+    "value_mean": -3.25,
+    "value_target_mean": 7.75,
+    "critic_grad_norm": 0.125,
+}
+
+
+class _SentinelCTDEUpdater:
+    """A CTDEUpdater stand-in returning KNOWN critic diagnostics.
+
+    It runs no epochs and touches no weights: what is under test is whether
+    ``train`` persists the updater's OWN numbers, not how they were produced.
+    """
+
+    def __init__(self, policy, critic, ppo, ctde):
+        self.cfg = ppo
+        self.ctde_cfg = ctde
+        self.optimizer = torch.optim.Adam(policy.encoder.parameters(), lr=1e-4)
+        self.critic_optimizer = torch.optim.Adam(critic.parameters(), lr=1e-4)
+
+    def update(self, buf):
+        n_eps = getattr(buf, "n_episodes", 0)
+        diag = {
+            "policy_loss": 0.0, "total_loss": 0.0, "entropy": 0.0, "mean_ratio": 1.0,
+            "clip_fraction": 0.0, "approx_kl": 0.0, "max_ratio_dev": 0.0,
+            "grad_norm": 0.0, "adv_std_raw": 0.0, "n_transitions": 0,
+            "n_episodes": n_eps, "episodes_with_wakes": 0,
+            "n_epochs_run": 1 if n_eps else 0, "baseline": -0.5,
+        }
+        diag.update(_CRITIC_SENTINELS)
+        return diag
+
+
+def _train_records(run_dir):
+    path = Path(run_dir) / "train_records.jsonl"
+    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l]
+
+
+def test_ctde_train_records_persist_the_updaters_critic_diagnostics(tmp_path):
+    """F2: a CTDE iteration record carries the four critic diagnostics VERBATIM.
+
+    The updater is replaced by one returning sentinel values no real computation would
+    produce, so a matching record proves the numbers were COPIED out of the updater's
+    diagnostics rather than recomputed somewhere else.
+    """
+    restore = ["_run_one_episode", "_build_generator", "_git_provenance", "CTDEUpdater"]
+    saved = graph_train.CTDEUpdater
+    cfg = graph_train.TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, eval_every=0, eval_episodes=0,
+        output_dir=str(tmp_path / "run_ctde_records"),
+        training_mode=graph_train.TRAINING_MODE_CTDE,
+    )
+    try:
+        graph_train.CTDEUpdater = _SentinelCTDEUpdater
+        _run_stub_training(cfg, restore)
+    finally:
+        graph_train.CTDEUpdater = saved
+
+    records = _train_records(cfg.output_dir)
+    assert len(records) == 1
+    rec = records[0]
+    for key, value in _CRITIC_SENTINELS.items():
+        assert key in rec, "CTDE record is missing %r" % key
+        assert rec[key] == value, (
+            "%s was not taken from the updater diagnostics (got %r, expected %r)"
+            % (key, rec[key], value)
+        )
+    # The actor-side reward keys keep their existing meaning and are NOT the critic's.
+    assert rec["train_reward_mean"] == rec["baseline"] == -0.5
+    assert rec["baseline"] != rec["value_mean"]
+
+
+def test_actor_only_train_records_carry_no_critic_keys(tmp_path):
+    """F2: an actor_only record is not converted into a CTDE-shaped one.
+
+    The keys are ABSENT, not null: an actor_only updater has no critic to describe, and
+    a nullable key would invite reading "no critic" as "a critic that scored 0".
+    """
+    restore = ["_run_one_episode", "_build_generator", "_git_provenance"]
+    cfg = graph_train.TrainConfig(
+        n_iterations=1, episodes_per_iteration=2, eval_every=0, eval_episodes=0,
+        output_dir=str(tmp_path / "run_actor_records"),
+    )
+    _run_stub_training(cfg, restore)
+    rec = _train_records(cfg.output_dir)[0]
+    for key in _CRITIC_SENTINELS:
+        assert key not in rec, "actor_only record leaked the CTDE key %r" % key
+    # ...while every actor-side key it always had is still there and still means the
+    # same thing.
+    for key in ("train_reward_mean", "baseline", "policy_loss", "total_loss",
+                "entropy", "grad_norm", "adv_std_raw", "n_transitions"):
+        assert key in rec, "actor_only record lost %r" % key
+
+
+def test_the_four_critic_keys_are_exactly_what_the_real_updater_returns():
+    """F2: the persisted names are the REAL `CTDEUpdater.update` keys, not new coinage.
+
+    If the updater ever renamed one, the record writer would silently start persisting
+    a stale key -- this pins the two together.
+    """
+    torch.manual_seed(0)
+    policy = graph_train.build_policy()
+    critic = build_central_critic()
+    updater = CTDEUpdater(policy, critic, PPOConfig(n_epochs=1), CTDEConfig())
+    gobs = _actor_obs()
+    rec = CTDEEpisodeRecord.from_episode(
+        [_transition(gobs, reward=-1.0)], [_synthetic_central()], -1.0,
+    )
+    diag = updater.update([rec])
+    for key in _CRITIC_SENTINELS:
+        assert key in diag, "CTDEUpdater no longer returns %r" % key
+        assert np.isfinite(diag[key]), "%s is not finite" % key
 
 
 def test_actor_only_run_records_its_mode_and_no_ctde_block(tmp_path):

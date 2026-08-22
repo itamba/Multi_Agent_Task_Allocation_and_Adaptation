@@ -1021,9 +1021,21 @@ class TrainConfig:
                 raise ValueError(
                     "ctde.critic_lr must be > 0, got %r" % (self.ctde.critic_lr,)
                 )
-            if float(self.ctde.value_coeff) < 0.0:
+            # STRICTLY POSITIVE, and 0 is the case this exists to refuse. A run labelled
+            # `ctde` with `value_coeff = 0` would build central observations and take
+            # its advantages from the critic while NEVER TRAINING that critic -- so the
+            # baseline would stay a frozen random function forever. That is neither the
+            # `actor_only` reference algorithm nor the approved CTDE one, and it would
+            # be recorded and read as CTDE. Rejected here, before any compute.
+            # This is a VALIDITY bound, not a mode selector: `ctde_enabled` still reads
+            # `training_mode` and nothing else.
+            if float(self.ctde.value_coeff) <= 0.0:
                 raise ValueError(
-                    "ctde.value_coeff must be >= 0, got %r" % (self.ctde.value_coeff,)
+                    "ctde.value_coeff must be > 0 under training_mode='ctde', got %r. "
+                    "A zero coefficient never trains the critic while still using its "
+                    "advantages, which is neither training mode. To run without a "
+                    "critic set training_mode='actor_only'."
+                    % (self.ctde.value_coeff,)
                 )
 
         # --- the construction cell: shape errors RAISE, before any compute ---
@@ -4816,6 +4828,21 @@ def train(
                 "episodes_seconds": episodes_seconds,
                 "update_seconds": update_seconds,
             }
+            # PHASE-B CTDE: the CRITIC's own four diagnostics, added ONLY on a `ctde`
+            # run. `CTDEUpdater.update` already computed them; they are copied straight
+            # out of `diag` and NEVER recomputed here, so the record cannot describe a
+            # critic the update did not have. An `actor_only` record is byte-unchanged
+            # (the keys are absent, not null) -- its updater has no critic to describe,
+            # and a nullable key would invite reading "no critic" as "a critic that
+            # scored 0". Every actor-side key above, `train_reward_mean` and `baseline`
+            # included, keeps exactly its existing meaning in both modes.
+            if cfg.ctde_enabled:
+                record.update({
+                    "value_loss": float(diag["value_loss"]),
+                    "value_mean": float(diag["value_mean"]),
+                    "value_target_mean": float(diag["value_target_mean"]),
+                    "critic_grad_norm": float(diag["critic_grad_norm"]),
+                })
             train_records.append(record)
             train_fh.write(json.dumps(record) + "\n")
             train_fh.flush()
