@@ -79,6 +79,7 @@ from typing import Any, List, Optional
 
 import torch
 
+from ..observation.central_graph_builder import CentralStateRecorder
 from ..observation.graph_builder import (
     build_graph_observation,
     GraphObservation,
@@ -270,6 +271,7 @@ def run_episode(
     deterministic: bool = False,
     max_ticks: Optional[int] = None,
     fuel_damage: Optional[FuelDamageController] = None,
+    central: Optional[CentralStateRecorder] = None,
 ) -> EpisodeResult:
     """Play ONE episode of the graph-RL pipeline and return its rollout.
 
@@ -306,6 +308,14 @@ def run_episode(
             supplied it is consulted ONCE per tick, at the top, before any ego is
             processed (see the module docstring); a CLEAN controller is a no-op on every
             call, so there is one code path rather than two.
+        central: optional Phase-B CTDE :class:`CentralStateRecorder`. ``None`` (the
+            default, and what ``actor_only`` training passes) leaves the loop
+            byte-identical to the pre-CTDE behaviour -- no central state is built and
+            nothing privileged is computed. When supplied it collects ONE central state
+            per actor decision, captured immediately BEFORE that decision, so its
+            ``samples`` are aligned 1:1 with the returned ``trajectory``. It is a
+            TRAINING-ONLY companion structure: the actor's ``Transition.gobs`` stays the
+            ego's private observation, and evaluation / inference never construct one.
 
     Returns:
         An :class:`EpisodeResult` with the wake ``trajectory`` and diagnostics. The
@@ -371,6 +381,27 @@ def run_episode(
             # Persist the trigger's belief edit (pop-up append / peer-overdue removal).
             belief.tasks, belief.solution = new_tasks, new_sol
             if wake:
+                if central is not None:
+                    # CTDE ONLY (Phase B). One central state per actor decision,
+                    # captured IMMEDIATELY BEFORE the action so it is the state the
+                    # decision was made in, not the state the decision produced.
+                    # Placed inside `if wake` so the samples stay aligned 1:1 with the
+                    # transitions appended below, and BEFORE `_wake_decision` so the
+                    # belief edit + `executor.resync` it performs are not yet visible.
+                    # With two egos waking on the same tick this yields two ordered
+                    # samples with NO env.step between them; the later one legitimately
+                    # sees the earlier one's resynced plan (the critic is centralized).
+                    # Nothing captured here reaches the actor -- see
+                    # `central_graph_builder`.
+                    central.capture(
+                        scenario=obs,
+                        agent_ids=ctx.agent_ids,
+                        executor=ctx.executor,
+                        current_time=tick,
+                        # The ACTOR's own config, so the critic's detection radius /
+                        # theater scale / tick cap are the same values by construction.
+                        config=cfg,
+                    )
                 transition = _wake_decision(
                     policy, ego_id, obs, belief, ctx.executor, cfg, tick,
                     deterministic=deterministic,

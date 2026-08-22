@@ -677,12 +677,14 @@ _CHILD = (
 
 
 def test_import_is_clean() -> None:
-    """P6(b): importing `graph_ppo` adds NOTHING to its dependency's closure.
+    """P6(b): importing `graph_ppo` adds only torch/numpy-level modules to its closure.
 
-    `Policy` / `Transition` are TYPE_CHECKING-only imports (the `graph_reward` idiom),
-    so the runtime closure is exactly `graph_action`'s plus this module itself and its
-    package — no BLADE engine, no gymnasium env, no episode-setup. That is what lets
-    the whole PPO core be exercised on synthetic data.
+    `Policy` / `Transition` / `CentralGraphObservation` are TYPE_CHECKING-only imports
+    (the `graph_reward` idiom), so the runtime closure is `graph_action`'s plus this
+    module, its package, and the two the Phase-B critic really constructs
+    (`graph_encoder`, `central_graph_builder`) — no BLADE engine, no gymnasium env, no
+    episode-setup, no tick-loop. That is what lets the whole PPO core, CTDE included,
+    be exercised on synthetic data.
 
     Note what is NOT claimed: `match_aou.solvers.match_aou_MINLP_solver` IS in the
     closure. It arrives through the LOCKED `graph_builder -> scenario_factory` chain
@@ -715,9 +717,23 @@ def test_import_is_clean() -> None:
     assert not leaked, f"graph_ppo leaked flat-only module(s): {leaked}"
     assert result["seed_stable"], "importing graph_ppo mutated torch's global RNG"
 
-    # graph_ppo adds ONLY itself and its package to the locked action layer's closure.
+    # graph_ppo adds ONLY itself, its package, and the two modules the Phase-B critic
+    # genuinely needs. Still an EXACT-equality lock (not a subset check), so any further
+    # widening still fails here.
+    #
+    # Why each addition is benign -- and why it is an addition at all: `CentralCritic`
+    # IS a network, so it constructs a real `GraphEncoder`, and it needs the central
+    # feature widths to construct it with. Both new modules are torch/numpy-only and
+    # every dependency they have of their own (`graph_builder`, `scenario_factory`,
+    # `shared_utils`) was ALREADY in `graph_action`'s inherited closure, which is why
+    # the delta is exactly three module names and no engine or env came with them. The
+    # four hard assertions below are unchanged and are what actually guard that.
     assert set(result["added"]) == {
-        "match_aou.rl.training", "match_aou.rl.training.graph_ppo"
+        "match_aou.rl.training",
+        "match_aou.rl.training.graph_ppo",
+        "match_aou.rl.agent",
+        "match_aou.rl.agent.graph_encoder",
+        "match_aou.rl.observation.central_graph_builder",
     }, f"graph_ppo widened the import closure: {result['added']}"
     # No engine, no env: the tick-loop types are TYPE_CHECKING-only.
     assert "match_aou.rl.training.graph_episode_setup" not in present

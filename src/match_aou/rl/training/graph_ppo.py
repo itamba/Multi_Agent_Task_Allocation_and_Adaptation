@@ -18,9 +18,23 @@ hand-built :class:`GraphObservation` plus a random-weight policy.
 IS NOT:
   * the outer training loop (generate -> setup -> run -> reward -> update -> log -> repeat).
     That is the NEXT task; this module is what it will call.
-  * the critic / value head (Phase B, CTDE). There is NO value loss here — see the
-    clearly marked PHASE-B SEAM comments in :func:`compute_returns_and_advantages`
-    and :meth:`PPOUpdater.update`.
+
+PHASE A AND PHASE B LIVE SIDE BY SIDE HERE
+-------------------------------------------
+Sections 1-6 are the ACTOR-ONLY Phase-A path and are exactly what the approved Phase-A
+baseline was measured on: ``EpisodeRecord`` / ``PPOBuffer`` /
+``compute_returns_and_advantages`` / ``PPOUpdater``, with NO value loss and an
+episode-mean baseline. Section 7 adds the Phase-B CTDE path — ``CTDEConfig``,
+``CentralCritic`` (its OWN encoder + a :class:`ValueHead` off ``GraphEncoder.pool``),
+``CTDEEpisodeRecord`` / ``CTDEBuffer``, ``compute_ctde_advantages`` (GAE over the
+episode's GLOBAL decision sequence) and ``CTDEUpdater`` (separate actor and critic
+optimizers).
+
+The two are DISJOINT, not layered: a run selects one by ``training_mode``, and an
+``actor_only`` run constructs nothing from section 7. Sections 1-6 were not refactored
+to make room for it, so the Phase-A semantics cannot have moved. The historical
+"PHASE-B SEAM" comments below mark where the critic was expected to join; section 7
+records where it actually did.
 
 THE CREDIT STRUCTURE (locked in planning — read before changing anything)
 -------------------------------------------------------------------------
@@ -99,8 +113,15 @@ import numpy as np
 import torch
 
 from ..action.graph_action import build_action_mask, evaluate_action
+from ..agent.graph_encoder import GraphEncoder
+from ..observation.central_graph_builder import (
+    CENTRAL_AGENT_FEATURE_DIM,
+    CENTRAL_EDGE_ATTR_DIM,
+    CENTRAL_TASK_FEATURE_DIM,
+)
 
 if TYPE_CHECKING:  # Types only — keeps the runtime closure BLADE-free / solver-free.
+    from ..observation.central_graph_builder import CentralGraphObservation
     from .graph_tick_loop import Policy, Transition
 
 
@@ -359,10 +380,13 @@ def _chain_returns(chain_len: int, episode_reward: float, gamma: float) -> List[
     is a real, testable field and the chain structure is already load-bearing when
     Phase B introduces dense rewards.
 
-    PHASE-B SEAM: this is where GAE replaces the plain return. With a critic, this
-    function becomes ``delta_t = r_t + gamma*V(s_{t+1}) - V(s_t)`` accumulated
-    backwards with ``gamma*lambda``, consuming EXACTLY the same per-ego chain — the
-    reason the buffer stores chains rather than a flat list.
+    PHASE-B SEAM (historical note, now resolved): this was where GAE was expected to
+    replace the plain return, consuming the same per-ego chain. Phase B in fact runs GAE
+    over the episode's GLOBAL decision sequence rather than per ego — the centralized
+    value is a statement about the TEAM state at each decision event, so bootstrapping
+    along one ego's chain would bootstrap from a state that is not the successor of the
+    one before it. That path is :func:`compute_ctde_advantages`, a SEPARATE function; it
+    does not call this one, and this one is unchanged.
     """
     if chain_len <= 0:
         return []
@@ -568,12 +592,14 @@ class PPOUpdater:
         Then ONE mean over the batch's transitions, ONE backward, a global grad-norm
         clip, and ONE optimizer step per epoch.
 
-        PHASE-B SEAM: the critic's value loss joins the per-transition loss right where
-        the entropy bonus is subtracted, as
-        ``+ value_coeff * (V(pool(emb)) - batch.returns[i])**2`` — the encoder forward
-        above already produces the embedding ``GraphEncoder.pool()`` consumes, so the
-        critic costs no extra forward pass. ``batch.returns`` is already computed and
-        aligned for exactly that use.
+        PHASE-B SEAM (historical note, now resolved): the critic's value loss was
+        expected to join the per-transition loss here, reusing this forward's embedding.
+        Phase B deliberately did NOT do that. The critic reads a CENTRAL state — all
+        live agents and targets — which this actor forward does not produce and must
+        never see, so sharing the embedding would have shared the encoder and made
+        "privileged information never reaches the actor's weights" unprovable. The
+        critic therefore owns a separate encoder and a separate optimizer in
+        :class:`CTDEUpdater`, and THIS updater is unchanged: actor-only, no value loss.
 
         Epoch 0 is diagnostically special: the weights are UNCHANGED from the rollout,
         so every ratio is exactly 1.0 and the reported ``per_epoch`` entries at index 0
@@ -680,6 +706,757 @@ class PPOUpdater:
             per_epoch["approx_kl"].append(float(np.mean(kl_terms)))
             per_epoch["max_ratio_dev"].append(float(np.max(np.abs(ratios_arr - 1.0))))
             per_epoch["grad_norm"].append(float(grad_norm))
+
+        diagnostics["n_epochs_run"] = cfg.n_epochs
+        for key, values in per_epoch.items():
+            diagnostics[key] = float(np.mean(values)) if values else 0.0
+        assert diagnostics["n_transitions"] == n  # alignment sanity
+        return diagnostics
+
+
+# =============================================================================
+# 7. PHASE B (CTDE) -- the centralized critic, its credit math and its updater
+# =============================================================================
+#
+# Everything from here down is TRAINING-ONLY and is reached ONLY when the run's
+# ``training_mode`` is ``ctde``. Sections 1-6 above are the actor-only Phase-A path and
+# are BYTE-UNCHANGED: ``EpisodeRecord`` / ``PPOBuffer`` /
+# ``compute_returns_and_advantages`` / ``PPOUpdater`` keep their exact semantics, and an
+# ``actor_only`` run never constructs a single object defined below. That separation is
+# deliberate -- emulating actor-only by running the CTDE path with ``value_coeff = 0``
+# would still build a critic, still sample central states, still replace the
+# episode-mean baseline with a learned one, and would therefore NOT be the Phase-A
+# baseline the approved measurement was taken on.
+#
+# WHAT IS CENTRALIZED, AND WHAT IS NOT
+# ------------------------------------
+# CENTRALIZED (training only): the value estimate ``V(s)``, computed from the global
+# ``CentralGraphObservation`` -- all live targets, all live agents with their real fuel,
+# all-agent sensing, and the current global executor plans.
+#
+# DECENTRALIZED (unchanged, always): every action. The actor still consumes ONLY its own
+# private ``GraphObservation`` through the SAME encoder + head + mask + sampling path,
+# and this module never feeds it anything else. The critic exists to reduce the variance
+# of the actor's advantage; it never appears in the acting path, in evaluation, or at
+# inference. A CTDE-trained actor is runnable with the critic object absent.
+#
+# ACTOR AND CRITIC SHARE NOTHING
+# ------------------------------
+# The critic owns its OWN :class:`~match_aou.rl.agent.graph_encoder.GraphEncoder`
+# instance and its own optimizer. There is no shared encoder, no shared parameter
+# object and no shared optimizer, so "did privileged information reach the actor's
+# weights?" has a structural answer: the actor's parameter set and the critic's are
+# disjoint, the two losses are backpropagated SEPARATELY, and the advantage the actor
+# consumes is a detached python float.
+
+def _ctde_layer_init(
+    layer: torch.nn.Linear,
+    std: float = np.sqrt(2),
+    bias_const: float = 0.0,
+) -> torch.nn.Linear:
+    """Orthogonal init for a linear layer -- the standard PPO scheme.
+
+    Re-defined LOCALLY, the same way ``graph_encoder`` and ``graph_action`` each carry
+    their own byte-identical copy, so this module does not acquire a dependency on
+    either of them for two lines of initialization.
+    """
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
+
+@dataclass(frozen=True)
+class CTDEConfig:
+    """Phase-B CTDE hyper-parameters. Frozen, like :class:`PPOConfig`.
+
+    ``gamma`` is deliberately NOT duplicated here -- CTDE reuses ``PPOConfig.gamma``, so
+    a run has exactly one discount factor and the two configs cannot disagree about it.
+
+    Attributes:
+        critic_lr: Adam learning rate for the critic (its own encoder + value head).
+            Separate from ``PPOConfig.lr`` because the critic is a regression problem
+            and the actor is not; sharing one rate would make them tune together for no
+            reason.
+        value_coeff: weight on the critic's MSE value loss. It scales the CRITIC's own
+            loss only -- it is not a knob that turns CTDE off (see the section header),
+            and ``TrainConfig.validate`` REFUSES ``0`` under ``training_mode='ctde'``:
+            a zero coefficient would leave the critic untrained while its advantages
+            were still driving the actor, which is neither training mode.
+        gae_lambda: the GAE trace-decay ``lambda``. 1.0 would be the plain Monte-Carlo
+            advantage (maximum variance, zero bias); 0 would be the one-step TD residual
+            (minimum variance, maximum bias). 0.95 is the canonical middle.
+    """
+
+    critic_lr: float = 3e-4
+    value_coeff: float = 0.5
+    gae_lambda: float = 0.95
+
+
+# -----------------------------------------------------------------------------
+# 7a. The critic network
+# -----------------------------------------------------------------------------
+
+class ValueHead(torch.nn.Module):
+    """Scalar state-value head over a POOLED graph summary.
+
+    Consumes ``GraphEncoder.pool(...)`` -- the ``[embed_dim]`` mean over ALL node
+    embeddings, which is the size-agnostic hook the encoder has carried since Phase A
+    for exactly this purpose. Pooling is what makes the value estimator native to a
+    varying number of targets and agents with no padding: the graph can shrink as
+    targets are destroyed and aircraft are lost, and the head's input width never
+    changes.
+
+    INITIALIZATION, stated as the code has it: both layers are orthogonally initialized
+    through :func:`_ctde_layer_init` with zero bias -- the hidden layer at its default
+    gain ``sqrt(2)``, and the OUTPUT layer at ``std=1.0``, the conventional gain for a
+    value head (an actor's policy head uses a deliberately small ``0.01`` instead, to
+    start near-uniform; a value head does not).
+
+    So the UNTRAINED critic is an arbitrary small-magnitude function of the state, NOT
+    zero everywhere. Nothing here relies on it being zero: the advantages the actor
+    consumes are normalized across the whole batch in
+    :func:`compute_ctde_advantages`, which subtracts the batch mean, so an offset the
+    untrained critic applies uniformly across a batch cancels there rather than here.
+    """
+
+    def __init__(self, embed_dim: int, hidden_dim: int = 64):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.hidden_dim = hidden_dim
+        self.mlp = torch.nn.Sequential(
+            _ctde_layer_init(torch.nn.Linear(embed_dim, hidden_dim)),
+            torch.nn.Tanh(),
+            _ctde_layer_init(torch.nn.Linear(hidden_dim, 1), std=1.0),
+        )
+
+    def forward(self, pooled: torch.Tensor) -> torch.Tensor:
+        """Map a ``[embed_dim]`` pooled summary to a SCALAR value (shape ``[]``)."""
+        return self.mlp(pooled).squeeze(-1)
+
+
+class CentralCritic(torch.nn.Module):
+    """The centralized value estimator: its OWN encoder + a :class:`ValueHead`.
+
+    ``V(s) = value_head(critic_encoder.pool(central_obs, edge_attr))``.
+
+    THE ENCODER IS A DISTINCT INSTANCE. It is constructed here, from the same
+    ``GraphEncoder`` CLASS the actor uses, with the CENTRAL feature widths
+    (``task_feat_dim = 2``, ``agent_feat_dim = 1``, ``edge_attr_dim = 5``) -- all three
+    already constructor parameters, which is why no encoder change was needed. Its
+    parameters are disjoint from the actor's; nothing is shared, tied or copied.
+
+    THE GRAPH HAS NO DISTINGUISHED EGO. ``CentralGraphObservation.ego_index`` is
+    ``-1``, and the encoder marks a node EGO only for ``0 <= ego_index < N``, so every
+    live agent node keeps the same role and the critic is SYMMETRIC over agents. No
+    agent-identity or agent-order feature is invented, and the encoder's role semantics
+    are untouched.
+    """
+
+    def __init__(
+        self,
+        embed_dim: int = 64,
+        hidden_dim: int = 64,
+        **encoder_kwargs: Any,
+    ) -> None:
+        super().__init__()
+        self.encoder = GraphEncoder(
+            embed_dim=embed_dim,
+            task_feat_dim=CENTRAL_TASK_FEATURE_DIM,
+            agent_feat_dim=CENTRAL_AGENT_FEATURE_DIM,
+            edge_attr_dim=CENTRAL_EDGE_ATTR_DIM,
+            **encoder_kwargs,
+        )
+        self.value_head = ValueHead(self.encoder.embed_dim, hidden_dim)
+
+    def forward(self, central_obs: "CentralGraphObservation") -> torch.Tensor:
+        """Estimate ``V(s)`` for one central state; returns a SCALAR tensor.
+
+        A state with NO nodes at all (every target destroyed AND every agent lost)
+        would make the pooling mean over an empty set, i.e. NaN. It cannot arise at a
+        capture point -- a decision requires an airborne ego, so there is always at
+        least one agent node -- but the guard is here anyway so the critic's output is
+        finite by construction rather than by an argument about the caller.
+        """
+        n_nodes = int(central_obs.task_features.shape[0]) + int(
+            central_obs.agent_features.shape[0]
+        )
+        if n_nodes == 0:
+            return torch.zeros((), dtype=torch.float32)
+        pooled = self.encoder.pool(central_obs, edge_attr=central_obs.edge_attr)
+        return self.value_head(pooled)
+
+
+def build_central_critic(embed_dim: int = 64, **kwargs: Any) -> CentralCritic:
+    """Construct the run's ONE :class:`CentralCritic` (call once, like ``build_policy``).
+
+    Kept as a function so the CTDE side mirrors ``graph_tick_loop.build_policy``: the
+    critic is training state and must live across episodes, exactly like the actor and
+    its Adam moments.
+    """
+    return CentralCritic(embed_dim=embed_dim, **kwargs)
+
+
+# -----------------------------------------------------------------------------
+# 7b. CTDE episode record + buffer
+# -----------------------------------------------------------------------------
+
+@dataclass
+class CTDEEpisodeRecord:
+    """One finished episode as CTDE consumes it: the GLOBAL decision sequence.
+
+    DELIBERATELY NOT PER-EGO. :class:`EpisodeRecord` groups transitions by ego because
+    the Phase-A credit structure is per-ego and gamma is dormant there. CTDE's value
+    function is a statement about the TEAM state at each decision event, so its GAE runs
+    over the episode's single ordered decision sequence -- the order
+    ``EpisodeResult.trajectory`` already has, which is the order the decisions actually
+    happened in. Re-grouping it per ego would ask the critic to bootstrap from a state
+    that is not the successor of the one before it.
+
+    Attributes:
+        transitions: the episode's wakes in GLOBAL order (``EpisodeResult.trajectory``).
+        central_states: the central state captured immediately BEFORE each of those
+            decisions, index-for-index. The 1:1 alignment is validated on construction,
+            not assumed.
+        episode_reward: the episode's scalar terminal ``R`` from ``graph_reward``.
+        seed / episode_index: provenance, as on :class:`EpisodeRecord`.
+    """
+
+    transitions: List["Transition"] = field(default_factory=list)
+    central_states: List["CentralGraphObservation"] = field(default_factory=list)
+    episode_reward: float = 0.0
+    seed: int = 0
+    episode_index: int = 0
+
+    def __post_init__(self) -> None:
+        if len(self.transitions) != len(self.central_states):
+            raise ValueError(
+                "CTDE alignment broken: %d transition(s) but %d central state(s). "
+                "Exactly one central state is captured per actor decision."
+                % (len(self.transitions), len(self.central_states))
+            )
+
+    @classmethod
+    def from_episode(
+        cls,
+        trajectory: Sequence["Transition"],
+        central_states: Sequence["CentralGraphObservation"],
+        episode_reward: float,
+        *,
+        seed: int = 0,
+        episode_index: int = 0,
+    ) -> "CTDEEpisodeRecord":
+        """Build a record from a finished episode's trajectory + its central samples."""
+        return cls(
+            transitions=list(trajectory),
+            central_states=list(central_states),
+            episode_reward=float(episode_reward),
+            seed=int(seed),
+            episode_index=int(episode_index),
+        )
+
+    @property
+    def n_transitions(self) -> int:
+        """Number of decisions in this episode (0 for a zero-wake episode)."""
+        return len(self.transitions)
+
+    @property
+    def has_wakes(self) -> bool:
+        """True iff this episode produced at least one decision."""
+        return bool(self.transitions)
+
+
+class CTDEBuffer:
+    """Accumulates :class:`CTDEEpisodeRecord`s for ONE CTDE iteration, then is cleared.
+
+    The CTDE sibling of :class:`PPOBuffer`, kept separate rather than bolted onto it so
+    that the actor-only buffer stays exactly what the Phase-A contract describes. Like
+    its sibling it owns storage only -- the credit math lives in
+    :func:`compute_ctde_advantages`.
+    """
+
+    def __init__(self) -> None:
+        self.records: List[CTDEEpisodeRecord] = []
+
+    def add(self, record: CTDEEpisodeRecord) -> None:
+        """Append one finished episode's record (zero-wake records included)."""
+        self.records.append(record)
+
+    def clear(self) -> None:
+        """Drop every record -- call after each update so iterations stay on-policy."""
+        self.records.clear()
+
+    @property
+    def n_episodes(self) -> int:
+        """Number of episodes recorded, INCLUDING zero-wake ones."""
+        return len(self.records)
+
+    @property
+    def n_transitions(self) -> int:
+        """Total number of decisions across every recorded episode."""
+        return sum(rec.n_transitions for rec in self.records)
+
+    @property
+    def episodes_with_wakes(self) -> int:
+        """How many recorded episodes produced at least one decision (diagnostic)."""
+        return sum(1 for rec in self.records if rec.has_wakes)
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+
+CTDERecordSource = Union[CTDEBuffer, Sequence[CTDEEpisodeRecord]]
+
+
+def _as_ctde_records(source: CTDERecordSource) -> List[CTDEEpisodeRecord]:
+    """Normalize a CTDE buffer OR a bare record sequence to a list of records."""
+    if isinstance(source, CTDEBuffer):
+        return list(source.records)
+    return list(source)
+
+
+# -----------------------------------------------------------------------------
+# 7c. CTDE credit assignment -- GAE over the global decision sequence
+# -----------------------------------------------------------------------------
+
+@dataclass
+class CTDEAdvantageBatch:
+    """The flattened, aligned view :class:`CTDEUpdater` consumes.
+
+    ``transitions[i]`` / ``central_states[i]`` / ``values[i]`` / ``advantages[i]`` /
+    ``value_targets[i]`` all describe the SAME decision -- the alignment is the
+    contract, exactly as on :class:`AdvantageBatch`.
+
+    Attributes:
+        transitions: the batch's decisions, episode by episode, in global order.
+        central_states: their central states, index-for-index.
+        values: ``V_old`` -- the critic's estimate BEFORE any update epoch ran. Fixed
+            for the whole update, which is what makes the PPO epochs off-policy-safe on
+            the critic side too.
+        advantages: NORMALIZED GAE advantages -- what the ACTOR consumes.
+        raw_advantages: pre-normalization GAE advantages, kept for logging.
+        value_targets: ``A_t + V_old[t]`` -- the DETACHED regression target the critic
+            is fitted to across all epochs.
+        episode_reward_mean: mean ``episode_reward`` over the batch's EPISODES,
+            zero-wake episodes included. It is NOT used in the CTDE credit math at all
+            (the critic is the baseline here) -- it exists so the CTDE diagnostics can
+            report the same REWARD quantity the actor-only path reports under
+            ``baseline``. See :meth:`CTDEUpdater.update` for why that matters.
+        adv_mean_raw / adv_std_raw: moments of ``raw_advantages`` (logging).
+        n_episodes / n_transitions: batch shape.
+    """
+
+    transitions: List["Transition"]
+    central_states: List["CentralGraphObservation"]
+    values: np.ndarray
+    advantages: np.ndarray
+    raw_advantages: np.ndarray
+    value_targets: np.ndarray
+    episode_reward_mean: float
+    adv_mean_raw: float
+    adv_std_raw: float
+    n_episodes: int
+    n_transitions: int
+
+
+def episode_rewards_sequence(record: CTDEEpisodeRecord) -> List[float]:
+    """The REALIZED per-decision rewards ``r_t`` of one episode, in global order.
+
+    ``graph_reward.compute_episode_reward`` is terminal: it writes the episode's scalar
+    ``R`` onto the LAST transition of the trajectory and leaves every earlier one at
+    ``0.0``. This function reads those realized values off the transitions rather than
+    reconstructing them, so the CTDE credit math consumes exactly what the (unchanged)
+    reward layer produced. A transition whose reward was never filled in is read as
+    ``0.0`` -- the same "no reward realized here" the reward layer means by it.
+    """
+    return [float(getattr(tr, "reward", 0.0) or 0.0) for tr in record.transitions]
+
+
+def compute_gae(
+    rewards: Sequence[float],
+    values: Sequence[float],
+    *,
+    gamma: float,
+    gae_lambda: float,
+) -> Tuple[List[float], List[float]]:
+    """Generalized Advantage Estimation over ONE episode's decision sequence.
+
+    The whole of CTDE's credit assignment, factored out so it is hand-checkable on
+    known numbers instead of inferred from an aggregate.
+
+    For ``N`` decisions, with ``V_old[t]`` the pre-update critic estimate of decision
+    ``t``'s central state::
+
+        V_next[t]  = V_old[t+1]   for t < N-1
+        V_next[N-1] = 0           # the final decision bootstraps from NOTHING
+        delta_t     = r_t + gamma * V_next[t] - V_old[t]
+        A_t         = delta_t + gamma * gae_lambda * A_{t+1}      (A_N = 0)
+        target_t    = A_t + V_old[t]
+
+    ``V_next`` of the LAST decision is 0 rather than a bootstrapped estimate because the
+    episode genuinely ends there: there is no successor state, and the terminal reward
+    ``R`` is the realized outcome of the whole episode.
+
+    Args:
+        rewards: realized ``r_t`` per decision (all 0 but the last, under the current
+            terminal reward).
+        values: ``V_old[t]`` per decision, same length as ``rewards``.
+        gamma: the discount, taken from ``PPOConfig.gamma`` (1.0 today).
+        gae_lambda: the GAE trace decay, from :attr:`CTDEConfig.gae_lambda`.
+
+    Returns:
+        ``(advantages, value_targets)``, both length ``N`` and index-aligned with the
+        inputs. Both are empty for an empty episode.
+    """
+    n = len(rewards)
+    if n != len(values):
+        raise ValueError(
+            "GAE alignment broken: %d reward(s) vs %d value(s)" % (n, len(values))
+        )
+    if n == 0:
+        return [], []
+
+    advantages = [0.0] * n
+    running = 0.0
+    for t in range(n - 1, -1, -1):
+        # The FINAL decision has no successor state -> V_next = 0 (see the docstring).
+        v_next = float(values[t + 1]) if t + 1 < n else 0.0
+        delta = float(rewards[t]) + gamma * v_next - float(values[t])
+        running = delta + gamma * gae_lambda * running
+        advantages[t] = running
+    targets = [advantages[t] + float(values[t]) for t in range(n)]
+    return advantages, targets
+
+
+def compute_ctde_advantages(
+    source: CTDERecordSource,
+    critic: CentralCritic,
+    cfg: PPOConfig = PPOConfig(),
+    ctde_cfg: CTDEConfig = CTDEConfig(),
+) -> CTDEAdvantageBatch:
+    """Evaluate ``V_old``, run GAE per episode, and normalize across the whole batch.
+
+    THE CTDE REPLACEMENT for :func:`compute_returns_and_advantages`. It does NOT call
+    that function, does not touch it, and is never called on an ``actor_only`` run.
+
+    Three properties are load-bearing:
+
+    1. **``V_old`` is computed ONCE, under ``torch.no_grad``, before any update epoch.**
+       Every epoch of the update then regresses the critic toward targets derived from
+       those fixed values, so the target cannot chase the network that is fitting it.
+    2. **GAE runs PER EPISODE over the GLOBAL decision sequence** -- never regrouped per
+       ego, and never across an episode boundary (each episode's last decision
+       bootstraps from 0).
+    3. **Advantages are normalized across ALL decision samples of the batch**, with the
+       same ``adv_norm_eps`` guard the actor-only path uses, so a degenerate batch
+       yields ~0 advantages rather than NaN.
+
+    Args:
+        source: a :class:`CTDEBuffer` or a bare sequence of :class:`CTDEEpisodeRecord`.
+        critic: the run's :class:`CentralCritic`.
+        cfg: supplies ``gamma`` and ``adv_norm_eps``.
+        ctde_cfg: supplies ``gae_lambda``.
+
+    Returns:
+        A :class:`CTDEAdvantageBatch` whose arrays are index-aligned with its
+        ``transitions`` / ``central_states``. An empty batch (no episode woke) returns
+        empty arrays -- a normal operating condition, not an error.
+    """
+    records = _as_ctde_records(source)
+    n_episodes = len(records)
+    # The same REWARD quantity the actor-only path reports as its baseline: the mean
+    # over the batch's EPISODES, zero-wake episodes included. CTDE does not USE it for
+    # credit (the critic is the baseline), but the run record must keep reporting a
+    # reward under a reward-named key -- see `CTDEUpdater.update`.
+    episode_reward_mean = (
+        float(np.mean([rec.episode_reward for rec in records])) if records else 0.0
+    )
+
+    transitions: List["Transition"] = []
+    central_states: List["CentralGraphObservation"] = []
+    values_list: List[float] = []
+    adv_list: List[float] = []
+    target_list: List[float] = []
+
+    was_training = critic.training
+    critic.eval()
+    try:
+        with torch.no_grad():
+            for rec in records:
+                if not rec.transitions:
+                    # A zero-wake episode contributes NOTHING to a CTDE update: no actor
+                    # sample, no critic sample, no baseline mass. It is still a valid
+                    # scientific episode outcome and is never a failure.
+                    continue
+                ep_values = [
+                    float(critic(state).item()) for state in rec.central_states
+                ]
+                ep_rewards = episode_rewards_sequence(rec)
+                ep_adv, ep_targets = compute_gae(
+                    ep_rewards,
+                    ep_values,
+                    gamma=cfg.gamma,
+                    gae_lambda=ctde_cfg.gae_lambda,
+                )
+                transitions.extend(rec.transitions)
+                central_states.extend(rec.central_states)
+                values_list.extend(ep_values)
+                adv_list.extend(ep_adv)
+                target_list.extend(ep_targets)
+    finally:
+        critic.train(was_training)
+
+    if not transitions:
+        empty = np.zeros(0, dtype=np.float64)
+        return CTDEAdvantageBatch(
+            transitions=[],
+            central_states=[],
+            values=empty,
+            advantages=empty.copy(),
+            raw_advantages=empty.copy(),
+            value_targets=empty.copy(),
+            episode_reward_mean=episode_reward_mean,
+            adv_mean_raw=0.0,
+            adv_std_raw=0.0,
+            n_episodes=n_episodes,
+            n_transitions=0,
+        )
+
+    raw_adv = np.asarray(adv_list, dtype=np.float64)
+    adv_mean = float(raw_adv.mean())
+    adv_std = float(raw_adv.std())  # population std (ddof=0), the PPO convention
+    # Same eps guard as the actor-only path: a zero-variance batch gives 0, never NaN.
+    advantages = (raw_adv - adv_mean) / (adv_std + cfg.adv_norm_eps)
+
+    return CTDEAdvantageBatch(
+        transitions=transitions,
+        central_states=central_states,
+        values=np.asarray(values_list, dtype=np.float64),
+        advantages=advantages,
+        raw_advantages=raw_adv,
+        value_targets=np.asarray(target_list, dtype=np.float64),
+        episode_reward_mean=episode_reward_mean,
+        adv_mean_raw=adv_mean,
+        adv_std_raw=adv_std,
+        n_episodes=n_episodes,
+        n_transitions=len(transitions),
+    )
+
+
+# -----------------------------------------------------------------------------
+# 7d. The CTDE updater
+# -----------------------------------------------------------------------------
+
+class CTDEUpdater:
+    """Clipped-PPO actor update + centralized value regression, on SEPARATE optimizers.
+
+    The CTDE sibling of :class:`PPOUpdater`. It is a separate class on purpose: the
+    actor-only updater is part of the locked Phase-A contract and is left byte-unchanged,
+    so an ``actor_only`` run cannot be affected by anything here. The actor half of the
+    loss is identical in form to the actor-only one and reuses the SAME factored
+    :func:`clipped_surrogate`, the SAME rebuilt-never-stored mask and the SAME
+    ``evaluate_action`` distribution site, so the ratio semantics do not fork.
+
+    GRADIENT ISOLATION IS STRUCTURAL, AND IT IS ALSO EXPLICIT:
+
+      * the two parameter sets are DISJOINT (no shared encoder, no tied weights);
+      * the actor loss and the value loss are backpropagated in TWO SEPARATE
+        ``backward()`` calls onto two separate graphs, each followed by its own
+        grad-norm clip and its own ``optimizer.step()``. So "the actor's backward
+        produced no critic gradient" is true by observation, not only by argument;
+      * the advantage the actor consumes is a plain python float taken from a numpy
+        array, so no gradient can flow from the actor's loss into the critic through it.
+    """
+
+    def __init__(
+        self,
+        policy: "Policy",
+        critic: CentralCritic,
+        cfg: PPOConfig = PPOConfig(),
+        ctde_cfg: CTDEConfig = CTDEConfig(),
+    ) -> None:
+        """Bind the updater to an actor policy + a critic and build BOTH optimizers.
+
+        Args:
+            policy: the actor's encoder + head bundle. Its parameters go into the ACTOR
+                optimizer and nothing else.
+            critic: the :class:`CentralCritic`. Its encoder + value head go into the
+                CRITIC optimizer and nothing else.
+            cfg: the frozen :class:`PPOConfig` (actor lr, clipping, epochs, gamma).
+            ctde_cfg: the frozen :class:`CTDEConfig` (critic lr, value coeff, lambda).
+        """
+        self.policy = policy
+        self.critic = critic
+        self.cfg = cfg
+        self.ctde_cfg = ctde_cfg
+
+        self.actor_parameters: List[torch.nn.Parameter] = (
+            list(policy.encoder.parameters()) + list(policy.head.parameters())
+        )
+        self.critic_parameters: List[torch.nn.Parameter] = list(critic.parameters())
+        self.optimizer = torch.optim.Adam(self.actor_parameters, lr=cfg.lr)
+        self.critic_optimizer = torch.optim.Adam(
+            self.critic_parameters, lr=ctde_cfg.critic_lr
+        )
+
+    # ------------------------------------------------------------------
+    def _forward_logits(self, gobs: Any) -> torch.Tensor:
+        """Re-run the ACTOR's encoder -> head on a stored PRIVATE observation, WITH grad.
+
+        ``gobs`` is the ego's own ``GraphObservation`` and nothing else -- the central
+        state is never passed here, and the actor's forward has no access to it.
+        """
+        emb = self.policy.encoder(gobs)
+        return self.policy.head(emb)
+
+    # ------------------------------------------------------------------
+    def update(self, source: CTDERecordSource) -> Dict[str, Any]:
+        """Run ``cfg.n_epochs`` CTDE epochs over ``source`` and step BOTH optimizers.
+
+        Per epoch:
+
+          ACTOR (per decision) -- re-encode the stored PRIVATE ``tr.gobs``, rebuild the
+          mask, ``evaluate_action``, form the ratio against the stored rollout log-prob,
+          and take the clipped surrogate against the DETACHED normalized GAE advantage,
+          minus the entropy bonus.
+
+          CRITIC (per decision) -- re-encode the stored CENTRAL state, pool it, read
+          ``V(s)``, and take the squared error against the FIXED ``value_target``
+          computed before epoch 0. Scaled by ``ctde_cfg.value_coeff``. No value
+          clipping in v1.
+
+        Then ONE mean and ONE backward PER SIDE, each with its own grad-norm clip and
+        its own optimizer step.
+
+        Empty-batch contract, unchanged in meaning from :meth:`PPOUpdater.update`: a
+        batch with ZERO decisions is a clean no-op -- no forward, no backward, no step
+        on either optimizer -- reported with ``n_epochs_run == 0``. An iteration in
+        which no ego woke is a legitimate outcome, not an error.
+
+        Returns:
+            A diagnostics dict shaped like :meth:`PPOUpdater.update`'s, plus the CTDE
+            keys ``value_loss``, ``critic_grad_norm``, ``value_mean`` and
+            ``value_target_mean``.
+
+            ``baseline`` DELIBERATELY KEEPS ITS ACTOR-ONLY MEANING -- the batch's mean
+            EPISODE REWARD, zero-wake episodes included -- even though the CTDE baseline
+            is really the critic. ``graph_train`` records that key as an iteration's
+            ``train_reward_mean``, so reporting the critic's mean value there would make
+            one recorded field mean a reward under ``actor_only`` and a value estimate
+            under ``ctde``: the two modes' learning curves would stop being comparable
+            while still looking as though they were. The critic's own estimate is
+            reported under ``value_mean`` instead.
+        """
+        cfg = self.cfg
+        ctde_cfg = self.ctde_cfg
+        records = _as_ctde_records(source)
+        batch = compute_ctde_advantages(records, self.critic, cfg, ctde_cfg)
+
+        n_ep_with_wakes = sum(1 for rec in records if rec.has_wakes)
+        per_epoch: Dict[str, List[float]] = {
+            "policy_loss": [], "total_loss": [], "entropy": [], "mean_ratio": [],
+            "clip_fraction": [], "approx_kl": [], "max_ratio_dev": [], "grad_norm": [],
+            "value_loss": [], "critic_grad_norm": [],
+        }
+        diagnostics: Dict[str, Any] = {
+            # `baseline` KEEPS ITS ACTOR-ONLY MEANING: the batch's mean EPISODE REWARD.
+            # It is not the CTDE baseline -- the critic is -- but this key is what
+            # `graph_train` records as an iteration's `train_reward_mean`, so putting
+            # the critic's mean value here would silently make one field mean a reward
+            # in one training mode and a value estimate in the other, and the two modes'
+            # records would stop being comparable while still looking it. The critic's
+            # own estimate is reported separately, as `value_mean`.
+            "baseline": batch.episode_reward_mean,
+            "adv_std_raw": batch.adv_std_raw,
+            "n_transitions": batch.n_transitions,
+            "n_episodes": batch.n_episodes,
+            "episodes_with_wakes": n_ep_with_wakes,
+            "n_epochs_run": 0,
+            "value_mean": (
+                float(np.mean(batch.values)) if batch.n_transitions else 0.0
+            ),
+            "value_target_mean": (
+                float(np.mean(batch.value_targets)) if batch.n_transitions else 0.0
+            ),
+            "per_epoch": per_epoch,
+        }
+
+        if batch.n_transitions == 0:
+            for key in ("policy_loss", "total_loss", "entropy", "mean_ratio",
+                        "clip_fraction", "approx_kl", "max_ratio_dev", "grad_norm",
+                        "value_loss", "critic_grad_norm"):
+                diagnostics[key] = 0.0
+            return diagnostics
+
+        advantages = batch.advantages
+        value_targets = batch.value_targets
+        n = batch.n_transitions
+
+        for _epoch in range(cfg.n_epochs):
+            policy_losses: List[torch.Tensor] = []
+            entropies: List[torch.Tensor] = []
+            value_losses: List[torch.Tensor] = []
+            ratios_detached: List[float] = []
+            kl_terms: List[float] = []
+
+            for i, tr in enumerate(batch.transitions):
+                # --- ACTOR: the ego's PRIVATE observation only ---
+                logits = self._forward_logits(tr.gobs)
+                mask = build_action_mask(tr.gobs)
+                log_prob_new, entropy = evaluate_action(
+                    logits, mask, tr.meta_action, tr.node_v
+                )
+                ratio = torch.exp(log_prob_new - float(tr.log_prob))
+                policy_losses.append(
+                    clipped_surrogate(ratio, float(advantages[i]), cfg.clip_ratio)
+                )
+                entropies.append(entropy)
+
+                r = float(ratio.detach().item())
+                ratios_detached.append(r)
+                kl_terms.append(float(tr.log_prob) - float(log_prob_new.detach().item()))
+
+                # --- CRITIC: the CENTRAL state only, against a FIXED target ---
+                value = self.critic(batch.central_states[i])
+                value_losses.append((value - float(value_targets[i])) ** 2)
+
+            policy_loss = torch.stack(policy_losses).mean()
+            entropy_mean = torch.stack(entropies).mean()
+            actor_loss = policy_loss - cfg.entropy_coeff * entropy_mean
+            value_loss = torch.stack(value_losses).mean()
+            critic_loss = ctde_cfg.value_coeff * value_loss
+
+            # TWO independent backwards on two disjoint graphs. The actor's backward
+            # cannot reach a critic parameter and the critic's cannot reach an actor
+            # parameter, because neither loss references the other's modules and the
+            # advantage crossing between them is a python float.
+            self.optimizer.zero_grad(set_to_none=True)
+            self.critic_optimizer.zero_grad(set_to_none=True)
+            actor_loss.backward()
+            critic_loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.actor_parameters, cfg.max_grad_norm
+            )
+            critic_grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.critic_parameters, cfg.max_grad_norm
+            )
+            self.optimizer.step()
+            self.critic_optimizer.step()
+
+            ratios_arr = np.asarray(ratios_detached, dtype=np.float64)
+            per_epoch["policy_loss"].append(float(policy_loss.detach().item()))
+            # `total_loss` stays the ACTOR-side total, so it means the same thing it
+            # does in the actor-only diagnostics; the critic reports `value_loss`.
+            per_epoch["total_loss"].append(float(actor_loss.detach().item()))
+            per_epoch["entropy"].append(float(entropy_mean.detach().item()))
+            per_epoch["mean_ratio"].append(float(ratios_arr.mean()))
+            per_epoch["clip_fraction"].append(
+                float(np.mean(np.abs(ratios_arr - 1.0) > cfg.clip_ratio))
+            )
+            per_epoch["approx_kl"].append(float(np.mean(kl_terms)))
+            per_epoch["max_ratio_dev"].append(float(np.max(np.abs(ratios_arr - 1.0))))
+            per_epoch["grad_norm"].append(float(grad_norm))
+            per_epoch["value_loss"].append(float(value_loss.detach().item()))
+            per_epoch["critic_grad_norm"].append(float(critic_grad_norm))
 
         diagnostics["n_epochs_run"] = cfg.n_epochs
         for key, values in per_epoch.items():
