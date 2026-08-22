@@ -841,10 +841,14 @@ that baseline instead of extending it.
 `rl/training/graph_fuel_damage.py` + `rl/training/graph_train.py` +
 `rl/training/graph_rollout.py`.**
 
-MERGED AND LOCKED (`eecc9b5`, §7), **NOT YET MEASURED** — no variable-severity baseline
-has been executed, and none may be pre-claimed (§8). It is an ADDITIONAL actor-only
-stress design layered on the legacy factor, not a replacement for it and not a reopening
-of the closed Phase-A reference.
+MERGED AND LOCKED (`eecc9b5`, §7), and **MEASURED ONCE — the actor-only baseline at
+measured code SHA `bf1e045f` is EXECUTED, independently reviewed and
+`APPROVE — VALID MEASUREMENT`, and its PRIMARY behavioural finding is NEGATIVE: the
+deterministic held-out actor showed NO severity-conditioned FD-wake meta-action
+separation** (§7 owns the authoritative record and every denominator; §8 owns the phase
+state). Nothing beyond that record may be claimed for this design. It is an ADDITIONAL
+actor-only stress design layered on the legacy factor, not a replacement for it and not a
+reopening of the closed Phase-A reference.
 
 - **WHY.** Under FD-BASELINE-v1 every damaged episode is structurally SEVERE, so
   "damaged" and "continuing is infeasible" are the SAME fact and a trained actor can
@@ -2264,9 +2268,214 @@ a stub, because normal production does not currently generate it.
   exact-cardinality case (§8): a pre-existing expected outcome of the current contract,
   **not a PR #27 regression**.
   **NO scientific baseline, long training run, probe, rollout or artifact-generating smoke
-  was executed for PR #27.** Nothing in this lock is a measurement of the variable-severity
-  cell, and none may be pre-claimed — §8 owns the gate and the next authorized measurement
-  contract.
+  was executed for PR #27** — that remains true of THIS lock, which certifies CODE only.
+  Nothing in this entry is a measurement of the variable-severity cell. **The measurement
+  was taken separately and afterwards**, at measured code SHA `bf1e045f`, and it is
+  recorded in the next §7 entry; §8 owns the phase state.
+- **FD-VARIABLE-SEVERITY-v1 ACTOR-ONLY BASELINE — EXECUTED / INDEPENDENTLY REVIEWED /
+  `APPROVE — VALID MEASUREMENT`. THE FIRST AND ONLY SCIENTIFICALLY VALID MEASUREMENT OF THE
+  VARIABLE-SEVERITY CELL, AND ITS PRIMARY BEHAVIOURAL FINDING IS NEGATIVE.** The measurement
+  is attributable to exact clean code SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
+  `dd881478b8e2e521054d09bc865437f1308be1a2` (committed
+  `2026-08-20 14:50:24 Asia/Jerusalem`, the `main` head produced by the variable-severity
+  documentation merge, PR #28). Per §7's hash convention this entry is keyed to the MEASURED
+  CODE SHA; the documentation commit that creates it, and the merge that integrates it,
+  cannot name their own SHAs and are deliberately not invented here. **No tracked file
+  changed for the measurement** — it is a run of already-reviewed merged code, not a
+  candidate. It was executed from a clean DETACHED snapshot at that SHA
+  (`provenance.git.repo_root` = `…\fd_variable_severity_v1_bf1e045f_snapshot`,
+  `branch = HEAD`, `dirty = false`, `dirty_path_count = 0`), so repository work landing
+  after `bf1e045f…` — Phase-B CTDE included — is outside the measured tree and neither
+  contaminated the run nor is attributable to it.
+  **RUN IDENTITY.** External measurement root `C:\Users\Itama\f7r2`; contract `c.json`;
+  output directory `r`; console `console.log`; timing `timing.json`. Exactly ONE
+  invocation, native exit code **0**:
+  `conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config "C:\Users\Itama\f7r2\c.json"`.
+  `config_source.resolved_from = config_file` and **`cli_overrides = []`** — the reviewed
+  measurement contract with NO typed override and NO ad-hoc knob. Provenance complete:
+  `git.available = true`, exact SHA, clean, Windows 10.0.19045 / `nlp_env`
+  (CPython 3.12.3), vendored BLADE, BONMIN available and probed `ok`;
+  `difficulty.factor = fuel_damage_variable_severity_v1` with
+  `fuel_damage_mode = seeded_variable`, scheduled cell probabilities
+  `clean 0.50 / mild 0.25 / severe 0.25`, `target_policy = live_severity_midpoint_v1`,
+  `aircraft_penalty_coeff = 2.25` and `reward.formula_changed = false`. **Elapsed time is
+  TWO DISTINCT QUANTITIES and they are never merged:** the harness's own
+  `run_summary.json:run_seconds = 5998.791282300022`, and the externally measured
+  invocation wall clock of **6021.3954213 s** (`timing.json`:
+  `start_utc = 2026-08-22T14:36:14.1838098Z` → `end_utc = 2026-08-22T16:16:35.5973421Z`).
+  The harness figure excludes process start-up, `conda run` dispatch, imports and teardown,
+  so it is NOT the wall clock.
+  **CONTRACT FIDELITY — a REPLACEMENT, not a redesign.** The scientific contract is the
+  invalid precursor's own contract cloned with **exactly ONE field changed —
+  `output_dir`**. Verified read-only before this record: 25 keys, identical key SETS and
+  identical key ORDER, exactly one differing key, every other value identical. So the
+  §8-approved run shape is unchanged: **50 scheduled training iterations × 8 scheduled
+  training attempts = 400**, `base_seed = 0`; evaluation every 5 iterations INCLUDING the
+  initial `pre_update` ⇒ **11 evaluation rounds**; **8 fixed held-out seeds** from
+  `1_000_000`, each a matched **clean / mild / severe TRIAD** ⇒ **11 × 8 × 3 = 264**
+  scheduled evaluation attempts; **664 scheduled attempts in total; NO early stopping**;
+  the locked cell of 3 agents / 3 known / 3 hidden with its 200 km / 100 km geometry,
+  `DETECTION_KM = 50`, `include_sams = false`, target-destruction `probability = 1`, frozen
+  solver and BLADE, unchanged `graph_reward` formula and unchanged actor-only PPO;
+  `visual_artifacts = true`. **A directory name is not a scientific parameter.**
+  **THE EXCLUDED PRECURSOR — `INCONCLUSIVE/BLOCKED — INVALID MEASUREMENT`.** An earlier
+  attempt at the SAME contract, preserved at
+  `…\fd_variable_severity_v1_measurement_bf1e045f_20260822_150640\training_output_fd_variable_severity_v1_50x8_seed0`,
+  is **preserved historical / ENGINEERING evidence ONLY and is EXCLUDED from every
+  scientific reading.** Its ledger carries the same 78 `setup` failures (58 B2
+  `RuntimeError` + 20 `FuelDamageError`) **plus 70 additional `run`-stage
+  `FileNotFoundError`s, and all 70 are `post_update` SEVERE evaluation members** — 10
+  post_update rounds × the 7 exact-cardinality-feasible held-out seeds, i.e. **the entire
+  post-training severe arm, which is precisely the arm the experiment exists to measure.**
+  The cause is a Windows `MAX_PATH` playback-export failure: the BLADE recording path was
+  **267 characters** against the 260-character limit. **This is NOT a negative scientific
+  result** — it is an infrastructure failure that systematically deleted one experimental
+  cell, and a population destroyed that way yields no result rather than a null one. The
+  precursor is preserved and must not be modified, moved, copied, repackaged, deleted or
+  regenerated. Its evidence SHA-256 (re-verified read-only before this record):
+  `fd_variable_severity_v1_contract.json=77e5992994235abd0962547b549dbfb17889cb51f745993f4c8f2a89a2824326`,
+  `invocation_timing.json=cf531cd2f0574674d66d21cb16e12d963aeb269fac9d9ae55cdaebf1a47c26b6`,
+  `run_config.json=de20663b689f0a00f483c30ac92e6b240c5df2873d5d3f0aa9145b550f71ea1e`,
+  `episode_outcomes.jsonl=bd0f1c4009cec2ea596db372f3d0e76c41c8e0a2352aa3775b108fcad2e544c6`,
+  `episode_failures.jsonl=430728726b90383a47e1f8f62b997ed82a12ea0f23c205e88b8a7a360a536e0b`,
+  `run_summary.json=79b30564da6f8157de536f5678dbd67851516b0baa20539034929b4f7b6f0e85`.
+  **ACCOUNTING — every denominator explicit, `skip_and_account_v1` unchanged.**
+  **664 scheduled attempts, 586 successful, 78 failed**, `accounting_reconciled = true`,
+  and `586 + 78 = 664`. Training **400 attempted / 355 successful / 45 failed**, every
+  success wake-bearing; evaluation **264 attempted / 231 successful / 33 failed** across
+  **11 rounds**. Per CELL — training `clean 202 / 190 / 12`, `mild 92 / 76 / 16`,
+  `severe 106 / 89 / 17`; evaluation `clean 88 / 77 / 11`, `mild 88 / 77 / 11`,
+  `severe 88 / 77 / 11`. **Every one of the 78 failures is at stage `setup`**: **58 B2
+  exact-cardinality `RuntimeError`** and **20 `FuelDamageError`** (no valid strict fuel
+  band/window). All **33 evaluation failures are held-out seed `1000005`** — 11 rounds × 3
+  triad members — the same structural B2 world the Phase-A baseline also lost, reported and
+  never repaired. **ZERO `FileNotFoundError`, ZERO `MeasurementIntegrityError`, ZERO
+  `EpisodeRosterError`, ZERO `_VisualArtifactError`, and zero crash outside the
+  `generation`/`setup`/`run`/`reward` episode taxonomy.** Outcome and failure identities
+  are unique and DISJOINT (586 records in `episode_outcomes.jsonl`, 78 in
+  `episode_failures.jsonl`, zero overlap), and no scheduled-vs-executed CELL mismatch abort
+  occurred, so every successful attempt was booked in the cell the schedule asked for.
+  **MATCHED TRIADS — a structural 7/8 in EVERY round.** All 11 evaluation rounds report
+  **7/8 complete clean+mild+severe triads**, including `pre_update`
+  (`updates_completed = 0`) and the final `post_update` (`updates_completed = 50`). Seed
+  `1000005`'s B2 failure is the ceiling; it is a property of that world, not stochastic
+  attrition.
+  **PRIMARY BEHAVIOURAL RESULT — NO SEVERITY-CONDITIONED META-ACTION SEPARATION. THIS IS
+  THE FINDING, AND IT IS NEGATIVE.** Rates are over **FD WAKES**, never over episodes.
+  - **`pre_update`** — MILD: 7 wakes, `PLAN_COMPLIANCE 7/7`, abort 0, engage 0.
+    SEVERE: 7 wakes, `PLAN_COMPLIANCE 7/7`, abort 0, engage 0.
+  - **FINAL `post_update` (`updates_completed = 50`)** — MILD: 7 wakes,
+    `PLAN_COMPLIANCE 7/7`. SEVERE: 7 wakes, `PLAN_COMPLIANCE 7/7`.
+  - **ALL TEN `post_update` ROUNDS COMBINED** — MILD: 70 wakes,
+    `PLAN_COMPLIANCE 63 = 0.900`, `SELF_PRESERVATION_ABORT 7 = 0.100`, engage 0.
+    SEVERE: 70 wakes, `PLAN_COMPLIANCE 63 = 0.900`, `SELF_PRESERVATION_ABORT 7 = 0.100`,
+    engage 0. **The two distributions are IDENTICAL.**
+  - **TRAINING successes** (stochastic policy, context only) — MILD: 76 wakes,
+    `PLAN_COMPLIANCE 60`, `SELF_PRESERVATION_ABORT 16`. SEVERE: 89 wakes,
+    `PLAN_COMPLIANCE 66`, `SELF_PRESERVATION_ABORT 23`.
+
+  The deterministic held-out actor did NOT differentiate a survivable MILD fuel loss from
+  an unsurvivable SEVERE one in its FD-wake action choice, before OR after training. **This
+  is a VALID NEGATIVE SCIENTIFIC RESULT.** It does **NOT** mean the actor is broken, that
+  training failed, that PPO did not learn, that the actor never uses fuel at all, or that
+  the result generalizes beyond this fixed cell and this held-out seed band. And **"mild
+  must choose `PLAN_COMPLIANCE`" is NOT a correctness rule** (§5) — what was measured is
+  whether the response DIFFERS, not whether it matched a prescribed label.
+  **DENOMINATOR / INDEPENDENCE CAVEAT — load-bearing.** The clean statistical unit for the
+  FINAL held-out policy is the final round's **7 complete matched triads**. The 70
+  `post_update` observations per severity REUSE those same seven feasible held-out seeds
+  across ten checkpoints; they describe the learning TRAJECTORY across checkpoints, and
+  **they are NOT 70 independent held-out worlds and must never be used to inflate sample
+  size.**
+  **PHYSICAL OUTCOMES — THE SEVERITY FACTOR IS REAL.** The absence of behavioural
+  separation is NOT because the two cases are physically equivalent. Over the successful
+  `post_update` evaluation outcomes: **CLEAN** 70 episodes, 0 RTB commands, 0 deaths, mean
+  unique target coverage **6.000 / 6**; **MILD** 70 episodes, **70** RTB commands, 0
+  deaths, **5.957 / 6**; **SEVERE** 70 episodes, **43** RTB commands, **63** deaths,
+  **5.700 / 6**. At the FINAL round all seven feasible clean worlds and all seven feasible
+  mild worlds reach 6/6 with 0 deaths, while **every one of the seven feasible severe
+  worlds loses one airframe** — five at reward ≈ `−0.375` with 6/6 coverage, and seeds
+  **1000004** and **1000007** at ≈ `−0.541666` with 5/6 coverage. RTB yield is real Phase-2
+  COMMAND HISTORY (`FuelDamageOutcome.rtb_command_issued`), never the executor's
+  `rtb_issued` latch (§5).
+  **REWARD AND THE THREE WITHIN-SEED DELTAS — over COMPLETE TRIADS ONLY.** Per-cell means
+  are each over THAT cell's own successful subset, so subtracting two of them is not a
+  matched effect; the only within-seed claims are the deltas below, each over `n = 7`
+  complete triads.
+  - `pre_update` (n = 7): clean `-0.49999970`, mild `-0.49999970`, severe `-0.87499991`;
+    `mild − clean = 0.0`, `severe − clean = -0.37500021`, `severe − mild = -0.37500021`.
+  - final `post_update` (n = 7): clean `5.714293e-07`, mild `5.714293e-07`, severe
+    `-0.42261872`; `mild − clean = 0.0`, `severe − clean = -0.42261929`,
+    `severe − mild = -0.42261929`.
+
+  **PPO PRODUCTIVITY — training WAS productive.** **50 / 50 scheduled training iterations
+  productive**, 0 zero-wake, 0 all-failed, `n_epochs_run = 4` in every iteration,
+  `updates_completed = 50`, **1,405 transitions**. Training reward improved from
+  `-0.51547582` to `-0.07738026`. **The correct reading is therefore precise:** actor-only
+  PPO training was productive and improved overall performance, and it nevertheless did NOT
+  produce the targeted held-out MILD-vs-SEVERE behavioural differentiation. **No claim that
+  CTDE would fix this is made or supported here** — no CTDE benefit is measured by this run.
+  **ARTIFACT COMPLETENESS — reported ALONGSIDE the scientific denominators, never in place
+  of one.** **664 bundles and 664 manifests: 586 `complete`** (exactly the successful
+  attempts) and **78 `incomplete`** (exactly the failed ones), **586 playbacks**, 2,520
+  files, ≈ **4,430.6 MB**. **All 586 complete bundles reconcile expected against observed
+  3 known / 3 hidden / 6 executed targets.** No incomplete bundle fabricated a playback,
+  and no completed run left an unlisted one. **No path-related artifact failure occurred:
+  the maximum actual artifact/playback path is 139 characters**, because this run
+  deliberately used the short external root after the precursor proved the `MAX_PATH`
+  hazard.
+  **ENGINEERING CAVEAT — HISTORICAL FACT, NOT A CODE CHANGE AND NOT FIXED HERE.** The
+  precursor proved that a BLADE playback-export failure can currently surface as an
+  ORDINARY `run`-stage `EpisodeAttemptError` and therefore enter the SCIENTIFIC failure
+  ledger: `graph_tick_loop.run_episode`'s `ctx.game.export_recording()` propagates into
+  `graph_train._run_one_episode`, which does `raise EpisodeAttemptError("run", exc) from exc`.
+  An artifact/serialization fault raised through `_VisualArtifactError` is INFRASTRUCTURE
+  and aborts the run (§5); this one is not routed that way and was accounted as ordinary
+  episode attrition. **The valid run had ZERO such failures**, so nothing about this
+  measurement depends on it. It is recorded as measurement-infrastructure history and a
+  future engineering caveat; **no code was changed for it in this record**, and changing
+  that routing would be its own separately reviewed task.
+  **INDEPENDENT REVIEW.** The GPT orchestrator independently reviewed the replacement
+  measurement and issued **`APPROVE — VALID MEASUREMENT`**. The precursor's verdict is
+  **`INCONCLUSIVE/BLOCKED — INVALID MEASUREMENT`**.
+  **EVIDENCE SHA-256** (re-verified read-only against the preserved measurement root before
+  being recorded here):
+  `c.json=a3961058cc36b2e1b83199e87d0799d3d8042e4cd1966930328f40c451e0fa02`,
+  `timing.json=cc4cab1dd718b80712b8d3e79ed2ecb453ac1a9eedbfa711277594cf6f7d96e0`,
+  `console.log=6618acb98b0b77439ed2e494c0705df4cb4033f37ac767e9b7044084978435fd`,
+  `r/run_config.json=3e43e54b7f3b0685e4770e3c75e6a57a523147460c2785d31c7f470b62202375`,
+  `r/train_records.jsonl=a79b54e9c15c169872968a6b63f1699f4c9c7502d6cf61054f311317d1bea806`,
+  `r/eval_records.jsonl=4a0d867872901bc778673ed574487abca600c0afdd3c70f64d17f3909c951aa5`,
+  `r/episode_outcomes.jsonl=e47a4c35ece4349f870b961d42fe3a29b44cd4f064f793e675c022a7cb240239`,
+  `r/episode_failures.jsonl=88d7869881b137696a2a4e8e921f8a2537db651165ec8183bb6990be3c5305e3`,
+  `r/run_summary.json=f0ced3cd612b22f1160ff7bda38a2884df98b7fb559ffef44af737d0e1cf4d5e`,
+  `r/plots/training_performance.png=86b5b689cbdd98a9cb271746539a0f90cbe52d25f4353ca6619d557e5191fd71`,
+  `r/plots/policy_diagnostics.png=a9b24a239320fb17b8d9aad139d63a5fb1a317031c8557a6744bb2a10ef943ef`,
+  `r/plots/measurement_health.png=76c6af6a56619701d09ed52fe02ae4fc0fc12f80fbbf36157a2214947ab8bbb1`.
+  `run_summary.json:/severity_response` is DERIVED from `episode_outcomes.jsonl`
+  (`severity_response_source`), which is the ONE metric path (§5).
+  **PRESERVATION.** BOTH measurement trees — the VALID run root `C:\Users\Itama\f7r2` and
+  the INVALID precursor
+  `…\fd_variable_severity_v1_measurement_bf1e045f_20260822_150640` — are preserved and must
+  not be modified, moved, copied, repackaged, deleted or regenerated, and neither may any
+  earlier preserved run.
+  **SCIENTIFIC CONCLUSION.** A valid actor-only baseline of FD-VARIABLE-SEVERITY-v1 was
+  obtained from the clean, no-communication graph-RL stack at measured code SHA
+  `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`. The severity construction is PHYSICALLY REAL
+  in this cell — mild and severe diverge sharply in RTB yield, airframe survival and target
+  coverage — and actor-only PPO training was productive across 50/50 updates, improving
+  training reward from `-0.51547582` to `-0.07738026`. **Nevertheless the deterministic
+  held-out actor showed NO severity-conditioned FD-wake meta-action separation**: at
+  `pre_update` and at the final `post_update` it chose `PLAN_COMPLIANCE` in all 7 completed
+  MILD and all 7 completed SEVERE matched worlds, and across all ten `post_update`
+  checkpoints the two per-severity distributions are identical. **THE EXPLICIT
+  NON-CLAIMS:** this does **NOT** establish that the actor is broken, that training or PPO
+  failed, that the actor ignores fuel entirely, that MILD "should" have chosen
+  `PLAN_COMPLIANCE`, that 70 post-update observations per severity are 70 independent
+  held-out worlds, that the finding generalizes beyond this fixed cell and this held-out
+  seed band, or that centralized training would change it. Those are subsequent research
+  questions, and **this is a valid negative result — not a defect, and not grounds for
+  retuning, re-seeding or re-running.**
 
 ---
 
@@ -2274,20 +2483,23 @@ a stub, because normal production does not currently generate it.
 
 - **PHASE A IS CLOSED. A SCIENTIFICALLY VALID LONG-BASELINE MEASUREMENT OF THE FUEL-DAMAGE
   CELL EXISTS (measured code SHA `737b4bf`, §7). THE ADDITIONAL ACTOR-ONLY
-  FD-VARIABLE-SEVERITY-v1 BASELINE AND PHASE-B CTDE NOW PROCEED CONCURRENTLY** — that
-  measurement is pinned to an immutable DETACHED snapshot, and CTDE design and
-  implementation proceed beside it in a separate writable task branch. **The earlier serial
-  claim — that CTDE may begin ONLY AFTER that measurement — is SUPERSEDED as of
-  2026-08-22**; what survives is the INTEGRATION gate. See the research-ordering bullet
-  immediately below, which owns the current rule, the snapshot identity, the ownership
-  split and that gate.
+  FD-VARIABLE-SEVERITY-v1 BASELINE IS NOW ALSO EXECUTED, INDEPENDENTLY REVIEWED AND
+  `APPROVE — VALID MEASUREMENT` (measured code SHA `bf1e045f`, §7) — WITH A NEGATIVE
+  PRIMARY FINDING.** That measurement ran on an immutable DETACHED snapshot while CTDE
+  design and implementation proceeded beside it in a separate writable task branch. **The
+  earlier serial claim — that CTDE may begin ONLY AFTER that measurement — was SUPERSEDED
+  on 2026-08-22, and the measurement-validity half of the CTDE INTEGRATION gate is now
+  SATISFIED**; what still gates integration is preservation of a NEW immutable actor-only
+  pre-CTDE reference. See the research-ordering bullet immediately below, which owns the
+  current rule, the measured identity, the ownership split and that remaining gate.
   Difficulty selection is CLOSED
   (below) and FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so the open question was
   never *what* to build but *how the built cell behaves* — and for THIS cell that question is
   now ANSWERED by the approved rerun
   `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, whose full record,
-  denominators, explicit NON-CLAIMS and evidence hashes are in §7. **FOUR runs of the merged
-  cell exist. The first three are NOT valid measurements and survive as HISTORY ONLY:**
+  denominators, explicit NON-CLAIMS and evidence hashes are in §7. **FOUR runs of the
+  LEGACY FD-BASELINE-v1 cell exist. The first three are NOT valid measurements and survive
+  as HISTORY ONLY:**
   - **First short probe — `training_output_20260815_173029`**, from clean `main` at
     `238062d7d284334432d9c39d7543fb0bbf39ea7c`. It established HARNESS AND ACCOUNTING
     OPERABILITY ONLY and exposed three research-validity defects (next bullet), so **its
@@ -2330,6 +2542,32 @@ a stub, because normal production does not currently generate it.
     infrastructure or data-integrity faults, 100/100 productive PPO updates, a matched
     paired delta of `−0.375000 → −0.071429` over a structural 7/8 pairs, and evaluation
     deaths `7 → 0`.
+  **TWO FURTHER runs exist on the VARIABLE-SEVERITY design, and they measure a SEPARATE
+  cell — never a rerun, replacement or extension of the four above:**
+  - **Invalid variable-severity precursor —
+    `…\fd_variable_severity_v1_measurement_bf1e045f_20260822_150640\training_output_fd_variable_severity_v1_50x8_seed0`**,
+    at exact code SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`. **`INCONCLUSIVE/BLOCKED —
+    INVALID MEASUREMENT`.** A Windows `MAX_PATH` playback-export failure (267-character
+    recording path) produced 70 `run`-stage `FileNotFoundError`s that were ALL
+    `post_update` SEVERE members — 10 rounds × the 7 feasible held-out seeds — so the
+    entire post-training severe arm, the arm the experiment exists to measure, was
+    systematically removed. **That is an infrastructure failure, NOT a negative scientific
+    result.** Preserved as engineering history only; §7 owns its hashes.
+  - **FD-VARIABLE-SEVERITY-v1 actor-only baseline (REPLACEMENT) — run root
+    `C:\Users\Itama\f7r2`**, same exact code SHA
+    `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, ONE invocation of a contract differing from
+    the precursor's in `output_dir` ALONE, native exit code 0, `cli_overrides = []`.
+    **EXECUTED, independently reviewed, `APPROVE — VALID MEASUREMENT`.** **THIS IS THE
+    AUTHORITATIVE MEASUREMENT OF THE VARIABLE-SEVERITY CELL.** §7 owns the full record; the
+    headline is **664 scheduled / 586 successful / 78 accounted `setup` episode failures**
+    with `accounting_reconciled = true` and ZERO infrastructure or data-integrity faults,
+    **7/8 complete matched triads in all 11 rounds**, 50/50 productive PPO updates — and a
+    **NEGATIVE primary finding: NO severity-conditioned FD-wake meta-action separation**,
+    with MILD and SEVERE both at `PLAN_COMPLIANCE 7/7` at `pre_update` and at the final
+    `post_update`, and identical `63/70` vs `7/70` distributions across all ten
+    `post_update` rounds. Physical outcomes nevertheless DIVERGE sharply, so the severity
+    factor itself is real. Its numbers are evidence about the VARIABLE-SEVERITY cell only,
+    never about the Phase-A legacy cell.
   **What this establishes and what it does not.** The roster/world-truth defect was closed in
   CODE (`36365f2`, integrated `f37ea1c`, PR #24 — §5, §7), the authorized rerun was then
   executed ONCE on the SAME scientific contract into a NEW output directory, and it PASSED
@@ -2480,50 +2718,60 @@ a stub, because normal production does not currently generate it.
   hazard, not a blocker: it WARNS and runs. Consequence for tooling: anything driving
   `train` outside a working checkout must inject the verdict (the tests patch
   `_git_provenance`) rather than expect it to be optional.
-- **RESEARCH ORDERING — SUPERSEDED AGAIN ON 2026-08-22. THE VARIABLE-SEVERITY MEASUREMENT
-  AND PHASE-B CTDE NOW PROCEED IN PARALLEL.** This is an explicit user/orchestrator
-  decision, **not** an accidental Phase-A reopening, **not** a correction of anything, and
-  **not** a change to any technical CTDE contract. The approved order is:
+- **RESEARCH ORDERING — the 2026-08-22 PARALLEL arrangement, with ITEM 2 NOW COMPLETE.**
+  The variable-severity MEASUREMENT and Phase-B CTDE were run in parallel by explicit
+  user/orchestrator decision — **not** an accidental Phase-A reopening, **not** a
+  correction of anything, and **not** a change to any technical CTDE contract. **That
+  measurement is now EXECUTED, independently reviewed and VALID**, so the arrangement's
+  remaining live content is item 4's INTEGRATION gate. The approved order is:
   1. **PRESERVE the original Phase-A reference baseline.** It is CLOSED, VALID and
      IMMUTABLE — measured code SHA `737b4bf` on the FD-BASELINE-v1 design, run
      `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` (§7). The branch
      `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`) preserves the code
      state and must not move. **Nothing below redefines, reopens, re-runs, extends or
      supersedes it.**
-  2. **IMPLEMENT (done) and MEASURE (RUNNING, NOT COMPLETED) the ADDITIONAL actor-only
-     FD-VARIABLE-SEVERITY-v1 baseline — ON A PINNED, IMMUTABLE, DETACHED SNAPSHOT.** The
-     code is merged and locked (`eecc9b5`, integrated `177e969`, PR #27 — §5, §7). As of
-     2026-08-22 the measurement is LOCKED to exact SHA
+  2. **IMPLEMENT (done) and MEASURE (DONE — EXECUTED, REVIEWED, `APPROVE — VALID
+     MEASUREMENT`) the ADDITIONAL actor-only FD-VARIABLE-SEVERITY-v1 baseline — ON A
+     PINNED, IMMUTABLE, DETACHED SNAPSHOT.** The code is merged and locked (`eecc9b5`,
+     integrated `177e969`, PR #27 — §5, §7). The measurement was LOCKED to exact SHA
      `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
      `dd881478b8e2e521054d09bc865437f1308be1a2`, executed from a DETACHED, clean snapshot
-     worktree that carries no task branch and is READ-ONLY with respect to the shared
-     repository. **NO variable-severity scientific baseline has COMPLETED**, so no result
-     may be pre-claimed and an UNFINISHED run is not evidence of anything. It is, and
-     remains, an **ACTOR-ONLY measurement OF THAT PINNED SHA**: repository work landing
-     after `bf1e045f…` — Phase-B CTDE included — is simply not in the measured tree, so it
-     can neither be attributed to that run nor contaminate it. The run shape is its own
-     bullet below.
+     worktree that carried no task branch and was READ-ONLY with respect to the shared
+     repository. **§7 now owns the authoritative record**: the valid replacement run, the
+     excluded `MAX_PATH` precursor, every denominator, and the NEGATIVE primary finding
+     (no severity-conditioned FD-wake meta-action separation). It is, and remains, an
+     **ACTOR-ONLY measurement OF THAT PINNED SHA**: repository work landing after
+     `bf1e045f…` — Phase-B CTDE included — is simply not in the measured tree, so it can
+     neither be attributed to that run nor contaminate it. **Nothing beyond §7's record
+     may be claimed for it**, and its negative finding is a valid result, not a defect.
   3. **PHASE-B CTDE DESIGN AND IMPLEMENTATION MAY PROCEED CONCURRENTLY**, in a SEPARATE
      writable task branch / worktree, WHILE that measurement runs. It is no longer gated on
      the measurement's completion. What is still gated is INTEGRATION — item 4.
-  4. **CTDE MUST NOT BE MERGED INTO `main` until the variable-severity measurement has
-     COMPLETED and received an INDEPENDENT VALIDITY VERDICT**, unless the user explicitly
-     changes that rule later. **And before that eventual integration — only AFTER the
-     variable-severity measurement has been reviewed VALID — a NEW immutable actor-only
-     pre-CTDE reference is preserved from the THEN-CURRENT actor-only state.** That
-     reference is deliberately NOT chosen or created here; its exact name is a later
-     repository-convention decision. The existing branch `phase-a-baseline`
+  4. **THE CTDE INTEGRATION GATE — its measurement-validity half is now SATISFIED, and one
+     half REMAINS.** The requirement that the variable-severity measurement COMPLETE and
+     receive an INDEPENDENT VALIDITY VERDICT is MET (`APPROVE — VALID MEASUREMENT`,
+     measured code SHA `bf1e045f`, §7) — and it was met by a NEGATIVE result, which
+     satisfies the gate exactly as a positive one would, because the gate is about
+     VALIDITY, never about a favourable outcome. **What still stands: CTDE MUST NOT BE
+     MERGED INTO `main` until a NEW immutable actor-only pre-CTDE reference is preserved
+     from the THEN-CURRENT actor-only state.** That reference is deliberately NOT chosen or
+     created here; its exact name is a later repository-convention decision, and preserving
+     it is its own separately reviewed task. The existing branch `phase-a-baseline`
      (`4f0068847b017795717c5f0e331f647bcfc30547`) is historical provenance for the ORIGINAL
      valid Phase-A reference, is NEVER moved, and is NOT repurposed as that new reference.
-  **OWNERSHIP, WHILE THE TWO RUN IN PARALLEL.** The CTDE GPT orchestrator is the SOLE
-  WRITABLE repository owner. The FD measurement orchestrator is READ-ONLY on its detached
-  snapshot and owns no writable task branch, PR or shared working tree. That split is what
-  makes parallel work safe: only one side can write, and the side that measures cannot see
-  the other side's changes.
-  **THIS SUPERSEDES THE SERIAL ORDER THIS BULLET ITSELF PREVIOUSLY STATED** — that CTDE
+  **OWNERSHIP.** While the two ran in parallel the CTDE GPT orchestrator was the SOLE
+  WRITABLE repository owner and the FD measurement orchestrator was READ-ONLY on its
+  detached snapshot — only one side could write, and the side that measured could not see
+  the other side's changes. **For the closure of that measurement's documentation record
+  the user granted the FD orchestrator a ONE-TIME writable exception, scoped to this
+  documentation task alone. UPON INTEGRATION OF THIS RECORD INTO `main`, sole writable
+  repository ownership RETURNS to the CTDE GPT orchestrator** and the FD measurement
+  orchestrator returns to READ-ONLY with no writable branch or PR. The receiving CTDE
+  orchestrator resolves live branch and PR state from GitHub itself.
+  **THIS SUPERSEDED THE SERIAL ORDER THIS BULLET ITSELF PREVIOUSLY STATED** — that CTDE
   design could begin only after the variable-severity measurement was executed and
   independently reviewed. That serial rule is HISTORY as of 2026-08-22 and must not be
-  restated as live. **It also still supersedes the two ORIGINAL ordering claims** that
+  restated as live; the measurement has since completed and been reviewed VALID anyway. **It also still supersedes the two ORIGINAL ordering claims** that
   Phase-B CTDE was immediately next and that a stochastic/partial fuel-degradation variant
   was deferred until AFTER Phase B. FD-VARIABLE-SEVERITY-v1 is that variant's approved
   form, it is an ADDITIONAL actor-only stress baseline rather than a replacement for the
@@ -2535,16 +2783,18 @@ a stub, because normal production does not currently generate it.
   below); none of them is part of FD-VARIABLE-SEVERITY-v1 and none may be bundled into its
   baseline.
 - **THE AUTHORIZED MEASUREMENT CONTRACT — the bounded actor-only FD-VARIABLE-SEVERITY-v1
-  baseline. RUNNING ON A PINNED IMMUTABLE SNAPSHOT; NOT COMPLETED, NOT REVIEWED.** As of
-  2026-08-22 this measurement is LOCKED to exact SHA
-  `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
+  baseline. EXECUTED ON THE PINNED IMMUTABLE SNAPSHOT; INDEPENDENTLY REVIEWED
+  `APPROVE — VALID MEASUREMENT`; §7 OWNS THE RESULT.** The measurement was LOCKED to exact
+  SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
   `dd881478b8e2e521054d09bc865437f1308be1a2`, in a DETACHED, clean snapshot worktree that
-  is READ-ONLY with respect to the shared repository. Recorded here as a run SHAPE and a
-  run IDENTITY; it is **not** a result, **not** evidence, and carries **no** expected
-  result — **an unfinished run may never be reported, summarized or reasoned about as a
-  scientific finding.** Because the snapshot is pinned and detached, later `main` work —
-  Phase-B CTDE included — lies outside the measured tree and can neither be attributed to
-  this run nor contaminate it. The approved shape:
+  was READ-ONLY with respect to the shared repository. **This bullet remains the run SHAPE
+  and nothing more** — the executed run's identity, denominators, evidence hashes and its
+  NEGATIVE primary finding live in §7, and no number may be quoted from here. Because the
+  snapshot was pinned and detached, later `main` work — Phase-B CTDE included — lies
+  outside the measured tree and can neither be attributed to that run nor contaminate it.
+  **The measurement is NOT to be re-run, resumed, repaired, extended or re-tuned:** a valid
+  measurement exists, and a NEGATIVE finding is a result, not a reason to run it again. The
+  approved shape, which the executed run followed exactly:
   - **50 scheduled training iterations × 8 scheduled training attempts = 400 scheduled
     training attempts**, `base_seed = 0`;
   - **evaluation every 5 iterations, INCLUDING the initial `pre_update` round ⇒ 11
@@ -2557,28 +2807,34 @@ a stub, because normal production does not currently generate it.
   LOCKED cell: 3 agents, 3 known + 3 hidden, 200 km / 100 km geometry,
   `DETECTION_KM = 50`, `include_sams = false`, `probability = 1`, frozen solver and BLADE,
   unchanged `graph_reward` formula with `aircraft_penalty_coeff = 2.25`, unchanged PPO.
-  **The run task chooses a FRESH, NON-OVERWRITING output directory and captures its own
-  provenance** — no directory name, artifact hash or output figure is invented here.
-  The interpretation rules carry over unchanged and are not optional: the PRIMARY
-  behavioural evidence is the severity-conditioned FD-WAKE meta-action response with its
-  own FD-wake denominators; a mean is never read without its denominator; the only
-  within-seed claims are the three deltas over COMPLETE triads; an empty population is
-  `null`, never `0.0`; and a run that shows no reward improvement or no productive update
-  is a valid NEGATIVE observation, not a technical failure. **"Mild must choose
-  `PLAN_COMPLIANCE`" is NOT a correctness criterion** (§5).
+  The run task chose a FRESH, NON-OVERWRITING output directory and captured its own
+  provenance; §7 records which. The interpretation rules carry over unchanged and are not
+  optional: the PRIMARY behavioural evidence is the severity-conditioned FD-WAKE
+  meta-action response with its own FD-wake denominators; a mean is never read without its
+  denominator; the only within-seed claims are the three deltas over COMPLETE triads; an
+  empty population is `null`, never `0.0`; and a run that shows no reward improvement, no
+  productive update, or **no severity-conditioned behavioural difference — which is what
+  this one measured** — is a valid NEGATIVE observation, not a technical failure. **"Mild
+  must choose `PLAN_COMPLIANCE`" is NOT a correctness criterion** (§5). One further rule
+  the executed run makes concrete: the ten `post_update` rounds REUSE the same seven
+  feasible held-out seeds, so 70 observations per severity are a TRAJECTORY across
+  checkpoints and **not 70 independent worlds** — the clean statistical unit for the final
+  policy is the final round's 7 complete triads (§7).
 - **Centralized critic / value head (CTDE) — PHASE B. DESIGN AND IMPLEMENTATION AUTHORIZED
-  TO PROCEED CONCURRENTLY WITH THE PINNED VARIABLE-SEVERITY MEASUREMENT (2026-08-22);
-  INTEGRATION INTO `main` STILL GATED.** (Phase A is closed by the valid baseline, §7; the
-  variable-severity factor is merged, and its baseline is RUNNING on the pinned detached
-  snapshot `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` and is NOT completed or reviewed.)
+  (2026-08-22); INTEGRATION INTO `main` STILL GATED, BUT ONLY ON ONE REMAINING
+  PREREQUISITE.** (Phase A is closed by the valid baseline, §7; the variable-severity
+  factor is merged AND its actor-only baseline is now EXECUTED and independently reviewed
+  `APPROVE — VALID MEASUREMENT` at measured code SHA
+  `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` — with a NEGATIVE primary finding, §7.)
   **The former rule that this task may not BEGIN until that measurement is executed and
-  independently reviewed is SUPERSEDED.** What survives is the MERGE gate: **no CTDE change
-  may be merged into `main` until the variable-severity measurement has COMPLETED and
-  received an INDEPENDENT VALIDITY VERDICT**, unless the user explicitly changes that rule
-  later — and before that integration a NEW immutable actor-only pre-CTDE reference is
-  preserved from the then-current actor-only state (deliberately NOT chosen or created
-  here; `phase-a-baseline` is historical provenance for the ORIGINAL Phase-A reference and
-  is never moved or repurposed for it). **NOTHING TECHNICAL ABOUT THIS TASK CHANGED**: it
+  independently reviewed is SUPERSEDED, and the MEASUREMENT-VALIDITY half of the merge gate
+  is now SATISFIED** — satisfied by a negative result, which counts exactly as a positive
+  one would, because the gate tests VALIDITY and never favourability. **WHAT STILL GATES
+  INTEGRATION: no CTDE change may be merged into `main` until a NEW immutable actor-only
+  pre-CTDE reference is preserved from the then-current actor-only state** (deliberately
+  NOT chosen or created here, its preservation is its own separately reviewed task, and
+  `phase-a-baseline` is historical provenance for the ORIGINAL Phase-A reference and is
+  never moved or repurposed for it). **NOTHING TECHNICAL ABOUT THIS TASK CHANGED**: it
   is still a size-agnostic value estimator off the existing `GraphEncoder.pool()` hook,
   there is still **NO value head today**, and `graph_ppo` remains actor-only with its
   PHASE-B SEAM comments marking where the critic joins. **Everything below remains an OPEN
@@ -2598,15 +2854,16 @@ a stub, because normal production does not currently generate it.
     against the approved Phase-A baseline (§7) under the same validity gate, **BEFORE** any
     further environment difficulty is added.
   **No CTDE benefit may be pre-claimed** — not from the approved Phase-A result, which
-  explicitly does not establish one; not from the variable-severity baseline, which will
-  not establish one either; and **not from CTDE implementation work, engineering tests or
-  a passing test suite, none of which measure anything scientific.** A CTDE claim requires
-  its own executed, independently reviewed comparison. The remaining difficulty expansions
+  explicitly does not establish one; not from the executed variable-severity baseline,
+  which measured no CTDE anything and whose negative severity finding is **NOT** evidence
+  that centralized training would change it; and **not from CTDE implementation work,
+  engineering tests or a passing test suite, none of which measure anything scientific.**
+  A CTDE claim requires its own executed, independently reviewed comparison. The remaining difficulty expansions
   (`probability < 1`, SAMs, dense reward) are SEPARATE later research changes and must not
   be bundled into this one. **The stochastic/partial fuel-degradation variant is NO LONGER
   on that deferred list**: its approved form is FD-VARIABLE-SEVERITY-v1, it is merged
-  (`eecc9b5`, §5, §7), and since 2026-08-22 its baseline runs CONCURRENTLY with this task
-  on a pinned snapshot rather than strictly before it.
+  (`eecc9b5`, §5, §7), and its actor-only baseline ran CONCURRENTLY with this task on a
+  pinned snapshot and is now EXECUTED and reviewed VALID (§7).
 - **Baseline difficulty selection — CLOSED for the current cell by FD-BASELINE-v1
   (`a8669f4`).** Exactly ONE factor was selected, implemented and locked: `fuel_damage`
   (§5, §7). The following were considered and **NOT selected**; each remains a DEFERRED,
@@ -2630,10 +2887,10 @@ a stub, because normal production does not currently generate it.
   **What DID change is the ordering, not this list**: exactly ONE additional difficulty
   design — FD-VARIABLE-SEVERITY-v1, the approved form of the stochastic/partial
   fuel-degradation variant — was selected, implemented and locked after FD-BASELINE-v1
-  (`eecc9b5`, §5, §7), and since 2026-08-22 its actor-only baseline runs CONCURRENTLY with
-  Phase-B CTDE design and implementation, on a pinned immutable snapshot (see the
-  research-ordering bullet above, which owns the supersession). Every entry in the list
-  above stays deferred behind the phase boundary exactly as stated.
+  (`eecc9b5`, §5, §7), and its actor-only baseline — run CONCURRENTLY with Phase-B CTDE
+  design and implementation, on a pinned immutable snapshot — is now EXECUTED and reviewed
+  `APPROVE — VALID MEASUREMENT` (§7). Every entry in the list above stays deferred behind
+  the phase boundary exactly as stated.
 - **Solver 2:1 stacking (scenario-design fix, NOT solver constraints):** the anti-div-by-zero `EPSILON` nudges utility enough to assign 2 agents even at `probability=1.0`; a redundant agent chasing an already-killed target never proximity-confirms, so episodes end via `truncated`. The learned policy should recover this via `SELF_PRESERVATION_ABORT`→RTB once trained; the root fix is `EPSILON`/scenario-side.
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
