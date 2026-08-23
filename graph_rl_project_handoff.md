@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — Phase-A Closure / VALID VARIABLE-SEVERITY BASELINE (NEGATIVE FINDING) / PHASE-B CTDE MERGED — Handoff
+# Multi-Agent Graph RL — Phase-A Closure / VALID VARIABLE-SEVERITY BASELINE (NEGATIVE FINDING) / PHASE-B CTDE MERGED AND DOCUMENTED / REPOSITORY CLOSED — IDLE — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -29,7 +29,12 @@ integrated `8390d85c2072e9cbe984ce5f2731cef3a9b14985`, PR #30 — that the immut
 pre-CTDE actor-only reference `pre-ctde-actor-only =
 d437084c5fb1a22c21596a48c58e03f7e15a0115` exists, that the CTDE INTEGRATION GATE is
 therefore CLOSED / SATISFIED on both halves, and that NO CTDE scientific comparison has
-been run** (§1, §3k, §4, §8).
+been run** (§1, §3k, §4, §8), and **2026-08-23 a THIRD time to CLOSE the volatile
+repository/task state before transfer to a fresh chat: PR #32 / `task/phase-b-ctde-doc-lock`
+is MERGED and is NO LONGER the current writable task, this chat/repository CLOSURE record is
+the sole writable candidate only while it is in flight, and upon its integration the
+repository is CLOSED / IDLE with no writable task and no open scientific run** (§1, §4, §7,
+§8).
 
 **THE STATE, STATED PLAINLY.** **PHASE A IS CLOSED.** The authorized long-baseline rerun —
 `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, measured code SHA
@@ -103,6 +108,21 @@ into a new directory then PASSED the validity gate and is the Phase-A baseline**
 first three runs remain preserved and are HISTORY ONLY — their numbers are never a scientific
 baseline, and validity is still judged BEFORE performance.
 
+**AND THE REPOSITORY IS NOW BEING CLOSED FOR HANDOFF.** The Phase-B CTDE
+documentation/lock task is CLOSED / APPROVED / MERGED — approved candidate
+`c607f3fabcbd58f6f10cfde6bcc34068f09e4121`, verdict **`APPROVE`**, integrated by normal
+merge commit `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` (PR #32), ordered parents
+`8390d85c2072e9cbe984ce5f2731cef3a9b14985` then `c607f3f…` — so BOTH the Phase-B CTDE
+IMPLEMENTATION and its DOCUMENTATION are closed. **This closure record changes NO technical
+contract**: it exists only to retire the now-stale claim that PR #32 /
+`task/phase-b-ctde-doc-lock` is still the current writable task. After it is integrated
+there is **no writable task, no open code candidate, no open PR and no scientific run in
+progress.** **The next USER activity is a READ-ONLY INTERACTIVE WALKTHROUGH of the project
+and the CTDE / FD architecture in a fresh chat**, which writes nothing and runs nothing;
+**the next REPOSITORY / SCIENTIFIC task remains Task 9**, the first controlled CTDE
+measurement against the EXISTING approved Phase-A actor-only baseline — **NOT started and
+NOT authorized here, NO CTDE benefit claimed, and NO actor-only rerun authorized.**
+
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
 cross-references it rather than duplicating it.
@@ -124,17 +144,20 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **BASE of THIS documentation record:** `8390d85c2072e9cbe984ce5f2731cef3a9b14985`,
-  committed `2026-08-23 02:43:17 Asia/Jerusalem`, tree
-  `9686c107b8864f00a7d4403d70faf42ab561d2fb` — the `main` head produced by the **Phase-B
-  CTDE code merge (PR #30)**. **That is the exact base this PHASE-B CTDE
-  documentation/lock candidate was DERIVED ON**, and it is a statement about this record's
+- **BASE of THIS documentation record:** `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96`,
+  committed `2026-08-23 13:32:11 Asia/Jerusalem`, tree
+  `8a0b7a0aa9e65ebf01fce99c9b27ee25886ba7a6` — the `main` head produced by the **Phase-B
+  CTDE documentation/lock merge (PR #32)**. **That is the exact base this CHAT / REPOSITORY
+  CLOSURE candidate was DERIVED ON**, and it is a statement about this record's
   derivation only — **not** a claim about live `main`,
   which this record's own integration necessarily advances past it. Neither this
   documentation commit nor its future merge can name its own SHA, and inventing either
   would be a false provenance claim. **Every receiving orchestrator therefore resolves the
   live full `main` SHA from GitHub and re-reads both documents at that SHA — GitHub is
-  authoritative for live branch and PR state, never this document.**
+  authoritative for live branch and PR state, never this document.** *(The PR #30 CTDE CODE
+  integration `8390d85c2072e9cbe984ce5f2731cef3a9b14985`, tree
+  `9686c107b8864f00a7d4403d70faf42ab561d2fb`, was the base of the PREVIOUS documentation
+  record; it remains recorded as that code integration in the next bullet and in §3k.)*
 - **PHASE-B CTDE CODE — CLOSED / REVIEWED / MERGED, AND ALREADY LIVE ON `main`.** Approved
   candidate `a6f3aa9d62931994f416b2241fec4cfac3b018ec`
   (`2026-08-22 21:01:46 Asia/Jerusalem`), integrated by merge commit
@@ -155,6 +178,16 @@ cross-references it rather than duplicating it.
   scientific rollout, and no actor-only vs CTDE comparison.** Bounded ENGINEERING smokes
   against real BLADE + BONMIN *did* run during BUILD validation (§3k); they are wiring
   evidence only and their outcomes are never scientific evidence.
+- **PHASE-B CTDE DOCUMENTATION / LOCK — CLOSED / APPROVED / MERGED.** Approved candidate
+  `c607f3fabcbd58f6f10cfde6bcc34068f09e4121`, verdict **`APPROVE`**, integrated by a normal
+  merge commit **`7b6c07586811374f3f35e26ed33e1fcf4a9f2e96`** (PR #32, branch
+  `task/phase-b-ctde-doc-lock`), ordered merge parents
+  `8390d85c2072e9cbe984ce5f2731cef3a9b14985`, then `c607f3f…`. It recorded the PR #30 CTDE
+  technical contract in `CLAUDE.md` §5, its routing in §6 and its lock in §7. **It changed
+  no code, test, config or preset, executed no run, and pre-claimed no CTDE result.** With
+  it merged the CTDE IMPLEMENTATION and its DOCUMENTATION are both CLOSED, and
+  `task/phase-b-ctde-doc-lock` is a RETIRED, cleanup-eligible branch — **not** an active
+  task.
 - **`pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`** (tree
   `d7cc2dcb1b161180e272afc9600175f022c5b5d0`) is the IMMUTABLE reference preserving the
   IMMEDIATE PRE-CTDE actor-only state. It is the CTDE integration's FIRST parent, so "the
@@ -457,13 +490,41 @@ cross-references it rather than duplicating it.
     an earlier revision of this document observed PR #30 read-only as an unmerged draft)*.
     **What remains OPEN is the SCIENTIFIC COMPARISON, not the implementation** (§4,
     Task 9), and **no CTDE benefit is claimed**.
-  - **CURRENT WRITABLE TASK:** this PHASE-B CTDE documentation/lock task — branch
-    `task/phase-b-ctde-doc-lock` and its draft PR — held by the CTDE GPT orchestrator,
-    which holds sole writable repository ownership. **No CODE candidate is open**: PR #30
-    was the last one and it is merged (§3k). *(Historical: the FD closure orchestrator held
-    a ONE-TIME writable exception scoped to the variable-severity record alone, on branch
-    `task/fd-variable-severity-valid-doc-lock`; that exception ENDED when the record was
-    integrated and writable ownership returned to the CTDE orchestrator.)*
+  - **CURRENT WRITABLE TASK:** this CHAT / REPOSITORY CLOSURE record — branch
+    `task/ctde-chat-closure-handoff` and its draft PR — held by the CTDE GPT orchestrator,
+    which holds sole writable repository ownership. It is the SOLE writable candidate ONLY
+    while it is in flight, and **UPON ITS INTEGRATION the repository is CLOSED / IDLE: no
+    writable task, no open code candidate, no open PR and no scientific run in progress.**
+    **No CODE candidate is open**: PR #30 was the last one and it is merged (§3k), and the
+    PHASE-B CTDE documentation/lock task that followed it is merged too (PR #32).
+    *(Historical: `task/phase-b-ctde-doc-lock` was the writable task under the PREVIOUS
+    record and is now RETIRED and cleanup-eligible; earlier still, the FD closure
+    orchestrator held a ONE-TIME writable exception scoped to the variable-severity record
+    alone, on branch `task/fd-variable-severity-valid-doc-lock`, and that exception ENDED
+    when the record was integrated and writable ownership returned to the CTDE
+    orchestrator.)*
+  - **REFERENCES THAT MUST REMAIN — FOUR preserved branches plus one tag, with DISTINCT
+    roles that are NEVER interchangeable.** **`main`**; **`phase-a-baseline` =
+    `4f0068847b017795717c5f0e331f647bcfc30547`**, the IMMUTABLE ORIGINAL Phase-A scientific
+    reference and the historical comparator for the first CTDE scientific comparison (§3h,
+    §4 Task 9); **`pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the
+    LATER immediate actor-only state onto which CTDE was merged (the CTDE integration's
+    FIRST parent); and **`flat-final` = `4d44c3454a5561a6cb9d7aed593d59a40068d6d7`**,
+    preserving the retired flat-RL path. The annotated tag **`pre-cleanup`** (peeling to
+    `561b7cb7f2d873e584a8c0dabe71df8050f1b4ed`) is preserved alongside them. **Neither
+    `phase-a-baseline` nor `pre-ctde-actor-only` supersedes the other and neither may be
+    substituted for the other. NONE of these refs is cleanup-eligible, and none may move.**
+  - **CLEANUP-ELIGIBLE TASK BRANCHES — RETIRED, NOT ACTIVE.** Each was independently
+    verified to be a strict ancestor of `main` at
+    `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96`, carrying no unintegrated commit:
+    `task/ctde-parallel-order-doc-lock` (`1aa8eef865351959d61e229de86040620cb2cb50`),
+    `task/fd-variable-severity-valid-doc-lock`
+    (`92941587b1ad225573af763e50b129a552861b18`), `task/phase-b-ctde-build`
+    (`a6f3aa9d62931994f416b2241fec4cfac3b018ec`) and `task/phase-b-ctde-doc-lock`
+    (`c607f3fabcbd58f6f10cfde6bcc34068f09e4121`). They are ELIGIBLE for the immediately
+    following BOUNDED branch-cleanup task and were deliberately NOT deleted by this record.
+    `task/ctde-chat-closure-handoff` itself becomes cleanup-eligible only AFTER this
+    candidate is reviewed and integrated.
   - **CTDE INTEGRATION GATE — CLOSED / SATISFIED ON BOTH HALVES.** The requirement that the
     variable-severity measurement COMPLETE and receive an **INDEPENDENT VALIDITY VERDICT**
     is **MET** (§3j) — met by a NEGATIVE result, which satisfies the gate exactly as a
@@ -498,11 +559,14 @@ cross-references it rather than duplicating it.
   the approved `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`), and all
   GitHub PR refs and history. **The branch `phase-a-baseline`
   (`4f0068847b017795717c5f0e331f647bcfc30547`), which preserves the Phase-A reference code
-  state, is likewise PRESERVED and must not move.** **The same discipline applies to
-  `task/variable-fd-severity-baseline` (the merged PR #27 implementation branch) and to
-  `task/variable-fd-severity-doc-lock` once THIS record is merged** — retirement is the GPT
+  state, is likewise PRESERVED and must not move.** **The same discipline now applies
+  to the FOUR cleanup-eligible `task/*` branches enumerated in the VOLATILE STATE
+  bullet above, and to `task/ctde-chat-closure-handoff` once THIS record is merged** —
+  retirement is the GPT
   orchestrator's action, only after each tip is verified reachable from integrated `main`,
-  and it is NOT part of this documentation task.
+  and it is NOT part of this documentation task. *(Historical: the branches
+  `task/variable-fd-severity-baseline` and `task/variable-fd-severity-doc-lock`, named by an
+  earlier revision of this bullet, are no longer present on the remote.)*
 
 ## 2. Historical probe — evidence about the EASY PRE-FD cell only
 
@@ -1342,7 +1406,7 @@ lock and its evidence** — this section does not duplicate them.
   whose rewards and outcomes must never be promoted into scientific evidence** — a bounded
   smoke has no scientific contract, no seed schedule, no held-out band and no denominator.
 
-## 4. Current work — VARIABLE-SEVERITY BASELINE CLOSED (VALID, NEGATIVE); PHASE-B CTDE MERGED; THE CTDE COMPARISON NOT RUN
+## 4. Current work — REPOSITORY CLOSED / IDLE; PHASE-B CTDE MERGED AND DOCUMENTED; THE CTDE COMPARISON NOT RUN
 
 Start with fresh exact-SHA initialization against the current `main`. **THIS documentation
 task neither authorizes nor runs anything: it RECORDS state only, and it does NOT authorize
@@ -1350,6 +1414,19 @@ CC to run training, to re-run the completed baseline described below, or to writ
 critic.** The CTDE authorization recorded here is a statement about SEQUENCING and
 OWNERSHIP — the work itself is a SEPARATE task owned by the CTDE GPT orchestrator, and no
 technical CTDE contract is defined or locked by this record.
+
+**REPOSITORY STATE AFTER THIS RECORD IS INTEGRATED: CLOSED / IDLE.** There is **no active
+writable task, no open code candidate, no open PR and no scientific run in progress.** The
+Phase-B CTDE IMPLEMENTATION (PR #30, §3k) and its DOCUMENTATION / LOCK (PR #32, §1) are
+BOTH CLOSED, and this record exists solely to retire the now-stale claim that PR #32 /
+`task/phase-b-ctde-doc-lock` is still the current writable task. **The NEXT USER ACTIVITY is
+a READ-ONLY INTERACTIVE WALKTHROUGH of the project and the CTDE / FD architecture in a fresh
+chat** — a reading and explanation activity that writes nothing, runs nothing and authorizes
+nothing. **The NEXT REPOSITORY / SCIENTIFIC TASK remains Task 9 below**, the first
+controlled CTDE measurement against the EXISTING approved Phase-A actor-only baseline; it is
+**NOT started, NOT authorized and NOT run by this record**, **no CTDE benefit is claimed**,
+**no fresh actor-only rerun is authorized**, and **`p(destroy) < 1`, SAMs, dense reward, any
+solver or reward-formula change and any new difficulty factor remain OUTSIDE Task 9** (§6).
 
 **THE ORDERING, STATED ONCE — PARALLEL SINCE 2026-08-22, AND NOW FULLY TRAVERSED.** By
 explicit user/orchestrator decision the approved arrangement was: **(1)** preserve the
@@ -1382,10 +1459,12 @@ measurement orchestrator was READ-ONLY on its detached snapshot. *(Historical: t
 granted the FD orchestrator a ONE-TIME writable exception scoped to the variable-severity
 closure record alone; that exception ENDED when the record was integrated, and the FD
 orchestrator reverted to READ-ONLY with no writable branch or PR.)* Writable ownership then
-returned to the CTDE GPT orchestrator, which integrated PR #30, and **it owns THIS
-documentation/lock task as well** — branch `task/phase-b-ctde-doc-lock` and its draft PR
-are the only writable candidate while this record is in flight. **The CTDE integration
-gate's repository-side prerequisite is DISCHARGED**: `pre-ctde-actor-only` =
+returned to the CTDE GPT orchestrator, which integrated PR #30 and then the CTDE
+documentation/lock PR #32 — **both are now CLOSED** — and **it owns THIS chat/repository
+CLOSURE task as well**: branch `task/ctde-chat-closure-handoff` and its draft PR are the
+only writable candidate while this record is in flight, and **upon its integration the
+repository is CLOSED / IDLE with no writable task.** **The CTDE integration gate's
+repository-side prerequisite is DISCHARGED**: `pre-ctde-actor-only` =
 `d437084c5fb1a22c21596a48c58e03f7e15a0115` exists and must not move.
 
 **Tasks 0–5 are ALL DONE.** Defect A (`d56fda6`, PR #17), Defect B (`39a16f2`, PR #19) and
@@ -1773,6 +1852,8 @@ obligations and bounded implementation/lock task.
 | THE ADDITIONAL ACTOR-ONLY VARIABLE-SEVERITY BASELINE completes — **DONE at measured code SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`; `APPROVE — VALID MEASUREMENT`; PRIMARY FINDING NEGATIVE** | Run identity, exact measured code SHA, resolved configuration and its one invocation, complete provenance, both elapsed quantities, EVERY denominator (attempted / successful / failed, per cell and overall), the failure breakdown by stage and error type, the clean / mild / severe reward means, the three matched deltas over COMPLETE TRIADS ONLY, the severity-conditioned FD-wake meta-action counts and rates WITH their wake denominators, RTB / death / target-coverage outcomes, artifact completeness and the evidence hashes recorded in `CLAUDE.md` §7, with the phase state in §8 and the volatile summary in §3j. The EXCLUDED `MAX_PATH` precursor is recorded as `INCONCLUSIVE/BLOCKED — INVALID MEASUREMENT` with its own hashes, and the playback-export routing caveat is recorded as engineering history rather than fixed. **Validity was judged BEFORE performance and PASSED on all four clauses; the NEGATIVE severity response is a valid observation, not a defect** |
 | OWNERSHIP RETURNS to the CTDE GPT orchestrator — **EFFECTIVE UPON INTEGRATION of the record above (2026-08-23)** | Record, here (§1, §4, §8) and in `CLAUDE.md` §8, that the user granted the FD measurement orchestrator a ONE-TIME writable exception scoped to the variable-severity closure record ALONE; that PR #30 / `task/phase-b-ctde-build` stayed untouched throughout; that **UPON INTEGRATION of that record into `main`, sole writable repository ownership RETURNS to the CTDE GPT orchestrator** and the FD orchestrator reverts to READ-ONLY with no writable branch or PR; and that the CTDE orchestrator's immediate repository-side prerequisite before any CTDE integration is to preserve the **NEW immutable actor-only pre-CTDE reference** in its own separately reviewed task. **Ownership and sequencing only — no technical CTDE contract is defined, no pre-CTDE reference is chosen or created, `phase-a-baseline` does not move, and the integrating merge SHA is deliberately not named** |
 | PHASE-B CTDE IMPLEMENTATION lands — **DONE for PR #30** | The two training modes and `TrainConfig.training_mode` as the ONLY selector, actor-only preservation (keyword omission, the POISON test and its CONTROL), the training-only critic and its structural separation from the actor, the central graph's liveness / no-ego symmetry / features / edges and the ENUMERATED privileged-input EXCLUSIONS, the same-tick capture seam and its 1:1 alignment, GAE over the GLOBAL decision sequence with a zero terminal next value, the preserved meaning of `baseline` / `train_reward_mean`, the persisted critic diagnostics and the checkpoint distinction recorded as a contract in `CLAUDE.md` §5, routed in §6, and locked in §7 with the append-only fix chain, the exact six changed files, the two DISTINCT immutable references (`pre-ctde-actor-only` vs `phase-a-baseline`) and the CC-reported engineering evidence LABELLED as implementation validation. §2's locked-layer wording widened to include the CTDE layer; §4's pipeline diagram, §5's encoder note and §8's gate updated so nothing still says the critic is open or that there is no value head. §3k summarizes it here — **recorded WITHOUT pre-claiming any result: no scientific run occurred for PR #30 and no actor-only vs CTDE comparison has been executed** |
+| PHASE-B CTDE DOCUMENTATION / LOCK lands — **DONE for PR #32** | Approved candidate `c607f3fabcbd58f6f10cfde6bcc34068f09e4121`, verdict `APPROVE`, integrated by normal merge `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` with ordered parents `8390d85c2072e9cbe984ce5f2731cef3a9b14985` then `c607f3f…`, recorded in §1 with the CTDE technical contract, routing and lock living in `CLAUDE.md` §5–§7 and summarized here in §3k. **No code, test, config or preset changed; no run occurred; no CTDE result was pre-claimed** |
+| CHAT / REPOSITORY CLOSURE recorded — **DONE (2026-08-23)** | Record, here (§1, §4, §7, §8), that PR #32 / `task/phase-b-ctde-doc-lock` is CLOSED / MERGED and is no longer the current writable task; that `main` = `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` / tree `8a0b7a0aa9e65ebf01fce99c9b27ee25886ba7a6` is this record's base and its historical closure provenance; that this closure branch is the SOLE writable candidate only while in flight and that repository state is CLOSED / IDLE upon its integration; the FOUR preserved reference roles (`main`, `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final`, plus the `pre-cleanup` tag) and their NON-interchangeability; the four `task/*` branches as RETIRED and cleanup-eligible rather than active; that the next USER activity is a READ-ONLY interactive walkthrough; and that the next repository/scientific task remains Task 9, NOT started. **Volatile state ONLY — `CLAUDE.md` is untouched, no technical contract changes, no CTDE benefit is claimed, no actor-only rerun is authorized, `p(destroy) < 1` / SAMs / dense reward / solver and reward changes / new difficulty factors stay outside Task 9, and this record's own integrating merge SHA is deliberately NOT named** |
 | The FIRST actor-only vs CTDE COMPARISON completes — **NOT RUN** | Record run identity, exact measured code SHA, the resolved configuration, complete provenance, every denominator, the held-out results with their own denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **The comparator is the ALREADY-APPROVED original Phase-A actor-only baseline (`737b4bf…`, §3h), which is NOT re-run** — so record the CTDE arm's own measured SHA and state EXPLICITLY that the two records carry DISTINCT measured code SHAs; never claim the arms differ only by one `training_mode` field. The factor under test is actor-only training vs centralized-critic training, with the CTDE run matching the approved baseline's locked cell, schedule, seed policy, held-out band and evaluation construct. A newly executed actor-only CONTROL arm would be a separate research-design decision needing explicit user authorization. **Validity is judged BEFORE performance; a null or negative CTDE result is a valid observation, not a technical failure** |
 
 ## 8. Next action
@@ -1896,17 +1977,23 @@ change, or any new difficulty factor** (§6) — bundling one would make it unin
 run showing no CTDE improvement is a **valid NEGATIVE observation**, not a technical
 failure. **No CTDE preset exists in the repository**, and creating one belongs to that task.
 
-**OWNERSHIP.** The CTDE GPT orchestrator holds sole writable repository ownership,
-including for THIS documentation/lock task — branch `task/phase-b-ctde-doc-lock` and its
-draft PR are the only writable candidate while this record is in flight. *(Historical: the
-FD measurement orchestrator's ONE-TIME writable exception, scoped to the variable-severity
-closure record alone, ENDED when that record was integrated.)* This record's own integrating
-merge SHA is deliberately NOT named — it does not exist while this is written, and inventing
-it would be a false provenance claim. **GitHub remains authoritative for live branch and PR
-state — resolve it there, never from this document.** Retiring any merged branch is a
-separate action owned by the GPT orchestrator, done only once each tip is verified reachable
-from integrated `main`; `pre-ctde-actor-only`, `phase-a-baseline`, `flat-final`, the
-`pre-cleanup` tag, PR #30's history and every preserved scientific artifact stay PRESERVED.
+**OWNERSHIP, AND THE CLOSURE ITSELF.** The CTDE GPT orchestrator holds sole writable
+repository ownership, including for THIS chat/repository CLOSURE task — branch
+`task/ctde-chat-closure-handoff` and its draft PR are the only writable candidate while this
+record is in flight, and **UPON ITS INTEGRATION the repository is CLOSED / IDLE: no writable
+task, no open code candidate, no open PR and no scientific run in progress.** *(Historical:
+`task/phase-b-ctde-doc-lock` was the writable task under the PREVIOUS record and closed as
+PR #32; earlier still, the FD measurement orchestrator's ONE-TIME writable exception, scoped
+to the variable-severity closure record alone, ENDED when that record was integrated.)* This
+record's own integrating merge SHA is deliberately NOT named — it does not exist while this
+is written, and inventing it would be a false provenance claim. **GitHub remains
+authoritative for live branch and PR state — resolve it there, never from this document.**
+Retiring any merged branch is a separate action owned by the GPT orchestrator, done only
+once each tip is verified reachable from integrated `main`; the FOUR cleanup-eligible
+`task/*` branches enumerated in §1 are ELIGIBLE for that bounded follow-up task and were NOT
+deleted here, while `pre-ctde-actor-only`, `phase-a-baseline`, `flat-final`, the
+`pre-cleanup` tag, PR #30's and PR #32's history and every preserved scientific artifact
+stay PRESERVED and are NEVER cleanup-eligible.
 
 **NEITHER the Phase-A long baseline NOR the variable-severity baseline is to be re-run,
 resumed, repaired, extended or re-tuned.** A valid measurement exists for each; re-running
@@ -1916,5 +2003,14 @@ variable-severity run is an ADDITIONAL measurement of a DIFFERENT cell beside it
 replacement for it.
 
 Resolve live branch and PR state from GitHub; this document does not track it.
+
+**THE NEXT USER ACTIVITY IS A READ-ONLY INTERACTIVE WALKTHROUGH** of the project and the
+CTDE / FD architecture in a fresh chat: reading and explanation only, writing nothing,
+running nothing and authorizing nothing. **THE NEXT REPOSITORY / SCIENTIFIC TASK REMAINS
+TASK 9** — the first controlled CTDE measurement against the EXISTING approved Phase-A
+actor-only baseline (§4) — and it is **NOT started, NOT authorized and NOT scheduled by this
+record**. No CTDE benefit is claimed, no fresh actor-only rerun is authorized, and
+`p(destroy) < 1`, SAMs, dense reward, solver or reward-formula changes and any new
+difficulty factor remain OUTSIDE it (§6).
 
 **This document authorizes neither an implementation nor a training run.**
