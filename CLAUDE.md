@@ -1107,9 +1107,15 @@ the integrated code, not a design proposal.
     reward component, the episode seed, the scheduled fuel-damage severity or condition
     label, the known-vs-hidden split, future RNG, or any future outcome. **Do not add a
     feature this list does not name.**
-  - `k` and `a` are both VARIABLE and may legitimately be 0; the encoder is size-agnostic
-    and its self-loops keep an empty edge set safe. `CentralCritic.forward` additionally
-    guards the all-empty graph so its output is finite by construction.
+  - **SIZE IS VARIABLE, WITH ONE FLOOR.** There is no padding and no fixed cardinality:
+    the encoder is size-agnostic and its self-loops keep an empty edge set safe. `k` (live
+    targets) MAY legitimately be **0** — every target destroyed is a normal late-episode
+    state. The live-agent count is likewise variable, but **at an ACTUAL DECISION CAPTURE it
+    is at least 1**: a decision requires an airborne ego, so that ego always has a node.
+    `CentralCritic.forward` does carry an all-empty `n_nodes == 0` guard returning a finite
+    zero, but that branch is DEFENSIVE — it makes the output finite by construction rather
+    than by an argument about the caller, and it is **not a reachable normal decision
+    state**.
 - **MULTI-AGENT TEMPORAL SEMANTICS — ONE CENTRAL STATE PER ACTUAL DECISION.**
   `run_episode(..., central=CentralStateRecorder())` calls `capture` INSIDE the `if wake`
   branch and IMMEDIATELY BEFORE `_wake_decision`, and nowhere else — so sample `i` is the
@@ -2684,10 +2690,12 @@ a stub, because normal production does not currently generate it.
   integrated by merge commit `8390d85c2072e9cbe984ce5f2731cef3a9b14985` (PR #30). The
   candidate was merged with a normal MERGE COMMIT and preserved as its SECOND PARENT
   (ordered parents: `d437084c5fb1a22c21596a48c58e03f7e15a0115`, then `a6f3aa9…`), and the
-  integration tree is `9686c107b8864f00a7d4403d70faf42ab561d2fb`. Grade A under
-  `GPT_GITHUB`, implementation mode SURGICAL. The technical contract is in §5 ("PHASE-B
-  CTDE — the TRAINING-ONLY centralized critic"), the pipeline placement in §4 and the
-  routing in §6. This entry records the LOCK, not the mechanism.
+  integration tree is `9686c107b8864f00a7d4403d70faf42ab561d2fb`. **Grade A under
+  `GPT_GITHUB`, implementation mode BUILD** — it created a new layer and a new module, and
+  the SURGICAL mode belongs to the SEPARATE documentation-lock task that recorded it, never
+  to the implementation itself. The technical contract is in §5 ("PHASE-B CTDE — the
+  TRAINING-ONLY centralized critic"), the pipeline placement in §4 and the routing in §6.
+  This entry records the LOCK, not the mechanism.
   **THE TWO IMMUTABLE REFERENCES, AND THEY ARE DISTINCT.**
   `pre-ctde-actor-only = d437084c5fb1a22c21596a48c58e03f7e15a0115` (tree
   `d7cc2dcb1b161180e272afc9600175f022c5b5d0`) is the NEW immutable reference preserving the
@@ -2746,18 +2754,30 @@ a stub, because normal production does not currently generate it.
   actor-only checkpoint keys beside the CTDE payload; and the persisted critic diagnostics
   with their absence on the `actor_only` path.
   **CC-REPORTED ENGINEERING EVIDENCE — IMPLEMENTATION VALIDATION, NOT SCIENTIFIC
-  EVIDENCE.** Full solver-free suite **334 passed, 4 skipped**;
-  `tests/test_graph_ctde.py` **43 passed**; `tests/test_graph_train.py` **119 passed**;
-  `tests/test_graph_ppo.py` **18 passed**; the standalone `nlp_env` CTDE `__main__` runner
-  **43 passed**; `git diff --check` clean. Four mutation checks confirmed the fix-commit
-  regressions falsify (the permissive `value_coeff` bound, dropped persistence,
-  recomputed-instead-of-copied values, and CTDE keys leaking onto the `actor_only` path),
-  each reverted.
-  **NO SCIENTIFIC RUN OF ANY KIND WAS EXECUTED FOR PR #30** — no training run, no baseline,
-  no probe, no rollout, no BONMIN solve and no BLADE episode; every test is solver-free and
-  drives the pipeline through stubbed engine seams. **No actor-only vs CTDE comparison has
-  been executed, and NO CTDE benefit is established or may be pre-claimed.** This lock
-  certifies the IMPLEMENTATION; §8 owns the gate and the next scientific task.
+  EVIDENCE. It has TWO parts, and they are labelled separately because they are different
+  kinds of evidence.**
+  (i) **TESTS — solver-free, stubbed engine seams.** At the approved head: full solver-free
+  suite **334 passed, 4 skipped**; `tests/test_graph_ctde.py` **43 passed**;
+  `tests/test_graph_train.py` **119 passed**; `tests/test_graph_ppo.py` **18 passed**; the
+  standalone `nlp_env` CTDE `__main__` runner **43 passed**; `git diff --check` clean. Four
+  mutation checks confirmed the fix-commit regressions falsify (the permissive
+  `value_coeff` bound, dropped persistence, recomputed-instead-of-copied values, and CTDE
+  keys leaking onto the `actor_only` path), each reverted.
+  (ii) **BOUNDED ENGINEERING SMOKES — REAL BLADE AND REAL BONMIN, and they DID happen.**
+  During the BUILD candidate's validation, **TWO bounded smokes under `nlp_env` ran BOTH
+  training modes end-to-end against the real engine and the real solver**: 2/2 episodes,
+  one PPO update, `accounting_reconciled = true`, no `CRASH` and no `Traceback`, writing
+  only to the scratchpad and never into the repository. They are ENGINEERING evidence that
+  the wiring executes, and they are what surfaced the `baseline`-vs-critic-value defect the
+  contract now pins (§5). **Their rewards and episode outcomes are NOT scientific evidence
+  and must never be promoted into any**, and the later append-only review-fix validation
+  needed no new run of them.
+  **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #30** — no baseline, no
+  probe, no scientific rollout, and above all **no actor-only vs CTDE comparison. NO CTDE
+  benefit is established or may be pre-claimed.** Two bounded engineering smokes are not a
+  measurement: they have no scientific contract, no seed schedule, no held-out band and no
+  denominator. This lock certifies the IMPLEMENTATION; §8 owns the gate and the next
+  scientific task.
 
 ---
 
@@ -3142,14 +3162,25 @@ a stub, because normal production does not currently generate it.
   from PR #30's implementation evidence. A CTDE claim requires its own executed,
   independently reviewed comparison. The next scientific task is preparing and executing
   that comparison, and it must:
-  - run **ON THE LOCKED ORIGINAL PHASE-A SCIENTIFIC CELL** — 3 agents, 3 known + 3 hidden,
+  - **TAKE ITS ACTOR-ONLY ARM FROM THE ALREADY-APPROVED PHASE-A BASELINE, WHICH IS NOT
+    RE-RUN.** That arm is already measured — measured code SHA `737b4bf`, run
+    `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, `APPROVE — VALID
+    MEASUREMENT` (§7) — and it is PRESERVED and NOT to be re-run, resumed, repaired,
+    extended or re-tuned. **Nothing in this record authorizes a fresh actor-only run**; a
+    newly executed actor-only CONTROL arm is a SEPARATE research-design decision requiring
+    explicit user authorization. What the task schedules is the **CTDE arm**;
+  - **MATCH THE LOCKED ORIGINAL PHASE-A SCIENTIFIC CELL** — 3 agents, 3 known + 3 hidden,
     200 km / 100 km geometry, `DETECTION_KM = 50`, `include_sams = false`,
     `probability = 1`, frozen solver and BLADE, unchanged `graph_reward` formula with
-    `aircraft_penalty_coeff = 2.25` — judged against the approved Phase-A baseline (§7)
-    under the SAME validity gate, VALIDITY BEFORE PERFORMANCE;
-  - be a CONTROLLED contrast in which `training_mode` is the ONLY differing factor, so the
-    two arms share the seed schedule, the held-out band, the difficulty design and the
-    evaluation construct;
+    `aircraft_penalty_coeff = 2.25` — **and that baseline's training / evaluation schedule,
+    seed policy, held-out band and evaluation construct** as the authoritative Phase-A
+    record establishes them, judged under the SAME validity gate, VALIDITY BEFORE
+    PERFORMANCE;
+  - **name the EXPERIMENTAL FACTOR correctly: actor-only training vs centralized-critic
+    training.** Provenance MUST acknowledge that the historical Phase-A measurement and the
+    future CTDE measurement carry **DISTINCT measured code SHAs**, and **must NOT claim the
+    two arms' literal repository or configuration artifacts differ only by one
+    `training_mode` field** — they do not, and asserting it would be false provenance;
   - **NOT bundle `p(destroy) < 1`, SAMs, dense reward, a solver change, a reward-formula
     change, or any new difficulty factor.** Those remain separate, still-deferred research
     changes (the difficulty-selection bullet below), and bundling one would make the
