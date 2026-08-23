@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — Phase-A Closure / VALID VARIABLE-SEVERITY BASELINE (NEGATIVE FINDING) / PHASE-B CTDE Handoff
+# Multi-Agent Graph RL — Phase-A Closure / VALID VARIABLE-SEVERITY BASELINE (NEGATIVE FINDING) / PHASE-B CTDE MERGED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -23,7 +23,13 @@ baseline is now EXECUTED, independently reviewed `APPROVE — VALID MEASUREMENT`
 code SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` with a NEGATIVE primary behavioural
 finding, to CLOSE Task 7, and to record that the CTDE integration gate's
 measurement-validity half is SATISFIED while its pre-CTDE-reference half is not** (§3j,
-§4, §8).
+§4, §8), and **2026-08-23 again to record that PHASE-B CTDE IS NOW IMPLEMENTED,
+REVIEWED AND MERGED — approved candidate `a6f3aa9d62931994f416b2241fec4cfac3b018ec`,
+integrated `8390d85c2072e9cbe984ce5f2731cef3a9b14985`, PR #30 — that the immutable
+pre-CTDE actor-only reference `pre-ctde-actor-only =
+d437084c5fb1a22c21596a48c58e03f7e15a0115` exists, that the CTDE INTEGRATION GATE is
+therefore CLOSED / SATISFIED on both halves, and that NO CTDE scientific comparison has
+been run** (§1, §3k, §4, §8).
 
 **THE STATE, STATED PLAINLY.** **PHASE A IS CLOSED.** The authorized long-baseline rerun —
 `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, measured code SHA
@@ -52,11 +58,19 @@ an infrastructure failure rather than a result. Both trees are preserved. **The 
 order that put this measurement in PARALLEL with Phase-B CTDE (2026-08-22) did its job: the
 measurement stayed an ACTOR-ONLY measurement OF ITS PINNED SHA**, so later CTDE work was
 never in the measured tree and can neither be attributed to that run nor contaminate it.
-**CONSEQUENCE FOR CTDE: the INTEGRATION gate's measurement-validity half is now SATISFIED**
-— satisfied by a negative result, which counts exactly as a positive one would — **and its
-remaining half is not: CTDE MUST NOT BE MERGED INTO `main` until a NEW immutable actor-only
-pre-CTDE reference is preserved from the then-current actor-only state** (§4 Task 8, §8),
-unless the user explicitly changes that rule later. None of this is a reopening of Phase A
+**AND PHASE-B CTDE IS NOW IMPLEMENTED, REVIEWED AND MERGED.** Approved candidate
+`a6f3aa9d62931994f416b2241fec4cfac3b018ec`, integrated
+`8390d85c2072e9cbe984ce5f2731cef3a9b14985`, PR #30 (§3k). **The CTDE INTEGRATION GATE IS
+CLOSED / SATISFIED on BOTH halves**: the measurement-validity half by the variable-severity
+`APPROVE — VALID MEASUREMENT` verdict — a negative result satisfies it exactly as a
+positive one would — and the reference half by **`pre-ctde-actor-only =
+d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the FIRST parent of the CTDE integration and
+therefore provably the actor-only state CTDE was merged onto. It must not move, and
+`phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`) remains the SEPARATE
+ORIGINAL Phase-A reference that was never repurposed for it. **NO CTDE SCIENTIFIC
+COMPARISON HAS BEEN RUN, and no CTDE benefit is claimed** — a merged implementation and a
+passing suite measure nothing scientific (`CLAUDE.md` §5 owns the CTDE contract, §7 the
+lock, §8 the un-run comparison). None of this is a reopening of Phase A
 and none of it changes any technical CTDE contract: the Phase-A reference baseline stays
 CLOSED, VALID and IMMUTABLE, and the branch `phase-a-baseline`
 (`4f0068847b017795717c5f0e331f647bcfc30547`) preserving its code state must not move.
@@ -110,16 +124,45 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **BASE of THIS documentation record:** `9018d74a09c59eec1a3c7ce1280f7518036e72ee`,
-  committed `2026-08-22 17:37:46 Asia/Jerusalem` — the `main` head produced by the CTDE
-  parallel-order documentation merge (PR #29). **That is the exact base this
-  variable-severity VALID-MEASUREMENT documentation/lock candidate was DERIVED ON**, and it
-  is a statement about this record's derivation only — **not** a claim about live `main`,
+- **BASE of THIS documentation record:** `8390d85c2072e9cbe984ce5f2731cef3a9b14985`,
+  committed `2026-08-23 02:43:17 Asia/Jerusalem`, tree
+  `9686c107b8864f00a7d4403d70faf42ab561d2fb` — the `main` head produced by the **Phase-B
+  CTDE code merge (PR #30)**. **That is the exact base this PHASE-B CTDE
+  documentation/lock candidate was DERIVED ON**, and it is a statement about this record's
+  derivation only — **not** a claim about live `main`,
   which this record's own integration necessarily advances past it. Neither this
   documentation commit nor its future merge can name its own SHA, and inventing either
   would be a false provenance claim. **Every receiving orchestrator therefore resolves the
   live full `main` SHA from GitHub and re-reads both documents at that SHA — GitHub is
   authoritative for live branch and PR state, never this document.**
+- **PHASE-B CTDE CODE — CLOSED / REVIEWED / MERGED, AND ALREADY LIVE ON `main`.** Approved
+  candidate `a6f3aa9d62931994f416b2241fec4cfac3b018ec`
+  (`2026-08-22 21:01:46 Asia/Jerusalem`), integrated by merge commit
+  **`8390d85c2072e9cbe984ce5f2731cef3a9b14985`** (PR #30, merged by a normal merge with the
+  approved candidate preserved as the SECOND PARENT). Ordered merge parents:
+  `d437084c5fb1a22c21596a48c58e03f7e15a0115`, then `a6f3aa9…`; integration tree
+  `9686c107b8864f00a7d4403d70faf42ab561d2fb`. Grade A under `GPT_GITHUB`; append-only fix
+  chain `d70d07f829a44e6f19100c338d4dde89f4f47bf6` (initial reviewed candidate) → `a6f3aa9…`
+  (APPROVED), never amended, rebased or force-pushed. **SIX files**
+  (`src/match_aou/rl/observation/central_graph_builder.py`,
+  `src/match_aou/rl/training/graph_ppo.py`,
+  `src/match_aou/rl/training/graph_tick_loop.py`,
+  `src/match_aou/rl/training/graph_train.py`, `tests/test_graph_ctde.py`,
+  `tests/test_graph_ppo.py`) — **no documentation file was part of that code integration**,
+  which is exactly what THIS record closes. `CLAUDE.md` §5 owns the technical contract, §6
+  the routing, §7 the lock and its evidence, §8 the un-run comparison; §3k summarizes it
+  here. **NO SCIENTIFIC MEASUREMENT was executed for PR #30 — no baseline, no probe, no
+  scientific rollout, and no actor-only vs CTDE comparison.** Bounded ENGINEERING smokes
+  against real BLADE + BONMIN *did* run during BUILD validation (§3k); they are wiring
+  evidence only and their outcomes are never scientific evidence.
+- **`pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`** (tree
+  `d7cc2dcb1b161180e272afc9600175f022c5b5d0`) is the IMMUTABLE reference preserving the
+  IMMEDIATE PRE-CTDE actor-only state. It is the CTDE integration's FIRST parent, so "the
+  actor-only state CTDE was merged onto" is a git fact rather than a claim. Preserving it
+  was the CTDE integration gate's remaining prerequisite; **the gate is now CLOSED /
+  SATISFIED on both halves**, and this ref **must not move**. It is DISTINCT from
+  **`phase-a-baseline` = `4f0068847b017795717c5f0e331f647bcfc30547`**, the ORIGINAL Phase-A
+  reference, which was never moved or repurposed for it and likewise must not move.
 - **THE VARIABLE-SEVERITY MEASURED CODE SHA IS A DIFFERENT, DURABLE THING:**
   `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
   `dd881478b8e2e521054d09bc865437f1308be1a2` (committed
@@ -405,39 +448,32 @@ cross-references it rather than duplicating it.
     `dd881478b8e2e521054d09bc865437f1308be1a2`, clean working tree. Its `MAX_PATH`
     precursor is `INCONCLUSIVE/BLOCKED — INVALID MEASUREMENT` and excluded. `CLAUDE.md` §7
     owns the authoritative record; nothing beyond it may be claimed.
-  - **PHASE-B CTDE: IMPLEMENTATION IS UNDERWAY — an ACTIVE candidate exists.** **PR #30**,
-    on branch `task/phase-b-ctde-build`, is a Phase-B CTDE **IMPLEMENTATION +
-    ENGINEERING-VALIDATION candidate** owned SOLELY by the CTDE GPT orchestrator; observed
-    read-only as **OPEN / DRAFT**, base `main`, head
-    `a6f3aa9d62931994f416b2241fec4cfac3b018ec`, **NOT merged**. **A volatile observation
-    only — this record neither reviews nor approves it, claims nothing about whether it is
-    mergeable, and does not make its technical content authoritative. Refresh its live
-    base / head / draft / review state from GitHub before acting.** *(Historical, already
-    traversed: CTDE was required to ENTER through DESIGN / RECON before implementation.)*
-    Still true: **no CTDE Design Package is recorded as authoritative in `CLAUDE.md`**, and
-    no CTDE architecture, critic-input set, PPO/GAE, checkpoint or configuration decision is
-    locked by this record.
-  - **CURRENT WRITABLE TASK:** this variable-severity VALID-MEASUREMENT documentation/lock
-    task — branch `task/fd-variable-severity-valid-doc-lock` and its draft PR — held by the
-    FD closure orchestrator under a ONE-TIME user exception scoped to this record alone.
-    **No CODE candidate is owned by it**; the FD-VARIABLE-SEVERITY-v1 factor was the last
-    one and it is merged (approved `eecc9b5…`, integrated
-    `177e969446ef6c01c729484f2ea9969c94a27330`, PR #27 — §3i).
-  - **WRITABLE OWNERSHIP AND ITS RETURN: UPON INTEGRATION OF THIS RECORD INTO `main`, sole
-    writable repository ownership RETURNS to the CTDE GPT orchestrator**, and the FD
-    measurement orchestrator reverts to **READ-ONLY** with no writable task branch, PR or
-    shared working tree. Until then the FD closure orchestrator holds only this
-    documentation branch and touches nothing of PR #30's.
-  - **CTDE INTEGRATION GATE — one half SATISFIED, one half REMAINING.** The requirement that
-    the variable-severity measurement COMPLETE and receive an **INDEPENDENT VALIDITY
-    VERDICT** is **MET** (§3j) — met by a NEGATIVE result, which satisfies the gate exactly
-    as a positive one would, because the gate tests VALIDITY, not favourability. **STILL
-    REQUIRED before any CTDE integration: a NEW immutable actor-only pre-CTDE reference
-    preserved from the then-current actor-only state**, unless the user explicitly changes
-    that rule later. **That reference is NOT chosen or created here**, its name is a later
-    repository-convention decision, preserving it is its own separately reviewed task, and
-    `phase-a-baseline` is historical provenance for the ORIGINAL Phase-A reference and is
-    never moved or repurposed for it.
+  - **PHASE-B CTDE: IMPLEMENTATION IS MERGED.** **PR #30** (branch
+    `task/phase-b-ctde-build`) was REVIEWED and APPROVED on head
+    `a6f3aa9d62931994f416b2241fec4cfac3b018ec` and INTEGRATED as
+    `8390d85c2072e9cbe984ce5f2731cef3a9b14985` (§3k). Its technical contract is now
+    AUTHORITATIVE in `CLAUDE.md` §5, routed in §6 and locked in §7 — *(historical, already
+    traversed: CTDE was required to ENTER through DESIGN / RECON before implementation, and
+    an earlier revision of this document observed PR #30 read-only as an unmerged draft)*.
+    **What remains OPEN is the SCIENTIFIC COMPARISON, not the implementation** (§4,
+    Task 9), and **no CTDE benefit is claimed**.
+  - **CURRENT WRITABLE TASK:** this PHASE-B CTDE documentation/lock task — branch
+    `task/phase-b-ctde-doc-lock` and its draft PR — held by the CTDE GPT orchestrator,
+    which holds sole writable repository ownership. **No CODE candidate is open**: PR #30
+    was the last one and it is merged (§3k). *(Historical: the FD closure orchestrator held
+    a ONE-TIME writable exception scoped to the variable-severity record alone, on branch
+    `task/fd-variable-severity-valid-doc-lock`; that exception ENDED when the record was
+    integrated and writable ownership returned to the CTDE orchestrator.)*
+  - **CTDE INTEGRATION GATE — CLOSED / SATISFIED ON BOTH HALVES.** The requirement that the
+    variable-severity measurement COMPLETE and receive an **INDEPENDENT VALIDITY VERDICT**
+    is **MET** (§3j) — met by a NEGATIVE result, which satisfies the gate exactly as a
+    positive one would, because the gate tests VALIDITY, not favourability. The second
+    requirement — a NEW immutable actor-only pre-CTDE reference preserved from the
+    then-current actor-only state — is **MET** by **`pre-ctde-actor-only` =
+    `d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the CTDE integration's FIRST parent,
+    which **must not move**. `phase-a-baseline` remains historical provenance for the
+    ORIGINAL Phase-A reference and was never moved or repurposed for it. **What is still
+    OPEN is the SCIENTIFIC COMPARISON** (§4, Task 9), which has not been run.
 
   The integrating merge's SHA for THIS record is deliberately NOT named: it does not exist
   while this is written, and inventing it would be a false provenance claim. **Live branch
@@ -1248,7 +1284,65 @@ and so enters the SCIENTIFIC failure ledger (`graph_tick_loop.run_episode`'s
 failures. Rerouting it would be its own separately reviewed task; **no code was changed
 here.**
 
-## 4. Current work — VARIABLE-SEVERITY BASELINE CLOSED (VALID, NEGATIVE); PHASE-B CTDE, INTEGRATION STILL GATED
+## 3k. What PR #30 closed — PHASE-B CTDE (CODE ONLY; NO COMPARISON RUN)
+
+Volatile summary. **`CLAUDE.md` §5 owns the technical contract, §6 the routing and §7 the
+lock and its evidence** — this section does not duplicate them.
+
+- **IDENTITY.** Approved candidate `a6f3aa9d62931994f416b2241fec4cfac3b018ec`
+  (`2026-08-22 21:01:46 Asia/Jerusalem`), integrated by merge commit
+  `8390d85c2072e9cbe984ce5f2731cef3a9b14985` (PR #30). Ordered parents
+  `d437084c5fb1a22c21596a48c58e03f7e15a0115`, then `a6f3aa9…`; integration tree
+  `9686c107b8864f00a7d4403d70faf42ab561d2fb`. **Grade A under `GPT_GITHUB`, mode BUILD**
+  (the SURGICAL mode belongs to the separate documentation-lock task, not to the
+  implementation). Append-only fix chain: initial reviewed candidate
+  `d70d07f829a44e6f19100c338d4dde89f4f47bf6` → APPROVED `a6f3aa9…`, on one branch and one
+  PR, with no amend, rebase, squash or force-push.
+- **SIX FILES**, the complete `d437084…...8390d85…` comparison:
+  `src/match_aou/rl/observation/central_graph_builder.py` (new),
+  `src/match_aou/rl/training/graph_ppo.py`,
+  `src/match_aou/rl/training/graph_tick_loop.py`,
+  `src/match_aou/rl/training/graph_train.py`, `tests/test_graph_ctde.py` (new),
+  `tests/test_graph_ppo.py`. **No documentation file was part of the code integration.** No
+  vendored BLADE, solver, `graph_reward`, `graph_fuel_damage`, encoder, action-space,
+  episode-setup, generator, scenario, config or preset file was touched, and the Phase-A
+  cell, the seed schedules, the evaluation design and every preserved run artifact are
+  unchanged.
+- **THE SHAPE, IN FIVE LINES** (the contract is `CLAUDE.md` §5): TWO training modes chosen
+  by `TrainConfig.training_mode` — `actor_only` (the DEFAULT and the preserved reference
+  path, which constructs no critic, no central observation, no value loss and no CTDE
+  advantage) and `ctde`; EXECUTION stays decentralized in BOTH modes, because the actor
+  still reads only its own private `GraphObservation` and `evaluate` never builds a critic;
+  the critic is a SEPARATE `GraphEncoder` instance plus a `ValueHead` on its own optimizer,
+  with disjoint parameters, two separate backwards and detached advantages; the central
+  graph is the LIVE world with no distinguished ego, and it is deliberately denied the
+  oracle, the reward, the seed, the severity label, the known/hidden split and any future
+  outcome; and credit is GAE over the episode's GLOBAL ordered decision sequence, captured
+  one central state per decision immediately BEFORE that decision.
+- **THE THREE REVIEW FIXES:** reject `value_coeff == 0` under `training_mode='ctde'`;
+  persist the critic's four diagnostics on a CTDE training record (absent, not null, on the
+  `actor_only` path); and correct inaccurate `ValueHead` initialization prose — **prose
+  only, the initialization is unchanged.**
+- **CC-REPORTED ENGINEERING EVIDENCE — IMPLEMENTATION VALIDATION, NOT SCIENTIFIC EVIDENCE,
+  IN TWO SEPARATELY LABELLED PARTS.** *(i) TESTS, solver-free:* full suite 334 passed / 4
+  skipped; `tests/test_graph_ctde.py` 43 passed; `tests/test_graph_train.py` 119 passed;
+  `tests/test_graph_ppo.py` 18 passed; the standalone `nlp_env` CTDE runner 43 passed;
+  `git diff --check` clean. *(ii) BOUNDED ENGINEERING SMOKES, which DID run against REAL
+  BLADE and REAL BONMIN:* during the BUILD candidate's validation, TWO bounded `nlp_env`
+  smokes ran BOTH training modes end-to-end — 2/2 episodes, one PPO update,
+  `accounting_reconciled = true`, no `CRASH`/`Traceback` — writing only to the scratchpad,
+  never into the repository. They proved the wiring executes and surfaced the
+  `baseline`-vs-critic-value defect the contract now pins. The later append-only review-fix
+  validation needed no new run of them.
+- **NO SCIENTIFIC MEASUREMENT OCCURRED FOR PR #30** — no baseline, no probe, no scientific
+  rollout, and **no actor-only vs CTDE comparison. NO CTDE benefit is established or may be
+  pre-claimed** — not from the Phase-A result, not from the variable-severity baseline
+  (whose NEGATIVE severity finding is **NOT** evidence that centralized training would
+  change it), not from a passing test suite, and **not from the two engineering smokes,
+  whose rewards and outcomes must never be promoted into scientific evidence** — a bounded
+  smoke has no scientific contract, no seed schedule, no held-out band and no denominator.
+
+## 4. Current work — VARIABLE-SEVERITY BASELINE CLOSED (VALID, NEGATIVE); PHASE-B CTDE MERGED; THE CTDE COMPARISON NOT RUN
 
 Start with fresh exact-SHA initialization against the current `main`. **THIS documentation
 task neither authorizes nor runs anything: it RECORDS state only, and it does NOT authorize
@@ -1257,18 +1351,20 @@ critic.** The CTDE authorization recorded here is a statement about SEQUENCING a
 OWNERSHIP — the work itself is a SEPARATE task owned by the CTDE GPT orchestrator, and no
 technical CTDE contract is defined or locked by this record.
 
-**THE ORDERING, STATED ONCE — PARALLEL SINCE 2026-08-22, AND ITEM 2 IS NOW COMPLETE.** By
-explicit user/orchestrator decision the approved arrangement is: **(1)** preserve the
+**THE ORDERING, STATED ONCE — PARALLEL SINCE 2026-08-22, AND NOW FULLY TRAVERSED.** By
+explicit user/orchestrator decision the approved arrangement was: **(1)** preserve the
 original Phase-A reference baseline; **(2)** implement (DONE, PR #27) and MEASURE (**DONE —
 EXECUTED, INDEPENDENTLY REVIEWED, `APPROVE — VALID MEASUREMENT`, primary finding
 NEGATIVE**, §3j) the additional actor-only FD-VARIABLE-SEVERITY-v1 baseline, **measured on
 the immutable detached snapshot at exact SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`,
 tree `dd881478b8e2e521054d09bc865437f1308be1a2`**; **(3)** **PHASE-B CTDE DESIGN AND
 IMPLEMENTATION PROCEED CONCURRENTLY** in a separate writable task branch / worktree, since
-that snapshot was isolated; and **(4)** **CTDE INTEGRATION into `main` remains GATED — but
-its measurement-validity half is now SATISFIED**, and what still stands is preservation of
-a NEW immutable actor-only pre-CTDE reference, unless the user explicitly changes that rule
-later.
+that snapshot was isolated — **DONE, merged as PR #30** (§3k); and **(4)** **CTDE
+INTEGRATION into `main` gated** — **that gate is now CLOSED / SATISFIED on both halves**,
+the measurement-validity half by item 2's verdict and the reference half by
+`pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`. **All four items are
+complete**, so this paragraph is now the arrangement's HISTORICAL record; the live state is
+Task 8 and Task 9 below.
 
 **This supersedes the serial "(3) only then proceed to Phase-B CTDE design" rule this
 section previously stated** — that rule is HISTORY and must not be restated as live. It also
@@ -1280,19 +1376,17 @@ IMMUTABLE (§3h), and `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30
 not move — it is historical provenance for the ORIGINAL Phase-A reference and is never
 repurposed as the future pre-CTDE reference.
 
-**OWNERSHIP — A ONE-TIME EXCEPTION THAT ENDS WHEN THIS RECORD IS INTEGRATED.** Through the
+**OWNERSHIP — THE CTDE GPT ORCHESTRATOR HOLDS IT, INCLUDING FOR THIS RECORD.** Through the
 parallel phase the CTDE GPT orchestrator was the SOLE WRITABLE repository owner and the FD
-measurement orchestrator was READ-ONLY on its detached snapshot. **For the closure of that
-measurement's documentation record the user granted the FD orchestrator a ONE-TIME writable
-exception, scoped to THIS documentation task alone**: while it is in flight, the FD closure
-orchestrator owns the only writable documentation task branch, and PR #30 /
-`task/phase-b-ctde-build` is untouched and paused from its perspective. **UPON INTEGRATION
-OF THIS RECORD INTO `main`, sole writable repository ownership RETURNS to the CTDE GPT
-orchestrator**, and the FD measurement orchestrator returns to READ-ONLY with no writable
-branch or PR. The CTDE orchestrator's immediate repository-side prerequisite before any
-CTDE integration is to preserve the NEW immutable actor-only pre-CTDE reference from the
-then-current actor-only `main`, in its own separately reviewed task — **this record neither
-chooses nor creates it.**
+measurement orchestrator was READ-ONLY on its detached snapshot. *(Historical: the user
+granted the FD orchestrator a ONE-TIME writable exception scoped to the variable-severity
+closure record alone; that exception ENDED when the record was integrated, and the FD
+orchestrator reverted to READ-ONLY with no writable branch or PR.)* Writable ownership then
+returned to the CTDE GPT orchestrator, which integrated PR #30, and **it owns THIS
+documentation/lock task as well** — branch `task/phase-b-ctde-doc-lock` and its draft PR
+are the only writable candidate while this record is in flight. **The CTDE integration
+gate's repository-side prerequisite is DISCHARGED**: `pre-ctde-actor-only` =
+`d437084c5fb1a22c21596a48c58e03f7e15a0115` exists and must not move.
 
 **Tasks 0–5 are ALL DONE.** Defect A (`d56fda6`, PR #17), Defect B (`39a16f2`, PR #19) and
 Defect C (`ea62e4e`, PR #21) closed the three-defect CODE correction. The corrected-cell
@@ -1355,61 +1449,71 @@ preset.
 - **`p(destroy) < 1`, SAMs and dense reward were NOT part of this baseline** and must not be
   bundled into any successor.
 
-**Task 8 — PHASE-B CENTRALIZED-CRITIC / CTDE. DESIGN AND IMPLEMENTATION AUTHORIZED
-(2026-08-22); INTEGRATION INTO `main` STILL GATED, ON ONE REMAINING PREREQUISITE.**
-**Task 7's independent validity verdict now EXISTS (`APPROVE — VALID MEASUREMENT`, §3j), so
-the MEASUREMENT-VALIDITY half of the merge gate is SATISFIED** — satisfied by a NEGATIVE
-result, which counts exactly as a positive one would, because the gate tests VALIDITY and
-never favourability. **WHAT STILL GATES INTEGRATION: no CTDE change may be merged into
-`main` until a NEW immutable actor-only pre-CTDE reference is preserved from the
-then-current actor-only state**, unless the user explicitly changes that rule later. That
-reference is deliberately NOT chosen or created here; its exact name is a later
-repository-convention decision, preserving it is its own separately reviewed task, and
-`phase-a-baseline` is never moved or repurposed for it.
+**Task 8 — PHASE-B CENTRALIZED-CRITIC / CTDE IMPLEMENTATION. CLOSED — REVIEWED, APPROVED
+AND MERGED (§3k, PR #30).** Approved candidate `a6f3aa9d62931994f416b2241fec4cfac3b018ec`,
+integrated `8390d85c2072e9cbe984ce5f2731cef3a9b14985`, ordered parents
+`d437084c5fb1a22c21596a48c58e03f7e15a0115` then `a6f3aa9…`, integration tree
+`9686c107b8864f00a7d4403d70faf42ab561d2fb`.
 
-**AN ACTIVE CTDE IMPLEMENTATION CANDIDATE ALREADY EXISTS — DO NOT SEND THIS TASK BACK TO A
-PRE-IMPLEMENTATION DESIGN STEP.** **PR #30**, on branch `task/phase-b-ctde-build`, is an
-existing Phase-B CTDE **IMPLEMENTATION + ENGINEERING-VALIDATION candidate** owned SOLELY by
-the CTDE GPT orchestrator. Observed read-only at the time of writing: **OPEN / DRAFT**, base
-`main`, head `a6f3aa9d62931994f416b2241fec4cfac3b018ec`, **NOT merged**. That is a VOLATILE
-OBSERVATION and nothing more — **this documentation task neither reviews nor approves PR
-#30, makes no claim that it is approved or mergeable, and does not make its technical
-content authoritative merely because a candidate exists.** **The receiving CTDE orchestrator
-MUST freshly resolve PR #30's live base, head, draft and review state from GitHub before
-acting**, and **its next repository action is whatever that refreshed exact-SHA review /
-fix state requires** — not a restart of the design lifecycle.
+**THE INTEGRATION GATE IS CLOSED / SATISFIED ON BOTH HALVES.** The measurement-validity
+half was met by Task 7's independent verdict (`APPROVE — VALID MEASUREMENT`, §3j) —
+satisfied by a NEGATIVE result, which counts exactly as a positive one would, because the
+gate tests VALIDITY and never favourability. The remaining half — a NEW immutable
+actor-only pre-CTDE reference preserved from the then-current actor-only state — was met by
+**`pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the CTDE
+integration's FIRST parent. **That ref must not move**, and **`phase-a-baseline` =
+`4f0068847b017795717c5f0e331f647bcfc30547`** remains the SEPARATE original Phase-A
+reference, never moved and never repurposed for it.
 
-**CHRONOLOGY, STATED EXPLICITLY SO NOTHING IS REWRITTEN.** *Historical, and already
-traversed: CTDE was required to ENTER through DESIGN / RECON before implementation, and
-that was the correct entry path when it was set.* **An implementation candidate now
-exists**, so the design-first entry requirement is a TRAVERSED step rather than a pending
-one. **Still true and NOT superseded:** no CTDE Design Package has been recorded as
-authoritative in `CLAUDE.md`, **nothing about CTDE architecture, critic inputs, PPO/GAE,
-checkpoints or configuration is locked by THIS record**, and the points below remain the
-REQUIREMENTS any CTDE design must satisfy — they are the review criteria the candidate is
-judged against, not instructions to begin designing from scratch. A reviewed design must
-state:
+**WHAT IS NOW SETTLED, AND MUST NOT BE RE-OPENED AS A DESIGN QUESTION.** The five review
+criteria this section used to list as requirements are IMPLEMENTED, REVIEWED and LOCKED as
+a `CLAUDE.md` §5 contract: the size-agnostic value estimator off `GraphEncoder.pool()`; the
+preserved decentralized no-communication EXECUTION in both modes; the EXPLICIT enumeration
+of the training-only privileged inputs AND their exclusions; actor/critic separation with
+its proof obligations; and the actor-only preservation and checkpoint distinction. **Do not
+send CTDE back to a design/recon step, and do not rebuild what is merged.** Changing any of
+it is a Grade-A change to a locked layer, routed through `CLAUDE.md` §6.
 
-1. the **size-agnostic** value estimator over a varying task/agent graph, off
-   `GraphEncoder.pool()`;
-2. how **decentralized NO-COMMUNICATION EXECUTION is preserved exactly** — `CLAUDE.md` §3 is
-   not weakened by centralized TRAINING, peer nodes stay featureless, and an ego still acts
-   only on its own sensing;
-3. **exactly which privileged all-agent information the critic may read, enumerated, and
-   that it is available during TRAINING ONLY**;
-4. **actor / critic separation** and the proof obligations that keep the training-only
-   privilege from leaking into the acting path;
-5. a clean **actor-only vs CTDE comparison ON THE LOCKED PHASE-A REFERENCE CELL**, judged
-   against the approved Phase-A baseline (§3h) under the SAME validity gate.
+**Task 9 — THE FIRST CONTROLLED ACTOR-ONLY vs CTDE SCIENTIFIC COMPARISON. OPEN. NOT RUN.**
+This is the next unresolved task and the only genuinely open part of Phase B. **No CTDE
+benefit may be pre-claimed** — not from the Phase-A result, not from the variable-severity
+baseline (whose NEGATIVE severity finding is **NOT** evidence that centralized training
+would change it), and **not from CTDE implementation work, engineering tests, bounded
+engineering smokes or a passing test suite, none of which measure anything scientific.**
 
-**No CTDE benefit may be pre-claimed** — not from the Phase-A result, not from the executed
-variable-severity baseline (whose negative severity finding is **NOT** evidence that
-centralized training would change it), and **not from CTDE implementation work, engineering
-tests or a passing test suite, none of which measure anything scientific.** **Nothing
-beyond §3j and `CLAUDE.md` §7 may be claimed for the variable-severity result either.**
-`CLAUDE.md` §5 and §8 still state that the centralized critic is OPEN, that there is **no
-value head today**, and that `graph_ppo` is actor-only with PHASE-B SEAM comments —
-preserve that contract.
+**THE COMPARATOR IS THE EXISTING APPROVED PHASE-A ACTOR-ONLY BASELINE — IT IS NOT RE-RUN.**
+The actor-only arm is already measured: the approved Phase-A long baseline at measured code
+SHA `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`, run
+`training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, `APPROVE — VALID
+MEASUREMENT` (§3h; `CLAUDE.md` §7 owns the authoritative record). It is PRESERVED and
+**NOT authorized to be re-run, resumed, repaired, extended or re-tuned** — so **this
+documentation task does NOT authorize a fresh actor-only run**, and the work Task 9 actually
+schedules is the **CTDE arm**, measured and then compared against that existing record. If a
+future orchestrator wants a newly executed actor-only CONTROL arm, that is a **separate
+research-design decision requiring explicit user authorization**, never an implication of
+this record.
+
+Its binding constraints:
+- the CTDE run **MATCHES THE LOCKED ORIGINAL PHASE-A SCIENTIFIC CELL** — 3 agents, 3 known
+  + 3 hidden, 200 km / 100 km geometry, `DETECTION_KM = 50`, `include_sams = false`,
+  `probability = 1`, frozen solver and BLADE, unchanged `graph_reward` formula with
+  `aircraft_penalty_coeff = 2.25` — judged against the approved Phase-A baseline (§3h)
+  under the SAME validity gate below, **VALIDITY BEFORE PERFORMANCE**;
+- it **also matches that approved baseline'''s training / evaluation SCHEDULE, seed policy,
+  held-out band and evaluation construct**, exactly as the authoritative Phase-A record
+  (`CLAUDE.md` §7) establishes them — that is what makes the two records comparable;
+- **THE EXPERIMENTAL FACTOR UNDER TEST IS ACTOR-ONLY TRAINING vs CENTRALIZED-CRITIC
+  TRAINING.** State it that way, and **do NOT claim the two arms''' repository or
+  configuration artifacts differ only by one `training_mode` field**: the approved Phase-A
+  measurement and any future CTDE measurement have **DISTINCT measured code SHAs**
+  (`737b4bf…` vs whatever the CTDE run is pinned to), and honest provenance must say so
+  rather than assert a literal same-SHA / same-config equality that does not hold;
+- it **MUST NOT bundle `p(destroy) < 1`, SAMs, dense reward, a solver change, a
+  reward-formula change, or any new difficulty factor** (§6). Bundling one would make the
+  comparison uninterpretable;
+- a run showing no CTDE improvement, or no productive update, is a **valid NEGATIVE
+  observation** — not a technical failure, and not grounds to re-tune or re-run;
+- **no CTDE preset exists in the repository**, and creating one belongs to this task.
 
 **What makes a run VALID — carried forward unchanged, and it now has a passing precedent.**
 A run counts as a valid measurement when ALL of:
@@ -1532,9 +1636,9 @@ expectation for any CTDE comparison.**
 ## 6. Out of scope for the current work
 
 The additional actor-only FD-VARIABLE-SEVERITY-v1 baseline (§4, Task 7) is **CLOSED,
-VALID and NEGATIVE** (§3j), so the current work is **PHASE-B CTDE DESIGN AND
-IMPLEMENTATION** (§4, Task 8), with its INTEGRATION still gated on the NEW immutable
-actor-only pre-CTDE reference. Out of scope:
+VALID and NEGATIVE** (§3j), and **PHASE-B CTDE IMPLEMENTATION is CLOSED, REVIEWED and
+MERGED** (§4, Task 8; §3k), so the current work is **the first controlled actor-only vs
+CTDE scientific comparison** (§4, Task 9), which has NOT been run. Out of scope:
 
 - **any training run driven from THIS documentation task** — it authorizes none;
 - **CHANGING ANY CODE, TEST, CONFIG OR PRESET IN RESPONSE TO TASK 7.** It was a
@@ -1546,19 +1650,21 @@ actor-only pre-CTDE reference. Out of scope:
 - **RE-RUNNING, resuming, repairing, extending or re-tuning the variable-severity
   baseline.** A valid measurement exists (§3j); a negative finding does not make it less
   valid;
-- **MERGING PHASE-B CTDE INTO `main`.** CTDE DESIGN and IMPLEMENTATION are AUTHORIZED
-  (§4, Task 8) — what is out of scope is INTEGRATION: **no value head, no change of
-  `graph_ppo` from actor-only and no value loss may be merged into `main`** before the NEW
-  immutable actor-only pre-CTDE reference is preserved, unless the user explicitly changes
-  that rule later. **The measurement-validity half of that gate is now SATISFIED** (§3j).
-  Also out of scope: **treating any CTDE implementation work or engineering test as
-  scientific evidence**, and **modifying either preserved variable-severity measurement
-  tree in any way**;
-- **CHOOSING OR CREATING THE FUTURE PRE-CTDE REFERENCE IN THIS DOCUMENTATION TASK.** The
-  variable-severity measurement is now reviewed VALID, so preserving that reference is the
-  CTDE orchestrator's next repository-side prerequisite — but its exact name is a later
-  repository-convention decision, taken in its own separately reviewed task, and never by
-  moving or repurposing `phase-a-baseline`;
+- **CHANGING THE MERGED CTDE LAYER.** Phase-B CTDE is IMPLEMENTED, REVIEWED and MERGED
+  (§3k, §4 Task 8), and its contract is locked in `CLAUDE.md` §5. Out of scope here:
+  altering the central privileged inputs, the actor/critic boundary, the GAE/value
+  semantics, the capture timing, checkpoint compatibility or actor-only preservation —
+  each is a Grade-A change to a locked layer, routed through `CLAUDE.md` §6, never a fix
+  folded into another task. Also out of scope: **treating any CTDE implementation work,
+  engineering test or passing suite as scientific evidence**, **claiming any CTDE benefit**
+  before the Task-9 comparison is executed and independently reviewed, and **modifying
+  either preserved variable-severity measurement tree in any way**;
+- **MOVING, DELETING OR REPURPOSING EITHER IMMUTABLE REFERENCE.** `pre-ctde-actor-only`
+  (`d437084c5fb1a22c21596a48c58e03f7e15a0115`) discharged the CTDE gate's repository-side
+  prerequisite and `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`) is the
+  SEPARATE original Phase-A reference. Both are immutable, neither substitutes for the
+  other, and `flat-final`, the `pre-cleanup` tag, PR #30's history and every preserved
+  scientific artifact stay preserved too;
 - **weakening decentralized no-communication EXECUTION in any way.** No severity label may
   reach the acting path: peer nodes stay featureless, an ego still acts only on its own
   sensing and its own fuel, and `CLAUDE.md` §3 is not up for renegotiation;
@@ -1616,7 +1722,10 @@ actor-only pre-CTDE reference. Out of scope:
   orchestrator, performed only after each tip is verified reachable from integrated `main`;
 - **moving or deleting `phase-a-baseline`
   (`4f0068847b017795717c5f0e331f647bcfc30547`)** — it preserves the Phase-A reference code
-  state and is IMMUTABLE;
+  state and is IMMUTABLE — **or `pre-ctde-actor-only`
+  (`d437084c5fb1a22c21596a48c58e03f7e15a0115`)**, which preserves the immediate pre-CTDE
+  actor-only state and is equally IMMUTABLE. They are DISTINCT references and neither
+  substitutes for the other;
 - **deleting or moving `flat-final` or the `pre-cleanup` tag** — they are permanently
   preserved;
 - checkpoint loading/resume;
@@ -1663,7 +1772,8 @@ obligations and bounded implementation/lock task.
 | CTDE PARALLEL-ORDER / OWNERSHIP SUPERSESSION recorded — **DONE for 2026-08-22** | Record, in `CLAUDE.md` §8 and here (§1, §4, §5, §6, §8), that the serial "measure first, then CTDE" order is SUPERSEDED; that the FD-VARIABLE-SEVERITY-v1 measurement is PINNED to the immutable detached snapshot `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` / tree `dd881478b8e2e521054d09bc865437f1308be1a2` and remains an ACTOR-ONLY measurement OF THAT SHA; that Phase-B CTDE DESIGN AND IMPLEMENTATION may proceed CONCURRENTLY in a separate writable branch; that CTDE INTEGRATION into `main` stays gated on that measurement's INDEPENDENT VALIDITY VERDICT, preceded by a NEW immutable actor-only pre-CTDE reference chosen later; and that the CTDE GPT orchestrator is the SOLE WRITABLE repository owner while the FD orchestrator stays READ-ONLY. **Sequencing and ownership only — NO technical CTDE contract was defined, and no result was pre-claimed.** **HISTORICAL: that measurement has since COMPLETED and received its independent validity verdict, and writable ownership was temporarily and exceptionally lent to the FD orchestrator for the closure record — see the two rows below** |
 | THE ADDITIONAL ACTOR-ONLY VARIABLE-SEVERITY BASELINE completes — **DONE at measured code SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`; `APPROVE — VALID MEASUREMENT`; PRIMARY FINDING NEGATIVE** | Run identity, exact measured code SHA, resolved configuration and its one invocation, complete provenance, both elapsed quantities, EVERY denominator (attempted / successful / failed, per cell and overall), the failure breakdown by stage and error type, the clean / mild / severe reward means, the three matched deltas over COMPLETE TRIADS ONLY, the severity-conditioned FD-wake meta-action counts and rates WITH their wake denominators, RTB / death / target-coverage outcomes, artifact completeness and the evidence hashes recorded in `CLAUDE.md` §7, with the phase state in §8 and the volatile summary in §3j. The EXCLUDED `MAX_PATH` precursor is recorded as `INCONCLUSIVE/BLOCKED — INVALID MEASUREMENT` with its own hashes, and the playback-export routing caveat is recorded as engineering history rather than fixed. **Validity was judged BEFORE performance and PASSED on all four clauses; the NEGATIVE severity response is a valid observation, not a defect** |
 | OWNERSHIP RETURNS to the CTDE GPT orchestrator — **EFFECTIVE UPON INTEGRATION of the record above (2026-08-23)** | Record, here (§1, §4, §8) and in `CLAUDE.md` §8, that the user granted the FD measurement orchestrator a ONE-TIME writable exception scoped to the variable-severity closure record ALONE; that PR #30 / `task/phase-b-ctde-build` stayed untouched throughout; that **UPON INTEGRATION of that record into `main`, sole writable repository ownership RETURNS to the CTDE GPT orchestrator** and the FD orchestrator reverts to READ-ONLY with no writable branch or PR; and that the CTDE orchestrator's immediate repository-side prerequisite before any CTDE integration is to preserve the **NEW immutable actor-only pre-CTDE reference** in its own separately reviewed task. **Ownership and sequencing only — no technical CTDE contract is defined, no pre-CTDE reference is chosen or created, `phase-a-baseline` does not move, and the integrating merge SHA is deliberately not named** |
-| PHASE-B CTDE DESIGN completes — **AUTHORIZED (2026-08-22); the measurement-validity half of the INTEGRATION gate is now SATISFIED (row above), and INTEGRATION remains gated ONLY on preserving a NEW immutable actor-only pre-CTDE reference** | Record the reviewed design in `CLAUDE.md` — the size-agnostic value estimator off `GraphEncoder.pool()`, the EXPLICIT enumeration of training-only privileged information, the actor/critic separation and its proof obligations, and the preserved no-communication execution invariant (§3) — plus the planned actor-only vs CTDE comparison on the LOCKED Phase-A reference cell judged under the SAME validity gate. **HISTORICAL: this row was written when design-first-then-implementation was still ahead; that entry path has been traversed and an implementation candidate now exists (PR #30, owned by the CTDE orchestrator, neither reviewed nor approved here) — so these points are the REVIEW CRITERIA a CTDE candidate is judged against, not an instruction to restart designing.** **No CTDE benefit may be pre-claimed**, and a measured null result is a valid negative observation |
+| PHASE-B CTDE IMPLEMENTATION lands — **DONE for PR #30** | The two training modes and `TrainConfig.training_mode` as the ONLY selector, actor-only preservation (keyword omission, the POISON test and its CONTROL), the training-only critic and its structural separation from the actor, the central graph's liveness / no-ego symmetry / features / edges and the ENUMERATED privileged-input EXCLUSIONS, the same-tick capture seam and its 1:1 alignment, GAE over the GLOBAL decision sequence with a zero terminal next value, the preserved meaning of `baseline` / `train_reward_mean`, the persisted critic diagnostics and the checkpoint distinction recorded as a contract in `CLAUDE.md` §5, routed in §6, and locked in §7 with the append-only fix chain, the exact six changed files, the two DISTINCT immutable references (`pre-ctde-actor-only` vs `phase-a-baseline`) and the CC-reported engineering evidence LABELLED as implementation validation. §2's locked-layer wording widened to include the CTDE layer; §4's pipeline diagram, §5's encoder note and §8's gate updated so nothing still says the critic is open or that there is no value head. §3k summarizes it here — **recorded WITHOUT pre-claiming any result: no scientific run occurred for PR #30 and no actor-only vs CTDE comparison has been executed** |
+| The FIRST actor-only vs CTDE COMPARISON completes — **NOT RUN** | Record run identity, exact measured code SHA, the resolved configuration, complete provenance, every denominator, the held-out results with their own denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **The comparator is the ALREADY-APPROVED original Phase-A actor-only baseline (`737b4bf…`, §3h), which is NOT re-run** — so record the CTDE arm's own measured SHA and state EXPLICITLY that the two records carry DISTINCT measured code SHAs; never claim the arms differ only by one `training_mode` field. The factor under test is actor-only training vs centralized-critic training, with the CTDE run matching the approved baseline's locked cell, schedule, seed policy, held-out band and evaluation construct. A newly executed actor-only CONTROL arm would be a separate research-design decision needing explicit user authorization. **Validity is judged BEFORE performance; a null or negative CTDE result is a valid observation, not a technical failure** |
 
 ## 8. Next action
 
@@ -1683,8 +1793,10 @@ about live `main`. **The variable-severity baseline has its OWN durable measured
 `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` / tree
 `dd881478b8e2e521054d09bc865437f1308be1a2`, the variable-severity documentation merge
 (PR #28) — also not a live head (§1, §3j). **This record's BASE is a THIRD SHA:**
-`9018d74a09c59eec1a3c7ce1280f7518036e72ee`, the CTDE parallel-order documentation merge
-(PR #29). Resolve the live full `main` SHA from GitHub.
+`8390d85c2072e9cbe984ce5f2731cef3a9b14985`, tree
+`9686c107b8864f00a7d4403d70faf42ab561d2fb` — the **Phase-B CTDE code merge (PR #30)**,
+which is an already-existing CODE INTEGRATION and not a measurement identity. Resolve the
+live full `main` SHA from GitHub.
 
 **THE MEASUREMENT STATE, STATED PLAINLY. PHASE A IS CLOSED, AND ITS BASELINE IS
 IMMUTABLE.** The authorized long-baseline rerun —
@@ -1739,95 +1851,62 @@ result, which counts exactly as a positive one would — and its remaining half 
 is not a reopening of Phase A, and it changes no technical CTDE contract. `p(destroy) < 1`
 was NOT implemented by PR #27 and remains a separate, later research task.
 
-**OWNERSHIP RIGHT NOW, AND THE TRANSFER THAT THIS RECORD TRIGGERS.** The state below is
-written to be valid on BOTH sides of this record's own integration. **While this record is
-published and under review**, the user's ONE-TIME writable exception makes this
-variable-severity VALID-MEASUREMENT documentation/lock task — branch
-`task/fd-variable-severity-valid-doc-lock` and its draft PR — the only writable
-documentation candidate owned by the FD closure orchestrator, and **PR #30 on branch
-`task/phase-b-ctde-build` is untouched and paused from that orchestrator's perspective**.
-At the time of writing PR #30 was OPEN and DRAFT with base `main`; that is a volatile
-observation only — **not** a claim that it is approved or mergeable — and the CTDE
-orchestrator MUST refresh the live PR, head and base from GitHub itself before acting.
-**UPON INTEGRATION OF THIS RECORD INTO `main`, sole writable repository ownership RETURNS
-to the CTDE GPT ORCHESTRATOR**, and the FD measurement orchestrator returns to READ-ONLY
-with no writable task branch, PR or shared working tree. **The CTDE orchestrator's
-immediate repository-side prerequisite before any CTDE integration is to preserve the NEW
-immutable actor-only pre-CTDE reference from the then-current actor-only `main`, in its own
-separately reviewed task — this record neither chooses nor creates it.** The integrating
-merge's SHA is deliberately NOT named here: it does not exist while this is written, and
-inventing it would be a false provenance claim. **GitHub remains authoritative for live
-branch and PR state — resolve it there, never from this document.** Retiring any merged
-branch is a separate action owned by the GPT orchestrator, done only once each tip is
-verified reachable from integrated `main`; `phase-a-baseline`, `flat-final`, the
-`pre-cleanup` tag, every preserved scientific artifact and all GitHub PR refs and history
-stay PRESERVED.
+**PHASE-B CTDE IS IMPLEMENTED, REVIEWED AND MERGED — AND THE INTEGRATION GATE IS CLOSED.**
+Approved candidate `a6f3aa9d62931994f416b2241fec4cfac3b018ec`, integrated
+`8390d85c2072e9cbe984ce5f2731cef3a9b14985`, ordered parents
+`d437084c5fb1a22c21596a48c58e03f7e15a0115` then `a6f3aa9…`, integration tree
+`9686c107b8864f00a7d4403d70faf42ab561d2fb`, PR #30 (§3k; `CLAUDE.md` §5 owns the contract,
+§6 the routing, §7 the lock). **Both halves of the gate are SATISFIED**: the
+measurement-validity half by the variable-severity `APPROVE — VALID MEASUREMENT` verdict —
+a NEGATIVE result satisfies it exactly as a positive one would — and the reference half by
+**`pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the CTDE
+integration's FIRST parent and therefore provably the actor-only state CTDE was merged
+onto. **That ref must not move**, and **`phase-a-baseline` =
+`4f0068847b017795717c5f0e331f647bcfc30547`** remains the SEPARATE original Phase-A
+reference, never moved and never repurposed for it.
 
-**THE BOUNDED 50 × 8 ACTOR-ONLY FD-VARIABLE-SEVERITY-v1 BASELINE IS CLOSED** (§4, Task 7;
-§3j), measured on the immutable DETACHED snapshot at exact SHA
-`bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, tree
-`dd881478b8e2e521054d09bc865437f1308be1a2`, in a clean worktree that was READ-ONLY with
-respect to the shared repository. It ran in its own read-only orchestrator; it was a
-**MEASUREMENT task and changed no code, test, config or preset**; and it followed the
-approved shape exactly — **50 scheduled training iterations × 8 scheduled training attempts
-= 400** at `base_seed = 0`; evaluation every 5 iterations including the initial
-`pre_update` ⇒ **11 rounds**; **8 fixed held-out seeds** in the existing eval band, each a
-matched **clean / mild / severe TRIAD** ⇒ **11 × 8 × 3 = 264** scheduled evaluation
-attempts; **664 scheduled attempts total; NO early stopping**; ONE invocation through
-`--config` from its own measurement contract with `cli_overrides = []`. **Validity was
-judged BEFORE performance and PASSED**, and the **PRIMARY behavioural evidence — the
-severity-conditioned FD-wake meta-action response over its own wake denominators — showed
-NO MILD-vs-SEVERE separation**, which is **a valid negative observation, not a technical
-failure and not grounds to re-run or re-tune.** The only within-seed claims remain the three
-deltas over COMPLETE triads, and the ten `post_update` rounds reuse the same seven feasible
-seeds, so they are a trajectory rather than 70 independent worlds. **THE MEASUREMENT IS NOT
-TO BE RE-RUN, resumed, repaired, extended or re-tuned**, and nothing beyond §3j and
-`CLAUDE.md` §7 may be claimed for it.
+**WHAT PHASE B NOW HAS, AND WHAT IT STILL DOES NOT.** It has TWO selectable training modes
+— `actor_only` (the DEFAULT and the preserved reference path, which builds no critic, no
+central observation, no value loss and no CTDE advantage) and `ctde` — chosen by
+`TrainConfig.training_mode` alone. EXECUTION stays decentralized in BOTH modes: the actor
+reads only its own private `GraphObservation`, and `evaluate` never constructs a critic.
+**What it does NOT have is a scientific result. NO ACTOR-ONLY vs CTDE COMPARISON HAS BEEN
+RUN, and NO CTDE BENEFIT IS ESTABLISHED OR MAY BE PRE-CLAIMED** — not from the approved
+Phase-A result, which explicitly establishes none; not from the executed variable-severity
+baseline, whose NEGATIVE severity finding is **NOT** evidence that centralized training
+would change it; and not from PR #30's implementation work, engineering tests or passing
+suite, none of which measure anything scientific.
 
-**PHASE-B CENTRALIZED-CRITIC / CTDE DESIGN AND IMPLEMENTATION ARE AUTHORIZED** (§4,
-Task 8), in a SEPARATE writable task branch / worktree — **the former rule deferring them
-behind the measurement was SUPERSEDED on 2026-08-22, and that measurement has since
-COMPLETED and received its INDEPENDENT VALIDITY VERDICT, so the merge gate's
-measurement-validity half is SATISFIED** (§3j). **WHAT IS STILL GATED IS INTEGRATION: no
-CTDE change may be merged into `main` until a NEW immutable actor-only pre-CTDE reference
-is preserved from the then-current actor-only state**, unless the user explicitly changes
-that rule later. That reference is NOT chosen or created here; its name is a later
-repository-convention decision, preserving it is its own separately reviewed task, and
-`phase-a-baseline` is never moved or repurposed for it. **THAT BLOCK IS INDEPENDENT OF PR
-#30's REVIEW STATUS**: even an approved CTDE candidate may not be integrated until that
-reference is preserved.
+**THE NEXT UNRESOLVED TASK IS THE FIRST CONTROLLED ACTOR-ONLY vs CTDE COMPARISON** (§4,
+Task 9). **Its comparator is the ALREADY-APPROVED original Phase-A actor-only baseline**
+(measured code SHA `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`, §3h), which is PRESERVED and
+**NOT authorized to be re-run** — so what Task 9 schedules is the **CTDE arm**, matching
+that baseline's **LOCKED cell** (3 agents, 3 known + 3 hidden, 200 km / 100 km geometry,
+`DETECTION_KM = 50`, `include_sams = false`, `probability = 1`, frozen solver and BLADE,
+unchanged `graph_reward` formula with `aircraft_penalty_coeff = 2.25`) **and its training /
+evaluation schedule, seed policy, held-out band and evaluation construct**, judged under
+the SAME validity gate above, VALIDITY BEFORE PERFORMANCE. **The factor under test is
+actor-only training vs centralized-critic training.** Provenance must state that the two
+records carry **DISTINCT measured code SHAs**, and must NOT claim the arms' literal
+repository or configuration artifacts differ only by one `training_mode` field. **This
+document authorizes no fresh actor-only run**; a newly executed actor-only CONTROL arm is a
+separate research-design decision requiring explicit user authorization. The comparison
+**must NOT bundle `p(destroy) < 1`, SAMs, dense reward, a solver change, a reward-formula
+change, or any new difficulty factor** (§6) — bundling one would make it uninterpretable. A
+run showing no CTDE improvement is a **valid NEGATIVE observation**, not a technical
+failure. **No CTDE preset exists in the repository**, and creating one belongs to that task.
 
-**PHASE-B CTDE IMPLEMENTATION HAS ALREADY BEGUN — the next CTDE action is NOT a fresh
-design step.** **PR #30** (branch `task/phase-b-ctde-build`) is an existing Phase-B CTDE
-**IMPLEMENTATION + ENGINEERING-VALIDATION candidate** owned SOLELY by the CTDE GPT
-orchestrator; observed read-only at the time of writing as **OPEN / DRAFT**, base `main`,
-head `a6f3aa9d62931994f416b2241fec4cfac3b018ec`, **NOT merged**. **This record neither
-reviews nor approves it, asserts nothing about whether it is mergeable, and does not treat
-its technical content as authoritative.** *(Historical, and already traversed: CTDE was
-required to ENTER through DESIGN / RECON before implementation — that entry path was
-correct when set, and it is a completed step, not a pending one.)* **The receiving CTDE
-orchestrator MUST freshly resolve PR #30's live base, head, draft and review state from
-GitHub, and then do whatever that refreshed exact-SHA review / fix state requires.** What
-remains genuinely OPEN is that **no CTDE Design Package has been recorded as authoritative
-in `CLAUDE.md`**, and the standing REVIEW CRITERIA are unchanged: the size-agnostic value
-estimator off `GraphEncoder.pool()`, how decentralized no-communication EXECUTION is
-preserved exactly, **exactly which privileged all-agent information the critic may read and
-that it is TRAINING-ONLY**, the actor/critic separation with its proof obligations, and a
-clean actor-only vs CTDE comparison **on the LOCKED Phase-A reference cell** under the SAME
-validity gate. **No CTDE benefit may be pre-claimed — and implementation work, engineering
-tests and a passing test suite are not scientific evidence. In particular, the
-variable-severity baseline's NEGATIVE severity finding is NOT evidence that centralized
-training would change it** (§3j). The remaining difficulty expansions (`probability < 1`,
-SAMs, dense reward) stay separate later research changes and must not be bundled in (§6).
-
-**OWNERSHIP, RESTATED ONCE: the current writable task is this variable-severity
-VALID-MEASUREMENT documentation/lock task — branch
-`task/fd-variable-severity-valid-doc-lock` and its draft PR — held by the FD closure
-orchestrator under the user's ONE-TIME exception. UPON INTEGRATION OF THIS RECORD INTO
-`main`, sole writable repository ownership RETURNS to the CTDE GPT orchestrator, and the FD
-measurement orchestrator returns to READ-ONLY with no writable branch or PR.** PR #30 /
-`task/phase-b-ctde-build` is untouched by this task; the receiving CTDE orchestrator
-resolves its live state from GitHub.
+**OWNERSHIP.** The CTDE GPT orchestrator holds sole writable repository ownership,
+including for THIS documentation/lock task — branch `task/phase-b-ctde-doc-lock` and its
+draft PR are the only writable candidate while this record is in flight. *(Historical: the
+FD measurement orchestrator's ONE-TIME writable exception, scoped to the variable-severity
+closure record alone, ENDED when that record was integrated.)* This record's own integrating
+merge SHA is deliberately NOT named — it does not exist while this is written, and inventing
+it would be a false provenance claim. **GitHub remains authoritative for live branch and PR
+state — resolve it there, never from this document.** Retiring any merged branch is a
+separate action owned by the GPT orchestrator, done only once each tip is verified reachable
+from integrated `main`; `pre-ctde-actor-only`, `phase-a-baseline`, `flat-final`, the
+`pre-cleanup` tag, PR #30's history and every preserved scientific artifact stay PRESERVED.
 
 **NEITHER the Phase-A long baseline NOR the variable-severity baseline is to be re-run,
 resumed, repaired, extended or re-tuned.** A valid measurement exists for each; re-running

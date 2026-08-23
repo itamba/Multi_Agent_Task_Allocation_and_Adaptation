@@ -113,10 +113,26 @@ cleanup began) — **this document describes the graph model only.**
 `match_aou_MINLP_solver.py`. Advisor directive: **address allocation pathologies through scenario design, not solver constraints.** Do NOT re-add: a `single_agent_per_step` constraint, an objective fuel penalty, or a probability patch (all tried and rolled back). The only approved change is the per-target **round-trip** movement charge (`round_trip_cost`, `risk_factor=0`). Objective: `Σ_j y[j]·u_j·Π_k[1 − (1 − p_jk + EPSILON)^(Σ_i x[i,j,k])]`, `EPSILON = 1e-6`. `y[j]==1 ⇔ every step of task j has ≥1 agent ⇔ task appears in ≥1 assignment tuple` (the y/x linking constraints guarantee this — relied on by normalization and reward).
 
 ### 🛑 The BUILT graph layers are stable & reviewed
-Every graph layer in §5 — the nine pipeline stages plus the trainer contract and the
+Every graph layer in §5 — the nine pipeline stages, the trainer contract, the
 difficulty-factor layer in BOTH its designs (the LEGACY FD-BASELINE-v1 and its
-FD-VARIABLE-SEVERITY-v1 mild/severe extension) — is BUILT, REVIEWED, and LOCKED (see
-§7 commits). Their **interfaces are contracts** — change them only through the same recon→prompt→review→lock discipline, and never in a way that weakens the no-communication guarantee (§3).
+FD-VARIABLE-SEVERITY-v1 mild/severe extension), and the **Phase-B CTDE training layer** —
+is BUILT, REVIEWED, and LOCKED (see §7 commits). Their **interfaces are contracts** —
+change them only through the same recon→prompt→review→lock discipline, and never in a way
+that weakens the no-communication guarantee (§3).
+
+**The Phase-B CTDE training layer is BUILT / REVIEWED / MERGED** (approved candidate
+`a6f3aa9`, integrated `8390d85`, PR #30 — §7), and this documentation task is what makes
+it a LOCKED contract like the layers beside it. Two things must be read together and never
+separated:
+
+- **`actor_only` REMAINS THE DEFAULT AND THE PRESERVED REFERENCE PATH.** A run that does
+  not select `ctde` constructs no critic, no central observation, no value loss and no
+  CTDE advantage — the Phase-A path is not emulated, it is simply the one that runs.
+  Preserving it is load-bearing: the approved Phase-A baseline (`737b4bf`, §7) was
+  measured on it.
+- **NOTHING SCIENTIFIC IS CLAIMED FOR CTDE.** No actor-only vs CTDE comparison has been
+  executed. Engineering tests, a passing suite and a merged implementation measure
+  nothing, and **no CTDE benefit over actor-only is established** (§8 owns the gate).
 
 ---
 
@@ -196,7 +212,13 @@ EpisodeContext
      until is_done / terminated / truncated → EpisodeResult(trajectory)
   → compute_episode_reward(ctx, result, cfg.reward_config()): fills Transition.reward
   → PPO buffer + evaluate_action + outer training loop  # BUILT (graph_ppo, graph_train)
-  → [OPEN] centralized critic (CTDE)  # Phase B
+  → [BUILT, OPT-IN] Phase-B CTDE: a TRAINING-ONLY centralized critic
+       # `TrainConfig.training_mode = 'ctde'` adds, per actor decision, a
+       # CentralStateRecorder capture immediately BEFORE `_wake_decision`, then
+       # CentralCritic + GAE + CTDEUpdater. `actor_only` (the DEFAULT) builds
+       # none of it and the loop above is byte-unchanged. EXECUTION is
+       # decentralized in BOTH modes: the actor still reads only its own
+       # private GraphObservation. See §5, and §8 for the un-run comparison.
 ```
 
 **The exogenous-event seam (FD-BASELINE-v1) sits at the TOP of a tick, never inside
@@ -471,7 +493,7 @@ different sources, and only the second changed:
 `build_graph_observation(scenario, agent_id, current_plan=None, current_time=0, tasks=None, solution=None, precedence_relations=None, config=None) -> GraphObservation`. Stateless projection of `(world, solution)`. `task_features[k, TASK_FEATURE_DIM]` (=6: utility, dist-to-ego, capable, reachable, probability, **sensed**; `TASK_FEATURE_DIM` is the single source of truth the encoder imports), `agent_features[a,1]` (fuel_norm: REAL for ego, `0.0` for peers), COO `edge_index`/`edge_type` over the `EdgeType` IntEnum, `time_norm`. **`ASSIGNMENT` is the only constructed relation** (`SPATIAL` reserved/unused — sensing moved to the `sensed` column; `PRECEDENCE` deferred). Agent set = `ego ∪ assigned same-side peers`. Requires the ego **airborne** (raises otherwise — always satisfied since build only follows a wake, which requires sensing, which requires airborne).
 
 **Encode + decide (Stage 4) — `rl/agent/graph_encoder.py` + `rl/action/graph_action.py`.**
-`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the **hook for the future centralized critic** (no value head yet). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]`. `build_action_mask(obs, ...) -> [k,3]` (hard physical/structural legality; `OPPORTUNISTIC_ENGAGEMENT` gated by `unassigned` AND `sensed`). `sample_action(logits, mask, deterministic=False) -> (meta:int, node_v:int, log_prob, entropy)`. `evaluate_action(logits, mask, meta, node_v) -> (log_prob, entropy)` re-scores a stored decision through the SAME private `_masked_dist` construction site (grad-mode caller-controlled; masked / out-of-bounds cells fail loud). **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
+`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the size-agnostic **critic hook**, now CONSUMED by the Phase-B `CentralCritic` (its own SECOND `GraphEncoder` instance + `ValueHead`; the ACTOR's encoder and head are unchanged and carry no value head — see the CTDE contract below). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]`. `build_action_mask(obs, ...) -> [k,3]` (hard physical/structural legality; `OPPORTUNISTIC_ENGAGEMENT` gated by `unassigned` AND `sensed`). `sample_action(logits, mask, deterministic=False) -> (meta:int, node_v:int, log_prob, entropy)`. `evaluate_action(logits, mask, meta, node_v) -> (log_prob, entropy)` re-scores a stored decision through the SAME private `_masked_dist` construction site (grad-mode caller-controlled; masked / out-of-bounds cells fail loud). **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
 **SELECTION CONTRACT (locked by Defect A, `d56fda6`).** The action surface REMAINS `k × 3`, and EVERY meta-action retains NODE-INDEXED SELECTION IDENTITY: the selected `(node_v, meta_action)` cell is what `sample_action` samples, what `Transition` stores, and what `evaluate_action` re-scores under PPO, with `node_v` still bounds-checked to `[0, k)`. **Selection identity is NOT effect scope**, and the three members differ on the second: `PLAN_COMPLIANCE` performs NO plan edit; `OPPORTUNISTIC_ENGAGEMENT` has a NODE-LOCAL effect (it assigns the ego to THAT task node); `SELF_PRESERVATION_ABORT` has an EGO-GLOBAL effect (Stage 5). `build_action_mask` governs SELECTION only — its per-column legality rules, `NUM_META_ACTIONS`, the logit/mask shape and the sampling/evaluation action identities are all UNCHANGED by Defect A.
 
 **Effect (Stage 5) — `rl/action/graph_effect.py`.**
@@ -990,6 +1012,183 @@ stream — `rl/training/graph_train.py`.**
   damaged−clean delta key is `null` under a triad run, whose three named deltas are the
   complete statement of it.
 
+**PHASE-B CTDE — the TRAINING-ONLY centralized critic —
+`rl/observation/central_graph_builder.py` + `rl/training/graph_ppo.py` (its §7 block)
++ `rl/training/graph_tick_loop.py` + `rl/training/graph_train.py`.**
+
+BUILT, REVIEWED and MERGED (`a6f3aa9`, integrated `8390d85`, PR #30 — §7). **NO
+actor-only vs CTDE scientific comparison has been executed, and no CTDE benefit is
+established** (§8 owns that gate). What follows is the IMPLEMENTED contract, derived from
+the integrated code, not a design proposal.
+
+- **TWO TRAINING MODES, SELECTED BY `TrainConfig.training_mode` AND BY NOTHING ELSE.**
+  `TRAINING_MODES` = (`actor_only`, `ctde`); `actor_only` is the DEFAULT. The ONE predicate
+  behind every branch is `TrainConfig.ctde_enabled`, which reads `training_mode` and
+  nothing else. **`value_coeff` IS NOT A MODE SELECTOR**: under `training_mode='ctde'`,
+  `validate()` REJECTS `value_coeff <= 0` outright, because a run so configured would build
+  central observations and take its advantages from a critic it never trains — neither
+  reference algorithm, and recorded as CTDE either way. `validate()` also bounds
+  `gae_lambda` to `[0, 1]` and requires `critic_lr > 0`; on an `actor_only` run the unused
+  CTDE block may hold any value and is not validated.
+- **`actor_only` IS PRESERVED, NOT EMULATED.** It constructs NO critic, NO
+  `CentralStateRecorder`, NO `CTDEBuffer`, NO `CTDEUpdater` and NO `CTDEEpisodeRecord`, and
+  it computes no central observation, value loss or CTDE advantage. The keyword-omission
+  helpers `_ctde_kwargs` / `_central_kwargs` return `{}` rather than a `None`-valued
+  keyword, so `_run_one_episode` and `run_episode` are called with EXACTLY their pre-CTDE
+  arguments — the stronger invariance claim, and the same pattern `_artifact_kwargs`
+  already used. `graph_ppo`'s actor-only half (`EpisodeRecord` / `PPOBuffer` /
+  `compute_returns_and_advantages` / `PPOUpdater`) is BYTE-UNCHANGED. This is proven by a
+  POISON test: every central-CTDE construction site is replaced by a raiser and an
+  `actor_only` run still completes, with a companion CONTROL that flips the mode and shows
+  the poison really fires.
+- **DECENTRALIZED EXECUTION IS UNCHANGED IN BOTH MODES.** The runtime actor path is still
+  `private ego GraphObservation → GraphEncoder → ActionHead → mask → sample`. No central
+  state, no peer privileged state, no critic value and no critic parameter reaches action
+  selection or `evaluate_action`: `CTDEUpdater._forward_logits` re-encodes the stored
+  PRIVATE `tr.gobs` and nothing else, and the advantage crossing from critic to actor is a
+  plain python float. `evaluate` takes NO critic argument and constructs neither a critic
+  nor a recorder — held-out evaluation is actor-only in both modes — and a CTDE-trained
+  actor runs with the critic object absent. §3 is not weakened by centralized TRAINING.
+- **ARCHITECTURE — ACTOR AND CRITIC SHARE NOTHING.** `CentralCritic` owns its OWN
+  `GraphEncoder` INSTANCE (the same class, constructed with the CENTRAL feature widths —
+  all three were already constructor parameters, so the encoder itself was NOT changed) plus
+  its own `ValueHead`, and `CTDEUpdater` builds a SECOND Adam over the critic's parameters
+  alone. The two parameter sets are DISJOINT — no sharing, tying or copying — and the actor
+  loss and the value loss are backpropagated in TWO SEPARATE `backward()` calls, each with
+  its own grad-norm clip and its own `optimizer.step()`. `ValueHead` is a
+  `Linear → Tanh → Linear` MLP over the pooled `[embed_dim]` summary, orthogonally
+  initialized (hidden at the default `sqrt(2)` gain, OUTPUT at `std=1.0`, the conventional
+  value-head gain), so the untrained critic is an arbitrary small-magnitude function of the
+  state and **NOT zero everywhere** — nothing relies on it being zero, because a uniform
+  offset cancels in the batch-mean subtraction of `compute_ctde_advantages`.
+- **THE CENTRAL GRAPH IS THE LIVE WORLD, AND PRESENCE IS LIVENESS.**
+  `build_central_graph_observation(scenario, *, agent_ids, executor, current_time, config)`
+  is STATELESS, like the actor builder, and returns a `CentralGraphObservation` —
+  a DISTINCT type, not a `GraphObservation` and not a subclass of one, carrying NO
+  `agent_id` field, so a central state can never be mistaken for an actor state.
+  - Task nodes are one per LIVE enemy target, enumerated through the SAME
+    `generate_all_enemy_tasks` current-world extraction episode setup uses — so the
+    inventory is the RAW LIVE WORLD and an unallocated target is present. **`oracle_tasks`
+    is NOT read**, which is the roster-integrity contract (Stage 0) honoured rather than
+    repeated. A destroyed target simply has no node; there is no dead/alive flag.
+  - Agent nodes are one per originally-scheduled same-side agent that is physically alive,
+    in the caller's scheduled order. `live_aircraft` collapses the executor's own three-way
+    classification: airborne (in `scenario.aircraft`) or landed (in some `airbase.aircraft`
+    inventory) is LIVE; absent from both is dead and loses its node. **RTB ISSUANCE AND
+    LANDING ARE NOT DEATH** — an ego ordered home keeps its node even though Phase 1 stops
+    processing it.
+  - **THERE IS NO DISTINGUISHED EGO.** `ego_index` is `NO_EGO_INDEX` (`-1`), and the shared
+    encoder marks a node EGO only for `0 <= ego_index < N`, so every agent node keeps the
+    same role and the graph is SYMMETRIC over live agents. No encoder change was needed and
+    none was made.
+  - **FEATURES, exactly as implemented.** `task_features[k, 2]` = `[utility_norm,
+    probability]` (`CENTRAL_TASK_FEATURE_DIM`). `agent_features[a, 1]` = `[fuel_norm]`
+    (`CENTRAL_AGENT_FEATURE_DIM`) — **REAL for EVERY live agent**, which is the exact
+    asymmetry the actor graph must not have (peer fuel is unsensable under
+    no-communication; the point of a centralized critic is that TRAINING may read it).
+    `time_norm` is the actor's own `current_time / max_sim_ticks`, clipped, from the SAME
+    `GraphObservationConfig` the actor builder is using on that episode.
+  - **EDGES: the COMPLETE live-agent → live-target bipartite relation**, one
+    `EdgeType.SPATIAL` edge each (`CENTRAL_EDGE_TYPE`; SPATIAL is RESERVED / unused in the
+    actor graph, so borrowing the code changes nothing the actor builds), with
+    `edge_attr[E, 5]` = `[distance_norm, capable, reachable, sensed, assigned]`
+    (`CENTRAL_EDGE_ATTR_DIM`). `reachable` IMPORTS the actor's own
+    `graph_builder._reachable_by_ego` round-trip model rather than reimplementing one;
+    `sensed` is privileged ALL-AGENT sensing at the ONE unified `DETECTION_KM`; and
+    **`assigned` is CURRENT executor plan membership** — `plan_target_ids` resolves
+    `executor.plans[agent]` against `executor.tasks[agent]` with `_resolve_step`'s own
+    bounds semantics (a documented MIRROR kept out of that module's import closure, its
+    equivalence TEST-ENFORCED against a real `GraphPlanExecutor`), **never from
+    `oracle_solution`, never from a private belief, and never from t=0 `A_init` after
+    runtime adaptation**. It is plan MEMBERSHIP, not eligibility: no `done` filter and no
+    level gating.
+  - **PRIVILEGED MEANS "ALL AGENTS, RIGHT NOW" — IT DOES NOT MEAN "THE ANSWER".** The
+    critic is deliberately NOT given `oracle_solution` / `oracle_tasks` / `U_oracle` / any
+    reward component, the episode seed, the scheduled fuel-damage severity or condition
+    label, the known-vs-hidden split, future RNG, or any future outcome. **Do not add a
+    feature this list does not name.**
+  - **SIZE IS VARIABLE, WITH ONE FLOOR.** There is no padding and no fixed cardinality:
+    the encoder is size-agnostic and its self-loops keep an empty edge set safe. `k` (live
+    targets) MAY legitimately be **0** — every target destroyed is a normal late-episode
+    state. The live-agent count is likewise variable, but **at an ACTUAL DECISION CAPTURE it
+    is at least 1**: a decision requires an airborne ego, so that ego always has a node.
+    `CentralCritic.forward` does carry an all-empty `n_nodes == 0` guard returning a finite
+    zero, but that branch is DEFENSIVE — it makes the output finite by construction rather
+    than by an argument about the caller, and it is **not a reachable normal decision
+    state**.
+- **MULTI-AGENT TEMPORAL SEMANTICS — ONE CENTRAL STATE PER ACTUAL DECISION.**
+  `run_episode(..., central=CentralStateRecorder())` calls `capture` INSIDE the `if wake`
+  branch and IMMEDIATELY BEFORE `_wake_decision`, and nowhere else — so sample `i` is the
+  global state the team was in when decision `i` was made, BEFORE that decision changed
+  anything, and `recorder.samples` is aligned 1:1 and index-for-index with
+  `EpisodeResult.trajectory`. `CTDEEpisodeRecord` VALIDATES that alignment on construction,
+  so a drifted capture seam fails LOUD rather than mispairing a value with a decision.
+  **WAKE ORDERING IS STILL SEQUENTIAL, NOT A JOINT SAME-TICK ACTION.** With two egos waking
+  on one tick the order is `capture(A) → act(A)+resync(A) → capture(B) → act(B)+resync(B)
+  → env.step`: no `env.step` between them, so B's PHYSICAL world equals A's, while B's
+  central `assigned` feature legitimately reflects A's already-applied resync. That is
+  CAUSAL, not a leak — the critic is centralized by design, and B still DECIDES from its
+  own private observation alone. The `central` parameter defaults to `None`, which leaves
+  the loop byte-identical to its pre-CTDE behaviour.
+- **CREDIT PATH: GAE OVER THE GLOBAL DECISION SEQUENCE.** `compute_ctde_advantages` is the
+  CTDE REPLACEMENT for `compute_returns_and_advantages`; it does not call it, and it never
+  runs on an `actor_only` run. `V_old` is evaluated ONCE for every sample under
+  `torch.no_grad` BEFORE epoch 0 and stays fixed for the whole update, so the regression
+  target cannot chase the network fitting it. `compute_gae` runs PER EPISODE over the
+  episode's SINGLE ordered decision sequence — **deliberately NOT regrouped per ego**, which
+  is what `EpisodeRecord` does for the Phase-A per-ego credit structure — with
+  `delta_t = r_t + gamma*V_next[t] - V_old[t]`, `A_t = delta_t + gamma*gae_lambda*A_{t+1}`,
+  `target_t = A_t + V_old[t]`, and **`V_next` of the LAST decision is ZERO** (the episode
+  genuinely ends there). Per-decision rewards are READ off the transitions
+  (`episode_rewards_sequence`), so the credit math consumes exactly what the unchanged
+  terminal reward layer produced. Advantages are normalized across ALL decision samples of
+  the batch under the same `adv_norm_eps` guard the actor-only path uses, and the actor
+  consumes them DETACHED. The critic takes an MSE value loss scaled by `value_coeff`; there
+  is no value clipping in v1. `gamma` comes from `PPOConfig` — deliberately NOT duplicated
+  on `CTDEConfig`, so a run has ONE discount factor. **Current defaults, from the code:**
+  `critic_lr = 3e-4`, `value_coeff = 0.5`, `gae_lambda = 0.95`.
+- **ZERO-WAKE EPISODES.** A zero-wake episode contributes NO actor sample, NO critic sample
+  and NO baseline mass to a CTDE update. It remains a **valid scientific episode outcome**,
+  never a failure, and keeps its existing reward-diagnostic accounting — a batch with zero
+  decisions is the same clean no-op `PPOUpdater` documents, reported with
+  `n_epochs_run == 0`.
+- **`baseline` KEEPS ITS ACTOR-ONLY MEANING IN BOTH MODES, AND THIS IS LOAD-BEARING.**
+  `CTDEUpdater.update` reports `baseline` as the batch's mean EPISODE REWARD (zero-wake
+  episodes included) — NOT the critic's mean value, even though the CTDE baseline really is
+  the critic. `graph_train` records that key as an iteration's `train_reward_mean`, so
+  putting a value estimate there would make one recorded field mean a reward under
+  `actor_only` and a value under `ctde`, and the two modes' learning curves would stop being
+  comparable while still looking as though they were. The critic's own estimate is reported
+  SEPARATELY. A CTDE training record additionally persists the CRITIC's four diagnostics —
+  `value_loss`, `value_mean`, `value_target_mean`, `critic_grad_norm` — copied straight out
+  of the dict `CTDEUpdater.update` returned and NEVER recomputed; they are added ONLY when
+  `ctde_enabled`, so an `actor_only` record is byte-unchanged with those keys ABSENT rather
+  than null (a nullable key would invite reading "no critic" as "a critic that scored 0").
+  `run_config.json` carries a `training` block: `mode`, `ctde_enabled`, and the resolved
+  `ctde` config or `null`.
+- **CHECKPOINTS.** `save_checkpoint(policy, updater, iteration, ckpt_dir, critic=None)`.
+  **THE ACTOR-ONLY PAYLOAD IS UNCHANGED** — with `critic is None` (every `actor_only` run)
+  it holds EXACTLY the five keys it always held (`iteration` / `encoder` / `head` /
+  `optimizer` / `ppo_config`), nothing renamed and nothing added, not even a mode label, so
+  a Phase-A checkpoint stays readable by anything that could read one. A CTDE run saves
+  strictly MORE: the same five keys (`encoder` / `head` / `optimizer` are the ACTOR's) plus
+  `training_mode`, `critic_encoder`, `value_head`, `critic_optimizer` and `ctde_config`.
+  There is deliberately NO second "actor export" file — the actor portion of the one payload
+  already suffices for later inference, precisely because the actor's keys did not move.
+  **There is NO loader and NO resume**, in either mode; restoring a run remains a separate
+  deferred task, and no export functionality beyond the above exists.
+- **PRESETS.** A preset may set `training_mode` and a nested `"ctde"` block (the sibling of
+  `"ppo"`), read only by a `ctde` run. The CTDE block has NO CLI flags of its own — it is
+  deliberately a preset-only layer, so there is no second naming scheme to drift from
+  `CTDEConfig`. **No CTDE preset exists in the repository**, and adding one belongs to the
+  comparison task (§8), not here.
+- **SCIENTIFIC NON-CLAIMS, BINDING.** The proof tests, the module `_selftest`s and a passing
+  suite are ENGINEERING evidence and measure nothing scientific. **No actor-only vs CTDE
+  comparison has been run, and no CTDE benefit — in reward, survival, sample efficiency,
+  behavioural separation or anything else — is established or may be pre-claimed.** A CTDE
+  claim requires its own executed, independently reviewed comparison under the same validity
+  gate (§8).
+
 **SCHEDULED CELL vs EXECUTED CELL — a measurement-integrity abort
 (`_ConditionTally.success`, the approved review fix `eecc9b5`).**
 `success(out, *, expected_cell)` takes the SCHEDULE's cell as a **REQUIRED keyword** and
@@ -1039,10 +1238,15 @@ a stub, because normal production does not currently generate it.
 | Read what an episode ACTUALLY did, per successful attempt (not an aggregate) | `rl/training/graph_train.py` (`_EPISODE_OUTCOMES_FILENAME` = `episode_outcomes.jsonl`, `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes` and the `severity_response` / `severity_response_source` / `episode_outcomes_recorded` keys of `run_summary.json`). SUCCESSFUL attempts only — failures stay in `episode_failures.jsonl` and the two streams are disjoint by construction. The severity-response table is DERIVED from this file, never from a parallel in-memory aggregate. |
 | Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`; `fuel_damage_mild_probability` mirrors the training knob and `seeded_variable` is selectable here too). Rollouts run a SEEDED design only — `seeded_mixture` or `seeded_variable` — because matched pairs and triads are an evaluation construct and live in `graph_train.evaluate`. |
 | Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `sync_recordings` / `finalize` (which reconciles expected vs observed world counts before it will say `complete`) / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
+| SELECT a training mode — ordinary scientific USE of the already-built CTDE layer | `rl/training/graph_train.py` (`TrainConfig.training_mode` ∈ `TRAINING_MODES` = `actor_only` / `ctde`, `TrainConfig.ctde_enabled`, the nested `ctde` preset block over `CTDEConfig`). Choosing a mode, writing a preset that sets it, or running a comparison is **CONFIGURATION and MEASUREMENT, not a contract change** — it needs no layer review. The DEFAULT is `actor_only`, and it is the path the approved Phase-A baseline was measured on. `value_coeff` is NOT a mode selector: `ctde` REJECTS `value_coeff <= 0` (§5) |
+| Change the CENTRAL GRAPH the critic sees (privileged inputs, liveness, features, edges, exclusions) | `rl/observation/central_graph_builder.py` (`CentralGraphObservation`, `build_central_graph_observation`, `CentralStateRecorder`, `live_aircraft`, `plan_target_ids`, `NO_EGO_INDEX`, `CENTRAL_TASK_FEATURE_DIM` / `CENTRAL_AGENT_FEATURE_DIM` / `CENTRAL_EDGE_ATTR_DIM` / `CENTRAL_EDGE_TYPE`). **RESEARCH-VALIDITY / GRADE A**: what the critic may read is the no-communication boundary itself. Adding any input the §5 exclusion list names — `oracle_solution` / `oracle_tasks` / `U_oracle` / a reward component / the seed / a scheduled FD severity or condition label / the known-vs-hidden split / future RNG or outcome — is a new research decision, never a fix. PURE: no torch, no BLADE/gym import; it must never import `graph_episode_setup` |
+| Change the ACTOR / CRITIC BOUNDARY, or CTDE value / GAE semantics | `rl/training/graph_ppo.py` (`CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`) beside the UNTOUCHED actor-only `EpisodeRecord` / `PPOBuffer` / `compute_returns_and_advantages` / `PPOUpdater`. **RESEARCH-VALIDITY / GRADE A**: disjoint parameter sets, two separate backwards, detached advantages, GAE over the GLOBAL decision sequence with a zero terminal next value, and fixed pre-epoch `V_old` are all contract (§5). Proofs live in `tests/test_graph_ctde.py` and `tests/test_graph_ppo.py` |
+| Change WHEN the central state is CAPTURED | `rl/training/graph_tick_loop.py` — `run_episode`'s `central` parameter and the `capture(...)` call inside the `if wake` branch, IMMEDIATELY BEFORE `_wake_decision`. **RESEARCH-VALIDITY / GRADE A**: the capture point IS the 1:1 alignment `CTDEEpisodeRecord` validates, and moving it silently repairs the mispairing into a wrong value-to-decision match. `central=None` (the default) leaves the loop byte-unchanged |
+| Change ACTOR-ONLY PRESERVATION or CHECKPOINT compatibility | `rl/training/graph_train.py` (`_ctde_kwargs` / `_central_kwargs` — keyword OMISSION, never a `None` keyword; `save_checkpoint(..., critic=None)`'s exactly-five-key actor-only payload and the CTDE additions; the `ctde_enabled`-gated critic diagnostics on a training record; the `training` block of `run_config.json`). **RESEARCH-VALIDITY / GRADE A**: `actor_only` byte-invariance is what keeps the approved Phase-A baseline comparable, and it is pinned by the POISON test + its CONTROL in `tests/test_graph_ctde.py` |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind`, `never_overdue`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
-| Change the encoder | `rl/agent/graph_encoder.py` (`GraphEncoder`, `pool()` critic hook) |
+| Change the encoder | `rl/agent/graph_encoder.py` (`GraphEncoder`, `pool()` critic hook). ONE class with TWO instantiations — the ACTOR's, and the Phase-B `CentralCritic`'s separate instance at the CENTRAL feature widths. Changing it changes BOTH; the actor head carries no value head, and the critic's `ValueHead` lives in `graph_ppo`. |
 | Change actions / mask / sampling | `rl/action/graph_action.py` (`MetaAction`, `ActionHead`, `build_action_mask`, `sample_action`) |
 | Change how a decision edits the plan | `rl/action/graph_effect.py` (`apply_meta_action`) |
 | Change BLADE execution / plan re-sync | `utils/blade_utils/blade_graph_executor.py` (`GraphPlanExecutor`) |
@@ -1114,6 +1318,9 @@ a stub, because normal production does not currently generate it.
   over encoder+head, per-transition re-encode -> rebuilt mask -> evaluate_action ->
   clip, entropy bonus, one backward/epoch, grad-norm clip; empty batch = clean
   no-op; NO value loss — PHASE-B SEAM comments mark where the critic joins).
+  *(That is the Phase-A actor-only state this commit built, and it is still exactly what
+  `PPOUpdater` does. The critic joined LATER, as a SEPARATE `CTDEUpdater` beside it —
+  see the Phase-B CTDE lock at the end of §7.)*
   Proven in _selftest + tests/test_graph_ppo.py (18 tests): epoch-0 ratio == 1 and
   loss == -mean(A_norm); learning direction (positive-advantage action rises);
   clip branches hand-checked + clip_fraction > 0 live; per-ego grouping order;
@@ -2477,6 +2684,101 @@ a stub, because normal production does not currently generate it.
   questions, and **this is a valid negative result — not a defect, and not grounds for
   retuning, re-seeding or re-running.**
 
+- `a6f3aa9` — **PHASE-B CTDE: the centralized critic during TRAINING only, with
+  `actor_only` preserved as the default — CLOSED / APPROVED / MERGED.** Approved candidate
+  SHA `a6f3aa9d62931994f416b2241fec4cfac3b018ec` (`2026-08-22 21:01:46 Asia/Jerusalem`),
+  integrated by merge commit `8390d85c2072e9cbe984ce5f2731cef3a9b14985` (PR #30). The
+  candidate was merged with a normal MERGE COMMIT and preserved as its SECOND PARENT
+  (ordered parents: `d437084c5fb1a22c21596a48c58e03f7e15a0115`, then `a6f3aa9…`), and the
+  integration tree is `9686c107b8864f00a7d4403d70faf42ab561d2fb`. **Grade A under
+  `GPT_GITHUB`, implementation mode BUILD** — it created a new layer and a new module, and
+  the SURGICAL mode belongs to the SEPARATE documentation-lock task that recorded it, never
+  to the implementation itself. The technical contract is in §5 ("PHASE-B CTDE — the
+  TRAINING-ONLY centralized critic"), the pipeline placement in §4 and the routing in §6.
+  This entry records the LOCK, not the mechanism.
+  **THE TWO IMMUTABLE REFERENCES, AND THEY ARE DISTINCT.**
+  `pre-ctde-actor-only = d437084c5fb1a22c21596a48c58e03f7e15a0115` (tree
+  `d7cc2dcb1b161180e272afc9600175f022c5b5d0`) is the NEW immutable reference preserving the
+  IMMEDIATE PRE-CTDE actor-only state — it is the integration's FIRST parent, so "the
+  actor-only state CTDE was merged onto" is a git fact rather than a claim. Preserving it
+  was the CTDE integration gate's remaining prerequisite (§8), and it must not move.
+  `phase-a-baseline = 4f0068847b017795717c5f0e331f647bcfc30547` is the SEPARATE, ORIGINAL
+  Phase-A reference, is NOT repurposed as the pre-CTDE reference, and likewise must not
+  move. Neither is the FD-VARIABLE-SEVERITY-v1 measured code SHA
+  `bf1e045f90f74361e4ee944f7bd683a3ea72d04b`, which is a durable MEASUREMENT identity and
+  never a code reference (its `APPROVE — VALID MEASUREMENT` record, with its NEGATIVE
+  primary finding, is above and is UNCHANGED by this lock).
+  **APPEND-ONLY REVIEW CHAIN, two commits on one branch and one PR** — never amend, rebase,
+  squash, force-push or history rewrite. Initial reviewed candidate
+  `d70d07f829a44e6f19100c338d4dde89f4f47bf6` (`2026-08-22 20:02:21 Asia/Jerusalem`) carried
+  the implementation; the review correction landed as the NEW CHILD COMMIT `a6f3aa9…`,
+  which is the APPROVED head. The three findings and their closure:
+  (F1) `training_mode='ctde'` accepted `value_coeff == 0`. Such a run would build central
+  observations and take its advantages from a critic it never trains, leaving the baseline
+  a frozen random function — neither the `actor_only` reference algorithm nor the approved
+  CTDE one, and recorded and read as CTDE either way. `TrainConfig.validate` now REQUIRES
+  `> 0`, refused before any compute; the default is unchanged at `0.5`, `actor_only`
+  validation is untouched, and `value_coeff` is still NOT a mode selector.
+  (F2) CTDE training records did not persist the critic's diagnostics. `value_loss`,
+  `value_mean`, `value_target_mean` and `critic_grad_norm` are now copied straight out of
+  the dict `CTDEUpdater.update` already returned — never recomputed — and added ONLY when
+  `ctde_enabled`, so an `actor_only` record is byte-unchanged with those keys ABSENT rather
+  than null. No actor-side metric changed meaning.
+  (F3) `ValueHead`'s docstring claimed a small init giving an initial value function "~0
+  everywhere" while the code passes `std=1.0`. **PROSE ONLY — THE INITIALIZATION IS
+  UNCHANGED**: `graph_ppo.py`'s runtime token stream (comments and docstrings stripped) is
+  IDENTICAL to the initial candidate's.
+  **REVIEWED SCOPE: EXACTLY SIX FILES**, verified as the complete
+  `d437084…...8390d85…` comparison —
+  `src/match_aou/rl/observation/central_graph_builder.py` (new),
+  `src/match_aou/rl/training/graph_ppo.py`,
+  `src/match_aou/rl/training/graph_tick_loop.py`,
+  `src/match_aou/rl/training/graph_train.py`, `tests/test_graph_ctde.py` (new) and
+  `tests/test_graph_ppo.py`. **NO documentation file was part of the code integration** —
+  that is what this documentation task closes. No vendored BLADE, solver, `graph_reward`,
+  `graph_fuel_damage`, encoder, action-space, episode-setup, hidden-placement, generator,
+  scenario, config or preset file was touched, and the Phase-A cell, the seed schedules,
+  the evaluation design, the failure taxonomy and every preserved run artifact are
+  unchanged.
+  **PROOF SURFACE** (`tests/test_graph_ctde.py`, and the import/dependency contract in
+  `tests/test_graph_ppo.py`): actor-only preservation under a POISON that raises at every
+  central-CTDE construction site, with a CONTROL proving the poison fires under `ctde`;
+  disjoint actor/critic parameter sets; each backward leaving the other side's gradients
+  `None`; the actor advantage a detached scalar; privileged central features unable to move
+  an actor logit; a central state rejected as an actor observation; the `NO_EGO_INDEX`
+  role symmetry; evaluation constructing neither critic nor recorder; a CTDE-trained actor
+  running with the critic absent; hand-computed GAE, the zero terminal next value, the
+  per-episode boundary and value targets fixed across epochs; `baseline` proven to be the
+  mean episode REWARD and not the critic value; zero-wake handling; loud failure on
+  misaligned central samples; variable graph sizes finite without padding; the exactly-five
+  actor-only checkpoint keys beside the CTDE payload; and the persisted critic diagnostics
+  with their absence on the `actor_only` path.
+  **CC-REPORTED ENGINEERING EVIDENCE — IMPLEMENTATION VALIDATION, NOT SCIENTIFIC
+  EVIDENCE. It has TWO parts, and they are labelled separately because they are different
+  kinds of evidence.**
+  (i) **TESTS — solver-free, stubbed engine seams.** At the approved head: full solver-free
+  suite **334 passed, 4 skipped**; `tests/test_graph_ctde.py` **43 passed**;
+  `tests/test_graph_train.py` **119 passed**; `tests/test_graph_ppo.py` **18 passed**; the
+  standalone `nlp_env` CTDE `__main__` runner **43 passed**; `git diff --check` clean. Four
+  mutation checks confirmed the fix-commit regressions falsify (the permissive
+  `value_coeff` bound, dropped persistence, recomputed-instead-of-copied values, and CTDE
+  keys leaking onto the `actor_only` path), each reverted.
+  (ii) **BOUNDED ENGINEERING SMOKES — REAL BLADE AND REAL BONMIN, and they DID happen.**
+  During the BUILD candidate's validation, **TWO bounded smokes under `nlp_env` ran BOTH
+  training modes end-to-end against the real engine and the real solver**: 2/2 episodes,
+  one PPO update, `accounting_reconciled = true`, no `CRASH` and no `Traceback`, writing
+  only to the scratchpad and never into the repository. They are ENGINEERING evidence that
+  the wiring executes, and they are what surfaced the `baseline`-vs-critic-value defect the
+  contract now pins (§5). **Their rewards and episode outcomes are NOT scientific evidence
+  and must never be promoted into any**, and the later append-only review-fix validation
+  needed no new run of them.
+  **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #30** — no baseline, no
+  probe, no scientific rollout, and above all **no actor-only vs CTDE comparison. NO CTDE
+  benefit is established or may be pre-claimed.** Two bounded engineering smokes are not a
+  measurement: they have no scientific contract, no seed schedule, no held-out band and no
+  denominator. This lock certifies the IMPLEMENTATION; §8 owns the gate and the next
+  scientific task.
+
 ---
 
 ## 8. OPEN (not built)
@@ -2485,13 +2787,19 @@ a stub, because normal production does not currently generate it.
   CELL EXISTS (measured code SHA `737b4bf`, §7). THE ADDITIONAL ACTOR-ONLY
   FD-VARIABLE-SEVERITY-v1 BASELINE IS NOW ALSO EXECUTED, INDEPENDENTLY REVIEWED AND
   `APPROVE — VALID MEASUREMENT` (measured code SHA `bf1e045f`, §7) — WITH A NEGATIVE
-  PRIMARY FINDING.** That measurement ran on an immutable DETACHED snapshot while CTDE
-  design and implementation proceeded beside it in a separate writable task branch. **The
-  earlier serial claim — that CTDE may begin ONLY AFTER that measurement — was SUPERSEDED
-  on 2026-08-22, and the measurement-validity half of the CTDE INTEGRATION gate is now
-  SATISFIED**; what still gates integration is preservation of a NEW immutable actor-only
-  pre-CTDE reference. See the research-ordering bullet immediately below, which owns the
-  current rule, the measured identity, the ownership split and that remaining gate.
+  PRIMARY FINDING. AND PHASE-B CTDE IS NOW IMPLEMENTED, REVIEWED AND MERGED
+  (`a6f3aa9` / `8390d85`, PR #30, §5 and §7) — SO THE NEXT SCIENTIFIC TASK IS THE FIRST
+  CONTROLLED ACTOR-ONLY vs CTDE COMPARISON ON THE LOCKED ORIGINAL PHASE-A CELL, WHICH HAS
+  NOT BEEN RUN AND FOR WHICH NO BENEFIT IS CLAIMED.** The variable-severity measurement ran
+  on an immutable DETACHED snapshot while CTDE design and implementation proceeded beside
+  it in a separate writable task branch. **The earlier serial claim — that CTDE may begin
+  ONLY AFTER that measurement — was SUPERSEDED on 2026-08-22, and the CTDE INTEGRATION gate
+  is now SATISFIED AND CLOSED ON BOTH HALVES**: the measurement-validity half by that
+  `APPROVE — VALID MEASUREMENT` verdict, and the reference half by
+  **`pre-ctde-actor-only = d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the FIRST parent of
+  the CTDE integration, which must not move (`phase-a-baseline` remains the SEPARATE
+  original Phase-A reference and was never repurposed). See the research-ordering bullet
+  below for the historical arrangement, and the CTDE bullet below it for the live state.
   Difficulty selection is CLOSED
   (below) and FD-BASELINE-v1 is merged and locked (`a8669f4`, §7), so the open question was
   never *what* to build but *how the built cell behaves* — and for THIS cell that question is
@@ -2718,12 +3026,14 @@ a stub, because normal production does not currently generate it.
   hazard, not a blocker: it WARNS and runs. Consequence for tooling: anything driving
   `train` outside a working checkout must inject the verdict (the tests patch
   `_git_provenance`) rather than expect it to be optional.
-- **RESEARCH ORDERING — the 2026-08-22 PARALLEL arrangement, with ITEM 2 NOW COMPLETE.**
+- **RESEARCH ORDERING — the 2026-08-22 PARALLEL arrangement, NOW FULLY TRAVERSED.**
   The variable-severity MEASUREMENT and Phase-B CTDE were run in parallel by explicit
   user/orchestrator decision — **not** an accidental Phase-A reopening, **not** a
-  correction of anything, and **not** a change to any technical CTDE contract. **That
-  measurement is now EXECUTED, independently reviewed and VALID**, so the arrangement's
-  remaining live content is item 4's INTEGRATION gate. The approved order is:
+  correction of anything, and **not** a change to any technical CTDE contract. **All four
+  items are now COMPLETE**: the measurement is EXECUTED, independently reviewed and VALID,
+  and the CTDE integration gate is SATISFIED AND CLOSED. This bullet is therefore the
+  arrangement's HISTORICAL RECORD; the live research state is the CTDE bullet below. The
+  approved order was:
   1. **PRESERVE the original Phase-A reference baseline.** It is CLOSED, VALID and
      IMMUTABLE — measured code SHA `737b4bf` on the FD-BASELINE-v1 design, run
      `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` (§7). The branch
@@ -2744,30 +3054,26 @@ a stub, because normal production does not currently generate it.
      `bf1e045f…` — Phase-B CTDE included — is simply not in the measured tree, so it can
      neither be attributed to that run nor contaminate it. **Nothing beyond §7's record
      may be claimed for it**, and its negative finding is a valid result, not a defect.
-  3. **PHASE-B CTDE DESIGN AND IMPLEMENTATION MAY PROCEED CONCURRENTLY**, in a SEPARATE
-     writable task branch / worktree, WHILE that measurement runs. It is no longer gated on
-     the measurement's completion. What is still gated is INTEGRATION — item 4.
-  4. **THE CTDE INTEGRATION GATE — its measurement-validity half is now SATISFIED, and one
-     half REMAINS.** The requirement that the variable-severity measurement COMPLETE and
-     receive an INDEPENDENT VALIDITY VERDICT is MET (`APPROVE — VALID MEASUREMENT`,
-     measured code SHA `bf1e045f`, §7) — and it was met by a NEGATIVE result, which
-     satisfies the gate exactly as a positive one would, because the gate is about
-     VALIDITY, never about a favourable outcome. **What still stands: CTDE MUST NOT BE
-     MERGED INTO `main` until a NEW immutable actor-only pre-CTDE reference is preserved
-     from the THEN-CURRENT actor-only state.** That reference is deliberately NOT chosen or
-     created here; its exact name is a later repository-convention decision, and preserving
-     it is its own separately reviewed task. The existing branch `phase-a-baseline`
-     (`4f0068847b017795717c5f0e331f647bcfc30547`) is historical provenance for the ORIGINAL
-     valid Phase-A reference, is NEVER moved, and is NOT repurposed as that new reference.
-  **OWNERSHIP.** While the two ran in parallel the CTDE GPT orchestrator was the SOLE
-  WRITABLE repository owner and the FD measurement orchestrator was READ-ONLY on its
-  detached snapshot — only one side could write, and the side that measured could not see
-  the other side's changes. **For the closure of that measurement's documentation record
-  the user granted the FD orchestrator a ONE-TIME writable exception, scoped to this
-  documentation task alone. UPON INTEGRATION OF THIS RECORD INTO `main`, sole writable
-  repository ownership RETURNS to the CTDE GPT orchestrator** and the FD measurement
-  orchestrator returns to READ-ONLY with no writable branch or PR. The receiving CTDE
-  orchestrator resolves live branch and PR state from GitHub itself.
+  3. **PHASE-B CTDE DESIGN AND IMPLEMENTATION PROCEEDED CONCURRENTLY** in a separate
+     writable task branch / worktree, ungated on the measurement's completion. **DONE:**
+     approved candidate `a6f3aa9`, integrated `8390d85`, PR #30 (§5, §7).
+  4. **THE CTDE INTEGRATION GATE — SATISFIED AND CLOSED ON BOTH HALVES.** The
+     measurement-validity half was met by `APPROVE — VALID MEASUREMENT` at measured code
+     SHA `bf1e045f` (§7) — by a NEGATIVE result, which satisfies the gate exactly as a
+     positive one would, because the gate is about VALIDITY, never about a favourable
+     outcome. The second half — a NEW immutable actor-only pre-CTDE reference preserved
+     from the then-current actor-only state — was met by **`pre-ctde-actor-only =
+     d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the FIRST parent of the CTDE integration,
+     which must not move. The existing branch `phase-a-baseline`
+     (`4f0068847b017795717c5f0e331f647bcfc30547`) remains historical provenance for the
+     ORIGINAL valid Phase-A reference, was NEVER moved and was NOT repurposed as that new
+     reference.
+  **OWNERSHIP — HISTORICAL.** While the two ran in parallel the CTDE GPT orchestrator was
+  the SOLE WRITABLE repository owner and the FD measurement orchestrator was READ-ONLY on
+  its detached snapshot. The user's ONE-TIME writable exception for the FD closure record
+  ENDED when that record was integrated, and writable repository ownership RETURNED to the
+  CTDE GPT orchestrator, which has since integrated PR #30. Every orchestrator resolves
+  live branch and PR state from GitHub itself.
   **THIS SUPERSEDED THE SERIAL ORDER THIS BULLET ITSELF PREVIOUSLY STATED** — that CTDE
   design could begin only after the variable-severity measurement was executed and
   independently reviewed. That serial rule is HISTORY as of 2026-08-22 and must not be
@@ -2820,50 +3126,68 @@ a stub, because normal production does not currently generate it.
   feasible held-out seeds, so 70 observations per severity are a TRAJECTORY across
   checkpoints and **not 70 independent worlds** — the clean statistical unit for the final
   policy is the final round's 7 complete triads (§7).
-- **Centralized critic / value head (CTDE) — PHASE B. DESIGN AND IMPLEMENTATION AUTHORIZED
-  (2026-08-22); INTEGRATION INTO `main` STILL GATED, BUT ONLY ON ONE REMAINING
-  PREREQUISITE.** (Phase A is closed by the valid baseline, §7; the variable-severity
-  factor is merged AND its actor-only baseline is now EXECUTED and independently reviewed
-  `APPROVE — VALID MEASUREMENT` at measured code SHA
-  `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` — with a NEGATIVE primary finding, §7.)
-  **The former rule that this task may not BEGIN until that measurement is executed and
-  independently reviewed is SUPERSEDED, and the MEASUREMENT-VALIDITY half of the merge gate
-  is now SATISFIED** — satisfied by a negative result, which counts exactly as a positive
-  one would, because the gate tests VALIDITY and never favourability. **WHAT STILL GATES
-  INTEGRATION: no CTDE change may be merged into `main` until a NEW immutable actor-only
-  pre-CTDE reference is preserved from the then-current actor-only state** (deliberately
-  NOT chosen or created here, its preservation is its own separately reviewed task, and
-  `phase-a-baseline` is historical provenance for the ORIGINAL Phase-A reference and is
-  never moved or repurposed for it). **NOTHING TECHNICAL ABOUT THIS TASK CHANGED**: it
-  is still a size-agnostic value estimator off the existing `GraphEncoder.pool()` hook,
-  there is still **NO value head today**, and `graph_ppo` remains actor-only with its
-  PHASE-B SEAM comments marking where the critic joins. **Everything below remains an OPEN
-  DESIGN REQUIREMENT** — no CTDE architecture, critic-input set, PPO/GAE, checkpoint or
-  configuration decision is locked by this record. **This task still starts as DESIGN /
-  RECON.** The orchestrator that takes it up
-  must NOT begin by writing a critic; it must first resolve a fresh live `main` SHA, re-read
-  BOTH documents at that SHA, and then produce a design that states:
-  - the **size-agnostic** value estimator over a varying task/agent graph;
-  - how **decentralized no-communication EXECUTION is preserved exactly** — §3 is not
-    weakened by centralized TRAINING, and an ego must still act only on its own sensing;
-  - **exactly which privileged all-agent information the critic may read, and that it is
-    available during TRAINING ONLY** — enumerated explicitly, never implied;
-  - **actor / critic separation** and the proof obligations that keep the training-only
-    privilege from leaking into the acting path;
-  - a clean **actor-only vs CTDE comparison ON THE LOCKED PHASE-A REFERENCE CELL**, judged
-    against the approved Phase-A baseline (§7) under the same validity gate, **BEFORE** any
-    further environment difficulty is added.
-  **No CTDE benefit may be pre-claimed** — not from the approved Phase-A result, which
-  explicitly does not establish one; not from the executed variable-severity baseline,
-  which measured no CTDE anything and whose negative severity finding is **NOT** evidence
-  that centralized training would change it; and **not from CTDE implementation work,
-  engineering tests or a passing test suite, none of which measure anything scientific.**
-  A CTDE claim requires its own executed, independently reviewed comparison. The remaining difficulty expansions
-  (`probability < 1`, SAMs, dense reward) are SEPARATE later research changes and must not
-  be bundled into this one. **The stochastic/partial fuel-degradation variant is NO LONGER
-  on that deferred list**: its approved form is FD-VARIABLE-SEVERITY-v1, it is merged
-  (`eecc9b5`, §5, §7), and its actor-only baseline ran CONCURRENTLY with this task on a
-  pinned snapshot and is now EXECUTED and reviewed VALID (§7).
+- **Centralized critic / value head (CTDE) — PHASE B. IMPLEMENTATION CLOSED: REVIEWED AND
+  MERGED. THE SCIENTIFIC COMPARISON IS THE ONLY PART STILL OPEN.** (Phase A is closed by
+  the valid baseline, §7; the variable-severity factor is merged and its actor-only
+  baseline is EXECUTED and independently reviewed `APPROVE — VALID MEASUREMENT` at measured
+  code SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` — with a NEGATIVE primary finding,
+  §7.)
+  **THE GATE IS SATISFIED AND CLOSED, on both halves.** The measurement-validity half was
+  satisfied by that variable-severity verdict — satisfied by a NEGATIVE result, which
+  counts exactly as a positive one would, because the gate tests VALIDITY and never
+  favourability. The remaining half, preservation of a NEW immutable actor-only pre-CTDE
+  reference, was satisfied by **`pre-ctde-actor-only =
+  d437084c5fb1a22c21596a48c58e03f7e15a0115`** (tree
+  `d7cc2dcb1b161180e272afc9600175f022c5b5d0`), the FIRST parent of the CTDE integration —
+  so it is provably the actor-only state CTDE was merged onto, and it must not move.
+  `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`) is the SEPARATE ORIGINAL
+  Phase-A reference, was never repurposed for this, and likewise must not move.
+  **THE IMPLEMENTATION IS DONE AND IS NO LONGER AN OPEN DESIGN QUESTION.** Approved
+  candidate `a6f3aa9`, integrated `8390d85`, PR #30 (§7), and locked as a §5 contract by
+  this record. Phase B now has TWO SELECTABLE TRAINING MODES — `actor_only` (the DEFAULT
+  and the preserved reference path) and `ctde` — chosen by `TrainConfig.training_mode`. The
+  size-agnostic value estimator off `GraphEncoder.pool()` EXISTS (`ValueHead` on
+  `CentralCritic`'s own encoder instance); the privileged critic inputs and their
+  exclusions are ENUMERATED in §5; actor/critic separation, the training-only boundary,
+  capture timing, GAE/value semantics, checkpoint distinction and actor-only byte-invariance
+  are all IMPLEMENTED AND PROVEN in `tests/test_graph_ctde.py`. **Do not restate any of
+  these as open requirements, do not re-enter a design/recon step, and do not rebuild what
+  is merged.** Changing any of them is a Grade-A change to a locked layer, routed through §6.
+  **WHAT IS STILL GENUINELY OPEN: the FIRST CONTROLLED ACTOR-ONLY vs CTDE COMPARISON. IT
+  HAS NOT BEEN RUN.** Engineering tests, module `_selftest`s, a passing suite and a merged
+  implementation measure NOTHING scientific. **No CTDE benefit may be pre-claimed** — not
+  from the approved Phase-A result, which explicitly does not establish one; not from the
+  executed variable-severity baseline, which measured no CTDE anything and whose negative
+  severity finding is **NOT** evidence that centralized training would change it; and not
+  from PR #30's implementation evidence. A CTDE claim requires its own executed,
+  independently reviewed comparison. The next scientific task is preparing and executing
+  that comparison, and it must:
+  - **TAKE ITS ACTOR-ONLY ARM FROM THE ALREADY-APPROVED PHASE-A BASELINE, WHICH IS NOT
+    RE-RUN.** That arm is already measured — measured code SHA `737b4bf`, run
+    `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, `APPROVE — VALID
+    MEASUREMENT` (§7) — and it is PRESERVED and NOT to be re-run, resumed, repaired,
+    extended or re-tuned. **Nothing in this record authorizes a fresh actor-only run**; a
+    newly executed actor-only CONTROL arm is a SEPARATE research-design decision requiring
+    explicit user authorization. What the task schedules is the **CTDE arm**;
+  - **MATCH THE LOCKED ORIGINAL PHASE-A SCIENTIFIC CELL** — 3 agents, 3 known + 3 hidden,
+    200 km / 100 km geometry, `DETECTION_KM = 50`, `include_sams = false`,
+    `probability = 1`, frozen solver and BLADE, unchanged `graph_reward` formula with
+    `aircraft_penalty_coeff = 2.25` — **and that baseline's training / evaluation schedule,
+    seed policy, held-out band and evaluation construct** as the authoritative Phase-A
+    record establishes them, judged under the SAME validity gate, VALIDITY BEFORE
+    PERFORMANCE;
+  - **name the EXPERIMENTAL FACTOR correctly: actor-only training vs centralized-critic
+    training.** Provenance MUST acknowledge that the historical Phase-A measurement and the
+    future CTDE measurement carry **DISTINCT measured code SHAs**, and **must NOT claim the
+    two arms' literal repository or configuration artifacts differ only by one
+    `training_mode` field** — they do not, and asserting it would be false provenance;
+  - **NOT bundle `p(destroy) < 1`, SAMs, dense reward, a solver change, a reward-formula
+    change, or any new difficulty factor.** Those remain separate, still-deferred research
+    changes (the difficulty-selection bullet below), and bundling one would make the
+    comparison uninterpretable.
+  A run showing no CTDE improvement, or no productive update, is a valid NEGATIVE
+  observation — not a technical failure and not grounds to re-tune or re-run. **No CTDE
+  preset exists in the repository**, and creating one belongs to that comparison task.
 - **Baseline difficulty selection — CLOSED for the current cell by FD-BASELINE-v1
   (`a8669f4`).** Exactly ONE factor was selected, implemented and locked: `fuel_damage`
   (§5, §7). The following were considered and **NOT selected**; each remains a DEFERRED,
@@ -2878,8 +3202,10 @@ a stub, because normal production does not currently generate it.
     difficulty factor, and is not one now.
   Reopening any of them is a new research-design decision with its own semantics,
   observability, proof obligations and bounded implementation/lock task. The Phase-A
-  baseline they were deferred behind is now MEASURED (§7), so the ordering constraint that
-  remains is the phase boundary: they come AFTER Phase-B CTDE design, never bundled into it.
+  baseline they were deferred behind is now MEASURED (§7), and Phase-B CTDE is now
+  IMPLEMENTED and MERGED, so the ordering constraint that remains is the phase boundary:
+  they come AFTER the first controlled actor-only vs CTDE comparison, and must never be
+  bundled into it — a difficulty change inside that contrast would make it uninterpretable.
   **`probability < 1` in particular is UNCHANGED by FD-VARIABLE-SEVERITY-v1 and is still
   out.** That factor merged a mild/severe split of the FUEL-DAMAGE EVENT; target
   destruction stays deterministic at `probability = 1`, and nothing in PR #27 implemented
