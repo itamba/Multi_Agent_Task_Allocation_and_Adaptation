@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — Phase-A Closure / VALID VARIABLE-SEVERITY BASELINE (NEGATIVE FINDING) / PHASE-B CTDE MERGED AND DOCUMENTED / REPOSITORY CLOSED — IDLE — Handoff
+# Multi-Agent Graph RL — GENERALIZED TRAINING / BENCHMARK REDESIGN: ACTIVE DESIGN PHASE, NOT IMPLEMENTED / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -34,9 +34,30 @@ repository/task state before transfer to a fresh chat: PR #32 / `task/phase-b-ct
 is MERGED and is NO LONGER the current writable task, this chat/repository CLOSURE record is
 the sole writable candidate only while it is in flight, and upon its integration the
 repository is CLOSED / IDLE with no writable task and no open scientific run** (§1, §4, §7,
-§8).
+§8) — *(that CLOSED / IDLE state was true when written and is now SUPERSEDED by the entry
+below)* — and **2026-08-25 to record that the repository is NO LONGER CLOSED / IDLE: the
+GENERALIZED TRAINING / BENCHMARK REDESIGN is the ACTIVE research and design phase, owned by
+the GPT orchestrator, with its APPROVED DESIGN recorded in a dedicated section and MARKED
+NOT YET IMPLEMENTED, with no implementation candidate active and no new scientific
+measurement running or authorized** (§1, §3l, §4, §6, §7, §8, §9).
 
-**THE STATE, STATED PLAINLY.** **PHASE A IS CLOSED.** The authorized long-baseline rerun —
+**THE LIVE STATE (2026-08-25), STATED FIRST BECAUSE IT SUPERSEDES THE CLOSURE RECORD BELOW.**
+**The repository is NOT closed and NOT idle.** The ACTIVE research and design phase is the
+**GENERALIZED TRAINING / BENCHMARK REDESIGN** — variable agent population, variable hidden
+load, an FD-capable-by-construction world, repeated post-FD decisions, an event-conditioned
+MATCH-AOU continuation reference, and a fixed stratified evaluation benchmark. **§3l records
+its APPROVED DESIGN in full, and EVERY LINE OF THAT DESIGN IS NOT YET IMPLEMENTED.** The
+**GPT orchestrator owns the current design and planning work**; **no implementation
+candidate is active**; **no new scientific measurement is running or authorized by this
+record**; and **THIS handoff-bootstrap documentation task is the ONLY writable repository
+task while its candidate is in flight.** It changes no code, no test, no configuration and
+no `CLAUDE.md` text. **Nothing generalized is implemented, measured, benchmarked or
+claimed** — reading any part of §3l as behaviour that exists today would be a false claim
+about the repository. Everything below this paragraph is the PRESERVED record of the closed
+phases that precede the redesign, and it remains accurate about those phases.
+
+**THE STATE OF THE CLOSED PHASES, STATED PLAINLY.** **PHASE A IS CLOSED.** The authorized
+long-baseline rerun —
 `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf`, measured code SHA
 `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`, ONE invocation, native exit 0,
 `cli_overrides = []` — was executed once, independently reviewed, and approved
@@ -72,11 +93,14 @@ positive one would — and the reference half by **`pre-ctde-actor-only =
 d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the FIRST parent of the CTDE integration and
 therefore provably the actor-only state CTDE was merged onto. It must not move, and
 `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`) remains the SEPARATE
-ORIGINAL Phase-A reference that was never repurposed for it. **NO CTDE SCIENTIFIC
-COMPARISON HAS BEEN RUN, and no CTDE benefit is claimed** — a merged implementation and a
-passing suite measure nothing scientific (`CLAUDE.md` §5 owns the CTDE contract, §7 the
-lock, §8 the un-run comparison). None of this is a reopening of Phase A
-and none of it changes any technical CTDE contract: the Phase-A reference baseline stays
+ORIGINAL Phase-A reference that was never repurposed for it. **PR #30 RAN NO SCIENTIFIC
+COMPARISON, and NO CTDE BENEFIT IS CLAIMED ANYWHERE IN THIS DOCUMENT** — a merged
+implementation and a passing suite measure nothing scientific (`CLAUDE.md` §5 owns the CTDE
+contract, §7 the lock). *(An OLD-CONTRACT CTDE measurement has since been executed; it is
+OUT OF SCOPE for the generalized redesign and is not reviewed, compared or claimed here —
+§1. `CLAUDE.md` §8, written before it, still describes that comparison as un-run;
+reconciling that text is a step-6 documentation duty, §3l.8.)* None of this is a reopening
+of Phase A and none of it changes any technical CTDE contract: the Phase-A reference baseline stays
 CLOSED, VALID and IMMUTABLE, and the branch `phase-a-baseline`
 (`4f0068847b017795717c5f0e331f647bcfc30547`) preserving its code state must not move.
 `p(destroy) < 1` remains a SEPARATE, later research task and was NOT implemented by PR #27.
@@ -108,7 +132,8 @@ into a new directory then PASSED the validity gate and is the Phase-A baseline**
 first three runs remain preserved and are HISTORY ONLY — their numbers are never a scientific
 baseline, and validity is still judged BEFORE performance.
 
-**AND THE REPOSITORY IS NOW BEING CLOSED FOR HANDOFF.** The Phase-B CTDE
+**AND THE REPOSITORY WAS THEN CLOSED FOR HANDOFF — HISTORICAL (2026-08-23), SUPERSEDED BY
+THE LIVE STATE ABOVE.** The Phase-B CTDE
 documentation/lock task is CLOSED / APPROVED / MERGED — approved candidate
 `c607f3fabcbd58f6f10cfde6bcc34068f09e4121`, verdict **`APPROVE`**, integrated by normal
 merge commit `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` (PR #32), ordered parents
@@ -116,12 +141,14 @@ merge commit `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` (PR #32), ordered parent
 IMPLEMENTATION and its DOCUMENTATION are closed. **This closure record changes NO technical
 contract**: it exists only to retire the now-stale claim that PR #32 /
 `task/phase-b-ctde-doc-lock` is still the current writable task. After it is integrated
-there is **no writable task, no open code candidate, no open PR and no scientific run in
-progress.** **The next USER activity is a READ-ONLY INTERACTIVE WALKTHROUGH of the project
-and the CTDE / FD architecture in a fresh chat**, which writes nothing and runs nothing;
-**the next REPOSITORY / SCIENTIFIC task remains Task 9**, the first controlled CTDE
-measurement against the EXISTING approved Phase-A actor-only baseline — **NOT started and
-NOT authorized here, NO CTDE benefit claimed, and NO actor-only rerun authorized.**
+there was, at that moment, **no writable task, no open code candidate, no open PR and no
+scientific run in progress.** **THAT IDLE STATE HAS SINCE ENDED**: the read-only walkthrough
+it anticipated took place, and the project then entered the GENERALIZED TRAINING / BENCHMARK
+REDESIGN — the live phase recorded in the LIVE STATE paragraph above and specified in §3l.
+**The old fixed-cell Task-9 framing is NO LONGER the live next action** (§4, §8); what it
+says about the Phase-A comparator, the non-claims and the prohibitions remains binding if
+that task is ever resumed. **NO CTDE benefit is claimed anywhere in this document, and NO
+actor-only rerun is authorized.**
 
 This handoff is volatile and deliberately thin. Technical contracts live in `CLAUDE.md`;
 code and tests remain decisive. Where a fact is already in `CLAUDE.md` this document
@@ -144,13 +171,60 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **BASE of THIS documentation record:** `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96`,
+- **LIVE PHASE (2026-08-25) — GENERALIZED TRAINING / BENCHMARK REDESIGN: ACTIVE, IN DESIGN,
+  NOT IMPLEMENTED.** The repository is **no longer CLOSED / IDLE**. The active research and
+  design work is the GENERALIZED redesign whose APPROVED DESIGN is recorded in **§3l**:
+  variable agent population, variable hidden-target load with bounded backoff, an
+  FD-capable-by-construction world, repeated post-FD decision points for the damaged ego
+  alone, an event-conditioned MATCH-AOU continuation reference replacing the t=0 reference
+  solve on damaged episodes, and a fixed stratified 18-cell evaluation benchmark.
+  - **The GPT orchestrator owns the current design / planning work.**
+  - **NO implementation candidate is active**, and **NOTHING in §3l is implemented** — not
+    the cardinality generalization, not the B2 backoff, not the FD eligibility redesign, not
+    the repeated post-FD wakes, not the continuation reference, not the benchmark.
+  - **NO new scientific measurement is running, scheduled or authorized by this record**, and
+    **no generalized result of any kind exists or may be pre-claimed.**
+  - **THIS handoff-bootstrap documentation task — branch
+    `task/generalized-v1-handoff-bootstrap` and its DRAFT PR — is the ONLY writable
+    repository task while its candidate is in flight.** It touches exactly one file, this
+    one; it changes no code, test, config or preset, and it does **not** modify `CLAUDE.md`.
+  - **`CLAUDE.md` remains authoritative and UNCHANGED for every technical contract.** The
+    generalized design in §3l is a PLAN, not a contract: it locks nothing, supersedes no §5
+    contract, and earns its `CLAUDE.md` records only through step 6 of the sequence in §3l —
+    **after** reviewed behaviour exists.
+- **A PREVIOUSLY EXECUTED OLD-CONTRACT CTDE MEASUREMENT IS OUT OF SCOPE FOR THIS PHASE.** A
+  CTDE measurement was executed under the **OLD FIXED-CELL contract**. It is **outside the
+  GENERALIZED-V1 redesign** and **must NOT be reviewed, re-read, re-analysed, compared
+  against any actor-only baseline, or treated as evidence for or against centralized
+  training — unless the user EXPLICITLY asks for it.** This record deliberately states **no
+  run identity, no measured code SHA, no denominator and no validity verdict** for it: this
+  documentation task did not inspect that run, and inventing any of those would be false
+  provenance. **No CTDE benefit is claimed or implied anywhere in this document.** Note for
+  a receiving orchestrator: `CLAUDE.md` §8, written before that run existed, still describes
+  the actor-only vs CTDE comparison as un-run; **reconciling that text is a FUTURE
+  documentation duty** belonging to step 6 of §3l, and **this task deliberately does not
+  modify `CLAUDE.md`.** Historical fixed-cell measurements — that CTDE run included — are
+  **NOT the generalized benchmark** and are not its comparator (§3l).
+- **BASE of THIS documentation record:** `76abdc480e80a84f1503208730d4525cd5e89b69`,
+  committed `2026-08-23 15:34:35 +0300`, tree
+  `237325d2c2a41950eab103a8b08c9442e5c9fa97` — the `main` head produced by the **chat /
+  repository CLOSURE merge (PR #33, branch `task/ctde-chat-closure-handoff`)**, ordered
+  parents `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` then
+  `802696b4adf702ef78aa459d470d3f24cb76cc49`. **That is the exact base this
+  GENERALIZED-V1 HANDOFF BOOTSTRAP candidate was DERIVED ON**, and it is a statement about
+  this record's derivation only — **not** a claim about live `main`, which this record's own
+  integration necessarily advances past. Neither this documentation commit nor its future
+  merge can name its own SHA, and inventing either would be a false provenance claim.
+  **Every receiving orchestrator therefore resolves the live full `main` SHA from GitHub and
+  re-reads `CLAUDE.md` and this handoff at THAT SHA — GitHub is authoritative for live
+  branch and PR state, never this document** (§9).
+- *(HISTORICAL BASE of the PREVIOUS record.)* `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96`,
   committed `2026-08-23 13:32:11 Asia/Jerusalem`, tree
   `8a0b7a0aa9e65ebf01fce99c9b27ee25886ba7a6` — the `main` head produced by the **Phase-B
-  CTDE documentation/lock merge (PR #32)**. **That is the exact base this CHAT / REPOSITORY
-  CLOSURE candidate was DERIVED ON**, and it is a statement about this record's
-  derivation only — **not** a claim about live `main`,
-  which this record's own integration necessarily advances past it. Neither this
+  CTDE documentation/lock merge (PR #32)**, and the base the CHAT / REPOSITORY CLOSURE
+  candidate was derived on. That candidate has since been INTEGRATED as the base named in
+  the bullet above (PR #33), so this SHA is now historical provenance only — **not** a claim
+  about live `main`. Neither this
   documentation commit nor its future merge can name its own SHA, and inventing either
   would be a false provenance claim. **Every receiving orchestrator therefore resolves the
   live full `main` SHA from GitHub and re-reads both documents at that SHA — GitHub is
@@ -471,9 +545,11 @@ cross-references it rather than duplicating it.
   whatever delivered this record — must be resolved from GitHub, never from this document**,
   and the next orchestrator performs fresh exact-SHA initialization: **resolve the current
   full `main` SHA from the repository** rather than reusing any SHA named here.
-- **VOLATILE STATE — WHAT IS DONE, WHAT IS WRITABLE, AND WHO OWNS IT (2026-08-23).**
-    *(The 2026-08-22 entry recorded the measurement as RUNNING and NOT REVIEWED; that was
-    true when written and is now superseded by the state below.)*
+- **VOLATILE STATE — WHAT IS DONE, WHAT IS WRITABLE, AND WHO OWNS IT (updated 2026-08-25).**
+    *(The 2026-08-22 entry recorded the variable-severity measurement as RUNNING and NOT
+    REVIEWED, and the 2026-08-23 entry recorded the repository as CLOSED / IDLE after the
+    closure record merged; both were true when written and are superseded by the state
+    below.)*
   - **FD-VARIABLE-SEVERITY-v1 MEASUREMENT: CLOSED — EXECUTED, INDEPENDENTLY REVIEWED,
     `APPROVE — VALID MEASUREMENT`, PRIMARY FINDING NEGATIVE** (§3j). Measured on the
     immutable DETACHED snapshot at exact SHA
@@ -490,19 +566,22 @@ cross-references it rather than duplicating it.
     an earlier revision of this document observed PR #30 read-only as an unmerged draft)*.
     **What remains OPEN is the SCIENTIFIC COMPARISON, not the implementation** (§4,
     Task 9), and **no CTDE benefit is claimed**.
-  - **CURRENT WRITABLE TASK:** this CHAT / REPOSITORY CLOSURE record — branch
-    `task/ctde-chat-closure-handoff` and its draft PR — held by the CTDE GPT orchestrator,
-    which holds sole writable repository ownership. It is the SOLE writable candidate ONLY
-    while it is in flight, and **UPON ITS INTEGRATION the repository is CLOSED / IDLE: no
-    writable task, no open code candidate, no open PR and no scientific run in progress.**
-    **No CODE candidate is open**: PR #30 was the last one and it is merged (§3k), and the
-    PHASE-B CTDE documentation/lock task that followed it is merged too (PR #32).
-    *(Historical: `task/phase-b-ctde-doc-lock` was the writable task under the PREVIOUS
-    record and is now RETIRED and cleanup-eligible; earlier still, the FD closure
-    orchestrator held a ONE-TIME writable exception scoped to the variable-severity record
-    alone, on branch `task/fd-variable-severity-valid-doc-lock`, and that exception ENDED
-    when the record was integrated and writable ownership returned to the CTDE
-    orchestrator.)*
+  - **ACTIVE PHASE: GENERALIZED TRAINING / BENCHMARK REDESIGN — DESIGN ONLY, NOT
+    IMPLEMENTED** (§3l). The GPT orchestrator owns the design / planning work. **No part of
+    it is implemented, and no generalized measurement is running or authorized.**
+  - **CURRENT WRITABLE TASK:** this GENERALIZED-V1 HANDOFF BOOTSTRAP record — branch
+    `task/generalized-v1-handoff-bootstrap` and its DRAFT PR. It is the SOLE writable
+    repository task ONLY while it is in flight, it modifies exactly one file (this one), and
+    it authorizes nothing. **NO IMPLEMENTATION CANDIDATE IS ACTIVE** — the last CODE
+    candidate was PR #30 and it is merged (§3k); the generalized implementation sequence in
+    §3l has **not** begun and its step 1 needs GPT exact-SHA review of THIS record plus
+    explicit user-authorized continuation before it may start (§8).
+    *(Historical: `task/ctde-chat-closure-handoff` was the writable task under the PREVIOUS
+    record and merged as PR #33; before it, `task/phase-b-ctde-doc-lock` (PR #32); earlier
+    still, the FD closure orchestrator held a ONE-TIME writable exception scoped to the
+    variable-severity record alone, on branch `task/fd-variable-severity-valid-doc-lock`,
+    and that exception ENDED when the record was integrated and writable ownership returned
+    to the CTDE orchestrator.)*
   - **REFERENCES THAT MUST REMAIN — FOUR preserved branches plus one tag, with DISTINCT
     roles that are NEVER interchangeable.** **`main`**; **`phase-a-baseline` =
     `4f0068847b017795717c5f0e331f647bcfc30547`**, the IMMUTABLE ORIGINAL Phase-A scientific
@@ -523,8 +602,10 @@ cross-references it rather than duplicating it.
     (`a6f3aa9d62931994f416b2241fec4cfac3b018ec`) and `task/phase-b-ctde-doc-lock`
     (`c607f3fabcbd58f6f10cfde6bcc34068f09e4121`). They are ELIGIBLE for the immediately
     following BOUNDED branch-cleanup task and were deliberately NOT deleted by this record.
-    `task/ctde-chat-closure-handoff` itself becomes cleanup-eligible only AFTER this
-    candidate is reviewed and integrated.
+    `task/ctde-chat-closure-handoff` (`802696b4adf702ef78aa459d470d3f24cb76cc49`) joined
+    them once PR #33 merged. `task/generalized-v1-handoff-bootstrap` itself becomes
+    cleanup-eligible only AFTER this candidate is reviewed and integrated. **This record
+    deletes no branch and moves no ref** (§6).
   - **CTDE INTEGRATION GATE — CLOSED / SATISFIED ON BOTH HALVES.** The requirement that the
     variable-severity measurement COMPLETE and receive an **INDEPENDENT VALIDITY VERDICT**
     is **MET** (§3j) — met by a NEGATIVE result, which satisfies the gate exactly as a
@@ -533,8 +614,11 @@ cross-references it rather than duplicating it.
     then-current actor-only state — is **MET** by **`pre-ctde-actor-only` =
     `d437084c5fb1a22c21596a48c58e03f7e15a0115`**, the CTDE integration's FIRST parent,
     which **must not move**. `phase-a-baseline` remains historical provenance for the
-    ORIGINAL Phase-A reference and was never moved or repurposed for it. **What is still
-    OPEN is the SCIENTIFIC COMPARISON** (§4, Task 9), which has not been run.
+    ORIGINAL Phase-A reference and was never moved or repurposed for it. **PR #30 itself ran
+    NO scientific comparison** (§4, Task 9). An OLD-CONTRACT CTDE measurement has since been
+    executed and is **OUT OF SCOPE for the generalized redesign** — not reviewed, compared
+    or claimed here (§1) — and the fixed-cell Task-9 framing is **no longer the live next
+    action** (§4, §8).
 
   The integrating merge's SHA for THIS record is deliberately NOT named: it does not exist
   while this is written, and inventing it would be a false provenance claim. **Live branch
@@ -1405,28 +1489,241 @@ lock and its evidence** — this section does not duplicate them.
   change it), not from a passing test suite, and **not from the two engineering smokes,
   whose rewards and outcomes must never be promoted into scientific evidence** — a bounded
   smoke has no scientific contract, no seed schedule, no held-out band and no denominator.
+  *(Scope note: this bullet is about PR #30. An OLD-CONTRACT CTDE measurement was executed
+  LATER; it is OUT OF SCOPE for the generalized redesign and is not reviewed, compared or
+  claimed anywhere in this document — §1.)*
 
-## 4. Current work — REPOSITORY CLOSED / IDLE; PHASE-B CTDE MERGED AND DOCUMENTED; THE CTDE COMPARISON NOT RUN
+## 3l. GENERALIZED-V1 — the ACTIVE research/design phase: APPROVED DESIGN, **NOT YET IMPLEMENTED**
 
-Start with fresh exact-SHA initialization against the current `main`. **THIS documentation
-task neither authorizes nor runs anything: it RECORDS state only, and it does NOT authorize
-CC to run training, to re-run the completed baseline described below, or to write a
-critic.** The CTDE authorization recorded here is a statement about SEQUENCING and
-OWNERSHIP — the work itself is a SEPARATE task owned by the CTDE GPT orchestrator, and no
-technical CTDE contract is defined or locked by this record.
+**READ THIS BANNER BEFORE ANY LINE BELOW IT.** Everything in this section is an **APPROVED
+DESIGN AND A PLAN**. **NONE OF IT IS IMPLEMENTED.** No generalized code exists, no
+generalized scenario has been generated, no generalized episode has been run, no generalized
+benchmark has been frozen, and **no generalized result of any kind exists or may be
+pre-claimed.** Reading any paragraph here as behaviour the repository has today would be a
+false claim about the repository.
 
-**REPOSITORY STATE AFTER THIS RECORD IS INTEGRATED: CLOSED / IDLE.** There is **no active
-writable task, no open code candidate, no open PR and no scientific run in progress.** The
-Phase-B CTDE IMPLEMENTATION (PR #30, §3k) and its DOCUMENTATION / LOCK (PR #32, §1) are
-BOTH CLOSED, and this record exists solely to retire the now-stale claim that PR #32 /
-`task/phase-b-ctde-doc-lock` is still the current writable task. **The NEXT USER ACTIVITY is
-a READ-ONLY INTERACTIVE WALKTHROUGH of the project and the CTDE / FD architecture in a fresh
-chat** — a reading and explanation activity that writes nothing, runs nothing and authorizes
-nothing. **The NEXT REPOSITORY / SCIENTIFIC TASK remains Task 9 below**, the first
-controlled CTDE measurement against the EXISTING approved Phase-A actor-only baseline; it is
-**NOT started, NOT authorized and NOT run by this record**, **no CTDE benefit is claimed**,
-**no fresh actor-only rerun is authorized**, and **`p(destroy) < 1`, SAMs, dense reward, any
-solver or reward-formula change and any new difficulty factor remain OUTSIDE Task 9** (§6).
+**IT IS ALSO NOT A CONTRACT AND NOT A LOCK.** `CLAUDE.md` remains authoritative and
+UNCHANGED for every technical contract, and this record does not modify it. Several approved
+directions below deliberately DEPART from contracts `CLAUDE.md` §5 currently locks — the B2
+exact-cardinality requirement, the fixed 3-agent / 3-known / 3-hidden cell, the FD
+eligibility and failure policy, and the t=0 reference solve on damaged episodes. **Each such
+departure is a Grade-A change to a locked layer and must travel the normal
+recon → prompt → review → lock discipline routed through `CLAUDE.md` §6** — it is never a
+fix folded into another task, and it is never authorized by its presence in this plan. The
+`CLAUDE.md` records for any of it are written only at **step 6** of the sequence below,
+**after** reviewed behaviour exists.
+
+**OWNERSHIP AND AUTHORIZATION.** The **GPT orchestrator owns this design/planning work.**
+**No implementation candidate is active.** **This record authorizes no implementation, no
+training run, no BLADE scenario, no BONMIN solve and no measurement of any kind.**
+
+**WHY THE REDESIGN EXISTS.** Both approved measurements were taken on ONE fixed cell (3
+agents, 3 known + 3 hidden) with a single structurally-severe fuel-damage event and a t=0
+reference solve. That cell established learnability and ego-local adaptation (§3h) and then
+a valid NEGATIVE severity-separation finding (§3j). What it cannot support is any claim
+about **generalization across team size and mission load**, nor a reference against which a
+post-event decision is scored on the terms the ego actually faces at the moment of the
+event. GENERALIZED-V1 is the approved response: vary the population and the hidden load,
+guarantee the damage event is constructible in every accepted world, let the damaged ego
+decide more than once, and score the damaged half against an **event-conditioned
+continuation reference** instead of against a plan the world has already invalidated.
+
+### 3l.1 Approved generalized cardinality
+
+- **`A` (agents) in `{2, 3, 4}`.**
+- **`K` = `A` known targets** — the known load tracks the team size.
+- **`H_requested` in `{1, …, A}`.**
+- **Total requested targets are therefore `A + 1` through `2A`.**
+- **Generalized B2 placement uses DETERMINISTIC BOUNDED BACKOFF.** A scenario remains VALID
+  with any **`H_realized >= 1`**; realizing fewer hidden targets than requested is a
+  legitimate, recorded outcome of the generalized path, not a failure.
+- **NEVER silently alter the agent population, the seed, the severity or the requested
+  count** to make a world succeed. Silent substitution is what makes a denominator
+  unreadable.
+- **RECORD both the REQUESTED and the REALIZED cardinalities, and the backoff reasons.** A
+  world that realized fewer hidden targets must say so in its own artifacts, so
+  requested-vs-realized can be inspected as a distribution rather than inferred.
+
+### 3l.2 Approved B2 / reproducibility direction
+
+- **PRESERVE the historical EXACT-CARDINALITY path/version.** The generalized backoff path
+  is an ADDITION beside it, never a rewrite of it — the approved Phase-A and
+  variable-severity measurements were taken on the exact-cardinality behaviour, and moving
+  it would invalidate them rather than extend them.
+- **The generalized path MAY realize fewer hidden targets than requested** (§3l.1).
+- **Deterministic candidate ordering must derive from STABLE AGENT ORDINALS, not UUID
+  lexical order.** Generated ids are not seed-derived (`CLAUDE.md` §8), so ordering by them
+  would make placement irreproducible across runs of the same seed.
+- **Per-candidate RNG behaviour stays reproducible and ACCOUNTABLE** — an episode's hidden
+  geometry must remain a pure function of its seed, and the stream position must be
+  explainable rather than incidental.
+- **NO new hidden-count feature and NO severity feature may enter `GraphObservation`.** The
+  acting path still reads only the ego's own sensing and its own fuel; `CLAUDE.md` §3 is not
+  up for renegotiation, and a count of what is hidden is exactly the kind of privileged
+  quantity an ego cannot sense.
+
+### 3l.3 Approved fuel-damage (FD) redesign
+
+- **`p(destroy)` REMAINS `1.0`. `p < 1` is DEFERRED** and is not part of this redesign.
+- **The training mixture REMAINS 50 % CLEAN / 25 % MILD / 25 % SEVERE.**
+- **EVERY ACCEPTED GENERATED WORLD MUST BE FD-CAPABLE — even when the sampled condition is
+  CLEAN.** FD capability becomes a property of world ACCEPTANCE rather than something
+  discovered later, which is what makes a matched clean/mild/severe group constructible in
+  the same world by design.
+- **The event point stays at the FIXED 30 % first-leg location initially** — one variable at
+  a time; moving it is a separate later question.
+- **The damaged ego is selected by DETERMINISTIC BOUNDED ELIGIBILITY FALLBACK**, and
+  **eligibility must support BOTH MILD and SEVERE on the SAME selected ego** — otherwise the
+  matched group is not one world with one factor varied.
+- **NO severity downgrade, NO clean conversion, NO seed replacement, NO invisible
+  resampling, and NO unbounded retry.** Each of those silently moves the population every
+  per-cell statistic is reported over.
+- **LIVE validation REMAINS defensive — and its MEANING changes.** Under the generalized
+  design a world is CERTIFIED FD-capable at acceptance, so **a certified candidate that then
+  FAILS live validation is a MEASUREMENT-INTEGRITY DEFECT, not normal attrition.** It is not
+  ordinary accounted episode failure and must not be booked as one.
+- **RECORD the candidates considered, the rejection reasons, the selected ego, the event and
+  window quantities, and the severity accounting.**
+
+### 3l.4 Approved repeated post-FD decision semantics
+
+- **ONLY the ego that ACTUALLY RECEIVES the FD event enters persistent post-FD adaptation
+  state.** No peer enters it.
+- **The IMMEDIATE FD wake REMAINS** exactly as today.
+- **ADDITIONAL wakes occur ONLY for that damaged ego**, and only **after ego-local CONFIRMED
+  COMPLETION of its current assignment, BEFORE it commits to the next remaining
+  assignment.**
+- **NON-DAMAGED egos retain existing executor behaviour and receive NO new wake.**
+- **A target killed by a PEER counts as a completion boundary ONLY when the damaged ego
+  ITSELF locally reaches / confirms that its assigned target is gone.** That is the
+  no-communication rule restated for this seam: the boundary is an ego-local confirmation,
+  never a peer's outcome learned some other way.
+- **If the target is STILL ALIVE after an attack, NO completion wake occurs.**
+- **Simultaneous triggers COALESCE into ONE actor wake.**
+- **The ACTION SET IS UNCHANGED: `PLAN_COMPLIANCE` and ego-global
+  `SELF_PRESERVATION_ABORT`.** **Do NOT add a trim-tail action or any other new action.**
+- **NO peer behaviour change, and NO communication channel of any kind may be introduced.**
+
+### 3l.5 Approved reward / reference architecture
+
+- **CLEAN episodes KEEP the existing second full MATCH-AOU reference solve at t=0.**
+- **DAMAGED episodes DO NOT perform that full t=0 reference solve.** Instead, **immediately
+  after the actual FD fuel mutation and BEFORE the actor's FD decision**, the live state is
+  taken and the episode's SECOND BONMIN call is performed as an **event-conditioned
+  MATCH-AOU CONTINUATION reference.**
+- **The utility already realized before the event is preserved as `U_prefix`:**
+  - **`U_ref = U_prefix + U_cont_reference`**
+  - **`U_achieved = U_prefix + <scored post-FD achieved utility>`**
+- **Post-FD scored utility remains RESTRICTED to continuation-reference ALLOCATED tasks**,
+  preserving the current selected-task reward convention rather than inventing a new one.
+- **Kills outside the reference are ACCOUNTING-ONLY and are NOT reward-bearing.**
+- **Do NOT silently clamp reward.**
+- **THIS IS EXPLICITLY A MATCH-AOU CONTINUATION REFERENCE, NOT A CLAIMED TRUE PHYSICAL
+  ROUTE-OPTIMAL ORACLE.** The frozen solver retains its own independent round-trip movement
+  model, so the reference means "what MATCH-AOU would allocate from here", never "what a
+  physically optimal route would achieve".
+- **The design TARGET remains TWO BONMIN solves per accepted episode** — on a damaged
+  episode the continuation solve REPLACES the t=0 reference solve rather than being added to
+  it.
+
+### 3l.6 Approved evaluation design
+
+- **A FIXED STRATIFIED BENCHMARK with three dimensions:**
+  - `A` in `{2, 3, 4}`;
+  - hidden requested load **LOW = 1** and **HIGH = `A`**;
+  - condition in `{CLEAN, MILD, SEVERE}`;
+  - ⇒ **18 REQUESTED STRATA.**
+- **MATCHED CLEAN / MILD / SEVERE worlds preserve the SAME generated world, the SAME hidden
+  geometry, the SAME initial allocation, the SAME eligible damaged ego and the SAME event
+  point** — **only the damage condition / severity differs.** That is what makes the
+  within-seed comparison a within-world comparison.
+- **RECORD realized hidden counts. Do NOT automatically discard a HIGH stratum world merely
+  because bounded B2 backoff realized fewer hidden targets than requested.**
+- **BEFORE any scientific measurement, INSPECT the requested-vs-realized distributions and
+  REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates.** A HIGH
+  stratum that collapses into the LOW one is not a stratum, and discovering that after a
+  measurement would waste the measurement.
+- **FUTURE actor-only and CTDE generalized measurements MUST use the EXACT SAME frozen
+  benchmark / world manifests.** That shared frozen manifest is what makes the two arms
+  comparable.
+- **HISTORICAL FIXED-CELL MEASUREMENTS ARE NOT THE GENERALIZED BENCHMARK.** §3h, §3j and any
+  old-contract CTDE run measured a different cell under a different contract; none of them
+  is this benchmark, its comparator, or an expectation for it.
+
+### 3l.7 Approved diagnostics / metrics direction
+
+Per accepted episode, the intended observable set is:
+
+- reward, reference utility and achieved utility;
+- targets completed, and **scored** targets completed;
+- aircraft losses, and damaged-ego survival / RTB;
+- **requested and realized hidden cardinality, with the B2 backoff reasons**;
+- **FD eligibility candidates, rejection reasons, the event, and pre/post fuel**;
+- **post-FD wake count and the selected meta-actions**;
+- continuation-solver runtime and allocation count;
+- kills outside the reference;
+- setup rejection reason.
+
+### 3l.8 The PLANNED bounded implementation sequence — **RECORDED, NOT AUTHORIZED**
+
+This is the approved ORDER of future bounded tasks. **Recording it is not authorization to
+implement any of it.** Each step is its own separately scoped, separately reviewed task, and
+each begins only after the previous one is reviewed and integrated:
+
+1. **generalized cardinality + B2 bounded backoff + accounting** (§3l.1, §3l.2);
+2. **FD eligibility-by-construction + persistent post-FD adaptation + repeated wakes**
+   (§3l.3, §3l.4);
+3. **event-conditioned continuation reference + reward checkpoint / accounting** (§3l.5);
+4. **training sampler + frozen stratified evaluation manifest + metrics** (§3l.6, §3l.7);
+5. **bounded runtime / solver validation BEFORE deciding the final scientific run scale**;
+6. **documentation and `CLAUDE.md` locks ONLY AFTER reviewed behaviour exists.**
+
+**Step 6 is deliberately last.** No `CLAUDE.md` contract is written for a design; it is
+written for behaviour that has been implemented, reviewed and integrated.
+
+### 3l.9 What the redesign explicitly does NOT touch
+
+- **The approved historical measurements stand, unmodified and un-reinterpreted.** The
+  Phase-A long baseline (§3h) and the FD-VARIABLE-SEVERITY-v1 actor-only baseline at
+  measured code SHA `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` (§3j,
+  **`APPROVE — VALID MEASUREMENT`**, primary finding NEGATIVE) are **not to be re-run,
+  repaired, resumed, re-tuned or replaced**, and every preserved run tree stays preserved
+  (§6).
+- **`p(destroy) < 1` remains DEFERRED** (§3l.3, §6), as do SAMs / hostile fire and dense
+  per-wake reward. None may be bundled into the generalized redesign.
+- **No communication channel, no peer feature and no privileged label may reach the acting
+  path** (§3l.2, §3l.4; `CLAUDE.md` §3).
+- **The reference roles of `main`, `phase-a-baseline`, `pre-ctde-actor-only` and
+  `flat-final` are unchanged, and no ref is moved or deleted by this record** (§1, §6).
+- **A previously executed OLD-CONTRACT CTDE measurement is OUT OF SCOPE** and must not be
+  reviewed or compared unless the user explicitly asks (§1).
+
+## 4. Current work — GENERALIZED TRAINING / BENCHMARK REDESIGN (ACTIVE, IN DESIGN, NOT IMPLEMENTED); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+
+Start with fresh exact-SHA initialization against the current `main` (§9). **THIS
+documentation task neither authorizes nor runs anything: it RECORDS state only.** It does
+not authorize CC to implement any part of the generalized redesign, to run training, to
+generate a scenario, to call BONMIN, to re-run any completed baseline, or to review a
+previously executed old-contract CTDE measurement.
+
+**THE ACTIVE PHASE IS THE GENERALIZED TRAINING / BENCHMARK REDESIGN — AND IT IS DESIGN
+ONLY.** The repository is **NOT closed and NOT idle**. §3l records the APPROVED DESIGN in
+full and marks **every line of it NOT YET IMPLEMENTED**; §3l.8 records the planned bounded
+implementation sequence and states explicitly that recording it is **not** authorization to
+implement it. The **GPT orchestrator owns the current design / planning work**, **no
+implementation candidate is active**, and **no new scientific measurement is running,
+scheduled or authorized.** THIS handoff-bootstrap record — branch
+`task/generalized-v1-handoff-bootstrap` and its DRAFT PR — is the **only writable repository
+task while its candidate is in flight**, and it modifies exactly one file: this one.
+
+**WHAT THAT CHANGES ABOUT THE PREVIOUS RECORD.** The 2026-08-23 closure record's
+`REPOSITORY CLOSED / IDLE` state is **HISTORICAL and SUPERSEDED**: it was accurate when
+written, the read-only walkthrough it anticipated took place, and the project then entered
+the redesign. **Task 9 below — the first controlled actor-only vs CTDE comparison on the OLD
+FIXED CELL — is NO LONGER the live next action** (see its own heading). Its constraints,
+non-claims and prohibitions are preserved unchanged and remain binding if it is ever
+resumed, and **nothing here claims any CTDE result, benefit or validity.**
+
 
 **THE ORDERING, STATED ONCE — PARALLEL SINCE 2026-08-22, AND NOW FULLY TRAVERSED.** By
 explicit user/orchestrator decision the approved arrangement was: **(1)** preserve the
@@ -1453,19 +1750,20 @@ IMMUTABLE (§3h), and `phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30
 not move — it is historical provenance for the ORIGINAL Phase-A reference and is never
 repurposed as the future pre-CTDE reference.
 
-**OWNERSHIP — THE CTDE GPT ORCHESTRATOR HOLDS IT, INCLUDING FOR THIS RECORD.** Through the
+**OWNERSHIP — THE GPT ORCHESTRATOR HOLDS IT, INCLUDING FOR THIS RECORD.** Through the
 parallel phase the CTDE GPT orchestrator was the SOLE WRITABLE repository owner and the FD
 measurement orchestrator was READ-ONLY on its detached snapshot. *(Historical: the user
 granted the FD orchestrator a ONE-TIME writable exception scoped to the variable-severity
 closure record alone; that exception ENDED when the record was integrated, and the FD
 orchestrator reverted to READ-ONLY with no writable branch or PR.)* Writable ownership then
-returned to the CTDE GPT orchestrator, which integrated PR #30 and then the CTDE
-documentation/lock PR #32 — **both are now CLOSED** — and **it owns THIS chat/repository
-CLOSURE task as well**: branch `task/ctde-chat-closure-handoff` and its draft PR are the
-only writable candidate while this record is in flight, and **upon its integration the
-repository is CLOSED / IDLE with no writable task.** **The CTDE integration gate's
-repository-side prerequisite is DISCHARGED**: `pre-ctde-actor-only` =
-`d437084c5fb1a22c21596a48c58e03f7e15a0115` exists and must not move.
+returned to the GPT orchestrator, which integrated PR #30, the CTDE documentation/lock
+PR #32 and the chat/repository closure PR #33 — **all three are CLOSED** — and **it now owns
+the GENERALIZED design / planning work (§3l, Task 10) and THIS handoff-bootstrap record**:
+branch `task/generalized-v1-handoff-bootstrap` and its DRAFT PR are the only writable
+candidate while this record is in flight, and **NO implementation candidate is active.**
+**The CTDE integration gate's repository-side prerequisite is DISCHARGED**:
+`pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115` exists and must not
+move.
 
 **Tasks 0–5 are ALL DONE.** Defect A (`d56fda6`, PR #17), Defect B (`39a16f2`, PR #19) and
 Defect C (`ea62e4e`, PR #21) closed the three-defect CODE correction. The corrected-cell
@@ -1553,8 +1851,16 @@ its proof obligations; and the actor-only preservation and checkpoint distinctio
 send CTDE back to a design/recon step, and do not rebuild what is merged.** Changing any of
 it is a Grade-A change to a locked layer, routed through `CLAUDE.md` §6.
 
-**Task 9 — THE FIRST CONTROLLED ACTOR-ONLY vs CTDE SCIENTIFIC COMPARISON. OPEN. NOT RUN.**
-This is the next unresolved task and the only genuinely open part of Phase B. **No CTDE
+**Task 9 — THE FIRST CONTROLLED ACTOR-ONLY vs CTDE SCIENTIFIC COMPARISON ON THE OLD FIXED
+CELL. NO LONGER THE LIVE NEXT ACTION — SUPERSEDED IN ORDERING BY THE GENERALIZED REDESIGN
+(Task 10, §3l).** **TWO things changed since this task was written, and they are separate.**
+(i) The live phase is now the GENERALIZED redesign, so this fixed-cell comparison is NOT
+what the repository does next. (ii) **A CTDE measurement HAS since been executed under the
+OLD FIXED-CELL contract; it is OUT OF SCOPE for the generalized redesign and must NOT be
+reviewed, re-analysed or compared unless the user EXPLICITLY asks** (§1) — this record
+states no identity, no measured SHA, no denominator and no verdict for it, because it did
+not inspect it. **Everything below is PRESERVED UNCHANGED and remains binding if this task
+is ever resumed**, and none of it is authorized by this record. **No CTDE
 benefit may be pre-claimed** — not from the Phase-A result, not from the variable-severity
 baseline (whose NEGATIVE severity finding is **NOT** evidence that centralized training
 would change it), and **not from CTDE implementation work, engineering tests, bounded
@@ -1629,6 +1935,54 @@ variable-severity `MAX_PATH` precursor (§3j). **TWO valid scientific baselines 
 they measure DIFFERENT cells: §3h is the LEGACY FD-BASELINE-v1 baseline, and §3j is the
 FD-VARIABLE-SEVERITY-v1 baseline. Neither is an expectation for the other, and neither is an
 expectation for any CTDE comparison.**
+
+**Task 10 — GENERALIZED TRAINING / BENCHMARK REDESIGN. ACTIVE, IN DESIGN, NOT IMPLEMENTED.
+THIS IS THE LIVE PHASE.** Its APPROVED DESIGN is recorded in **§3l** and is not repeated
+here: generalized cardinality with bounded B2 backoff (§3l.1–§3l.2), FD capability by
+construction with deterministic bounded ego eligibility (§3l.3), repeated post-FD decision
+points for the damaged ego alone (§3l.4), the event-conditioned MATCH-AOU continuation
+reference (§3l.5), the fixed stratified 18-stratum benchmark (§3l.6), and the diagnostics
+that make all of it readable (§3l.7).
+
+- **STATUS: DESIGN ONLY.** **Nothing in §3l is implemented**, no implementation candidate is
+  active, no generalized world has been generated and no generalized measurement exists,
+  is running, or is authorized.
+- **OWNERSHIP:** the **GPT orchestrator** owns the design / planning work. THIS
+  documentation record is the only writable repository task while its candidate is in
+  flight.
+- **THE PLANNED SEQUENCE IS §3l.8, AND RECORDING IT IS NOT AUTHORIZATION.** Each of its six
+  steps is a separate, separately scoped, separately reviewed bounded task, and each starts
+  only after the previous one is reviewed and integrated. **Documentation and `CLAUDE.md`
+  locks are step 6 — last — and are written only for behaviour that already exists.**
+- **THE GATE ON STEP 1.** Implementation task 1 (generalized cardinality + B2 bounded
+  backoff + accounting) may begin **only after (a) the GPT orchestrator has reviewed THIS
+  record at its exact full SHA, and (b) the user has authorized continuation.** Absent both,
+  nothing is implemented (§8).
+- **BINDING CONSTRAINTS CARRIED INTO EVERY STEP.** Several approved directions in §3l
+  deliberately depart from contracts `CLAUDE.md` §5 currently locks — B2 exact cardinality,
+  the fixed 3/3/3 cell, the FD eligibility and failure policy, and the damaged-episode t=0
+  reference solve. **Each is a Grade-A change to a locked layer, routed through
+  `CLAUDE.md` §6**, never folded into another task. In addition: the historical
+  exact-cardinality path is PRESERVED, no severity or hidden-count feature may reach
+  `GraphObservation`, no new meta-action is added, no peer behaviour changes, no
+  communication channel is introduced, `p(destroy)` stays `1.0`, and `p(destroy) < 1`, SAMs
+  and dense reward stay OUT (§6).
+- **THE COMPARATOR PROBLEM, STATED ONCE.** The generalized benchmark is a **NEW** benchmark.
+  **Historical fixed-cell measurements are NOT it** — §3h, §3j and any old-contract CTDE run
+  measured a different cell under a different contract, so none of them is a generalized
+  baseline, a generalized comparator or a generalized expectation. Future actor-only and
+  CTDE generalized measurements must run against the **exact same frozen benchmark / world
+  manifests** (§3l.6); that shared manifest is what makes them comparable to each other.
+- **VALIDITY BEFORE PERFORMANCE, unchanged.** The validity gate stated under Task 9 above
+  applies to any generalized measurement too, and the interpretation rules survive unchanged
+  — a mean is never read without its denominator, an all-failed batch is `null` and never
+  `0.0`, within-seed claims come only from COMPLETE matched groups, and FD-wake rates are
+  reported over FD WAKES. **A null or negative generalized result is a valid observation,
+  not a technical failure and not grounds to re-tune, re-seed or re-run.**
+- **ONE ADDITIONAL PRE-MEASUREMENT CHECK IS PART OF THE DESIGN, NOT AN OPTION.** Before any
+  scientific generalized measurement, the requested-vs-realized hidden-cardinality
+  distributions must be INSPECTED, and the benchmark REJECTED or REDESIGNED if the HIGH load
+  systematically degenerates (§3l.6).
 
 ## 5. Closed decisions
 
@@ -1715,9 +2069,32 @@ expectation for any CTDE comparison.**
 ## 6. Out of scope for the current work
 
 The additional actor-only FD-VARIABLE-SEVERITY-v1 baseline (§4, Task 7) is **CLOSED,
-VALID and NEGATIVE** (§3j), and **PHASE-B CTDE IMPLEMENTATION is CLOSED, REVIEWED and
-MERGED** (§4, Task 8; §3k), so the current work is **the first controlled actor-only vs
-CTDE scientific comparison** (§4, Task 9), which has NOT been run. Out of scope:
+VALID and NEGATIVE** (§3j), **PHASE-B CTDE IMPLEMENTATION is CLOSED, REVIEWED and MERGED**
+(§4, Task 8; §3k), and **the current work is the GENERALIZED TRAINING / BENCHMARK REDESIGN
+(§4, Task 10; §3l), which is IN DESIGN and NOT IMPLEMENTED.** Out of scope:
+
+- **IMPLEMENTING ANY PART OF THE GENERALIZED REDESIGN FROM THIS RECORD.** §3l is an approved
+  DESIGN and §3l.8 is a PLAN; neither authorizes code. **No generalized cardinality, B2
+  backoff, FD eligibility change, post-FD wake, continuation reference, benchmark manifest,
+  sampler or metric may be written on the strength of this document** — step 1 begins only
+  after GPT exact-SHA review of this record AND explicit user-authorized continuation (§8);
+- **CLAIMING, IMPLYING OR ASSUMING THAT ANY GENERALIZED BEHAVIOUR EXISTS, WORKS OR HAS BEEN
+  MEASURED.** Nothing generalized is implemented, benchmarked or measured, and no
+  generalized result may be pre-claimed (§3l);
+- **WRITING `CLAUDE.md` RECORDS FOR THE GENERALIZED DESIGN.** `CLAUDE.md` is untouched by
+  this record and its contracts remain authoritative; generalized locks belong to step 6 of
+  §3l.8, **after** reviewed behaviour exists;
+- **CREATING A SECOND HANDOFF OR A SEPARATE DESIGN DOCUMENT.** There is ONE handoff — this
+  file — and the generalized design lives in §3l of it;
+- **REVIEWING, RE-ANALYSING OR COMPARING THE PREVIOUSLY EXECUTED OLD-CONTRACT CTDE
+  MEASUREMENT** — out of scope for the redesign unless the user EXPLICITLY asks (§1, §4
+  Task 9);
+- **TREATING ANY HISTORICAL FIXED-CELL MEASUREMENT AS THE GENERALIZED BENCHMARK, ITS
+  COMPARATOR OR AN EXPECTATION FOR IT** (§3l.6);
+- **RUNNING ANYTHING** from a documentation task — no training, no rollout, no BLADE
+  scenario, no BONMIN solve, no probe, no artifact generation;
+- **DELETING, MOVING OR CREATING ANY BRANCH OR TAG from this record** beyond the named task
+  branch it pushes (§1);
 
 - **any training run driven from THIS documentation task** — it authorizes none;
 - **CHANGING ANY CODE, TEST, CONFIG OR PRESET IN RESPONSE TO TASK 7.** It was a
@@ -1854,9 +2231,32 @@ obligations and bounded implementation/lock task.
 | PHASE-B CTDE IMPLEMENTATION lands — **DONE for PR #30** | The two training modes and `TrainConfig.training_mode` as the ONLY selector, actor-only preservation (keyword omission, the POISON test and its CONTROL), the training-only critic and its structural separation from the actor, the central graph's liveness / no-ego symmetry / features / edges and the ENUMERATED privileged-input EXCLUSIONS, the same-tick capture seam and its 1:1 alignment, GAE over the GLOBAL decision sequence with a zero terminal next value, the preserved meaning of `baseline` / `train_reward_mean`, the persisted critic diagnostics and the checkpoint distinction recorded as a contract in `CLAUDE.md` §5, routed in §6, and locked in §7 with the append-only fix chain, the exact six changed files, the two DISTINCT immutable references (`pre-ctde-actor-only` vs `phase-a-baseline`) and the CC-reported engineering evidence LABELLED as implementation validation. §2's locked-layer wording widened to include the CTDE layer; §4's pipeline diagram, §5's encoder note and §8's gate updated so nothing still says the critic is open or that there is no value head. §3k summarizes it here — **recorded WITHOUT pre-claiming any result: no scientific run occurred for PR #30 and no actor-only vs CTDE comparison has been executed** |
 | PHASE-B CTDE DOCUMENTATION / LOCK lands — **DONE for PR #32** | Approved candidate `c607f3fabcbd58f6f10cfde6bcc34068f09e4121`, verdict `APPROVE`, integrated by normal merge `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` with ordered parents `8390d85c2072e9cbe984ce5f2731cef3a9b14985` then `c607f3f…`, recorded in §1 with the CTDE technical contract, routing and lock living in `CLAUDE.md` §5–§7 and summarized here in §3k. **No code, test, config or preset changed; no run occurred; no CTDE result was pre-claimed** |
 | CHAT / REPOSITORY CLOSURE recorded — **DONE (2026-08-23)** | Record, here (§1, §4, §7, §8), that PR #32 / `task/phase-b-ctde-doc-lock` is CLOSED / MERGED and is no longer the current writable task; that `main` = `7b6c07586811374f3f35e26ed33e1fcf4a9f2e96` / tree `8a0b7a0aa9e65ebf01fce99c9b27ee25886ba7a6` is this record's base and its historical closure provenance; that this closure branch is the SOLE writable candidate only while in flight and that repository state is CLOSED / IDLE upon its integration; the FOUR preserved reference roles (`main`, `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final`, plus the `pre-cleanup` tag) and their NON-interchangeability; the four `task/*` branches as RETIRED and cleanup-eligible rather than active; that the next USER activity is a READ-ONLY interactive walkthrough; and that the next repository/scientific task remains Task 9, NOT started. **Volatile state ONLY — `CLAUDE.md` is untouched, no technical contract changes, no CTDE benefit is claimed, no actor-only rerun is authorized, `p(destroy) < 1` / SAMs / dense reward / solver and reward changes / new difficulty factors stay outside Task 9, and this record's own integrating merge SHA is deliberately NOT named** |
-| The FIRST actor-only vs CTDE COMPARISON completes — **NOT RUN** | Record run identity, exact measured code SHA, the resolved configuration, complete provenance, every denominator, the held-out results with their own denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **The comparator is the ALREADY-APPROVED original Phase-A actor-only baseline (`737b4bf…`, §3h), which is NOT re-run** — so record the CTDE arm's own measured SHA and state EXPLICITLY that the two records carry DISTINCT measured code SHAs; never claim the arms differ only by one `training_mode` field. The factor under test is actor-only training vs centralized-critic training, with the CTDE run matching the approved baseline's locked cell, schedule, seed policy, held-out band and evaluation construct. A newly executed actor-only CONTROL arm would be a separate research-design decision needing explicit user authorization. **Validity is judged BEFORE performance; a null or negative CTDE result is a valid observation, not a technical failure** |
+| The FIRST actor-only vs CTDE COMPARISON on the OLD FIXED CELL completes — **NO LONGER THE LIVE NEXT ACTION (§4, Task 9); an OLD-CONTRACT CTDE run WAS executed and is OUT OF SCOPE / NOT REVIEWED HERE (§1)** | Record run identity, exact measured code SHA, the resolved configuration, complete provenance, every denominator, the held-out results with their own denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **The comparator is the ALREADY-APPROVED original Phase-A actor-only baseline (`737b4bf…`, §3h), which is NOT re-run** — so record the CTDE arm's own measured SHA and state EXPLICITLY that the two records carry DISTINCT measured code SHAs; never claim the arms differ only by one `training_mode` field. The factor under test is actor-only training vs centralized-critic training, with the CTDE run matching the approved baseline's locked cell, schedule, seed policy, held-out band and evaluation construct. A newly executed actor-only CONTROL arm would be a separate research-design decision needing explicit user authorization. **Validity is judged BEFORE performance; a null or negative CTDE result is a valid observation, not a technical failure** |
+| GENERALIZED-V1 HANDOFF BOOTSTRAP recorded — **DONE (2026-08-25)** | Record, here (§1, §3l, §4, §6, §7, §8, §9), that the repository is NO LONGER CLOSED / IDLE; that the GENERALIZED TRAINING / BENCHMARK REDESIGN is the ACTIVE research/design phase owned by the GPT orchestrator; that NO implementation candidate is active, NOTHING generalized is implemented, and NO new scientific measurement is running or authorized; that this handoff-bootstrap task is the only writable repository task while its candidate is in flight; the APPROVED DESIGN in a dedicated §3l section — generalized cardinality with bounded B2 backoff, B2/reproducibility direction, the FD redesign, repeated post-FD decision semantics, the event-conditioned continuation reference, the 18-stratum benchmark, the diagnostics and the six-step planned sequence — **every part of it MARKED NOT YET IMPLEMENTED**; that a previously executed OLD-CONTRACT CTDE measurement is OUT OF SCOPE and not to be reviewed or compared unless the user explicitly asks; and the dated decision log plus the transfer/initialization protocol in §9. **Volatile state and PLAN ONLY — `CLAUDE.md` is untouched, no technical contract is defined, changed or locked, no code/test/config/preset changes, no run occurs, no generalized behaviour is claimed to exist, the approved historical measurements are not reinterpreted, and no ref is moved or deleted** |
+| Each GENERALIZED implementation step lands (§3l.8 steps 1–5) — **NOT STARTED** | One separately scoped, separately reviewed bounded task per step, in order, each beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **only at step 6, after reviewed behaviour exists** — never in advance and never for a design. Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical exact-cardinality path is PRESERVED beside the generalized one. **Record requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting as first-class observables (§3l.7) — recorded without pre-claiming any result** |
+| The FROZEN GENERALIZED BENCHMARK is built (§3l.8 step 4) — **NOT STARTED** | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator** |
+| The FIRST GENERALIZED scientific measurement completes — **NOT RUN, NOT AUTHORIZED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Validity is judged BEFORE performance; a null or negative generalized result is a valid observation, not a technical failure** |
 
 ## 8. Next action
+
+**THE SINGLE NEXT ACTION IS UNAMBIGUOUS: GENERALIZED IMPLEMENTATION TASK 1 — AND IT IS
+GATED.** The live phase is the GENERALIZED TRAINING / BENCHMARK REDESIGN (§3l, §4 Task 10),
+it is **IN DESIGN and NOT IMPLEMENTED**, and the GPT orchestrator owns it. The next thing
+the repository does is **step 1 of §3l.8 — generalized cardinality + B2 bounded backoff +
+accounting** — and it may begin **ONLY after BOTH of:**
+
+1. **the GPT orchestrator has reviewed THIS record at its exact full SHA**, and
+2. **the user has authorized continuation.**
+
+**Until both hold, NOTHING is implemented, generated, solved, trained or measured.** No
+other task is next: not steps 2–6 (they follow step 1, each separately reviewed), not the
+old fixed-cell Task-9 CTDE comparison (superseded in ordering, §4), not a review of the
+previously executed old-contract CTDE measurement (out of scope unless the user explicitly
+asks, §1), and not a re-run of any approved historical baseline (prohibited, §6).
+**Nothing generalized exists yet, and no generalized result may be pre-claimed.**
+
+**THE REST OF THIS SECTION IS THE PRESERVED RECORD OF THE CLOSED PHASES**, accurate about
+them and unchanged in meaning.
 
 Implementation for the Phase-A baseline cell is COMPLETE and locked, its inspection surface
 is merged, repository hygiene is CLOSED (PR #11 code, PR #12 documentation), the **probe
@@ -1874,10 +2274,12 @@ about live `main`. **The variable-severity baseline has its OWN durable measured
 `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` / tree
 `dd881478b8e2e521054d09bc865437f1308be1a2`, the variable-severity documentation merge
 (PR #28) — also not a live head (§1, §3j). **This record's BASE is a THIRD SHA:**
-`8390d85c2072e9cbe984ce5f2731cef3a9b14985`, tree
-`9686c107b8864f00a7d4403d70faf42ab561d2fb` — the **Phase-B CTDE code merge (PR #30)**,
-which is an already-existing CODE INTEGRATION and not a measurement identity. Resolve the
-live full `main` SHA from GitHub.
+`76abdc480e80a84f1503208730d4525cd5e89b69`, tree
+`237325d2c2a41950eab103a8b08c9442e5c9fa97` — the **chat / repository CLOSURE merge
+(PR #33)**, which is an already-existing DOCUMENTATION INTEGRATION and not a measurement
+identity. *(The PREVIOUS record's base was `8390d85c2072e9cbe984ce5f2731cef3a9b14985`, the
+Phase-B CTDE code merge, PR #30; that is historical provenance now.)* **Resolve the live
+full `main` SHA from GitHub** (§9).
 
 **THE MEASUREMENT STATE, STATED PLAINLY. PHASE A IS CLOSED, AND ITS BASELINE IS
 IMMUTABLE.** The authorized long-baseline rerun —
@@ -1958,8 +2360,11 @@ baseline, whose NEGATIVE severity finding is **NOT** evidence that centralized t
 would change it; and not from PR #30's implementation work, engineering tests or passing
 suite, none of which measure anything scientific.
 
-**THE NEXT UNRESOLVED TASK IS THE FIRST CONTROLLED ACTOR-ONLY vs CTDE COMPARISON** (§4,
-Task 9). **Its comparator is the ALREADY-APPROVED original Phase-A actor-only baseline**
+**THE FIRST CONTROLLED ACTOR-ONLY vs CTDE COMPARISON ON THE OLD FIXED CELL — PRESERVED,
+BUT NO LONGER THE NEXT ACTION** (§4, Task 9; superseded in ORDERING by the generalized
+redesign, and note that an OLD-CONTRACT CTDE measurement has since been executed and is OUT
+OF SCOPE unless the user explicitly asks, §1). **Its comparator is the ALREADY-APPROVED
+original Phase-A actor-only baseline**
 (measured code SHA `737b4bfdfa083b0b8f59e8e4274b719a34ab78fc`, §3h), which is PRESERVED and
 **NOT authorized to be re-run** — so what Task 9 schedules is the **CTDE arm**, matching
 that baseline's **LOCKED cell** (3 agents, 3 known + 3 hidden, 200 km / 100 km geometry,
@@ -1977,23 +2382,27 @@ change, or any new difficulty factor** (§6) — bundling one would make it unin
 run showing no CTDE improvement is a **valid NEGATIVE observation**, not a technical
 failure. **No CTDE preset exists in the repository**, and creating one belongs to that task.
 
-**OWNERSHIP, AND THE CLOSURE ITSELF.** The CTDE GPT orchestrator holds sole writable
-repository ownership, including for THIS chat/repository CLOSURE task — branch
-`task/ctde-chat-closure-handoff` and its draft PR are the only writable candidate while this
-record is in flight, and **UPON ITS INTEGRATION the repository is CLOSED / IDLE: no writable
-task, no open code candidate, no open PR and no scientific run in progress.** *(Historical:
-`task/phase-b-ctde-doc-lock` was the writable task under the PREVIOUS record and closed as
-PR #32; earlier still, the FD measurement orchestrator's ONE-TIME writable exception, scoped
-to the variable-severity closure record alone, ENDED when that record was integrated.)* This
-record's own integrating merge SHA is deliberately NOT named — it does not exist while this
-is written, and inventing it would be a false provenance claim. **GitHub remains
+**OWNERSHIP, AND THIS RECORD ITSELF.** The **GPT orchestrator owns the current GENERALIZED
+design / planning work** and holds sole writable repository ownership, including for THIS
+handoff-bootstrap task — branch `task/generalized-v1-handoff-bootstrap` and its DRAFT PR
+are the only writable candidate while this record is in flight. **NO implementation
+candidate is active**, and **upon this record's integration the next thing that may happen
+is step 1 of §3l.8, gated as stated at the top of this section.** *(Historical:
+`task/ctde-chat-closure-handoff` was the writable task under the PREVIOUS record and closed
+as PR #33; before it, `task/phase-b-ctde-doc-lock` closed as PR #32; earlier still, the FD
+measurement orchestrator's ONE-TIME writable exception, scoped to the variable-severity
+closure record alone, ENDED when that record was integrated. The `REPOSITORY CLOSED / IDLE`
+state that record announced is SUPERSEDED — the repository is active again, in design.)*
+This record's own integrating merge SHA is deliberately NOT named — it does not exist while
+this is written, and inventing it would be a false provenance claim. **GitHub remains
 authoritative for live branch and PR state — resolve it there, never from this document.**
 Retiring any merged branch is a separate action owned by the GPT orchestrator, done only
 once each tip is verified reachable from integrated `main`; the FOUR cleanup-eligible
-`task/*` branches enumerated in §1 are ELIGIBLE for that bounded follow-up task and were NOT
-deleted here, while `pre-ctde-actor-only`, `phase-a-baseline`, `flat-final`, the
-`pre-cleanup` tag, PR #30's and PR #32's history and every preserved scientific artifact
-stay PRESERVED and are NEVER cleanup-eligible.
+`task/*` branches enumerated in §1 — plus `task/ctde-chat-closure-handoff` since PR #33
+merged — are ELIGIBLE for that bounded follow-up task and were NOT deleted here, while
+`pre-ctde-actor-only`, `phase-a-baseline`, `flat-final`, the `pre-cleanup` tag, PR #30's,
+PR #32's and PR #33's history and every preserved scientific artifact stay PRESERVED and are
+NEVER cleanup-eligible.
 
 **NEITHER the Phase-A long baseline NOR the variable-severity baseline is to be re-run,
 resumed, repaired, extended or re-tuned.** A valid measurement exists for each; re-running
@@ -2004,13 +2413,57 @@ replacement for it.
 
 Resolve live branch and PR state from GitHub; this document does not track it.
 
-**THE NEXT USER ACTIVITY IS A READ-ONLY INTERACTIVE WALKTHROUGH** of the project and the
-CTDE / FD architecture in a fresh chat: reading and explanation only, writing nothing,
-running nothing and authorizing nothing. **THE NEXT REPOSITORY / SCIENTIFIC TASK REMAINS
-TASK 9** — the first controlled CTDE measurement against the EXISTING approved Phase-A
-actor-only baseline (§4) — and it is **NOT started, NOT authorized and NOT scheduled by this
-record**. No CTDE benefit is claimed, no fresh actor-only rerun is authorized, and
-`p(destroy) < 1`, SAMs, dense reward, solver or reward-formula changes and any new
-difficulty factor remain OUTSIDE it (§6).
+**THE NEXT REPOSITORY ACTION, RESTATED ONCE AND ONLY ONCE: GENERALIZED IMPLEMENTATION
+TASK 1 (§3l.8 step 1), AND ONLY AFTER GPT EXACT-SHA REVIEW OF THIS RECORD PLUS
+USER-AUTHORIZED CONTINUATION.** Nothing else is next. The generalized design in §3l is
+approved but **NOT IMPLEMENTED**, no generalized measurement is running or authorized,
+`p(destroy) < 1`, SAMs, dense reward, solver or reward-formula changes and any further
+difficulty factor remain OUTSIDE it (§6), and the approved historical measurements are
+neither re-run nor reinterpreted.
 
 **This document authorizes neither an implementation nor a training run.**
+
+## 9. Transfer protocol and decision log
+
+### 9.1 How a receiving orchestrator initializes — MANDATORY, IN THIS ORDER
+
+**No SHA in this document is a claim about live `main`.** Every SHA here is either a
+historical integration, a durable MEASUREMENT identity, or this record's own derivation
+base. Before acting on anything, a receiving orchestrator (GPT or Claude) **MUST**:
+
+1. **RESOLVE THE LIVE FULL `main` SHA FROM GITHUB.** GitHub is authoritative for live branch
+   and PR state; this document is not, and neither is a chat summary, a Project Source, a
+   memory entry or a pasted narrative.
+2. **RE-READ `CLAUDE.md` AND THIS HANDOFF AT THAT SAME EXACT SHA.** Reading one document at
+   one SHA and the other at another is how a stale contract gets applied to current code.
+   `CLAUDE.md` owns every technical contract; this handoff owns volatile state and the
+   active plan; **code and tests remain decisive.**
+3. **INSPECT ACTIVE REPOSITORY STATE BEFORE ACTING** — open PRs, open candidates, live task
+   branches, and **who currently holds writable ownership.** Never infer from this document
+   that a branch, PR or ownership assignment still holds; §1 and §4 record what was true
+   when written.
+4. **ONLY THEN ACT** — and act within the declared transport mode, grade and scope discipline
+   of `CLAUDE.md` §1.
+
+**Two standing rules that do not expire:** a documentation record never authorizes an
+implementation or a run, and **validity is judged before performance** — a valid negative
+result is a result, while a run whose denominator an instrument defect shrank is not a
+result at all.
+
+### 9.2 Decision log — append one dated entry per MATERIAL change
+
+**A material change is one that alters what the project is doing, who owns it, what is
+authorized, or what a measurement means.** Routine progress inside an already-recorded task
+does not belong here. Append; never rewrite an entry — supersede it with a new one and say
+so.
+
+| Date | Decision | Consequence |
+|---|---|---|
+| 2026-08-18 | **PHASE A CLOSED** on the approved long-baseline rerun at measured code SHA `737b4bf…` (§3h) | The first scientifically valid measurement of the fuel-damage cell; **not to be re-run, repaired or re-tuned**; its non-claims are binding |
+| 2026-08-20 | **FD-VARIABLE-SEVERITY-v1 CODE merged** (PR #27, §3i) | An ADDITIONAL actor-only stress design beside FD-BASELINE-v1; legacy modes preserved byte-for-byte; `p(destroy) < 1` explicitly NOT implemented |
+| 2026-08-22 | **Serial ordering SUPERSEDED to PARALLEL**: the variable-severity measurement pinned to an immutable detached snapshot while Phase-B CTDE design/implementation proceeded beside it (§4) | The measurement stayed an ACTOR-ONLY measurement OF ITS PINNED SHA; later CTDE work is outside the measured tree |
+| 2026-08-23 | **Variable-severity baseline CLOSED — `APPROVE — VALID MEASUREMENT`, PRIMARY FINDING NEGATIVE**, at measured code SHA `bf1e045f…` (§3j) | A valid negative result, not a defect; **not to be re-run, repaired or re-tuned**; it establishes nothing about centralized training |
+| 2026-08-23 | **PHASE-B CTDE IMPLEMENTATION merged** (PR #30, §3k) and **documented** (PR #32); `pre-ctde-actor-only` preserved; CTDE integration gate CLOSED on both halves | The implementation is a locked `CLAUDE.md` §5 contract; **no CTDE scientific comparison was run by it and no benefit was claimed** |
+| 2026-08-23 | **Repository CLOSED / IDLE** for transfer (PR #33) | True when written; **SUPERSEDED on 2026-08-25** |
+| *(undated here)* | **An OLD-CONTRACT CTDE measurement was EXECUTED** on the old fixed cell (§1) | **OUT OF SCOPE for the generalized redesign; not to be reviewed, re-analysed or compared unless the user EXPLICITLY asks.** No identity, SHA, denominator or verdict is recorded here — this task did not inspect it, and inventing any would be false provenance. Reconciling `CLAUDE.md` §8's pre-existing "not run" wording is a step-6 documentation duty (§3l.8) |
+| 2026-08-25 | **GENERALIZED TRAINING / BENCHMARK REDESIGN becomes the ACTIVE research/design phase**, owned by the GPT orchestrator; its APPROVED DESIGN recorded in §3l and **marked NOT YET IMPLEMENTED**; this handoff-bootstrap task is the only writable repository task while its candidate is in flight | The repository is **no longer CLOSED / IDLE**; the old fixed-cell Task-9 framing is **no longer the live next action**; **no implementation candidate is active and no new scientific measurement is running or authorized**; the single next action is §3l.8 step 1, gated on GPT exact-SHA review of this record plus user-authorized continuation (§8) |
