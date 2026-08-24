@@ -63,11 +63,22 @@ if none is eligible the placement falls back to leg 1; if leg 1 is invalid too,
 nearest-neighbor ordering is never changed, and the coordinate is never moved onto an
 unstable leg.
 
-CARDINALITY
------------
-Exactly ONE placement per ego route (three placements for three egos in the B1 reference
-cell). A general ``n_hidden != number of usable ego routes`` distribution policy is a
-later, explicit design task and is deliberately NOT invented here.
+CARDINALITY -- TWO EXPLICIT POLICIES
+------------------------------------
+``exact_v1`` (:func:`place_hidden_targets`) is the HISTORICAL policy: exactly ONE
+placement per ego route (three placements for three egos in the B1 reference cell), and
+a loud failure for an ego the solve left without a route. The approved Phase-A and
+FD-VARIABLE-SEVERITY-v1 measurements were taken on it, so it is preserved byte-for-byte
+-- same geometry, same sorted-ego iteration, same RNG draw order, same failure messages.
+
+``bounded_backoff_v1`` (:func:`place_hidden_targets_bounded`) is the GENERALIZED-V1
+ADDITION beside it, never a rewrite of it. It walks a deterministic seed-driven
+permutation of STABLE AGENT ORDINALS -- every scheduled ego, including the ones the
+allocated-only solve omitted -- attempts the SAME single-route geometry on each with its
+OWN pre-derived RNG substream, and stops at the requested count or at candidate
+exhaustion. Realizing FEWER hidden targets than requested is a legitimate, recorded
+outcome (``H_realized >= 1`` is the acceptance rule); realizing none is a refusal.
+Multiple hidden targets on ONE ego route are deliberately out of scope in this version.
 
 NUMERICS
 --------
@@ -109,14 +120,52 @@ EARTH_RADIUS_KM = 6371.0088
 # `gap > 2 * detection_km`.
 TIE_MARGIN_DETECTION_MULTIPLE = 2.0
 
+# --- hidden-cardinality policies (explicit, never inferred) -------------------------
+# The HISTORICAL policy: exactly one placement per ego route, loud failure otherwise.
+# Every approved measurement to date was taken on it, so it stays the DEFAULT everywhere.
+HIDDEN_POLICY_EXACT_V1 = "exact_v1"
+# The GENERALIZED-V1 policy: deterministic bounded backoff over stable agent ordinals,
+# accepting any realized count >= 1.
+HIDDEN_POLICY_BOUNDED_BACKOFF_V1 = "bounded_backoff_v1"
+HIDDEN_CARDINALITY_POLICIES: Tuple[str, ...] = (
+    HIDDEN_POLICY_EXACT_V1,
+    HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+)
+
+# --- stable backoff rejection reasons ------------------------------------------------
+# Slugs, not prose: they are the machine-readable half of a candidate outcome, so an
+# audit can be aggregated across episodes. The human detail rides alongside in
+# `BackoffCandidate.detail` and is never the thing anything branches on.
+REASON_NO_ROUTE = "no_route"                       # ego absent from A_init, or empty route
+REASON_ROUTE_UNRESOLVABLE = "route_unresolvable"   # the route itself could not be predicted
+REASON_NO_ELIGIBLE_LEG = "no_eligible_leg"         # no later leg eligible AND leg 1 unusable
+REASON_GEOMETRY_REJECTED = "geometry_rejected"     # construction/re-measurement refused it
+BACKOFF_REJECTION_REASONS: Tuple[str, ...] = (
+    REASON_NO_ROUTE,
+    REASON_ROUTE_UNRESOLVABLE,
+    REASON_NO_ELIGIBLE_LEG,
+    REASON_GEOMETRY_REJECTED,
+)
+
 __all__ = [
     "Assignment",
+    "BACKOFF_REJECTION_REASONS",
+    "BackoffCandidate",
+    "BoundedBackoffAudit",
     "EARTH_RADIUS_KM",
+    "HIDDEN_CARDINALITY_POLICIES",
+    "HIDDEN_POLICY_BOUNDED_BACKOFF_V1",
+    "HIDDEN_POLICY_EXACT_V1",
     "HiddenPlacement",
     "HiddenPlacementError",
     "PlacementParameters",
+    "REASON_GEOMETRY_REJECTED",
+    "REASON_NO_ELIGIBLE_LEG",
+    "REASON_NO_ROUTE",
+    "REASON_ROUTE_UNRESOLVABLE",
     "geometric_fingerprint",
     "place_hidden_targets",
+    "place_hidden_targets_bounded",
     "predict_route",
     "validate_placement",
 ]
@@ -270,6 +319,89 @@ def geometric_fingerprint(
         (round(float(p.latitude), ndigits), round(float(p.longitude), ndigits))
         for p in placements
     )
+
+
+# ---------------------------------------------------------------------------
+# Bounded-backoff audit records (GENERALIZED-V1)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BackoffCandidate:
+    """What the bounded-backoff walk did with ONE candidate ego, and why.
+
+    A typed record rather than a console line: requested-vs-realized cardinality is
+    meant to be inspected as a DISTRIBUTION across episodes, which an unstructured log
+    cannot support.
+
+    ``ordinal`` is the candidate's index in the authoritative pre-solve agent sequence and
+    is the ONLY stable cross-run identity here -- ``ego_id`` is an auxiliary, EPISODE-LOCAL
+    label, because generated ids are not seed-derived (``CLAUDE.md`` Sec 8). ``reason`` is
+    ``None`` exactly when ``accepted`` is True, and otherwise one of
+    :data:`BACKOFF_REJECTION_REASONS`; ``detail`` carries the human message.
+    """
+
+    ordinal: int
+    ego_id: str
+    accepted: bool
+    reason: Optional[str]
+    detail: Optional[str]
+    leg_index: Optional[int]
+
+    def as_dict(self) -> Dict[str, object]:
+        """A JSON-ready view (plain builtins only)."""
+        return {
+            "ordinal": int(self.ordinal),
+            "ego_id": str(self.ego_id),
+            "accepted": bool(self.accepted),
+            "reason": None if self.reason is None else str(self.reason),
+            "detail": None if self.detail is None else str(self.detail),
+            "leg_index": None if self.leg_index is None else int(self.leg_index),
+        }
+
+
+@dataclass(frozen=True)
+class BoundedBackoffAudit:
+    """The full, truthful record of ONE bounded-backoff placement walk.
+
+    States the REQUESTED and the REALIZED hidden cardinality side by side, plus the
+    deterministic candidate order, the candidates actually visited, every per-candidate
+    outcome, the ordinals that were selected, and the id-free geometric fingerprint of the
+    realized placements. ``hidden_realized < hidden_requested`` is a legitimate recorded
+    outcome, never a repaired one.
+
+    ``considered_ordinals`` is a PREFIX of ``candidate_order``: the walk is bounded, so it
+    stops at the requested count and the remaining candidates are genuinely never visited.
+    """
+
+    policy: str
+    candidate_count: int
+    candidate_order: Tuple[int, ...]
+    considered_ordinals: Tuple[int, ...]
+    candidates: Tuple[BackoffCandidate, ...]
+    selected_ordinals: Tuple[int, ...]
+    hidden_requested: int
+    hidden_realized: int
+    geometric_fingerprint: Tuple[Tuple[float, float], ...]
+
+    @property
+    def realized_full_request(self) -> bool:
+        """True iff the walk realized every hidden target that was requested."""
+        return int(self.hidden_realized) == int(self.hidden_requested)
+
+    def as_dict(self) -> Dict[str, object]:
+        """A JSON-ready view (plain builtins only)."""
+        return {
+            "policy": str(self.policy),
+            "candidate_count": int(self.candidate_count),
+            "candidate_order": list(self.candidate_order),
+            "considered_ordinals": list(self.considered_ordinals),
+            "candidates": [c.as_dict() for c in self.candidates],
+            "selected_ordinals": list(self.selected_ordinals),
+            "hidden_requested": int(self.hidden_requested),
+            "hidden_realized": int(self.hidden_realized),
+            "realized_full_request": bool(self.realized_full_request),
+            "geometric_fingerprint": [list(fp) for fp in self.geometric_fingerprint],
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -843,6 +975,48 @@ def validate_placement(placement: HiddenPlacement, params: PlacementParameters) 
         )
 
 
+def _select_leg(
+    ego_id: str,
+    assignments: Sequence[Assignment],
+    belief_tasks: Sequence[Task],
+    launch_point: Location,
+    parameters: PlacementParameters,
+    rng: random.Random,
+) -> Tuple[Optional[_Leg], Optional[Tuple[str, str]]]:
+    """Pick the leg one ego's hidden target is built on, or say why none is usable.
+
+    THE ONE LEG-SELECTION SITE. Extracted VERBATIM from :func:`place_hidden_targets`'s
+    per-ego body so the EXACT path and the bounded-backoff path share the approved B2
+    selection rule -- and, just as load-bearing, its RNG draw order: the leg choice is the
+    FIRST draw an ego takes, before the fraction and the offset that
+    :func:`_construct_placement` then draws. The geometry itself is untouched:
+    ``_leg_rejection`` and ``rng.choice`` behave exactly as they did.
+
+    Returns ``(leg, None)`` on success and ``(None, (reason, detail))`` otherwise, where
+    ``reason`` is one of the stable slugs in :data:`BACKOFF_REJECTION_REASONS`. Returning
+    the rejection instead of raising is what lets the bounded path RECORD a candidate's
+    outcome and continue; the exact path re-raises the identical message it always raised,
+    so no historical failure changed shape.
+    """
+    route = predict_route(assignments, belief_tasks, launch_point)
+    legs = _build_legs(route, belief_tasks, launch_point)
+    if not legs:
+        return None, (REASON_NO_ROUTE, f"ego {ego_id} has no usable assigned route")
+
+    eligible_later = [leg for leg in legs[1:] if _leg_rejection(leg, parameters) is None]
+    if eligible_later:
+        return rng.choice(eligible_later), None
+
+    leg1_rejection = _leg_rejection(legs[0], parameters)
+    if leg1_rejection is not None:
+        return None, (
+            REASON_NO_ELIGIBLE_LEG,
+            f"ego {ego_id}: no later leg is eligible and leg 1 is unusable "
+            f"({leg1_rejection})",
+        )
+    return legs[0], None
+
+
 def place_hidden_targets(
     solution: Mapping[str, Sequence[Assignment]],
     belief_tasks: Sequence[Task],
@@ -852,14 +1026,20 @@ def place_hidden_targets(
 ) -> Tuple[HiddenPlacement, ...]:
     """Construct exactly one hidden-target coordinate per ego route.
 
+    THE HISTORICAL EXACT-CARDINALITY POLICY (``exact_v1``), unchanged. The approved
+    Phase-A and FD-VARIABLE-SEVERITY-v1 measurements were taken on this behaviour, so its
+    geometry, its ego ordering, its RNG draw order and its failure messages are preserved
+    exactly; :func:`place_hidden_targets_bounded` is an ADDITION beside it, never a
+    rewrite of it.
+
     Egos are iterated in sorted-id order, so the result never depends on ``solution``'s
     insertion order. Per ego: predict the route, prefer a uniformly chosen ELIGIBLE later
     leg, fall back to leg 1, and raise when neither is usable. Every returned placement is
     passed through :func:`validate_placement` before it leaves this function.
 
-    Returns the placements in that deterministic ego order. The current cardinality is one
-    placement per ego route -- distributing a different ``n_hidden`` across routes is a
-    later, explicit design task.
+    Returns the placements in that deterministic ego order. The cardinality here is one
+    placement per ego route, and an ego with no route is a LOUD failure -- realizing a
+    different count is what the bounded-backoff policy does instead.
     """
     parameters.validate()
     _check_location(launch_point, "launch_point")
@@ -884,22 +1064,12 @@ def place_hidden_targets(
             raise HiddenPlacementError(f"ego {ego_id} has no usable assigned route")
         assignments = [_as_assignment(a, ego_id=ego_id) for a in raw]
 
-        route = predict_route(assignments, belief_tasks, launch_point)
-        legs = _build_legs(route, belief_tasks, launch_point)
-        if not legs:
-            raise HiddenPlacementError(f"ego {ego_id} has no usable assigned route")
-
-        eligible_later = [leg for leg in legs[1:] if _leg_rejection(leg, parameters) is None]
-        if eligible_later:
-            leg = rng.choice(eligible_later)
-        else:
-            leg1_rejection = _leg_rejection(legs[0], parameters)
-            if leg1_rejection is not None:
-                raise HiddenPlacementError(
-                    f"ego {ego_id}: no later leg is eligible and leg 1 is unusable "
-                    f"({leg1_rejection})"
-                )
-            leg = legs[0]
+        leg, rejection = _select_leg(
+            ego_id, assignments, belief_tasks, launch_point, parameters, rng
+        )
+        if rejection is not None:
+            raise HiddenPlacementError(rejection[1])
+        assert leg is not None  # a None rejection means a leg WAS selected
 
         placement = _construct_placement(ego_id, leg, parameters, rng)
         validate_placement(placement, parameters)
@@ -910,3 +1080,251 @@ def place_hidden_targets(
             f"constructed {len(placements)} placements for {len(by_ego)} ego routes"
         )
     return tuple(placements)
+
+
+# ---------------------------------------------------------------------------
+# GENERALIZED-V1: deterministic bounded backoff (`bounded_backoff_v1`)
+# ---------------------------------------------------------------------------
+
+def _ordinal_permutation(count: int, rng: random.Random) -> Tuple[int, ...]:
+    """A seed-driven permutation of ``range(count)`` -- the candidate visit order.
+
+    Fisher-Yates written out explicitly rather than delegated to ``random.shuffle``: the
+    permutation is part of a reproducibility contract, so the exact draw sequence
+    (``rng.randrange(i + 1)`` for descending ``i``) is stated here instead of inherited
+    from a library internal that is free to change.
+
+    ORDINALS, never ids. Generated agent/target ids are not seed-derived (``CLAUDE.md``
+    Sec 8), so a permutation keyed on their text would make an episode's hidden geometry
+    irreproducible across runs of the same seed.
+    """
+    ordinals = list(range(int(count)))
+    for i in range(len(ordinals) - 1, 0, -1):
+        j = rng.randrange(i + 1)
+        ordinals[i], ordinals[j] = ordinals[j], ordinals[i]
+    return tuple(ordinals)
+
+
+def _candidate_substream_seeds(count: int, rng: random.Random) -> Tuple[int, ...]:
+    """One independent 64-bit geometry seed per candidate, INDEXED BY ORDINAL.
+
+    Drawn from the episode rng in ONE bounded burst, in ascending ordinal order, BEFORE
+    any candidate is attempted. That ordering is the whole point: every candidate's
+    geometry stream is fixed before control flow can branch, so whether candidate N
+    succeeded or was rejected cannot shift candidate N+1's fraction and offset draws --
+    and the episode rng's own end position depends only on the candidate COUNT, never on
+    how many attempts the walk took.
+
+    Built from the seeded rng, never from ``hash()``: Python's built-in hash is salted per
+    process (``PYTHONHASHSEED``), so a substream derived from it would differ between two
+    runs of the same seed.
+    """
+    return tuple(rng.getrandbits(64) for _ in range(int(count)))
+
+
+def place_hidden_targets_bounded(
+    solution: Mapping[str, Sequence[Assignment]],
+    belief_tasks: Sequence[Task],
+    launch_point: Location,
+    parameters: PlacementParameters,
+    rng: random.Random,
+    *,
+    agent_ordinals: Sequence[str],
+    hidden_requested: int,
+) -> Tuple[Tuple[HiddenPlacement, ...], BoundedBackoffAudit]:
+    """GENERALIZED-V1 hidden placement: deterministic BOUNDED BACKOFF over ego routes.
+
+    Same approved single-route B2 geometry as :func:`place_hidden_targets` -- the leg
+    rule, the guaranteed portion, the offset budget, the nearest-neighbor margin and the
+    independent re-measurement are all reused through :func:`_select_leg`,
+    :func:`_construct_placement` and :func:`validate_placement`, and NONE of them is
+    weakened, re-tuned or bypassed here. What differs is only the CARDINALITY POLICY.
+
+    The candidate population is EVERY scheduled ego in ``agent_ordinals`` -- the
+    authoritative pre-solve agent sequence -- INCLUDING egos the allocated-only solver
+    result omitted entirely (they simply have no route, and are recorded as such). A
+    candidate's ORDINAL is its index in that sequence.
+
+    Per episode:
+      1. ordinals are permuted deterministically from ``rng`` (:func:`_ordinal_permutation`);
+      2. one independent geometry substream seed is derived per ordinal, UP FRONT
+         (:func:`_candidate_substream_seeds`);
+      3. candidates are attempted in the permuted order, each on its OWN substream;
+      4. the walk stops at ``hidden_requested`` successes or at candidate exhaustion;
+      5. the result is ACCEPTED when at least ONE placement was realized.
+
+    Realizing fewer hidden targets than requested is a legitimate, RECORDED outcome, not a
+    failure -- ``hidden_realized < hidden_requested`` is reported in the returned
+    :class:`BoundedBackoffAudit` rather than repaired. Nothing is duplicated, no ego route
+    carries two hidden targets, no failed geometric guard is relaxed, no target is moved
+    onto an invalid leg, no seed is changed, and no candidate is retried.
+
+    Args:
+        solution: the known-only ``A_init``. ALLOCATED-ONLY, so it may legitimately omit
+            egos entirely -- that is exactly why the candidate population comes from
+            ``agent_ordinals`` instead of from this mapping's keys.
+        belief_tasks: the normalized known belief tasks ``solution`` indexes into.
+        launch_point: the ONE shared launch point every predicted route starts from.
+        parameters: the approved B2 geometry request.
+        rng: the explicit per-episode :class:`random.Random`.
+        agent_ordinals: the authoritative pre-solve agent-id sequence, in world order.
+            Ordering NEVER derives from these strings -- they are the episode-local
+            identity attached to an ordinal, nothing more.
+        hidden_requested: the requested hidden count (``>= 1``). The realized count may be
+            smaller.
+
+    Returns:
+        ``(placements, audit)``: the placements in the order they were realized (candidate
+        order), and the audit describing requested vs realized cardinality, the candidate
+        order, every candidate outcome and the geometric fingerprint.
+
+    Raises:
+        HiddenPlacementError: on malformed input (bad parameters, a non-``Random`` rng, an
+            unusable ordinal roster, a solution key outside that roster, a non-integral
+            assignment tuple) or when NOT ONE hidden target could be realized.
+    """
+    parameters.validate()
+    _check_location(launch_point, "launch_point")
+    if not isinstance(rng, random.Random):
+        raise HiddenPlacementError(
+            f"rng must be an explicit random.Random, got {type(rng).__name__}"
+        )
+    if isinstance(hidden_requested, bool) or not isinstance(hidden_requested, Integral):
+        raise HiddenPlacementError(
+            f"hidden_requested must be an integer >= 1, got {hidden_requested!r} of type "
+            f"{type(hidden_requested).__name__}"
+        )
+    hidden_requested = int(hidden_requested)
+    if hidden_requested < 1:
+        raise HiddenPlacementError(
+            "hidden_requested must be >= 1 (a generalized world needs a hidden half), got "
+            f"{hidden_requested}"
+        )
+
+    ordinal_ids = [str(a) for a in agent_ordinals]
+    if not ordinal_ids:
+        raise HiddenPlacementError(
+            "agent_ordinals is empty: there is no candidate population to back off over"
+        )
+    if len(set(ordinal_ids)) != len(ordinal_ids):
+        raise HiddenPlacementError(
+            f"agent_ordinals holds duplicate ids {ordinal_ids}; an ordinal would not "
+            "address exactly one ego"
+        )
+
+    by_ego: Dict[str, Sequence[Assignment]] = {}
+    for key, value in solution.items():
+        ego_id = str(key)
+        if ego_id in by_ego:
+            raise HiddenPlacementError(f"solution has duplicate ego id {ego_id!r} after str()")
+        by_ego[ego_id] = value
+    stray = sorted(set(by_ego) - set(ordinal_ids))
+    if stray:
+        raise HiddenPlacementError(
+            f"solution names ego(s) {stray} absent from agent_ordinals; the ordinal roster "
+            "is not authoritative for this solution"
+        )
+
+    # (1) and (2) BOTH happen before any candidate is attempted, so no attempt outcome can
+    # move another candidate's geometry stream or the episode rng's end position.
+    candidate_order = _ordinal_permutation(len(ordinal_ids), rng)
+    substream_seeds = _candidate_substream_seeds(len(ordinal_ids), rng)
+
+    placements: List[HiddenPlacement] = []
+    candidates: List[BackoffCandidate] = []
+    considered: List[int] = []
+    selected: List[int] = []
+
+    for ordinal in candidate_order:
+        if len(placements) >= hidden_requested:
+            break  # BOUNDED: the walk stops the moment the request is met
+        considered.append(ordinal)
+        ego_id = ordinal_ids[ordinal]
+        raw = by_ego.get(ego_id)
+        if raw is None or len(raw) == 0:
+            candidates.append(
+                BackoffCandidate(
+                    ordinal=ordinal, ego_id=ego_id, accepted=False,
+                    reason=REASON_NO_ROUTE,
+                    detail=f"ego {ego_id} has no assigned route in the known-only solution",
+                    leg_index=None,
+                )
+            )
+            continue
+
+        # A malformed assignment TUPLE is a contract violation of the caller's input, not a
+        # geometric outcome, so it raises here instead of being recorded as a backoff
+        # reason (`_as_assignment` never coerces -- see its docstring).
+        assignments = [_as_assignment(a, ego_id=ego_id) for a in raw]
+
+        candidate_rng = random.Random(substream_seeds[ordinal])
+        try:
+            leg, rejection = _select_leg(
+                ego_id, assignments, belief_tasks, launch_point, parameters, candidate_rng
+            )
+        except HiddenPlacementError as exc:
+            candidates.append(
+                BackoffCandidate(
+                    ordinal=ordinal, ego_id=ego_id, accepted=False,
+                    reason=REASON_ROUTE_UNRESOLVABLE, detail=str(exc), leg_index=None,
+                )
+            )
+            continue
+        if rejection is not None:
+            candidates.append(
+                BackoffCandidate(
+                    ordinal=ordinal, ego_id=ego_id, accepted=False,
+                    reason=rejection[0], detail=rejection[1], leg_index=None,
+                )
+            )
+            continue
+        assert leg is not None  # a None rejection means a leg WAS selected
+
+        try:
+            placement = _construct_placement(ego_id, leg, parameters, candidate_rng)
+            validate_placement(placement, parameters)
+        except HiddenPlacementError as exc:
+            candidates.append(
+                BackoffCandidate(
+                    ordinal=ordinal, ego_id=ego_id, accepted=False,
+                    reason=REASON_GEOMETRY_REJECTED, detail=str(exc),
+                    leg_index=int(leg.index),
+                )
+            )
+            continue
+
+        placements.append(placement)
+        selected.append(ordinal)
+        candidates.append(
+            BackoffCandidate(
+                ordinal=ordinal, ego_id=ego_id, accepted=True, reason=None, detail=None,
+                leg_index=int(placement.leg_index),
+            )
+        )
+
+    if not placements:
+        reasons = "; ".join(
+            f"ordinal {c.ordinal} ({c.ego_id}): {c.reason}" for c in candidates
+        ) or "no candidate was even considered"
+        raise HiddenPlacementError(
+            f"bounded backoff realized 0 hidden targets from {len(considered)} candidate(s) "
+            f"for hidden_requested={hidden_requested}; a generalized world needs at least "
+            f"one. Candidate outcomes: {reasons}"
+        )
+    if len(selected) != len(set(selected)):  # pragma: no cover - a permutation cannot repeat
+        raise HiddenPlacementError(
+            f"bounded backoff selected an ordinal twice ({selected}); one ego route may "
+            "carry at most one hidden target in this version"
+        )
+
+    return tuple(placements), BoundedBackoffAudit(
+        policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+        candidate_count=len(ordinal_ids),
+        candidate_order=candidate_order,
+        considered_ordinals=tuple(considered),
+        candidates=tuple(candidates),
+        selected_ordinals=tuple(selected),
+        hidden_requested=hidden_requested,
+        hidden_realized=len(placements),
+        geometric_fingerprint=geometric_fingerprint(placements),
+    )

@@ -28,6 +28,24 @@ They discharge the three declared proof obligations:
        insertion order. Fingerprints are coordinates only -- never target ids or uuids
        (CLAUDE.md Sec 8: generated ids are not seed-derived).
 
+GENERALIZED-V1 adds two more, and they are deliberately about DIFFERENT things:
+
+  G1   HISTORICAL EXACT-PATH PRESERVATION
+       `place_hidden_targets` is byte-unchanged by the bounded-backoff addition. Pinned
+       against values captured from the PRE-GENERALIZED implementation at base commit
+       `7b86098a` -- fingerprints, chosen leg indices, ego order, sampled fractions,
+       sampled offsets, AND the episode rng's stream position AFTER the call, so a
+       changed geometry, a changed selection or even one extra/reordered draw fails.
+
+  G2   DETERMINISTIC BOUNDED BACKOFF
+       Candidates are driven by STABLE AGENT ORDINALS rather than id text (relabelling
+       every ego changes nothing); the same seed reproduces the candidate order, the
+       selected ordinals, the audit and the fingerprint; a candidate's FAILURE cannot
+       shift a later candidate's geometry (substreams are derived up front); realizing
+       fewer hidden targets than requested is reported truthfully; realizing none is
+       refused; and no ego route is used twice. The bounded path is also shown to reuse
+       the EXACT path's own single-route geometry and draw order, not a copy of it.
+
 Fixture geometry is built with an independent spherical destination helper (`_dest`) and
 every fixture asserts its own premises (which target is nearest, what the gaps are), so a
 test that stops proving what it claims fails instead of passing vacuously.
@@ -62,12 +80,22 @@ if str(SRC) not in sys.path:
 
 from match_aou.models import Agent, Location, Step, StepKind, Task  # noqa: E402
 from match_aou.rl.training.graph_hidden_placement import (  # noqa: E402
+    BACKOFF_REJECTION_REASONS,
     EARTH_RADIUS_KM,
+    HIDDEN_CARDINALITY_POLICIES,
+    HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+    HIDDEN_POLICY_EXACT_V1,
+    REASON_NO_ELIGIBLE_LEG,
+    REASON_NO_ROUTE,
+    BoundedBackoffAudit,
     HiddenPlacement,
     HiddenPlacementError,
     PlacementParameters,
+    _candidate_substream_seeds,
+    _ordinal_permutation,
     geometric_fingerprint,
     place_hidden_targets,
+    place_hidden_targets_bounded,
     predict_route,
     validate_placement,
 )
@@ -725,6 +753,499 @@ def test_module_has_no_blade_torch_or_solver_dependency() -> None:
 
 
 # ---------------------------------------------------------------------------
+# GENERALIZED-V1 fixtures
+# ---------------------------------------------------------------------------
+
+# The EXACT fixture the G1 golden values below were captured on, at base commit
+# `7b86098a7573be15b0d8bfcf959b1d1f63288ffc`. Three egos, two of them with two-leg
+# routes, so leg CHOICE as well as fraction and offset are all exercised.
+_G1_T0 = _dest(LAUNCH, 20.0, 300.0)
+_G1_T1 = _dest(_G1_T0, 20.0, 400.0)
+_G1_T2 = _dest(LAUNCH, 75.0, 320.0)
+_G1_T3 = _dest(_G1_T2, 70.0, 380.0)
+_G1_T4 = _dest(LAUNCH, 150.0, 280.0)
+_G1_TASKS = [
+    _task_at(_G1_T0, "t0"), _task_at(_G1_T1, "t1"), _task_at(_G1_T2, "t2"),
+    _task_at(_G1_T3, "t3"), _task_at(_G1_T4, "t4"),
+]
+_G1_SOLUTION = {
+    "ego-a": [(0, 0, 0), (1, 0, 1)],
+    "ego-b": [(2, 0, 0), (3, 0, 1)],
+    "ego-c": [(4, 0, 0)],
+}
+
+# Captured from the PRE-GENERALIZED implementation. `rng_after` is the very next
+# `rng.random()` the episode rng yields once `place_hidden_targets` has returned: it pins
+# the number and ORDER of draws, so an extra, missing or reordered draw fails here even
+# when the coordinates happen to survive.
+_G1_GOLDEN = {
+    0: {
+        "fingerprint": ((37.702438324, 37.559472451), (34.370028122, 41.494251143),
+                        (31.480639012, 36.559342226)),
+        "legs": (2, 2, 1),
+        "fractions": (0.7894886007350757, 0.8413662215904792, 0.8295585829462829),
+        "offsets": (-3.8983668736067316, -0.7467610509317638, 26.388232292719316),
+        "rng_after": 0.9677999949201714,
+    },
+    1: {
+        "fingerprint": ((37.618693088, 37.307543469), (34.206981215, 40.887571666),
+                        (31.628814058, 36.28855396)),
+        "legs": (2, 2, 1),
+        "fractions": (0.7423009687055531, 0.6637672564348553, 0.7123727661971845),
+        "offsets": (13.58721795134759, -0.17183676988074426, 12.127437817821036),
+        "rng_after": 0.7887233511355132,
+    },
+    7: {
+        "fingerprint": ((37.836836997, 37.644370735), (34.175072126, 40.727658113),
+                        (31.455539192, 35.827738607)),
+        "legs": (2, 2, 1),
+        "fractions": (0.8369663401522658, 0.6181090716668857, 0.6914222292281463),
+        "offsets": (-5.5990243394754335, 1.2084303040275586, -35.36008601802345),
+        "rng_after": 0.5074357331894203,
+    },
+    12345: {
+        "fingerprint": ((37.745320929, 37.343775616), (34.537119973, 41.321960087),
+                        (31.63307457, 36.076557576)),
+        "legs": (2, 2, 1),
+        "fractions": (0.7831713188629023, 0.8137845854617872, 0.6675612102560851),
+        "offsets": (15.53727577557694, 21.878861306398885, -5.101727150864708),
+        "rng_after": 0.3730638408978796,
+    },
+}
+
+
+def _long_leg(bearing_deg: float, distance_km: float = 300.0):
+    """A single-target route whose one leg comfortably carries a placement."""
+    return _dest(LAUNCH, bearing_deg, distance_km)
+
+
+def _backoff_world():
+    """Four independent single-leg ego routes, all geometrically usable.
+
+    Ordinal `i` owns task `i`, so ordinal -> route is fixed while the ego LABELS stay
+    free -- which is what lets the ordinal-vs-id-text tests vary one without the other.
+    """
+    tasks = [
+        _task_at(_long_leg(20.0), "t0"),
+        _task_at(_long_leg(75.0, 320.0), "t1"),
+        _task_at(_long_leg(150.0, 280.0), "t2"),
+        _task_at(_long_leg(250.0, 340.0), "t3"),
+    ]
+    return tasks
+
+
+# A route whose only leg is far shorter than the detection radius: G = L - D <= 0, so the
+# approved geometry refuses it. Used as the "this candidate fails" arm.
+_UNUSABLE_TASK = _task_at(_dest(LAUNCH, 200.0, 20.0), "unusable")
+
+
+# ---------------------------------------------------------------------------
+# G1 -- the historical exact path is byte-unchanged
+# ---------------------------------------------------------------------------
+
+def test_g1_exact_path_is_pinned_to_the_pre_generalized_geometry() -> None:
+    """PO1. `place_hidden_targets` reproduces the pre-GENERALIZED-V1 values exactly.
+
+    Geometry, chosen legs, ego ORDER, the sampled fraction and offset of every placement,
+    and the episode rng's post-call stream position -- all captured from base commit
+    `7b86098a` before the bounded-backoff addition existed. Extracting the shared
+    `_select_leg` helper must not have moved a single draw.
+    """
+    for seed, golden in sorted(_G1_GOLDEN.items()):
+        rng = random.Random(seed)
+        placements = place_hidden_targets(_G1_SOLUTION, _G1_TASKS, LAUNCH, PARAMS, rng)
+
+        _assert(len(placements) == 3, f"seed {seed}: expected 3 placements")
+        _assert([p.ego_id for p in placements] == ["ego-a", "ego-b", "ego-c"],
+                f"seed {seed}: ego order changed -> {[p.ego_id for p in placements]}")
+        _assert(geometric_fingerprint(placements) == golden["fingerprint"],
+                f"seed {seed}: fingerprint moved -> {geometric_fingerprint(placements)}")
+        _assert(tuple(p.leg_index for p in placements) == golden["legs"],
+                f"seed {seed}: leg selection moved -> "
+                f"{tuple(p.leg_index for p in placements)}")
+        _assert(tuple(p.fraction for p in placements) == golden["fractions"],
+                f"seed {seed}: fractions moved -> {tuple(p.fraction for p in placements)}")
+        _assert(tuple(p.offset_km for p in placements) == golden["offsets"],
+                f"seed {seed}: offsets moved -> {tuple(p.offset_km for p in placements)}")
+        # THE DRAW-COUNT PIN: one extra, missing or reordered draw shows up here.
+        _assert(rng.random() == golden["rng_after"],
+                f"seed {seed}: the rng stream position after the call changed")
+
+
+def test_g1_exact_path_keeps_its_loud_no_route_failure() -> None:
+    """PO1. An ego without a route still fails LOUDLY on the exact path.
+
+    That refusal is the whole difference between the two policies, so it must survive the
+    addition of one that backs off instead.
+    """
+    tasks = _backoff_world()
+    for empty in ([], None):
+        exc = _raises(
+            HiddenPlacementError, place_hidden_targets,
+            {"ego-a": _plan(0), "ego-b": empty}, tasks, LAUNCH, PARAMS, random.Random(0),
+        )
+        _assert("no usable assigned route" in str(exc), str(exc))
+
+    # And an ego whose ONLY leg is geometrically impossible still raises rather than
+    # being quietly skipped.
+    exc = _raises(
+        HiddenPlacementError, place_hidden_targets,
+        {"ego-a": _plan(0)}, [_UNUSABLE_TASK], LAUNCH, PARAMS, random.Random(0),
+    )
+    _assert("leg 1 is unusable" in str(exc), str(exc))
+
+
+# ---------------------------------------------------------------------------
+# G2 -- deterministic bounded backoff
+# ---------------------------------------------------------------------------
+
+def test_g2_policy_ids_are_explicit() -> None:
+    """The two policies are named, distinct and both registered."""
+    _assert(HIDDEN_POLICY_EXACT_V1 == "exact_v1", HIDDEN_POLICY_EXACT_V1)
+    _assert(HIDDEN_POLICY_BOUNDED_BACKOFF_V1 == "bounded_backoff_v1",
+            HIDDEN_POLICY_BOUNDED_BACKOFF_V1)
+    _assert(HIDDEN_CARDINALITY_POLICIES
+            == (HIDDEN_POLICY_EXACT_V1, HIDDEN_POLICY_BOUNDED_BACKOFF_V1),
+            HIDDEN_CARDINALITY_POLICIES)
+
+
+def test_g2_reuses_the_exact_paths_single_route_geometry() -> None:
+    """PO2. The bounded walk delegates to the SAME geometry AND the same draw order.
+
+    Re-derived independently: take the documented ordinal permutation and substream
+    seeds from a freshly seeded rng, then run the HISTORICAL `place_hidden_targets` on the
+    one candidate with a `random.Random` on that substream seed. The two records must be
+    field-for-field identical -- which they can only be if the bounded path drew the leg,
+    then the fraction, then the offset, exactly as the exact path does.
+    """
+    tasks = _backoff_world()
+    solution = {"solo": _plan(0)}
+
+    placements, audit = place_hidden_targets_bounded(
+        solution, tasks, LAUNCH, PARAMS, random.Random(4242),
+        agent_ordinals=["solo"], hidden_requested=1,
+    )
+
+    probe = random.Random(4242)
+    order = _ordinal_permutation(1, probe)
+    seeds = _candidate_substream_seeds(1, probe)
+    _assert(order == (0,), order)
+    expected = place_hidden_targets(
+        solution, tasks, LAUNCH, PARAMS, random.Random(seeds[0])
+    )
+
+    _assert(dataclasses.asdict(placements[0]) == dataclasses.asdict(expected[0]),
+            "the bounded path did not reproduce the exact path's single-route geometry")
+    _assert(audit.policy == HIDDEN_POLICY_BOUNDED_BACKOFF_V1, audit.policy)
+    _assert(audit.hidden_realized == audit.hidden_requested == 1, audit)
+    validate_placement(placements[0], PARAMS)
+
+
+def test_g2_candidates_follow_stable_ordinals_not_id_text() -> None:
+    """PO2. Relabelling every ego changes NOTHING about the ordinal/geometric result.
+
+    The two rosters have deliberately OPPOSITE lexical orders while keeping the same
+    ordinal -> route mapping, so a candidate walk driven by sorted id text would produce a
+    different selection. Generated ids are not seed-derived (CLAUDE.md Sec 8), which is
+    exactly why ordering may never key on them.
+    """
+    tasks = _backoff_world()
+
+    labels_a = ["zz", "yy", "xx", "ww"]          # lexically DESCENDING
+    labels_b = ["aa", "bb", "cc", "dd"]          # lexically ASCENDING
+    _assert(sorted(labels_a) == list(reversed(labels_a)), labels_a)
+    _assert(sorted(labels_b) == list(labels_b), labels_b)
+
+    results = []
+    for labels in (labels_a, labels_b):
+        solution = {label: _plan(i) for i, label in enumerate(labels)}
+        results.append(
+            place_hidden_targets_bounded(
+                solution, tasks, LAUNCH, PARAMS, random.Random(11),
+                agent_ordinals=labels, hidden_requested=3,
+            )
+        )
+
+    (pl_a, au_a), (pl_b, au_b) = results
+    _assert(au_a.candidate_order == au_b.candidate_order, "candidate order followed labels")
+    _assert(au_a.selected_ordinals == au_b.selected_ordinals,
+            f"selection followed labels: {au_a.selected_ordinals} vs "
+            f"{au_b.selected_ordinals}")
+    _assert(au_a.geometric_fingerprint == au_b.geometric_fingerprint,
+            "geometry followed labels")
+    for a, b in zip(pl_a, pl_b):
+        stripped_a = {k: v for k, v in dataclasses.asdict(a).items() if k != "ego_id"}
+        stripped_b = {k: v for k, v in dataclasses.asdict(b).items() if k != "ego_id"}
+        _assert(stripped_a == stripped_b, "a placement record followed the ego label")
+    # The labels really did differ -- otherwise this proves nothing.
+    _assert([p.ego_id for p in pl_a] != [p.ego_id for p in pl_b],
+            "the two rosters used the same labels, so nothing was varied")
+
+
+def test_g2_same_seed_reproduces_order_selection_and_audit() -> None:
+    """PO2. An episode's bounded walk is a pure function of its seed."""
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+    solution = {label: _plan(i) for i, label in enumerate(labels)}
+
+    def _run(seed: int):
+        return place_hidden_targets_bounded(
+            solution, tasks, LAUNCH, PARAMS, random.Random(seed),
+            agent_ordinals=labels, hidden_requested=2,
+        )
+
+    pl_1, au_1 = _run(2026)
+    pl_2, au_2 = _run(2026)
+    _assert(dataclasses.asdict(au_1) == dataclasses.asdict(au_2), "audit is not reproducible")
+    _assert([dataclasses.asdict(p) for p in pl_1] == [dataclasses.asdict(p) for p in pl_2],
+            "placements are not reproducible")
+
+    # A DIFFERENT seed really does move the walk (otherwise the rng drives nothing).
+    moved = False
+    for other in range(50):
+        _, au_other = _run(other)
+        if (au_other.candidate_order != au_1.candidate_order
+                or au_other.geometric_fingerprint != au_1.geometric_fingerprint):
+            moved = True
+            break
+    _assert(moved, "no seed in the sweep changed the walk; the rng is not driving it")
+
+
+def test_g2_a_failed_candidate_cannot_shift_a_later_ones_geometry() -> None:
+    """PO2. Per-candidate substreams are derived UP FRONT, before any attempt.
+
+    Baseline: every candidate succeeds. Variant: the FIRST-VISITED candidate's route is
+    replaced by a geometrically impossible one. The candidate visited SECOND must produce
+    a byte-identical placement in both runs -- which is only true if its geometry stream
+    was fixed before the first candidate's outcome was known.
+    """
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+    seed = 909
+
+    baseline_solution = {label: _plan(i) for i, label in enumerate(labels)}
+    baseline_pl, baseline_au = place_hidden_targets_bounded(
+        baseline_solution, tasks, LAUNCH, PARAMS, random.Random(seed),
+        agent_ordinals=labels, hidden_requested=4,
+    )
+    _assert(baseline_au.hidden_realized == 4, baseline_au)
+
+    first, second = baseline_au.candidate_order[0], baseline_au.candidate_order[1]
+    baseline_second = next(p for p in baseline_pl if p.ego_id == labels[second])
+
+    # Break ONLY the first-visited candidate: its task becomes an unusable short leg.
+    broken_tasks = list(tasks)
+    broken_tasks[first] = _UNUSABLE_TASK
+    variant_pl, variant_au = place_hidden_targets_bounded(
+        baseline_solution, broken_tasks, LAUNCH, PARAMS, random.Random(seed),
+        agent_ordinals=labels, hidden_requested=4,
+    )
+
+    rejected = [c for c in variant_au.candidates if c.ordinal == first]
+    _assert(len(rejected) == 1 and not rejected[0].accepted,
+            "the first-visited candidate was supposed to fail")
+    _assert(rejected[0].reason == REASON_NO_ELIGIBLE_LEG, rejected[0].reason)
+    _assert(variant_au.hidden_realized == 3, variant_au)
+
+    variant_second = next(p for p in variant_pl if p.ego_id == labels[second])
+    _assert(dataclasses.asdict(variant_second) == dataclasses.asdict(baseline_second),
+            "a candidate's failure shifted a later candidate's geometry")
+
+
+def test_g2_rng_stream_position_depends_only_on_the_candidate_count() -> None:
+    """PO2. The episode rng ends in the same place however the walk went.
+
+    Both runs share one roster size, so both consume exactly the same permutation draws
+    and the same burst of substream seeds -- and nothing else.
+    """
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+
+    def _end_position(task_list, requested: int) -> float:
+        rng = random.Random(77)
+        place_hidden_targets_bounded(
+            {label: _plan(i) for i, label in enumerate(labels)},
+            task_list, LAUNCH, PARAMS, rng,
+            agent_ordinals=labels, hidden_requested=requested,
+        )
+        return rng.random()
+
+    broken = list(tasks)
+    broken[0] = _UNUSABLE_TASK
+    _assert(_end_position(tasks, 4) == _end_position(broken, 4),
+            "a rejection moved the episode rng's stream position")
+    _assert(_end_position(tasks, 1) == _end_position(tasks, 4),
+            "the requested count moved the episode rng's stream position")
+
+
+def test_g2_realizes_fewer_than_requested_and_says_so() -> None:
+    """PO2. A short world is a truthful RECORDED outcome, never a repaired one."""
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+    # Only two egos were allocated a route by the (allocated-only) solve.
+    solution = {"e1": _plan(1), "e2": _plan(2)}
+
+    placements, audit = place_hidden_targets_bounded(
+        solution, tasks, LAUNCH, PARAMS, random.Random(5),
+        agent_ordinals=labels, hidden_requested=4,
+    )
+
+    _assert(audit.hidden_requested == 4, audit.hidden_requested)
+    _assert(audit.hidden_realized == 2 == len(placements), audit.hidden_realized)
+    _assert(audit.realized_full_request is False, audit)
+    _assert(set(audit.selected_ordinals) == {1, 2}, audit.selected_ordinals)
+    # Every candidate is accounted for, and the omitted egos are named as no_route.
+    _assert(tuple(c.ordinal for c in audit.candidates) == audit.considered_ordinals,
+            "candidate records and the considered list disagree")
+    _assert(audit.considered_ordinals == audit.candidate_order,
+            "an exhausted walk must have visited every candidate")
+    no_route = {c.ordinal for c in audit.candidates if c.reason == REASON_NO_ROUTE}
+    _assert(no_route == {0, 3}, no_route)
+    for candidate in audit.candidates:
+        _assert(candidate.accepted == (candidate.reason is None), candidate)
+        _assert(candidate.reason is None
+                or candidate.reason in BACKOFF_REJECTION_REASONS, candidate)
+    # And the request itself was never rewritten to match what was possible.
+    _assert(audit.as_dict()["hidden_requested"] == 4, audit.as_dict())
+
+
+def test_g2_the_walk_is_bounded_and_stops_at_the_request() -> None:
+    """PO2. Meeting the request ends the walk; the rest is genuinely never visited."""
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+    solution = {label: _plan(i) for i, label in enumerate(labels)}
+
+    placements, audit = place_hidden_targets_bounded(
+        solution, tasks, LAUNCH, PARAMS, random.Random(31),
+        agent_ordinals=labels, hidden_requested=2,
+    )
+    _assert(len(placements) == 2, len(placements))
+    _assert(audit.considered_ordinals == audit.candidate_order[:2], audit.considered_ordinals)
+    _assert(len(audit.candidates) == 2, audit.candidates)
+
+
+def test_g2_no_ego_route_is_used_twice() -> None:
+    """PO2. One hidden target per ego route -- multiples are out of scope in v1."""
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+    solution = {label: _plan(i) for i, label in enumerate(labels)}
+
+    for seed in range(40):
+        placements, audit = place_hidden_targets_bounded(
+            solution, tasks, LAUNCH, PARAMS, random.Random(seed),
+            agent_ordinals=labels, hidden_requested=4,
+        )
+        ordinals = list(audit.selected_ordinals)
+        _assert(len(ordinals) == len(set(ordinals)), f"seed {seed}: repeated ordinal")
+        egos = [p.ego_id for p in placements]
+        _assert(len(egos) == len(set(egos)), f"seed {seed}: repeated ego {egos}")
+        _assert(sorted(audit.candidate_order) == [0, 1, 2, 3],
+                f"seed {seed}: candidate order is not a permutation")
+        for placement in placements:
+            validate_placement(placement, PARAMS)
+
+
+def test_g2_zero_realizable_hidden_targets_is_refused() -> None:
+    """PO2. `H_realized == 0` is a refusal -- an accepted world needs a hidden half."""
+    labels = ["e0", "e1"]
+    tasks = [_UNUSABLE_TASK, _UNUSABLE_TASK]
+    solution = {label: _plan(i) for i, label in enumerate(labels)}
+
+    exc = _raises(
+        HiddenPlacementError, place_hidden_targets_bounded,
+        solution, tasks, LAUNCH, PARAMS, random.Random(0),
+        agent_ordinals=labels, hidden_requested=2,
+    )
+    _assert("realized 0 hidden targets" in str(exc), str(exc))
+
+    # Also when the solve allocated nothing at all: every candidate is `no_route`.
+    exc = _raises(
+        HiddenPlacementError, place_hidden_targets_bounded,
+        {}, _backoff_world(), LAUNCH, PARAMS, random.Random(0),
+        agent_ordinals=labels, hidden_requested=1,
+    )
+    _assert(REASON_NO_ROUTE in str(exc), str(exc))
+
+
+def test_g2_solver_omitted_egos_are_still_candidates() -> None:
+    """PO2. The candidate population is the SCHEDULED roster, not `A_init`'s keys.
+
+    `A_init` is allocated-only, so an ego it omits is invisible to `solution.keys()` while
+    still being a real scheduled ego. It has no route, and it is RECORDED as such rather
+    than silently vanishing from the accounting.
+    """
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+    solution = {"e2": _plan(2)}
+
+    placements, audit = place_hidden_targets_bounded(
+        solution, tasks, LAUNCH, PARAMS, random.Random(8),
+        agent_ordinals=labels, hidden_requested=1,
+    )
+    _assert(audit.candidate_count == 4, audit.candidate_count)
+    _assert(audit.selected_ordinals == (2,), audit.selected_ordinals)
+    _assert(len(placements) == 1 and placements[0].ego_id == "e2", placements)
+    recorded = {c.ordinal for c in audit.candidates}
+    _assert(recorded <= {0, 1, 2, 3} and 2 in recorded, recorded)
+
+
+def test_g2_audit_is_typed_and_json_ready() -> None:
+    """The accounting is a structure, not a console line: it survives serialization."""
+    tasks = _backoff_world()
+    labels = ["e0", "e1", "e2", "e3"]
+    solution = {"e0": _plan(0), "e3": _plan(3)}
+
+    _placements, audit = place_hidden_targets_bounded(
+        solution, tasks, LAUNCH, PARAMS, random.Random(6),
+        agent_ordinals=labels, hidden_requested=3,
+    )
+    _assert(isinstance(audit, BoundedBackoffAudit), type(audit))
+    payload = audit.as_dict()
+    round_tripped = json.loads(json.dumps(payload))
+    _assert(round_tripped == payload, "the audit is not JSON-round-trippable")
+    for key in ("policy", "candidate_count", "candidate_order", "considered_ordinals",
+                "candidates", "selected_ordinals", "hidden_requested", "hidden_realized",
+                "realized_full_request", "geometric_fingerprint"):
+        _assert(key in payload, f"audit is missing {key}")
+    _assert(payload["geometric_fingerprint"]
+            == [list(fp) for fp in geometric_fingerprint(_placements)], payload)
+
+
+def test_g2_input_validation_is_loud() -> None:
+    """PO2. Malformed requests are refused, never silently normalized."""
+    tasks = _backoff_world()
+    labels = ["e0", "e1"]
+    solution = {"e0": _plan(0), "e1": _plan(1)}
+    ok = dict(agent_ordinals=labels, hidden_requested=1)
+
+    # The rng must be an explicit Random -- module-global randomness is unreproducible.
+    for bad_rng in (0, "rng", random, random.SystemRandom):
+        _raises(HiddenPlacementError, place_hidden_targets_bounded,
+                solution, tasks, LAUNCH, PARAMS, bad_rng, **ok)
+
+    # hidden_requested: a genuine integer >= 1 (bool rejected despite subclassing int).
+    for bad in (0, -1, 1.0, "1", True, False, None):
+        _raises(HiddenPlacementError, place_hidden_targets_bounded,
+                solution, tasks, LAUNCH, PARAMS, random.Random(0),
+                agent_ordinals=labels, hidden_requested=bad)
+
+    # The ordinal roster must exist and address exactly one ego per ordinal.
+    for bad_roster in ([], ["e0", "e0"]):
+        _raises(HiddenPlacementError, place_hidden_targets_bounded,
+                solution, tasks, LAUNCH, PARAMS, random.Random(0),
+                agent_ordinals=bad_roster, hidden_requested=1)
+
+    # A solution naming an ego outside the roster means the roster is not authoritative.
+    _raises(HiddenPlacementError, place_hidden_targets_bounded,
+            {"ghost": _plan(0)}, tasks, LAUNCH, PARAMS, random.Random(0), **ok)
+
+    # A non-integral assignment tuple is a caller contract violation, NOT a backoff case:
+    # it raises instead of being recorded as a rejected candidate.
+    _raises(HiddenPlacementError, place_hidden_targets_bounded,
+            {"e0": [(0.9, 0, 0)]}, tasks, LAUNCH, PARAMS, random.Random(0), **ok)
+
+
+# ---------------------------------------------------------------------------
 # __main__ runner (pytest is absent from nlp_env -- CLAUDE.md Sec 1)
 # ---------------------------------------------------------------------------
 
@@ -766,6 +1287,36 @@ if __name__ == "__main__":
          test_rng_must_be_explicit_random),
         ("module_has_no_blade_torch_or_solver_dependency",
          test_module_has_no_blade_torch_or_solver_dependency),
+        ("g1_exact_path_is_pinned_to_the_pre_generalized_geometry",
+         test_g1_exact_path_is_pinned_to_the_pre_generalized_geometry),
+        ("g1_exact_path_keeps_its_loud_no_route_failure",
+         test_g1_exact_path_keeps_its_loud_no_route_failure),
+        ("g2_policy_ids_are_explicit",
+         test_g2_policy_ids_are_explicit),
+        ("g2_reuses_the_exact_paths_single_route_geometry",
+         test_g2_reuses_the_exact_paths_single_route_geometry),
+        ("g2_candidates_follow_stable_ordinals_not_id_text",
+         test_g2_candidates_follow_stable_ordinals_not_id_text),
+        ("g2_same_seed_reproduces_order_selection_and_audit",
+         test_g2_same_seed_reproduces_order_selection_and_audit),
+        ("g2_a_failed_candidate_cannot_shift_a_later_ones_geometry",
+         test_g2_a_failed_candidate_cannot_shift_a_later_ones_geometry),
+        ("g2_rng_stream_position_depends_only_on_the_candidate_count",
+         test_g2_rng_stream_position_depends_only_on_the_candidate_count),
+        ("g2_realizes_fewer_than_requested_and_says_so",
+         test_g2_realizes_fewer_than_requested_and_says_so),
+        ("g2_the_walk_is_bounded_and_stops_at_the_request",
+         test_g2_the_walk_is_bounded_and_stops_at_the_request),
+        ("g2_no_ego_route_is_used_twice",
+         test_g2_no_ego_route_is_used_twice),
+        ("g2_zero_realizable_hidden_targets_is_refused",
+         test_g2_zero_realizable_hidden_targets_is_refused),
+        ("g2_solver_omitted_egos_are_still_candidates",
+         test_g2_solver_omitted_egos_are_still_candidates),
+        ("g2_audit_is_typed_and_json_ready",
+         test_g2_audit_is_typed_and_json_ready),
+        ("g2_input_validation_is_loud",
+         test_g2_input_validation_is_loud),
     ]
     failures = 0
     for name, fn in tests:

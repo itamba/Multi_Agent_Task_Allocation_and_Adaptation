@@ -59,6 +59,15 @@ P2  private sensing isolation, through the INTEGRATED setup/tick seam: a hidden 
     `run_episode` Phase-1 chain is what carries it into that ego's belief and executor
     slice. Every peer belief and executor slice must be byte-unchanged and must not
     contain the target -- which it never could, because no belief held it at t=0.
+P7  GENERALIZED-V1 cardinality + accounting: the hidden-CARDINALITY policy is EXPLICIT and
+    defaults to the historical `exact_v1`; selecting `bounded_backoff_v1` without the
+    construction pair is refused rather than ignored; the generalized cell (A in {2,3,4},
+    K == A RAW known targets, 1 <= H_requested <= A) is enforced BEFORE anything is
+    solved; the JSON patch adds exactly H_REALIZED targets; env-2 stays the sole
+    authority; the REQUESTED counts survive a backoff instead of being rewritten to what
+    was possible; `known_target_ids` / `executed_target_ids` reconcile with the audit
+    while the allocated-only `oracle_tasks` deliberately does not; and NO accounting
+    quantity reaches `GraphObservation`.
 
 `pytest` is absent from `nlp_env` (CLAUDE.md section 1), so this module keeps a
 `__main__` runner that executes every tier directly.
@@ -90,9 +99,12 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     ATTACKING_SIDE_COLOR,
     CONSTRUCTION_TARGET_CLASS,
     DETECTION_KM,
+    GENERALIZED_AGENT_COUNTS,
     HIDDEN_TARGET_NAME_TEMPLATE,
     MAX_SIM_TICKS,
+    ConstructionAudit,
     EpisodeContext,
+    _require_generalized_cardinality,
     _finish_context,
     _rematerialize_known_tasks,
     _require_agent_ids_preserved,
@@ -106,6 +118,12 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     setup_episode,
 )
 from match_aou.rl.training.graph_hidden_placement import (  # noqa: E402
+    BACKOFF_REJECTION_REASONS,
+    HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+    HIDDEN_POLICY_EXACT_V1,
+    REASON_NO_ROUTE,
+    BackoffCandidate,
+    BoundedBackoffAudit,
     HiddenPlacement,
     geometric_fingerprint,
 )
@@ -649,6 +667,291 @@ def test_construction_path_snapshots_the_world_not_the_allocation() -> None:
     assert ctx.split_meta["known"] == 2 and ctx.split_meta["hidden"] == 1
 
 
+# =============================================================================
+# PURE -- P7: GENERALIZED-V1 cardinality policy, cell enforcement and accounting
+# =============================================================================
+
+
+def _backoff_audit(
+    *, requested: int, realized: int, candidate_count: int = 2
+) -> BoundedBackoffAudit:
+    """A hand-built backoff record -- the pure tests never run real geometry."""
+    accepted = tuple(
+        BackoffCandidate(ordinal=i, ego_id=f"ego_{i}", accepted=True, reason=None,
+                         detail=None, leg_index=1)
+        for i in range(realized)
+    )
+    rejected = tuple(
+        BackoffCandidate(ordinal=i, ego_id=f"ego_{i}", accepted=False,
+                         reason=REASON_NO_ROUTE, detail="no route", leg_index=None)
+        for i in range(realized, candidate_count)
+    )
+    return BoundedBackoffAudit(
+        policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+        candidate_count=candidate_count,
+        candidate_order=tuple(range(candidate_count)),
+        considered_ordinals=tuple(range(candidate_count)),
+        candidates=accepted + rejected,
+        selected_ordinals=tuple(range(realized)),
+        hidden_requested=requested,
+        hidden_realized=realized,
+        geometric_fingerprint=tuple((32.0 + i, 35.0 + i) for i in range(realized)),
+    )
+
+
+def test_hidden_policy_is_explicit_and_defaults_to_the_exact_path() -> None:
+    """P7. The policy is chosen, never inferred, and the historical one is the default.
+
+    A generalized policy that could be silently dropped -- because the construction pair
+    was missing, or the id was misspelled -- would build a world nobody asked for, so both
+    are refused BEFORE any BLADE object exists.
+    """
+    rng = random.Random(0)
+
+    # Default and explicit-exact both behave exactly as they always did.
+    assert _resolve_construction_mode(None, None) is False
+    assert _resolve_construction_mode(None, None, HIDDEN_POLICY_EXACT_V1) is False
+    assert _resolve_construction_mode(3, rng) is True
+    assert _resolve_construction_mode(3, rng, HIDDEN_POLICY_EXACT_V1) is True
+    assert _resolve_construction_mode(0, rng, HIDDEN_POLICY_EXACT_V1) is True  # legal probe
+
+    assert _resolve_construction_mode(2, rng, HIDDEN_POLICY_BOUNDED_BACKOFF_V1) is True
+
+    # Selecting the generalized policy on the LEGACY path would silently ignore it.
+    _expect_raises(ValueError, "bounded policy without the construction pair",
+                   _resolve_construction_mode, None, None,
+                   HIDDEN_POLICY_BOUNDED_BACKOFF_V1)
+    # `n_hidden=0` is an exact-path probe only: a generalized world needs a hidden half.
+    _expect_raises(ValueError, "bounded policy with n_hidden=0",
+                   _resolve_construction_mode, 0, rng,
+                   HIDDEN_POLICY_BOUNDED_BACKOFF_V1)
+    # An unknown id is refused on BOTH paths rather than falling back to a default.
+    for args in ((None, None), (2, rng)):
+        _expect_raises(ValueError, f"unknown policy with {args}",
+                       _resolve_construction_mode, args[0], args[1], "bounded_backoff_v2")
+
+
+def test_generalized_cardinality_cell_is_enforced() -> None:
+    """P7. A in {2,3,4}, K == A, 1 <= H_requested <= A -- refused, never repaired."""
+    assert GENERALIZED_AGENT_COUNTS == (2, 3, 4), GENERALIZED_AGENT_COUNTS
+
+    for agents in GENERALIZED_AGENT_COUNTS:
+        for hidden in range(1, agents + 1):
+            _require_generalized_cardinality(
+                agent_count=agents, known_count=agents, hidden_requested=hidden
+            )
+
+    for agents, known, hidden, what in (
+        (1, 1, 1, "A below the cell"),
+        (5, 5, 1, "A above the cell"),
+        (3, 2, 1, "K < A"),
+        (3, 4, 1, "K > A"),
+        (3, 3, 0, "H_requested below 1"),
+        (3, 3, 4, "H_requested above A"),
+    ):
+        _expect_raises(RuntimeError, what, _require_generalized_cardinality,
+                       agent_count=agents, known_count=known, hidden_requested=hidden)
+
+
+def _generalized_stub_context(
+    *, n_hidden: int, realized: int, audit_realized: Optional[int] = None,
+    num_agents: int = 2, claim_hidden_in_world: Optional[int] = None,
+) -> EpisodeContext:
+    """Drive the REAL generalized construction seam with stubbed env / solver / geometry.
+
+    Only the pieces that need BLADE or bonmin are replaced. The cell guard, the accounting
+    assembly, the world snapshots, `_rematerialize_known_tasks` and `_finish_context` are
+    all the production code.
+    """
+    agents = [_agent(f"ego_{i}") for i in range(num_agents)]
+    known_tasks = [_task(f"k{i}") for i in range(num_agents)]
+    in_world = realized if claim_hidden_in_world is None else claim_hidden_in_world
+    env2_tasks = known_tasks + [_task(f"h{i}") for i in range(in_world)]
+    env1, env2 = _StubEnv("env1"), _StubEnv("env2")
+    built: List[Any] = []
+
+    def _build_env(scenario_json, **kwargs):
+        env = env1 if not built else env2
+        built.append(env)
+        return None, env, "obs%d" % len(built)
+
+    def _extract_world(obs, color):
+        return (agents, known_tasks if obs == "obs1" else env2_tasks)
+
+    def _solve(agents_, tasks_, precedence_relations=None):
+        solution = {str(a.id): [(i, 0, 0)] for i, a in enumerate(agents_)}
+        return solution, list(tasks_), []
+
+    def _bounded(*args, **kwargs):
+        return (
+            tuple(f"<placement {i}>" for i in range(realized)),
+            _backoff_audit(
+                requested=kwargs["hidden_requested"],
+                realized=realized if audit_realized is None else audit_realized,
+                candidate_count=len(kwargs["agent_ordinals"]),
+            ),
+        )
+
+    with _patched(
+        _setup,
+        _build_env=_build_env,
+        _extract_world=_extract_world,
+        _require_airbase_only_targets=lambda obs, color: None,
+        _shared_launch_point=lambda agents_: Location(32.0, 35.0),
+        _require_agent_ids_preserved=lambda before, after: None,
+        place_hidden_targets_bounded=_bounded,
+        build_patched_scenario=lambda scenario_json, placements, **k: "{}",
+        geometric_fingerprint=lambda placements: (),
+        solve_and_normalize=_solve,
+    ):
+        return setup_episode(
+            "{}", n_hidden=n_hidden, placement_rng=random.Random(0),
+            hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+        )
+
+
+def test_generalized_context_reports_requested_and_realized_cardinality() -> None:
+    """P7. A backed-off world states BOTH counts; the request is never rewritten."""
+    ctx = _generalized_stub_context(n_hidden=2, realized=1, num_agents=2)
+    audit = ctx.construction_audit
+
+    assert isinstance(audit, ConstructionAudit), audit
+    assert audit.policy == HIDDEN_POLICY_BOUNDED_BACKOFF_V1, audit.policy
+    assert audit.agent_count == 2 and audit.known_requested == 2, audit
+    assert audit.known_realized == 2 == len(ctx.known_target_ids), audit
+    # THE POINT: the request survives the backoff.
+    assert audit.hidden_requested == 2, audit.hidden_requested
+    assert audit.hidden_realized == 1 == len(ctx.placements), audit
+    assert audit.realized_full_request is False, audit
+    assert audit.total_requested == 4, audit.total_requested
+    assert audit.total_realized == 3 == len(ctx.executed_target_ids), audit
+
+    # The world counts reconcile with the RAW snapshots, not with an allocation.
+    hidden_ids = [t for t in ctx.executed_target_ids if t not in set(ctx.known_target_ids)]
+    assert len(hidden_ids) == audit.hidden_realized, hidden_ids
+    assert set(ctx.known_target_ids) <= set(ctx.executed_target_ids)
+
+    # The candidate accounting is reachable from the context, and JSON-ready.
+    assert audit.candidate_order == (0, 1) and audit.selected_ordinals == (0,), audit
+    assert audit.considered_ordinals == (0, 1), audit
+    assert [c.reason for c in audit.candidates] == [None, REASON_NO_ROUTE], audit.candidates
+    payload = json.loads(json.dumps(audit.as_dict()))
+    assert payload["hidden_requested"] == 2 and payload["hidden_realized"] == 1, payload
+
+    assert ctx.split_meta["hidden_policy"] == HIDDEN_POLICY_BOUNDED_BACKOFF_V1
+    assert ctx.split_meta["hidden_realized"] == 1
+    assert ctx.split_meta["n_hidden_requested"] == 2
+    assert ctx.split_meta["construction_audit"] == audit.as_dict()
+
+
+def test_generalized_full_request_is_reported_as_such() -> None:
+    """P7. Realizing everything requested is reported as such, with no backoff noise."""
+    ctx = _generalized_stub_context(n_hidden=2, realized=2, num_agents=2)
+    audit = ctx.construction_audit
+    assert audit.hidden_requested == audit.hidden_realized == 2, audit
+    assert audit.realized_full_request is True, audit
+    assert audit.total_requested == audit.total_realized == 4, audit
+    assert all(c.accepted for c in audit.candidates), audit.candidates
+
+
+def test_generalized_cell_is_judged_before_anything_is_solved() -> None:
+    """P7. An out-of-cell request costs no solve and leaves no partial construction."""
+    def _forbidden(*_a: Any, **_k: Any):
+        raise AssertionError("the solver ran before the generalized cell was judged")
+
+    with _patched(_setup, solve_and_normalize=_forbidden):
+        # H_requested = 3 > A = 2.
+        _expect_raises(RuntimeError, "H_requested above A",
+                       _generalized_stub_context, n_hidden=3, realized=1, num_agents=2)
+
+
+def test_generalized_accounting_that_does_not_reconcile_is_refused() -> None:
+    """P7. The audit is VERIFIED against the built world, never trusted.
+
+    A record claiming more realized hidden targets than were actually placed would make
+    every downstream requested-vs-realized statistic wrong while looking self-consistent,
+    so it is refused here.
+    """
+    _expect_raises(
+        RuntimeError, "audit disagreeing with the placements",
+        _generalized_stub_context, n_hidden=2, realized=1, audit_realized=2, num_agents=2,
+    )
+
+
+def test_generalized_patch_adds_exactly_the_realized_hidden_targets() -> None:
+    """P7. H_REALIZED targets are patched in -- never H_REQUESTED phantom ones."""
+    # The reloaded world claims TWO hidden targets while only ONE was realized: the
+    # existing env-2 cardinality guard refuses it, so a phantom target cannot survive.
+    _expect_raises(
+        RuntimeError, "a phantom hidden target in the reloaded world",
+        _generalized_stub_context, n_hidden=2, realized=1, claim_hidden_in_world=2,
+        num_agents=2,
+    )
+
+
+def test_exact_construction_path_carries_no_generalized_accounting() -> None:
+    """P7 / PO1. The historical path is observably unchanged: no audit, no new keys."""
+    agents = [_agent("ego_0")]
+    known_tasks = [_task("k0")]
+    env2_tasks = known_tasks + [_task("h0")]
+    env1, env2 = _StubEnv("env1"), _StubEnv("env2")
+    built: List[Any] = []
+
+    def _build_env(scenario_json, **kwargs):
+        env = env1 if not built else env2
+        built.append(env)
+        return None, env, "obs%d" % len(built)
+
+    def _forbidden_bounded(*_a: Any, **_k: Any):
+        raise AssertionError("the bounded policy ran on the exact path")
+
+    with _patched(
+        _setup,
+        _build_env=_build_env,
+        _extract_world=lambda obs, color: (
+            agents, known_tasks if obs == "obs1" else env2_tasks
+        ),
+        _require_airbase_only_targets=lambda obs, color: None,
+        _shared_launch_point=lambda agents_: Location(32.0, 35.0),
+        _require_agent_ids_preserved=lambda before, after: None,
+        place_hidden_targets=lambda *a, **k: ("<placement>",),
+        place_hidden_targets_bounded=_forbidden_bounded,
+        build_patched_scenario=lambda scenario_json, placements, **k: "{}",
+        geometric_fingerprint=lambda placements: (),
+        solve_and_normalize=_dropping_solver("<nothing>"),
+    ):
+        ctx = setup_episode("{}", n_hidden=1, placement_rng=random.Random(0))
+
+    assert ctx.construction_audit is None, ctx.construction_audit
+    for key in ("hidden_policy", "hidden_realized", "construction_audit"):
+        assert key not in ctx.split_meta, f"the exact path grew a {key!r} key"
+    # And the keys it always carried are unchanged.
+    assert ctx.split_meta["known"] == 1 and ctx.split_meta["hidden"] == 1
+    assert ctx.split_meta["n_hidden_requested"] == 1
+
+
+def test_no_construction_accounting_reaches_the_actor_observation() -> None:
+    """P7. NOT ONE accounting quantity enters `GraphObservation`.
+
+    A hidden COUNT, a policy id or a backoff reason is exactly the kind of privileged
+    quantity an ego cannot sense, and `CLAUDE.md` section 3 is not up for renegotiation.
+    The observation's field set is pinned, so adding one would fail here.
+    """
+    import dataclasses as _dc
+    from match_aou.rl.observation.graph_builder import GraphObservation
+
+    fields = tuple(f.name for f in _dc.fields(GraphObservation))
+    assert fields == (
+        "task_features", "agent_features", "ego_index", "edge_index", "edge_type",
+        "task_target_ids", "agent_ids", "agent_id", "current_time", "time_norm",
+    ), fields
+
+    banned = ("hidden", "policy", "backoff", "realized", "requested", "candidate",
+              "ordinal", "audit", "construction")
+    for name in fields:
+        assert not any(term in name.lower() for term in banned), name
+
+
 def test_legacy_context_has_an_empty_placement_audit() -> None:
     """The audit field defaults to empty, so the legacy path's contract is unchanged."""
     ctx = EpisodeContext(
@@ -658,6 +961,9 @@ def test_legacy_context_has_an_empty_placement_audit() -> None:
     assert ctx.placements == ()
     assert ctx.record is False
     assert geometric_fingerprint(ctx.placements) == ()
+    # The generalized accounting field defaults to absent, so the legacy path's contract
+    # is unchanged and "which policy ran?" is answerable from the context alone.
+    assert ctx.construction_audit is None
 
 
 # =============================================================================
@@ -981,6 +1287,31 @@ def _known_only_scenario_json(tmp_dir: Path, seed: int = 0) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _known_only_cell_json(
+    tmp_dir: Path, *, seed: int, num_agents: int, n_known: int
+) -> str:
+    """Generate ONE known-only world for an ARBITRARY (A, K) cell.
+
+    Kept beside `_known_only_scenario_json` rather than replacing it: the reference-cell
+    helper above is what the historical proofs are written against, and its call shape
+    must not move.
+    """
+    from match_aou.rl.training.graph_train import TrainConfig, build_variation_config
+    from match_aou.utils.blade_utils.scenario_generator import ScenarioGenerator
+
+    gen = ScenarioGenerator(
+        base_scenario_path=str(BASE_SCENARIO), output_dir=str(tmp_dir),
+        max_sim_ticks=MAX_SIM_TICKS,
+    )
+    gen.recompute_time_feasible_cap(allowed_classes=None)
+    cfg = TrainConfig(
+        n_iterations=1, num_agents=int(num_agents), n_known=int(n_known),
+        n_hidden=min(int(num_agents), 3),
+    )
+    path = gen.generate(episode=seed, config=build_variation_config(cfg, seed))
+    return path.read_text(encoding="utf-8")
+
+
 @_needs_blade
 def test_build_env_closes_the_environment_when_reset_fails() -> None:
     """P1 (env ownership): a `reset()` failure must not leak the environment it made.
@@ -1096,6 +1427,46 @@ def test_environment_one_is_closed_on_an_injected_failure() -> None:
             f"env-1 was closed {len(closed)} time(s); the temporary environment must be "
             "closed exactly once on the failure path"
         )
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@_needs_blade
+def test_blade_generalized_cell_is_enforced_before_the_solve() -> None:
+    """P7. The generalized cell is judged against the REAL world, before any solve.
+
+    Needs BLADE (env-1 is really built and really extracted) but NOT bonmin: the point is
+    precisely that the refusal happens BEFORE `solve_and_normalize` is ever called, so an
+    out-of-cell request costs no solver time and leaves no partial construction. The
+    solver is replaced by a raiser, which is what makes that falsifiable.
+
+    `K` is read from the RAW world inventory, so the `K == A` rule is a statement about
+    what the scenario CONTAINS -- not about what a solver would have allocated.
+    """
+    import blade.utils.PlaybackRecorder as _pbr
+    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024
+
+    def _forbidden(*_a: Any, **_k: Any):
+        raise AssertionError("the solver ran before the generalized cell was judged")
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="b3_gen_cell_"))
+    try:
+        # A = K = 3, so only H_requested is out of cell.
+        in_cell = _known_only_cell_json(tmp_dir, seed=0, num_agents=3, n_known=3)
+        # A = 2 while K = 3: the world itself violates `K == A`.
+        wrong_k = _known_only_cell_json(tmp_dir, seed=1, num_agents=2, n_known=3)
+
+        with _patched(_setup, solve_and_normalize=_forbidden):
+            _expect_raises(
+                RuntimeError, "H_requested above A", setup_episode, in_cell,
+                n_hidden=4, placement_rng=random.Random(0),
+                hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+            )
+            _expect_raises(
+                RuntimeError, "K != A", setup_episode, wrong_k,
+                n_hidden=1, placement_rng=random.Random(0),
+                hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+            )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -2200,6 +2571,201 @@ def test_p1_zero_hidden_is_a_clean_construction_probe() -> None:
 
 
 @_needs_solver
+def test_p7_generalized_construction_reconciles_requested_and_realized() -> None:
+    """P7. End to end: the generalized cell really builds, and its accounting is true.
+
+    Runs the whole seam -- generator, env-1, a REAL bonmin solve, bounded B2 backoff, the
+    JSON patch, env-2 reload and the oracle solve -- across two (A, H) cells, and checks
+    what only the integrated path can show:
+
+      * the patch adds exactly H_REALIZED targets, never H_REQUESTED phantom ones;
+      * `known_target_ids` / `executed_target_ids` (the RAW pre-solve snapshots) reconcile
+        with the audit, while the ALLOCATED-ONLY `oracle_tasks` deliberately need not --
+        reading it as a world inventory is the defect those snapshots exist to close;
+      * the requested counts survive a backoff instead of being rewritten;
+      * reproducibility is by GEOMETRY at a fixed seed, never by uuid.
+
+    `A = 2` is covered by the pure cell tests instead: two known tasks is the documented
+    bonmin branch-and-bound symmetry stall (`CLAUDE.md` section 8), and paying ~15 minutes
+    of solver time proves nothing this cell does not.
+    """
+    import blade.utils.PlaybackRecorder as _pbr
+    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="b3_p7_"))
+    open_contexts: List[Any] = []
+    try:
+        for agents, requested in ((3, 3), (4, 2)):
+            scenario_json = _known_only_cell_json(
+                tmp_dir, seed=0, num_agents=agents, n_known=agents
+            )
+            known_json_ids = [
+                str(entry["id"])
+                for entry in json.loads(scenario_json)["currentScenario"]["airbases"]
+                if str(entry.get("sideColor", "")).lower() != ATTACKING_SIDE_COLOR
+            ]
+            assert len(known_json_ids) == agents, known_json_ids
+
+            ctx = setup_episode(
+                scenario_json, n_hidden=requested, placement_rng=random.Random(0),
+                hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+            )
+            open_contexts.append(ctx)
+            audit = ctx.construction_audit
+            assert isinstance(audit, ConstructionAudit), audit
+
+            # (1) the cell, as REQUESTED -- unchanged by whatever the backoff realized.
+            assert audit.policy == HIDDEN_POLICY_BOUNDED_BACKOFF_V1, audit.policy
+            assert audit.agent_count == agents == len(ctx.agent_ids), audit
+            assert audit.known_requested == agents, audit
+            assert audit.hidden_requested == requested, audit
+            assert audit.total_requested == agents + requested, audit
+
+            # (2) what was REALIZED, measured against the RAW world snapshots.
+            realized = audit.hidden_realized
+            assert 1 <= realized <= requested, realized
+            assert realized == len(ctx.placements), (realized, len(ctx.placements))
+            assert audit.known_realized == agents == len(ctx.known_target_ids), audit
+            assert audit.total_realized == len(ctx.executed_target_ids), audit
+            assert audit.total_realized == agents + realized, audit
+
+            # (3) the patch added exactly H_REALIZED targets -- no phantoms.
+            known_ids = set(ctx.known_target_ids)
+            assert known_ids == set(known_json_ids), "a known target lost its identity"
+            hidden_ids = [t for t in ctx.executed_target_ids if t not in known_ids]
+            assert len(hidden_ids) == realized, hidden_ids
+            assert known_ids <= set(ctx.executed_target_ids)
+
+            # (4) env-2 is the authority, and the ORACLE is an allocation over it -- so it
+            #     is a SUBSET of the world and is never the inventory.
+            oracle_ids = {_task_target_id(t) for t in ctx.oracle_tasks}
+            assert oracle_ids <= set(ctx.executed_target_ids), oracle_ids
+            assert set(ctx.a_init) <= set(ctx.agent_ids)
+            assert set(ctx.beliefs) == set(ctx.agent_ids)
+            belief_ids = {
+                _task_target_id(t)
+                for belief in ctx.beliefs.values() for t in belief.tasks
+            }
+            assert belief_ids <= known_ids, "a hidden target leaked into a t=0 belief"
+
+            # (5) candidate accounting covers the whole scheduled roster's ordinals.
+            assert sorted(audit.candidate_order) == list(range(agents)), audit
+            assert audit.considered_ordinals == audit.candidate_order[
+                :len(audit.considered_ordinals)
+            ], audit
+            assert len(set(audit.selected_ordinals)) == realized, audit
+            assert set(audit.selected_ordinals) <= set(audit.candidate_order), audit
+            for candidate in audit.candidates:
+                assert candidate.accepted == (candidate.reason is None), candidate
+                assert (candidate.reason is None
+                        or candidate.reason in BACKOFF_REJECTION_REASONS), candidate
+            assert ctx.split_meta["hidden_policy"] == HIDDEN_POLICY_BOUNDED_BACKOFF_V1
+            assert ctx.split_meta["hidden_realized"] == realized
+            assert ctx.split_meta["n_hidden_requested"] == requested
+            assert ctx.split_meta["hidden"] == realized
+            assert ctx.split_meta["full"] == agents + realized
+
+            # (6) reproducible by GEOMETRY at the same seed, while the uuids all differ.
+            fingerprint = audit.geometric_fingerprint
+            assert fingerprint == geometric_fingerprint(ctx.placements)
+            repeat = setup_episode(
+                scenario_json, n_hidden=requested, placement_rng=random.Random(0),
+                hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+            )
+            open_contexts.append(repeat)
+            assert repeat.construction_audit.geometric_fingerprint == fingerprint
+            assert repeat.construction_audit.selected_ordinals == audit.selected_ordinals
+            assert repeat.construction_audit.candidate_order == audit.candidate_order
+            repeat_hidden = [
+                t for t in repeat.executed_target_ids
+                if t not in set(repeat.known_target_ids)
+            ]
+            assert set(repeat_hidden).isdisjoint(hidden_ids), (
+                "hidden uuids repeated across runs -- the fingerprint check would be "
+                "measuring ids rather than geometry"
+            )
+
+            print("  P7 A=%d K=%d H_requested=%d H_realized=%d total=%d selected=%s"
+                  % (agents, agents, requested, realized, audit.total_realized,
+                     audit.selected_ordinals))
+    finally:
+        for c in open_contexts:
+            try:
+                c.env.close()
+            except Exception:
+                pass
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@_needs_solver
+def test_p7_bounded_backoff_accepts_a_world_the_exact_path_refuses() -> None:
+    """P7. The two policies really do differ, on a REAL world, with real bonmin.
+
+    Seed 2 of the reference cell is the case `CLAUDE.md` section 8 documents: the static
+    solve leaves one of the three egos without a route, so B2 can only produce two
+    placements. Under `exact_v1` that is a LOUD refusal and the whole episode is lost;
+    under `bounded_backoff_v1` the world is ACCEPTED with `H_realized = 2 < H_requested =
+    3`, and the shortfall is stated in the audit instead of being hidden.
+
+    The two arms use the SAME scenario JSON and the SAME placement seed, so the ONLY
+    difference between them is the cardinality policy.
+    """
+    import blade.utils.PlaybackRecorder as _pbr
+    _pbr.CHARACTER_LIMIT = 500 * 1024 * 1024
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="b3_p7_short_"))
+    ctx = None
+    try:
+        scenario_json = _known_only_cell_json(tmp_dir, seed=2, num_agents=3, n_known=3)
+
+        # (1) the HISTORICAL policy still refuses this world, exactly as it always did.
+        _expect_raises(
+            RuntimeError, "exact cardinality on a routeless-ego world", setup_episode,
+            scenario_json, n_hidden=3, placement_rng=random.Random(0),
+        )
+
+        # (2) the GENERALIZED policy accepts it -- and says what it really got.
+        ctx = setup_episode(
+            scenario_json, n_hidden=3, placement_rng=random.Random(0),
+            hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+        )
+        audit = ctx.construction_audit
+        assert audit.hidden_requested == 3, audit
+        assert audit.hidden_realized == 2 == len(ctx.placements), audit
+        assert audit.realized_full_request is False, audit
+        assert audit.total_requested == 6 and audit.total_realized == 5, audit
+
+        # (3) the shortfall is NAMED: one candidate had no route in the allocated-only
+        #     A_init, and it is recorded rather than silently dropped from the accounting.
+        no_route = [c for c in audit.candidates if c.reason == REASON_NO_ROUTE]
+        assert len(no_route) == 1, [c.reason for c in audit.candidates]
+        assert no_route[0].ordinal not in audit.selected_ordinals, audit
+        assert no_route[0].ego_id not in ctx.a_init or not ctx.a_init[no_route[0].ego_id], (
+            "the candidate recorded as routeless does have a route in A_init"
+        )
+        assert audit.considered_ordinals == audit.candidate_order, (
+            "a short walk must have exhausted every candidate"
+        )
+
+        # (4) the WORLD really holds 3 known + 2 hidden, and the patch added no phantom.
+        assert len(ctx.known_target_ids) == 3, ctx.known_target_ids
+        assert len(ctx.executed_target_ids) == 5, ctx.executed_target_ids
+        assert ctx.split_meta["hidden"] == 2 and ctx.split_meta["full"] == 5
+        assert ctx.split_meta["n_hidden_requested"] == 3
+        assert ctx.split_meta["hidden_realized"] == 2
+
+        print("  P7 seed 2: exact REFUSED, bounded accepted H_realized=2/3 selected=%s"
+              % (audit.selected_ordinals,))
+    finally:
+        if ctx is not None:
+            try:
+                ctx.env.close()
+            except Exception:
+                pass
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@_needs_solver
 def test_p2_a_hidden_world_target_enters_only_the_sensing_egos_belief() -> None:
     """P2: private sensing isolation, proven through the integrated setup/tick seam.
 
@@ -2310,7 +2876,10 @@ def _run_all() -> None:
 
     ran = skipped = 0
     for name, fn in tests:
-        needs_solver = name.startswith("test_p1") or name.startswith("test_p2")
+        needs_solver = (
+            name.startswith("test_p1") or name.startswith("test_p2")
+            or name.startswith("test_p7")
+        )
         needs_blade = (
             needs_solver or "environment_one" in name or "build_env" in name
             or name.startswith("test_blade")

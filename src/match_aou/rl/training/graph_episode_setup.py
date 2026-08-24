@@ -34,6 +34,28 @@ TWO PATHS, SELECTED EXPLICITLY (never inferred)
     ``split_tasks`` is NOT called: there is nothing to split, and discovery is
     guaranteed by geometry rather than by the split's adjacency chain.
 
+TWO HIDDEN-CARDINALITY POLICIES ON THE CONSTRUCTION PATH (also never inferred)
+------------------------------------------------------------------------------
+``hidden_policy`` selects how many hidden targets the construction is allowed to end up
+with, and it DEFAULTS to the historical exact policy:
+
+  * ``exact_v1`` (DEFAULT) — exactly ``n_hidden`` placements, one per non-empty ego
+    route, and a loud failure otherwise. ``n_hidden=0`` is a legal probe. This is the
+    behaviour every approved measurement was taken on and it is UNCHANGED.
+  * ``bounded_backoff_v1`` — the GENERALIZED-V1 addition. It enforces the generalized
+    cell (``A`` agents in ``GENERALIZED_AGENT_COUNTS``, ``K == A`` RAW known targets,
+    ``1 <= n_hidden <= A``), then walks a deterministic seed-driven permutation of STABLE
+    AGENT ORDINALS, attempting the SAME approved single-route geometry on each candidate
+    with its own pre-derived rng substream, and accepts any realized count ``>= 1``.
+    Realizing FEWER hidden targets than requested is a legitimate, RECORDED outcome
+    (``EpisodeContext.construction_audit``), never a silently reduced request; realizing
+    NONE is a refusal. The agent population, the seed, the world and the requested count
+    are never altered to make a world succeed.
+
+Selecting ``bounded_backoff_v1`` without the ``(n_hidden, placement_rng)`` pair is
+REFUSED, not ignored. Everything downstream of the placement step is shared: both
+policies patch in exactly as many targets as were REALIZED.
+
 ENVIRONMENT OWNERSHIP (construction path)
 -----------------------------------------
 Environment 1 is TEMPORARY and is closed on every success and failure path; only
@@ -96,10 +118,16 @@ from .belief import Belief
 # is the only legal one: the placement layer must never import THIS module (that would
 # drag a pure geometry layer into the setup/solver/executor closure).
 from .graph_hidden_placement import (
+    HIDDEN_CARDINALITY_POLICIES,
+    HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+    HIDDEN_POLICY_EXACT_V1,
+    BackoffCandidate,
+    BoundedBackoffAudit,
     HiddenPlacement,
     PlacementParameters,
     geometric_fingerprint,
     place_hidden_targets,
+    place_hidden_targets_bounded,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,6 +166,16 @@ LAUNCH_POINT_TOLERANCE_KM: float = 1e-3
 _REQUIRED_AIRBASE_KEYS: Tuple[str, ...] = (
     "id", "name", "sideId", "className", "latitude", "longitude", "sideColor",
 )
+
+# --- GENERALIZED-V1 cardinality (bounded-backoff policy ONLY) -----------------------
+# The approved generalized cell: A agents in {2, 3, 4}, K == A known targets, and
+# 1 <= H_requested <= A, so a requested world holds A + 1 .. 2A targets. The REALIZED
+# hidden count may be smaller (bounded backoff), but never zero, and the REQUESTED count
+# is never quietly reduced to make a world succeed -- a silently altered request is what
+# makes a denominator unreadable.
+# These bounds are enforced ONLY under HIDDEN_POLICY_BOUNDED_BACKOFF_V1. The historical
+# exact path carries no such cell restriction and is untouched by them.
+GENERALIZED_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4)
 
 
 # =============================================================================
@@ -339,25 +377,53 @@ def split_tasks(
 # =============================================================================
 
 def _resolve_construction_mode(
-    n_hidden: Optional[int], placement_rng: Optional[random.Random]
+    n_hidden: Optional[int],
+    placement_rng: Optional[random.Random],
+    hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
 ) -> bool:
-    """Decide which episode construction ``setup_episode`` runs, and validate the pair.
+    """Decide which episode construction ``setup_episode`` runs, and validate its request.
 
     ``n_hidden`` and ``placement_rng`` are a PAIR, never independently optional: the
     count without the rng would silently fall back to module-global randomness (a
     reproducibility hole), and the rng without the count would be a request with no
     number attached. The construction path is NEVER inferred from ``partial_ratio``.
 
+    ``hidden_policy`` selects the hidden-CARDINALITY policy and DEFAULTS to the historical
+    ``exact_v1``, so every pre-GENERALIZED-V1 caller keeps the behaviour every approved
+    measurement was taken on. Selecting ``bounded_backoff_v1`` without the construction
+    pair is REFUSED rather than ignored: a generalized policy silently dropped on the
+    legacy split path would produce a world nobody asked for.
+
+    Only ARGUMENT-level facts are judged here, because that is all that exists before
+    BLADE does. The generalized CELL bounds that depend on the world -- ``A`` in
+    ``GENERALIZED_AGENT_COUNTS``, ``K == A``, ``H_requested <= A`` -- are checked in
+    :func:`_require_generalized_cardinality` once env-1 has been extracted.
+
     Returns:
         True for the construction path, False for the legacy split path.
 
     Raises:
-        ValueError: if exactly one of the pair was supplied, ``n_hidden`` is not a
-            non-negative integer (``bool`` rejected despite subclassing ``int``, matching
-            the locked B2 layer's ``_as_assignment``), or ``placement_rng`` is not an
-            explicit :class:`random.Random`. Raised BEFORE any BLADE object is built.
+        ValueError: on an unknown policy id, a bounded-backoff request without the
+            construction pair, a bounded-backoff ``n_hidden < 1``, exactly one of the pair
+            supplied, an ``n_hidden`` that is not a non-negative integer (``bool``
+            rejected despite subclassing ``int``, matching the locked B2 layer's
+            ``_as_assignment``), or a ``placement_rng`` that is not an explicit
+            :class:`random.Random`. Raised BEFORE any BLADE object is built.
     """
+    policy = str(hidden_policy)
+    if policy not in HIDDEN_CARDINALITY_POLICIES:
+        raise ValueError(
+            f"setup_episode: unknown hidden_policy {hidden_policy!r}; expected one of "
+            f"{list(HIDDEN_CARDINALITY_POLICIES)}"
+        )
     if n_hidden is None and placement_rng is None:
+        if policy != HIDDEN_POLICY_EXACT_V1:
+            raise ValueError(
+                f"setup_episode: hidden_policy={policy!r} selects a CONSTRUCTION-path "
+                "cardinality policy, but neither n_hidden nor placement_rng was supplied, "
+                "so the legacy split path would run and the policy would be silently "
+                "ignored"
+            )
         return False
     if (n_hidden is None) != (placement_rng is None):
         raise ValueError(
@@ -377,7 +443,52 @@ def _resolve_construction_mode(
             "setup_episode: placement_rng must be an explicit random.Random (module-global "
             f"randomness is not reproducible per episode), got {type(placement_rng).__name__}"
         )
+    if policy == HIDDEN_POLICY_BOUNDED_BACKOFF_V1 and int(n_hidden) < 1:
+        raise ValueError(
+            f"setup_episode: hidden_policy={policy!r} requires n_hidden >= 1 (a "
+            f"generalized world needs a hidden half), got {n_hidden!r}. n_hidden=0 is a "
+            f"probe of the {HIDDEN_POLICY_EXACT_V1!r} path only."
+        )
     return True
+
+
+def _require_generalized_cardinality(
+    *, agent_count: int, known_count: int, hidden_requested: int
+) -> None:
+    """Enforce the approved GENERALIZED-V1 cell, BEFORE anything is solved or placed.
+
+    The approved shape is ``A`` agents in :data:`GENERALIZED_AGENT_COUNTS`, ``K == A``
+    RAW KNOWN-world targets, and ``1 <= H_requested <= A``. ``known_count`` therefore has
+    to come from the RAW world inventory (``_world_target_ids``), never from an
+    allocated-only solver output, which omits every unselected target and would under-count
+    the very world this rule is about.
+
+    Refuses rather than repairs: the agent population, the seed, the world and the
+    requested hidden count are NEVER silently altered to make a world succeed. Only the
+    REALIZED hidden count may end up smaller than requested, and only through the recorded
+    bounded-backoff walk.
+
+    Called ONLY under :data:`HIDDEN_POLICY_BOUNDED_BACKOFF_V1`; the historical exact path
+    is unrestricted and never reaches it.
+
+    Raises:
+        RuntimeError: on any violation of the cell.
+    """
+    if int(agent_count) not in GENERALIZED_AGENT_COUNTS:
+        raise RuntimeError(
+            f"setup_episode: generalized construction needs A in "
+            f"{list(GENERALIZED_AGENT_COUNTS)} agents, got A={int(agent_count)}"
+        )
+    if int(known_count) != int(agent_count):
+        raise RuntimeError(
+            f"setup_episode: generalized construction needs K == A known world targets, "
+            f"got K={int(known_count)} for A={int(agent_count)}"
+        )
+    if not (1 <= int(hidden_requested) <= int(agent_count)):
+        raise RuntimeError(
+            f"setup_episode: generalized construction needs 1 <= H_requested <= A, got "
+            f"H_requested={int(hidden_requested)} for A={int(agent_count)}"
+        )
 
 
 def _task_target_id(task: Task) -> str:
@@ -676,6 +787,86 @@ def _world_target_ids(tasks: Sequence[Task], what: str) -> Tuple[str, ...]:
 # 3. Episode context (the handoff object the tick-loop consumes)
 # =============================================================================
 
+@dataclass(frozen=True)
+class ConstructionAudit:
+    """Requested vs REALIZED construction cardinality for ONE generalized episode.
+
+    The GENERALIZED-V1 accounting surface, and deliberately a TYPED record on the returned
+    context rather than a console line: requested-vs-realized is meant to be inspected as
+    a DISTRIBUTION across episodes (a HIGH hidden-load stratum that quietly collapses into
+    the LOW one is not a stratum), and an unstructured log cannot support that.
+
+    THE COUNTS ARE WORLD COUNTS, NOT ALLOCATION COUNTS. ``known_realized`` and
+    ``total_realized`` are taken from the RAW pre-solve snapshots
+    ``EpisodeContext.known_target_ids`` / ``executed_target_ids``, never from
+    ``belief_tasks`` / ``oracle_tasks``, which are allocated-only by
+    ``solve_and_normalize``'s contract and omit every target the solver did not select.
+
+    Populated ONLY for :data:`HIDDEN_POLICY_BOUNDED_BACKOFF_V1`. The legacy split path and
+    the historical exact construction path leave ``EpisodeContext.construction_audit`` at
+    ``None`` -- that absence IS how a reader tells which policy ran, and it is what keeps
+    the historical path observably unchanged.
+
+    NOTHING here reaches the acting path: no count, no policy id and no candidate reason
+    enters ``GraphObservation``. A count of what is hidden is exactly the kind of
+    privileged quantity an ego cannot sense (``CLAUDE.md`` section 3).
+    """
+
+    policy: str
+    agent_count: int
+    known_requested: int
+    known_realized: int
+    hidden_requested: int
+    hidden_realized: int
+    total_requested: int
+    total_realized: int
+    backoff: BoundedBackoffAudit
+
+    @property
+    def candidate_order(self) -> Tuple[int, ...]:
+        """The deterministic candidate ORDINAL order the backoff walk used."""
+        return self.backoff.candidate_order
+
+    @property
+    def considered_ordinals(self) -> Tuple[int, ...]:
+        """The ordinals the bounded walk actually visited (a prefix of the order)."""
+        return self.backoff.considered_ordinals
+
+    @property
+    def candidates(self) -> Tuple[BackoffCandidate, ...]:
+        """Per-candidate outcome / rejection reason, in visit order."""
+        return self.backoff.candidates
+
+    @property
+    def selected_ordinals(self) -> Tuple[int, ...]:
+        """The ordinals whose routes really carry a realized hidden target."""
+        return self.backoff.selected_ordinals
+
+    @property
+    def geometric_fingerprint(self) -> Tuple[Tuple[float, float], ...]:
+        """Id-free geometric identity of the realized placements."""
+        return self.backoff.geometric_fingerprint
+
+    @property
+    def realized_full_request(self) -> bool:
+        """True iff every requested hidden target was realized."""
+        return self.backoff.realized_full_request
+
+    def as_dict(self) -> Dict[str, Any]:
+        """A JSON-ready view (plain builtins only)."""
+        return {
+            "policy": str(self.policy),
+            "agent_count": int(self.agent_count),
+            "known_requested": int(self.known_requested),
+            "known_realized": int(self.known_realized),
+            "hidden_requested": int(self.hidden_requested),
+            "hidden_realized": int(self.hidden_realized),
+            "total_requested": int(self.total_requested),
+            "total_realized": int(self.total_realized),
+            "backoff": self.backoff.as_dict(),
+        }
+
+
 @dataclass
 class EpisodeContext:
     """Everything the tick-loop needs after Stage-0 setup.
@@ -706,6 +897,13 @@ class EpisodeContext:
     record: bool = False
     """True iff recording was armed at setup (a ``recording_export_path`` was given);
     the tick-loop drives the recorder (start / step / export) iff this is True."""
+
+    construction_audit: Optional[ConstructionAudit] = None
+    """Requested-vs-realized construction accounting — see :class:`ConstructionAudit`.
+
+    Set ONLY on the GENERALIZED-V1 ``bounded_backoff_v1`` construction path. ``None`` on
+    the legacy split path AND on the historical ``exact_v1`` construction path, whose
+    cardinality is exact by contract and therefore has nothing to reconcile."""
 
     placements: Tuple[HiddenPlacement, ...] = ()
     """The locked B2 placement records behind this episode's hidden targets — the
@@ -834,6 +1032,7 @@ def setup_episode(
     recording_export_path: Optional[str] = None,
     n_hidden: Optional[int] = None,
     placement_rng: Optional[random.Random] = None,
+    hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
 ) -> EpisodeContext:
     """Stand up one episode: BLADE env -> solve -> beliefs + executor.
 
@@ -856,26 +1055,36 @@ def setup_episode(
             exports it. ``record_every_seconds`` throttles the per-tick frame cadence.
             Only the RETURNED environment is ever armed; the construction path's
             temporary environment 1 never records.
-        n_hidden: hidden targets to construct. Non-negative; ``0`` is a legal probe that
-            places nothing and patches nothing. Must be paired with ``placement_rng``.
+        n_hidden: hidden targets REQUESTED. Non-negative; ``0`` is a legal probe that
+            places nothing and patches nothing (``exact_v1`` only). Must be paired with
+            ``placement_rng``.
         placement_rng: an explicit :class:`random.Random` driving B2's leg / fraction /
             offset draws. Must be paired with ``n_hidden``.
+        hidden_policy: the hidden-CARDINALITY policy, DEFAULTING to the historical
+            ``exact_v1`` so every pre-GENERALIZED-V1 caller keeps the behaviour the
+            approved measurements were taken on. ``bounded_backoff_v1`` selects the
+            GENERALIZED-V1 deterministic bounded backoff, which enforces the generalized
+            cell (``A`` in :data:`GENERALIZED_AGENT_COUNTS`, ``K == A``,
+            ``1 <= n_hidden <= A``), MAY realize fewer hidden targets than requested, and
+            fills :attr:`EpisodeContext.construction_audit`. It is REFUSED — never
+            ignored — without the construction pair.
 
     Returns:
         An :class:`EpisodeContext` handoff object.
 
     Raises:
-        ValueError: on an invalid or half-supplied construction pair — raised BEFORE any
-            BLADE object is built.
+        ValueError: on an unknown ``hidden_policy``, or an invalid / half-supplied
+            construction pair — raised BEFORE any BLADE object is built.
         RuntimeError: if the scenario yields no blue agents or no enemy tasks, or (on the
             construction path) if any construction invariant fails.
     """
-    construction = _resolve_construction_mode(n_hidden, placement_rng)
+    construction = _resolve_construction_mode(n_hidden, placement_rng, hidden_policy)
     if construction:
         return _setup_episode_construction(
             scenario_json,
             n_hidden=int(n_hidden),                      # type: ignore[arg-type]
             placement_rng=placement_rng,                 # type: ignore[arg-type]
+            hidden_policy=str(hidden_policy),
             max_episode_steps=max_episode_steps,
             attacking_side_color=attacking_side_color,
             detection_km=detection_km,
@@ -969,8 +1178,20 @@ def _setup_episode_construction(
     detection_km: float,
     record_every_seconds: Optional[int],
     recording_export_path: Optional[str],
+    hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
 ) -> EpisodeContext:
     """The construction path: solve -> place -> patch -> reload -> oracle.
+
+    TWO hidden-CARDINALITY policies share this one seam, and only the PLACEMENT STEP
+    differs between them. ``exact_v1`` (the default) demands exactly ``n_hidden``
+    placements and fails loudly otherwise — unchanged, and the behaviour every approved
+    measurement was taken on. ``bounded_backoff_v1`` enforces the GENERALIZED-V1 cell,
+    walks a deterministic bounded backoff over stable agent ordinals, accepts any realized
+    count ``>= 1``, and records requested vs realized in
+    :attr:`EpisodeContext.construction_audit`. Everything downstream of the placement step
+    — the patch, the reload, env-2's authority, the world snapshots, the re-materialized
+    known tasks and the oracle solve — is the SAME code for both, because both must patch
+    in exactly as many targets as were REALIZED.
 
     Environment 1 is temporary and is closed on EVERY exit path (its ``finally``);
     environment 2 is the only one that reaches the caller, and it is closed too if
@@ -999,6 +1220,19 @@ def _setup_episode_construction(
         # inventory. Strict: a task with no target id raises rather than shortening it.
         known_target_ids = _world_target_ids(known_world_tasks, "known world")
         known_world_ids = list(known_target_ids)
+
+        # GENERALIZED-V1 only: judge the requested cell against the RAW world BEFORE the
+        # solve, so an out-of-cell request costs no bonmin call and leaves no partial
+        # construction behind. `known_world_ids` is the raw world inventory, never an
+        # allocation, which is the whole point of checking `K == A` against it.
+        generalized = str(hidden_policy) == HIDDEN_POLICY_BOUNDED_BACKOFF_V1
+        if generalized:
+            _require_generalized_cardinality(
+                agent_count=len(agents1),
+                known_count=len(known_world_ids),
+                hidden_requested=int(n_hidden),
+            )
+
         launch_point = _shared_launch_point(agents1)
 
         # --- Solve the KNOWN set -> A_init (the static plan egos start from) ------
@@ -1016,7 +1250,23 @@ def _setup_episode_construction(
 
         # --- B2 route-relative placement (consumed exactly as published) ----------
         placements: Tuple[HiddenPlacement, ...] = ()
-        if n_hidden > 0:
+        backoff: Optional[BoundedBackoffAudit] = None
+        if generalized:
+            # GENERALIZED-V1: the candidate population is the AUTHORITATIVE pre-solve
+            # agent sequence, so an ego the allocated-only solve omitted is still a
+            # candidate (it is simply recorded as having no route). Ordinals come from
+            # that sequence's ORDER, never from the id strings, which are not seed-derived
+            # (CLAUDE.md section 8).
+            placements, backoff = place_hidden_targets_bounded(
+                a_init,
+                known_belief_tasks,
+                launch_point,
+                PlacementParameters(detection_km=float(detection_km)),
+                placement_rng,
+                agent_ordinals=env1_agent_ids,
+                hidden_requested=int(n_hidden),
+            )
+        elif n_hidden > 0:
             placements = place_hidden_targets(
                 a_init,
                 known_belief_tasks,
@@ -1098,6 +1348,47 @@ def _setup_episode_construction(
             "geometric_fingerprint": geometric_fingerprint(placements),
         }
 
+        construction_audit: Optional[ConstructionAudit] = None
+        if backoff is not None:
+            # Reconciled against the RAW world snapshots, never against the allocated-only
+            # `belief_tasks` / `oracle_tasks`: the audit's whole job is to state what the
+            # world REALLY holds beside what was REQUESTED, so deriving either count from
+            # an allocation would reintroduce the exact defect the snapshots exist to
+            # close. Verified rather than trusted — a mismatch means the patch, the reload
+            # or the accounting is wrong, and it is refused here.
+            hidden_realized = len(placements)
+            expected_total = len(known_world_ids) + hidden_realized
+            if len(executed_target_ids) != expected_total:
+                raise RuntimeError(
+                    f"setup_episode: generalized accounting does not reconcile — the raw "
+                    f"executed world holds {len(executed_target_ids)} target(s) but "
+                    f"{len(known_world_ids)} known + {hidden_realized} realized hidden = "
+                    f"{expected_total} were constructed"
+                )
+            if backoff.hidden_realized != hidden_realized:
+                raise RuntimeError(
+                    f"setup_episode: backoff audit claims {backoff.hidden_realized} "
+                    f"realized hidden target(s) but {hidden_realized} were placed"
+                )
+            construction_audit = ConstructionAudit(
+                policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+                agent_count=len(agents),
+                # K == A is the approved rule, already enforced against the raw known
+                # world before the solve, so the requested known count IS the agent count.
+                known_requested=len(agents),
+                known_realized=len(known_target_ids),
+                hidden_requested=int(n_hidden),
+                hidden_realized=hidden_realized,
+                total_requested=len(agents) + int(n_hidden),
+                total_realized=len(executed_target_ids),
+                backoff=backoff,
+            )
+            # Generalized-only keys. The exact path's `split_meta` is deliberately left
+            # exactly as it was, so nothing reading a historical record sees new fields.
+            split_meta["hidden_policy"] = HIDDEN_POLICY_BOUNDED_BACKOFF_V1
+            split_meta["hidden_realized"] = hidden_realized
+            split_meta["construction_audit"] = construction_audit.as_dict()
+
         return _finish_context(
             game=game2,
             env=env2,
@@ -1113,6 +1404,7 @@ def _setup_episode_construction(
             placements=placements,
             known_target_ids=known_target_ids,
             executed_target_ids=executed_target_ids,
+            construction_audit=construction_audit,
         )
     except BaseException:
         _close_quietly(env2)
@@ -1135,6 +1427,7 @@ def _finish_context(
     placements: Tuple[HiddenPlacement, ...],
     known_target_ids: Tuple[str, ...],
     executed_target_ids: Tuple[str, ...],
+    construction_audit: Optional[ConstructionAudit] = None,
 ) -> EpisodeContext:
     """Mint the N independent beliefs + the ONE executor and package the context.
 
@@ -1195,6 +1488,7 @@ def _finish_context(
         placements=placements,
         known_target_ids=known_snapshot,
         executed_target_ids=executed_snapshot,
+        construction_audit=construction_audit,
     )
 
 
