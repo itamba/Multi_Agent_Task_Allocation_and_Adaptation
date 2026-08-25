@@ -89,8 +89,13 @@ from ..action.graph_action import ActionHead, build_action_mask, sample_action
 from ..action.graph_effect import apply_meta_action
 from ..action.graph_trigger import decide_triggers, never_overdue
 from ..agent.graph_encoder import GraphEncoder
+from ...models import StepKind
 from .graph_episode_setup import EpisodeContext, MAX_SIM_TICKS
-from .graph_fuel_damage import FuelDamageController
+from .graph_fuel_damage import (
+    FuelDamageController,
+    POST_FD_DEACTIVATED_DEAD,
+    POST_FD_DEACTIVATED_RTB,
+)
 from .belief import Belief
 
 # Default per-episode tick cap. Equal to the env's TimeLimit (setup passes
@@ -260,6 +265,132 @@ def _wake_decision(
 
 
 # =============================================================================
+# 3b. GENERALIZED-V1 step 2: the post-FD completion boundary (damaged ego ONLY)
+# =============================================================================
+
+def _assignment_target_id(assignment: Any, tasks: List[Any]) -> str:
+    """The target id an assignment points at, resolved against ONE ego's own task list.
+
+    Mirrors ``graph_trigger._task_target_id`` (attack step, ``steps[0]`` fallback) and
+    ``GraphPlanExecutor._resolve_step``'s bounds semantics: an index that does not
+    resolve yields ``""``, which matches no confirmed target and is therefore left
+    alone rather than raising. Tasks are append-only, so an index that resolved once
+    keeps resolving.
+    """
+    try:
+        task_idx = int(assignment[0])
+    except (TypeError, ValueError, IndexError):
+        return ""
+    if not (0 <= task_idx < len(tasks)):
+        return ""
+    steps = getattr(tasks[task_idx], "steps", None) or []
+    for step in steps:
+        if getattr(step, "step_kind", None) == StepKind.ATTACK:
+            return str(getattr(step, "target_id", ""))
+    return str(getattr(steps[0], "target_id", "")) if steps else ""
+
+
+def _drop_confirmed_assignments(
+    solution: Any, tasks: List[Any], ego_id: str, confirmed_target_ids: Any
+) -> Any:
+    """Copy-on-write: retire ONE ego's assignments on targets it has itself confirmed.
+
+    PURE, and shaped exactly like ``graph_effect``'s plan edits: a NEW dict with fresh
+    lists of immutable tuples, so the caller's plan cannot be mutated, and ONLY
+    ``solution[ego_id]`` differs. Peer slices are copied through byte-for-byte, no key is
+    invented or removed, and ``tasks`` is not touched at all (task indices are positional
+    and APPEND-ONLY -- removing a task would silently renumber every later assignment).
+
+    NO-COMMUNICATION: the only input beyond this ego's own slice is the id set the ego
+    ITSELF confirmed inside its own sensor radius.
+    """
+    ego_key = str(ego_id)
+    gone = {str(t) for t in (confirmed_target_ids or ())}
+    new_solution = {
+        str(aid): [tuple(t) for t in (tuples or [])]
+        for aid, tuples in solution.items()
+    }
+    if ego_key in new_solution:
+        new_solution[ego_key] = [
+            tuple(a) for a in new_solution[ego_key]
+            if _assignment_target_id(a, tasks) not in gone
+        ]
+    return new_solution
+
+
+def _post_fd_boundary(
+    fuel_damage: FuelDamageController,
+    ctx: EpisodeContext,
+    obs: Any,
+    tick: int,
+) -> Optional[str]:
+    """Expose the DAMAGED ego's own confirmed completions BEFORE it commits movement.
+
+    GENERALIZED-V1 (handoff 3l.4). Called at the TOP of a tick, after the exogenous
+    fuel-damage call and before Phase 1, and ONLY for the ego that really lost fuel --
+    :attr:`FuelDamageController.post_fd_ego` is ``None`` until the real mutation happens,
+    is ``None`` forever on a clean episode, and can never name a peer.
+
+    WHAT IT DOES, in order:
+
+      1. RETIRES the state when the ego can no longer reach a boundary -- it committed to
+         return (Phase 1 skips it from then on) or the engine removed it -- recording
+         WHICH, because "no further boundary happened" and "the ego went home" are
+         different facts.
+      2. RECONCILES the ego's OWN confirmed completions through the executor's single
+         confirmation site (:meth:`GraphPlanExecutor.reconcile_confirmed_for_ego`), which
+         is the same proximity-gated, liveness-probed logic Phase 2 has always used. A
+         target killed by a peer while this ego is far away confirms NOTHING here, which
+         is the no-communication rule restated for this seam.
+      3. CLEANS the confirmed assignments out of THAT EGO'S PRIVATE belief solution and
+         resyncs ONLY its own executor slice -- so the actor, if it wakes, observes the
+         boundary it is being woken for rather than a plan the world has already moved
+         past. This is deliberately BEFORE ``central.capture`` (which happens inside
+         Phase 1), so a CTDE sample describes the reconciled execution state and not a
+         stale pre-reconciliation plan.
+      4. Reports whether a decision is worth asking for: a completion that ends the
+         mission produces NO wake -- there is nothing to decide, and the executor's
+         existing empty-plan path issues the single latched RTB exactly as before.
+
+    ORDINARY EGOS ARE UNTOUCHED. No peer is reconciled, no peer belief or slice is read
+    or written, and no command timing changes for anyone -- including the damaged ego,
+    because ``done`` is monotone, so Phase 2's own reconciliation on the SAME observation
+    finds nothing further and emits precisely the command it would have emitted anyway.
+
+    Returns:
+        The damaged ego's id when a boundary occurred AND work remains (the caller must
+        pass ``post_fd_completion=True`` for exactly that ego), otherwise ``None``.
+    """
+    ego_id = fuel_damage.post_fd_ego
+    if ego_id is None:
+        return None
+    executor = ctx.executor
+    if ego_id in executor.dead:
+        fuel_damage.deactivate_adaptation(POST_FD_DEACTIVATED_DEAD)
+        return None
+    if executor.rtb_issued.get(ego_id, False):
+        fuel_damage.deactivate_adaptation(POST_FD_DEACTIVATED_RTB)
+        return None
+
+    confirmed = executor.reconcile_confirmed_for_ego(ego_id, obs)
+    if not confirmed:
+        return None
+
+    belief = ctx.beliefs[ego_id]
+    belief.solution = _drop_confirmed_assignments(
+        belief.solution, belief.tasks, ego_id, confirmed
+    )
+    executor.resync(belief.solution, ego_id=ego_id, tasks=belief.tasks)
+
+    remaining = executor.has_open_assignments(ego_id, obs)
+    fuel_damage.note_boundary(
+        ego_id=ego_id, tick=tick, confirmed_target_ids=confirmed,
+        remaining_mission=remaining,
+    )
+    return ego_id if remaining else None
+
+
+# =============================================================================
 # 4. The single-episode tick-loop
 # =============================================================================
 
@@ -307,7 +438,11 @@ def run_episode(
             (the default) leaves the loop byte-identical to the pre-FD behaviour. When
             supplied it is consulted ONCE per tick, at the top, before any ego is
             processed (see the module docstring); a CLEAN controller is a no-op on every
-            call, so there is one code path rather than two.
+            call, so there is one code path rather than two. It is ALSO consulted ONCE at
+            episode exit (``require_certified_event_realized``): a GENERALIZED-V1
+            CERTIFIED damaged world whose event never fired is an instrument fault and
+            must not be returned as a result. That terminal call is a no-op under the
+            legacy eligibility policy and on every clean episode.
         central: optional Phase-B CTDE :class:`CentralStateRecorder`. ``None`` (the
             default, and what ``actor_only`` training passes) leaves the loop
             byte-identical to the pre-CTDE behaviour -- no central state is built and
@@ -353,8 +488,16 @@ def run_episode(
         # stays irrelevant (module docstring). `damaged_ego` is the ONLY ego that may be
         # told about it, and only on this one tick.
         damaged_ego: Optional[str] = None
+        # GENERALIZED-V1 step 2: the completion boundary of an ALREADY damaged ego. Also
+        # at the top of the tick, after the event call and before Phase 1, so the ego
+        # decides at the boundary rather than after Phase 2 has committed movement to its
+        # next assignment. `None` on every episode whose policy is `single_wake_v1`, on
+        # every clean episode, and on every tick before the event really fires.
+        boundary_ego: Optional[str] = None
         if fuel_damage is not None:
             damaged_ego = fuel_damage.maybe_apply(obs, tick)
+            if fuel_damage.boundary_wakes_enabled:
+                boundary_ego = _post_fd_boundary(fuel_damage, ctx, obs, tick)
 
         # --- Phase 1: per-ego sense + trigger + (on wake) RL. NO env.step here. ---
         for ego_id in ctx.agent_ids:
@@ -369,6 +512,7 @@ def run_episode(
             belief = ctx.beliefs[ego_id]
             sensed = ctx.executor.sensed_target_ids(obs, ego_id)
             ego_fuel_damage = damaged_ego is not None and str(ego_id) == damaged_ego
+            ego_post_fd = boundary_ego is not None and str(ego_id) == boundary_ego
             new_tasks, new_sol, wake, _events = decide_triggers(
                 belief.tasks,
                 belief.solution,
@@ -377,6 +521,12 @@ def run_episode(
                 ego_id=ego_id,
                 clock=tick,
                 fuel_damage=ego_fuel_damage,
+                # OMITTED unless it is really True, so a caller that never enables the
+                # boundary policy makes the byte-identical pre-GENERALIZED-V1 call --
+                # the same keyword-omission discipline `graph_train._artifact_kwargs` /
+                # `_ctde_kwargs` use, and the stronger invariance claim than passing a
+                # False.
+                **({"post_fd_completion": True} if ego_post_fd else {}),
             )
             # Persist the trigger's belief edit (pop-up append / peer-overdue removal).
             belief.tasks, belief.solution = new_tasks, new_sol
@@ -414,6 +564,16 @@ def run_episode(
                     fuel_damage.note_wake(
                         ego_id=ego_id, meta_action=transition.meta_action
                     )
+                if ego_post_fd and fuel_damage is not None:
+                    # The BOUNDARY decision, counted under its own denominator. It is
+                    # deliberately NOT `note_wake`: `FuelDamageOutcome.wake_occurred` /
+                    # `wake_meta_action` mean the IMMEDIATE fuel-damage wake, an approved
+                    # measurement is reported over them, and folding later decisions into
+                    # that pair would silently change what it measures.
+                    fuel_damage.note_boundary_wake(
+                        ego_id=ego_id, tick=tick,
+                        meta_action=transition.meta_action,
+                    )
 
         # --- Phase 2: deterministic execution. ONE env.step for the whole tick. ---
         commands = ctx.executor.next_actions(obs)
@@ -447,6 +607,24 @@ def run_episode(
         if truncated:
             ended = "truncated"
             break
+
+    # --- THE EPISODE-EXIT SEAM (GENERALIZED-V1 step 2) -------------------------
+    # A CERTIFIED damaged world promised, before a single tick was paid for, that its
+    # event was constructible at a predicted state. `maybe_apply` guards that promise
+    # from the inside; this guards it from the outside -- if the episode ENDS and the
+    # event never fired, the certificate did not materialize, and letting the episode
+    # return would admit it into a scientific population as a successful damaged
+    # episode. It is ONE call at the ONE place that owns episode exit, so the predicate
+    # is not duplicated across `graph_train` and `graph_rollout`; it is a no-op for the
+    # LEGACY policy and for every clean episode, and it mutates nothing.
+    #
+    # IT RUNS BEFORE THE RECORDING EXPORT ON PURPOSE. `graph_train` synchronizes a
+    # completed run's playback into its manifest only AFTER `run_episode` returns, so
+    # exporting first and raising second would leave a real recording no manifest lists
+    # -- the exact defect the roster-integrity correction closed. An episode that raises
+    # exports nothing, and this one raises.
+    if fuel_damage is not None:
+        fuel_damage.require_certified_event_realized(scenario=obs, ticks=tick + 1)
 
     # Terminal frame + export (force so kills / RTB are visible even if the throttle
     # would have skipped this tick; a possible duplicate final frame is harmless). An

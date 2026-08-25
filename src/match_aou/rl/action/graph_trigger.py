@@ -13,8 +13,8 @@ Its orchestrator is the graph tick-loop (``training/graph_tick_loop.py``). Like
 ``graph_action`` / ``graph_effect`` it is a pure,
 hand-testable module (no BLADE engine, no torch).
 
-Three event kinds
------------------
+Four event kinds
+----------------
 - POP-UP: the ego senses an enemy target that is NOT in its plan (a target it did
   not know about). It becomes a new task node the policy MAY engage.
 - PEER-OVERDUE: the ego senses a target that A_init assigned to a PEER, and the peer's
@@ -27,6 +27,16 @@ Three event kinds
   is already in the world, and the graph builder reads it from the live aircraft on the
   next build. All this branch does is WAKE the policy, which is exactly this layer's
   job -- deciding WHEN to ask, never WHAT to answer.
+- POST-FD COMPLETION: an EXOGENOUS, ego-local boundary (GENERALIZED-V1, handoff 3l.4).
+  The ego is in persistent post-fuel-damage adaptation state and has just CONFIRMED,
+  with its OWN proximity-gated sensing, that one of its assigned targets is gone -- with
+  work still remaining. Like FUEL-DAMAGE it is not derived from sensing HERE (the
+  confirmation belongs to the executor, which owns ``done``), so the orchestrator passes
+  it in, for the ACTUALLY damaged ego alone. It edits NOTHING here either: the completed
+  assignment was already reconciled out of that ego's own belief by the orchestrator,
+  from that ego's own local confirmation. All this branch does is WAKE the policy, so it
+  decides at the boundary rather than after it has committed movement to the next
+  assignment.
 
 NO-COMMUNICATION (research-critical, structurally enforced here)
 ----------------------------------------------------------------
@@ -45,6 +55,12 @@ NO-COMMUNICATION (research-critical, structurally enforced here)
    the orchestrator that applied the event to that ego's own aircraft. It carries no
    information about any peer, and it is passed per call — one ego's flag can never
    reach another ego's ``decide_triggers`` invocation.
+5. POST-FD COMPLETION IS EGO-LOCAL, AND IT IS NOT A PEER SIGNAL. ``post_fd_completion``
+   is set for AT MOST ONE ego per tick -- the one that really lost fuel -- and only after
+   THAT EGO ITSELF confirmed, inside its own sensor radius, that its assigned target is
+   gone. A target killed by a peer while this ego is far away is deliberately NOT a
+   boundary: the fact the ego acts on is its own observation, never a peer's outcome
+   learned some other way.
 
 Belief edits (what a trigger DOES, before the policy runs)
 ----------------------------------------------------------
@@ -61,6 +77,12 @@ Belief edits (what a trigger DOES, before the policy runs)
                 which is not part of ``(belief_tasks, belief_solution)`` — the builder
                 reads it straight off the aircraft — so there is nothing here to copy or
                 rewrite. The event only sets ``wake``.
+- POST-FD COMPLETION:
+                NO belief edit at all, for a different reason: the edit has ALREADY
+                happened. The orchestrator reconciled the confirmed assignment out of
+                that ego's own belief solution and resynced its own executor slice before
+                calling here, precisely so the actor's observation shows the boundary it
+                is being woken for. This branch only sets ``wake``.
 
 Relationship to ``graph_effect``
 --------------------------------
@@ -94,14 +116,21 @@ Assignment = Tuple[int, int, int]  # (task_idx, step_idx, level)
 class TriggerKind(IntEnum):
     """Kind of event that woke the policy, paired with a task-node index in ``events``.
 
-    ``FUEL_DAMAGE`` is the one member with no task node: it is an exogenous change to the
-    ego's OWN platform state, not an observation about a target, so its ``events`` entry
-    carries :data:`NO_TASK_INDEX` rather than a task index that would not mean anything.
+    ``FUEL_DAMAGE`` and ``POST_FD_COMPLETION`` are the two members with no task node.
+    Neither is an observation ABOUT a target that the policy is being asked to consider:
+    the first is an exogenous change to the ego's OWN platform state, the second is the
+    moment its own mission advanced past an assignment it has itself confirmed complete.
+    Both therefore carry :data:`NO_TASK_INDEX` rather than a task index that would not
+    mean anything.
+
+    Values are APPEND-ONLY: ``POST_FD_COMPLETION`` takes the next free integer so every
+    existing member keeps the value an already-recorded artifact used.
     """
 
     POP_UP = 0
     PEER_OVERDUE = 1
     FUEL_DAMAGE = 2
+    POST_FD_COMPLETION = 3
 
 
 # The task-node index paired with a NON-TASK event (today only ``FUEL_DAMAGE``).
@@ -172,6 +201,7 @@ def decide_triggers(
     ego_id: str,
     clock: float,
     fuel_damage: bool = False,
+    post_fd_completion: bool = False,
 ) -> Tuple[List[Task], Dict[str, List[Assignment]], bool, List[Tuple[TriggerKind, int]]]:
     """Decide whether the ego's sensing warrants waking the policy, editing its belief.
 
@@ -206,6 +236,17 @@ def decide_triggers(
             ``(FUEL_DAMAGE, NO_TASK_INDEX)`` event; it edits NEITHER the task list NOR
             the solution, because the changed quantity is the ego's own live fuel, which
             the graph builder reads off the aircraft rather than out of the belief.
+        post_fd_completion: True iff THIS ego is in persistent post-fuel-damage
+            adaptation state and has just confirmed, with its OWN proximity-gated
+            sensing, that an assigned target is gone while work remains
+            (GENERALIZED-V1, handoff 3l.4). Defaults to False, so every pre-existing
+            caller is byte-unchanged. Like ``fuel_damage`` it cannot be detected here --
+            the confirmation lives in the executor, which owns ``done`` -- so the
+            orchestrator passes it in, for the ACTUALLY damaged ego alone. Setting it
+            wakes the policy and appends a ``(POST_FD_COMPLETION, NO_TASK_INDEX)``
+            event; it edits NEITHER the task list NOR the solution, because the
+            orchestrator has already reconciled the completed assignment out of this
+            ego's own belief from this ego's own local confirmation.
 
     Returns:
         ``(new_belief_tasks, new_belief_solution, wake, events)`` where ``events`` is a
@@ -231,6 +272,17 @@ def decide_triggers(
         events.append((TriggerKind.FUEL_DAMAGE, NO_TASK_INDEX))
         wake = True
         logger.debug("FUEL_DAMAGE ego=%s clock=%s", ego_key, clock)
+
+    # --- POST-FD COMPLETION (exogenous, ego-local) ----------------------------------
+    # Beside FUEL-DAMAGE and before the sensing scan, for the same reason: it is a cause
+    # of this tick, not one of its observations. It edits nothing -- the belief cleanup
+    # is the orchestrator's, made from this ego's own confirmation -- and it shares the
+    # single `wake` boolean, so a boundary that coincides with a pop-up (or, in
+    # principle, with the fuel-damage event itself) still produces exactly ONE decision.
+    if post_fd_completion:
+        events.append((TriggerKind.POST_FD_COMPLETION, NO_TASK_INDEX))
+        wake = True
+        logger.debug("POST_FD_COMPLETION ego=%s clock=%s", ego_key, clock)
 
     # Existing belief target-id -> task_idx (first occurrence). Doubles as the
     # "already known?" membership test for pop-up classification.
@@ -409,6 +461,30 @@ def _selftest() -> None:
     assert events8 == [(TriggerKind.FUEL_DAMAGE, NO_TASK_INDEX), (TriggerKind.POP_UP, 2)]
     assert len(nt8) == 3  # the pop-up branch still appended exactly one task
     print("[8] fuel-damage + pop-up on one tick: both events, one wake, cause first   OK")
+
+    # (9) POST_FD_COMPLETION: wakes with NO belief edit, and is off by default.
+    nt9, ns9, wake9, events9 = decide_triggers(
+        belief_tasks, belief_solution, {}, ego_id="ego", clock=100.0,
+        post_fd_completion=True,
+    )
+    assert wake9 is True
+    assert events9 == [(TriggerKind.POST_FD_COMPLETION, NO_TASK_INDEX)], events9
+    assert nt9 == belief_tasks and nt9 is not belief_tasks   # no task appended
+    assert ns9 == belief_solution and ns9 is not belief_solution  # no assignment removed
+    assert belief_tasks == tasks_snapshot and belief_solution == solution_snapshot
+    print("[9] POST_FD_COMPLETION: wakes, edits NOTHING, sentinel index, default off   OK")
+
+    # (10) a boundary tick that ALSO senses a pop-up: both events, still ONE wake.
+    nt10, _ns10, wake10, events10 = decide_triggers(
+        belief_tasks, belief_solution, {"pop_b": Airbase("pop_b", 1.0, 1.0)},
+        ego_id="ego", clock=100.0, post_fd_completion=True,
+    )
+    assert wake10 is True
+    assert events10 == [
+        (TriggerKind.POST_FD_COMPLETION, NO_TASK_INDEX), (TriggerKind.POP_UP, 2)
+    ], events10
+    assert len(nt10) == 3
+    print("[10] boundary + pop-up on one tick: both events, ONE wake, cause first   OK")
 
     print("-" * 72)
     print("All assertions passed.")

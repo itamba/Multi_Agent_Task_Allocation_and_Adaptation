@@ -31,6 +31,21 @@ Covered:
       the full route consumed level by level, are identical in both modes;
     * a grounded ego (no live position) falls back to deterministic order.
 
+  CONFIRMED-KILL RECONCILIATION (`_reconcile_confirmed` / `reconcile_confirmed_for_ego`
+  / `has_open_assignments` -- the GENERALIZED-V1 step-2 extraction, PO2)
+    * the extracted helper reproduces the HISTORICAL Phase-2 behaviour exactly: an
+      already-gone head inside the ego's own radius is confirmed, its cooldown dropped,
+      and the NEXT eligible assignment is acted on in the SAME `next_actions` call;
+    * several consecutive already-gone heads are confirmed in ONE call, as before;
+    * the public wrapper confirms exactly what Phase 2 would confirm, and is IDEMPOTENT
+      -- calling it before Phase 2 leaves the tick's emitted command byte-identical, so
+      no ego's command timing changes;
+    * the proximity gate and the liveness probe are unchanged: a target that is gone but
+      FAR is NOT confirmed (no peer-kill leak), and no peer's `done` is ever touched;
+    * a dead or grounded ego confirms nothing;
+    * an unexecutable head still blocks the ego's command for the tick;
+    * `has_open_assignments` reports the ego's remaining not-done resolvable work.
+
 Run:
     pytest tests/test_graph_executor_nn_ordering.py -q                      (base env)
     conda run -n nlp_env --no-capture-output
@@ -369,6 +384,198 @@ def test_executor_ordering_is_per_ego_and_reads_only_the_acting_ego() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Confirmed-kill reconciliation (GENERALIZED-V1 step 2, PO2)
+# ---------------------------------------------------------------------------
+
+class _KillableScenario(_FakeScenario):
+    """`_FakeScenario` plus the liveness probe the confirm-guard calls.
+
+    `get_target` is the ONLY world read `_command_for_ego` makes about a target, and it
+    is the fact the executor confirms a kill on. Modelling it as a plain live-id set is
+    what lets a test remove a target and watch the confirmation happen.
+    """
+
+    def __init__(self, aircraft, targets=None) -> None:
+        super().__init__(aircraft)
+        # target_id -> unit-ish object; a MISSING key is the engine's "it is gone".
+        self.targets = dict(targets or {})
+
+    def get_target(self, target_id):
+        return self.targets.get(str(target_id))
+
+    def kill(self, target_id: str) -> None:
+        self.targets.pop(str(target_id), None)
+
+
+def _reconciliation_world(*, nn: bool = False):
+    """One ego, THREE assignments in a line, all at level 0, all within its radius.
+
+    The ego sits at (0.0, 0.0) and the targets at 0.1 / 0.2 / 0.3 degrees of longitude
+    -- roughly 11 / 22 / 33 km, all comfortably inside the 50 km default radius -- so
+    which of them is confirmed is decided by the LIVENESS probe alone and never by the
+    proximity gate. Legacy ordering keeps the deterministic `(task_idx, step_idx)` order
+    so the head is predictable.
+    """
+    tasks = [
+        Task(steps=[_step(0.0, 0.1, "t0")], utility=10.0),
+        Task(steps=[_step(0.0, 0.2, "t1")], utility=10.0),
+        Task(steps=[_step(0.0, 0.3, "t2")], utility=10.0),
+    ]
+    solution = {"ego": [(0, 0, 0), (1, 0, 0), (2, 0, 0)], "peer": [(0, 0, 0)]}
+    agents = [_agent("ego", 0.0, 0.0), _agent("peer", 0.0, 0.0)]
+    scenario = _KillableScenario(
+        [_FakeAircraft("ego", 0.0, 0.0), _FakeAircraft("peer", 0.0, 0.0)],
+        targets={"t0": object(), "t1": object(), "t2": object()},
+    )
+    executor = _executor(tasks, solution, agents, nn=nn)
+    return executor, scenario
+
+
+def test_reconcile_reproduces_the_historical_confirm_and_advance_in_one_call() -> None:
+    """PO2. A gone head is confirmed and the NEXT assignment acted on, same Phase-2 call.
+
+    This is the behaviour the extraction had to preserve: `_command_for_ego` confirms
+    first, recomputes eligibility, and then issues the command for whatever is now the
+    head -- all inside ONE `next_actions`. If the extraction had turned the confirmation
+    into a separate pass, the ego would idle for a tick here.
+    """
+    executor, scenario = _reconciliation_world()
+    executor.attack_cooldown[("ego", "t0")] = 17  # a salvo was in flight
+    scenario.kill("t0")
+
+    commands = executor.next_actions(scenario)
+
+    _assert(("ego", "t0") in executor.done, "the gone head must be confirmed done")
+    _assert(("ego", "t0") not in executor.attack_cooldown,
+            "confirming a kill must drop that pair's re-fire cooldown")
+    ego_cmds = [c for c in commands if "'ego'" in c]
+    _assert(len(ego_cmds) == 1, f"exactly one command per ego per tick, got {ego_cmds}")
+    _assert("handle_aircraft_attack('ego', 't1')" == ego_cmds[0],
+            f"the ego must act on t1 in the SAME call, got {ego_cmds[0]}")
+
+
+def test_reconcile_confirms_several_consecutive_gone_heads_in_one_call() -> None:
+    """PO2. The confirmation LOOP is preserved: two gone heads retire in one call."""
+    executor, scenario = _reconciliation_world()
+    scenario.kill("t0")
+    scenario.kill("t1")
+
+    commands = executor.next_actions(scenario)
+
+    _assert(("ego", "t0") in executor.done and ("ego", "t1") in executor.done,
+            f"both gone heads must be confirmed, got {executor.done}")
+    ego_cmds = [c for c in commands if "'ego'" in c]
+    _assert(ego_cmds == ["handle_aircraft_attack('ego', 't2')"],
+            f"the ego must skip straight to t2, got {ego_cmds}")
+
+
+def test_reconcile_public_helper_leaves_the_tick_command_byte_identical() -> None:
+    """PO2. Calling the helper first changes NOTHING about what the tick emits.
+
+    This is the property the whole post-FD seam rests on: the tick loop may expose a
+    damaged ego's confirmations BEFORE Phase 1, and because `done` is monotone the
+    Phase-2 pass then finds nothing further -- so the ego emits exactly the command it
+    would have emitted anyway, on exactly the same tick, and no other ego is touched.
+    """
+    control_ex, control_sc = _reconciliation_world()
+    control_sc.kill("t0")
+    control_commands = control_ex.next_actions(control_sc)
+
+    early_ex, early_sc = _reconciliation_world()
+    early_sc.kill("t0")
+    confirmed = early_ex.reconcile_confirmed_for_ego("ego", early_sc)
+    _assert(confirmed == ("t0",), f"the helper must report exactly t0, got {confirmed}")
+    again = early_ex.reconcile_confirmed_for_ego("ego", early_sc)
+    _assert(again == (), f"IDEMPOTENT: a second call confirms nothing, got {again}")
+
+    early_commands = early_ex.next_actions(early_sc)
+    _assert(early_commands == control_commands,
+            f"early reconciliation changed the tick's commands: {early_commands} vs "
+            f"{control_commands}")
+    _assert(early_ex.done == control_ex.done,
+            f"early reconciliation changed `done`: {early_ex.done} vs {control_ex.done}")
+
+
+def test_reconcile_is_proximity_gated_and_never_reads_peer_state() -> None:
+    """PO2 / PO3. A gone target the ego is FAR from is not confirmed, and peers are inert.
+
+    The far target stands in for "a peer killed it while this ego was elsewhere". The
+    executor must not learn that, which is exactly why the guard is distance-gated -- and
+    it is why a peer's kill can never manufacture a post-FD completion boundary.
+    """
+    tasks = [Task(steps=[_step(0.0, 5.0, "far")], utility=10.0)]  # ~556 km away
+    solution = {"ego": [(0, 0, 0)], "peer": [(0, 0, 0)]}
+    agents = [_agent("ego", 0.0, 0.0), _agent("peer", 0.0, 0.0)]
+    scenario = _KillableScenario(
+        [_FakeAircraft("ego", 0.0, 0.0), _FakeAircraft("peer", 0.0, 0.0)], targets={}
+    )  # `far` is ALREADY gone, and out of range
+    executor = _executor(tasks, solution, agents, nn=False)
+
+    confirmed = executor.reconcile_confirmed_for_ego("ego", scenario)
+
+    _assert(confirmed == (), f"an out-of-range kill must not be confirmed, got {confirmed}")
+    _assert(executor.done == set(), f"nothing may enter `done`, got {executor.done}")
+    _assert(executor.has_open_assignments("ego", scenario),
+            "the ego still has its (unconfirmed) assignment")
+    _assert(executor.has_open_assignments("peer", scenario),
+            "the PEER's own state must be untouched by the ego's reconciliation")
+
+
+def test_reconcile_ignores_a_dead_or_grounded_ego() -> None:
+    """PO2. No live position (grounded / removed) and no dead ego confirms anything."""
+    executor, scenario = _reconciliation_world()
+    scenario.kill("t0")
+
+    grounded = _KillableScenario([_FakeAircraft("peer", 0.0, 0.0)], targets={})
+    _assert(executor.reconcile_confirmed_for_ego("ego", grounded) == (),
+            "an ego with no live position confirms nothing")
+
+    executor.dead.add("ego")
+    _assert(executor.reconcile_confirmed_for_ego("ego", scenario) == (),
+            "a dead ego confirms nothing")
+    _assert(executor.done == set(), "neither path may mutate `done`")
+
+
+def test_reconcile_unexecutable_head_still_blocks_the_command() -> None:
+    """PO2. The `blocked` path is the original `return None`, unchanged.
+
+    An assignment whose task index does not resolve stopped `_command_for_ego` before the
+    extraction, and must still stop it: an ego with an unexecutable head emits nothing
+    this tick rather than silently skipping ahead.
+    """
+    tasks = [Task(steps=[_step(0.0, 0.1, "t0")], utility=10.0)]
+    solution = {"ego": [(0, 0, 0), (99, 0, 0)]}
+    agents = [_agent("ego", 0.0, 0.0)]
+    scenario = _KillableScenario([_FakeAircraft("ego", 0.0, 0.0)], targets={})
+    executor = _executor(tasks, solution, agents, nn=False)
+
+    # t0 is gone and in range -> confirmed; the next head (99) does not resolve, so the
+    # executor treats it as implicitly satisfied and the ego has no work left.
+    commands = executor.next_actions(scenario)
+    _assert(("ego", "t0") in executor.done, "the resolvable head is still confirmed")
+    _assert(commands == [], f"no command may be emitted this tick, got {commands}")
+
+
+def test_has_open_assignments_tracks_not_done_resolvable_work() -> None:
+    """PO2. The remaining-mission predicate the boundary wake is gated on."""
+    executor, scenario = _reconciliation_world()
+    _assert(executor.has_open_assignments("ego", scenario), "three assignments open")
+
+    for target_id in ("t0", "t1"):
+        scenario.kill(target_id)
+        executor.reconcile_confirmed_for_ego("ego", scenario)
+    _assert(executor.has_open_assignments("ego", scenario),
+            "t2 is still open, so the mission is not over")
+
+    scenario.kill("t2")
+    executor.reconcile_confirmed_for_ego("ego", scenario)
+    _assert(not executor.has_open_assignments("ego", scenario),
+            "every assignment confirmed -> no remaining mission")
+    _assert(executor.has_open_assignments("peer", scenario),
+            "the peer's own mission is unaffected by the ego finishing")
+
+
+# ---------------------------------------------------------------------------
 # __main__ runner (pytest is absent from nlp_env -- CLAUDE.md Sec 1)
 # ---------------------------------------------------------------------------
 
@@ -395,6 +602,20 @@ TESTS = [
      test_executor_ordering_changes_order_only_not_the_executed_set),
     ("executor_ordering_is_per_ego_and_reads_only_the_acting_ego",
      test_executor_ordering_is_per_ego_and_reads_only_the_acting_ego),
+    ("reconcile_reproduces_the_historical_confirm_and_advance_in_one_call",
+     test_reconcile_reproduces_the_historical_confirm_and_advance_in_one_call),
+    ("reconcile_confirms_several_consecutive_gone_heads_in_one_call",
+     test_reconcile_confirms_several_consecutive_gone_heads_in_one_call),
+    ("reconcile_public_helper_leaves_the_tick_command_byte_identical",
+     test_reconcile_public_helper_leaves_the_tick_command_byte_identical),
+    ("reconcile_is_proximity_gated_and_never_reads_peer_state",
+     test_reconcile_is_proximity_gated_and_never_reads_peer_state),
+    ("reconcile_ignores_a_dead_or_grounded_ego",
+     test_reconcile_ignores_a_dead_or_grounded_ego),
+    ("reconcile_unexecutable_head_still_blocks_the_command",
+     test_reconcile_unexecutable_head_still_blocks_the_command),
+    ("has_open_assignments_tracks_not_done_resolvable_work",
+     test_has_open_assignments_tracks_not_done_resolvable_work),
 ]
 
 if __name__ == "__main__":

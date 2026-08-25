@@ -301,6 +301,7 @@ from .graph_fuel_damage import (
     SEVERITIES,
     SEVERITY_MILD,
     SEVERITY_SEVERE,
+    FuelDamageIntegrityError,
     FuelDamageMode,
     FuelDamageOutcome,
     FuelDamageParameters,
@@ -3781,6 +3782,11 @@ def _run_one_episode(
             fuel_damage = build_fuel_damage_controller(
                 ctx, episode_seed=int(seed), params=fd_params
             )
+        except FuelDamageIntegrityError:
+            # INSTRUMENT failure, not science -- see the run-stage re-raise below. An
+            # ineligible candidate is NOT this exception; it is an ordinary
+            # `FuelDamageError` and falls through to the accounted `setup` stage.
+            raise
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
 
@@ -3794,6 +3800,18 @@ def _run_one_episode(
                 # loop is called exactly as it was before Phase B.
                 **_central_kwargs(central_recorder),
             )
+        except FuelDamageIntegrityError:
+            # GENERALIZED-V1 (handoff 3l.3): under the certified eligibility policy this
+            # world was proven FD-capable BEFORE a tick was paid for, so a live event
+            # state that contradicts its own certificate is a fault in the INSTRUMENT,
+            # not an outcome of the experiment. Re-raised ahead of the broad handler so
+            # it is never wrapped as an `EpisodeAttemptError("run", ...)`, never written
+            # to `episode_failures.jsonl`, never counted against a condition tally and
+            # never entered into `skip_and_account_v1` -- the same routing
+            # `MeasurementIntegrityError` and `_VisualArtifactError` already have, and
+            # for the same reason: a defect that silently shrinks a scientific
+            # denominator is worse than one that stops the run.
+            raise
         except Exception as exc:
             raise EpisodeAttemptError("run", exc) from exc
 
@@ -4036,11 +4054,15 @@ def evaluate(
                     fuel_damage_mode=mode,
                     **_artifact_kwargs(artifacts),
                 )
-            except (_VisualArtifactError, MeasurementIntegrityError):
-                # INFRASTRUCTURE / DATA INTEGRITY, not science: neither names a pipeline
-                # stage, neither may enter the ledger or a condition tally, and neither
-                # may be skipped. Re-raised ahead of the broad handler so the run stops
-                # loudly instead of recording a scientific failure that never happened.
+            except (_VisualArtifactError, MeasurementIntegrityError,
+                    FuelDamageIntegrityError):
+                # INFRASTRUCTURE / DATA INTEGRITY, not science: none names a pipeline
+                # stage, none may enter the ledger or a condition tally, and none may be
+                # skipped. Re-raised ahead of the broad handler so the run stops loudly
+                # instead of recording a scientific failure that never happened.
+                # `FuelDamageIntegrityError` joins them under GENERALIZED-V1: a world
+                # CERTIFIED FD-capable that then contradicts its own certificate is an
+                # instrument fault, never attrition (handoff 3l.3).
                 raise
             except Exception as exc:  # an eval failure must not abort training either
                 n_failed += 1
@@ -4656,14 +4678,18 @@ def train(
                         # Absent entirely unless this is a CTDE run (`_ctde_kwargs`).
                         **_ctde_kwargs(central_recorder),
                     )
-                except (_VisualArtifactError, MeasurementIntegrityError):
+                except (_VisualArtifactError, MeasurementIntegrityError,
+                        FuelDamageIntegrityError):
                     # INFRASTRUCTURE / DATA INTEGRITY, not science. Re-raised ahead of the
-                    # broad handler so neither can be written to the ledger as a
+                    # broad handler so none can be written to the ledger as a
                     # `generation` / `setup` / `run` / `reward` failure, enter
                     # `skip_and_account_v1`, or shrink a scientific denominator by
                     # masquerading as an episode failure. The run stops. That routing is
                     # the long baseline's lesson: a roster defect accounted as a `setup`
                     # failure removed 143 training attempts in silence.
+                    # `FuelDamageIntegrityError` (GENERALIZED-V1, handoff 3l.3) is routed
+                    # identically: a CERTIFIED world that contradicts its own certificate
+                    # is an instrument fault, never attrition.
                     raise
                 except Exception as exc:  # never abort the run on one episode
                     # SKIP AND ACCOUNT: record it and move to the NEXT scheduled seed.

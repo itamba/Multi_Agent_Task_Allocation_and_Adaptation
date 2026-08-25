@@ -584,21 +584,15 @@ class GraphPlanExecutor:
         if live is None:
             return None  # should not happen while airborne; be safe
 
-        while eligible:
-            step = self._resolve_step(ego_id, eligible[0])
-            if step is None or getattr(step, "location", None) is None:
-                return None  # unexecutable head; skip this ego this tick
-            target_id = str(step.target_id)
-            target_loc = step.location
-            d = live.distance_to(target_loc)
-            if d <= self.arrival_threshold_km and scenario.get_target(target_id) is None:
-                # In sensor range AND target CONFIRMED gone -> done (the SOLE done
-                # signal), drop its re-fire cooldown, advance to the next eligible.
-                self.done.add((ego_id, target_id))
-                self.attack_cooldown.pop((ego_id, target_id), None)
-                eligible = self._eligible(ego_id, scenario)
-                continue
-            break
+        # THE ONE CONFIRMATION SITE, at its historical point in this method. Extracted
+        # verbatim into `_reconcile_confirmed` so the tick loop can consult the SAME
+        # logic for a post-FD damaged ego before Phase 1, without a second copy of the
+        # proximity gate, the liveness probe or the done/cooldown mutations.
+        _newly, eligible, blocked = self._reconcile_confirmed(
+            ego_id, scenario, live, eligible
+        )
+        if blocked:
+            return None  # unexecutable head; skip this ego this tick
 
         if not eligible:
             return self._rtb_or_latch(ego_id, airborne)
@@ -645,6 +639,116 @@ class GraphPlanExecutor:
         )
         self.last_attack_target_id = target_id
         return f"handle_aircraft_attack('{ego_id}', '{target_id}')"
+
+    # ---- confirmed-kill reconciliation (ONE site, two callers) ----------------
+
+    def _reconcile_confirmed(
+        self,
+        ego_id: str,
+        scenario: object,
+        live: Location,
+        eligible: List[Assignment],
+    ) -> Tuple[List[str], List[Assignment], bool]:
+        """Retire every already-gone eligible head the ego can CONFIRM from here.
+
+        This is the executor's historical confirm-guard, lifted out of
+        :meth:`_command_for_ego` unchanged so that there is exactly ONE implementation of
+        it. Every element of the original is preserved and none is re-derived:
+
+          * the PROXIMITY GATE -- the target must be within this ego's OWN
+            ``arrival_threshold_km``, which is what stops an ego learning that a FAR
+            target was killed by a peer (a communication leak);
+          * the LIVENESS FACT -- ``scenario.get_target(target_id) is None``, probed only
+            for the single target the ego is engaging and only once in range;
+          * the MUTATIONS -- add ``(ego_id, target_id)`` to ``done`` (the SOLE done
+            signal; emitting an attack still does not mark done) and drop that pair's
+            re-fire cooldown;
+          * the LOOP -- recompute eligibility and keep going, so several consecutive
+            already-gone heads are confirmed in ONE call, exactly as before;
+          * the UNEXECUTABLE HEAD -- an assignment whose step or location will not
+            resolve stops the walk and is reported through ``blocked``, because the
+            original returned out of ``_command_for_ego`` at that point and that
+            behaviour must not change.
+
+        NO PEER RUNTIME STATE is read: the ego's own live position, its own eligibility
+        and its own ``done`` set, and nothing else. IDEMPOTENT through the monotonic
+        ``done`` set -- a second call in the same tick confirms nothing further, because
+        ``_eligible`` no longer offers what the first call retired.
+
+        Returns:
+            ``(newly_confirmed_target_ids, remaining_eligible, blocked)``.
+        """
+        newly: List[str] = []
+        while eligible:
+            step = self._resolve_step(ego_id, eligible[0])
+            if step is None or getattr(step, "location", None) is None:
+                return newly, eligible, True
+            target_id = str(step.target_id)
+            target_loc = step.location
+            d = live.distance_to(target_loc)
+            if d <= self.arrival_threshold_km and scenario.get_target(target_id) is None:
+                # In sensor range AND target CONFIRMED gone -> done (the SOLE done
+                # signal), drop its re-fire cooldown, advance to the next eligible.
+                self.done.add((ego_id, target_id))
+                self.attack_cooldown.pop((ego_id, target_id), None)
+                newly.append(target_id)
+                eligible = self._eligible(ego_id, scenario)
+                continue
+            break
+        return newly, eligible, False
+
+    def reconcile_confirmed_for_ego(
+        self, ego_id: str, scenario: object
+    ) -> Tuple[str, ...]:
+        """Confirm this ego's finished assignments NOW, and report which ones.
+
+        The public face of :meth:`_reconcile_confirmed`, for the GENERALIZED-V1 post-FD
+        adaptation seam: it lets the tick loop expose a DAMAGED ego's own locally
+        confirmed completions BEFORE Phase 1, so the ego can decide at the boundary
+        rather than after it has already committed movement to its next assignment.
+
+        It changes NOTHING for any other ego and nothing about command timing. Phase 2
+        still calls the same logic at the same historical point, and because ``done`` is
+        monotone the second call is a no-op -- so an ego that is reconciled early emits
+        exactly the command it would have emitted anyway, on exactly the same tick.
+
+        Emits no command, touches no peer, and mutates only ``done`` /
+        ``attack_cooldown`` for THIS ego -- the same two mutations the Phase-2 path has
+        always made. A dead ego, or one with no live position (grounded / removed),
+        confirms nothing.
+
+        Args:
+            ego_id: the ego whose own confirmations to reconcile.
+            scenario: the live BLADE observation to confirm against.
+
+        Returns:
+            The target ids newly confirmed by THIS call, in confirmation order
+            (empty when there is nothing to confirm).
+        """
+        ego_key = str(ego_id)
+        if ego_key in self.dead:
+            return ()
+        live = _live_location(scenario, ego_key)
+        if live is None:
+            return ()  # grounded / removed: no live position -> confirms nothing
+        newly, _eligible, _blocked = self._reconcile_confirmed(
+            ego_key, scenario, live, self._eligible(ego_key, scenario)
+        )
+        return tuple(newly)
+
+    def has_open_assignments(self, ego_id: str, scenario: object) -> bool:
+        """True iff this ego still has at least one not-done, resolvable assignment.
+
+        ``_eligible`` returns the CURRENT minimum level's not-done assignments, and it is
+        empty exactly when no not-done resolvable assignment remains at any level -- so
+        this is "does this ego still have a mission", read from the same semantic state
+        the executor already decides eligibility and RTB from, rather than from a belief
+        slice that may still list work the ego has already confirmed.
+
+        Pure with respect to executor state (it recomputes, it does not record), and
+        ego-local: no peer plan, peer position or peer ``done`` entry is consulted.
+        """
+        return bool(self._eligible(str(ego_id), scenario))
 
     # ---- confirmation wait (derived from the salvo that is about to fly) ------
 

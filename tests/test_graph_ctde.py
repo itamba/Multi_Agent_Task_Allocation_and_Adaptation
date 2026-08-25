@@ -69,6 +69,13 @@ from match_aou.rl.observation.graph_builder import (  # noqa: E402
 )
 from match_aou.rl.training import graph_ppo, graph_train  # noqa: E402
 from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
+    CONDITION_DAMAGED,
+    POST_FD_WAKE_COMPLETION_BOUNDARY_V1,
+    POST_FD_WAKE_SINGLE_V1,
+    FuelDamageController,
+    FuelDamageMode,
+    FuelDamageParameters,
+    plan_fuel_damage,
     resolve_condition,
     resolve_severity,
 )
@@ -1397,6 +1404,152 @@ def test_the_second_same_tick_sample_sees_the_first_egos_resync():
     assert assigned_b[0].sum() == 0.0, "sample B did not see ego0's applied resync"
     # ego1's own row is untouched between the two samples.
     assert np.allclose(assigned_a[1], assigned_b[1])
+
+
+def _boundary_ctx():
+    """One damaged ego with TWO assignments, a REAL executor, and a fired FD event.
+
+    GENERALIZED-V1 step 2 (handoff 3l.4). The ego sits ON its first target, so the kill
+    below is one it can CONFIRM with its own proximity-gated sensing -- which is what
+    makes the completion a boundary rather than a peer's outcome learned some other way.
+    """
+    scen, _stub_ex, ids, tasks = _world(n_targets=2, agents=("ego0",))
+    scen.aircraft[0].latitude = 32.2  # ON t0
+    executor = GraphPlanExecutor(
+        tasks=tasks, solution={"ego0": [(0, 0, 0), (1, 0, 0)]},
+        agents=[_agent("ego0", 32.0, 35.0)], arrival_threshold_km=50.0,
+    )
+
+    class _Belief:
+        def __init__(self):
+            self.tasks = list(tasks)
+            self.solution = {"ego0": [(0, 0, 0), (1, 0, 0)]}
+
+    class _Env:
+        def __init__(self):
+            self.n = 0
+
+        def step(self, _commands):
+            self.n += 1
+            if self.n == 1:  # t0 dies after the first tick
+                scen.airbases = [b for b in scen.airbases if str(b.id) != "t0"]
+            return scen, 0.0, False, False, {}
+
+    ctx = _TickCtx(scen, executor, ids, {"ego0": _Belief()}, _Env())
+    return ctx, scen, executor
+
+
+def _fired_boundary_controller(scen, *, policy):
+    """A controller whose fuel-damage event has ALREADY fired on ``ego0``."""
+    params = FuelDamageParameters(
+        mode=FuelDamageMode.FORCED_DAMAGED, post_fd_wake_policy=policy
+    )
+    plan = plan_fuel_damage(
+        condition=CONDITION_DAMAGED, mode=params.mode, derived_seed=0,
+        eligible_ego_ids=("ego0",), ego_id="ego0",
+        launch_point=Location(32.0, 35.0), home_base=Location(32.0, 35.0),
+        route_points=[Location(32.2, 35.0), Location(32.4, 35.0)],
+        speed_knots=1303.0, fuel_rate=6700.0, max_fuel=12000.0,
+        fuel_at_launch=12000.0, params=params,
+    )
+    controller = FuelDamageController(plan)
+    assert controller.maybe_apply(scen, 0) == "ego0", "the fixture's event must fire"
+    return controller
+
+
+class _PlanSpyRecorder(CentralStateRecorder):
+    """A recorder that also notes the EXECUTION state each capture was taken in."""
+
+    def __init__(self):
+        super().__init__()
+        self.plans_at_capture = []
+
+    def capture(self, *, scenario, agent_ids, executor, current_time, config=None):
+        self.plans_at_capture.append(plan_target_ids(executor, "ego0"))
+        return super().capture(
+            scenario=scenario, agent_ids=agent_ids, executor=executor,
+            current_time=current_time, config=config,
+        )
+
+
+def test_a_post_fd_boundary_sample_is_captured_after_the_local_reconciliation():
+    """PO3 (GENERALIZED-V1): the boundary capture sees the RECONCILED execution state.
+
+    The completion boundary reconciles the damaged ego's confirmed assignment out of its
+    own belief and resyncs its own executor slice at the TOP of the tick, before Phase 1.
+    The critic's capture then happens inside Phase 1, immediately before the action -- so
+    a boundary sample must describe the plan the ego really has left, not the stale one
+    the world already moved past. If the reconciliation had stayed in Phase 2 the sample
+    would still show the completed assignment.
+
+    Alignment is unchanged: still exactly ONE central sample per actor decision.
+    """
+    from match_aou.rl.training import graph_tick_loop as tl
+
+    ctx, scen, executor = _boundary_ctx()
+    controller = _fired_boundary_controller(
+        scen, policy=POST_FD_WAKE_COMPLETION_BOUNDARY_V1
+    )
+
+    def fake_wake(policy, ego_id, obs, belief, ex, cfg, tick, *, deterministic=False):
+        return _transition(_actor_obs(), meta=0)
+
+    saved = tl._wake_decision
+    tl._wake_decision = fake_wake
+    recorder = _PlanSpyRecorder()
+    try:
+        result = tl.run_episode(
+            policy=None, ctx=ctx, max_ticks=2, central=recorder,
+            cfg=GraphObservationConfig(detection_range_km=50.0),
+            fuel_damage=controller,
+        )
+    finally:
+        tl._wake_decision = saved
+
+    outcome = controller.post_fd_outcome
+    assert outcome.boundary_wakes == 1, outcome.to_record()
+    assert len(result.trajectory) == 1, result.trajectory
+    assert len(recorder.samples) == 1, "central samples are not 1:1 with decisions"
+    assert recorder.plans_at_capture == [{"t1"}], (
+        "the boundary capture must follow the local reconciliation and the resync: "
+        "expected the ego's remaining plan {'t1'}, got %r"
+        % (recorder.plans_at_capture,)
+    )
+    # And the ACTOR's own belief lost the completed assignment before it decided.
+    assert ctx.beliefs["ego0"].solution["ego0"] == [(1, 0, 0)]
+
+
+def test_the_default_wake_policy_produces_no_boundary_sample():
+    """PO3 CONTROL: under `single_wake_v1` the same world captures nothing at all.
+
+    Without this the test above could not distinguish "the boundary produced a correctly
+    ordered sample" from "this fixture wakes anyway".
+    """
+    from match_aou.rl.training import graph_tick_loop as tl
+
+    ctx, scen, _executor = _boundary_ctx()
+    controller = _fired_boundary_controller(scen, policy=POST_FD_WAKE_SINGLE_V1)
+
+    def fake_wake(policy, ego_id, obs, belief, ex, cfg, tick, *, deterministic=False):
+        return _transition(_actor_obs(), meta=0)
+
+    saved = tl._wake_decision
+    tl._wake_decision = fake_wake
+    recorder = _PlanSpyRecorder()
+    try:
+        result = tl.run_episode(
+            policy=None, ctx=ctx, max_ticks=2, central=recorder,
+            cfg=GraphObservationConfig(detection_range_km=50.0),
+            fuel_damage=controller,
+        )
+    finally:
+        tl._wake_decision = saved
+
+    assert result.trajectory == [] and recorder.samples == []
+    assert controller.post_fd_outcome.armed is False
+    # The kill still happened and the executor still confirmed it in Phase 2, exactly as
+    # it always did -- what is absent is the extra DECISION, not the reconciliation.
+    assert ("ego0", "t0") in _executor.done
 
 
 def test_actor_only_run_episode_builds_no_central_state():

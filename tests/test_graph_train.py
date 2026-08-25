@@ -125,7 +125,12 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
 from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     CONDITION_CLEAN,
     CONDITION_DAMAGED,
+    FD_ELIGIBILITY_CERTIFIED_V1,
+    FuelDamageController,
     FuelDamageMode,
+    FuelDamageParameters,
+    certify_fd_candidate,
+    plan_fuel_damage,
     resolve_condition,
 )
 from match_aou.rl.training.graph_ppo import PPOConfig, PPOUpdater  # noqa: E402
@@ -3618,12 +3623,51 @@ class _VaFuelDamageController:
         self.outcome = _VaFuelDamageOutcome(condition)
 
 
+def _unrealized_certified_controller() -> FuelDamageController:
+    """A REAL certified DAMAGED controller whose event never fired.
+
+    Built through the PURE certification path -- `certify_fd_candidate` then
+    `plan_fuel_damage` -- so the exception the routing tests below observe is the one the
+    PRODUCTION terminal invariant really raises
+    (`FuelDamageController.require_certified_event_realized`, called at `run_episode`'s
+    episode-exit seam), not a hand-made stand-in that could drift from it.
+    """
+    params = FuelDamageParameters(
+        mode=FuelDamageMode.FORCED_SEVERE,
+        eligibility_policy=FD_ELIGIBILITY_CERTIFIED_V1,
+    )
+    certificate, rejection = certify_fd_candidate(
+        ego_id="ego0",
+        launch_point=Location(32.0, 35.0),
+        route_points=[Location(34.0, 35.0)],
+        home_base=Location(32.0, 35.0),
+        speed_knots=1303.0, fuel_rate=6700.0, fuel_at_launch=12000.0,
+        params=params, detection_km=50.0,
+        world_targets=[("t0", Location(34.0, 35.0))],
+        belief_target_ids=["t0"],
+    )
+    assert rejection is None, "the fixture world must certify: %r" % (rejection,)
+    plan = plan_fuel_damage(
+        condition=CONDITION_DAMAGED, mode=params.mode, derived_seed=0,
+        eligible_ego_ids=("ego0",), ego_id="ego0",
+        launch_point=Location(32.0, 35.0), home_base=Location(32.0, 35.0),
+        route_points=[Location(34.0, 35.0)],
+        speed_knots=1303.0, fuel_rate=6700.0, max_fuel=12000.0,
+        fuel_at_launch=12000.0, params=params,
+        severity="severe", certificate=certificate,
+    )
+    controller = FuelDamageController(plan)
+    assert controller.outcome.fired is False
+    return controller
+
+
 def _run_training_with_real_episode_body(
     cfg: TrainConfig,
     *,
     setup_error_seeds=(),
     export_error_tags=(),
     ghost_confirmation_tags=(),
+    fd_integrity_seeds=(),
     emit_recording: bool = True,
 ):
     """Drive the REAL `train()` AND the REAL `_run_one_episode` over stubbed engine seams.
@@ -3646,7 +3690,13 @@ def _run_training_with_real_episode_body(
 
     `setup_error_seeds` makes those seeds raise inside setup (a NORMAL episode failure).
     `export_error_tags` makes `Game.export_scenario()` raise for those tags (an ARTIFACT
-    failure). `emit_recording=False` models a run that produced no playback file.
+    failure). `fd_integrity_seeds` makes `run_episode` raise the GENERALIZED-V1
+    `FuelDamageIntegrityError` -- a world CERTIFIED FD-capable that then failed to deliver
+    its own certificate, which is an INSTRUMENT fault and must abort exactly as a
+    `MeasurementIntegrityError` does. The exception comes from the REAL controller
+    predicate (`_unrealized_certified_controller`), not from a stub, so the routing is
+    tested against what production actually raises. `emit_recording=False` models a run
+    that produced no playback file.
 
     Returns ``(summary, calls, state)``; `calls` is the ordered per-attempt log.
     """
@@ -3702,6 +3752,7 @@ def _run_training_with_real_episode_body(
         ctx.recording_export_path = (
             None if recording_path == "<absent>" else recording_path)
         ctx.tag = tag
+        ctx.seed = seed
         return ctx
 
     def fake_run_episode(policy, ctx, **kwargs):
@@ -3709,6 +3760,18 @@ def _run_training_with_real_episode_body(
         # armed export path (and none at all when recording was never armed).
         calls.append({"kind": "run", "tag": ctx.tag,
                       "export_calls_before_run": ctx.game.export_calls})
+        if int(getattr(ctx, "seed", -1)) in set(int(x) for x in fd_integrity_seeds):
+            # Raised from INSIDE `run_episode`, which is where the production controller
+            # raises it -- both from `maybe_apply` (a live contradiction) and from the
+            # episode-exit seam (a certificate that never materialized). The exception is
+            # produced by the REAL predicate on a REAL certified damaged controller, so
+            # these routing tests cannot pass against a stand-in the production path has
+            # drifted away from. The point under test is that `_run_one_episode` does not
+            # wrap it as `EpisodeAttemptError("run", ...)` on the way out.
+            _unrealized_certified_controller().require_certified_event_realized()
+            raise AssertionError(  # pragma: no cover - the line above always raises
+                "the terminal invariant did not raise for an unrealized certificate"
+            )
         if emit_recording and getattr(ctx, "recording_export_path", None):
             out = Path(ctx.recording_export_path)
             (out / ("episode_%04d Recording 000000 - 000100.jsonl" % ctx.tag)).write_text(
@@ -3743,6 +3806,116 @@ def _run_training_with_real_episode_body(
         for name, original in saved.items():
             setattr(graph_train, name, original)
     return summary, calls, state
+
+
+# --- GENERALIZED-V1 step 2: `FuelDamageIntegrityError` routing -----------------
+# A world CERTIFIED FD-capable at setup that then contradicts its own certificate is an
+# INSTRUMENT fault, not an experimental outcome (handoff 3l.3). It must be routed exactly
+# as `MeasurementIntegrityError` and `_VisualArtifactError` already are: re-raised ahead
+# of every broad handler, never wrapped as an `EpisodeAttemptError`, never written to the
+# ledger, never counted against a condition, never entered into `skip_and_account_v1`.
+# The whole lesson of the invalid long baseline is that a defect which silently shrinks a
+# scientific denominator is worse than one that stops the run.
+
+def test_a_fuel_damage_integrity_fault_is_not_wrapped_as_an_episode_failure(
+    tmp_path: Path,
+) -> None:
+    """GEN-V1. `_run_one_episode` re-raises it instead of attributing it to `run`.
+
+    The REAL `_run_one_episode` runs here, so the assertion is about its own handler
+    ordering: the broad `except Exception -> EpisodeAttemptError("run", ...)` sits right
+    below, and if the re-raise were removed this fault would be booked as ordinary
+    episode attrition at a named pipeline stage.
+
+    The exception is produced by the REAL terminal invariant on a REAL certified damaged
+    controller whose event never fired, which is one of the two production sources (the
+    other is a live contradiction inside `maybe_apply`). Both raise from inside
+    `run_episode`, so this one seam covers both.
+    """
+    cfg = _va_cfg(tmp_path, name="fd_integrity", visual_artifacts=False,
+                  eval_every=0, eval_episodes=0)
+    _summary, _calls, state = _run_training_with_real_episode_body(
+        cfg, fd_integrity_seeds=(0,))
+
+    raised = state["raised"]
+    assert isinstance(raised, graph_train.FuelDamageIntegrityError), raised
+    assert not isinstance(raised, EpisodeAttemptError), raised
+    assert not hasattr(raised, "stage"), (
+        "an instrument fault names no pipeline stage -- it did not happen in one"
+    )
+    assert "CERTIFICATE NOT REALIZED" in str(raised), str(raised)
+    # It is a SIBLING of the other two, not a subclass of either, and emphatically not a
+    # `FuelDamageError`: anything catching one of those would swallow it.
+    assert not isinstance(raised, graph_train.MeasurementIntegrityError)
+    assert not isinstance(raised, graph_train._VisualArtifactError)
+
+
+def test_a_fuel_damage_integrity_fault_aborts_the_run_and_never_reaches_the_ledger(
+    tmp_path: Path,
+) -> None:
+    """GEN-V1. The TRAIN handler re-raises it: the run stops, the ledger stays empty.
+
+    Four scheduled training episodes with the SECOND faulting. If it were accounted, the
+    run would continue through all four and one `setup`/`run` row would appear -- exactly
+    the silent denominator shrink the roster correction closed.
+    """
+    cfg = _va_cfg(tmp_path, name="fd_abort", visual_artifacts=False,
+                  episodes_per_iteration=4, eval_every=0, eval_episodes=0)
+    _summary, calls, state = _run_training_with_real_episode_body(
+        cfg, fd_integrity_seeds=(1,))
+
+    assert isinstance(state["raised"], graph_train.FuelDamageIntegrityError),         state["raised"]
+    attempted = [c["seed"] for c in calls if c["kind"] == "generate"]
+    assert attempted == [0, 1], (
+        "the run must stop AT the faulting attempt, never reach seeds 2 and 3: %r"
+        % (attempted,)
+    )
+    run_dir = Path(cfg.output_dir)
+    assert _read_records(run_dir, "episode_failures.jsonl") == []
+    assert _read_records(run_dir, "train_records.jsonl") == []
+
+
+def test_an_eval_fuel_damage_integrity_fault_aborts_the_round(tmp_path: Path) -> None:
+    """GEN-V1. The EVAL handler re-raises it too -- both handlers, not just one.
+
+    The `pre_update` round runs before any training episode, so a faulting held-out seed
+    stops the run before a single training attempt exists.
+    """
+    cfg = _va_cfg(tmp_path, name="fd_abort_eval", visual_artifacts=False,
+                  episodes_per_iteration=2, eval_every=1, eval_episodes=2,
+                  eval_base_seed=1_000_000)
+    _summary, calls, state = _run_training_with_real_episode_body(
+        cfg, fd_integrity_seeds=(1_000_001,))
+
+    assert isinstance(state["raised"], graph_train.FuelDamageIntegrityError),         state["raised"]
+    train_seeds = [c["seed"] for c in calls
+                   if c["kind"] == "generate" and c["seed"] < 1_000_000]
+    assert train_seeds == [], "training started after an eval instrument fault"
+    run_dir = Path(cfg.output_dir)
+    assert _read_records(run_dir, "episode_failures.jsonl") == []
+    assert _read_records(run_dir, "eval_records.jsonl") == []
+
+
+def test_an_ordinary_fuel_damage_failure_is_still_accounted_attrition(
+    tmp_path: Path,
+) -> None:
+    """GEN-V1 CONTROL. The routing above must not have widened to ordinary FD failures.
+
+    A `FuelDamageError` -- no eligible ego, no valid strict window -- is a SCIENTIFIC
+    outcome and keeps its `setup` row and its place in `skip_and_account_v1`. If the new
+    re-raise had been written against the wrong class, this run would abort instead.
+    """
+    cfg = _va_cfg(tmp_path, name="fd_ordinary", visual_artifacts=False,
+                  episodes_per_iteration=2, eval_every=0, eval_episodes=0)
+    summary, calls, state = _run_training_with_real_episode_body(
+        cfg, setup_error_seeds=(0,))
+
+    assert state["raised"] is None, state["raised"]
+    attempted = [c["seed"] for c in calls if c["kind"] == "generate"]
+    assert attempted == [0, 1], "the schedule continued past an accounted failure"
+    rows = _read_records(Path(cfg.output_dir), "episode_failures.jsonl")
+    assert len(rows) == 1 and rows[0]["pipeline_stage"] == "setup", rows
+    assert summary is not None and summary["accounting_reconciled"] is True
 
 
 def _va_cfg(tmp_path: Path, *, name: str, visual_artifacts: bool, **kwargs) -> TrainConfig:
@@ -5042,6 +5215,16 @@ if __name__ == "__main__":
          test_health_plot_exposes_per_cell_eval_denominators, False),
         ("per_condition_denominators_survive_an_asymmetric_round",
          test_per_condition_denominators_survive_an_asymmetric_round, True),
+        # --- GENERALIZED-V1 step 2: FuelDamageIntegrityError routing ---
+        ("a_fuel_damage_integrity_fault_is_not_wrapped_as_an_episode_failure",
+         test_a_fuel_damage_integrity_fault_is_not_wrapped_as_an_episode_failure, True),
+        ("a_fuel_damage_integrity_fault_aborts_the_run_and_never_reaches_the_ledger",
+         test_a_fuel_damage_integrity_fault_aborts_the_run_and_never_reaches_the_ledger,
+         True),
+        ("an_eval_fuel_damage_integrity_fault_aborts_the_round",
+         test_an_eval_fuel_damage_integrity_fault_aborts_the_round, True),
+        ("an_ordinary_fuel_damage_failure_is_still_accounted_attrition",
+         test_an_ordinary_fuel_damage_failure_is_still_accounted_attrition, True),
     ]
     for name, fn, needs_tmp in tests:
         try:
