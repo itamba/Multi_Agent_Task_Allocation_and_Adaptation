@@ -119,10 +119,35 @@ from match_aou.rl.training import (  # noqa: E402
     graph_tick_loop,
     graph_train,
 )
+from match_aou.rl.training import graph_hidden_placement  # noqa: E402
 from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
+    CERTIFICATE_TICK_TOLERANCE,
     CONDITION_CLEAN,
     CONDITION_DAMAGED,
+    FD_ELIGIBILITY_CERTIFIED_V1,
+    FD_ELIGIBILITY_LEGACY_V1,
+    FD_ELIGIBILITY_POLICIES,
+    FD_ELIGIBILITY_REJECTION_REASONS,
+    FUEL_DAMAGE_ELIGIBILITY_RNG_DOMAIN,
+    KILOMETERS_TO_NAUTICAL_MILES,
     NAUTICAL_MILES_TO_METERS,
+    NO_FD_ELIGIBLE_EGO,
+    POST_FD_DEACTIVATED_DEAD,
+    POST_FD_DEACTIVATED_RTB,
+    POST_FD_WAKE_COMPLETION_BOUNDARY_V1,
+    POST_FD_WAKE_POLICIES,
+    POST_FD_WAKE_SINGLE_V1,
+    REASON_INVALID_BAND,
+    REASON_NO_ROUTE,
+    REASON_PRE_EVENT_ASSIGNMENT_BOUNDARY,
+    REASON_PRE_EVENT_POPUP_RISK,
+    WAYPOINT_SNAP_KM,
+    FuelDamageIntegrityError,
+    certify_fd_candidate,
+    derive_fuel_damage_eligibility_seed,
+    eligibility_ordinal_permutation,
+    engine_leg_distance_km,
+    predict_leg_states,
     SEVERITIES,
     SEVERITY_MILD,
     SEVERITY_SEVERE,
@@ -3409,6 +3434,1098 @@ def _run_stub_training(cfg: TrainConfig, *, failing_seeds=(), failing_eval=None,
         for name, original in saved.items():
             setattr(graph_train, name, original)
     return summary, events
+
+
+# =============================================================================
+# GENERALIZED-V1 step 2 -- G1: CERTIFIED FD ELIGIBILITY (PO1)
+# =============================================================================
+
+def _certified(mode=FuelDamageMode.FORCED_SEVERE, **kwargs) -> FuelDamageParameters:
+    """The approved knobs with the CERTIFIED eligibility policy selected."""
+    return FuelDamageParameters(
+        mode=mode, eligibility_policy=FD_ELIGIBILITY_CERTIFIED_V1, **kwargs
+    )
+
+
+def test_g1_1_the_eligibility_rng_domain_is_private_versioned_and_stable() -> None:
+    """G1.1. A THIRD domain, derived from the episode seed alone and from nothing else.
+
+    The same three properties the other two domains claim -- reproducible across
+    processes, well mixed over consecutive seeds, and unreachable from any other RNG
+    consumer -- plus the one that only matters for a third domain: it must not COLLIDE
+    with either existing one, or the "eligibility cannot move the ego" separation would
+    be a coincidence rather than a construction.
+    """
+    first = [derive_fuel_damage_eligibility_seed(s) for s in range(16)]
+
+    random.seed(4242)
+    torch.manual_seed(4242)
+    [random.random() for _ in range(97)]
+    torch.rand(23)
+    second = [derive_fuel_damage_eligibility_seed(s) for s in range(16)]
+    assert first == second, "the eligibility seed moved with unrelated RNG consumption"
+    assert len(set(first)) == len(first), "consecutive episode seeds collide"
+
+    for seed in range(16):
+        assert derive_fuel_damage_eligibility_seed(seed) != derive_fuel_damage_seed(seed)
+        assert (derive_fuel_damage_eligibility_seed(seed)
+                != derive_fuel_damage_severity_seed(seed))
+
+    # The domain string is versioned and is what the digest is actually taken over.
+    expected = int.from_bytes(
+        hashlib.sha256(
+            ("%s:%d" % (FUEL_DAMAGE_ELIGIBILITY_RNG_DOMAIN, 7)).encode("ascii")
+        ).digest()[:8],
+        "big",
+    )
+    assert derive_fuel_damage_eligibility_seed(7) == expected
+
+    # Reproducible in a FRESH interpreter -- `hash()` would not be (PYTHONHASHSEED).
+    child = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, %r);\n"
+         "from match_aou.rl.training.graph_fuel_damage import "
+         "derive_fuel_damage_eligibility_seed as d;\n"
+         "print([d(s) for s in range(16)])" % str(SRC)],
+        capture_output=True, text=True, check=True,
+    )
+    assert eval(child.stdout.strip()) == first  # noqa: S307 - our own literal list
+
+
+def test_g1_2_the_certified_policy_does_not_move_the_historical_streams() -> None:
+    """G1.2. Selecting the certified policy changes NO legacy draw.
+
+    The approved FD-BASELINE-v1 and FD-VARIABLE-SEVERITY-v1 measurements were taken on
+    the legacy streams. If the new policy took its permutation from `fuel_damage_v1` it
+    would shift the position the ego draw reads from, and every historical damaged
+    episode would pick a different ego -- invalidating those measurements rather than
+    extending them. So: same condition, same severity, same legacy ego, seed for seed.
+    """
+    for mode in (FuelDamageMode.SEEDED_MIXTURE, FuelDamageMode.SEEDED_VARIABLE):
+        legacy = FuelDamageParameters(mode=mode)
+        certified = _certified(mode=mode)
+        for seed in range(64):
+            assert (resolve_condition(episode_seed=seed, params=certified)
+                    == resolve_condition(episode_seed=seed, params=legacy))
+            assert (resolve_severity(episode_seed=seed, params=certified)
+                    == resolve_severity(episode_seed=seed, params=legacy))
+
+    # And the LEGACY ego draw itself is byte-unchanged: the documented two-draw order
+    # (mixture bit, then `choice` over the sorted non-empty routes) still reproduces it.
+    ctx = _FuelDamageCtx()
+    for seed in (0, 1, 2, 3, 5, 8, 13):
+        plan = build_fuel_damage_plan(
+            ctx, episode_seed=seed,
+            params=FuelDamageParameters(mode=FuelDamageMode.FORCED_DAMAGED),
+        )
+        rng = random.Random(derive_fuel_damage_seed(seed))
+        rng.random()
+        assert plan.ego_id == rng.choice(sorted(ctx.a_init)), seed
+        assert plan.eligibility_policy == FD_ELIGIBILITY_LEGACY_V1
+        assert plan.eligibility_audit is None and plan.certificate is None
+
+
+def test_g1_3_candidate_order_is_ordinal_based_and_mirrors_the_placement_permutation() -> None:
+    """G1.3. STABLE ORDINALS, never id text -- and the same Fisher-Yates as B2's.
+
+    Handoff 3l.2: generated ids are not seed-derived, so an ordering keyed on their text
+    would make an episode's damaged ego irreproducible across runs of the same seed. The
+    permutation is therefore over `range(count)`, and it is the deliberate MIRROR of
+    `graph_hidden_placement._ordinal_permutation` -- written separately so a change to
+    hidden placement's ordering cannot silently move which ego is damaged, with the
+    equivalence pinned HERE rather than assumed.
+    """
+    for count in range(1, 8):
+        mine = eligibility_ordinal_permutation(count, random.Random(count * 977 + 5))
+        theirs = graph_hidden_placement._ordinal_permutation(
+            count, random.Random(count * 977 + 5)
+        )
+        assert mine == theirs, (count, mine, theirs)
+        assert sorted(mine) == list(range(count)), mine
+
+    # Renaming every ego cannot move the walk: the audit's ORDER is ordinals, and the
+    # selected ORDINAL is what a cross-run comparison keys on.
+    plain = _FuelDamageCtx()
+    plan_a = build_fuel_damage_plan(plain, episode_seed=11, params=_certified())
+    renamed = _FuelDamageCtx()
+    remap = {old: "zzz-%02d" % i for i, old in enumerate(renamed.agent_ids)}
+    renamed.agent_ids = [remap[a] for a in renamed.agent_ids]
+    renamed.a_init = {remap[k]: v for k, v in renamed.a_init.items()}
+    renamed.beliefs = {
+        remap[k]: _StubBelief(b.tasks, {remap[i]: list(v) for i, v in b.solution.items()})
+        for k, b in renamed.beliefs.items()
+    }
+    for agent, old_id in zip(renamed.agents, sorted(remap)):
+        agent.id = remap[old_id]
+    for aircraft, old_id in zip(renamed.scenario.aircraft, sorted(remap)):
+        aircraft.id = remap[old_id]
+    plan_b = build_fuel_damage_plan(renamed, episode_seed=11, params=_certified())
+
+    assert (plan_a.eligibility_audit.candidate_order
+            == plan_b.eligibility_audit.candidate_order)
+    assert (plan_a.eligibility_audit.selected_ordinal
+            == plan_b.eligibility_audit.selected_ordinal)
+
+
+def test_g1_4_clean_mild_and_severe_certify_the_same_ego_and_certificate() -> None:
+    """G1.4 + A2. Eligibility is a WORLD precondition, so CLEAN walks it too.
+
+    This is the whole point of the policy (handoff 3l.3): the three members of a matched
+    group must share one accepted-world support, which they only do if the clean member
+    performs the SAME complete walk and identifies the SAME counterfactual ego. The clean
+    plan still damages nobody -- `ego_id` keeps its historical meaning and stays None --
+    so the counterfactual lives in the audit rather than overloading that field.
+    """
+    ctx = _FuelDamageCtx()
+    plans = {
+        mode: build_fuel_damage_plan(ctx, episode_seed=3, params=_certified(mode=mode))
+        for mode in (FuelDamageMode.FORCED_CLEAN, FuelDamageMode.FORCED_MILD,
+                     FuelDamageMode.FORCED_SEVERE)
+    }
+    audits = {m: p.eligibility_audit for m, p in plans.items()}
+    reference = audits[FuelDamageMode.FORCED_CLEAN]
+    for mode, audit in audits.items():
+        assert audit.policy == FD_ELIGIBILITY_CERTIFIED_V1
+        assert audit.candidate_order == reference.candidate_order, mode
+        assert audit.considered_ordinals == reference.considered_ordinals, mode
+        assert audit.selected_ordinal == reference.selected_ordinal, mode
+        assert audit.selected_ego_id == reference.selected_ego_id, mode
+        assert (audit.certificate.to_record()
+                == reference.certificate.to_record()), mode
+
+    clean = plans[FuelDamageMode.FORCED_CLEAN]
+    assert clean.condition == CONDITION_CLEAN and clean.ego_id is None
+    assert clean.eligibility_audit.selected_ego_id is not None
+    for mode in (FuelDamageMode.FORCED_MILD, FuelDamageMode.FORCED_SEVERE):
+        assert plans[mode].ego_id == reference.selected_ego_id
+        assert plans[mode].certificate is not None
+        # The damaged plan's event geometry IS the certificate's, not a re-projection.
+        assert plans[mode].event_latitude == reference.certificate.latitude
+        assert plans[mode].projected_fuel_at_event == reference.certificate.fuel_before
+
+
+def test_g1_5_every_scheduled_ego_is_a_candidate_and_exhaustion_is_a_normal_rejection() -> None:
+    """G1.5. Egos the allocated-only A_init omitted are CANDIDATES, rejected truthfully.
+
+    An ego the solver left out has no route and cannot carry the event -- but it is a
+    finding, not an absence: a population that quietly excluded it could never report
+    how often that happens. And when the bounded walk exhausts every candidate the world
+    is rejected at SETUP with a stable machine-readable reason, which is ordinary
+    accounted attrition, never the integrity exception.
+    """
+    ctx = _FuelDamageCtx()
+    ctx.a_init = {aid: [] for aid in ctx.agent_ids}  # allocated-only, and it allocated none
+
+    raised = None
+    try:
+        build_fuel_damage_plan(ctx, episode_seed=5, params=_certified())
+    except FuelDamageError as exc:
+        raised = exc
+    assert raised is not None, "a world with no routed ego must be rejected"
+
+    message = str(raised)
+    assert NO_FD_ELIGIBLE_EGO in message, message
+    assert REASON_NO_ROUTE in message, message
+    assert not isinstance(raised, FuelDamageIntegrityError), (
+        "an ineligible SETUP is ordinary attrition, never an instrument fault"
+    )
+
+    # Every ordinal was visited exactly once -- BOUNDED, and complete.
+    ctx_one = _FuelDamageCtx()
+    keep = ctx_one.agent_ids[1]
+    ctx_one.a_init = {
+        aid: (list(v) if aid == keep else []) for aid, v in ctx_one.a_init.items()
+    }
+    plan = build_fuel_damage_plan(ctx_one, episode_seed=5, params=_certified())
+    audit = plan.eligibility_audit
+    assert audit.selected_ego_id == keep, audit.to_record()
+    assert len(audit.considered_ordinals) == len(set(audit.considered_ordinals))
+    rejected = [c for c in audit.candidates if not c.accepted]
+    assert all(c.reason == REASON_NO_ROUTE for c in rejected), rejected
+    assert all(c.reason in FD_ELIGIBILITY_REJECTION_REASONS for c in rejected)
+    assert audit.candidate_count == len(ctx_one.agent_ids)
+
+
+def test_g1_6_a_one_assignment_ego_is_certified_when_physically_valid() -> None:
+    """G1.6. No >= 2-assignment requirement -- that would bias the generalized sample.
+
+    Requiring two assignments would quietly restrict the population to solver-STACKED
+    allocations, which is a research choice, not a physical one. A one-assignment ego is
+    a perfectly valid FD candidate; it simply has no later completion boundary to reach.
+    """
+    ctx = _FuelDamageCtx()
+    assert all(len(v) == 1 for v in ctx.a_init.values()), "fixture must be one-assignment"
+    plan = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    assert plan.certificate is not None and plan.certificate.route_length == 1
+
+
+def test_g1_7_a_pre_event_popup_risk_rejects_the_candidate() -> None:
+    """G1.7 / A5.1. A sensable target absent from the ego's OWN t=0 belief is fatal.
+
+    Such a target would be classified POP_UP by `decide_triggers` and could wake the
+    actor -- and therefore move the route -- BEFORE the certified event state exists. The
+    certificate is not defended by suppressing that trigger or by changing actor
+    behaviour; the CANDIDATE is rejected instead, which is the only option that leaves
+    the runtime semantics untouched. It applies to ANY world target the ego's belief does
+    not hold, not merely to the construction path's "hidden" half.
+    """
+    ctx = _FuelDamageCtx()
+    # A live enemy airbase 20 km off the base, in NOBODY's belief task list.
+    near = _point_at(_BASE, 20.0, 0.0)
+    ctx.scenario.airbases.append(
+        _StubAirbase("unbelieved", near.latitude, near.longitude,
+                     side_id=_RED_SIDE, side_color="red", name="Unbelieved AFB")
+    )
+    try:
+        build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    except FuelDamageError as exc:
+        assert REASON_PRE_EVENT_POPUP_RISK in str(exc), str(exc)
+        assert NO_FD_ELIGIBLE_EGO in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("a pre-event pop-up risk must reject every candidate")
+
+    # CONTROL: the same geometry with that target IN every ego's belief certifies fine,
+    # so the rejection above is the belief membership and not the extra unit.
+    ctx2 = _FuelDamageCtx()
+    ctx2.scenario.airbases.append(
+        _StubAirbase("unbelieved", near.latitude, near.longitude,
+                     side_id=_RED_SIDE, side_color="red", name="Unbelieved AFB")
+    )
+    for belief in ctx2.beliefs.values():
+        belief.tasks = list(belief.tasks) + [_attack_task("unbelieved", near)]
+    assert build_fuel_damage_plan(
+        ctx2, episode_seed=3, params=_certified()
+    ).certificate is not None
+
+
+def test_g1_8_a_pre_event_assignment_boundary_rejects_the_candidate() -> None:
+    """G1.8 / A5.2. Already inside the arrival radius before the event is fatal.
+
+    Phase 2 would be free to attack, confirm and advance the plan before the certified
+    state exists, so the fuel window the certificate promises would be measured against a
+    route the ego has already left.
+    """
+    # 60 km legs: at 30 % the ego is still 42 km out, INSIDE the 50 km radius, so an
+    # earlier pre-event tick already sits inside it.
+    ctx = _FuelDamageCtx(target_distance_km=60.0)
+    try:
+        build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    except FuelDamageError as exc:
+        assert REASON_PRE_EVENT_ASSIGNMENT_BOUNDARY in str(exc), str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("a pre-event arrival boundary must reject every candidate")
+
+
+def test_g1_9_the_certificate_requires_both_bands_with_a_one_tick_margin() -> None:
+    """G1.9 / A3. F_rtb < F_continue < F_before, each interval wider than ONE TICK.
+
+    Both severities must be constructible ON THE SAME EGO, or the matched group is not
+    one world with one factor varied. The margin is the engine's own quantum -- a band
+    narrower than a single tick of burn could be crossed by the very quantization the
+    certificate already tolerates -- and it is DERIVED (`fuel_rate / 3600`), never tuned.
+    """
+    ctx = _FuelDamageCtx()
+    cert = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified()).certificate
+
+    assert cert.rtb_fuel_floor < cert.continue_fuel_requirement < cert.fuel_before
+    assert cert.required_band_margin_fuel == _approx(6700.0 / 3600.0)
+    assert cert.band_margin_fuel > cert.required_band_margin_fuel
+
+    # The recorded bands ARE `severity_band` at the certified state -- one arithmetic
+    # site, not a second copy.
+    window = measure_window(
+        position=cert.event_location,
+        route=[ctx.targets[cert.ego_id]],
+        home_base=Location(_BASE.latitude, _BASE.longitude),
+        speed_knots=1303.0, fuel_rate=6700.0, margin=1.10,
+    )
+    mild = severity_band(window=window, fuel_before=cert.fuel_before,
+                         severity=SEVERITY_MILD)
+    severe = severity_band(window=window, fuel_before=cert.fuel_before,
+                           severity=SEVERITY_SEVERE)
+    assert cert.mild_band_low == _approx(mild.low)
+    assert cert.mild_target == _approx(mild.target)
+    assert cert.severe_band_high == _approx(severe.high)
+    assert cert.severe_target == _approx(severe.target)
+
+    # A tank that barely covers the continue requirement leaves no MILD band, so the
+    # candidate is rejected rather than certified for severe alone.
+    starved = _FuelDamageCtx(fuel=1350.0)
+    try:
+        build_fuel_damage_plan(starved, episode_seed=3, params=_certified())
+    except FuelDamageError as exc:
+        assert REASON_INVALID_BAND in str(exc), str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("a world with no mild band must not be certified")
+
+
+def test_g1_10_the_event_state_is_derived_from_the_engine_tick_and_fuel_semantics() -> None:
+    """G1.10 / A4. The DISCRETE event state, from the engine's own one-second model.
+
+    Three separate claims, none of which the legacy distance projection makes:
+      * the per-tick leg is the engine's `get_next_coordinates` arithmetic, floor and all;
+      * a state after `m` movements is observed at tick `m + 1`, because the launch tick
+        is airborne, route-less and still burns;
+      * `fuel_before` is exactly `launch - tick * fuel_rate / 3600`, with NO invented
+        reserve of any kind added on top.
+    """
+    # (1) the engine's own leg arithmetic, transcribed rather than approximated.
+    for distance_km, speed in ((250.0, 1303.0), (17.5, 450.0), (3.0, 900.0)):
+        seconds = max(math.floor(distance_km * KILOMETERS_TO_NAUTICAL_MILES
+                                 / speed * 3600.0), 0.0001)
+        expected = distance_km / seconds
+        expected = distance_km if distance_km < expected else expected
+        assert engine_leg_distance_km(distance_km, speed_knots=speed) == expected
+    # A negative speed is NORMALIZED, exactly as the engine normalizes it.
+    assert (engine_leg_distance_km(250.0, speed_knots=-1303.0)
+            == engine_leg_distance_km(250.0, speed_knots=1303.0))
+
+    # (2) tick == movements + 1, and progress is the executor's own quantity.
+    states = predict_leg_states(leg_length_km=250.0, speed_knots=1303.0)
+    assert states[0].movements == 0 and states[0].tick == 1
+    assert states[0].progress == 0.0, "no movement has happened at the top of tick 1"
+    for st in states:
+        assert st.tick == st.movements + 1
+        assert st.progress == _approx((250.0 - st.remaining_km) / 250.0)
+
+    # (3) the certificate's own numbers, with no reserve term.
+    ctx = _FuelDamageCtx()
+    cert = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified()).certificate
+    assert cert.event_tick == cert.movement_count + 1
+    assert cert.fuel_per_tick == _approx(6700.0 / 3600.0)
+    assert cert.fuel_before == _approx(12000.0 - cert.event_tick * 6700.0 / 3600.0)
+    assert cert.progress >= 0.30
+    earlier = states[cert.movement_count - 1]
+    assert earlier.progress < 0.30, "the certified tick must be the FIRST crossing"
+    # The tolerated bracket is exactly +/- the one engine quantum, and both tolerances
+    # are that quantum plus a documented float epsilon -- not a round number.
+    assert cert.tick_tolerance == CERTIFICATE_TICK_TOLERANCE == 1
+    assert set(cert.bracket_ticks) == {
+        cert.event_tick - 1, cert.event_tick, cert.event_tick + 1
+    }
+    assert cert.fuel_tolerance > cert.fuel_per_tick
+    assert cert.fuel_tolerance < 2.0 * cert.fuel_per_tick
+    assert cert.position_tolerance_km > cert.leg_km_per_tick
+
+
+def test_g1_11_a_contradicted_certificate_raises_the_integrity_error() -> None:
+    """G1.11 / A7. A certified world that contradicts itself is an INSTRUMENT fault.
+
+    Handoff 3l.3: under the certified policy live validation keeps its defensive role but
+    changes its MEANING. A world proven FD-capable before a tick was paid for cannot then
+    be "an episode that did not work out" -- if it arrives somewhere the certificate does
+    not describe, the certifier does not describe the simulator. It must abort, and it
+    must not be a `FuelDamageError`, because anything catching one would swallow it.
+    """
+    assert not issubclass(FuelDamageIntegrityError, FuelDamageError)
+    assert not issubclass(FuelDamageError, FuelDamageIntegrityError)
+
+    ctx = _FuelDamageCtx()
+    plan = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    cert = plan.certificate
+    ego = plan.ego_id
+    aircraft = next(a for a in ctx.scenario.aircraft if str(a.id) == ego)
+
+    def _at_certified_state():
+        aircraft.latitude, aircraft.longitude = cert.latitude, cert.longitude
+        aircraft.current_fuel = cert.fuel_before
+
+    # CONTROL: at the certified state the event fires normally.
+    _at_certified_state()
+    controller = FuelDamageController(plan)
+    assert controller.maybe_apply(ctx.scenario, cert.event_tick) == ego
+    assert controller.outcome.fired
+
+    # (a) the WRONG TICK, beyond the one-quantum bracket.
+    for corrupt, needle in (
+        (replace(cert, event_tick=cert.event_tick + 5), "tick"),
+        (replace(cert, fuel_before=cert.fuel_before + 500.0), "fuel"),
+        (replace(cert, latitude=cert.latitude + 1.0), "km away"),
+    ):
+        _at_certified_state()
+        fuel_snapshot = aircraft.current_fuel
+        bad = FuelDamageController(replace(plan, certificate=corrupt))
+        try:
+            bad.maybe_apply(ctx.scenario, cert.event_tick)
+        except FuelDamageIntegrityError as exc:
+            assert "CERTIFICATE CONTRADICTED" in str(exc), str(exc)
+            assert needle in str(exc), str(exc)
+        else:  # pragma: no cover
+            raise AssertionError("a contradicted certificate must abort: %s" % needle)
+        assert aircraft.current_fuel == fuel_snapshot, (
+            "the mutation must be refused BEFORE the engine is touched"
+        )
+        assert not bad.outcome.fired
+
+    # (b) A certified plan whose LIVE PHYSICS refuses the event is the SAME fault, and
+    # it is worth exercising separately because the three checks above cover the state
+    # while this covers the window derived FROM that state. The reserve is inflated on
+    # the plan alone -- position, tick and fuel still match the certificate exactly -- so
+    # the state checks pass and the physics is what refuses.
+    _at_certified_state()
+    fuel_snapshot = aircraft.current_fuel
+    inconsistent = FuelDamageController(replace(plan, rtb_safety_margin=1000.0))
+    try:
+        inconsistent.maybe_apply(ctx.scenario, cert.event_tick)
+    except FuelDamageIntegrityError as exc:
+        assert "CERTIFICATE CONTRADICTED" in str(exc), str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("a certified world whose physics refuses must abort")
+    assert aircraft.current_fuel == fuel_snapshot, "refused BEFORE the engine is touched"
+
+    # A LEGACY plan in the same situation stays ordinary accounted attrition.
+    legacy_plan = build_fuel_damage_plan(
+        ctx, episode_seed=3, params=FuelDamageParameters(mode=FuelDamageMode.FORCED_DAMAGED)
+    )
+    legacy_ego = legacy_plan.ego_id
+    legacy_ac = next(a for a in ctx.scenario.aircraft if str(a.id) == legacy_ego)
+    legacy_ac.current_fuel = 1.0  # far below every live bound
+    legacy_ac.latitude = ctx.targets[legacy_ego].latitude
+    legacy_ac.longitude = ctx.targets[legacy_ego].longitude
+    legacy_controller = FuelDamageController(legacy_plan)
+    try:
+        legacy_controller.maybe_apply(ctx.scenario, 10)
+    except FuelDamageIntegrityError:  # pragma: no cover
+        raise AssertionError("the LEGACY policy must not raise the integrity error")
+    except FuelDamageError:
+        pass
+
+
+def test_g1_12_the_legacy_defaults_are_pinned_at_every_construction_site() -> None:
+    """G1.12. Every existing construction site obtains the merged behaviour, unasked.
+
+    The two new policies are OPT-IN, and "opt-in" has to be true at the sites that
+    already exist -- `FuelDamageParameters()` itself, and the ONE place the trainer turns
+    a `TrainConfig` into one -- or an approved measurement would silently change design
+    the next time it was re-derived.
+    """
+    default = FuelDamageParameters()
+    assert default.eligibility_policy == FD_ELIGIBILITY_LEGACY_V1
+    assert default.post_fd_wake_policy == POST_FD_WAKE_SINGLE_V1
+    assert default.certified_eligibility is False
+    assert default.completion_boundary_wakes is False
+
+    from_trainer = TrainConfig(n_iterations=1).fuel_damage_parameters()
+    assert from_trainer.eligibility_policy == FD_ELIGIBILITY_LEGACY_V1
+    assert from_trainer.post_fd_wake_policy == POST_FD_WAKE_SINGLE_V1
+    from_rollout = RolloutConfig().fuel_damage_parameters()
+    assert from_rollout.eligibility_policy == FD_ELIGIBILITY_LEGACY_V1
+    assert from_rollout.post_fd_wake_policy == POST_FD_WAKE_SINGLE_V1
+
+    # Both are validated as CLOSED sets, so a typo cannot silently mean "legacy".
+    for bad in ("certified", "", None, "legacy_selected_ego_v2"):
+        try:
+            FuelDamageParameters(eligibility_policy=bad).validate()
+        except ValueError:
+            pass
+        else:  # pragma: no cover
+            raise AssertionError("eligibility policy %r must be rejected" % (bad,))
+        try:
+            FuelDamageParameters(post_fd_wake_policy=bad).validate()
+        except ValueError:
+            pass
+        else:  # pragma: no cover
+            raise AssertionError("wake policy %r must be rejected" % (bad,))
+
+    assert set(FD_ELIGIBILITY_POLICIES) == {
+        FD_ELIGIBILITY_LEGACY_V1, FD_ELIGIBILITY_CERTIFIED_V1
+    }
+    assert set(POST_FD_WAKE_POLICIES) == {
+        POST_FD_WAKE_SINGLE_V1, POST_FD_WAKE_COMPLETION_BOUNDARY_V1
+    }
+    # The parameter record names both, so a run artifact says which design it used.
+    record = default.to_record()
+    assert record["eligibility_policy"] == FD_ELIGIBILITY_LEGACY_V1
+    assert record["post_fd_wake_policy"] == POST_FD_WAKE_SINGLE_V1
+    assert record["certified_eligibility"] is False
+
+
+def test_g1_13_the_transcribed_engine_constants_and_leg_match_the_frozen_engine() -> None:
+    """G1.13 / A4. The transcription is checked against the ENGINE, not against a literal.
+
+    This layer stays BLADE-free at import time (that is what makes it hand-testable and
+    safe inside the tick loop's closure), so the movement constant it needs is
+    TRANSCRIBED. A transcription is only as good as the check on it, and comparing it to
+    another literal would check nothing -- so the frozen engine is imported HERE, in the
+    test, and asked directly.
+
+    THE STRONGER CLAIM is the second half: the whole per-tick leg, floor and all, is
+    compared against `blade.utils.utils.get_next_coordinates` itself -- and then the whole
+    multi-tick recursion is compared against repeatedly calling it, because the certified
+    event TICK is what the certificate promises and a per-call agreement that drifted over
+    hundreds of ticks would not be enough.
+    """
+    try:
+        import blade.utils.constants as engine_constants
+        import blade.utils.utils as engine_utils
+    except ImportError:  # pragma: no cover - BLADE is absent in some environments
+        if pytest is not None:
+            pytest.skip("the vendored BLADE engine is not importable here")
+        return
+
+    assert KILOMETERS_TO_NAUTICAL_MILES == engine_constants.KILOMETERS_TO_NAUTICAL_MILES
+    assert NAUTICAL_MILES_TO_METERS == float(engine_constants.NAUTICAL_MILES_TO_METERS)
+    # They are DIFFERENT constants used for DIFFERENT questions, and this layer must not
+    # quietly substitute one for the other.
+    assert KILOMETERS_TO_NAUTICAL_MILES != 1000.0 / NAUTICAL_MILES_TO_METERS
+
+    speed = 1303.0
+    start = (32.0, 35.0)
+    dest = (34.0, 35.0)
+
+    # (1) ONE tick: the engine's own displacement is this module's own leg.
+    remaining = engine_utils.get_distance_between_two_points(*start, *dest)
+    moved_to = engine_utils.get_next_coordinates(*start, *dest, speed)
+    engine_leg = engine_utils.get_distance_between_two_points(*start, *moved_to)
+    mine = engine_leg_distance_km(remaining, speed_knots=speed)
+    assert abs(mine - engine_leg) <= 1e-9 * engine_leg, (mine, engine_leg)
+
+    # (2) THE WHOLE FLIGHT: drive the engine tick by tick and compare the crossing.
+    states = predict_leg_states(leg_length_km=remaining, speed_knots=speed)
+    predicted = next(i for i, st in enumerate(states) if st.progress >= 0.30)
+
+    lat, lon = start
+    engine_crossing = None
+    for movements in range(len(states) + 2):
+        left = engine_utils.get_distance_between_two_points(lat, lon, *dest)
+        if (remaining - left) / remaining >= 0.30:
+            engine_crossing = movements
+            break
+        if left < WAYPOINT_SNAP_KM:  # pragma: no cover - not reached before 30 %
+            break
+        lat, lon = engine_utils.get_next_coordinates(lat, lon, *dest, speed)
+
+    assert engine_crossing is not None, "the engine never crossed the threshold"
+    assert abs(engine_crossing - predicted) <= CERTIFICATE_TICK_TOLERANCE, (
+        "the tick-aware prediction (%d movements) and the engine's own flight (%d) "
+        "differ by more than the certified bracket" % (predicted, engine_crossing)
+    )
+    # In practice they agree EXACTLY; the bracket exists for the boundary case, not as
+    # slack the prediction routinely uses.
+    assert engine_crossing == predicted, (engine_crossing, predicted)
+    # The remaining distance the engine really has at the crossing matches the recursion
+    # to well under one metre, so the certified event POSITION is the engine's own.
+    engine_left = engine_utils.get_distance_between_two_points(lat, lon, *dest)
+    assert abs(engine_left - states[predicted].remaining_km) < 1e-3, (
+        engine_left, states[predicted].remaining_km
+    )
+
+
+def _approx(value, tol=1e-9):
+    """Tiny local tolerance helper (this file also runs without pytest)."""
+    class _Approx:
+        def __eq__(self, other):
+            return abs(float(other) - float(value)) <= tol * max(1.0, abs(float(value)))
+
+        def __repr__(self):  # pragma: no cover - only used in a failure message
+            return "approx(%r)" % (value,)
+
+    return _Approx()
+
+
+# =============================================================================
+# GENERALIZED-V1 step 2 -- G2: POST-FD COMPLETION BOUNDARIES (PO2 / PO3)
+# =============================================================================
+
+_TA = _point_at(_BASE, 120.0, 45.0)     # the damaged ego's first assignment
+_TB = _point_at(_BASE, 200.0, 45.0)     # its second -- 80 km beyond the first
+_TPEER = _point_at(_BASE, 250.0, 200.0)  # the peer's, far off the ego's route
+
+
+class _BoundaryEnv:
+    """Nothing moves; a scripted kill removes ONE target after a chosen step.
+
+    Movement is deliberately absent: these tests are about WHEN a decision is offered,
+    and a fixture that also flew the aircraft would make the tick a boundary landed on an
+    accident of the step size rather than a statement about the seam.
+    """
+
+    def __init__(self, scenario, *, kill_after=None, target_id=None, popup=None):
+        self.scenario = scenario
+        self.kill_after = kill_after
+        self.target_id = target_id
+        self.popup = popup
+        self.n_steps = 0
+        self.closed = False
+
+    def step(self, _action):
+        self.n_steps += 1
+        if self.kill_after is not None and self.n_steps == self.kill_after:
+            self.scenario.airbases = [
+                b for b in self.scenario.airbases if str(b.id) != str(self.target_id)
+            ]
+            if self.popup is not None:
+                self.scenario.airbases.append(self.popup)
+        return self.scenario, 0.0, False, False, {}
+
+    def close(self):
+        self.closed = True
+
+
+class _BoundaryWorld:
+    """One damaged ego with TWO assignments, one peer, and a real `GraphPlanExecutor`.
+
+    The ego starts ON its first target, so which assignment it confirms is decided by
+    the LIVENESS of that target and never by the proximity gate. The peer sits at the
+    base with its own far assignment, so every "peers are untouched" assertion is about
+    an ego that really had something to do.
+    """
+
+    def __init__(self, *, ego_at=None, peer_assignment=True):
+        self.ego, self.peer = "ego-damaged", "peer-quiet"
+        self.agent_ids = [self.ego, self.peer]
+        here = ego_at or _TA
+        self.ego_ac = _StubAircraft(self.ego, here.latitude, here.longitude)
+        self.peer_ac = _StubAircraft(self.peer, _BASE.latitude, _BASE.longitude)
+        base = _StubAirbase("base-blue", _BASE.latitude, _BASE.longitude)
+        self.scenario = _StubScenario(
+            aircraft=[self.ego_ac, self.peer_ac], airbases=[base]
+        )
+        for tid, loc in (("tA", _TA), ("tB", _TB), ("tPeer", _TPEER)):
+            self.scenario.airbases.append(
+                _StubAirbase(tid, loc.latitude, loc.longitude, side_id=_RED_SIDE,
+                             side_color="red", name="Red %s" % tid)
+            )
+        self.tasks = [
+            _attack_task("tA", _TA), _attack_task("tB", _TB), _attack_task("tPeer", _TPEER)
+        ]
+        self.a_init = {
+            self.ego: [(0, 0, 0), (1, 0, 0)],
+            self.peer: [(2, 0, 0)] if peer_assignment else [],
+        }
+        self.beliefs = {
+            aid: _StubBelief(list(self.tasks),
+                             {k: list(v) for k, v in self.a_init.items()})
+            for aid in self.agent_ids
+        }
+        self.agents = [
+            Agent(location=Location(_BASE.latitude, _BASE.longitude), capabilities=[],
+                  budget=12000.0, move_cost_function=lambda s, d: 0.0, speed=1303.0,
+                  return_location=Location(_BASE.latitude, _BASE.longitude),
+                  agent_id=aid, side_color="blue", home_base_id="base-blue")
+            for aid in self.agent_ids
+        ]
+        self.executor = GraphPlanExecutor(
+            tasks=self.tasks, solution=self.a_init, agents=self.agents,
+            arrival_threshold_km=50.0,
+        )
+        self.game = _StubGame(self.scenario)
+        self.observation = self.scenario
+        self.env = _BoundaryEnv(self.scenario)
+        self.record = False
+        self.oracle_tasks = list(self.tasks)
+        self.oracle_solution = dict(self.a_init)
+        self.known_target_ids = ("tA", "tB", "tPeer")
+        self.executed_target_ids = ("tA", "tB", "tPeer")
+        self.split_meta = {}
+        self.placements = ()
+
+    # -- the fuel-damage side --------------------------------------------------
+
+    def armed_controller(self, *, policy=POST_FD_WAKE_COMPLETION_BOUNDARY_V1):
+        """A controller whose event has ALREADY fired on the ego, deterministically.
+
+        The plan is built through the PURE `plan_fuel_damage` with the ego named
+        explicitly, so the fixture does not depend on which ego a seeded draw happens to
+        pick, and the event is then applied at the ego's real position. Everything after
+        that -- arming, the boundary walk, the wake -- is production code.
+        """
+        params = FuelDamageParameters(
+            mode=FuelDamageMode.FORCED_DAMAGED, post_fd_wake_policy=policy
+        )
+        plan = plan_fuel_damage(
+            condition=CONDITION_DAMAGED, mode=params.mode, derived_seed=0,
+            eligible_ego_ids=(self.ego,), ego_id=self.ego,
+            launch_point=Location(_BASE.latitude, _BASE.longitude),
+            home_base=Location(_BASE.latitude, _BASE.longitude),
+            route_points=[_TA, _TB], speed_knots=1303.0, fuel_rate=6700.0,
+            max_fuel=12000.0, fuel_at_launch=12000.0, params=params,
+        )
+        controller = FuelDamageController(plan)
+        fired = controller.maybe_apply(self.scenario, 0)
+        assert fired == self.ego, "the fixture's event must fire on the damaged ego"
+        return controller
+
+    def belief_fingerprint(self, ego_id):
+        return _belief_fingerprint(self.beliefs[ego_id])
+
+
+def _run_boundary(world, controller, *, max_ticks=3):
+    """Drive the REAL `run_episode`, recording wakes, trigger flags and commands."""
+    wakes, flags, commands = [], [], []
+    real_decide = graph_tick_loop.decide_triggers
+    real_next = world.executor.next_actions
+
+    def spy_decide(belief_tasks, belief_solution, sensed, eta=None, *,
+                   ego_id, clock, fuel_damage=False, post_fd_completion=False):
+        flags.append((int(clock), str(ego_id), bool(fuel_damage),
+                      bool(post_fd_completion)))
+        return real_decide(belief_tasks, belief_solution, sensed, ego_id=ego_id,
+                           clock=clock, fuel_damage=fuel_damage,
+                           post_fd_completion=post_fd_completion)
+
+    def spy_next(observation):
+        issued = real_next(observation)
+        commands.append(list(issued))
+        return issued
+
+    def spy_wake(_policy, ego_id, _obs, _belief, _executor, _cfg, tick, **_kw):
+        wakes.append((int(tick), str(ego_id)))
+        return graph_tick_loop.Transition(
+            gobs=None, ego_id=str(ego_id), tick=int(tick),
+            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=0,
+            log_prob=0.0, entropy=0.0,
+        )
+
+    world.executor.next_actions = spy_next
+    saved = (graph_tick_loop.decide_triggers, graph_tick_loop._wake_decision)
+    graph_tick_loop.decide_triggers = spy_decide
+    graph_tick_loop._wake_decision = spy_wake
+    try:
+        result = graph_tick_loop.run_episode(
+            None, world, GraphObservationConfig(detection_range_km=50.0),
+            max_ticks=max_ticks, fuel_damage=controller,
+        )
+    finally:
+        graph_tick_loop.decide_triggers, graph_tick_loop._wake_decision = saved
+        world.executor.next_actions = real_next
+    return {"result": result, "wakes": wakes, "flags": flags, "commands": commands}
+
+
+def test_g2_1_only_the_actually_damaged_ego_enters_post_fd_adaptation() -> None:
+    """G2.1 / B1. Armed by the REAL mutation, never by a schedule or a clean plan."""
+    world = _BoundaryWorld()
+    params = FuelDamageParameters(
+        mode=FuelDamageMode.FORCED_DAMAGED,
+        post_fd_wake_policy=POST_FD_WAKE_COMPLETION_BOUNDARY_V1,
+    )
+    plan = plan_fuel_damage(
+        condition=CONDITION_DAMAGED, mode=params.mode, derived_seed=0,
+        eligible_ego_ids=(world.ego,), ego_id=world.ego,
+        launch_point=Location(_BASE.latitude, _BASE.longitude),
+        home_base=Location(_BASE.latitude, _BASE.longitude),
+        route_points=[_TA, _TB], speed_knots=1303.0, fuel_rate=6700.0,
+        max_fuel=12000.0, fuel_at_launch=12000.0, params=params,
+    )
+    controller = FuelDamageController(plan)
+    assert controller.boundary_wakes_enabled, "the policy grants boundary wakes"
+    assert controller.post_fd_ego is None, "nothing is armed before the event fires"
+    controller.maybe_apply(world.scenario, 0)
+    assert controller.post_fd_ego == world.ego
+
+    # A CLEAN controller -- even under the same policy -- arms nothing at all.
+    clean = FuelDamageController(plan_fuel_damage(
+        condition=CONDITION_CLEAN, mode=FuelDamageMode.FORCED_CLEAN, derived_seed=0,
+        eligible_ego_ids=(world.ego,), ego_id=None, launch_point=None, home_base=None,
+        route_points=None, speed_knots=None, fuel_rate=None, max_fuel=None,
+        fuel_at_launch=None,
+        params=FuelDamageParameters(
+            mode=FuelDamageMode.FORCED_CLEAN,
+            post_fd_wake_policy=POST_FD_WAKE_COMPLETION_BOUNDARY_V1,
+        ),
+    ))
+    assert clean.boundary_wakes_enabled is False and clean.post_fd_ego is None
+    assert clean.maybe_apply(world.scenario, 0) is None
+    assert clean.post_fd_outcome.armed is False
+
+    # And the DEFAULT policy never arms it, however damaged the ego is. A FRESH world:
+    # the event above already mutated this one's fuel, and a second application would be
+    # refused for that reason rather than for the reason under test.
+    fresh = _BoundaryWorld()
+    legacy = FuelDamageController(replace(
+        plan, post_fd_wake_policy=POST_FD_WAKE_SINGLE_V1
+    ))
+    assert legacy.boundary_wakes_enabled is False
+    assert legacy.maybe_apply(fresh.scenario, 0) == fresh.ego
+    assert legacy.post_fd_ego is None and legacy.post_fd_outcome.armed is False
+
+
+def test_g2_2_an_alive_target_or_a_bare_attack_produces_no_boundary() -> None:
+    """G2.2 / B5. Emitting a salvo is not a completion; a live target is not a boundary."""
+    world = _BoundaryWorld()
+    controller = world.armed_controller()
+    out = _run_boundary(world, controller, max_ticks=2)
+
+    assert any("handle_aircraft_attack('%s', 'tA')" % world.ego in c
+               for tick_cmds in out["commands"] for c in tick_cmds), out["commands"]
+    assert controller.post_fd_outcome.boundaries_confirmed == 0
+    assert out["wakes"] == [], "a live target must wake nobody"
+    assert all(not post_fd for _t, _e, _fd, post_fd in out["flags"]), out["flags"]
+
+
+def test_g2_3_a_peer_kill_far_away_produces_no_boundary() -> None:
+    """G2.3 / B5. A target that dies while the damaged ego is far off is NOT a boundary.
+
+    This is the no-communication rule restated for this seam: the boundary is the ego's
+    OWN proximity-gated confirmation, never a peer's outcome learned some other way.
+    """
+    # 48 km along the 120 km first leg: PAST the 30 % threshold (so the event really
+    # fires) and still 72 km from tA, well outside the 50 km radius (so the kill below is
+    # one the ego cannot confirm from where it is).
+    world = _BoundaryWorld(ego_at=_point_at(_BASE, 48.0, 45.0))
+    controller = world.armed_controller()
+    world.env = _BoundaryEnv(world.scenario, kill_after=1, target_id="tA")
+
+    out = _run_boundary(world, controller, max_ticks=3)
+
+    assert world.scenario.get_target("tA") is None, "the fixture must really kill tA"
+    assert controller.post_fd_outcome.boundaries_confirmed == 0, (
+        "a kill the ego could not confirm from where it is must not be a boundary"
+    )
+    assert out["wakes"] == [], out["wakes"]
+    assert (world.ego, "tA") not in world.executor.done
+
+
+def test_g2_4_a_local_confirmation_wakes_once_before_the_next_movement() -> None:
+    """G2.4 / B5. ONE wake, at the boundary, BEFORE the ego commits to the next leg.
+
+    The load-bearing ordering assertion is the last one: the move toward the SECOND
+    assignment must not appear on any tick before the decision. If the reconciliation had
+    stayed in Phase 2, the ego would have flown first and been asked afterwards.
+    """
+    world = _BoundaryWorld()
+    controller = world.armed_controller()
+    world.env = _BoundaryEnv(world.scenario, kill_after=1, target_id="tA")
+
+    out = _run_boundary(world, controller, max_ticks=3)
+
+    assert (world.ego, "tA") in world.executor.done, "the ego confirmed its own kill"
+    outcome = controller.post_fd_outcome
+    assert outcome.boundaries_confirmed == 1, outcome.to_record()
+    assert outcome.boundaries_with_remaining_mission == 1
+    assert outcome.boundary_wakes == 1
+    assert outcome.boundaries[0].confirmed_target_ids == ("tA",)
+    assert outcome.boundaries[0].remaining_mission is True
+    assert outcome.boundary_meta_actions == (int(MetaAction.PLAN_COMPLIANCE),)
+
+    assert out["wakes"] == [(1, world.ego)], out["wakes"]
+    boundary_flags = [f for f in out["flags"] if f[3]]
+    assert boundary_flags == [(1, world.ego, False, True)], out["flags"]
+
+    # The IMMEDIATE fuel-damage record keeps its own, separate meaning.
+    assert controller.outcome.wake_occurred is False
+    assert controller.outcome.wake_meta_action is None
+
+    move_ticks = [
+        tick for tick, cmds in enumerate(out["commands"])
+        if any(c.startswith("move_aircraft('%s'" % world.ego) for c in cmds)
+    ]
+    assert move_ticks and min(move_ticks) == 1, (
+        "the ego must not commit movement toward its next assignment before the "
+        "boundary decision (moves at %r)" % (move_ticks,)
+    )
+
+
+def test_g2_5_the_final_assignment_completes_without_a_useless_wake() -> None:
+    """G2.5 / B3. A completion that ends the mission is recorded, and wakes nobody."""
+    world = _BoundaryWorld()
+    world.a_init[world.ego] = [(0, 0, 0)]  # ONE assignment: tA is the whole mission
+    for belief in world.beliefs.values():
+        belief.solution = {k: list(v) for k, v in world.a_init.items()}
+    world.executor = GraphPlanExecutor(
+        tasks=world.tasks, solution=world.a_init, agents=world.agents,
+        arrival_threshold_km=50.0,
+    )
+    controller = world.armed_controller()
+    world.env = _BoundaryEnv(world.scenario, kill_after=1, target_id="tA")
+
+    out = _run_boundary(world, controller, max_ticks=3)
+
+    outcome = controller.post_fd_outcome
+    assert outcome.boundaries_confirmed == 1, outcome.to_record()
+    assert outcome.boundaries_terminal == 1
+    assert outcome.boundaries_with_remaining_mission == 0
+    assert outcome.boundary_wakes == 0, "nothing was left to decide"
+    assert out["wakes"] == [], out["wakes"]
+    # Normal RTB behaviour proceeds through the executor's existing empty-plan path.
+    assert any("aircraft_return_to_base('%s')" % world.ego in c
+               for cmds in out["commands"] for c in cmds), out["commands"]
+
+
+def test_g2_6_several_confirmations_in_one_reconciliation_coalesce_to_one_decision() -> None:
+    """G2.6 / B3. Two heads retired in one pass are ONE boundary and ONE wake."""
+    world = _BoundaryWorld(ego_at=_TA)
+    # A third assignment the ego can also confirm from here: tC sits ON tA's position.
+    world.tasks.append(_attack_task("tC", _TA))
+    world.a_init[world.ego] = [(0, 0, 0), (3, 0, 0), (1, 0, 0)]
+    world.scenario.airbases.append(
+        _StubAirbase("tC", _TA.latitude, _TA.longitude, side_id=_RED_SIDE,
+                     side_color="red", name="Red tC")
+    )
+    for belief in world.beliefs.values():
+        belief.tasks = list(world.tasks)
+        belief.solution = {k: list(v) for k, v in world.a_init.items()}
+    world.executor = GraphPlanExecutor(
+        tasks=world.tasks, solution=world.a_init, agents=world.agents,
+        arrival_threshold_km=50.0,
+    )
+    controller = world.armed_controller()
+
+    class _DoubleKillEnv(_BoundaryEnv):
+        def step(self, action):
+            self.n_steps += 1
+            if self.n_steps == 1:
+                self.scenario.airbases = [
+                    b for b in self.scenario.airbases
+                    if str(b.id) not in ("tA", "tC")
+                ]
+            return self.scenario, 0.0, False, False, {}
+
+    world.env = _DoubleKillEnv(world.scenario)
+    out = _run_boundary(world, controller, max_ticks=3)
+
+    outcome = controller.post_fd_outcome
+    assert outcome.boundaries_confirmed == 1, outcome.to_record()
+    assert set(outcome.boundaries[0].confirmed_target_ids) == {"tA", "tC"}
+    assert outcome.boundary_wakes == 1
+    assert out["wakes"] == [(1, world.ego)], out["wakes"]
+    assert world.beliefs[world.ego].solution[world.ego] == [(1, 0, 0)], (
+        "both confirmed assignments must leave the ego's own belief"
+    )
+
+
+def test_g2_7_a_boundary_and_a_popup_coalesce_into_one_transition() -> None:
+    """G2.7 / B4. Simultaneous triggers share ONE `wake` boolean, so ONE decision."""
+    world = _BoundaryWorld()
+    controller = world.armed_controller()
+    popup_at = _point_at(_TA, 10.0, 90.0)  # inside the ego's radius, in nobody's belief
+    world.env = _BoundaryEnv(
+        world.scenario, kill_after=1, target_id="tA",
+        popup=_StubAirbase("popup", popup_at.latitude, popup_at.longitude,
+                           side_id=_RED_SIDE, side_color="red", name="Red popup"),
+    )
+
+    out = _run_boundary(world, controller, max_ticks=3)
+
+    at_boundary = [w for w in out["wakes"] if w[0] == 1]
+    assert at_boundary == [(1, world.ego)], (
+        "a boundary and a pop-up on one snapshot must produce exactly ONE decision, "
+        "got %r" % (out["wakes"],)
+    )
+    # The pop-up really was there: the trigger appended it to the ego's own belief.
+    ego_targets = [str(t.steps[0].target_id) for t in world.beliefs[world.ego].tasks]
+    assert "popup" in ego_targets, ego_targets
+    assert controller.post_fd_outcome.boundary_wakes == 1
+
+
+def test_g2_8_adaptation_deactivates_on_rtb_or_death_with_a_recorded_reason() -> None:
+    """G2.8 / B1. The state ends when the ego can no longer reach a boundary."""
+    world = _BoundaryWorld()
+    controller = world.armed_controller()
+    world.executor.rtb_issued[world.ego] = True
+    graph_tick_loop._post_fd_boundary(controller, world, world.scenario, 4)
+    assert controller.post_fd_ego is None
+    assert controller.post_fd_outcome.deactivation_reason == POST_FD_DEACTIVATED_RTB
+    assert controller.post_fd_outcome.active is False
+
+    dead_world = _BoundaryWorld()
+    dead_controller = dead_world.armed_controller()
+    dead_world.executor.dead.add(dead_world.ego)
+    graph_tick_loop._post_fd_boundary(
+        dead_controller, dead_world, dead_world.scenario, 9
+    )
+    assert dead_controller.post_fd_ego is None
+    assert (dead_controller.post_fd_outcome.deactivation_reason
+            == POST_FD_DEACTIVATED_DEAD)
+
+
+def test_g2_9_no_target_is_re_executed_through_stale_done_state() -> None:
+    """G2.9 / B2. Reconciling early cannot resurrect work, and is IDEMPOTENT."""
+    world = _BoundaryWorld()
+    controller = world.armed_controller()
+    world.env = _BoundaryEnv(world.scenario, kill_after=1, target_id="tA")
+    _run_boundary(world, controller, max_ticks=4)
+
+    assert (world.ego, "tA") in world.executor.done
+    # A confirmed assignment is gone from the ego's belief AND from its executor slice,
+    # and no later tick re-issues an attack on it.
+    assert world.beliefs[world.ego].solution[world.ego] == [(1, 0, 0)]
+    assert world.executor.plans[world.ego] == [(1, 0, 0)]
+    later = world.executor.next_actions(world.scenario)
+    assert not any("'tA'" in c for c in later), later
+    # A second reconciliation confirms nothing further.
+    assert world.executor.reconcile_confirmed_for_ego(world.ego, world.scenario) == ()
+
+
+# =============================================================================
+# GENERALIZED-V1 step 2 -- G3: NO-COMMUNICATION AND THE UNCHANGED ACTOR (PO3)
+# =============================================================================
+
+def test_g3_1_only_the_damaged_egos_belief_and_slice_change_at_a_boundary() -> None:
+    """G3.1 / PO3. Peer beliefs and peer executor slices stay byte-identical."""
+    world = _BoundaryWorld()
+    controller = world.armed_controller()
+    world.env = _BoundaryEnv(world.scenario, kill_after=1, target_id="tA")
+
+    peer_before = world.belief_fingerprint(world.peer)
+    peer_plan_before = list(world.executor.plans[world.peer])
+    ego_before = world.belief_fingerprint(world.ego)
+
+    _run_boundary(world, controller, max_ticks=3)
+
+    assert world.belief_fingerprint(world.peer) == peer_before, (
+        "the peer's private belief must be untouched by the damaged ego's boundary"
+    )
+    assert world.executor.plans[world.peer] == peer_plan_before
+    assert world.belief_fingerprint(world.ego) != ego_before, (
+        "control: the DAMAGED ego's own belief really did change, so the assertion "
+        "above is not vacuous"
+    )
+    # And the peer's own confirmations are untouched: `done` is keyed per (ego, target).
+    assert not any(pair[0] == world.peer for pair in world.executor.done), (
+        world.executor.done
+    )
+
+
+def test_g3_2_no_generalized_v1_quantity_reaches_the_graph_observation() -> None:
+    """G3.2 / PO3. No certificate, severity, policy or post-FD flag is observable.
+
+    Handoff 3l.2 / CLAUDE.md Sec 3: the acting path still reads only the ego's own
+    sensing and its own fuel. The feature widths are pinned, and the observation's own
+    field names are checked against the merged set -- a new privileged column could not
+    be added without this failing.
+    """
+    ctx = _FuelDamageCtx()
+    ego = ctx.agent_ids[0]
+    gobs = build_graph_observation(
+        scenario=ctx.scenario, agent_id=ego,
+        current_plan=ctx.a_init[ego], current_time=0,
+        tasks=ctx.beliefs[ego].tasks, solution=ctx.a_init,
+        precedence_relations=[], config=GraphObservationConfig(detection_range_km=50.0),
+    )
+    assert TASK_FEATURE_DIM == 6, "the task feature width is a locked contract"
+    assert int(gobs.task_features.shape[1]) == TASK_FEATURE_DIM
+    assert int(gobs.agent_features.shape[1]) == 1, "agents carry fuel_norm and nothing else"
+
+    banned = ("certificate", "severity", "eligibility", "post_fd", "boundary",
+              "policy", "hidden", "ordinal")
+    for field_name in vars(gobs):
+        assert not any(word in field_name.lower() for word in banned), field_name
+
+    # Peers stay FEATURELESS, so no peer fuel or peer completion can leak.
+    peer_rows = [
+        i for i, aid in enumerate(gobs.agent_ids) if str(aid) != str(ego)
+    ]
+    assert peer_rows, "the fixture must have peers for this to mean anything"
+    for row in peer_rows:
+        assert float(gobs.agent_features[row, 0]) == 0.0
+
+
+def test_g3_3_the_action_set_is_unchanged() -> None:
+    """G3.3 / B4. No trim-tail, no new meta-action, no new selection surface."""
+    assert NUM_META_ACTIONS == 3
+    assert [m.name for m in MetaAction] == [
+        "PLAN_COMPLIANCE", "OPPORTUNISTIC_ENGAGEMENT", "SELF_PRESERVATION_ABORT"
+    ]
+    # The new trigger kind is APPEND-ONLY and carries the non-task sentinel.
+    assert int(TriggerKind.POP_UP) == 0 and int(TriggerKind.PEER_OVERDUE) == 1
+    assert int(TriggerKind.FUEL_DAMAGE) == 2
+    assert int(TriggerKind.POST_FD_COMPLETION) == 3
+    _t, _s, wake, events = decide_triggers(
+        [], {}, {}, ego_id="ego", clock=0.0, post_fd_completion=True
+    )
+    assert wake is True
+    assert events == [(TriggerKind.POST_FD_COMPLETION, NO_TASK_INDEX)]
 
 
 # =============================================================================
