@@ -4023,6 +4023,191 @@ def _approx(value, tol=1e-9):
     return _Approx()
 
 
+# --- G1.14: the TERMINAL half of the certified promise ------------------------
+# `maybe_apply` guards the promise from the inside; this guards it from the outside. The
+# four cells are enumerated once, here, because the whole risk is that the invariant
+# leaks onto the LEGACY policy (which an approved measurement was taken on) or onto a
+# CLEAN episode (which is supposed to finish without firing).
+
+def _stalled_run(params, *, seed=3, max_ticks=4, burn_fuel=False):
+    """Run a REAL `run_episode` on a world where the event CANNOT fire.
+
+    Nothing moves (``step_km=0``), so the selected ego never reaches 30 % of its first
+    leg and the episode truncates with the event unfired. Nothing burns either, so any
+    change to any aircraft's fuel afterwards could only have come from the terminal check
+    itself -- which is exactly what one of the assertions below is for.
+    """
+    ctx = _FuelDamageCtx()
+    ctx.env = _StubEnv(ctx.scenario, step_km=0.0, burn_fuel=burn_fuel)
+    controller = build_fuel_damage_controller(ctx, episode_seed=seed, params=params)
+    fuel_before = {str(a.id): a.current_fuel for a in ctx.scenario.aircraft}
+    raised = None
+    result = None
+    try:
+        result = graph_tick_loop.run_episode(
+            None, ctx, GraphObservationConfig(detection_range_km=50.0),
+            max_ticks=max_ticks, fuel_damage=controller,
+        )
+    except BaseException as exc:  # noqa: BLE001 - the abort itself is under test
+        raised = exc
+    return {
+        "ctx": ctx, "controller": controller, "result": result, "raised": raised,
+        "fuel_before": fuel_before,
+        "fuel_after": {str(a.id): a.current_fuel for a in ctx.scenario.aircraft},
+    }
+
+
+def test_g1_14_a_certified_damaged_event_that_never_fires_is_an_integrity_fault() -> None:
+    """G1.14 (cell 2). CERTIFIED + DAMAGED + never fired -> `FuelDamageIntegrityError`.
+
+    The other half of the certified promise. A world proven FD-capable before a tick was
+    paid for that then ends without delivering its own event has not had an uneventful
+    episode -- its certificate did not materialize, and returning it would admit a world
+    whose promise failed into a scientific population as a SUCCESSFUL damaged episode.
+
+    The fixture makes the non-fire structural rather than lucky: nothing moves, so the
+    threshold is unreachable by construction.
+    """
+    for mode in (FuelDamageMode.FORCED_MILD, FuelDamageMode.FORCED_SEVERE,
+                 FuelDamageMode.FORCED_DAMAGED):
+        out = _stalled_run(_certified(mode=mode))
+        raised = out["raised"]
+        assert isinstance(raised, FuelDamageIntegrityError), (mode, raised)
+        assert not isinstance(raised, FuelDamageError), (
+            "it must not be catchable as ordinary attrition"
+        )
+        assert "CERTIFICATE NOT REALIZED" in str(raised), str(raised)
+        assert out["result"] is None, "no EpisodeResult may be returned"
+        assert out["controller"].outcome.fired is False
+
+
+def test_g1_15_the_terminal_check_mutates_nothing_to_satisfy_itself() -> None:
+    """G1.15 (cell 2, purity). A certificate that did not materialize is REPORTED.
+
+    The one repair a terminal invariant must never make is applying the event late so it
+    can pass. Nothing burns in this fixture, so EVERY aircraft's fuel must be exactly
+    what it was at launch -- the selected ego's included -- and the controller must still
+    report the event as unfired with no live measurement attached.
+    """
+    out = _stalled_run(_certified())
+    assert isinstance(out["raised"], FuelDamageIntegrityError), out["raised"]
+    assert out["fuel_after"] == out["fuel_before"], (
+        "the terminal check applied fuel damage to satisfy itself: %r -> %r"
+        % (out["fuel_before"], out["fuel_after"])
+    )
+    outcome = out["controller"].outcome
+    assert outcome.fired is False
+    assert outcome.event_tick is None and outcome.fuel_after is None
+    assert outcome.live_rtb_fuel_floor is None and outcome.observed_progress is None
+    # Calling it again is still a pure raise -- no state was latched by the first call.
+    try:
+        out["controller"].require_certified_event_realized()
+    except FuelDamageIntegrityError:
+        pass
+    assert out["controller"].outcome.fired is False
+
+
+def test_g1_16_a_certified_clean_episode_may_finish_without_firing() -> None:
+    """G1.16 (cell 3). CLEAN + certified: `fired == False` is the CORRECT outcome.
+
+    The clean member runs the whole eligibility walk and carries a certificate, but that
+    certificate is a COUNTERFACTUAL -- it names the ego its matched mild and severe
+    siblings will damage. Nothing was scheduled to fire here, so the terminal invariant
+    must stay silent, and this is the cell most at risk from a check written as
+    "certified => must have fired".
+    """
+    out = _stalled_run(_certified(mode=FuelDamageMode.FORCED_CLEAN))
+    assert out["raised"] is None, out["raised"]
+    assert out["result"] is not None and out["result"].ended == "truncated"
+    plan = out["controller"].plan
+    assert plan.condition == CONDITION_CLEAN and plan.ego_id is None
+    assert plan.is_certified and plan.certificate is not None
+    assert plan.eligibility_audit.selected_ego_id is not None, (
+        "the clean member still identifies the counterfactual ego"
+    )
+    assert out["controller"].outcome.fired is False
+
+
+def test_g1_17_the_legacy_policy_keeps_its_historical_non_fire_behaviour() -> None:
+    """G1.17 (cell 4). LEGACY + DAMAGED + never fired: unchanged, and NOT a fault.
+
+    The approved FD-VARIABLE-SEVERITY-v1 measurement contains exactly one such episode
+    (successful damaged training seed 424, whose selected ego returned before reaching
+    the 0.30 leg-progress trigger). It was a recorded observation there, and it must stay
+    one: putting a terminal requirement on the legacy policy would change the behaviour
+    that measurement was taken on rather than extend it.
+    """
+    for mode in (FuelDamageMode.FORCED_DAMAGED, FuelDamageMode.FORCED_SEVERE,
+                 FuelDamageMode.FORCED_CLEAN, FuelDamageMode.SEEDED_MIXTURE):
+        out = _stalled_run(FuelDamageParameters(mode=mode))
+        assert out["raised"] is None, (mode, out["raised"])
+        assert out["result"] is not None, mode
+        assert out["controller"].plan.is_certified is False, mode
+        assert out["controller"].outcome.fired is False, mode
+
+    # The predicate itself is a no-op for a legacy plan even when called directly, so the
+    # invariance does not depend on the tick loop's own branching.
+    ctx = _FuelDamageCtx()
+    legacy = build_fuel_damage_controller(
+        ctx, episode_seed=3,
+        params=FuelDamageParameters(mode=FuelDamageMode.FORCED_DAMAGED),
+    )
+    assert legacy.plan.is_damaged and not legacy.outcome.fired
+    legacy.require_certified_event_realized(scenario=ctx.scenario, ticks=10)
+
+
+def test_g1_18_a_realized_certified_event_passes_the_terminal_check() -> None:
+    """G1.18 (cell 1). The invariant must not reject the VALID fired path.
+
+    A guard that also failed the healthy case would be worse than no guard: it would
+    abort every certified damaged run. The event is fired here through the production
+    path at the certified state, and the terminal check then returns silently.
+    """
+    ctx = _FuelDamageCtx()
+    controller = build_fuel_damage_controller(
+        ctx, episode_seed=3, params=_certified(mode=FuelDamageMode.FORCED_SEVERE)
+    )
+    cert = controller.plan.certificate
+    aircraft = next(a for a in ctx.scenario.aircraft
+                    if str(a.id) == str(controller.plan.ego_id))
+    aircraft.latitude, aircraft.longitude = cert.latitude, cert.longitude
+    aircraft.current_fuel = cert.fuel_before
+
+    assert controller.maybe_apply(ctx.scenario, cert.event_tick) == controller.plan.ego_id
+    assert controller.outcome.fired is True
+    controller.require_certified_event_realized(
+        scenario=ctx.scenario, ticks=cert.event_tick + 1
+    )  # must not raise
+
+
+def test_g1_19_the_terminal_check_lives_at_exactly_one_seam() -> None:
+    """G1.19. ONE call site, at the place that owns episode exit.
+
+    The packet's requirement, and the reason it matters: a predicate duplicated across
+    `graph_train` and `graph_rollout` would be two chances to disagree about when a
+    certified world counts as having failed. `run_episode` is the single path every
+    scientific consumer goes through, so it is the only caller.
+    """
+    tick_loop_src = inspect.getsource(graph_tick_loop)
+    assert tick_loop_src.count("require_certified_event_realized(") == 1, (
+        "the terminal invariant must be invoked exactly once in the tick loop"
+    )
+    assert "require_certified_event_realized" not in inspect.getsource(graph_train), (
+        "the trainer must not duplicate the predicate -- it only ROUTES the exception"
+    )
+    from match_aou.rl.training import graph_rollout
+    assert "require_certified_event_realized" not in inspect.getsource(graph_rollout), (
+        "the rollout harness must not duplicate the predicate either"
+    )
+    # And it runs BEFORE the recording export, so an aborted episode never leaves a
+    # playback file that no manifest will list (the roster-integrity lesson).
+    check_at = tick_loop_src.index("require_certified_event_realized(")
+    export_at = tick_loop_src.index("ctx.game.export_recording()")
+    assert check_at < export_at, (
+        "the terminal check must precede the playback export"
+    )
+
+
 # =============================================================================
 # GENERALIZED-V1 step 2 -- G2: POST-FD COMPLETION BOUNDARIES (PO2 / PO3)
 # =============================================================================

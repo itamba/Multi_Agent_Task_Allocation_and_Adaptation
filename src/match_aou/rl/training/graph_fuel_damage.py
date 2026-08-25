@@ -158,12 +158,48 @@ window be computed against a route the executor does not fly.
 
 FAILURE POLICY
 --------------
-Everything fails LOUDLY as :class:`FuelDamageError`. In particular, a scheduled DAMAGED
-episode with no valid strict window is NOT quietly downgraded to a clean episode -- that
-would silently change the population every measurement is reported over. It raises, the
-trainer wraps it as an ``EpisodeAttemptError("setup", ...)``, and ``skip_and_account_v1``
-records it exactly once with no retry, no substitution and no band shift. A FORCED-CLEAN
-episode never computes a window at all, so it can never fail for this reason.
+Everything fails LOUDLY. WHICH exception it fails with is the whole question, because the
+two classes are routed in opposite directions, and GENERALIZED-V1 added the second one.
+
+UNDER THE LEGACY ELIGIBILITY POLICY (:data:`FD_ELIGIBILITY_LEGACY_V1`, the DEFAULT) the
+description below is complete and UNCHANGED -- it is the behaviour the approved
+FD-BASELINE-v1 and FD-VARIABLE-SEVERITY-v1 measurements were taken on:
+
+    Everything fails as :class:`FuelDamageError`. In particular, a scheduled DAMAGED
+    episode with no valid strict window is NOT quietly downgraded to a clean episode --
+    that would silently change the population every measurement is reported over. It
+    raises, the trainer wraps it as an ``EpisodeAttemptError("setup", ...)``, and
+    ``skip_and_account_v1`` records it exactly once with no retry, no substitution and no
+    band shift. A FORCED-CLEAN episode never computes a window at all, so it can never
+    fail for this reason. A damaged episode whose selected ego simply never reaches the
+    threshold is NOT a failure either: it finishes with ``fired == False``, which is a
+    recorded observation about that episode and nothing more.
+
+UNDER :data:`FD_ELIGIBILITY_CERTIFIED_V1` two of those sentences stop being true, and
+both changes are deliberate (handoff 3l.3):
+
+  * A FORCED-CLEAN EPISODE DOES DO WORK AT SETUP. Eligibility is a property of WORLD
+    ACCEPTANCE, so the clean member runs the SAME complete certification walk as its
+    matched mild and severe siblings -- that is what gives the three one accepted-world
+    support. It computes no window it will apply and mutates nothing, but it CAN be
+    rejected, with the stable reason :data:`NO_FD_ELIGIBLE_EGO`. That rejection is still
+    a :class:`FuelDamageError` and still ordinary accounted attrition: nothing had been
+    certified, so nothing was contradicted.
+  * A CERTIFIED WORLD THAT DOES NOT DELIVER ITS CERTIFIED EVENT IS AN INSTRUMENT FAULT,
+    not an episode outcome, and raises :class:`FuelDamageIntegrityError` -- which ABORTS
+    the run and is never wrapped, ledgered, tallied or skipped. There are exactly two
+    ways to reach it, and they are the two halves of one promise:
+      - the LIVE event state contradicts the certificate, or the live physics refuses the
+        event the certificate said was constructible
+        (:meth:`FuelDamageController.maybe_apply`);
+      - the episode ENDS with the certified damaged event never having fired at all
+        (:meth:`FuelDamageController.require_certified_event_realized`). Under the legacy
+        policy that is an ordinary observation; under the certified one it means a world
+        proven capable before a tick was paid for failed to materialize its own
+        certificate, so admitting it as a successful damaged episode would put a world
+        whose certificate did not hold into a scientific population.
+    A CERTIFIED CLEAN episode is of course allowed to finish with ``fired == False``:
+    nothing was scheduled to fire, and its certificate is a counterfactual.
 """
 
 from __future__ import annotations
@@ -3035,6 +3071,75 @@ class FuelDamageController:
         if self.plan.completion_boundary_wakes:
             self._post_fd_active = True
         return ego_id
+
+    def require_certified_event_realized(
+        self, *, scenario: Any = None, ticks: Optional[int] = None
+    ) -> None:
+        """THE TERMINAL HALF of the certified promise: the event must actually have FIRED.
+
+        GENERALIZED-V1 (handoff 3l.3). :meth:`maybe_apply` guards the promise from the
+        inside -- if the run REACHES the event and the state contradicts the certificate,
+        it aborts. This guards it from the outside: if the run ENDS and the event never
+        happened at all, a world that was proven FD-capable before a tick was paid for
+        failed to deliver its own certificate, and accepting that episode would admit it
+        into a scientific population as a successful DAMAGED episode. It is an INSTRUMENT
+        fault, exactly like a live contradiction, and it is routed identically.
+
+        THE FOUR CELLS, and only one of them raises:
+
+          * CERTIFIED + DAMAGED + fired  -- returns; the normal successful path.
+          * CERTIFIED + DAMAGED + NOT fired -- raises :class:`FuelDamageIntegrityError`.
+          * CERTIFIED + CLEAN -- returns. Nothing was scheduled to fire and the
+            certificate is a COUNTERFACTUAL (it names the ego the matched mild and severe
+            members will damage), so ``fired == False`` is the correct outcome, never a
+            fault.
+          * LEGACY (either condition) -- returns, ALWAYS. The legacy policy makes no
+            certified promise, a damaged episode whose ego never reaches the threshold is
+            an ordinary recorded observation there, and an approved measurement contains
+            exactly such an episode. Adding a terminal requirement to it would change the
+            behaviour that measurement was taken on rather than extend it.
+
+        PURE, AND IT MUTATES NOTHING -- not the engine, not the plan, not this
+        controller's own state. It never applies a late event to satisfy itself: a
+        certificate that did not materialize is a fact to report, not a state to repair.
+        ``scenario`` and ``ticks`` are DIAGNOSTIC ONLY, both optional, and are read only
+        to say how far the ego actually got.
+
+        CALL IT ONCE, AT THE EPISODE-EXIT SEAM, before a non-fire can be accepted as a
+        result -- ``graph_tick_loop.run_episode`` does exactly that, which is the single
+        path every scientific consumer (the trainer and the diagnostic rollout alike)
+        goes through. Do not duplicate the predicate across callers.
+
+        Raises:
+            FuelDamageIntegrityError: only in the second cell above.
+        """
+        if not (self.plan.is_certified and self.plan.is_damaged):
+            return
+        if self._fired:
+            return
+
+        cert = self.plan.certificate
+        ego_id = str(self.plan.ego_id)
+        progress = None if scenario is None else self.observed_progress(scenario)
+        reached = (
+            "the ego was not airborne at the end of the episode"
+            if progress is None
+            else "the ego reached %.4f of its first leg" % progress
+        )
+        raise FuelDamageIntegrityError(
+            "ego %s: CERTIFICATE NOT REALIZED -- this world was certified FD-capable at "
+            "setup (event scheduled for tick %s at %.1f%% of a %.1f km first leg), the "
+            "episode ended after %s tick(s), and the event never fired. %s. A certified "
+            "world that does not deliver its own event is an instrument fault, not a "
+            "damaged episode that happened to be uneventful, so it is not accepted as a "
+            "scientific result."
+            % (ego_id,
+               "unknown" if cert is None else str(cert.event_tick),
+               100.0 * float(self.plan.progress_threshold or 0.0),
+               float(self.plan.leg_length_km or 0.0),
+               "an unknown number of" if ticks is None else str(int(ticks)),
+               reached)
+        )
 
     def note_commands(self, commands: Sequence[str]) -> None:
         """Observe ONE tick's emitted BLADE command list (Phase 2), read-only.

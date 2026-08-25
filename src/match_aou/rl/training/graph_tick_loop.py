@@ -438,7 +438,11 @@ def run_episode(
             (the default) leaves the loop byte-identical to the pre-FD behaviour. When
             supplied it is consulted ONCE per tick, at the top, before any ego is
             processed (see the module docstring); a CLEAN controller is a no-op on every
-            call, so there is one code path rather than two.
+            call, so there is one code path rather than two. It is ALSO consulted ONCE at
+            episode exit (``require_certified_event_realized``): a GENERALIZED-V1
+            CERTIFIED damaged world whose event never fired is an instrument fault and
+            must not be returned as a result. That terminal call is a no-op under the
+            legacy eligibility policy and on every clean episode.
         central: optional Phase-B CTDE :class:`CentralStateRecorder`. ``None`` (the
             default, and what ``actor_only`` training passes) leaves the loop
             byte-identical to the pre-CTDE behaviour -- no central state is built and
@@ -603,6 +607,24 @@ def run_episode(
         if truncated:
             ended = "truncated"
             break
+
+    # --- THE EPISODE-EXIT SEAM (GENERALIZED-V1 step 2) -------------------------
+    # A CERTIFIED damaged world promised, before a single tick was paid for, that its
+    # event was constructible at a predicted state. `maybe_apply` guards that promise
+    # from the inside; this guards it from the outside -- if the episode ENDS and the
+    # event never fired, the certificate did not materialize, and letting the episode
+    # return would admit it into a scientific population as a successful damaged
+    # episode. It is ONE call at the ONE place that owns episode exit, so the predicate
+    # is not duplicated across `graph_train` and `graph_rollout`; it is a no-op for the
+    # LEGACY policy and for every clean episode, and it mutates nothing.
+    #
+    # IT RUNS BEFORE THE RECORDING EXPORT ON PURPOSE. `graph_train` synchronizes a
+    # completed run's playback into its manifest only AFTER `run_episode` returns, so
+    # exporting first and raising second would leave a real recording no manifest lists
+    # -- the exact defect the roster-integrity correction closed. An episode that raises
+    # exports nothing, and this one raises.
+    if fuel_damage is not None:
+        fuel_damage.require_certified_event_realized(scenario=obs, ticks=tick + 1)
 
     # Terminal frame + export (force so kills / RTB are visible even if the throttle
     # would have skipped this tick; a possible duplicate final frame is harmless). An
