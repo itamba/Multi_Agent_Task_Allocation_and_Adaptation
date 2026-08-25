@@ -95,6 +95,9 @@ sys.path.insert(0, str(SRC))  # so match_aou.* imports resolve
 
 from match_aou.models import Location, Step, StepKind, Task  # noqa: E402
 from match_aou.rl.training import graph_episode_setup as _setup  # noqa: E402
+from match_aou.rl.training.graph_reward import (  # noqa: E402
+    REFERENCE_POLICY_STATIC_T0_V1,
+)
 from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     ATTACKING_SIDE_COLOR,
     CONSTRUCTION_TARGET_CLASS,
@@ -557,7 +560,9 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
 
     A future third setup path must not be able to reach a context carrying an empty world
     inventory -- that is the one shape in which allocated-only data gets read as world
-    truth again.
+    truth again. `reference_policy` / `t0_reference_tasks` are REQUIRED for the same
+    reason (GENERALIZED-V1 task 3): a path that omitted them could silently claim the
+    historical reference policy while having deferred its reference solve.
     """
     agents = [_agent("ego_0")]
     tasks = [_task("k0")]
@@ -565,6 +570,7 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
         game=None, env=None, obs=None, agents=agents, a_init={},
         belief_tasks=tasks, oracle_solution={}, oracle_tasks=tasks, split_meta={},
         detection_km=DETECTION_KM, recording_export_path=None, placements=(),
+        reference_policy=REFERENCE_POLICY_STATIC_T0_V1, t0_reference_tasks=tasks,
     )
     ctx = _finish_context(known_target_ids=("k0",),
                           executed_target_ids=("k0", "h0"), **common)

@@ -57,6 +57,32 @@ research semantics, not a lifecycle fix. Peers are untouched and continue normal
 and Phase 2 still runs for every ego every tick, so the two-phase structure and the
 one-snapshot no-comms property are exactly as before.
 
+THE REWARD-BEARING REFERENCE IS OWNED HERE, AND ONLY UNDER THE OPT-IN POLICY
+----------------------------------------------------------------------------
+Under the DEFAULT ``static_t0_v1`` reference policy this loop computes NOTHING about the
+reward: ``setup_episode`` already solved the full t=0 reference, ``EpisodeResult.
+reference`` is ``None``, and every line below is exactly what it was before
+GENERALIZED-V1. Under ``event_conditioned_continuation_v1`` this loop owns the episode's
+SECOND (and last) MATCH-AOU solve, at exactly one of three places:
+
+  * CLEAN (or no fuel-damage controller at all) — the full t=0 reference, BEFORE the
+    first tick, so no BLADE state has advanced when it is taken;
+  * DAMAGED — the CONTINUATION reference, at the TOP of the firing tick, immediately
+    after ``FuelDamageController.maybe_apply`` performed the real ``current_fuel``
+    mutation and BEFORE anything reacts to it: before the post-FD completion boundary,
+    before any ego senses or triggers, before ``central.capture``, before the actor
+    decides, and before Phase 2 steps the engine;
+  * DAMAGED whose event NEVER FIRED — the full t=0 reference from the RETAINED t=0
+    inputs, at the episode-exit seam. That episode physically ran clean, so the t=0
+    reference is the right one, and it is still solve #2 rather than a third call. It is
+    reachable only under the legacy FD eligibility policy, because the certified policy's
+    terminal check raises first.
+
+The checkpoint is MEASUREMENT: it reads the live world and writes nothing back — no
+belief, no executor plan / ``done`` / RTB state, no actor observation, no central
+observation, no policy parameter, and no BLADE state. Solver wall-clock time passes;
+SIMULATION time does not, because the checkpoint issues no ``env.step``.
+
 EXOGENOUS EVENTS ENTER AT THE TOP OF A TICK, NEVER INSIDE PHASE 1
 -----------------------------------------------------------------
 FD-BASELINE-v1's fuel-damage event (``graph_fuel_damage``) is the first thing a tick
@@ -90,11 +116,22 @@ from ..action.graph_effect import apply_meta_action
 from ..action.graph_trigger import decide_triggers, never_overdue
 from ..agent.graph_encoder import GraphEncoder
 from ...models import StepKind
-from .graph_episode_setup import EpisodeContext, MAX_SIM_TICKS
+from .graph_episode_setup import (
+    EpisodeContext,
+    MAX_SIM_TICKS,
+    build_continuation_reference,
+    build_t0_reference,
+)
 from .graph_fuel_damage import (
     FuelDamageController,
     POST_FD_DEACTIVATED_DEAD,
     POST_FD_DEACTIVATED_RTB,
+)
+from .graph_reward import (
+    REFERENCE_KIND_CLEAN_T0,
+    REFERENCE_KIND_DAMAGED_EVENT_UNREALIZED,
+    EpisodeReference,
+    uses_event_conditioned_reference,
 )
 from .belief import Belief
 
@@ -179,6 +216,17 @@ class EpisodeResult:
     n_wakes: int                    # == len(trajectory)
     confirmed_kills: int            # len(executor.done) — proximity-confirmed kills
     n_dead: int                     # len(executor.dead) — crashed egos
+
+    reference: Optional[EpisodeReference] = None
+    """The episode's reward-bearing MATCH-AOU reference — GENERALIZED-V1, opt-in.
+
+    ``None`` under the DEFAULT ``static_t0_v1`` policy, whose reference was already
+    solved by ``setup_episode`` and lives in ``ctx.oracle_solution`` / ``ctx.oracle_tasks``.
+    Populated on EVERY episode under ``event_conditioned_continuation_v1`` — exactly one
+    per episode, and it is what ``graph_reward.compute_episode_reward`` branches on. That
+    ABSENCE is how a reader tells which policy ran, the same way
+    ``EpisodeContext.construction_audit`` being ``None`` identifies the historical
+    hidden-cardinality policy."""
 
 
 # =============================================================================
@@ -453,11 +501,18 @@ def run_episode(
             ego's private observation, and evaluation / inference never construct one.
 
     Returns:
-        An :class:`EpisodeResult` with the wake ``trajectory`` and diagnostics. The
-        fuel-damage event's own record (whether it fired, when, the observed fuel before
-        and after, and which meta-action its wake produced) lives on the controller the
-        caller passed in, not here -- this loop reports the EPISODE, and the controller
-        reports the event.
+        An :class:`EpisodeResult` with the wake ``trajectory`` and diagnostics, plus --
+        under the opt-in ``event_conditioned_continuation_v1`` reference policy ONLY --
+        the episode's ``reference``. The fuel-damage event's own record (whether it
+        fired, when, the observed fuel before and after, and which meta-action its wake
+        produced) lives on the controller the caller passed in, not here -- this loop
+        reports the EPISODE, and the controller reports the event.
+
+    Raises:
+        ReferenceIntegrityError: (event-conditioned policy only) the episode's reference
+            MATCH-AOU solve did not reach acceptable optimality, or nothing was retained
+            to solve it from. Never raised under the default policy, which computes no
+            reference here.
     """
     if cfg is None:
         # Detection radius == the executor's arrival/attack threshold (the ONE unified
@@ -470,6 +525,19 @@ def run_episode(
     cap = int(max_ticks) if max_ticks is not None else _DEFAULT_MAX_TICKS
     obs = ctx.observation  # the reset snapshot (seed); never re-reset the env
     trajectory: List[Transition] = []
+
+    # --- THE REWARD-BEARING REFERENCE (GENERALIZED-V1, opt-in) ----------------
+    # `None` throughout under the DEFAULT policy: setup already solved that episode's
+    # reference, so nothing below runs and the loop is byte-unchanged.
+    event_conditioned = uses_event_conditioned_reference(ctx)
+    reference: Optional[EpisodeReference] = None
+    if event_conditioned and (fuel_damage is None or not fuel_damage.plan.is_damaged):
+        # CLEAN (or no controller at all): the episode's second solve is the FULL t=0
+        # reference, and it is taken HERE -- before the recorder is armed, before the
+        # first tick, and therefore before any BLADE state can have advanced. The
+        # condition is read off the controller's already-resolved plan rather than
+        # re-derived, so this seam never touches the fuel-damage RNG domains.
+        reference = build_t0_reference(ctx, kind=REFERENCE_KIND_CLEAN_T0)
     # Default ending: exhausting the tick budget is a time-limit truncation (same
     # meaning as the env's own TimeLimit `truncated`), so it stays within the enum.
     ended = "truncated"
@@ -496,6 +564,20 @@ def run_episode(
         boundary_ego: Optional[str] = None
         if fuel_damage is not None:
             damaged_ego = fuel_damage.maybe_apply(obs, tick)
+            if damaged_ego is not None and event_conditioned and reference is None:
+                # THE EVENT CHECKPOINT (GENERALIZED-V1 step 3). `maybe_apply` has just
+                # performed the real `current_fuel` mutation, and NOTHING has reacted to
+                # it yet: this sits before `_post_fd_boundary`, before every ego's sense
+                # / trigger / wake, before `central.capture`, before the actor decision
+                # and before Phase 2's `env.step`. So the continuation reference is
+                # solved from the state the actor is ABOUT to decide in.
+                #
+                # It is measurement only -- it reads the live world and the executor's
+                # lifecycle state and writes back nothing. The solver's wall clock runs;
+                # the SIMULATION clock does not, because no step is issued here.
+                reference = build_continuation_reference(
+                    ctx, scenario=obs, tick=tick, damaged_ego_id=damaged_ego,
+                )
             if fuel_damage.boundary_wakes_enabled:
                 boundary_ego = _post_fd_boundary(fuel_damage, ctx, obs, tick)
 
@@ -626,6 +708,25 @@ def run_episode(
     if fuel_damage is not None:
         fuel_damage.require_certified_event_realized(scenario=obs, ticks=tick + 1)
 
+    # A DAMAGED-scheduled episode whose event NEVER FIRED physically ran as a clean one,
+    # so its reference is the FULL t=0 reference -- solved here, from the RETAINED t=0
+    # inputs (which are frozen snapshots and therefore still t=0 whenever this runs), and
+    # recorded under its own kind so it is never read as a scheduled clean episode. This
+    # is still solve #2, not a third call: the checkpoint above never happened. It is
+    # reachable only under the LEGACY FD eligibility policy, where a damaged ego that
+    # never reaches the leg-progress threshold is a legitimate recorded observation
+    # (CLAUDE.md section 7, the Phase-A rerun's seed 424); the certified policy's
+    # terminal check above raises before this line.
+    #
+    # BEFORE THE RECORDING EXPORT, for the reason the certified check is: `graph_train`
+    # synchronizes a completed run's playback into its manifest only after `run_episode`
+    # returns, so exporting first and raising second would leave a real recording no
+    # manifest lists.
+    if event_conditioned and reference is None:
+        reference = build_t0_reference(
+            ctx, kind=REFERENCE_KIND_DAMAGED_EVENT_UNREALIZED
+        )
+
     # Terminal frame + export (force so kills / RTB are visible even if the throttle
     # would have skipped this tick; a possible duplicate final frame is harmless). An
     # episode that raised mid-loop skips this entirely and exports nothing (intentional).
@@ -640,6 +741,7 @@ def run_episode(
         n_wakes=len(trajectory),
         confirmed_kills=len(ctx.executor.done),
         n_dead=len(ctx.executor.dead),
+        reference=reference,
     )
 
 

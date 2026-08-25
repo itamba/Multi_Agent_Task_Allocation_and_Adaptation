@@ -78,6 +78,27 @@ NO-COMMUNICATION FOUNDATION (load-bearing) — enforced by construction here:
   * ONE ``DETECTION_KM`` feeds the executor now and (later) the builder's
     ``detection_range_km`` — sensing == attack == arrival is a single radius.
 
+TWO REWARD-REFERENCE POLICIES (GENERALIZED-V1; also never inferred)
+-------------------------------------------------------------------
+``reference_policy`` selects WHEN, and against WHAT, this episode's SECOND MATCH-AOU
+solve happens, and it DEFAULTS to the historical behaviour:
+
+  * ``static_t0_v1`` (DEFAULT) — the full t=0 reference is solved HERE and lands in
+    ``oracle_solution`` / ``oracle_tasks``. UNCHANGED, and the path every approved
+    measurement was taken on.
+  * ``event_conditioned_continuation_v1`` — that second solve is DEFERRED to
+    ``graph_tick_loop.run_episode``: a CLEAN episode gets the same full t=0 reference,
+    solved before the first tick; a DAMAGED episode instead gets a MATCH-AOU
+    CONTINUATION reference, solved at the fuel-damage checkpoint from the world and the
+    agents as they really are immediately after the mutation. Under this policy setup
+    performs ONLY the known-world ``A_init`` solve, leaves ``oracle_solution`` /
+    ``oracle_tasks`` EMPTY, and retains ``EpisodeContext.t0_reference_tasks`` — the RAW
+    t=0 task universe the deferred solve works from.
+
+The solve BUDGET is identical either way: exactly two bonmin calls per accepted episode.
+The policy moves solve #2; it never adds one. Section 5 of this module owns the
+builders, and ``graph_reward`` owns the arithmetic they feed.
+
 WORLD INVENTORY vs ORACLE ALLOCATION (do not conflate them)
 -----------------------------------------------------------
 ``solve_and_normalize`` returns an ALLOCATED-ONLY task list by contract, for both solves.
@@ -99,6 +120,7 @@ import copy
 import json
 import logging
 import random
+import time
 import uuid
 from dataclasses import dataclass
 from numbers import Integral
@@ -114,6 +136,25 @@ from ...utils.blade_utils.scenario_factory import (
 )
 from ...utils.blade_utils.blade_graph_executor import GraphPlanExecutor
 from .belief import Belief
+# The reward layer owns the reference SEMANTICS (the policy names, the record type, the
+# arithmetic); this module owns the SOLVE and WORLD plumbing that produces one. The
+# import direction is one-way and acyclic: `graph_reward` imports this module only under
+# TYPE_CHECKING, so it stays a leaf that needs neither the executor nor BLADE.
+from .graph_reward import (
+    CONTINUATION_EXCLUSION_DEAD,
+    CONTINUATION_EXCLUSION_NOT_AIRBORNE,
+    CONTINUATION_EXCLUSION_RTB,
+    REFERENCE_KIND_DAMAGED_EVENT,
+    REFERENCE_KINDS,
+    REFERENCE_POLICIES,
+    REFERENCE_POLICY_EVENT_CONDITIONED_V1,
+    REFERENCE_POLICY_STATIC_T0_V1,
+    EpisodeReference,
+    ReferenceIntegrityError,
+    plan_value,
+    realized_task_indices,
+    task_target_ids,
+)
 # The LOCKED B2 placement layer, consumed exactly as published. This import direction
 # is the only legal one: the placement layer must never import THIS module (that would
 # drag a pure geometry layer into the setup/solver/executor closure).
@@ -182,6 +223,64 @@ GENERALIZED_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4)
 # 1. Solve + normalize (clean rewrite of the old solve wrapper)
 # =============================================================================
 
+@dataclass(frozen=True)
+class SolveAudit:
+    """What one MATCH-AOU solve actually did — the fact ``solve_and_normalize`` drops.
+
+    ``MatchAou.solve`` already distinguishes two outcomes that the historical
+    ``solve_and_normalize`` return value CANNOT tell apart, because both collapse to the
+    same empty triple:
+
+      * ``raw_solution is None``   -> the solver did NOT reach acceptable optimality.
+        Nothing is known about the optimum. This is a FAILED question.
+      * ``raw_solution == {}``     -> the solver terminated acceptably and selected
+        nothing. This is an ANSWERED question whose answer is "allocate nothing", and it
+        is a perfectly legitimate reference with value 0.
+
+    Conflating them is harmless for the t=0 solves, whose callers treat an empty baseline
+    as a construction failure and refuse the episode either way. It is NOT harmless for
+    the event-conditioned continuation reference, where an empty reference is a REWARD
+    DENOMINATOR: silently accepting a failed solve as "zero" would give the episode
+    ``(0 - 0)/eps == 0``, i.e. the OPTIMUM, for a reference that was never computed.
+
+    So this record is produced by the shared audited seam and consumed only where the
+    distinction matters. ``solve_and_normalize``'s public triple is UNCHANGED.
+
+    Attributes:
+        invoked: False when the degenerate short-circuit (no tasks, or no agents) meant
+            no solver was called at all — a skipped solve, not a failed one.
+        accepted: whether the solver reached acceptable optimality. Vacuously True when
+            it was not invoked, because nothing was asked.
+        termination_condition: the raw termination-condition name, recorded verbatim, or
+            :data:`SOLVE_NOT_ATTEMPTED` when the solve was skipped.
+        allocated_task_count: length of the allocated-only normalized task list.
+        seconds: wall-clock duration of the ``MatchAou.solve`` call (``0.0`` if skipped).
+    """
+
+    invoked: bool
+    accepted: bool
+    termination_condition: str
+    allocated_task_count: int
+    seconds: float
+
+
+#: Recorded instead of a termination condition when the degenerate short-circuit fired
+#: and no solver was called. Deliberately not spelled like a real Pyomo condition.
+SOLVE_NOT_ATTEMPTED: str = "not_attempted"
+#: Recorded when the results object carried no readable termination condition. This is a
+#: RECORD-COMPLETENESS fallback for the audit string only: it never affects `accepted`,
+#: which is decided by whether ``MatchAou.solve`` returned a solution at all.
+SOLVE_TERMINATION_UNAVAILABLE: str = "unavailable"
+
+
+def _termination_name(results: Any) -> str:
+    """The solver results' termination condition, as a plain string for the record."""
+    condition = getattr(getattr(results, "solver", None), "termination_condition", None)
+    if condition is None:
+        return SOLVE_TERMINATION_UNAVAILABLE
+    return str(getattr(condition, "value", condition))
+
+
 def solve_and_normalize(
     agents: Sequence[Agent],
     tasks: List[Task],
@@ -204,10 +303,46 @@ def solve_and_normalize(
     Degenerate inputs (no tasks or no agents) and a solver that selects nothing both
     return ``({}, [], all-indices-unselected)`` — an empty normalized baseline, never
     a partially-allocated one.
+
+    THE PUBLIC TRIPLE IS UNCHANGED, including for a solver that failed to reach
+    acceptable optimality: this function is a thin projection of
+    :func:`solve_and_normalize_audited`, which additionally reports WHICH of those
+    outcomes occurred. Historical callers are byte-for-byte unaffected; only a caller
+    that must distinguish "answered zero" from "unanswered" reaches for the audit.
+    """
+    solution, belief_tasks, unselected, _audit = solve_and_normalize_audited(
+        agents, tasks, precedence_relations
+    )
+    return solution, belief_tasks, unselected
+
+
+def solve_and_normalize_audited(
+    agents: Sequence[Agent],
+    tasks: List[Task],
+    precedence_relations: Optional[Sequence[Tuple[int, int]]] = None,
+) -> Tuple[Dict[str, List[Assignment]], List[Task], List[int], SolveAudit]:
+    """:func:`solve_and_normalize` plus a :class:`SolveAudit` of what the solve did.
+
+    THE ONE MATCH-AOU normalization site. There is deliberately no second copy of the
+    ``MatchAou`` construction / ``post_solve_filter_and_level`` sequence: the frozen
+    solver module (``CLAUDE.md`` section 2) is untouched, and the historical entry point
+    above simply drops the fourth element.
+
+    Returns:
+        ``(solution, belief_tasks, unselected, audit)``. The first three are EXACTLY what
+        :func:`solve_and_normalize` returns in every branch, including the failure branch.
     """
     precedence = list(precedence_relations or [])
     if not tasks or not agents:
-        return {}, [], list(range(len(tasks)))
+        # Nothing to ask, so nothing was asked. `accepted` is vacuously True: there is no
+        # unanswered question here, only an empty one.
+        return {}, [], list(range(len(tasks))), SolveAudit(
+            invoked=False,
+            accepted=True,
+            termination_condition=SOLVE_NOT_ATTEMPTED,
+            allocated_task_count=0,
+            seconds=0.0,
+        )
 
     model = MatchAou(
         agents=list(agents),
@@ -215,10 +350,32 @@ def solve_and_normalize(
         precedence_relations=precedence,
         risk_factor=0.0,
     )
-    raw_solution, _results, unselected = model.solve(solver_name=SOLVER_NAME)
+    started = time.perf_counter()
+    raw_solution, results, unselected = model.solve(solver_name=SOLVER_NAME)
+    seconds = time.perf_counter() - started
+    termination = _termination_name(results)
+
+    if raw_solution is None:
+        # SOLVER FAILURE: `MatchAou.solve` returns None ONLY when the termination
+        # condition is outside its accepted set. The public triple is the historical one.
+        return {}, [], list(range(len(tasks))), SolveAudit(
+            invoked=True,
+            accepted=False,
+            termination_condition=termination,
+            allocated_task_count=0,
+            seconds=seconds,
+        )
     if not raw_solution:
-        # Solver failed to reach acceptable optimality, or selected nothing.
-        return {}, [], list(range(len(tasks)))
+        # ACCEPTED termination that allocated nothing — an answered question, and the
+        # SAME public triple the failure branch returns. The audit is what tells them
+        # apart.
+        return {}, [], list(range(len(tasks))), SolveAudit(
+            invoked=True,
+            accepted=True,
+            termination_condition=termination,
+            allocated_task_count=0,
+            seconds=seconds,
+        )
 
     artifacts = post_solve_filter_and_level(
         tasks=tasks,
@@ -228,7 +385,13 @@ def solve_and_normalize(
     )
     # artifacts.solution is allocated-only + remapped; artifacts.tasks is the
     # allocated-only task list. This pair is THE normalized baseline.
-    return artifacts.solution, artifacts.tasks, unselected
+    return artifacts.solution, artifacts.tasks, unselected, SolveAudit(
+        invoked=True,
+        accepted=True,
+        termination_condition=termination,
+        allocated_task_count=len(artifacts.tasks),
+        seconds=seconds,
+    )
 
 
 # =============================================================================
@@ -489,6 +652,24 @@ def _require_generalized_cardinality(
             f"setup_episode: generalized construction needs 1 <= H_requested <= A, got "
             f"H_requested={int(hidden_requested)} for A={int(agent_count)}"
         )
+
+
+def _resolve_reference_policy(reference_policy: Any) -> str:
+    """Validate the reward-reference policy BEFORE any BLADE object exists.
+
+    A closed set, checked by identity against ``graph_reward.REFERENCE_POLICIES``. An
+    unknown id RAISES — it is never coerced to the default, never lower-cased into a
+    match and never ignored, because a run that silently fell back to the historical
+    reference while its record claimed the opt-in one would be unreadable exactly where
+    it matters.
+    """
+    policy = str(reference_policy)
+    if policy not in REFERENCE_POLICIES:
+        raise ValueError(
+            "setup_episode: unknown reference_policy %r; expected one of %r"
+            % (reference_policy, list(REFERENCE_POLICIES))
+        )
+    return policy
 
 
 def _task_target_id(task: Task) -> str:
@@ -936,6 +1117,36 @@ class EpisodeContext:
     are not seed-derived (``CLAUDE.md`` section 8), so these ids are never a comparison
     key BETWEEN runs — that is still ``geometric_fingerprint(ctx.placements)``."""
 
+    reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1
+    """WHICH reward-bearing MATCH-AOU reference this episode is scored against — the ONE
+    stored source of truth, validated against ``graph_reward.REFERENCE_POLICIES`` before
+    any BLADE object exists, and interpreted in exactly one place
+    (``graph_reward.uses_event_conditioned_reference``).
+
+    ``static_t0_v1`` (the DEFAULT) is the historical behaviour: the full t=0 reference is
+    solved HERE, in setup, and lands in ``oracle_solution`` / ``oracle_tasks``.
+    ``event_conditioned_continuation_v1`` DEFERS that second solve to ``run_episode`` —
+    to t=0-before-the-first-tick when the episode is clean, and to the fuel-damage
+    checkpoint when it is damaged — so under that policy ``oracle_solution`` /
+    ``oracle_tasks`` are deliberately EMPTY and must not be read as a reference."""
+
+    t0_reference_tasks: Tuple[Task, ...] = ()
+    """The RAW t=0 EXECUTED-WORLD task universe, retained for REWARD/REFERENCE SCORING.
+
+    Populated ONLY under ``event_conditioned_continuation_v1``; ``()`` under the
+    historical policy, which needs nothing retained because its reference was already
+    solved. It is the same pre-solve task list ``executed_target_ids`` was snapshotted
+    from — every target the world holds, allocated or not — and it exists because
+    ``executed_target_ids`` alone CANNOT answer the reference's questions: an id carries
+    no utility, no probability and no location, and once a target is destroyed the live
+    BLADE world can no longer supply them either. Scoring ``U_prefix`` after the fact
+    therefore requires the t=0 task OBJECTS, not their ids.
+
+    IT IS A TRAINING/REWARD SNAPSHOT AND NOTHING ELSE. It is never handed to a belief,
+    never handed to ``build_graph_observation``, never handed to the executor, and never
+    handed to the central critic — the same red line ``oracle_tasks`` has always sat
+    behind (``CLAUDE.md`` section 3)."""
+
 
 # =============================================================================
 # 4. Episode setup (env + solve + belief/executor construction)
@@ -1033,6 +1244,7 @@ def setup_episode(
     n_hidden: Optional[int] = None,
     placement_rng: Optional[random.Random] = None,
     hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
+    reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
 ) -> EpisodeContext:
     """Stand up one episode: BLADE env -> solve -> beliefs + executor.
 
@@ -1068,16 +1280,30 @@ def setup_episode(
             ``1 <= n_hidden <= A``), MAY realize fewer hidden targets than requested, and
             fills :attr:`EpisodeContext.construction_audit`. It is REFUSED — never
             ignored — without the construction pair.
+        reference_policy: the REWARD-REFERENCE policy, DEFAULTING to the historical
+            ``static_t0_v1`` so every pre-GENERALIZED-V1 caller keeps the behaviour the
+            approved measurements were taken on: the full t=0 reference is solved HERE
+            and lands in ``oracle_solution`` / ``oracle_tasks``.
+            ``event_conditioned_continuation_v1`` DEFERS that second solve to
+            ``run_episode`` — t=0 for a clean episode, the fuel-damage checkpoint for a
+            damaged one — so under it this function performs ONLY the known-world
+            ``A_init`` solve, leaves ``oracle_solution`` / ``oracle_tasks`` EMPTY, and
+            retains :attr:`EpisodeContext.t0_reference_tasks` for the deferred solve to
+            work from. The episode still costs exactly TWO BONMIN calls; the second one
+            simply happens later. Works on BOTH construction paths and on the legacy
+            split path.
 
     Returns:
         An :class:`EpisodeContext` handoff object.
 
     Raises:
-        ValueError: on an unknown ``hidden_policy``, or an invalid / half-supplied
-            construction pair — raised BEFORE any BLADE object is built.
+        ValueError: on an unknown ``hidden_policy`` or ``reference_policy``, or an
+            invalid / half-supplied construction pair — raised BEFORE any BLADE object
+            is built.
         RuntimeError: if the scenario yields no blue agents or no enemy tasks, or (on the
             construction path) if any construction invariant fails.
     """
+    resolved_reference_policy = _resolve_reference_policy(reference_policy)
     construction = _resolve_construction_mode(n_hidden, placement_rng, hidden_policy)
     if construction:
         return _setup_episode_construction(
@@ -1090,6 +1316,7 @@ def setup_episode(
             detection_km=detection_km,
             record_every_seconds=record_every_seconds,
             recording_export_path=recording_export_path,
+            reference_policy=resolved_reference_policy,
         )
     return _setup_episode_legacy(
         scenario_json,
@@ -1099,6 +1326,7 @@ def setup_episode(
         detection_km=detection_km,
         record_every_seconds=record_every_seconds,
         recording_export_path=recording_export_path,
+        reference_policy=resolved_reference_policy,
     )
 
 
@@ -1111,6 +1339,7 @@ def _setup_episode_legacy(
     detection_km: float,
     record_every_seconds: Optional[int],
     recording_export_path: Optional[str],
+    reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
 ) -> EpisodeContext:
     """The split-based episode construction: ONE world, ``split_tasks`` masks the hidden half."""
     # --- 1-2. Build env exactly as the frozen integration does; select our side ---
@@ -1144,10 +1373,15 @@ def _setup_episode_legacy(
     # --- 5. Solve the PARTIAL set -> A_init (the static plan egos start from) --
     a_init, belief_tasks, _ = solve_and_normalize(agents, partial)
 
-    # --- 6. Solve the FULL set -> oracle (for the reward chat) ----------------
-    # A SEPARATE, independent solve: oracle must never be an alias of a_init, even
-    # in the degenerate case where the split leaves partial == full.
-    oracle_solution, oracle_tasks, _ = solve_and_normalize(agents, full)
+    # --- 6. Solve the FULL set -> the t=0 reference (the reward denominator) ---
+    # A SEPARATE, independent solve: the reference must never be an alias of a_init,
+    # even in the degenerate case where the split leaves partial == full.
+    # DEFERRED under the event-conditioned policy: that policy's second solve belongs to
+    # `run_episode` (t=0 for a clean episode, the FD checkpoint for a damaged one), and
+    # solving here as well would make an accepted episode cost THREE bonmin calls.
+    oracle_solution, oracle_tasks = _t0_reference_or_deferred(
+        agents, full, reference_policy=reference_policy
+    )
 
     # --- 7-8. Beliefs + executor over the normalized (allocated-only) baseline ---
     return _finish_context(
@@ -1165,6 +1399,8 @@ def _setup_episode_legacy(
         placements=(),
         known_target_ids=known_target_ids,
         executed_target_ids=executed_target_ids,
+        reference_policy=reference_policy,
+        t0_reference_tasks=full,
     )
 
 
@@ -1179,8 +1415,9 @@ def _setup_episode_construction(
     record_every_seconds: Optional[int],
     recording_export_path: Optional[str],
     hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
+    reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
 ) -> EpisodeContext:
-    """The construction path: solve -> place -> patch -> reload -> oracle.
+    """The construction path: solve -> place -> patch -> reload -> reference.
 
     TWO hidden-CARDINALITY policies share this one seam, and only the PLACEMENT STEP
     differs between them. ``exact_v1`` (the default) demands exactly ``n_hidden``
@@ -1326,10 +1563,13 @@ def _setup_episode_construction(
         # A_init's positional indices, re-pointed at ENV-2 Task objects.
         belief_tasks = _rematerialize_known_tasks(all_tasks, known_target_order)
 
-        # --- Solve the FULL env-2 set -> oracle (the reward denominator) ----------
-        # A SEPARATE, independent solve over the reloaded world, so the oracle can never
-        # be an alias of a_init and every hidden target is in it.
-        oracle_solution, oracle_tasks, _ = solve_and_normalize(agents, all_tasks)
+        # --- Solve the FULL env-2 set -> the t=0 reference (the reward denominator) -
+        # A SEPARATE, independent solve over the reloaded world, so the reference can
+        # never be an alias of a_init and every hidden target is in it.
+        # DEFERRED under the event-conditioned policy — see `_t0_reference_or_deferred`.
+        oracle_solution, oracle_tasks = _t0_reference_or_deferred(
+            agents, all_tasks, reference_policy=reference_policy
+        )
 
         split_meta: Dict[str, Any] = {
             # Truthful provenance: `split_tasks` did NOT run. The count keys below carry
@@ -1405,6 +1645,8 @@ def _setup_episode_construction(
             known_target_ids=known_target_ids,
             executed_target_ids=executed_target_ids,
             construction_audit=construction_audit,
+            reference_policy=reference_policy,
+            t0_reference_tasks=all_tasks,
         )
     except BaseException:
         _close_quietly(env2)
@@ -1427,6 +1669,8 @@ def _finish_context(
     placements: Tuple[HiddenPlacement, ...],
     known_target_ids: Tuple[str, ...],
     executed_target_ids: Tuple[str, ...],
+    reference_policy: str,
+    t0_reference_tasks: Sequence[Task],
     construction_audit: Optional[ConstructionAudit] = None,
 ) -> EpisodeContext:
     """Mint the N independent beliefs + the ONE executor and package the context.
@@ -1440,6 +1684,14 @@ def _finish_context(
     inventory — the one shape in which allocated-only data gets read as world truth again.
     Verified here rather than trusted: both must be non-empty, and the known half must be
     a subset of the executed half.
+
+    ``reference_policy`` and ``t0_reference_tasks`` are REQUIRED keywords for the same
+    reason: a future third path must not be able to reach a context that silently claims
+    the historical reference policy while having deferred its reference solve, nor one
+    that declares the event-conditioned policy with nothing retained to solve it from.
+    The pairing is VERIFIED, not assumed — the retained universe must be non-empty under
+    the event-conditioned policy and is dropped entirely under the historical one, which
+    has nothing to defer.
     """
     known_snapshot = tuple(str(t) for t in known_target_ids)
     executed_snapshot = tuple(str(t) for t in executed_target_ids)
@@ -1454,6 +1706,19 @@ def _finish_context(
             f"setup_episode: {len(outside)} known target(s) {outside[:3]} are absent "
             "from the executed world snapshot; the t=0 roster would not cover what runs"
         )
+    policy = _resolve_reference_policy(reference_policy)
+    event_conditioned = policy == REFERENCE_POLICY_EVENT_CONDITIONED_V1
+    if event_conditioned and not t0_reference_tasks:
+        raise RuntimeError(
+            "setup_episode: the event-conditioned reference policy defers this episode's "
+            "reference solve, but nothing was retained to solve it from"
+        )
+    # Retained ONLY where it is needed. Under the historical policy the reference was
+    # already solved, so keeping a second copy of the world's tasks alive would be a
+    # silent behaviour difference dressed up as an optimisation.
+    retained_reference_tasks: Tuple[Task, ...] = (
+        tuple(t0_reference_tasks) if event_conditioned else ()
+    )
     # N mutually-independent beliefs, one per ego id. All egos start byte-equal to
     # a_init at t=0, but each belief is a fresh deepcopy of the tasks + a fresh
     # _copy_solution of a_init, so a per-ego edit never leaks.
@@ -1489,6 +1754,356 @@ def _finish_context(
         known_target_ids=known_snapshot,
         executed_target_ids=executed_snapshot,
         construction_audit=construction_audit,
+        reference_policy=policy,
+        t0_reference_tasks=retained_reference_tasks,
+    )
+
+
+# =============================================================================
+# 5. The reward-bearing MATCH-AOU reference (GENERALIZED-V1, opt-in)
+# =============================================================================
+#
+# THE SOLVE BUDGET IS THE POINT, so state it once here and never re-derive it:
+# an ACCEPTED episode costs EXACTLY TWO bonmin calls under BOTH policies.
+#
+#   solve #1  the known-world A_init solve                     (setup, both policies)
+#   solve #2  static_t0_v1                 -> the full t=0 reference, in setup
+#             event_conditioned_...  CLEAN -> the full t=0 reference, in `run_episode`
+#                                             before the first tick
+#             event_conditioned_... DAMAGED-> the CONTINUATION reference, in
+#                                             `run_episode` at the FD checkpoint
+#
+# The event-conditioned policy MOVES solve #2; it never adds one. `_t0_reference_or_
+# deferred` is the site that guarantees the "never adds" half, by skipping setup's
+# reference solve exactly when `run_episode` will own it.
+
+
+def _t0_reference_or_deferred(
+    agents: Sequence[Agent],
+    world_tasks: List[Task],
+    *,
+    reference_policy: str,
+) -> Tuple[Dict[str, List[Assignment]], List[Task]]:
+    """Setup's second solve — performed under the historical policy, DEFERRED otherwise.
+
+    Under ``static_t0_v1`` this is the unchanged full t=0 reference solve, returning the
+    same ``(oracle_solution, oracle_tasks)`` pair setup has always returned.
+
+    Under ``event_conditioned_continuation_v1`` it performs NO solve and returns the
+    EMPTY pair, because that policy's second solve belongs to ``run_episode``. The empty
+    pair is not a fallback and must never be read as a reference: the reward refuses to
+    score an event-conditioned episode from it (``graph_reward.compute_episode_reward``
+    raises :class:`~match_aou.rl.training.graph_reward.ReferenceIntegrityError` when the
+    policy is declared and no reference arrived), and
+    :attr:`EpisodeContext.t0_reference_tasks` carries what the deferred solve needs.
+    """
+    if reference_policy == REFERENCE_POLICY_EVENT_CONDITIONED_V1:
+        return {}, []
+    oracle_solution, oracle_tasks, _ = solve_and_normalize(agents, world_tasks)
+    return oracle_solution, oracle_tasks
+
+
+def _reference_universe(
+    tasks: Sequence[Task], done: Any
+) -> Tuple[Tuple[int, ...], float, Tuple[str, ...], List[Task]]:
+    """Split a task universe into the REALIZED prefix and the still-OPEN remainder.
+
+    ONE split, applied with ``graph_reward.realized_task_indices`` — the same all-steps
+    rule ``realized_utility`` sums over — so the two halves partition the universe
+    exactly. That partition is what makes ``U_ref = U_prefix + U_cont_ref`` a statement
+    about ONE coherent task universe rather than about two overlapping ones: a task
+    counted in ``U_prefix`` is provably absent from the continuation universe, so it can
+    never be counted again in ``U_cont_ref`` or in ``U_post``.
+
+    Returns:
+        ``(prefix_indices, u_prefix, prefix_target_ids, open_tasks)``.
+    """
+    prefix_indices = realized_task_indices(tasks, done)
+    prefix_set = set(prefix_indices)
+    all_target_ids = task_target_ids(tasks)
+    u_prefix = 0.0
+    for j in prefix_indices:
+        u_prefix += float(tasks[j].utility)
+    prefix_target_ids = tuple(all_target_ids[j] for j in prefix_indices)
+    open_tasks = [t for j, t in enumerate(tasks) if j not in prefix_set]
+    return prefix_indices, u_prefix, prefix_target_ids, open_tasks
+
+
+def _reference_aircraft_utility(
+    prefix_tasks: Sequence[Task], allocated_tasks: Sequence[Task]
+) -> float:
+    """``U_aircraft`` for the REWARD-BEARING REFERENCE UNIVERSE.
+
+    The most valuable target the reference actually accounts for — the prefix tasks
+    (already paid into ``U_prefix``) plus the tasks the reference ALLOCATED (the only
+    ones ``U_post`` can score). Deriving it from that universe is what keeps the death
+    penalty on the same utility scale as the numerator it is subtracted from, WITHOUT
+    relabelling the continuation reference as an "oracle" task list.
+
+    ``0.0`` when the universe is empty, matching the historical ``default=0.0``.
+    """
+    return max(
+        (float(t.utility) for t in list(prefix_tasks) + list(allocated_tasks)),
+        default=0.0,
+    )
+
+
+def _solve_reference(
+    agents: Sequence[Agent],
+    open_tasks: List[Task],
+    *,
+    what: str,
+) -> Tuple[Dict[str, List[Assignment]], List[Task], SolveAudit]:
+    """Run ONE reference solve and REFUSE a solver failure — but accept a real zero.
+
+    This is the single place the audited seam's distinction is consumed:
+
+      * ``invoked and not accepted`` -> the solver never answered. RAISES
+        :class:`~match_aou.rl.training.graph_reward.ReferenceIntegrityError`, because
+        turning an unanswered question into an empty reference would hand the episode a
+        zero denominator and therefore reward ``0`` — the OPTIMUM — for a reference that
+        was never computed.
+      * ``accepted`` with an empty allocation -> a LEGITIMATE reference whose value is
+        ``0``. Returned as-is.
+      * ``not invoked`` (no open task, or no continuation-capable ego) -> likewise a
+        legitimate zero reference, and it costs no bonmin call at all.
+    """
+    solution, allocated, _unselected, audit = solve_and_normalize_audited(
+        agents, open_tasks
+    )
+    if audit.invoked and not audit.accepted:
+        raise ReferenceIntegrityError(
+            "%s: the MATCH-AOU reference solve did not reach acceptable optimality "
+            "(termination=%s, %d agent(s), %d open task(s)). This is NOT the same fact "
+            "as an accepted solve that allocated nothing, and it must not be recorded "
+            "as a zero reference."
+            % (what, audit.termination_condition, len(agents), len(open_tasks))
+        )
+    return solution, allocated, audit
+
+
+def build_t0_reference(ctx: EpisodeContext, *, kind: str) -> EpisodeReference:
+    """The FULL t=0 MATCH-AOU reference, from the RETAINED t=0 inputs.
+
+    This is the event-conditioned policy's second solve for an episode that carries no
+    fuel-damage event: a CLEAN one (``kind=clean_t0``, solved before the first tick), or
+    a DAMAGED-scheduled one whose event never fired (``damaged_event_unrealized_t0``).
+
+    ITS INPUTS ARE t=0 INPUTS WHENEVER IT RUNS. ``ctx.agents`` are the agent objects
+    ``_extract_world`` built at the reset observation — frozen snapshots carrying t=0
+    location and t=0 fuel as ``budget`` — and ``ctx.t0_reference_tasks`` is the RAW
+    pre-solve t=0 world. Neither tracks the live engine, so this solve reproduces the
+    reference setup would have computed under the historical policy, from bit-identical
+    inputs, no matter when it is called.
+
+    ``U_prefix`` is ``0.0`` BY CONSTRUCTION here — not "measured as zero". A t=0
+    reference allocates over the whole world, so every realized target is scorable in
+    ``U_post`` and splitting a prefix out of it would double-count.
+
+    Raises:
+        ReferenceIntegrityError: nothing was retained to solve from, or the solve did not
+            reach acceptable optimality.
+    """
+    if kind not in REFERENCE_KINDS:
+        raise ReferenceIntegrityError(
+            "build_t0_reference: unknown reference kind %r" % (kind,)
+        )
+    t0_tasks = list(ctx.t0_reference_tasks)
+    if not t0_tasks:
+        raise ReferenceIntegrityError(
+            "build_t0_reference: the episode retained no t=0 task universe, so its "
+            "deferred reference cannot be solved"
+        )
+    agents = list(ctx.agents)
+    solution, allocated, audit = _solve_reference(
+        agents, t0_tasks, what="t=0 reference (%s)" % kind
+    )
+    u_cont_ref = plan_value(solution, allocated)
+    return EpisodeReference(
+        policy=REFERENCE_POLICY_EVENT_CONDITIONED_V1,
+        kind=str(kind),
+        checkpoint_tick=None,
+        u_prefix=0.0,
+        u_cont_ref=float(u_cont_ref),
+        u_ref=float(u_cont_ref),
+        u_aircraft=_reference_aircraft_utility((), allocated),
+        solution=solution,
+        tasks=tuple(allocated),
+        reference_target_ids=task_target_ids(allocated),
+        prefix_target_ids=(),
+        candidate_task_count=len(t0_tasks),
+        continuation_agent_ids=tuple(str(a.id) for a in agents),
+        excluded_agents=(),
+        solver_invoked=bool(audit.invoked),
+        solver_accepted=bool(audit.accepted),
+        solver_termination=str(audit.termination_condition),
+        solver_seconds=float(audit.seconds),
+    )
+
+
+def _continuation_agents(
+    ctx: EpisodeContext,
+    scenario: Any,
+    *,
+    attacking_side_color: str,
+) -> Tuple[List[Agent], Tuple[str, ...], Tuple[Tuple[str, str], ...]]:
+    """The egos the continuation reference may allocate, REBUILT FROM THE LIVE WORLD.
+
+    The agents are produced by the SAME ``scenario_factory.create_agents_from_scenario``
+    conversion setup uses, applied to the POST-MUTATION observation, so an ego's
+    ``Agent.location`` is where it really is and its ``Agent.budget`` is the fuel it
+    really holds — the damaged ego's reduced ``current_fuel`` included. Reconstructing
+    that mapping here instead would be a second conversion that could drift from the one
+    the episode was planned with.
+
+    THE POPULATION IS FILTERED, NEVER INVENTED. It is drawn from ``ctx.agent_ids`` — the
+    authoritative scheduled ego sequence, in its own order — and an ego is dropped, with
+    a stable recorded reason, when it CANNOT continue:
+
+      * ``dead``          — the executor has reconciled its removal;
+      * ``rtb_committed`` — its single-issue RTB latch is set, so it has irrevocably
+        committed to return and Phase 1 no longer processes it at all. Reallocating it
+        would be a reference the execution layer could not honour;
+      * ``not_airborne``  — the engine does not hold it in ``scenario.aircraft``: it has
+        landed (it lives in an airbase inventory) or has been removed. A grounded ego is
+        not a continuation candidate in this cell.
+
+    The scan is READ-ONLY: it inspects the observation and the executor's own lifecycle
+    state and mutates neither.
+
+    Returns:
+        ``(agents, included_ids, excluded)`` with ``excluded`` a tuple of
+        ``(ego_id, reason)`` pairs in scheduled order.
+    """
+    by_side = create_agents_from_scenario(scenario)
+    live_by_id: Dict[str, Agent] = {
+        str(a.id): a for a in by_side.get(str(attacking_side_color).lower(), [])
+    }
+    airborne_ids = {
+        str(getattr(ac, "id", "")) for ac in (getattr(scenario, "aircraft", None) or [])
+    }
+    executor = ctx.executor
+    dead = set(getattr(executor, "dead", ()) or ())
+    rtb = getattr(executor, "rtb_issued", None) or {}
+
+    agents: List[Agent] = []
+    included: List[str] = []
+    excluded: List[Tuple[str, str]] = []
+    for ego_id in ctx.agent_ids:
+        key = str(ego_id)
+        if key in dead:
+            excluded.append((key, CONTINUATION_EXCLUSION_DEAD))
+            continue
+        if bool(rtb.get(key, False)):
+            excluded.append((key, CONTINUATION_EXCLUSION_RTB))
+            continue
+        agent = live_by_id.get(key)
+        if agent is None or key not in airborne_ids:
+            excluded.append((key, CONTINUATION_EXCLUSION_NOT_AIRBORNE))
+            continue
+        agents.append(agent)
+        included.append(key)
+    return agents, tuple(included), tuple(excluded)
+
+
+def build_continuation_reference(
+    ctx: EpisodeContext,
+    *,
+    scenario: Any,
+    tick: int,
+    damaged_ego_id: str,
+    attacking_side_color: str = ATTACKING_SIDE_COLOR,
+) -> EpisodeReference:
+    """THE EVENT CHECKPOINT: the MATCH-AOU continuation reference, at the damaged state.
+
+    Called by ``graph_tick_loop.run_episode`` on the tick the fuel-damage event fires,
+    AFTER ``FuelDamageController.maybe_apply`` has performed the real ``current_fuel``
+    mutation and BEFORE anything reacts to it — before the post-FD completion boundary,
+    before any ego senses or triggers, before the CTDE central capture, and before the
+    actor decides. So the reference describes the world the actor is about to decide in,
+    not the world it decided into.
+
+    WHAT IT SOLVES:
+
+      * TASKS — the episode's RETAINED t=0 executed-world universe minus the tasks
+        already REALIZED at this checkpoint. It is the authoritative world inventory, not
+        any ego's private belief: a belief is one ego's partial view and using it as the
+        global reference universe would make the reference depend on who happened to have
+        sensed what. Utility and probability semantics are the t=0 ones, unchanged.
+      * AGENTS — the continuation-capable original egos, rebuilt from the LIVE post-event
+        world (see :func:`_continuation_agents`), so the solver sees the actual event
+        position and the actual post-damage fuel.
+
+    WHAT IT DOES NOT DO — this is measurement, and it is READ-ONLY with respect to the
+    episode. It writes no belief, no executor plan / ``done`` / RTB state, no actor
+    observation, no central observation and no policy parameter, and it touches BLADE
+    only by reading it. Wall-clock time passes while the solver runs; SIMULATION time
+    does not, because nothing here steps the environment.
+
+    ``U_prefix`` is FROZEN HERE, against the confirmed set as it stands at this instant.
+    It is never recomputed at episode end from the larger final ``done`` set — doing so
+    would credit post-checkpoint kills to the prefix AND leave them scorable in
+    ``U_post``, counting them twice.
+
+    Args:
+        ctx: the running episode's context (read-only).
+        scenario: the live post-mutation observation.
+        tick: the checkpoint tick, recorded on the reference.
+        damaged_ego_id: the ego that really lost fuel. Recorded in the failure messages
+            so a refused checkpoint names the event it belongs to; the reference itself
+            deliberately gives that ego no special standing, because the continuation is
+            a TEAM allocation.
+        attacking_side_color: our side, for the live agent conversion.
+
+    Raises:
+        ReferenceIntegrityError: nothing was retained to solve from, or the continuation
+            solve did not reach acceptable optimality.
+    """
+    t0_tasks = list(ctx.t0_reference_tasks)
+    if not t0_tasks:
+        raise ReferenceIntegrityError(
+            "build_continuation_reference: the episode retained no t=0 task universe, so "
+            "the checkpoint for ego %s at tick %d cannot be scored"
+            % (damaged_ego_id, int(tick))
+        )
+    # FROZEN NOW: a copy, so a later Phase-2 confirmation cannot retroactively move the
+    # prefix this reference was built against.
+    done_at_checkpoint = set(ctx.executor.done)
+    prefix_idx, u_prefix, prefix_target_ids, open_tasks = _reference_universe(
+        t0_tasks, done_at_checkpoint
+    )
+    # By INDEX, never by re-matching target ids: two tasks that name no target would
+    # both resolve to "" and re-matching would put the wrong one in the prefix.
+    prefix_tasks = [t0_tasks[j] for j in prefix_idx]
+
+    agents, included_ids, excluded = _continuation_agents(
+        ctx, scenario, attacking_side_color=attacking_side_color
+    )
+    solution, allocated, audit = _solve_reference(
+        agents,
+        open_tasks,
+        what="continuation reference (ego %s, tick %d)" % (damaged_ego_id, int(tick)),
+    )
+    u_cont_ref = plan_value(solution, allocated)
+    return EpisodeReference(
+        policy=REFERENCE_POLICY_EVENT_CONDITIONED_V1,
+        kind=REFERENCE_KIND_DAMAGED_EVENT,
+        checkpoint_tick=int(tick),
+        u_prefix=float(u_prefix),
+        u_cont_ref=float(u_cont_ref),
+        u_ref=float(u_prefix) + float(u_cont_ref),
+        u_aircraft=_reference_aircraft_utility(prefix_tasks, allocated),
+        solution=solution,
+        tasks=tuple(allocated),
+        reference_target_ids=task_target_ids(allocated),
+        prefix_target_ids=prefix_target_ids,
+        candidate_task_count=len(open_tasks),
+        continuation_agent_ids=included_ids,
+        excluded_agents=excluded,
+        solver_invoked=bool(audit.invoked),
+        solver_accepted=bool(audit.accepted),
+        solver_termination=str(audit.termination_condition),
+        solver_seconds=float(audit.seconds),
     )
 
 
