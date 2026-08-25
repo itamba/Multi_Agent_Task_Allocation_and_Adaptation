@@ -1484,10 +1484,13 @@ target is destroyed the live BLADE world can no longer supply them either, so sc
 `run_episode`.** The policy MOVES solve #2; **it never ADDS a third reference solve.**
 
 - **CLEAN (or NO fuel-damage controller at all) — the FULL t=0 reference, BEFORE the first
-  tick.** `build_t0_reference(ctx, kind=REFERENCE_KIND_CLEAN_T0)` runs before the recorder is
-  armed and before any BLADE state can have advanced. The condition is READ OFF the
-  controller's already-resolved `plan.is_damaged` rather than re-derived, so this seam never
-  touches a fuel-damage RNG domain. **Its inputs are t=0 inputs whenever it runs**:
+  tick.** `build_t0_reference(ctx, kind=REFERENCE_KIND_CLEAN_T0)` runs before RECORDING
+  STARTS — before `run_episode`'s `start_recording()` / forced t=0 frame — and therefore
+  before any BLADE state can have advanced. (Recording is ARMED much earlier, by setup, when
+  a `recording_export_path` was supplied; ARMING and STARTING are different events, and this
+  reference precedes the START. See Stage 0 for the arming contract.) The condition is READ
+  OFF the controller's already-resolved `plan.is_damaged` rather than re-derived, so this
+  seam never touches a fuel-damage RNG domain. **Its inputs are t=0 inputs whenever it runs**:
   `ctx.agents` are the frozen `_extract_world` snapshots carrying t=0 location and t=0 fuel
   as `budget`, and `ctx.t0_reference_tasks` is the raw t=0 world — neither tracks the live
   engine — so it reproduces the reference setup would have computed under the historical
@@ -1579,8 +1582,20 @@ R          = ratio - penalty                # NEVER clamped
   optimum, setup deliberately did not solve one, and `0.0` would fabricate a perfect oracle.
   `EpisodeReward.u_ref` is the denominator source under BOTH policies (on the static path it
   EQUALS `u_oracle`), so a consumer asking "what was this normalized by?" reads that one
-  field and is correct either way. Every other added field is `None` on the historical path —
-  `None`, never `0.0` / `0`, because on a normalized regret scale `0` is the OPTIMUM.
+  field and is correct either way.
+- **WHAT THE ADDED `EpisodeReward` FIELDS HOLD ON THE HISTORICAL PATH — the distinction is
+  exact, and it is NOT "everything is `None`".** Two of the added fields are NOT optional and
+  carry real historical values: **`reference_policy` is `static_t0_v1`** (the policy that
+  really ran, stated rather than implied) and **`u_ref` is `u_oracle`** (`_static_t0_breakdown`
+  sets it from the static optimum; the `0.0` on the dataclass is only the field default).
+  The **OPTIONAL SCALAR AND COUNT checkpoint fields** are `None` there — `reference_kind`,
+  `checkpoint_tick`, `u_prefix`, `u_cont_ref`, `u_post`, `unique_completed_targets`,
+  `scored_completed_targets`, `unscored_completed_targets` — **`None`, never `0.0` / `0`**,
+  because on a normalized regret scale `0` is the OPTIMUM and on a count it reads as a
+  measurement of nothing rather than as an absent measurement. **The ONE EXCEPTION is
+  `unscored_completed_target_ids`, which is NOT `Optional` and keeps its TYPED EMPTY-TUPLE
+  default `()`** — an empty sequence of ids is not an absent measurement, and a consumer
+  iterating it needs no `None` guard on either path.
 - **FOR A CLEAN EPISODE UNDER THIS POLICY `U_prefix == 0` and the reference IS the full t=0
   reference, so the arithmetic COLLAPSES to the static formula** — the checkable property
   that the opt-in path does not silently move the clean condition.
@@ -1943,7 +1958,7 @@ a stub, because normal production does not currently generate it.
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | SELECT or change the REWARD-REFERENCE POLICY (`static_t0_v1` vs GENERALIZED-V1 `event_conditioned_continuation_v1`) | `rl/training/graph_reward.py` (`REFERENCE_POLICIES`, `REFERENCE_POLICY_STATIC_T0_V1`, `REFERENCE_POLICY_EVENT_CONDITIONED_V1`, `uses_event_conditioned_reference`) + `rl/training/graph_episode_setup.py` (`setup_episode(..., reference_policy=...)`, `_resolve_reference_policy`, `EpisodeContext.reference_policy` / `t0_reference_tasks`, `_t0_reference_or_deferred`). **RESEARCH-VALIDITY / GRADE A**: `static_t0_v1` is the DEFAULT and is the behaviour the approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements were taken on — moving it moves what those measurements mean. `EpisodeContext.reference_policy` is the ONE stored source and `uses_event_conditioned_reference` the canonical runtime predicate; an unknown id RAISES before any BLADE object exists. NEITHER harness exposes the policy yet (§5, §8) |
 | Change the CONTINUATION CHECKPOINT TIMING or the REFERENCE CONSTRUCTION | `rl/training/graph_tick_loop.py` (`run_episode`'s three reference sites — the pre-first-tick CLEAN t=0 build, the `build_continuation_reference` call at the TOP of the firing tick immediately after `maybe_apply`, and the episode-exit `damaged_event_unrealized_t0` build BEFORE the recording export — plus `EpisodeResult.reference`) + `rl/training/graph_episode_setup.py` (`build_t0_reference`, `build_continuation_reference`, `_continuation_agents`, `_reference_universe`, `_solve_reference`, `_reference_aircraft_utility`, `SolveAudit`, `solve_and_normalize_audited`, `SOLVE_NOT_ATTEMPTED` / `SOLVE_TERMINATION_UNAVAILABLE`). **RESEARCH-VALIDITY / GRADE A**: the ORDERING is the contract — real `current_fuel` mutation → continuation reference → post-FD boundary → trigger → `central.capture` → actor decision → Phase 2 — so the reference describes the world the actor is ABOUT to decide in; the checkpoint is READ-ONLY measurement that issues no `env.step`; the task universe is the retained RAW t=0 world minus the realized prefix and NEVER a private belief; continuation agents are rebuilt from the LIVE post-event world with dead / RTB-committed / non-airborne egos EXCLUDED by recorded reason; and an unanswered solve is REFUSED (`ReferenceIntegrityError`) rather than recorded as an answered zero (§5) |
-| Change `U_prefix` / `U_post` / `U_ref` ARITHMETIC or the REWARD-BEARING TARGET SCOPE | `rl/training/graph_reward.py` (`_event_conditioned_breakdown` beside the UNTOUCHED `_static_t0_breakdown`, `EpisodeReference` and its `__post_init__` reconciliation, `REFERENCE_KINDS`, `CONTINUATION_EXCLUSION_REASONS`, `ReferenceIntegrityError`, `realized_task_indices` — the ONE all-steps rule both halves share — `task_target_ids`, and `EpisodeReward`'s `u_ref` / `u_oracle` / `u_prefix` / `u_cont_ref` / `u_post` / `scored_completed_targets` / `unscored_completed_target_ids` fields). **RESEARCH-VALIDITY / GRADE A**: `U_prefix` is FROZEN at the checkpoint and never recomputed from the final `done` set; `U_post` scores ONLY continuation-allocated tasks and a kill outside that set is ACCOUNTING-ONLY; `U_aircraft` comes from the reward-bearing reference universe; the reward is NEVER clamped; `u_oracle` is `None` under the opt-in policy and every added field is `None` — never `0.0` — on the historical one; and terminal-on-last credit placement is IDENTICAL under both policies (§5) |
+| Change `U_prefix` / `U_post` / `U_ref` ARITHMETIC or the REWARD-BEARING TARGET SCOPE | `rl/training/graph_reward.py` (`_event_conditioned_breakdown` beside the UNTOUCHED `_static_t0_breakdown`, `EpisodeReference` and its `__post_init__` reconciliation, `REFERENCE_KINDS`, `CONTINUATION_EXCLUSION_REASONS`, `ReferenceIntegrityError`, `realized_task_indices` — the ONE all-steps rule both halves share — `task_target_ids`, and `EpisodeReward`'s `u_ref` / `u_oracle` / `u_prefix` / `u_cont_ref` / `u_post` / `scored_completed_targets` / `unscored_completed_target_ids` fields). **RESEARCH-VALIDITY / GRADE A**: `U_prefix` is FROZEN at the checkpoint and never recomputed from the final `done` set; `U_post` scores ONLY continuation-allocated tasks and a kill outside that set is ACCOUNTING-ONLY; `U_aircraft` comes from the reward-bearing reference universe; the reward is NEVER clamped; `u_oracle` is `None` under the opt-in policy, while on the historical one `reference_policy` is `static_t0_v1`, `u_ref` EQUALS `u_oracle`, the OPTIONAL scalar/count checkpoint fields are `None` — never `0.0` / `0` — and `unscored_completed_target_ids` keeps its typed empty-tuple default `()` rather than `None`; and terminal-on-last credit placement is IDENTICAL under both policies (§5) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind` — FOUR members since `185d39f`, values APPEND-ONLY, `never_overdue`, `NO_TASK_INDEX`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
 | Change the encoder | `rl/agent/graph_encoder.py` (`GraphEncoder`, `pool()` critic hook). ONE class with TWO instantiations — the ACTOR's, and the Phase-B `CentralCritic`'s separate instance at the CENTRAL feature widths. Changing it changes BOTH; the actor head carries no value head, and the critic's `ValueHead` lives in `graph_ppo`. |
