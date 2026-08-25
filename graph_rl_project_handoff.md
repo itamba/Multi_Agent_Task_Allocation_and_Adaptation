@@ -637,13 +637,24 @@ cross-references it rather than duplicating it.
     (PR #35, PR #36); §3l.5–§3l.7 ARE NOT IMPLEMENTED** (§3l). The GPT orchestrator owns the
     work. Both merged families are OPT-IN with historical defaults and **neither harness
     selects them**. **No generalized measurement exists, is running or is authorized.**
-  - **CURRENT WRITABLE TASK:** this GENERALIZED-V1 INTERMEDIATE DOCUMENTATION CHECKPOINT —
-    branch `task/generalized-v1-task12-doc-lock` and its DRAFT PR. It is the SOLE writable
-    repository task ONLY while it is in flight, it modifies exactly two files (`CLAUDE.md`
-    and this one), and it authorizes nothing — **in particular it does NOT authorize
-    Task 3**, which needs GPT exact-SHA review of THIS checkpoint plus explicit
-    user-authorized continuation before it may start (§8). **NO IMPLEMENTATION CANDIDATE IS
-    ACTIVE** — the last CODE candidate was PR #36 and it is merged.
+  - **WRITABLE STATE FOR THIS CHECKPOINT — STATED FOR BOTH SIDES OF ITS OWN INTEGRATION, so
+    this bullet does not go stale the moment it merges.**
+    - **WHILE THIS CHECKPOINT IS IN FLIGHT:** the GENERALIZED-V1 INTERMEDIATE DOCUMENTATION
+      CHECKPOINT — branch `task/generalized-v1-task12-doc-lock` and its DRAFT PR — is the
+      SOLE writable repository task. It modifies exactly two files (`CLAUDE.md` and this
+      one) and it authorizes nothing.
+    - **UPON THIS CHECKPOINT'S INTEGRATION:** there is **NO writable repository task and NO
+      active candidate**, and that branch and PR become HISTORY like every row in the
+      parenthetical below. **This is a CLEAN CHECKPOINT INSIDE AN ACTIVE PHASE, NOT a
+      CLOSED / IDLE repository:** **GENERALIZED-V1 remains the ACTIVE project phase**,
+      §3l.8 **Tasks 1 and 2 are MERGED**, and **Task 3 (§3l.5) is the NEXT UNRESOLVED
+      IMPLEMENTATION TASK.**
+    - **TASK 3 REMAINS NOT AUTHORIZED, on both sides of that integration.** It requires GPT
+      exact-SHA review of THIS checkpoint plus **fresh explicit user authorization** before
+      any writable implementation begins (§8). Until that authorization exists, nothing is
+      implemented, generated, solved, trained or measured.
+    - **NO IMPLEMENTATION CANDIDATE IS ACTIVE** in either state — the last CODE candidate
+      was PR #36 and it is merged.
     *(Historical: `task/generalized-v1-cardinality-b2` merged as PR #35 and
     `task/generalized-v1-fd-adaptation` as PR #36; `task/generalized-v1-handoff-bootstrap`
     was the writable task under the PREVIOUS record and merged as PR #34; before it,
