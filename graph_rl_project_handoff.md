@@ -123,10 +123,12 @@ ORIGINAL Phase-A reference that was never repurposed for it. **PR #30 RAN NO SCI
 COMPARISON, and NO CTDE BENEFIT IS CLAIMED ANYWHERE IN THIS DOCUMENT** — a merged
 implementation and a passing suite measure nothing scientific (`CLAUDE.md` §5 owns the CTDE
 contract, §7 the lock). *(An OLD-CONTRACT CTDE measurement has since been executed; it is
-OUT OF SCOPE for the generalized redesign and is not reviewed, compared or claimed here —
-§1. `CLAUDE.md` §8, written before it, still describes that comparison as un-run;
-reconciling that text is a step-6 documentation duty, §3l.8.)* None of this is a reopening
-of Phase A and none of it changes any technical CTDE contract: the Phase-A reference baseline stays
+OUT OF SCOPE for the generalized redesign and is NOT reviewed, compared or claimed here —
+§1. `CLAUDE.md`'s stale "not run" wording HAS BEEN RECONCILED, conservatively, by THIS
+documentation checkpoint: it now acknowledges only that such a measurement exists and is out
+of scope, and records no identity, measured SHA, denominator, verdict or result for it and
+no CTDE benefit.)* None of this is a reopening of Phase A and none of it changes any
+technical CTDE contract: the Phase-A reference baseline stays
 CLOSED, VALID and IMMUTABLE, and the branch `phase-a-baseline`
 (`4f0068847b017795717c5f0e331f647bcfc30547`) preserving its code state must not move.
 `p(destroy) < 1` remains a SEPARATE, later research task and was NOT implemented by PR #27.
@@ -1869,8 +1871,10 @@ that snapshot was isolated — **DONE, merged as PR #30** (§3k); and **(4)** **
 INTEGRATION into `main` gated** — **that gate is now CLOSED / SATISFIED on both halves**,
 the measurement-validity half by item 2's verdict and the reference half by
 `pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`. **All four items are
-complete**, so this paragraph is now the arrangement's HISTORICAL record; the live state is
-Task 8 and Task 9 below.
+complete**, so this paragraph is now the arrangement's HISTORICAL record. **THE LIVE STATE
+IS TASK 10 / GENERALIZED-V1: §3l.8 steps 1–2 are MERGED, and Task 3 is the next unresolved
+task and is NOT AUTHORIZED** (§4 Task 10, §8). *(SUPERSEDED: this clause previously pointed
+at Tasks 8 and 9 as the live state; those records are historical and are unchanged.)*
 
 **This supersedes the serial "(3) only then proceed to Phase-B CTDE design" rule this
 section previously stated** — that rule is HISTORY and must not be restated as live. It also
