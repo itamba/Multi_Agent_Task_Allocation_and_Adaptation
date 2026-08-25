@@ -225,16 +225,45 @@ EpisodeContext
        # private GraphObservation. See §5, and §8 for the un-run comparison.
 ```
 
-**FOUR OPT-IN GENERALIZED-V1 SEAMS SIT BESIDE THE PIPELINE ABOVE, AND THE DIAGRAM
+**FIVE OPT-IN GENERALIZED-V1 SEAMS SIT BESIDE THE PIPELINE ABOVE, AND THE DIAGRAM
 DESCRIBES THE DEFAULT.** The CONSTRUCTION path's placement step accepts a second
 hidden-CARDINALITY policy (`bounded_backoff_v1`) beside the default `exact_v1`; the
 fuel-damage layer accepts a certified eligibility policy and a completion-boundary wake
-policy beside its two legacy defaults; and, when the latter is enabled, `run_episode` runs
+policy beside its two legacy defaults; when the latter is enabled, `run_episode` runs
 one further top-of-tick step (`_post_fd_boundary`, after the event call and before Phase 1)
 and one further terminal step (`require_certified_event_realized`, at the episode-exit seam,
-before the recording export). **All four default OFF, and with the defaults the pipeline
-above is exactly what runs** — no harness selects any of them today. §5 owns both
-contracts.
+before the recording export); and `setup_episode` accepts a second REWARD-REFERENCE policy
+(`event_conditioned_continuation_v1`) beside the default `static_t0_v1`, which MOVES the
+episode's second MATCH-AOU reference solve out of setup and into `run_episode`. **All five
+default OFF, and with the defaults the pipeline above is exactly what runs** — no harness
+selects any of them today. §5 owns every one of those contracts.
+
+**THE REWARD-REFERENCE SEAM (GENERALIZED-V1 Task 3, `24a8b1e`) CHANGES WHERE AND AGAINST
+WHAT THE SECOND SOLVE HAPPENS — NEVER THE CREDIT PLACEMENT.** Under the default
+`static_t0_v1` the diagram above is exactly what runs: `setup_episode` solved the full t=0
+reference, `EpisodeResult.reference` is `None`, and `compute_episode_reward` takes the
+unchanged static-oracle branch. Under `event_conditioned_continuation_v1` `run_episode`
+owns that second solve at exactly ONE of three places per episode, and the CHECKPOINT
+ORDERING on a damaged tick is contractual:
+
+```
+  actual `current_fuel` mutation      # FuelDamageController.maybe_apply
+    → build_continuation_reference    # THE CHECKPOINT — measurement only, no env.step
+    → _post_fd_boundary               # post-FD completion boundary (opt-in)
+    → decide_triggers                 # Phase 1 sensing / triggers / wake
+    → central.capture                 # CTDE (opt-in), immediately before the decision
+    → _wake_decision                  # the actor decision
+    → Phase 2 → env.step
+```
+
+The other two places are a CLEAN episode's full t=0 reference, taken BEFORE the first tick,
+and — for a damaged-scheduled episode whose event never fired, reachable under the LEGACY
+FD eligibility policy only — a full t=0 reference at the episode-exit seam, before the
+recording export. `compute_episode_reward` then branches on `result.reference`: present ⇒
+the event-conditioned arithmetic, absent ⇒ the historical static one, and an episode that
+DECLARES the opt-in policy yet arrives without a reference raises rather than falling back
+on the static oracle that policy never solved. **Terminal-on-last credit placement, PPO,
+GAE, the action set and the trigger layer are IDENTICAL under both policies.**
 
 **The exogenous-event seam (FD-BASELINE-v1) sits at the TOP of a tick, never inside
 Phase 1.** `run_episode`'s `fuel_damage` parameter is optional and defaults to `None`, so
@@ -304,7 +333,7 @@ a functioning learning loop, but it is a SHORT PROBE, not a baseline.
 
 **Episode-setup (Stage 0) — `rl/training/graph_episode_setup.py` + `rl/training/belief.py`.**
 `setup_episode(scenario_json, ..., n_hidden=None, placement_rng=None) -> EpisodeContext`.
-Wires env via `_build_env` (`gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=…)`, `obs,info = env.reset()`, blue side by `side.name=="BLUE"`) → `_extract_world` (`create_agents_from_scenario` picks blue; `generate_all_enemy_tasks`) → `solve_and_normalize` twice → `_finish_context` (N `Belief`s + one `GraphPlanExecutor`). `EpisodeContext` carries `env, game, agents, agent_ids, beliefs, executor, a_init, oracle_solution, oracle_tasks, split_meta, observation` (the reset seed the loop reads first), `record`, `placements`, and the two RAW pre-solve world snapshots `known_target_ids` / `executed_target_ids` (the roster-integrity contract below). `Belief.independent(tasks, solution)` mints an independent per-ego copy. `solve_and_normalize(agents, tasks) -> (solution, belief_tasks, unselected)` = `MatchAou(...).solve("bonmin")` → `post_solve_filter_and_level(...)` (allocated-only filter + `task_idx` remap + `level`); **never returns the raw pre-filter list**. Graph-native; imports NOTHING from the flat path. Independence + allocated-only proven in `_selftest`. `EpisodeContext.record: bool = False` — recording is ARMED iff a `recording_export_path` was given; setup never starts the recorder (the tick-loop drives it), and only the RETURNED env is ever armed.
+Wires env via `_build_env` (`gymnasium.make("blade/BLADE-v0", game=game, max_episode_steps=…)`, `obs,info = env.reset()`, blue side by `side.name=="BLUE"`) → `_extract_world` (`create_agents_from_scenario` picks blue; `generate_all_enemy_tasks`) → `solve_and_normalize` twice → `_finish_context` (N `Belief`s + one `GraphPlanExecutor`). `EpisodeContext` carries `env, game, agents, agent_ids, beliefs, executor, a_init, oracle_solution, oracle_tasks, split_meta, observation` (the reset seed the loop reads first), `record`, `placements`, the two RAW pre-solve world snapshots `known_target_ids` / `executed_target_ids` (the roster-integrity contract below), and the GENERALIZED-V1 pair `reference_policy` / `t0_reference_tasks` (the reward-reference contract below). `Belief.independent(tasks, solution)` mints an independent per-ego copy. `solve_and_normalize(agents, tasks) -> (solution, belief_tasks, unselected)` = `MatchAou(...).solve("bonmin")` → `post_solve_filter_and_level(...)` (allocated-only filter + `task_idx` remap + `level`); **never returns the raw pre-filter list**. Since `24a8b1e` it is a THIN PROJECTION of `solve_and_normalize_audited`, which returns the same triple plus a `SolveAudit`; **the public triple is byte-for-byte unchanged in every branch, the failure one included** — see the audited-solve contract below. Graph-native; imports NOTHING from the flat path. Independence + allocated-only proven in `_selftest`. `EpisodeContext.record: bool = False` — recording is ARMED iff a `recording_export_path` was given; setup never starts the recorder (the tick-loop drives it), and only the RETURNED env is ever armed.
 
 **WORLD INVENTORY IS NOT ORACLE ALLOCATION (locked by the roster-integrity fix,
 `36365f2`).** `solve_and_normalize` returns an **ALLOCATED-ONLY** task list by contract —
@@ -663,7 +692,7 @@ by a peer while this ego is far away is deliberately NOT a boundary.
 **Resync (Stage 6)** — `GraphPlanExecutor.resync` (above): swaps the ego's plan slice without resetting `done`.
 
 **Reward (Stage 7) — `rl/training/graph_reward.py`.**
-`compute_episode_reward(ctx, result, cfg=RewardConfig()) -> EpisodeReward`. **Terminal, utility-based** (v1): `R = (U_achieved − c·U_aircraft·n_lost − U_oracle)/(|U_oracle| + eps_regret)`, placed on the last wake's `Transition` (others `0.0`; empty trajectory ⇒ nothing attached). `U_oracle = plan_value(ctx.oracle_solution, ctx.oracle_tasks)` — **bit-faithful to `MatchAou._add_objective`** (reuses the solver `EPSILON`; the `y[j]` factor is provably redundant given the y/x constraints; proven under bonmin in `_selftest` T1). `U_achieved = realized_utility(ctx.oracle_tasks, ctx.executor.done)` — full utility IFF all a task's targets are confirmed-killed, **deduped over ego**. `c = aircraft_penalty_coeff` — this module's own default is **0.0**, but BOTH harnesses now pass an explicit `RewardConfig(aircraft_penalty_coeff=2.25)` (FD-BASELINE-v1, below); the FORMULA is unchanged. `n_lost = len(ctx.executor.dead)`; `eps_regret=1e-5` is a division guard (distinct from solver EPSILON). **No-comms:** a centralized/privileged TRAINING signal — MAY read global state, but MUTATES ONLY `Transition.reward` (proven byte-unchanged on real objects in T7). **KNOWN v1 assumption `probability=1.0`** (expected `U_oracle` vs realized `U_achieved` coincide only at p=1; `R∈[-1,~0]`; revisit at p<1).
+`compute_episode_reward(ctx, result, cfg=RewardConfig()) -> EpisodeReward`. **Terminal, utility-based** (v1): `R = (U_achieved − c·U_aircraft·n_lost − U_oracle)/(|U_oracle| + eps_regret)`, placed on the last wake's `Transition` (others `0.0`; empty trajectory ⇒ nothing attached). `U_oracle = plan_value(ctx.oracle_solution, ctx.oracle_tasks)` — **bit-faithful to `MatchAou._add_objective`** (reuses the solver `EPSILON`; the `y[j]` factor is provably redundant given the y/x constraints; proven under bonmin in `_selftest` T1). `U_achieved = realized_utility(ctx.oracle_tasks, ctx.executor.done)` — full utility IFF all a task's targets are confirmed-killed, **deduped over ego**. `c = aircraft_penalty_coeff` — this module's own default is **0.0**, but BOTH harnesses now pass an explicit `RewardConfig(aircraft_penalty_coeff=2.25)` (FD-BASELINE-v1, below); the FORMULA is unchanged. `n_lost = len(ctx.executor.dead)`; `eps_regret=1e-5` is a division guard (distinct from solver EPSILON). **No-comms:** a centralized/privileged TRAINING signal — MAY read global state, but MUTATES ONLY `Transition.reward` (proven byte-unchanged on real objects in T7). **KNOWN v1 assumption `probability=1.0`** (expected `U_oracle` vs realized `U_achieved` coincide only at p=1; `R∈[-1,~0]`; revisit at p<1). **THIS PARAGRAPH DESCRIBES THE DEFAULT `static_t0_v1` REFERENCE POLICY, WHICH IS UNCHANGED AND IS THE PATH EVERY APPROVED MEASUREMENT WAS TAKEN ON** (`737b4bf`, `bf1e045f` — §7). Under the opt-in `event_conditioned_continuation_v1` policy the SAME function normalizes by `U_ref` instead and `EpisodeReward.u_oracle` is `None`; the formula above is untouched and is still what runs whenever `EpisodeResult.reference is None` (`_static_t0_breakdown`, lifted out byte-for-byte). See the GENERALIZED-V1 reward-reference contract below.
 
 **The two-phase tick (Stages 2–6) — `rl/training/graph_tick_loop.py`.**
 `run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None, fuel_damage=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`, and the tick's completion verdict is `executor.is_done(<the POST-STEP obs that step just returned>)` — completion is a PHYSICAL fact about the world the step produced (Defect C, `ea62e4e`), so an episode keeps ticking while an ordered-home aircraft actually flies home, and a death on that return is reconciled into `executor.dead` by the same call, BEFORE the loop returns, hence into `EpisodeResult.n_dead`. An ego whose `rtb_issued` latch is set is SKIPPED for the whole of Phase 1 from then on — no sensing, trigger, wake, policy inference, belief edit or `Transition` — while Phase 2 still runs for it every tick and peers continue normally. The optional `fuel_damage` controller (FD-BASELINE-v1) is consulted at the TOP of a tick, before Phase 1, and its Phase-2 `note_commands` call is a read-only measurement — see §4 and the FD contract below; `None` (the default) leaves the loop byte-unchanged. Under GENERALIZED-V1 (`185d39f`) that same controller is consulted at TWO more places, both no-ops under the legacy defaults: `_post_fd_boundary` runs at the TOP of the tick immediately AFTER the event call and before Phase 1 (only when `fuel_damage.boundary_wakes_enabled`), and ONE terminal `fuel_damage.require_certified_event_realized(...)` runs at the EPISODE-EXIT seam after the loop and **BEFORE the recording export** — see the certified-eligibility contract below. Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`); it only hands `is_done` the post-step observation and READS the answer. **The reward seam is unchanged:** `graph_reward`'s formula still reads `n_lost = len(ctx.executor.dead)` — what changed is that the set is now truthful at episode end. **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
@@ -1394,7 +1423,299 @@ No continuation reference, no `U_prefix`, no reward-formula change, no generaliz
 sampler, no evaluation manifest, no new metric or plot, no new meta-action, no trim-tail
 action, no peer behaviour change and no communication channel of any kind. BLADE, the
 solver, `graph_reward`, the encoder, the action space, `DETECTION_KM`, B2 geometry and the
-seed schedules are all unchanged.
+seed schedules are all unchanged. *(That list is a statement about TASK 2's scope and stays
+accurate as one. The continuation reference and `U_prefix` it excludes were implemented
+AFTERWARDS, as the SEPARATE Task-3 seam contracted immediately below — `graph_reward`'s
+static formula is still unchanged there too.)*
+
+**GENERALIZED-V1 EVENT-CONDITIONED MATCH-AOU CONTINUATION REFERENCE + REWARD CHECKPOINT —
+`rl/training/graph_episode_setup.py` + `rl/training/graph_tick_loop.py` +
+`rl/training/graph_reward.py` (`24a8b1e`, integrated `df3abf2`, PR #38 — §7).**
+
+ONE OPT-IN policy seam, a VERSIONED string, DEFAULTING to the merged historical behaviour —
+so every existing call site obtains the historical reference automatically.
+
+| knob | DEFAULT (historical, preserved) | GENERALIZED-V1 addition |
+|---|---|---|
+| `setup_episode(..., reference_policy=...)` | `static_t0_v1` | `event_conditioned_continuation_v1` |
+
+`graph_reward.REFERENCE_POLICIES` is the closed set. **`EpisodeContext.reference_policy` is
+the SINGLE STORED SOURCE of the policy**, validated by `setup_episode`'s
+`_resolve_reference_policy` BEFORE any BLADE object exists — an unknown id RAISES
+`ValueError`, is never coerced to the default, never case-folded into a match and never
+ignored, because a run that silently fell back to the historical reference while its record
+claimed the opt-in one would be unreadable exactly where it matters.
+**`graph_reward.uses_event_conditioned_reference(ctx)` is the CANONICAL RUNTIME PREDICATE**
+over that stored value — the one the tick loop and the reward branch on. It is not the only
+place the policy is examined: `setup_episode` / `_finish_context` also VALIDATE it and USE it
+to decide whether to retain the deferred-reference inputs, and `_t0_reference_or_deferred`
+compares it to decide whether setup solves the reference at all. What is contractual is that
+there is ONE stored value and ONE runtime predicate over it, not that the string is compared
+in exactly one expression. The predicate reads the attribute DUCK-TYPED and resolves an
+ABSENT field to `static_t0_v1`, so a context that declares no policy can only ever land on
+the PRESERVED path, never on the opt-in one.
+
+**`static_t0_v1` IS THE DEFAULT AND IS THE PRESERVED HISTORICAL CONTRACT.** Setup performs
+the full t=0 reference solve exactly where it always did; `oracle_solution` / `oracle_tasks`
+are populated exactly as before; `EpisodeContext.t0_reference_tasks` stays `()` and
+`EpisodeResult.reference` stays `None`; `compute_episode_reward` takes
+`_static_t0_breakdown`, which was LIFTED OUT of the old function body unchanged — the same
+reads, the same operand order, the same single `denom`, the same folding of the penalty.
+**The approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements were
+taken on this path and remain measurements OF IT.** On this path NO `EpisodeReference` object
+exists at all, and that ABSENCE is how a reader tells which policy ran — exactly as
+`EpisodeContext.construction_audit` being `None` identifies the historical hidden-cardinality
+policy.
+
+**`event_conditioned_continuation_v1` IS AN OPT-IN ADDITION BESIDE IT, never a rewrite of
+it.** It DEFERS setup's second solve to `run_episode`. Under it `_t0_reference_or_deferred`
+performs NO solve and returns the EMPTY pair, so `oracle_solution` / `oracle_tasks` are
+DELIBERATELY EMPTY and must never be read as a reference; `_finish_context` instead retains
+`EpisodeContext.t0_reference_tasks` — the RAW pre-solve t=0 EXECUTED-WORLD task list, the
+same one `executed_target_ids` was snapshotted from — and RAISES if the policy defers a
+solve with nothing retained to solve it from. The retention is CONDITIONAL: under the
+historical policy the field stays `()`, because keeping a second copy of the world's tasks
+alive there would be a silent behaviour difference dressed up as an optimisation. **Ids alone
+could not replace it**: an id carries no utility, no probability and no location, and once a
+target is destroyed the live BLADE world can no longer supply them either, so scoring
+`U_prefix` after the fact needs the t=0 task OBJECTS.
+
+**WHERE THE SECOND SOLVE HAPPENS — EXACTLY ONE OF THREE PLACES PER EPISODE, all owned by
+`run_episode`.** The policy MOVES solve #2; **it never ADDS a third reference solve.**
+
+- **CLEAN (or NO fuel-damage controller at all) — the FULL t=0 reference, BEFORE the first
+  tick.** `build_t0_reference(ctx, kind=REFERENCE_KIND_CLEAN_T0)` runs before RECORDING
+  STARTS — before `run_episode`'s `start_recording()` / forced t=0 frame — and therefore
+  before any BLADE state can have advanced. (Recording is ARMED much earlier, by setup, when
+  a `recording_export_path` was supplied; ARMING and STARTING are different events, and this
+  reference precedes the START. See Stage 0 for the arming contract.) The condition is READ
+  OFF the controller's already-resolved `plan.is_damaged` rather than re-derived, so this
+  seam never touches a fuel-damage RNG domain. **Its inputs are t=0 inputs whenever it runs**:
+  `ctx.agents` are the frozen `_extract_world` snapshots carrying t=0 location and t=0 fuel
+  as `budget`, and `ctx.t0_reference_tasks` is the raw t=0 world — neither tracks the live
+  engine — so it reproduces the reference setup would have computed under the historical
+  policy from bit-identical inputs. `U_prefix` is `0.0` BY CONSTRUCTION here, not measured as
+  zero: a t=0 reference allocates over the whole world, so every realized target stays
+  scorable in `U_post` and splitting a prefix out of it would double-count.
+- **DAMAGED — the CONTINUATION reference, at the TOP of the FIRING tick.**
+  `build_continuation_reference(ctx, scenario=obs, tick=tick, damaged_ego_id=...)` runs
+  immediately AFTER `FuelDamageController.maybe_apply` performed the real `current_fuel`
+  mutation and BEFORE anything reacts to it. **THE ORDERING IS CONTRACTUAL** (§4): the real
+  mutation → the continuation reference → the post-FD completion boundary → the triggers →
+  the CTDE `central.capture` → the actor decision → Phase 2 / `env.step`. So the reference
+  describes the world the actor is ABOUT to decide in, not the world it decided into.
+- **DAMAGED WHOSE EVENT NEVER FIRED — the full t=0 reference at the EPISODE-EXIT seam.** See
+  the legacy-compatibility block below; it is still solve #2, because the checkpoint above
+  never happened.
+
+**THE CHECKPOINT IS PRIVILEGED MEASUREMENT, AND IT IS READ-ONLY WITH RESPECT TO THE
+EPISODE.** It writes no belief, no executor plan / `done` / RTB state, no actor
+`GraphObservation`, no `CentralGraphObservation`, no policy parameter and no BLADE state; it
+touches the engine only by reading it. **No field of it reaches the acting path** — the
+no-communication red line (§3) is untouched, in exactly the sense `graph_reward` as a whole
+already is a centralized TRAINING signal. Solver WALL-CLOCK time passes while it runs;
+**SIMULATION time does not, because the checkpoint issues no `env.step`.**
+
+**WHAT THE CONTINUATION REFERENCE SOLVES.**
+
+- **TASKS — the retained RAW t=0 executed-world universe MINUS the realized prefix.**
+  `_reference_universe` splits that universe ONCE, through
+  `graph_reward.realized_task_indices` — the SAME all-steps rule `realized_utility` sums
+  over — so the two halves PARTITION it exactly and a task counted in `U_prefix` is provably
+  absent from the continuation universe. The prefix tasks are taken BY INDEX, never by
+  re-matching target ids, because two tasks naming no target would both resolve to `""`.
+  **It is the authoritative world inventory, NEVER any ego's private belief**: a belief is
+  one ego's partial view, and using it as the global reference universe would make the
+  reference depend on who happened to have sensed what. Utility and probability semantics are
+  the t=0 ones, unchanged.
+- **AGENTS — the continuation-capable ORIGINAL egos, REBUILT FROM THE LIVE POST-EVENT
+  WORLD.** `_continuation_agents` runs the SAME `scenario_factory.create_agents_from_scenario`
+  conversion setup uses, applied to the post-mutation observation, so an ego's
+  `Agent.location` is where it REALLY is and its `Agent.budget` is the fuel it REALLY holds —
+  the damaged ego's reduced `current_fuel` included. Reconstructing that mapping locally
+  would be a second conversion that could drift from the one the episode was planned with.
+  **THE POPULATION IS FILTERED, NEVER INVENTED**: it is drawn from `ctx.agent_ids`, the
+  authoritative scheduled ego sequence in its own order, and an ego is dropped with a stable
+  recorded `CONTINUATION_EXCLUSION_REASONS` slug when it CANNOT continue — `dead` (the
+  executor reconciled its removal), `rtb_committed` (its single-issue RTB latch is set, so
+  Phase 1 no longer processes it and reallocating it would be a reference the execution layer
+  could not honour), `not_airborne` (the engine does not hold it in `scenario.aircraft`: it
+  landed or was removed). The scan is READ-ONLY. The damaged ego is given NO special standing
+  — the continuation is a TEAM allocation; `damaged_ego_id` is recorded in the failure
+  messages so a refused checkpoint names the event it belongs to.
+
+**IT IS A REFERENCE, NOT AN ORACLE, and this layer never calls it one.** A damaged episode's
+reference is CONDITIONED on an event that had already happened when it was solved, so it is
+not the fully-informed t=0 optimum. It is also a **MATCH-AOU ALLOCATION reference**: it
+states what the frozen solver would ALLOCATE from the post-event state, and is **NOT a claim
+that the resulting physical routes are optimal** — the solver retains its own independent
+round-trip movement model.
+
+**THE REWARD ARITHMETIC (`_event_conditioned_breakdown`).**
+
+```text
+U_ref      = U_prefix + U_cont_ref          # verified on the reference itself
+U_achieved = U_prefix + U_post
+ratio      = (U_achieved - U_ref)      / (|U_ref| + eps_regret)
+penalty    = (c * U_aircraft * n_lost) / (|U_ref| + eps_regret)
+R          = ratio - penalty                # NEVER clamped
+```
+
+- **`U_prefix` IS FROZEN AT THE CHECKPOINT**, against a COPY of `executor.done` taken at that
+  instant, and is taken STRAIGHT OFF the reference at reward time. It is deliberately NOT
+  recomputed from the larger end-of-episode `done` set: doing so would credit
+  post-checkpoint kills to the prefix AND leave them scorable in `U_post`, counting them
+  twice.
+- **`U_post` SCORES ONLY `reference.tasks`** — the ALLOCATED-ONLY continuation list. A
+  confirmed kill on any other target (one the reference did not allocate, or one the prefix
+  already paid for) contributes NO utility and is **ACCOUNTING-ONLY**, reported through
+  `unique_completed_targets` / `scored_completed_targets` / `unscored_completed_targets` /
+  `unscored_completed_target_ids`.
+- **`U_aircraft` COMES FROM THE REWARD-BEARING REFERENCE UNIVERSE** — the prefix tasks plus
+  the allocated tasks (`_reference_aircraft_utility`, `0.0` on an empty universe) — so the
+  death penalty stays on the same utility scale as the numerator it is subtracted from,
+  WITHOUT relabelling the continuation reference as an "oracle" task list.
+- **`n_lost`, `c` and `eps_regret` keep their historical meanings**, and the reward is **NOT
+  CLAMPED**: with `c > 0` and a real airframe loss it legitimately falls below `-1`, exactly
+  as it already can on the static path.
+- **`EpisodeReward.u_oracle` IS `None` UNDER THIS POLICY** — there IS no static full-set
+  optimum, setup deliberately did not solve one, and `0.0` would fabricate a perfect oracle.
+  `EpisodeReward.u_ref` is the denominator source under BOTH policies (on the static path it
+  EQUALS `u_oracle`), so a consumer asking "what was this normalized by?" reads that one
+  field and is correct either way.
+- **WHAT THE ADDED `EpisodeReward` FIELDS HOLD ON THE HISTORICAL PATH — the distinction is
+  exact, and it is NOT "everything is `None`".** Two of the added fields are NOT optional and
+  carry real historical values: **`reference_policy` is `static_t0_v1`** (the policy that
+  really ran, stated rather than implied) and **`u_ref` is `u_oracle`** (`_static_t0_breakdown`
+  sets it from the static optimum; the `0.0` on the dataclass is only the field default).
+  The **OPTIONAL SCALAR AND COUNT checkpoint fields** are `None` there — `reference_kind`,
+  `checkpoint_tick`, `u_prefix`, `u_cont_ref`, `u_post`, `unique_completed_targets`,
+  `scored_completed_targets`, `unscored_completed_targets` — **`None`, never `0.0` / `0`**,
+  because on a normalized regret scale `0` is the OPTIMUM and on a count it reads as a
+  measurement of nothing rather than as an absent measurement. **The ONE EXCEPTION is
+  `unscored_completed_target_ids`, which is NOT `Optional` and keeps its TYPED EMPTY-TUPLE
+  default `()`** — an empty sequence of ids is not an absent measurement, and a consumer
+  iterating it needs no `None` guard on either path.
+- **FOR A CLEAN EPISODE UNDER THIS POLICY `U_prefix == 0` and the reference IS the full t=0
+  reference, so the arithmetic COLLAPSES to the static formula** — the checkable property
+  that the opt-in path does not silently move the clean condition.
+- **CREDIT PLACEMENT IS UNCHANGED UNDER BOTH POLICIES.** Terminal-on-last: every transition
+  is set to `0.0` and the LAST is overwritten with `R`; an EMPTY trajectory still attaches
+  nothing and still returns the breakdown. **The ONLY mutation remains `Transition.reward`.**
+  PPO, GAE, the action set, the trigger layer and the actor/critic boundary are untouched.
+
+**AUDITED SOLVE INTEGRITY — AN UNANSWERED SOLVE IS NOT AN ANSWERED ZERO.**
+`solve_and_normalize_audited` is now THE ONE MATCH-AOU normalization site, and
+`solve_and_normalize` is a thin projection of it whose **public triple is byte-for-byte
+unchanged in every branch, the failure branch included**, so every historical caller is
+unaffected. The frozen solver (§2) is untouched. `SolveAudit` records what
+`MatchAou.solve` already distinguished but the triple could not express:
+
+- **`invoked=False`** — the degenerate short-circuit fired (no tasks, or no agents) and NO
+  solver was called. `accepted` is vacuously `True`, `termination_condition` is
+  `SOLVE_NOT_ATTEMPTED`, and this is a SKIPPED solve, not a failed one.
+- **`invoked=True, accepted=False`** — `raw_solution is None`: the solver did NOT reach
+  acceptable optimality. **A FAILED QUESTION.**
+- **`invoked=True, accepted=True` with an empty allocation** — the solver terminated
+  acceptably and selected nothing. **AN ANSWERED QUESTION whose answer is "allocate
+  nothing"**, and a perfectly legitimate reference of value `0`.
+- `SOLVE_TERMINATION_UNAVAILABLE` is a RECORD-COMPLETENESS fallback for the audit STRING
+  only; it never affects `accepted`, which is decided solely by whether `MatchAou.solve`
+  returned a solution.
+
+`_solve_reference` is the single site that CONSUMES the distinction: `invoked and not
+accepted` raises `ReferenceIntegrityError`, because turning an unanswered question into an
+empty reference would hand the episode a zero denominator and therefore `-0/eps == 0` — the
+OPTIMUM — for a solve that never happened. **An accepted `{}` allocation, and a skipped
+degenerate solve, are BOTH legitimate zero references and are returned as-is.**
+
+**THE SOLVE BUDGET, STATED PRECISELY.** Task 3 **NEVER ADDS A THIRD REFERENCE SOLVE**: the
+opt-in policy OCCUPIES the existing second reference-solve slot rather than creating a new
+one, which `_t0_reference_or_deferred` guarantees by skipping setup's reference solve exactly
+when `run_episode` will own it. **It is therefore AT MOST two BONMIN invocations per accepted
+episode, and never three.** It is deliberately NOT stated as "exactly two": a degenerate
+reference — no open task, or no continuation-capable ego — legitimately performs NO solver
+call at all and records `solver_invoked=False`, so an accepted episode may cost one. *(The
+module docstrings and the candidate commit message phrase this as "exactly two"; the
+behaviour is the at-most-two form above, and this contract is the accurate statement.)*
+
+**`ReferenceIntegrityError` — WHAT IT IS, AND HOW IT IS ROUTED TODAY.** A plain
+`RuntimeError` subclass, deliberately NOT a `FuelDamageError` / `EpisodeRosterError` /
+`MeasurementIntegrityError` sibling, because `graph_reward` must not import the trainer. It
+is raised when a reference the episode DEPENDS on cannot be produced honestly: the reference
+solve did not reach acceptable optimality; the event-conditioned policy is in force but NO
+reference reached the reward (so the deliberately-empty static pair would have been read as
+one); nothing was retained to solve from; an unknown reference KIND; or a reference whose own
+arithmetic does not reconcile (`|u_ref - (u_prefix + u_cont_ref)| > 1e-9`, checked in
+`EpisodeReference.__post_init__` — VERIFIED, not asserted in prose). **It is NOT routed as an
+aborting instrument fault**: `graph_train` does not import it, so the trainer's existing broad
+handlers would account it as an ORDINARY episode failure — `run` stage when `run_episode`
+raised it, `reward` stage when `compute_episode_reward` did — inside `skip_and_account_v1`.
+**Whether it should instead ABORT is a Task-4 decision, and this layer deliberately does not
+take it on the trainer's behalf.** It is unreachable in practice today, because no harness
+selects the policy.
+
+**LEGACY COMPATIBILITY EDGE CASE — `damaged_event_unrealized_t0`, AND IT IS NOT GENERALIZED
+DAMAGED SEMANTICS.** A DAMAGED-SCHEDULED episode whose event NEVER FIRED physically ran as a
+clean one, so at the episode-exit seam it receives a FULL t=0 reference built from the
+RETAINED t=0 inputs, recorded under its OWN kind — because "the event did not fire" and "no
+event was scheduled" are different facts, and it must never be read as a scheduled clean
+episode. It sits BEFORE the recording export, for the same reason
+`require_certified_event_realized` does: `graph_train` synchronizes a completed run's
+playback into its manifest only after `run_episode` returns, so exporting first and raising
+second would leave a real recording no manifest lists.
+**IT EXISTS ONLY TO PRESERVE THE ALREADY-LOCKED TASK-2 LEGACY CONTRACT**, under which a
+scheduled damaged episode may legitimately finish without the FD event firing — an approved
+measurement contains exactly such an episode (§7: the Phase-A rerun's seed 424).
+**UNDER `certified_both_severities_v1` IT IS UNREACHABLE**: the tick loop's terminal
+`require_certified_event_realized` rejects certified + damaged + not-fired FIRST, as a
+`FuelDamageIntegrityError` instrument abort. **So this fallback is NOT part of the intended
+GENERALIZED benchmark's damaged semantics, and must not be generalized into them.** *(This
+was the one implementation deviation the GPT review examined and APPROVED, as a
+compatibility resolution rather than a semantic extension — recorded here rather than
+hidden.)*
+
+**`EpisodeReference` — THE TYPED PER-EPISODE REFERENCE / ACCOUNTING RECORD.** Frozen,
+produced ONLY under the opt-in policy, by `build_t0_reference` / `build_continuation_reference`
+and by nothing else, and carried out of the episode as `EpisodeResult.reference` — ONE
+owner, ONE surface, EXACTLY ONE per episode under that policy and NONE at all under the
+historical one. It carries: `policy` and `kind` (`REFERENCE_KINDS` = `clean_t0` /
+`damaged_event_checkpoint` / `damaged_event_unrealized_t0`); `checkpoint_tick` (the damaged
+checkpoint's tick, and `None` — never `0` — for a t=0 reference, because tick 0 is a real
+tick); the utility decomposition `u_prefix` / `u_cont_ref` / `u_ref` / `u_aircraft`; the
+allocated `solution` and its ALLOCATED-ONLY `tasks` (deliberately NOT a world inventory — the
+same contract `solve_and_normalize` has always had); the reward-bearing
+`reference_target_ids`; the prefix identity `prefix_target_ids`; `candidate_task_count` (how
+many tasks were OFFERED, larger than `len(tasks)` whenever the solver legitimately left some
+unselected); the continuation-agent population `continuation_agent_ids` with its
+`excluded_agents` `((ego_id, reason), ...)` pairs — so a dead or RTB-committed ego is
+RECORDED rather than inferred from an absence; and the solver audit `solver_invoked` /
+`solver_accepted` / `solver_termination` / `solver_seconds`. `solver_accepted` is always
+`True` on a RETURNED object — the builder raises instead — and exists to make that guarantee
+legible. `is_event_checkpoint` is the kind predicate; `to_record()` is a JSON-ready view of
+plain builtins that deliberately omits `tasks` and `solution`, and whose ids are WITHIN-RUN
+accounting identifiers, **never a cross-run reproducibility key** (generated uuids are not
+seed-derived — §8).
+
+**NEITHER HARNESS EXPOSES THIS POLICY YET.** `TrainConfig` and `RolloutConfig` carry no
+`reference_policy` field, no CLI flag, preset or benchmark selects one, and neither
+`graph_train` nor `graph_rollout` passes one — so **every training run and every diagnostic
+rollout still runs `static_t0_v1`**, and `EpisodeResult.reference` is `None` on every episode
+either harness produces. Reaching the generalized path today means calling `setup_episode`
+directly. **Nothing persists or aggregates `EpisodeReference`** — no `run_config.json` block,
+no `episode_outcomes.jsonl` field, no `run_summary.json` key, no plot — exactly as
+`PostFdAdaptationOutcome` is produced but not yet persisted. That run-level persistence, and
+the generalized sampler / evaluation manifest that would consume it, is Task-4 work and is
+NOT implemented (§8).
+
+**WHAT IS EXPLICITLY NOT IN THIS DESIGN.** Target destruction stays DETERMINISTIC at
+`probability = 1` — **`p(destroy) < 1` was NOT implemented here and remains a separate future
+Grade-A research task**. No dense or per-wake reward shaping, no change to terminal credit
+placement, no generalized training sampler, no evaluation manifest, no new metric or plot, no
+new `MetaAction`, no peer behaviour change and no communication channel of any kind. BLADE,
+the solver, PPO, GAE, the encoder, the action space, the trigger layer, the actor/critic
+boundary, `DETECTION_KM`, B2 geometry, the fuel-damage mechanism and the seed schedules are
+all unchanged.
 
 **PHASE-B CTDE — the TRAINING-ONLY centralized critic —
 `rl/observation/central_graph_builder.py` + `rl/training/graph_ppo.py` (its §7 block)
@@ -1635,6 +1956,9 @@ a stub, because normal production does not currently generate it.
 | Change WHEN the central state is CAPTURED | `rl/training/graph_tick_loop.py` — `run_episode`'s `central` parameter and the `capture(...)` call inside the `if wake` branch, IMMEDIATELY BEFORE `_wake_decision`. **RESEARCH-VALIDITY / GRADE A**: the capture point IS the 1:1 alignment `CTDEEpisodeRecord` validates, and moving it silently repairs the mispairing into a wrong value-to-decision match. `central=None` (the default) leaves the loop byte-unchanged |
 | Change ACTOR-ONLY PRESERVATION or CHECKPOINT compatibility | `rl/training/graph_train.py` (`_ctde_kwargs` / `_central_kwargs` — keyword OMISSION, never a `None` keyword; `save_checkpoint(..., critic=None)`'s exactly-five-key actor-only payload and the CTDE additions; the `ctde_enabled`-gated critic diagnostics on a training record; the `training` block of `run_config.json`). **RESEARCH-VALIDITY / GRADE A**: `actor_only` byte-invariance is what keeps the approved Phase-A baseline comparable, and it is pinned by the POISON test + its CONTROL in `tests/test_graph_ctde.py` |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
+| SELECT or change the REWARD-REFERENCE POLICY (`static_t0_v1` vs GENERALIZED-V1 `event_conditioned_continuation_v1`) | `rl/training/graph_reward.py` (`REFERENCE_POLICIES`, `REFERENCE_POLICY_STATIC_T0_V1`, `REFERENCE_POLICY_EVENT_CONDITIONED_V1`, `uses_event_conditioned_reference`) + `rl/training/graph_episode_setup.py` (`setup_episode(..., reference_policy=...)`, `_resolve_reference_policy`, `EpisodeContext.reference_policy` / `t0_reference_tasks`, `_t0_reference_or_deferred`). **RESEARCH-VALIDITY / GRADE A**: `static_t0_v1` is the DEFAULT and is the behaviour the approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements were taken on — moving it moves what those measurements mean. `EpisodeContext.reference_policy` is the ONE stored source and `uses_event_conditioned_reference` the canonical runtime predicate; an unknown id RAISES before any BLADE object exists. NEITHER harness exposes the policy yet (§5, §8) |
+| Change the CONTINUATION CHECKPOINT TIMING or the REFERENCE CONSTRUCTION | `rl/training/graph_tick_loop.py` (`run_episode`'s three reference sites — the pre-first-tick CLEAN t=0 build, the `build_continuation_reference` call at the TOP of the firing tick immediately after `maybe_apply`, and the episode-exit `damaged_event_unrealized_t0` build BEFORE the recording export — plus `EpisodeResult.reference`) + `rl/training/graph_episode_setup.py` (`build_t0_reference`, `build_continuation_reference`, `_continuation_agents`, `_reference_universe`, `_solve_reference`, `_reference_aircraft_utility`, `SolveAudit`, `solve_and_normalize_audited`, `SOLVE_NOT_ATTEMPTED` / `SOLVE_TERMINATION_UNAVAILABLE`). **RESEARCH-VALIDITY / GRADE A**: the ORDERING is the contract — real `current_fuel` mutation → continuation reference → post-FD boundary → trigger → `central.capture` → actor decision → Phase 2 — so the reference describes the world the actor is ABOUT to decide in; the checkpoint is READ-ONLY measurement that issues no `env.step`; the task universe is the retained RAW t=0 world minus the realized prefix and NEVER a private belief; continuation agents are rebuilt from the LIVE post-event world with dead / RTB-committed / non-airborne egos EXCLUDED by recorded reason; and an unanswered solve is REFUSED (`ReferenceIntegrityError`) rather than recorded as an answered zero (§5) |
+| Change `U_prefix` / `U_post` / `U_ref` ARITHMETIC or the REWARD-BEARING TARGET SCOPE | `rl/training/graph_reward.py` (`_event_conditioned_breakdown` beside the UNTOUCHED `_static_t0_breakdown`, `EpisodeReference` and its `__post_init__` reconciliation, `REFERENCE_KINDS`, `CONTINUATION_EXCLUSION_REASONS`, `ReferenceIntegrityError`, `realized_task_indices` — the ONE all-steps rule both halves share — `task_target_ids`, and `EpisodeReward`'s `u_ref` / `u_oracle` / `u_prefix` / `u_cont_ref` / `u_post` / `scored_completed_targets` / `unscored_completed_target_ids` fields). **RESEARCH-VALIDITY / GRADE A**: `U_prefix` is FROZEN at the checkpoint and never recomputed from the final `done` set; `U_post` scores ONLY continuation-allocated tasks and a kill outside that set is ACCOUNTING-ONLY; `U_aircraft` comes from the reward-bearing reference universe; the reward is NEVER clamped; `u_oracle` is `None` under the opt-in policy, while on the historical one `reference_policy` is `static_t0_v1`, `u_ref` EQUALS `u_oracle`, the OPTIONAL scalar/count checkpoint fields are `None` — never `0.0` / `0` — and `unscored_completed_target_ids` keeps its typed empty-tuple default `()` rather than `None`; and terminal-on-last credit placement is IDENTICAL under both policies (§5) |
 | Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind` — FOUR members since `185d39f`, values APPEND-ONLY, `never_overdue`, `NO_TASK_INDEX`) |
 | Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
 | Change the encoder | `rl/agent/graph_encoder.py` (`GraphEncoder`, `pool()` critic hook). ONE class with TWO instantiations — the ACTOR's, and the Phase-B `CentralCritic`'s separate instance at the CENTRAL feature widths. Changing it changes BOTH; the actor head carries no value head, and the critic's `ValueHead` lives in `graph_ppo`. |
@@ -3297,41 +3621,119 @@ a stub, because normal production does not currently generate it.
   held-out band and no denominator. This lock certifies the IMPLEMENTATION; §8 owns the
   phase state and the next task.
 
+- `24a8b1e` — **GENERALIZED-V1 TASK 3: event-conditioned MATCH-AOU continuation reference +
+  reward checkpoint — CLOSED / APPROVED / MERGED.** Reviewed candidate SHA
+  `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integrated by merge commit
+  `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25` (`2026-08-25 22:08:34 Asia/Jerusalem`, PR #38),
+  from fixed base `ca2fe346b5fb5d499b6a59b3da17c74b2a8bae8e`. The candidate was merged with a
+  normal MERGE COMMIT and preserved as its SECOND PARENT (ordered parents: `ca2fe346…`, then
+  `24a8b1ee…`); candidate and integration share the IDENTICAL tree
+  `187aed9105eca5db799f4508374dc86811001b9d` (verified locally), and the
+  candidate→integration comparison contains ZERO changed files — so the integrated tree is
+  exactly the reviewed tree. Grade A under `GPT_GITHUB`, implementation mode BUILD, verdict
+  **APPROVE**. The technical contract is in §5 ("GENERALIZED-V1 EVENT-CONDITIONED MATCH-AOU
+  CONTINUATION REFERENCE + REWARD CHECKPOINT", plus the Stage-0 and Stage-7 cross-references),
+  the pipeline placement in §4 and the routing in §6; this entry records the LOCK, not the
+  mechanism.
+  **WHAT IT IMPLEMENTS, AND WHAT IT DELIBERATELY DOES NOT.** It implements handoff §3l.5
+  ONLY — one OPT-IN reward-reference policy beside the historical one, which stays the
+  DEFAULT and is untouched. **NOT here:** the generalized training sampler, the frozen
+  stratified evaluation manifest, any run-level persistence or aggregate metric for
+  `EpisodeReference`, any plot, `p(destroy) < 1`, any new `MetaAction`, and any change to
+  terminal credit placement, PPO, GAE, the encoder, the action space, the trigger layer, the
+  fuel-damage mechanism, the seed schedules, the frozen solver or vendored BLADE.
+  **REVIEWED SCOPE: EXACTLY FIVE FILES** —
+  `src/match_aou/rl/training/graph_episode_setup.py`,
+  `src/match_aou/rl/training/graph_reward.py`,
+  `src/match_aou/rl/training/graph_tick_loop.py`,
+  `tests/test_graph_reference_continuation.py` (new) and `tests/test_graph_setup_seam.py`.
+  **`graph_train.py` and `graph_rollout.py` were NOT touched**, and no config, preset,
+  benchmark, README or documentation file was part of the code integration — that is what
+  this documentation task closes. `static_t0_v1` is the DEFAULT, so a caller that does not
+  opt in is unchanged.
+  **THE ONE APPROVED IMPLEMENTATION DEVIATION, RECORDED RATHER THAN HIDDEN:** the reference
+  kind `damaged_event_unrealized_t0`. The GPT review examined it and APPROVED it as a
+  COMPATIBILITY RESOLUTION — it exists solely to preserve the already-locked Task-2 LEGACY
+  contract, under which a scheduled damaged episode may legitimately finish without the FD
+  event firing (§7: the Phase-A rerun's seed 424). **It is NOT the intended GENERALIZED
+  damaged semantics and must not be generalized into them**: under
+  `certified_both_severities_v1` it is unreachable, because the terminal
+  `require_certified_event_realized` rejects certified + damaged + not-fired first (§5).
+  **CC-REPORTED ENGINEERING EVIDENCE, IN TWO LABELLED PARTS — IMPLEMENTATION VALIDATION, NOT
+  SCIENTIFIC MEASUREMENT.**
+  (i) **TESTS.** Base-env full suite **430 passed, 6 skipped** (403 + 27 new, no existing
+  count moved); the new solver-free and BLADE-free `tests/test_graph_reference_continuation.py`
+  **27 tests** over PO1/PO2/PO3, green under base `pytest` AND the standalone `nlp_env`
+  runner; standalone `nlp_env` runners `test_graph_fuel_damage.py` **91**,
+  `test_graph_ctde.py` **45**, `test_graph_train.py` **123**, `test_graph_setup_seam.py`
+  **51 passed, 0 skipped** (real BLADE + BONMIN tiers); the `graph_reward` and
+  `graph_episode_setup` selftests green; **10 mutation checks** confirmed the load-bearing
+  tests falsify, each reverted.
+  (ii) **ONE BOUNDED ENGINEERING SMOKE — real BLADE and real BONMIN.** Both opt-in conditions
+  plus a historical control, 2/2 solves each, both terminations `optimal`, with the damaged
+  solve taken at the event tick over the live post-mutation fuel and position. **IT IS
+  IMPLEMENTATION VALIDATION, NOT A MEASUREMENT** — no policy was trained, no research
+  directory was created, and no number in it is a scientific result; its outcomes must never
+  be promoted into one.
+  **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #38** — no baseline, no probe,
+  no scientific rollout, and **no generalized measurement exists or may be pre-claimed.** A
+  bounded smoke is not a measurement: it has no scientific contract, no seed schedule, no
+  held-out band and no denominator. This lock certifies the IMPLEMENTATION; §8 owns the phase
+  state and the next task.
+
 ---
 
 ## 8. OPEN (not built)
 
-- **GENERALIZED-V1 — THE ACTIVE PHASE. TASKS 1 AND 2 ARE IMPLEMENTED, REVIEWED AND MERGED
-  (`5b55ca3` / `9b305e4`, PR #35; `185d39f` / `ca0dc40`, PR #36 — §5 and §7). NO
-  GENERALIZED SCIENTIFIC MEASUREMENT EXISTS, IS RUNNING, OR IS AUTHORIZED, AND NO
-  GENERALIZED RESULT MAY BE PRE-CLAIMED.** The volatile phase state — ownership, the live
+- **GENERALIZED-V1 — THE ACTIVE PHASE. TASKS 1, 2 AND 3 ARE IMPLEMENTED, REVIEWED AND
+  MERGED (`5b55ca3` / `9b305e4`, PR #35; `185d39f` / `ca0dc40`, PR #36; `24a8b1e` /
+  `df3abf2`, PR #38 — §5 and §7). **TASK 4 — the generalized training sampler, the frozen
+  stratified evaluation manifest, and run-level persistence / aggregate metrics — IS THE
+  NEXT UNRESOLVED IMPLEMENTATION TASK. IT IS NOT STARTED AND IS NOT AUTHORIZED BY THIS
+  DOCUMENT.** NO GENERALIZED SCIENTIFIC MEASUREMENT EXISTS, IS RUNNING, OR IS AUTHORIZED,
+  AND NO GENERALIZED RESULT MAY BE PRE-CLAIMED.** The volatile phase state — ownership, the live
   next task, and what is and is not authorized — lives in `graph_rl_project_handoff.md`,
   which is the authority for it; this bullet records only what the REPOSITORY now contains
   and what it still does not.
-  - **WHAT EXISTS.** Two OPT-IN policy seams, all four defaulting to the historical
-    behaviour: the hidden-CARDINALITY policy (`exact_v1` default vs `bounded_backoff_v1`)
-    with `EpisodeContext.construction_audit`; and the FD pair (`legacy_selected_ego_v1`
-    default vs `certified_both_severities_v1`, and `single_wake_v1` default vs
-    `completion_boundary_v1`) with `FdEligibilityAudit`, `FdEventCertificate`,
-    `FuelDamageIntegrityError` and `PostFdAdaptationOutcome`. §5 states each contract in
-    full and §6 routes them.
+  - **WHAT EXISTS.** Three OPT-IN policy families — FIVE seams in total, every one
+    defaulting to the historical behaviour: the hidden-CARDINALITY policy (`exact_v1`
+    default vs `bounded_backoff_v1`) with `EpisodeContext.construction_audit`; the FD pair
+    (`legacy_selected_ego_v1` default vs `certified_both_severities_v1`, and
+    `single_wake_v1` default vs `completion_boundary_v1`) with `FdEligibilityAudit`,
+    `FdEventCertificate`, `FuelDamageIntegrityError` and `PostFdAdaptationOutcome`; and
+    the REWARD-REFERENCE policy (`static_t0_v1` default vs
+    `event_conditioned_continuation_v1`) with `EpisodeContext.reference_policy` /
+    `t0_reference_tasks`, `SolveAudit` / `solve_and_normalize_audited`,
+    `build_t0_reference` / `build_continuation_reference`, `EpisodeResult.reference`,
+    `EpisodeReference` and `ReferenceIntegrityError`. §5 states each contract in full and
+    §6 routes them.
   - **WHAT DOES NOT EXIST, AND MUST NOT BE DESCRIBED AS IF IT DID.** Neither `TrainConfig`
-    nor `RolloutConfig` carries `hidden_policy`, `eligibility_policy` or
-    `post_fd_wake_policy`, and neither harness passes one — **so every training run and
+    nor `RolloutConfig` carries `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy`
+    or `reference_policy`, and neither harness passes one — **so every training run and
     every diagnostic rollout still builds the historical `exact_v1` +
-    `legacy_selected_ego_v1` + `single_wake_v1` world**, and the generalized paths are
-    reachable only by calling `setup_episode` / constructing `FuelDamageParameters`
-    directly. Nothing persists or aggregates `construction_audit`, `FdEligibilityAudit` or
-    `post_fd_outcome`: no `run_config.json` block, no `episode_outcomes.jsonl` field, no
-    `run_summary.json` key, no plot. There is no generalized training sampler, no frozen
-    stratified evaluation manifest, no event-conditioned continuation reference and no
-    reward change. No generalized preset exists in the repository.
+    `legacy_selected_ego_v1` + `single_wake_v1` world and scores it against the historical
+    `static_t0_v1` reference**, with `EpisodeResult.reference` `None` on every episode
+    either harness produces. The generalized paths are reachable only by calling
+    `setup_episode` / constructing `FuelDamageParameters` directly. Nothing persists or
+    aggregates `construction_audit`, `FdEligibilityAudit`, `post_fd_outcome` or
+    `EpisodeReference`: no `run_config.json` block, no `episode_outcomes.jsonl` field, no
+    `run_summary.json` key, no plot. There is no generalized training sampler and no frozen
+    stratified evaluation manifest. No generalized preset exists in the repository.
+    **SUPERSEDED, and corrected here:** this bullet previously said there was "no
+    event-conditioned continuation reference and no reward change" — that was accurate
+    before PR #38 and is not now. The reference EXISTS as the opt-in seam contracted in §5;
+    what remains true is that the DEFAULT `static_t0_v1` reward path is byte-unchanged, that
+    `graph_reward`'s static formula is untouched, and that no harness selects the opt-in
+    policy.
   - **WHAT IS UNCHANGED AND STAYS THAT WAY.** `p(destroy)` remains `1.0` and
     `p(destroy) < 1` remains a separate deferred Grade-A research task; the solver and the
-    vendored BLADE engine remain FROZEN; `graph_reward`'s formula, PPO, the encoder, the
-    action space (**no new `MetaAction`**), `DETECTION_KM`, the B2 geometry and the seed
-    schedules are untouched; and no communication channel, peer feature or privileged label
-    reaches the acting path (§3).
+    vendored BLADE engine remain FROZEN; `graph_reward`'s STATIC `static_t0_v1` formula
+    (`_static_t0_breakdown`), the terminal-on-last credit placement under BOTH reference
+    policies, PPO, GAE, the encoder, the action space (**no new `MetaAction`**),
+    `DETECTION_KM`, the B2 geometry and the seed schedules are untouched; and no
+    communication channel, peer feature or privileged label reaches the acting path (§3) —
+    the Task-3 checkpoint is privileged TRAINING measurement that writes nothing back into
+    any belief, executor, actor or central observation.
   - **THE HISTORICAL MEASUREMENTS ARE UNTOUCHED BY ANY OF THIS.** The Phase-A long baseline
     (`737b4bf`) and the FD-VARIABLE-SEVERITY-v1 actor-only baseline (`bf1e045f`) remain
     preserved, valid, and measurements OF THE DEFAULT PATHS these seams did not move; they
@@ -3348,6 +3750,15 @@ a stub, because normal production does not currently generate it.
     requested-vs-realized hidden-cardinality distributions must be INSPECTED before any
     scientific generalized measurement, and the benchmark rejected or redesigned if the HIGH
     hidden load systematically degenerates into the LOW one.
+  - **THE NEXT UNRESOLVED IMPLEMENTATION TASK IS TASK 4**, and it owns three things
+    together: the generalized TRAINING SAMPLER, the FROZEN STRATIFIED EVALUATION MANIFEST,
+    and the RUN-LEVEL PERSISTENCE / AGGREGATE METRICS for the per-episode diagnostics Tasks
+    1–3 already produce (`construction_audit`, `FdEligibilityAudit` / `FdEventCertificate`,
+    `PostFdAdaptationOutcome`, `EpisodeReference`). Deciding whether
+    `ReferenceIntegrityError` should ABORT a run as an instrument fault rather than be
+    accounted as an ordinary episode failure is likewise a TASK-4 decision, deliberately not
+    taken by the reward layer on the trainer's behalf (§5). **Task 4 is NOT started and is
+    NOT authorized by this document**, and it authorizes no scientific run of any kind.
 
 - **PHASE A IS CLOSED. A SCIENTIFICALLY VALID LONG-BASELINE MEASUREMENT OF THE FUEL-DAMAGE
   CELL EXISTS (measured code SHA `737b4bf`, §7). THE ADDITIONAL ACTOR-ONLY
@@ -3456,8 +3867,13 @@ a stub, because normal production does not currently generate it.
   without its denominator; an all-failed batch reports `null`, never `0.0`; an empty
   successful-pair population is `null` too; the held-out per-condition means are each over
   their own successful subset, so the within-seed claim is the matched-pair delta over
-  COMPLETE pairs alone; and `graph_reward` remains FROZEN unless a separately reviewed p<1
-  design requires an explicit reward-contract change. The invalid old long run may be
+  COMPLETE pairs alone; and the `static_t0_v1` reward path this baseline was measured on
+  remains FROZEN unless a separately reviewed design requires an explicit reward-contract
+  change. *(One such reviewed change has since landed and is scoped so that it does NOT
+  touch this path: GENERALIZED-V1 Task 3 (`24a8b1e`, §5, §7) added an OPT-IN
+  `event_conditioned_continuation_v1` reference beside the static one. The static formula
+  is byte-unchanged, no harness selects the opt-in policy, and this measurement is
+  unaffected. `p(destroy) < 1` remains separately deferred.)* The invalid old long run may be
   compared against **only as ENGINEERING evidence** — never as a scientific baseline.
   **The B2 exact-cardinality and fuel-window failures BOTH long baselines recorded — 101 and
   32 in the invalid first run, 101 and 42 in the approved rerun — are NOT corrected by

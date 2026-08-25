@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — GENERALIZED-V1: ACTIVE IMPLEMENTATION PHASE, TASKS 1 AND 2 MERGED, NO GENERALIZED MEASUREMENT / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
+# Multi-Agent Graph RL — GENERALIZED-V1: ACTIVE IMPLEMENTATION PHASE, TASKS 1, 2 AND 3 MERGED, TASK 4 NEXT AND UNAUTHORIZED, NO GENERALIZED MEASUREMENT / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -49,38 +49,46 @@ accounting), candidate `5b55ca348309b4241d2087c2f60327bc842ea6fa`, integrated
 post-FD completion-boundary adaptation), final candidate
 `185d39f00335a0bb5e9130cc773da94c914f17f5`, integrated
 `ca0dc406ad11eb18e11e87e7f9ddf2e4e457f64b`, PR #36 — **while NO generalized scientific
-measurement exists, is running or is authorized** (§1, §3l, §4, §8, §9).
+measurement exists, is running or is authorized** (§1, §3l, §4, §8, §9) — and
+**2026-08-25 a THIRD time to record that GENERALIZED-V1 IMPLEMENTATION TASK 3 IS ALSO
+IMPLEMENTED, REVIEWED AND MERGED**: the event-conditioned MATCH-AOU continuation reference
+and reward checkpoint (§3l.5), reviewed candidate
+`24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integrated
+`df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, **PR #38**, verdict **APPROVE** — so **§3l.5 is
+now IMPLEMENTED**, **Task 4 (§3l.6–§3l.7 / §3l.8 step 4) is the SINGLE NEXT UNRESOLVED
+implementation task and is NOT started and NOT authorized**, and **still NO generalized
+scientific measurement exists, is running or is authorized** (§1, §3l, §4, §7, §8, §9).
 
-**THE LIVE STATE (2026-08-25, THIS CHECKPOINT), STATED FIRST BECAUSE IT SUPERSEDES BOTH THE
-CLOSURE RECORD AND THE HANDOFF-BOOTSTRAP RECORD BELOW.** **The repository is NOT closed and
-NOT idle.** The ACTIVE phase is **GENERALIZED-V1**, and it has moved from DESIGN into
-IMPLEMENTATION. **§3l.8 STEPS 1 AND 2 ARE COMPLETE, REVIEWED AND INTEGRATED** — Task 1
-(candidate `5b55ca34…`, integration `9b305e4e…`, PR #35) and Task 2 (final candidate
-`185d39f0…`, integration `ca0dc406…`, PR #36) — so **§3l.1–§3l.4 are now implemented TO THE
-EXTENT those two tasks represent**, and their technical contracts are recorded in
-`CLAUDE.md` §5 / §6 by this checkpoint. **§3l.5 (the event-conditioned continuation
-reference and reward checkpoint) is NOT IMPLEMENTED, and §3l.6–§3l.7 (the training sampler,
-the frozen stratified evaluation manifest and the aggregate metrics) are NOT IMPLEMENTED**
-beyond the per-episode diagnostic STRUCTURES Tasks 1 and 2 already produce — nothing
-persists or aggregates them, and **neither harness selects any generalized policy**, so
-every training run and rollout still builds the historical default world.
+**THE LIVE STATE (2026-08-25), STATED FIRST BECAUSE IT SUPERSEDES BOTH THE CLOSURE RECORD
+AND THE HANDOFF-BOOTSTRAP RECORD BELOW.** **The repository is NOT closed and NOT idle.** The
+ACTIVE phase is **GENERALIZED-V1**, and it has moved from DESIGN into IMPLEMENTATION.
+**§3l.8 STEPS 1, 2 AND 3 ARE COMPLETE, REVIEWED AND INTEGRATED** — Task 1 (candidate
+`5b55ca34…`, integration `9b305e4e…`, PR #35), Task 2 (final candidate `185d39f0…`,
+integration `ca0dc406…`, PR #36) and Task 3 (candidate `24a8b1ee…`, integration
+`df3abf2f…`, PR #38, verdict **APPROVE**) — so **§3l.1–§3l.5 are now implemented TO THE
+EXTENT those three tasks represent**, and their technical contracts are recorded in
+`CLAUDE.md` §4 / §5 / §6 / §7. **§3l.6–§3l.7 — the generalized training sampler, the frozen
+stratified evaluation manifest and the run-level aggregate metrics — remain NOT
+IMPLEMENTED**, beyond the per-episode diagnostic STRUCTURES the three merged tasks already
+produce; nothing persists or aggregates them, and **neither harness selects any generalized
+policy**, so every training run and rollout still builds the historical default world and
+scores it against the historical `static_t0_v1` reference.
 **NO GENERALIZED SCIENTIFIC MEASUREMENT EXISTS, IS RUNNING, OR IS AUTHORIZED, and no
 generalized result of any kind may be pre-claimed.** `p(destroy)` remains `1.0`; the solver
 and BLADE remain FROZEN; the approved Phase-A (§3h) and FD-VARIABLE-SEVERITY-v1 (§3j)
 measurements remain preserved and are neither re-run nor reinterpreted.
-**THIS INTERMEDIATE DOCUMENTATION CHECKPOINT — branch
-`task/generalized-v1-task12-doc-lock` and its DRAFT PR — is the ONLY writable repository
-task while its candidate is in flight.** It touches exactly two files, `CLAUDE.md` and this
-one; it changes no code, test, configuration or preset, and **it does NOT authorize
-GENERALIZED-V1 Task 3**, which requires a fresh orchestrator/user authorization after this
-checkpoint is reviewed and integrated (§8). *(SUPERSEDED, and preserved only as history: the
-2026-08-25 handoff-bootstrap record's statements that "EVERY LINE OF THAT DESIGN IS NOT YET
+**THE SINGLE NEXT UNRESOLVED IMPLEMENTATION TASK IS GENERALIZED-V1 TASK 4 — the generalized
+training sampler, the frozen stratified evaluation manifest, and persistence / aggregate
+metrics (§3l.6–§3l.7, §3l.8 step 4). IT IS NOT STARTED AND IS NOT AUTHORIZED BY THIS
+RECORD** (§8). *(SUPERSEDED, and preserved only as history: the 2026-08-25
+handoff-bootstrap record's statements that "EVERY LINE OF THAT DESIGN IS NOT YET
 IMPLEMENTED", that "no implementation candidate is active", that "nothing generalized is
 implemented", and that step 1 was the live next action were accurate when written and are no
-longer true. `CLAUDE.md` is likewise no longer untouched by the generalized phase: this
-checkpoint writes its Task-1 and Task-2 contracts and locks.)* Everything below this
-paragraph is the PRESERVED record of the closed phases that precede the redesign, and it
-remains accurate about those phases.
+longer true; so are the Task-1/2 checkpoint's statements that §3l.5 is NOT IMPLEMENTED and
+that Task 3 is the next unresolved task. `CLAUDE.md` is likewise no longer untouched by the
+generalized phase: it now carries the Task-1, Task-2 and Task-3 contracts and locks.)*
+Everything below this paragraph is the PRESERVED record of the closed phases that precede
+the redesign, and it remains accurate about those phases.
 
 **THE STATE OF THE CLOSED PHASES, STATED PLAINLY.** **PHASE A IS CLOSED.** The authorized
 long-baseline rerun —
@@ -199,10 +207,10 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **LIVE PHASE (2026-08-25, THIS CHECKPOINT) — GENERALIZED-V1: ACTIVE, IN IMPLEMENTATION.
-  TASKS 1 AND 2 ARE MERGED; NO GENERALIZED MEASUREMENT EXISTS.** The repository is **no
-  longer CLOSED / IDLE**, and it is **no longer DESIGN-ONLY**. The approved design is in
-  **§3l**; what is now BUILT is the first two steps of §3l.8.
+- **LIVE PHASE (2026-08-25) — GENERALIZED-V1: ACTIVE, IN IMPLEMENTATION. TASKS 1, 2 AND 3
+  ARE MERGED; TASK 4 IS NEXT AND UNAUTHORIZED; NO GENERALIZED MEASUREMENT EXISTS.** The
+  repository is **no longer CLOSED / IDLE**, and it is **no longer DESIGN-ONLY**. The
+  approved design is in **§3l**; what is now BUILT is the first three steps of §3l.8.
   - **GENERALIZED-V1 TASK 1 — IMPLEMENTED / REVIEWED / MERGED.** Generalized construction
     cardinality, deterministic bounded B2 backoff, and truthful requested-vs-realized
     accounting (§3l.1, §3l.2). Approved candidate
@@ -216,35 +224,53 @@ cross-references it rather than duplicating it.
     `2f9231d989acf30561ecf10e74cf0c5491771836` received **REQUEST FIXES**, and the
     correction landed as the APPEND-ONLY CHILD COMMIT `185d39f0…` — never amended, rebased,
     squashed or force-pushed.
-  - **WHAT IS THEREFORE IMPLEMENTED, AND WHAT IS NOT.** **§3l.1–§3l.4 are implemented to
-    the extent Tasks 1 and 2 represent.** **§3l.5 — the event-conditioned MATCH-AOU
-    continuation reference and the reward checkpoint — is NOT IMPLEMENTED.**
-    **§3l.6–§3l.7 — the training sampler, the frozen stratified evaluation manifest and the
-    aggregate metrics — are NOT IMPLEMENTED**, except for the per-episode diagnostic
-    STRUCTURES Tasks 1 and 2 already produce (`EpisodeContext.construction_audit`,
-    `FdEligibilityAudit` / `FdEventCertificate`, `FuelDamageController.post_fd_outcome`).
-    Nothing persists or aggregates those, and **neither `TrainConfig` nor `RolloutConfig`
-    exposes any generalized policy**, so every training run and diagnostic rollout still
-    constructs the historical default world.
+  - **GENERALIZED-V1 TASK 3 — IMPLEMENTED / REVIEWED / MERGED.** The event-conditioned
+    MATCH-AOU continuation reference and reward checkpoint (§3l.5). Reviewed candidate
+    `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integrated
+    `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, **PR #38**, verdict **APPROVE**. Grade A
+    under `GPT_GITHUB`, implementation mode BUILD. Candidate and integration share the
+    IDENTICAL tree `187aed9105eca5db799f4508374dc86811001b9d`; the candidate is the merge's
+    SECOND PARENT. **ONE OPT-IN reward-reference policy
+    (`event_conditioned_continuation_v1`) beside the historical `static_t0_v1`, which stays
+    the DEFAULT and is untouched.** The GPT review examined and APPROVED one implementation
+    deviation — the reference kind `damaged_event_unrealized_t0` — as a COMPATIBILITY
+    RESOLUTION preserving the already-locked Task-2 LEGACY contract; it is **NOT** the
+    intended generalized damaged semantics and is unreachable under
+    `certified_both_severities_v1` (`CLAUDE.md` §5).
+  - **WHAT IS THEREFORE IMPLEMENTED, AND WHAT IS NOT.** **§3l.1–§3l.5 are implemented to
+    the extent Tasks 1, 2 and 3 represent.** **§3l.6–§3l.7 — the generalized training
+    sampler, the frozen stratified evaluation manifest and the run-level aggregate metrics —
+    are NOT IMPLEMENTED**, except for the per-episode diagnostic STRUCTURES those three
+    tasks already produce (`EpisodeContext.construction_audit`, `FdEligibilityAudit` /
+    `FdEventCertificate`, `FuelDamageController.post_fd_outcome`, and
+    `EpisodeResult.reference` / `EpisodeReference`). Nothing persists or aggregates those,
+    and **neither `TrainConfig` nor `RolloutConfig` exposes any generalized policy** —
+    `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy` and `reference_policy` are
+    all absent from both — so every training run and diagnostic rollout still constructs the
+    historical default world and scores it against the historical `static_t0_v1` reference,
+    with `EpisodeResult.reference` `None` on every episode either harness produces.
+    *(SUPERSEDED: the Task-1/2 checkpoint recorded §3l.5 as NOT IMPLEMENTED. That was
+    accurate when written and is not now.)*
   - **NO generalized scientific measurement exists, is running, is scheduled or is
     authorized**, and **no generalized result of any kind may be pre-claimed.** The bounded
-    real-BLADE / BONMIN smokes run during Task 1's and Task 2's validation are ENGINEERING
-    evidence only: no scientific contract, no seed schedule, no held-out band, no
-    denominator.
+    real-BLADE / BONMIN smokes run during Task 1's, Task 2's and Task 3's validation are
+    ENGINEERING evidence only: no scientific contract, no seed schedule, no held-out band,
+    no denominator.
   - **`p(destroy)` REMAINS `1.0`; the solver and the vendored BLADE engine remain FROZEN**;
-    the action set is unchanged and no new `MetaAction` exists.
-  - **THIS INTERMEDIATE DOCUMENTATION CHECKPOINT — branch
-    `task/generalized-v1-task12-doc-lock` and its DRAFT PR — is the ONLY writable
-    repository task while its candidate is in flight.** It touches exactly two files,
-    `CLAUDE.md` and this one; it changes no code, test, config, preset or workflow.
-    **It does NOT authorize GENERALIZED-V1 Task 3** (§8).
-  - **`CLAUDE.md` IS AUTHORITATIVE FOR EVERY TECHNICAL CONTRACT, AND IT NOW RECORDS TASKS 1
-    AND 2.** This checkpoint writes their §5 contracts, their §6 routing and their §7 lock
-    entries, because reviewed and integrated behaviour now exists for them. §3l.5–§3l.7
-    remain a PLAN and earn no `CLAUDE.md` contract until reviewed behaviour exists for them
-    too. **SUPERSEDED:** the handoff-bootstrap record's statement that `CLAUDE.md` remains
-    UNCHANGED, and that generalized locks wait for step 6 alone, described the state before
-    two implementation merges; the locks are written per completed task.
+    the action set is unchanged and no new `MetaAction` exists; terminal-on-last reward
+    credit placement, PPO, GAE, the encoder and the actor/critic boundary are unchanged
+    under BOTH reference policies.
+  - **THE NEXT UNRESOLVED IMPLEMENTATION TASK IS GENERALIZED-V1 TASK 4** — the generalized
+    training sampler, the frozen stratified evaluation manifest, and persistence / aggregate
+    metrics (§3l.6–§3l.7, §3l.8 step 4). **It is NOT started and is NOT authorized** (§8).
+    No documentation record authorizes it, and none authorizes a scientific run.
+  - **`CLAUDE.md` IS AUTHORITATIVE FOR EVERY TECHNICAL CONTRACT, AND IT NOW RECORDS TASKS 1,
+    2 AND 3.** Their §5 contracts, §6 routing and §7 lock entries are written, because
+    reviewed and integrated behaviour exists for them. §3l.6–§3l.7 remain a PLAN and earn no
+    `CLAUDE.md` contract until reviewed behaviour exists for them too. **SUPERSEDED:** the
+    handoff-bootstrap record's statement that `CLAUDE.md` remains UNCHANGED, and that
+    generalized locks wait for step 6 alone, described the state before three implementation
+    merges; the locks are written per completed task.
 - **A PREVIOUSLY EXECUTED OLD-CONTRACT CTDE MEASUREMENT IS OUT OF SCOPE FOR THIS PHASE.** A
   CTDE measurement was executed under the **OLD FIXED-CELL contract**. It is **outside the
   GENERALIZED-V1 redesign** and **must NOT be reviewed, re-read, re-analysed, compared
@@ -261,13 +287,15 @@ cross-references it rather than duplicating it.
   **That is the whole of the reconciliation**: the run was still not inspected, reviewed or
   compared, and doing so remains out of scope unless the user EXPLICITLY asks. Historical fixed-cell measurements — that CTDE run included — are
   **NOT the generalized benchmark** and are not its comparator (§3l).
-- **BASE of THIS documentation record:** `ca0dc406ad11eb18e11e87e7f9ddf2e4e457f64b` — the
-  `main` head produced by the **GENERALIZED-V1 Task-2 integration (PR #36)**, whose ordered
-  parents are `9b305e4ee427dd27fac6beee8fc4f7a8a763f7f9` then
-  `185d39f00335a0bb5e9130cc773da94c914f17f5`. **That is the exact base this INTERMEDIATE
-  DOCUMENTATION CHECKPOINT candidate was DERIVED ON**, and it is a statement about this
-  record's derivation only — **not** a claim about live `main`, which this record's own
-  integration necessarily advances past. Neither this documentation commit nor its future
+- **BASE of THIS documentation record:** `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25` — the
+  `main` head produced by the **GENERALIZED-V1 Task-3 integration (PR #38)**, whose ordered
+  parents are `ca2fe346b5fb5d499b6a59b3da17c74b2a8bae8e` then
+  `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`. **That is the exact base this Task-3
+  DOCUMENTATION / LOCK record was DERIVED ON**, and it is a statement about this record's
+  derivation only — **not** a claim about live `main`, which this record's own integration
+  necessarily advances past. *(The Task-1/2 checkpoint was derived on
+  `ca0dc406ad11eb18e11e87e7f9ddf2e4e457f64b`, the PR-#36 integration; that is historical
+  derivation provenance.)* Neither this documentation commit nor its future
   merge can name its own SHA, and inventing either would be a false provenance claim.
   **Every receiving orchestrator therefore resolves the live full `main` SHA from GitHub and
   re-reads `CLAUDE.md` and this handoff at THAT SHA — GitHub is authoritative for live
@@ -633,31 +661,32 @@ cross-references it rather than duplicating it.
     an earlier revision of this document observed PR #30 read-only as an unmerged draft)*.
     **What remains OPEN is the SCIENTIFIC COMPARISON, not the implementation** (§4,
     Task 9), and **no CTDE benefit is claimed**.
-  - **ACTIVE PHASE: GENERALIZED-V1 — IN IMPLEMENTATION. §3l.8 STEPS 1 AND 2 ARE MERGED
-    (PR #35, PR #36); §3l.5–§3l.7 ARE NOT IMPLEMENTED** (§3l). The GPT orchestrator owns the
-    work. Both merged families are OPT-IN with historical defaults and **neither harness
-    selects them**. **No generalized measurement exists, is running or is authorized.**
-  - **WRITABLE STATE FOR THIS CHECKPOINT — STATED FOR BOTH SIDES OF ITS OWN INTEGRATION, so
-    this bullet does not go stale the moment it merges.**
-    - **WHILE THIS CHECKPOINT IS IN FLIGHT:** the GENERALIZED-V1 INTERMEDIATE DOCUMENTATION
-      CHECKPOINT — branch `task/generalized-v1-task12-doc-lock` and its DRAFT PR — is the
-      SOLE writable repository task. It modifies exactly two files (`CLAUDE.md` and this
-      one) and it authorizes nothing.
-    - **UPON THIS CHECKPOINT'S INTEGRATION:** there is **NO writable repository task and NO
-      active candidate**, and that branch and PR become HISTORY like every row in the
-      parenthetical below. **This is a CLEAN CHECKPOINT INSIDE AN ACTIVE PHASE, NOT a
-      CLOSED / IDLE repository:** **GENERALIZED-V1 remains the ACTIVE project phase**,
-      §3l.8 **Tasks 1 and 2 are MERGED**, and **Task 3 (§3l.5) is the NEXT UNRESOLVED
-      IMPLEMENTATION TASK.**
-    - **TASK 3 REMAINS NOT AUTHORIZED, on both sides of that integration.** It requires GPT
-      exact-SHA review of THIS checkpoint plus **fresh explicit user authorization** before
-      any writable implementation begins (§8). Until that authorization exists, nothing is
-      implemented, generated, solved, trained or measured.
-    - **NO IMPLEMENTATION CANDIDATE IS ACTIVE** in either state — the last CODE candidate
-      was PR #36 and it is merged.
-    *(Historical: `task/generalized-v1-cardinality-b2` merged as PR #35 and
-    `task/generalized-v1-fd-adaptation` as PR #36; `task/generalized-v1-handoff-bootstrap`
-    was the writable task under the PREVIOUS record and merged as PR #34; before it,
+  - **ACTIVE PHASE: GENERALIZED-V1 — IN IMPLEMENTATION. §3l.8 STEPS 1, 2 AND 3 ARE MERGED
+    (PR #35, PR #36, PR #38); §3l.6–§3l.7 ARE NOT IMPLEMENTED** (§3l). The GPT orchestrator
+    owns the work. All three merged policy families are OPT-IN with historical defaults and
+    **neither harness selects them**. **No generalized measurement exists, is running or is
+    authorized.**
+  - **WRITABLE STATE — STATED IN STABLE POST-INTEGRATION FORM, so this bullet does not go
+    stale when a documentation record merges.**
+    - **NO documentation record is a standing writable task.** Each one is the sole writable
+      candidate only while its own draft PR is open; on integration that branch and PR become
+      HISTORY like every row in the parenthetical below, and the repository carries **NO
+      writable repository task and NO active candidate** until the next authorized task
+      opens one.
+    - **A CLEAN CHECKPOINT INSIDE AN ACTIVE PHASE IS NOT A CLOSED / IDLE REPOSITORY:**
+      **GENERALIZED-V1 remains the ACTIVE project phase**, §3l.8 **Tasks 1, 2 and 3 are
+      MERGED**, and **Task 4 (§3l.6–§3l.7) is the NEXT UNRESOLVED IMPLEMENTATION TASK.**
+    - **TASK 4 IS NOT AUTHORIZED.** It requires GPT
+      exact-SHA review of the current documentation state plus **fresh explicit user
+      authorization** before any writable implementation begins (§8). Until that
+      authorization exists, nothing is implemented, generated, solved, trained or measured.
+    - **NO IMPLEMENTATION CANDIDATE IS ACTIVE** — the last CODE candidate was PR #38 and it
+      is merged.
+    *(Historical: `task/generalized-v1-cardinality-b2` merged as PR #35,
+    `task/generalized-v1-fd-adaptation` as PR #36, `task/generalized-v1-task12-doc-lock` as
+    PR #37 and `task/generalized-v1-task3-continuation-reference` as PR #38;
+    `task/generalized-v1-handoff-bootstrap`
+    was the writable task under an EARLIER record and merged as PR #34; before it,
     `task/ctde-chat-closure-handoff` (PR #33) and `task/phase-b-ctde-doc-lock` (PR #32);
     earlier still, the FD closure orchestrator held a ONE-TIME writable exception scoped to
     the variable-severity record alone, on branch
@@ -686,9 +715,12 @@ cross-references it rather than duplicating it.
     `task/ctde-chat-closure-handoff` (`802696b4adf702ef78aa459d470d3f24cb76cc49`) joined
     them once PR #33 merged. `task/generalized-v1-handoff-bootstrap` joined them
     once PR #34 merged, and `task/generalized-v1-cardinality-b2` /
-    `task/generalized-v1-fd-adaptation` joined them once PR #35 / PR #36 merged. `task/generalized-v1-task12-doc-lock` itself becomes
-    cleanup-eligible only AFTER this candidate is reviewed and integrated. **This record
-    deletes no branch and moves no ref** (§6).
+    `task/generalized-v1-fd-adaptation` joined them once PR #35 / PR #36 merged, and
+    `task/generalized-v1-task12-doc-lock` /
+    `task/generalized-v1-task3-continuation-reference` joined them once PR #37 / PR #38
+    merged. Any documentation branch becomes cleanup-eligible only AFTER its own candidate is
+    reviewed and integrated. **No documentation record deletes a branch or moves a ref**
+    (§6).
   - **CTDE INTEGRATION GATE — CLOSED / SATISFIED ON BOTH HALVES.** The requirement that the
     variable-severity measurement COMPLETE and receive an **INDEPENDENT VALIDITY VERDICT**
     is **MET** (§3j) — met by a NEGATIVE result, which satisfies the gate exactly as a
@@ -1576,22 +1608,22 @@ lock and its evidence** — this section does not duplicate them.
   LATER; it is OUT OF SCOPE for the generalized redesign and is not reviewed, compared or
   claimed anywhere in this document — §1.)*
 
-## 3l. GENERALIZED-V1 — the ACTIVE phase: APPROVED DESIGN, **STEPS 1–2 IMPLEMENTED, THE REST NOT**
+## 3l. GENERALIZED-V1 — the ACTIVE phase: APPROVED DESIGN, **STEPS 1–3 IMPLEMENTED, THE REST NOT**
 
 **READ THIS BANNER BEFORE ANY LINE BELOW IT.** This section is the APPROVED DESIGN. **PART
 of it is now IMPLEMENTED and PART is not, and the two must never be read as one.** As of
-this checkpoint:
+this record:
 
-- **§3l.1–§3l.4 are IMPLEMENTED, REVIEWED and MERGED, to the extent §3l.8 steps 1 and 2
-  represent** — Task 1 (candidate `5b55ca34…`, integration `9b305e4e…`, PR #35) and Task 2
-  (final candidate `185d39f0…`, integration `ca0dc406…`, PR #36). **Their technical
-  contracts are `CLAUDE.md` §5 / §6 / §7, which is authoritative for them; the prose below
-  is the DESIGN they were built from, not a second contract.** Both landed as OPT-IN policy
-  seams whose DEFAULTS are the historical behaviour, and **neither harness selects them**.
-- **§3l.5 is NOT IMPLEMENTED.** No event-conditioned continuation reference, no `U_prefix`,
-  no reward change of any kind.
-- **§3l.6–§3l.7 are NOT IMPLEMENTED** beyond the per-episode diagnostic STRUCTURES steps 1
-  and 2 already produce. There is no generalized training sampler, no frozen stratified
+- **§3l.1–§3l.5 are IMPLEMENTED, REVIEWED and MERGED, to the extent §3l.8 steps 1, 2 and 3
+  represent** — Task 1 (candidate `5b55ca34…`, integration `9b305e4e…`, PR #35), Task 2
+  (final candidate `185d39f0…`, integration `ca0dc406…`, PR #36) and Task 3 (candidate
+  `24a8b1ee…`, integration `df3abf2f…`, PR #38, verdict **APPROVE**). **Their technical
+  contracts are `CLAUDE.md` §4 / §5 / §6 / §7, which is authoritative for them; the prose
+  below is the DESIGN they were built from, not a second contract.** All three landed as
+  OPT-IN policy seams whose DEFAULTS are the historical behaviour, and **neither harness
+  selects them**.
+- **§3l.6–§3l.7 are NOT IMPLEMENTED** beyond the per-episode diagnostic STRUCTURES steps 1,
+  2 and 3 already produce. There is no generalized training sampler, no frozen stratified
   benchmark manifest, no aggregate metric, no plot and no run-level persistence of those
   structures.
 - **NO generalized scenario campaign, no generalized episode schedule, no frozen benchmark
@@ -1601,19 +1633,20 @@ this checkpoint:
 
 Reading an UNIMPLEMENTED paragraph here as behaviour the repository has today would be a
 false claim about the repository. *(SUPERSEDED, preserved as history: this banner previously
-read "NONE OF IT IS IMPLEMENTED". That was accurate when written and no longer is.)*
+read "NONE OF IT IS IMPLEMENTED", and later that §3l.5 was NOT IMPLEMENTED. Each was
+accurate when written and no longer is.)*
 
 **THE UNIMPLEMENTED REMAINDER IS STILL A PLAN, NOT A CONTRACT AND NOT A LOCK.** For
-§3l.5–§3l.7, `CLAUDE.md` remains authoritative and unchanged, and their approved directions
-deliberately DEPART from contracts `CLAUDE.md` §5 locks — most sharply the t=0 reference
-solve on damaged episodes. **Each such departure is a Grade-A change to a locked layer and
-must travel the normal recon → prompt → review → lock discipline routed through
-`CLAUDE.md` §6** — never a fix folded into another task, and never authorized by its
-presence in this plan. *(The departures §3l.1–§3l.4 named — B2 exact cardinality, the fixed
-3/3/3 cell, and the FD eligibility and failure policy — travelled exactly that discipline in
-PR #35 and PR #36, and landed as ADDITIONS beside the historical paths rather than as
-replacements of them: the historical `exact_v1`, `legacy_selected_ego_v1` and
-`single_wake_v1` behaviours are preserved and remain the defaults.)* **`CLAUDE.md` locks are
+§3l.6–§3l.7, `CLAUDE.md` remains authoritative and unchanged, and their approved directions
+may DEPART from contracts `CLAUDE.md` §5 locks. **Each such departure is a Grade-A change to
+a locked layer and must travel the normal recon → prompt → review → lock discipline routed
+through `CLAUDE.md` §6** — never a fix folded into another task, and never authorized by its
+presence in this plan. *(The departures §3l.1–§3l.5 named — B2 exact cardinality, the fixed
+3/3/3 cell, the FD eligibility and failure policy, and the t=0 reference solve on damaged
+episodes — travelled exactly that discipline in PR #35, PR #36 and PR #38, and landed as
+ADDITIONS beside the historical paths rather than as replacements of them: the historical
+`exact_v1`, `legacy_selected_ego_v1`, `single_wake_v1` and `static_t0_v1` behaviours are
+preserved and remain the defaults.)* **`CLAUDE.md` locks are
 written PER COMPLETED TASK, for behaviour that has been implemented, reviewed and
 integrated** — which supersedes this section's earlier "only at step 6" rule.
 
@@ -1719,11 +1752,11 @@ continuation reference** instead of against a plan the world has already invalid
   `SELF_PRESERVATION_ABORT`.** **Do NOT add a trim-tail action or any other new action.**
 - **NO peer behaviour change, and NO communication channel of any kind may be introduced.**
 
-### 3l.5 Approved reward / reference architecture
+### 3l.5 Approved reward / reference architecture — **IMPLEMENTED (§3l.8 step 3, PR #38)**
 
-> **STATUS — NOT IMPLEMENTED.** Nothing below exists in the repository. It is a PLAN, it is not a `CLAUDE.md` contract, and reading any of it as behaviour that exists today would be a false claim.
+> **STATUS — IMPLEMENTED, REVIEWED AND MERGED.** Reviewed candidate `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integrated `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, **PR #38**, verdict **APPROVE**, Grade A under `GPT_GITHUB`. **`CLAUDE.md` §5 is now AUTHORITATIVE for this layer's contract** ("GENERALIZED-V1 EVENT-CONDITIONED MATCH-AOU CONTINUATION REFERENCE + REWARD CHECKPOINT"), with the pipeline placement in §4, the routing in §6 and the lock in §7. The bullets below are the APPROVED DESIGN this task implemented and are retained as the design record; where design prose and `CLAUDE.md` differ, **`CLAUDE.md` and the code are decisive**. *(SUPERSEDED: this section previously carried a "NOT IMPLEMENTED / this is the next unresolved task / not authorized" banner. That was accurate when written and is history.)*
 
-> This is **§3l.8 step 3 — the NEXT unresolved implementation task — and this record does NOT authorize it** (§8).
+> **THREE THINGS THE IMPLEMENTATION SETTLED THAT THE DESIGN BELOW DOES NOT STATE.** (1) The policy is **OPT-IN and selected explicitly** by `setup_episode(..., reference_policy=...)`; the historical `static_t0_v1` remains the DEFAULT, and **neither harness selects the new one**, so every training run and rollout still uses the historical reference. (2) The design's "TWO BONMIN solves per accepted episode" is implemented as **"never a THIRD reference solve"** — the opt-in policy OCCUPIES the existing second reference-solve slot — and it is **AT MOST two**, because a degenerate reference (no open task, or no continuation-capable ego) legitimately performs no solver call and records `solver_invoked=False`. (3) A DAMAGED-scheduled episode whose event never fired receives a full t=0 reference under its OWN kind, `damaged_event_unrealized_t0` — the one review-APPROVED compatibility deviation, existing solely to preserve the already-locked Task-2 LEGACY contract, unreachable under `certified_both_severities_v1`, and **NOT part of the intended generalized damaged semantics** (`CLAUDE.md` §5).
 
 - **CLEAN episodes KEEP the existing second full MATCH-AOU reference solve at t=0.**
 - **DAMAGED episodes DO NOT perform that full t=0 reference solve.** Instead, **immediately
@@ -1748,6 +1781,8 @@ continuation reference** instead of against a plan the world has already invalid
 ### 3l.6 Approved evaluation design
 
 > **STATUS — NOT IMPLEMENTED.** Nothing below exists in the repository. It is a PLAN, it is not a `CLAUDE.md` contract, and reading any of it as behaviour that exists today would be a false claim.
+
+> This is part of **§3l.8 step 4 — GENERALIZED-V1 TASK 4, the SINGLE NEXT unresolved implementation task — and this record does NOT authorize it** (§8).
 
 - **A FIXED STRATIFIED BENCHMARK with three dimensions:**
   - `A` in `{2, 3, 4}`;
@@ -1775,7 +1810,9 @@ continuation reference** instead of against a plan the world has already invalid
 
 > **STATUS — NOT IMPLEMENTED.** Nothing below exists in the repository. It is a PLAN, it is not a `CLAUDE.md` contract, and reading any of it as behaviour that exists today would be a false claim.
 
-> **PARTIAL EXCEPTION, stated precisely:** steps 1 and 2 already PRODUCE some of the per-episode diagnostic STRUCTURES this section wants — `EpisodeContext.construction_audit` (requested vs realized cardinality, candidate order, per-candidate rejection reasons, id-free geometric fingerprint), `FdEligibilityAudit` / `FdEventCertificate`, and `FuelDamageController.post_fd_outcome` (boundary counts, wakes and meta-actions). **NOTHING PERSISTS OR AGGREGATES THEM**: no `run_config.json` block, no `episode_outcomes.jsonl` field, no `run_summary.json` key, no plot. That run-level integration is step 4 and is NOT IMPLEMENTED.
+> This is part of **§3l.8 step 4 — GENERALIZED-V1 TASK 4, the SINGLE NEXT unresolved implementation task — and this record does NOT authorize it** (§8).
+
+> **PARTIAL EXCEPTION, stated precisely:** steps 1, 2 and 3 already PRODUCE some of the per-episode diagnostic STRUCTURES this section wants — `EpisodeContext.construction_audit` (requested vs realized cardinality, candidate order, per-candidate rejection reasons, id-free geometric fingerprint), `FdEligibilityAudit` / `FdEventCertificate`, `FuelDamageController.post_fd_outcome` (boundary counts, wakes and meta-actions), and `EpisodeResult.reference` / `EpisodeReference` (reference kind and checkpoint tick, the `U_prefix` / `U_cont_ref` / `U_ref` / `U_aircraft` decomposition, continuation-solver runtime / termination / allocation count, the reward-bearing and prefix target identity, the continuation-agent population with its exclusions, plus `EpisodeReward`'s scored-vs-unscored completed-target accounting). **NOTHING PERSISTS OR AGGREGATES THEM**: no `run_config.json` block, no `episode_outcomes.jsonl` field, no `run_summary.json` key, no plot. That run-level integration is step 4 and is NOT IMPLEMENTED. *(SUPERSEDED: this note previously said "steps 1 and 2"; step 3 has since added the reference record.)*
 
 Per accepted episode, the intended observable set is:
 
@@ -1789,7 +1826,7 @@ Per accepted episode, the intended observable set is:
 - kills outside the reference;
 - setup rejection reason.
 
-### 3l.8 The bounded implementation sequence — **STEPS 1–2 COMPLETE; STEP 3 IS NEXT AND IS NOT AUTHORIZED**
+### 3l.8 The bounded implementation sequence — **STEPS 1–3 COMPLETE; STEP 4 IS NEXT AND IS NOT AUTHORIZED**
 
 The approved ORDER, with each step its own separately scoped, separately reviewed task that
 begins only after the previous one is reviewed and integrated:
@@ -1803,10 +1840,18 @@ begins only after the previous one is reviewed and integrated:
    `ca0dc406ad11eb18e11e87e7f9ddf2e4e457f64b`, PR #36; append-only fix chain from the
    REQUEST-FIXES candidate `2f9231d989acf30561ecf10e74cf0c5491771836`.
 3. **event-conditioned continuation reference + reward checkpoint / accounting** (§3l.5) —
-   **THE NEXT UNRESOLVED IMPLEMENTATION TASK. NOT STARTED, AND NOT AUTHORIZED BY THIS
-   RECORD** (§8).
+   **COMPLETE / REVIEWED / INTEGRATED.** Reviewed candidate
+   `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integration
+   `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, PR #38, verdict **APPROVE**.
+   *(SUPERSEDED: this entry previously read "THE NEXT UNRESOLVED IMPLEMENTATION TASK. NOT
+   STARTED, AND NOT AUTHORIZED".)*
 4. **training sampler + frozen stratified evaluation manifest + metrics** (§3l.6, §3l.7) —
-   **PENDING.**
+   **GENERALIZED-V1 TASK 4: THE SINGLE NEXT UNRESOLVED IMPLEMENTATION TASK. NOT STARTED,
+   AND NOT AUTHORIZED BY THIS RECORD** (§8). It owns run-level PERSISTENCE and AGGREGATE
+   METRICS for every per-episode diagnostic structure steps 1–3 produce
+   (`construction_audit`, `FdEligibilityAudit` / `FdEventCertificate`,
+   `post_fd_outcome`, `EpisodeReference`), the harness selection surface for the
+   generalized policies, and the frozen stratified evaluation manifest.
 5. **bounded runtime / solver validation BEFORE deciding the final scientific run scale** —
    **PENDING.**
 6. **documentation and `CLAUDE.md` locks for behaviour that already exists** — **PARTIALLY
@@ -1814,12 +1859,12 @@ begins only after the previous one is reviewed and integrated:
 
 **HOW STEP 6 REALLY WORKS, corrected by practice.** This section previously said step 6 was
 deliberately LAST — one documentation pass after every implementation step. It is instead
-written PER COMPLETED TASK: `CLAUDE.md` §5 / §6 / §7 records for steps 1 and 2 are written by
-THIS intermediate checkpoint, now that their behaviour is implemented, reviewed and
-integrated. **The principle is unchanged and is what matters:** no `CLAUDE.md` contract is
-ever written for a design, only for behaviour that already exists — which is exactly why
-§3l.5–§3l.7 still have none. **A FINAL documentation pass is still REQUIRED after the later
-implementation steps land**, and this intermediate checkpoint does not discharge it.
+written PER COMPLETED TASK: `CLAUDE.md` §4 / §5 / §6 / §7 records for steps 1, 2 and 3 are
+written by their own documentation records, each after that step's behaviour was
+implemented, reviewed and integrated. **The principle is unchanged and is what matters:** no
+`CLAUDE.md` contract is ever written for a design, only for behaviour that already exists —
+which is exactly why §3l.6–§3l.7 still have none. **A FINAL documentation pass is still
+REQUIRED after the later implementation steps land**, and no per-task record discharges it.
 
 ### 3l.9 What the redesign explicitly does NOT touch
 
@@ -1838,28 +1883,30 @@ implementation steps land**, and this intermediate checkpoint does not discharge
 - **A previously executed OLD-CONTRACT CTDE measurement is OUT OF SCOPE** and must not be
   reviewed or compared unless the user explicitly asks (§1).
 
-## 4. Current work — GENERALIZED-V1 (ACTIVE, IN IMPLEMENTATION: STEPS 1–2 MERGED, STEP 3 NEXT AND UNAUTHORIZED); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+## 4. Current work — GENERALIZED-V1 (ACTIVE, IN IMPLEMENTATION: STEPS 1–3 MERGED, STEP 4 NEXT AND UNAUTHORIZED); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
 
-Start with fresh exact-SHA initialization against the current `main` (§9). **THIS
-documentation checkpoint neither authorizes nor runs anything: it RECORDS state only.** It
-does not authorize CC to implement Task 3 or any later generalized step, to run training, to
-generate a scenario, to call BONMIN, to re-run any completed baseline, or to review a
-previously executed old-contract CTDE measurement.
+Start with fresh exact-SHA initialization against the current `main` (§9). **A documentation
+record neither authorizes nor runs anything: it RECORDS state only.** No documentation record
+authorizes CC to implement Task 4 or any later generalized step, to run training, to generate
+a scenario, to call BONMIN, to re-run any completed baseline, or to review a previously
+executed old-contract CTDE measurement.
 
 **THE ACTIVE PHASE IS GENERALIZED-V1, AND IT IS NO LONGER DESIGN-ONLY.** The repository is
-**NOT closed and NOT idle**. **§3l.8 STEPS 1 AND 2 ARE COMPLETE, REVIEWED AND INTEGRATED** —
-Task 1 (`5b55ca34…` → `9b305e4e…`, PR #35) and Task 2 (`185d39f0…` → `ca0dc406…`, PR #36) —
-so §3l.1–§3l.4 are implemented to the extent those two tasks represent, and their contracts
-are now recorded in `CLAUDE.md` §5 / §6 / §7. **§3l.5 is NOT IMPLEMENTED and §3l.6–§3l.7 are
-NOT IMPLEMENTED** beyond the per-episode diagnostic structures steps 1 and 2 produce; both
-generalized policy families are OPT-IN with historical defaults, and **neither harness
-selects either**. **NO generalized scientific measurement exists, is running, is scheduled
-or is authorized.** The **GPT orchestrator owns the work**, and **no implementation candidate
-is active while this checkpoint is in flight**. THIS record — branch
-`task/generalized-v1-task12-doc-lock` and its DRAFT PR — is the **only writable repository
-task while its candidate is in flight**, and it modifies exactly two files: `CLAUDE.md` and
-this one. *(SUPERSEDED: the handoff-bootstrap record's "DESIGN ONLY / every line NOT YET
-IMPLEMENTED / step 1 is next" framing was accurate when written and is history now.)*
+**NOT closed and NOT idle**. **§3l.8 STEPS 1, 2 AND 3 ARE COMPLETE, REVIEWED AND
+INTEGRATED** — Task 1 (`5b55ca34…` → `9b305e4e…`, PR #35), Task 2 (`185d39f0…` →
+`ca0dc406…`, PR #36) and Task 3 (`24a8b1ee…` → `df3abf2f…`, PR #38, **APPROVE**) — so
+§3l.1–§3l.5 are implemented to the extent those three tasks represent, and their contracts
+are recorded in `CLAUDE.md` §4 / §5 / §6 / §7. **§3l.6–§3l.7 are NOT IMPLEMENTED** beyond the
+per-episode diagnostic structures steps 1–3 produce; all three generalized policy families
+are OPT-IN with historical defaults, and **neither harness selects any of them**. **NO
+generalized scientific measurement exists, is running, is scheduled or is authorized.** The
+**GPT orchestrator owns the work**. **THE SINGLE NEXT UNRESOLVED IMPLEMENTATION TASK IS
+GENERALIZED-V1 TASK 4** — the generalized training sampler, the frozen stratified evaluation
+manifest, and persistence / aggregate metrics (§3l.6–§3l.7, §3l.8 step 4) — and **it is NOT
+started and NOT authorized** (§8). *(SUPERSEDED: the handoff-bootstrap record's "DESIGN ONLY
+/ every line NOT YET IMPLEMENTED / step 1 is next" framing, and the Task-1/2 checkpoint's
+"§3l.5 is NOT IMPLEMENTED / Task 3 is next" framing, were each accurate when written and are
+history now.)*
 
 **WHAT THAT CHANGES ABOUT THE PREVIOUS RECORD.** The 2026-08-23 closure record's
 `REPOSITORY CLOSED / IDLE` state is **HISTORICAL and SUPERSEDED**: it was accurate when
@@ -1883,7 +1930,7 @@ INTEGRATION into `main` gated** — **that gate is now CLOSED / SATISFIED on bot
 the measurement-validity half by item 2's verdict and the reference half by
 `pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`. **All four items are
 complete**, so this paragraph is now the arrangement's HISTORICAL record. **THE LIVE STATE
-IS TASK 10 / GENERALIZED-V1: §3l.8 steps 1–2 are MERGED, and Task 3 is the next unresolved
+IS TASK 10 / GENERALIZED-V1: §3l.8 steps 1–3 are MERGED, and TASK 4 is the next unresolved
 task and is NOT AUTHORIZED** (§4 Task 10, §8). *(SUPERSEDED: this clause previously pointed
 at Tasks 8 and 9 as the live state; those records are historical and are unchanged.)*
 
@@ -1905,11 +1952,11 @@ closure record alone; that exception ENDED when the record was integrated, and t
 orchestrator reverted to READ-ONLY with no writable branch or PR.)* Writable ownership then
 returned to the GPT orchestrator, which integrated PR #30, the CTDE documentation/lock
 PR #32 and the chat/repository closure PR #33 — **all three are CLOSED** — and **it now owns
-the GENERALIZED work (§3l, Task 10)** — it integrated the handoff bootstrap (PR #34) and
-then GENERALIZED-V1 Task 1 (PR #35) and Task 2 (PR #36) — **and THIS documentation
-checkpoint**: branch `task/generalized-v1-task12-doc-lock` and its DRAFT PR are the only
-writable candidate while this record is in flight, and **NO implementation candidate is
-active.**
+the GENERALIZED work (§3l, Task 10)** — it integrated the handoff bootstrap (PR #34), then
+GENERALIZED-V1 Task 1 (PR #35), Task 2 (PR #36), their documentation checkpoint (PR #37) and
+Task 3 (PR #38). **NO implementation candidate is active**, and **no documentation record is
+a standing writable task** — each is the sole writable candidate only while its own draft PR
+is open.
 **The CTDE integration gate's repository-side prerequisite is DISCHARGED**:
 `pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115` exists and must not
 move.
@@ -2085,46 +2132,56 @@ they measure DIFFERENT cells: §3h is the LEGACY FD-BASELINE-v1 baseline, and §
 FD-VARIABLE-SEVERITY-v1 baseline. Neither is an expectation for the other, and neither is an
 expectation for any CTDE comparison.**
 
-**Task 10 — GENERALIZED-V1. ACTIVE, IN IMPLEMENTATION. STEPS 1–2 MERGED; STEP 3 IS THE NEXT
-UNRESOLVED TASK AND IS NOT AUTHORIZED. THIS IS THE LIVE PHASE.** Its APPROVED DESIGN is recorded in **§3l** and is not repeated
+**Task 10 — GENERALIZED-V1. ACTIVE, IN IMPLEMENTATION. STEPS 1–3 MERGED; STEP 4 (TASK 4) IS
+THE NEXT UNRESOLVED TASK AND IS NOT AUTHORIZED. THIS IS THE LIVE PHASE.** Its APPROVED DESIGN is recorded in **§3l** and is not repeated
 here: generalized cardinality with bounded B2 backoff (§3l.1–§3l.2), FD capability by
 construction with deterministic bounded ego eligibility (§3l.3), repeated post-FD decision
 points for the damaged ego alone (§3l.4), the event-conditioned MATCH-AOU continuation
 reference (§3l.5), the fixed stratified 18-stratum benchmark (§3l.6), and the diagnostics
 that make all of it readable (§3l.7).
 
-- **STATUS: STEPS 1 AND 2 IMPLEMENTED, REVIEWED AND MERGED; §3l.5–§3l.7 NOT IMPLEMENTED.**
-  Task 1 — candidate `5b55ca348309b4241d2087c2f60327bc842ea6fa`, integration
+- **STATUS: STEPS 1, 2 AND 3 IMPLEMENTED, REVIEWED AND MERGED; §3l.6–§3l.7 NOT
+  IMPLEMENTED.** Task 1 — candidate `5b55ca348309b4241d2087c2f60327bc842ea6fa`, integration
   `9b305e4ee427dd27fac6beee8fc4f7a8a763f7f9`, PR #35. Task 2 — final candidate
   `185d39f00335a0bb5e9130cc773da94c914f17f5`, integration
   `ca0dc406ad11eb18e11e87e7f9ddf2e4e457f64b`, PR #36, reached through the append-only fix
   chain from the REQUEST-FIXES candidate `2f9231d989acf30561ecf10e74cf0c5491771836`.
+  Task 3 — candidate `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integration
+  `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, PR #38, verdict **APPROVE**, with ONE
+  review-APPROVED compatibility deviation (`damaged_event_unrealized_t0`) recorded
+  explicitly and scoped to the LEGACY Task-2 contract.
   **No generalized world CAMPAIGN has been generated and NO generalized measurement exists,
   is running, is scheduled or is authorized** — the bounded real-BLADE / BONMIN smokes taken
   during each task's validation are ENGINEERING evidence only and carry no scientific
   contract, seed schedule, held-out band or denominator.
-- **BOTH MERGED FAMILIES ARE OPT-IN, AND NEITHER HARNESS SELECTS THEM.** `TrainConfig` and
-  `RolloutConfig` carry no `hidden_policy`, `eligibility_policy` or `post_fd_wake_policy`,
-  so every training run and diagnostic rollout still builds the historical `exact_v1` +
-  `legacy_selected_ego_v1` + `single_wake_v1` world. Nothing persists or aggregates the new
-  diagnostic structures. Wiring them up is step 4, not step 3.
-- **OWNERSHIP:** the **GPT orchestrator** owns the work. THIS documentation checkpoint is
-  the only writable repository task while its candidate is in flight, and **no
-  implementation candidate is active.**
-- **THE SEQUENCE IS §3l.8: STEPS 1–2 COMPLETE, STEP 3 NEXT, STEPS 4–5 PENDING.** Each is a
+- **ALL THREE MERGED FAMILIES ARE OPT-IN, AND NEITHER HARNESS SELECTS THEM.** `TrainConfig`
+  and `RolloutConfig` carry no `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy`
+  or `reference_policy`, so every training run and diagnostic rollout still builds the
+  historical `exact_v1` + `legacy_selected_ego_v1` + `single_wake_v1` world and scores it
+  against the historical `static_t0_v1` reference, with `EpisodeResult.reference` `None` on
+  every episode. Nothing persists or aggregates the new diagnostic structures. Wiring them
+  up is step 4.
+- **OWNERSHIP:** the **GPT orchestrator** owns the work. **No documentation record is a
+  standing writable task** — each is the sole writable candidate only while its own draft PR
+  is open — and **no implementation candidate is active.**
+- **THE SEQUENCE IS §3l.8: STEPS 1–3 COMPLETE, STEP 4 NEXT, STEP 5 PENDING.** Each is a
   separate, separately scoped, separately reviewed bounded task, and each starts only after
   the previous one is reviewed and integrated. **`CLAUDE.md` locks are written PER COMPLETED
   TASK, for behaviour that already exists — never for a design** — and a FINAL documentation
   pass is still required after the later steps land.
-- **THE GATE ON STEP 3.** Implementation task 3 (event-conditioned MATCH-AOU continuation
-  reference + reward checkpoint / accounting, §3l.5) may begin **only after (a) the GPT
-  orchestrator has reviewed THIS checkpoint at its exact full SHA, and (b) the user has
-  authorized continuation.** **THIS RECORD DOES NOT AUTHORIZE IT.** Absent both, nothing
-  further is implemented (§8).
+- **THE GATE ON STEP 4.** GENERALIZED-V1 Task 4 (the generalized training sampler, the
+  frozen stratified evaluation manifest, and run-level persistence / aggregate metrics,
+  §3l.6–§3l.7) may begin **only after (a) the GPT orchestrator has reviewed the current
+  documentation state at its exact full SHA, and (b) the user has authorized continuation.**
+  **NO DOCUMENTATION RECORD AUTHORIZES IT.** Absent both, nothing further is implemented
+  (§8). *(SUPERSEDED: this bullet previously gated step 3, which has since been implemented,
+  reviewed and integrated as PR #38.)*
 - **BINDING CONSTRAINTS CARRIED INTO EVERY STEP.** Several approved directions in §3l
   deliberately depart from contracts `CLAUDE.md` §5 currently locks — B2 exact cardinality,
   the fixed 3/3/3 cell, the FD eligibility and failure policy, and the damaged-episode t=0
-  reference solve. **Each is a Grade-A change to a locked layer, routed through
+  reference solve (the last three of which Tasks 2 and 3 have since addressed, each as its
+  own reviewed OPT-IN seam beside the preserved historical default). **Each is a Grade-A
+  change to a locked layer, routed through
   `CLAUDE.md` §6**, never folded into another task. In addition: the historical
   exact-cardinality path is PRESERVED, no severity or hidden-count feature may reach
   `GraphObservation`, no new meta-action is added, no peer behaviour changes, no
@@ -2265,23 +2322,23 @@ that make all of it readable (§3l.7).
 The additional actor-only FD-VARIABLE-SEVERITY-v1 baseline (§4, Task 7) is **CLOSED,
 VALID and NEGATIVE** (§3j), **PHASE-B CTDE IMPLEMENTATION is CLOSED, REVIEWED and MERGED**
 (§4, Task 8; §3k), and **the current work is the GENERALIZED TRAINING / BENCHMARK REDESIGN
-(§4, Task 10; §3l), whose STEPS 1 AND 2 ARE MERGED while §3l.5–§3l.7 are NOT
+(§4, Task 10; §3l), whose STEPS 1, 2 AND 3 ARE MERGED while §3l.6–§3l.7 are NOT
 IMPLEMENTED.** Out of scope:
 
-- **IMPLEMENTING ANY FURTHER PART OF THE GENERALIZED REDESIGN FROM THIS RECORD.** §3l.5–§3l.7
-  remain an approved DESIGN and §3l.8 steps 3–5 remain a PLAN; neither authorizes code. **No
-  continuation reference, `U_prefix`, reward change, training sampler, benchmark manifest or
-  aggregate metric may be written on the strength of this document** — **step 3 begins only
-  after GPT exact-SHA review of THIS checkpoint AND explicit user-authorized continuation**
-  (§8). *(Steps 1 and 2 were separately authorized and are DONE; that is history, not a
-  standing authorization for step 3.)*
+- **IMPLEMENTING ANY FURTHER PART OF THE GENERALIZED REDESIGN FROM A DOCUMENTATION RECORD.**
+  §3l.6–§3l.7 remain an approved DESIGN and §3l.8 steps 4–5 remain a PLAN; neither authorizes
+  code. **No training sampler, benchmark manifest, aggregate metric, run-level persistence or
+  harness policy-selection surface may be written on the strength of this document** —
+  **step 4 begins only after GPT exact-SHA review of the current documentation state AND
+  explicit user-authorized continuation** (§8). *(Steps 1, 2 and 3 were each separately
+  authorized and are DONE; that is history, not a standing authorization for step 4.)*
 - **CLAIMING, IMPLYING OR ASSUMING THAT ANY GENERALIZED BEHAVIOUR HAS BEEN MEASURED, OR THAT
-  UNIMPLEMENTED PARTS EXIST.** Steps 1 and 2 are implemented CODE with engineering evidence
-  only: **nothing generalized is benchmarked or measured, and no generalized result may be
-  pre-claimed** (§3l). Describing §3l.5–§3l.7 as existing is a false claim;
+  UNIMPLEMENTED PARTS EXIST.** Steps 1, 2 and 3 are implemented CODE with engineering
+  evidence only: **nothing generalized is benchmarked or measured, and no generalized result
+  may be pre-claimed** (§3l). Describing §3l.6–§3l.7 as existing is a false claim;
 - **WRITING `CLAUDE.md` RECORDS FOR AN UNIMPLEMENTED GENERALIZED DESIGN.** `CLAUDE.md` now
-  records steps 1 and 2, because reviewed and integrated behaviour exists for them; it
-  records nothing for §3l.5–§3l.7 and must not until the same is true of those;
+  records steps 1, 2 and 3, because reviewed and integrated behaviour exists for them; it
+  records nothing for §3l.6–§3l.7 and must not until the same is true of those;
 - **CREATING A SECOND HANDOFF OR A SEPARATE DESIGN DOCUMENT.** There is ONE handoff — this
   file — and the generalized design lives in §3l of it;
 - **REVIEWING, RE-ANALYSING OR COMPARING THE PREVIOUSLY EXECUTED OLD-CONTRACT CTDE
@@ -2433,33 +2490,36 @@ obligations and bounded implementation/lock task.
 | GENERALIZED-V1 HANDOFF BOOTSTRAP recorded — **DONE (2026-08-25)** | Record, here (§1, §3l, §4, §6, §7, §8, §9), that the repository is NO LONGER CLOSED / IDLE; that the GENERALIZED TRAINING / BENCHMARK REDESIGN is the ACTIVE research/design phase owned by the GPT orchestrator; that NO implementation candidate is active, NOTHING generalized is implemented, and NO new scientific measurement is running or authorized; that this handoff-bootstrap task is the only writable repository task while its candidate is in flight; the APPROVED DESIGN in a dedicated §3l section — generalized cardinality with bounded B2 backoff, B2/reproducibility direction, the FD redesign, repeated post-FD decision semantics, the event-conditioned continuation reference, the 18-stratum benchmark, the diagnostics and the six-step planned sequence — **every part of it MARKED NOT YET IMPLEMENTED**; that a previously executed OLD-CONTRACT CTDE measurement is OUT OF SCOPE and not to be reviewed or compared unless the user explicitly asks; and the dated decision log plus the transfer/initialization protocol in §9. **Volatile state and PLAN ONLY — `CLAUDE.md` is untouched, no technical contract is defined, changed or locked, no code/test/config/preset changes, no run occurs, no generalized behaviour is claimed to exist, the approved historical measurements are not reinterpreted, and no ref is moved or deleted** |
 | GENERALIZED-V1 Task 1 lands (§3l.8 step 1) — **DONE for PR #35** | The two explicit hidden-CARDINALITY policies, the PRESERVED `exact_v1` default (geometry, ego order, draw order and rng stream position pinned), the generalized cell `A ∈ {2,3,4}` / `K == A` raw known / `1 ≤ H_requested ≤ A`, the deterministic ordinal-driven bounded walk with per-candidate substreams derived up front, the shared single-route geometry site, `H_realized ≥ 1` acceptance with short realization RECORDED and never repaired, the verified requested-vs-realized `ConstructionAudit` taken from the RAW world snapshots, and the fact that nothing reaches `GraphObservation` — recorded as a contract in `CLAUDE.md` §5, routed in §6, locked in §7 with the exact four changed files, both proof-obligation sets and the CC-reported engineering evidence LABELLED as implementation validation. **Recorded WITHOUT pre-claiming any result: no scientific run occurred and no generalized measurement exists.** Also record that NEITHER harness exposes the policy |
 | GENERALIZED-V1 Task 2 lands (§3l.8 step 2) — **DONE for PR #36** | The two opt-in FD policy seams with LEGACY defaults preserved, the separate `fuel_damage_eligibility_v1` RNG domain, ordinal-driven certified eligibility running for EVERY condition including CLEAN, the tick-aware certificate with its one-tick tolerance bracket and pre-event route-stability certification, `no_fd_eligible_ego` as ORDINARY ACCOUNTED ATTRITION versus `FuelDamageIntegrityError` as an INSTRUMENT abort (live contradiction AND the terminal never-fired check at the single `run_episode` exit seam, before the recording export), the certified-CLEAN non-fire allowance, unchanged LEGACY non-fire semantics, the ONE shared executor confirmation site, damaged-ego-only post-FD adaptation with local reconciliation before the CTDE capture, the append-only `POST_FD_COMPLETION` trigger with NO new `MetaAction`, and the SEPARATE boundary diagnostics — recorded as a contract in `CLAUDE.md` §5, routed in §6 (including the measurement-integrity routing row), locked in §7 with the exact nine changed files and the append-only REQUEST-FIXES → approved-child chain. **The bounded real-BLADE / BONMIN smoke is LABELLED engineering validation, never a measurement; no generalized result is pre-claimed.** Also record that NEITHER harness exposes either policy and that nothing persists the new diagnostics |
-| Each REMAINING GENERALIZED implementation step lands (§3l.8 steps 3–5) — **NOT STARTED; STEP 3 IS NEXT AND IS NOT AUTHORIZED BY THIS RECORD** | One separately scoped, separately reviewed bounded task per step, in order, each beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **per completed task, after reviewed behaviour exists** — never in advance and never for a design. *(SUPERSEDED: this row previously said the records wait for step 6 alone; practice is one documentation pass per completed task, and a FINAL pass is still required after the later steps land.)* Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical exact-cardinality path is PRESERVED beside the generalized one. **Record requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting as first-class observables (§3l.7) — recorded without pre-claiming any result** |
+| GENERALIZED-V1 Task 3 lands (§3l.8 step 3) — **DONE for PR #38** | The ONE OPT-IN reward-reference policy beside the PRESERVED `static_t0_v1` default, `EpisodeContext.reference_policy` as the single stored source with `uses_event_conditioned_reference` as the canonical runtime predicate and an unknown id REFUSED before any BLADE object exists, the deferred second solve and its three sites (CLEAN t=0 before the first tick; the DAMAGED continuation reference at the top of the firing tick immediately after the real `current_fuel` mutation and before boundary / trigger / `central.capture` / decision / `env.step`; the legacy never-fired t=0 build at the episode-exit seam before the recording export), the checkpoint as READ-ONLY privileged measurement that advances no simulation time and reaches no acting path, the continuation universe as the retained RAW t=0 world minus the realized prefix and NEVER a private belief, continuation agents rebuilt from the LIVE post-event world with dead / RTB-committed / non-airborne egos EXCLUDED by recorded reason, the `U_ref = U_prefix + U_cont_ref` / `U_achieved = U_prefix + U_post` arithmetic with `U_prefix` FROZEN at the checkpoint, `U_post` restricted to continuation-allocated tasks, out-of-reference kills ACCOUNTING-ONLY, `U_aircraft` from the reward-bearing reference universe, NO clamping, `u_oracle is None`, and terminal-on-last credit placement UNCHANGED, the audited solve seam distinguishing an unanswered solve from an answered zero with the historical public triple byte-unchanged, `ReferenceIntegrityError` and its CURRENT ordinary-episode-failure routing, and the typed `EpisodeReference` on `EpisodeResult.reference` — recorded as a contract in `CLAUDE.md` §5, placed in §4, routed in §6 and locked in §7 with the exact five changed files and the identical-tree integration proof. **The review-APPROVED `damaged_event_unrealized_t0` compatibility deviation is recorded EXPLICITLY and scoped as a LEGACY preservation, never as generalized damaged semantics.** The at-most-two-BONMIN / never-a-third statement is recorded in its accurate form, including the degenerate `solver_invoked=False` skip. **The bounded real-BLADE / BONMIN smoke is LABELLED engineering validation, never a measurement; no generalized result is pre-claimed.** Also record that NEITHER harness exposes the policy and that nothing persists `EpisodeReference` |
+| Each REMAINING GENERALIZED implementation step lands (§3l.8 steps 4–5) — **NOT STARTED; STEP 4 (TASK 4) IS NEXT AND IS NOT AUTHORIZED BY ANY DOCUMENTATION RECORD** | One separately scoped, separately reviewed bounded task per step, in order, each beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **per completed task, after reviewed behaviour exists** — never in advance and never for a design. *(SUPERSEDED: this row previously said the records wait for step 6 alone; practice is one documentation pass per completed task, and a FINAL pass is still required after the later steps land.)* Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve — the last three already addressed by Tasks 2 and 3 as their own reviewed OPT-IN seams) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical exact-cardinality path is PRESERVED beside the generalized one. **Record requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting as first-class observables (§3l.7) — recorded without pre-claiming any result** |
 | The FROZEN GENERALIZED BENCHMARK is built (§3l.8 step 4) — **NOT STARTED** | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator** |
 | The FIRST GENERALIZED scientific measurement completes — **NOT RUN, NOT AUTHORIZED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Validity is judged BEFORE performance; a null or negative generalized result is a valid observation, not a technical failure** |
 
 ## 8. Next action
 
-**THE SINGLE NEXT ACTION IS UNAMBIGUOUS: GENERALIZED-V1 TASK 3 — EVENT-CONDITIONED
-MATCH-AOU CONTINUATION REFERENCE + REWARD CHECKPOINT / ACCOUNTING (§3l.5, §3l.8 step 3) —
-AND THIS RECORD DOES NOT AUTHORIZE IT.** The live phase is GENERALIZED-V1 (§3l, §4 Task 10);
-**steps 1 and 2 are COMPLETE, REVIEWED and INTEGRATED** (PR #35, `5b55ca34…` → `9b305e4e…`;
-PR #36, `185d39f0…` → `ca0dc406…`), and the GPT orchestrator owns the work. Task 3 may begin
-**ONLY after BOTH of:**
+**THE SINGLE NEXT ACTION IS UNAMBIGUOUS: GENERALIZED-V1 TASK 4 — THE GENERALIZED TRAINING
+SAMPLER + THE FROZEN STRATIFIED EVALUATION MANIFEST + RUN-LEVEL PERSISTENCE / AGGREGATE
+METRICS (§3l.6, §3l.7, §3l.8 step 4) — AND NO DOCUMENTATION RECORD AUTHORIZES IT.** The live
+phase is GENERALIZED-V1 (§3l, §4 Task 10); **steps 1, 2 and 3 are COMPLETE, REVIEWED and
+INTEGRATED** (PR #35, `5b55ca34…` → `9b305e4e…`; PR #36, `185d39f0…` → `ca0dc406…`; PR #38,
+`24a8b1ee…` → `df3abf2f…`, verdict **APPROVE**), and the GPT orchestrator owns the work.
+Task 4 may begin **ONLY after BOTH of:**
 
-1. **the GPT orchestrator has reviewed THIS documentation checkpoint at its exact full
+1. **the GPT orchestrator has reviewed the current documentation state at its exact full
    SHA**, and
 2. **the user has authorized continuation.**
 
 **Until both hold, NOTHING further is implemented, generated, solved, trained or measured.**
-Task 3 is NOT started, NOT in progress and NOT authorized; steps 4 and 5 follow it, each
-separately scoped and separately reviewed. No other task is next: not the old fixed-cell
-Task-9 CTDE comparison (superseded in ordering, §4), not a review of the previously executed
+Task 4 is NOT started, NOT in progress and NOT authorized; step 5 follows it, separately
+scoped and separately reviewed. No other task is next: not the old fixed-cell Task-9 CTDE
+comparison (superseded in ordering, §4), not a review of the previously executed
 old-contract CTDE measurement (out of scope unless the user explicitly asks, §1), and not a
 re-run of any approved historical baseline (prohibited, §6). **No generalized MEASUREMENT
-exists, and no generalized result may be pre-claimed** — steps 1 and 2 delivered implemented
-CODE with engineering evidence only.
-*(SUPERSEDED: this section previously named step 1 as the single next action. That was
-accurate when written; steps 1 and 2 have since been implemented, reviewed and integrated.)*
+exists, and no generalized result may be pre-claimed** — steps 1, 2 and 3 delivered
+implemented CODE with engineering evidence only.
+*(SUPERSEDED: this section previously named step 1, and later step 3, as the single next
+action. Each was accurate when written; steps 1, 2 and 3 have since been implemented,
+reviewed and integrated.)*
 
 **THE REST OF THIS SECTION IS THE PRESERVED RECORD OF THE CLOSED PHASES**, accurate about
 them and unchanged in meaning.
@@ -2588,14 +2648,16 @@ change, or any new difficulty factor** (§6) — bundling one would make it unin
 run showing no CTDE improvement is a **valid NEGATIVE observation**, not a technical
 failure. **No CTDE preset exists in the repository**, and creating one belongs to that task.
 
-**OWNERSHIP, AND THIS RECORD ITSELF.** The **GPT orchestrator owns the GENERALIZED work**
-and holds sole writable repository ownership, including for THIS documentation checkpoint —
-branch `task/generalized-v1-task12-doc-lock` and its DRAFT PR are the only writable
-candidate while this record is in flight. **NO implementation candidate is active**, and
-**upon this record's integration the next thing that may happen is step 3 of §3l.8, gated as
-stated at the top of this section — which this record does not authorize.** *(Historical:
-`task/generalized-v1-cardinality-b2` closed as PR #35 and `task/generalized-v1-fd-adaptation`
-as PR #36; `task/generalized-v1-handoff-bootstrap` was the writable task under the PREVIOUS
+**OWNERSHIP.** The **GPT orchestrator owns the GENERALIZED work** and holds sole writable
+repository ownership. **No documentation record is a standing writable task** — each is the
+sole writable candidate only while its own draft PR is open, and on integration that branch
+and PR become history. **NO implementation candidate is active**, and **the next thing that
+may happen is step 4 of §3l.8, gated as stated at the top of this section — which no
+documentation record authorizes.** *(Historical:
+`task/generalized-v1-cardinality-b2` closed as PR #35, `task/generalized-v1-fd-adaptation`
+as PR #36, `task/generalized-v1-task12-doc-lock` as PR #37 and
+`task/generalized-v1-task3-continuation-reference` as PR #38;
+`task/generalized-v1-handoff-bootstrap` was the writable task under an EARLIER
 record and closed as PR #34; before it, `task/ctde-chat-closure-handoff` closed as PR #33 and
 `task/phase-b-ctde-doc-lock` as PR #32; earlier still, the FD measurement orchestrator's
 ONE-TIME writable exception, scoped to the variable-severity closure record alone, ENDED when
@@ -2678,3 +2740,5 @@ so.
 | 2026-08-25 | **GENERALIZED-V1 TASK 1 IMPLEMENTED, REVIEWED AND MERGED** — generalized construction cardinality, deterministic bounded B2 backoff and truthful requested-vs-realized accounting (§3l.1, §3l.2); candidate `5b55ca348309b4241d2087c2f60327bc842ea6fa`, integration `9b305e4ee427dd27fac6beee8fc4f7a8a763f7f9`, PR #35, Grade A under `GPT_GITHUB` | §3l.8 step 1 is COMPLETE. The historical `exact_v1` path is PRESERVED and remains the DEFAULT, so the approved Phase-A and variable-severity measurements are untouched and are still measurements OF IT; `bounded_backoff_v1` is an OPT-IN ADDITION beside it that **neither harness selects**. `EpisodeContext.construction_audit` records requested-vs-realized from the RAW world snapshots and reaches no `GraphObservation`. **No scientific run occurred and no generalized measurement exists** |
 | 2026-08-25 | **GENERALIZED-V1 TASK 2 IMPLEMENTED, REVIEWED AND MERGED** — certified FD eligibility and post-FD completion-boundary adaptation (§3l.3, §3l.4); final candidate `185d39f00335a0bb5e9130cc773da94c914f17f5`, integration `ca0dc406ad11eb18e11e87e7f9ddf2e4e457f64b`, PR #36, Grade A under `GPT_GITHUB`. *(Historical process evidence: initial reviewed candidate `2f9231d989acf30561ecf10e74cf0c5491771836` → REQUEST FIXES → append-only child `185d39f0…` → APPROVE.)* | §3l.8 step 2 is COMPLETE. Both FD policy seams are OPT-IN with the LEGACY defaults preserved and **selected by neither harness**, so the approved measurements are untouched. A NEW routing exists: `FuelDamageIntegrityError` is an INSTRUMENT abort — for a live certificate contradiction AND for a certified damaged episode that ends without the event firing — while setup ineligibility (`no_fd_eligible_ego`) stays ordinary accounted attrition inside `skip_and_account_v1`. `p(destroy)` stays `1.0` and no new `MetaAction` exists. **No scientific run occurred and no generalized measurement exists** |
 | 2026-08-25 | **INTERMEDIATE DOCUMENTATION CHECKPOINT OPENED** because the live handoff had become STALE after two implementation merges — it still claimed nothing generalized was implemented and that Task 1 was the next action — and because `CLAUDE.md` carried no contract for behaviour that is now merged | `CLAUDE.md` gains the Task-1 and Task-2 §5 contracts, their §6 routing and their §7 locks, and its stale actor-only-vs-CTDE "never executed" wording is reconciled CONSERVATIVELY (existence acknowledged, OUT OF SCOPE, **no identity / SHA / denominator / verdict / result recorded and no CTDE benefit claimed**). This handoff records steps 1–2 as COMPLETE, §3l.5–§3l.7 as NOT IMPLEMENTED, and **Task 3 as the next unresolved task that this record does NOT authorize** (§8). It also SUPERSEDES the earlier "`CLAUDE.md` locks only at step 6" rule: locks are written PER COMPLETED TASK, and a FINAL documentation pass is still required after the later steps land. **Two files only; no code, test, config, preset or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
+| 2026-08-25 | **GENERALIZED-V1 TASK 3 IMPLEMENTED, REVIEWED AND MERGED** — the event-conditioned MATCH-AOU continuation reference and reward checkpoint (§3l.5); reviewed candidate `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integration `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, PR #38, verdict **APPROVE**, Grade A under `GPT_GITHUB` | §3l.8 step 3 is COMPLETE, so **§3l.5 is now IMPLEMENTED**. The historical `static_t0_v1` reference is PRESERVED and remains the DEFAULT, so the approved Phase-A and variable-severity measurements are untouched and are still measurements OF IT; `event_conditioned_continuation_v1` is an OPT-IN ADDITION beside it that **neither harness selects**. The checkpoint is privileged READ-ONLY measurement that reaches no acting path, advances no simulation time and never adds a THIRD reference solve. The review APPROVED ONE compatibility deviation, `damaged_event_unrealized_t0`, scoped to the LEGACY Task-2 contract and **not** generalized damaged semantics. `p(destroy)` stays `1.0`, no new `MetaAction` exists, and terminal credit placement is unchanged. **No scientific run occurred and no generalized measurement exists** |
+| 2026-08-25 | **TASK-3 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.5 while the live documents still said it was NOT IMPLEMENTED and that Task 3 was the next unresolved task | `CLAUDE.md` gains the Task-3 §5 contract, its §4 pipeline placement, its three §6 routing rows and its §7 lock, and its stale “no continuation reference / no reward change” and “`graph_reward` remains FROZEN” wording is corrected in place. This handoff records Tasks 1–3 as COMPLETE, §3l.5 as IMPLEMENTED, §3l.6–§3l.7 as NOT IMPLEMENTED, and **Task 4 as the SINGLE next unresolved task that no documentation record authorizes** (§8). It is written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
