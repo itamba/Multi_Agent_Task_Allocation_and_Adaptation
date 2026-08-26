@@ -320,7 +320,41 @@ from .graph_ppo import (
     PPOUpdater,
     build_central_critic,
 )
-from .graph_reward import RewardConfig, compute_episode_reward
+from .graph_hidden_placement import geometric_fingerprint
+from .graph_generalized import (
+    CARDINALITY_RNG_DOMAIN,
+    CARDINALITY_SAMPLER_POLICY,
+    GENERALIZED_AGENT_COUNTS,
+    BENCHMARK_CELLS,
+    BENCHMARK_DELTAS,
+    BENCHMARK_GROUP_SIZE,
+    BENCHMARK_STRATA,
+    BENCHMARK_STRATUM_KEYS,
+    EPISODE_DESIGN_FIXED_CELL_V1,
+    EPISODE_DESIGN_GENERALIZED_V1,
+    EPISODE_DESIGNS,
+    TARGET_DESTRUCTION_PROBABILITY,
+    BenchmarkIdentityError,
+    BenchmarkManifest,
+    EpisodeCardinality,
+    EpisodeDesign,
+    WorldIdentity,
+    cardinality_sampler_record,
+    certificate_fingerprint,
+    fixed_cell_cardinality,
+    load_benchmark_manifest,
+    manifest_seed_overlap,
+    require_matched_group_identity,
+    require_world_matches_manifest,
+    resolve_episode_design,
+    sample_generalized_cardinality,
+)
+from .graph_reward import (
+    ReferenceIntegrityError,
+    RewardConfig,
+    compute_episode_reward,
+    reference_fault_aborts,
+)
 from .graph_tick_loop import build_policy, run_episode
 from ..observation.central_graph_builder import CentralStateRecorder
 from ..action.graph_action import MetaAction
@@ -461,7 +495,15 @@ _TRAINING_FUEL_DAMAGE_MODES = (
 # this stream never duplicates the ledger.
 _EPISODE_OUTCOMES_FILENAME = "episode_outcomes.jsonl"
 _EPISODE_OUTCOME_SCHEMA = "graph_train_episode_outcome"
-_EPISODE_OUTCOME_VERSION = 1
+# VERSION 2 adds the GENERALIZED-V1 blocks: the resolved episode design and its four
+# policy ids, requested-vs-realized cardinality, the construction / FD-eligibility /
+# post-FD-adaptation audits, the reward-reference decomposition, and (for a
+# manifest-driven evaluation member) its benchmark stratum identity. Every added key is
+# present on BOTH designs and states a real fact about the episode -- on the historical
+# path the design is `fixed_cell_v1`, the reference policy is `static_t0_v1`, requested
+# equals realized, and the structures the historical policies do not produce are `null`
+# rather than a fabricated zero.
+_EPISODE_OUTCOME_VERSION = 2
 
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
@@ -585,6 +627,8 @@ _CLI_FIELD_BY_DEST = {
     "aircraft_penalty_coeff": "aircraft_penalty_coeff",
     "visual_artifacts": "visual_artifacts",
     "training_mode": "training_mode",
+    "episode_design": "episode_design",
+    "benchmark_manifest": "benchmark_manifest",
 }
 
 # CLI dest -> PPOConfig field (the nested block).
@@ -753,6 +797,29 @@ class TrainConfig:
 
     max_ticks: Optional[int] = None
 
+    # --- GENERALIZED-V1: WHICH EPISODE POPULATION THIS RUN DRAWS FROM --------------
+    # ONE explicit selector, never inferred from the values of `num_agents` / `n_hidden`
+    # (a run that reached the generalized bundle because someone typed `--n-hidden 2`
+    # would be a design nobody chose). `fixed_cell_v1` is the DEFAULT and preserves the
+    # historical behaviour in full: the exact cell below, `exact_v1` hidden cardinality,
+    # the legacy FD eligibility and single post-FD wake, and the `static_t0_v1` reward
+    # reference -- the path every approved measurement was taken on.
+    #
+    # `generalized_v1` selects the COMPLETE approved Task-1/2/3 bundle in one word, and
+    # makes the construction cell PER-EPISODE: A is sampled from {2,3,4}, K == A, and
+    # H_requested ~ Uniform({1..A}), from the sampler's own rng domain. The three
+    # fixed-cell fields below are then NOT read for a training episode (`validate`
+    # refuses a run that looks as though they were meant to be).
+    episode_design: str = EPISODE_DESIGN_FIXED_CELL_V1
+
+    # The FROZEN 18-stratum benchmark this run EVALUATES on -- a path to a manifest
+    # written by `graph_generalized.write_benchmark_manifest`. Required for a
+    # `generalized_v1` run WITH evaluation enabled, and refused for a `fixed_cell_v1`
+    # run: the held-out seed band is a fixed-cell construct, and letting a generalized
+    # run fall back on it would evaluate an UNSTRATIFIED population under a stratified
+    # label. To train generalized without a benchmark, disable evaluation explicitly.
+    benchmark_manifest: Optional[str] = None
+
     # --- THE OFFLINE SCENARIO-CONSTRUCTION REFERENCE CELL (B1) ---------------------
     # Stated outright, never derived from a ratio. A CELL, NOT A LAW: a later phase
     # varies these per episode, so nothing downstream may hard-code them.
@@ -888,13 +955,40 @@ class TrainConfig:
         training, which is what makes an eval measurement describe the same event the
         training episodes contained.
         """
+        design = self.design
         return FuelDamageParameters(
             mode=str(self.fuel_damage_mode if mode is None else mode),
             probability=float(self.fuel_damage_probability),
             leg_progress_threshold=float(self.fuel_damage_leg_progress),
             rtb_safety_margin=float(self.fuel_damage_rtb_margin),
             mild_probability=float(self.fuel_damage_mild_probability),
+            # GENERALIZED-V1: the two FD policy seams, RESOLVED FROM THE ONE DESIGN
+            # SELECTOR rather than exposed as two more independent knobs. Under
+            # `fixed_cell_v1` these are exactly the values `FuelDamageParameters` would
+            # have defaulted to, so the constructed object is identical to the one every
+            # pre-Task-4 call site produced -- stated explicitly here so a record always
+            # says which policies ran instead of leaving it to be inferred from a default.
+            eligibility_policy=design.eligibility_policy,
+            post_fd_wake_policy=design.post_fd_wake_policy,
         )
+
+    # ------------------------------------------------------------------
+    @property
+    def design(self) -> EpisodeDesign:
+        """THE ONE resolution site: this run's four low-level policy ids.
+
+        Every consumer -- the FD parameters, the ``setup_episode`` keywords, the run
+        config block and the per-episode record -- reads the bundle from HERE, so a run
+        cannot resolve half a design. An unrecognized id RAISES rather than falling back
+        on the historical bundle (:func:`resolve_episode_design`); ``validate`` refuses it
+        before any compute, and this property refuses it again if one is reached anyway.
+        """
+        return resolve_episode_design(self.episode_design)
+
+    @property
+    def generalized(self) -> bool:
+        """True iff this run draws from the GENERALIZED-V1 population."""
+        return self.design.generalized
 
     # ------------------------------------------------------------------
     # THE MATCHED-EVALUATION GROUP. Its shape is decided by the run's TRAINING mode and
@@ -1039,6 +1133,63 @@ class TrainConfig:
                     % (self.ctde.value_coeff,)
                 )
 
+        # --- GENERALIZED-V1: the design selector, checked before anything reads it ---
+        # An UNRECOGNIZED design raises rather than falling back on the historical
+        # bundle: a run that quietly measured the fixed cell while its config said
+        # `generalized_v1` is a mislabelled measurement, which is worse than a crash.
+        if str(self.episode_design) not in EPISODE_DESIGNS:
+            raise ValueError(
+                "episode_design must be one of %s, got %r"
+                % (list(EPISODE_DESIGNS), self.episode_design)
+            )
+        design = self.design
+        if design.generalized:
+            # The approved generalized TRAINING mixture is 0.50 clean / 0.25 mild /
+            # 0.25 severe, which is `seeded_variable` and nothing else. A generalized run
+            # on `seeded_mixture` would make every damaged episode structurally SEVERE
+            # while its records claimed the generalized design, and a generalized run on
+            # `off` would carry no fuel-damage event for the certified eligibility policy
+            # to certify -- neither is the approved design.
+            if str(self.fuel_damage_mode) != FuelDamageMode.SEEDED_VARIABLE:
+                raise ValueError(
+                    "episode_design=%r requires fuel_damage_mode=%r (the approved "
+                    "0.50 clean / 0.25 mild / 0.25 severe training mixture); got %r. "
+                    "The certified eligibility policy certifies BOTH severities on one "
+                    "ego, and the matched benchmark evaluates clean/mild/severe triads."
+                    % (EPISODE_DESIGN_GENERALIZED_V1, FuelDamageMode.SEEDED_VARIABLE,
+                       self.fuel_damage_mode)
+                )
+            # Evaluation MUST be the frozen stratified benchmark. The held-out seed band
+            # is a FIXED-CELL construct: its seeds carry no stratum, so evaluating a
+            # generalized run on it would measure an unstratified population and report
+            # it under a stratified design. Refused rather than silently substituted.
+            if self.eval_enabled and not str(self.benchmark_manifest or ""):
+                raise ValueError(
+                    "episode_design=%r with evaluation enabled requires "
+                    "benchmark_manifest: the fixed held-out seed band carries no "
+                    "stratum, so evaluating on it would measure an UNSTRATIFIED "
+                    "population under a stratified label. Point benchmark_manifest at a "
+                    "frozen manifest, or disable evaluation explicitly "
+                    "(eval_every=0 / eval_episodes=0)."
+                    % EPISODE_DESIGN_GENERALIZED_V1
+                )
+            # The fixed-cell fields are NOT read on this path: a training episode's
+            # cardinality is drawn per seed and a benchmark member's comes from its
+            # stratum. Said out loud, because a config that carries `n_hidden = 3` and
+            # produces worlds with 1..A hidden targets is otherwise confusing to read.
+            print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
+                  "read. A training episode's cardinality is SAMPLED per seed "
+                  "(A ~ U{2,3,4}, K == A, H ~ U{1..A}); a benchmark member's comes from "
+                  "its stratum. Proceeding." % EPISODE_DESIGN_GENERALIZED_V1)
+        elif str(self.benchmark_manifest or ""):
+            raise ValueError(
+                "benchmark_manifest is set but episode_design=%r: the 18-stratum "
+                "benchmark is defined for %r only, and a fixed-cell run evaluating it "
+                "would build every world from the fixed cell while reporting stratum "
+                "labels it never varied."
+                % (self.episode_design, EPISODE_DESIGN_GENERALIZED_V1)
+            )
+
         # --- the construction cell: shape errors RAISE, before any compute ---
         if int(self.num_agents) < 1:
             raise ValueError(f"num_agents must be >= 1, got {self.num_agents}")
@@ -1141,6 +1292,32 @@ class TrainConfig:
                   % (lo_n, self.partial_ratio, known, hidden))
 
         if not self.eval_enabled:
+            return
+
+        if str(self.benchmark_manifest or ""):
+            # MANIFEST EVALUATION: the two legacy bounds below are about a schedule this
+            # run does not execute, so they are NOT applied here -- and that is a
+            # correctness decision, not a relaxation.
+            #
+            #   * the eval TAG-namespace bound is sized from `eval_episodes`, while a
+            #     manifest round's size is the MANIFEST's member count;
+            #   * the train/eval band overlap test compares the training band against
+            #     `eval_base_seed .. + eval_episodes`, which this run never evaluates.
+            #
+            # Letting either stand in would be wrong in BOTH directions: an unused
+            # configured band could falsely reject a properly held-out manifest, and it
+            # could falsely validate one that contains a training seed. The real checks
+            # need the manifest itself and therefore run at LOAD time, before the run
+            # directory or any compute exists -- `_require_benchmark_seeds_held_out`
+            # (the held-out claim) and `_require_benchmark_tag_namespace` (the naming
+            # bound). The training-tag bound below is still checked, because benchmark
+            # tags share that one namespace.
+            if self.total_episodes > _EVAL_EPISODE_TAG_BASE:
+                raise ValueError(
+                    "total training episodes (%d) reaches the eval scenario-tag base "
+                    "(%d): training and benchmark scenarios would collide by filename."
+                    % (self.total_episodes, _EVAL_EPISODE_TAG_BASE)
+                )
             return
 
         # --- the eval scenario-TAG namespace must stay disjoint (see eval_episode_tag)
@@ -1665,6 +1842,9 @@ def _failure_record(
     seed: int,
     condition: str,
     exc: BaseException,
+    cell: Optional[str] = None,
+    cardinality: Optional[EpisodeCardinality] = None,
+    benchmark: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build ONE ledger record for a failed attempt (see :func:`_append_failure_record`).
 
@@ -1682,6 +1862,23 @@ def _failure_record(
     produced an episode. Without it, "failed counts by condition" would be unanswerable
     and a per-condition mean could quietly be taken over a different denominator than it
     appears to have.
+
+    ``cell`` is the finer SCHEDULED reporting label (``clean`` / ``mild`` / ``severe``),
+    beside -- never instead of -- ``condition``: the existing ``failures_by_condition``
+    tally keeps meaning exactly what it always did, and the severity is added so a
+    per-CELL denominator is complete rather than reconstructed.
+
+    GENERALIZED-V1. ``cardinality`` and ``benchmark`` record the world this attempt was
+    SCHEDULED to build, and they matter precisely because it never built one: without them
+    a failed HIGH-load attempt would be invisible in the requested-vs-realized
+    distribution and a failed benchmark member would be missing from its stratum's
+    denominator, so both would silently shrink. A failure is still recorded ONCE, still
+    never retried, and still never replaced.
+
+    ``reference_fault_reason`` is the stable slug of a reference refusal that was
+    ACCOUNTED as attrition (an unanswered solve). A reference fault that ABORTED never
+    reaches this ledger at all -- that is the whole point of the routing -- so the field
+    can only ever carry the attrition case.
     """
     original = getattr(exc, "original", exc)
     stage = getattr(exc, "stage", "unknown")
@@ -1695,9 +1892,20 @@ def _failure_record(
         "eval_tag": eval_tag,
         "seed": int(seed),
         "condition": str(condition),
+        "cell": None if cell is None else str(cell),
         "pipeline_stage": str(stage),
         "error_type": type(original).__name__,
         "error_message": str(original),
+        "reference_fault_reason": getattr(original, "reason", None) if isinstance(
+            original, ReferenceIntegrityError) else None,
+        # The SCHEDULED world shape (never a realized one -- nothing was realized).
+        "agent_count": None if cardinality is None else int(cardinality.agent_count),
+        "known_requested": None if cardinality is None else int(
+            cardinality.known_count),
+        "hidden_requested": None if cardinality is None else int(
+            cardinality.hidden_requested),
+        "cardinality_source": None if cardinality is None else str(cardinality.source),
+        **(benchmark or _EMPTY_BENCHMARK_KEYS),
         "traceback": "".join(
             traceback.format_exception(type(exc), exc, exc.__traceback__)
         ),
@@ -1734,6 +1942,8 @@ def _episode_outcome_record(
     seed: int,
     episode_tag: int,
     fuel_damage_mode: str,
+    design: EpisodeDesign,
+    benchmark: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """ONE durable record per SUCCESSFUL attempt, for ``episode_outcomes.jsonl``.
 
@@ -1757,13 +1967,49 @@ def _episode_outcome_record(
     component's own frozen records (:meth:`FuelDamagePlan.to_record` /
     :meth:`FuelDamageOutcome.to_record`); nothing is recomputed, so this stream cannot
     disagree with the aggregate that summarizes it.
+
+    GENERALIZED-V1 (schema version 2). The record additionally states the resolved
+    episode DESIGN and its four policy ids, the REQUESTED-vs-REALIZED cardinality, and the
+    per-episode structures Tasks 1-3 produce -- the construction audit, the FD eligibility
+    audit and event certificate, the post-FD adaptation record and the reward-reference
+    decomposition -- each carried WHOLE from the component's own frozen record rather than
+    flattened into a second description of it. A member of a frozen benchmark also states
+    its stratum, its matched world GROUP and the id-free identity of the world it built,
+    so a stratum's denominator and a group's completeness are both readable per episode.
+
+    ``design`` is a REQUIRED keyword: both production call sites resolve it before the
+    episode runs, and an optional one would let a future call site omit the one field
+    that says which population this episode was drawn from.
+
+    THE SAME "MISSING IS null" RULE APPLIES TO THE NEW BLOCKS, and there it is a statement
+    about the DESIGN rather than about the episode: an ``exact_v1`` construction genuinely
+    has no backoff audit, a legacy plan has no certificate, a ``single_wake_v1`` run has
+    no post-FD adaptation, and a ``static_t0_v1`` episode has no reference object.
+    ``null`` there means "this design produces no such structure", never "it measured
+    zero".
     """
     plan = out.fuel_damage_plan or {}
     outcome = out.fuel_damage_outcome or {}
     meta = outcome.get("wake_meta_action")
+    card = out.cardinality
+    breakdown = out.reward_breakdown or {}
+    reference = out.reference or {}
+    eligibility = plan.get("eligibility_audit") or {}
+    post_fd = out.post_fd_adaptation or {}
     return {
         "schema": _EPISODE_OUTCOME_SCHEMA,
         "schema_version": _EPISODE_OUTCOME_VERSION,
+        # --- WHICH POPULATION this episode was drawn from, and under which policies ---
+        # Stated on BOTH designs rather than only on the generalized one: "this run was
+        # the historical fixed cell" is a fact worth recording, and a reader must never
+        # have to infer the design from the ABSENCE of generalized keys.
+        "episode_design": str(design.design),
+        "generalized": bool(design.generalized),
+        "hidden_policy": str(design.hidden_policy),
+        "eligibility_policy": str(design.eligibility_policy),
+        "post_fd_wake_policy": str(design.post_fd_wake_policy),
+        "reference_policy": str(design.reference_policy),
+        "target_destruction_probability": float(TARGET_DESTRUCTION_PROBABILITY),
         # --- identity: which scheduled attempt this was ---
         "phase": str(phase),
         "iteration": None if iteration is None else int(iteration),
@@ -1832,7 +2078,155 @@ def _episode_outcome_record(
         "ended": str(out.ended),
         "ticks": int(out.ticks),
         "seconds": float(out.seconds),
+        # --- CONSTRUCTION: requested vs realized, and the backoff's own reasons -----
+        # The REQUEST is never rewritten to match what was realized: the two travel side
+        # by side so requested-vs-realized is readable as a DISTRIBUTION across episodes,
+        # which is exactly the inspection a HIGH hidden-load stratum that quietly
+        # collapses into the LOW one would otherwise escape (handoff 3l.6).
+        "agent_count": None if card is None else int(card.agent_count),
+        "known_requested": None if card is None else int(card.known_count),
+        "hidden_requested": None if card is None else int(card.hidden_requested),
+        "targets_requested": None if card is None else int(card.targets_requested),
+        "cardinality_source": None if card is None else str(card.source),
+        "known_realized": (
+            None if out.world_identity is None
+            else int(out.world_identity.known_realized)
+        ),
+        "hidden_realized": out.hidden_realized,
+        "targets_realized": int(out.targets_total),
+        "hidden_short_realized": (
+            None if card is None or out.hidden_realized is None
+            else bool(int(out.hidden_realized) < int(card.hidden_requested))
+        ),
+        "construction_audit": out.construction_audit,
+        "construction_backoff_candidate_order": (
+            (out.construction_audit or {}).get("backoff", {}).get("candidate_order")
+        ),
+        "construction_backoff_rejections": _backoff_rejections(out.construction_audit),
+        "hidden_geometric_fingerprint": (
+            None if out.world_identity is None
+            else [list(pair) for pair in out.world_identity.geometric_fingerprint]
+        ),
+        # --- FD ELIGIBILITY + the event CERTIFICATE --------------------------------
+        "fd_eligibility_policy": plan.get("eligibility_policy"),
+        "fd_post_fd_wake_policy": plan.get("post_fd_wake_policy"),
+        "fd_eligibility_rng_domain": eligibility.get("rng_domain"),
+        "fd_eligibility_derived_seed": eligibility.get("derived_seed"),
+        "fd_eligibility_candidate_count": eligibility.get("candidate_count"),
+        "fd_eligibility_candidate_order": eligibility.get("candidate_order"),
+        "fd_eligibility_considered_ordinals": eligibility.get("considered_ordinals"),
+        "fd_eligibility_rejections": _eligibility_rejections(eligibility),
+        "fd_eligibility_selected_ordinal": eligibility.get("selected_ordinal"),
+        "fd_eligibility_audit": plan.get("eligibility_audit"),
+        "fd_certificate": plan.get("certificate"),
+        "fd_certificate_fingerprint": (
+            None if out.world_identity is None
+            else out.world_identity.fd_certificate_fingerprint
+        ),
+        # --- POST-FD ADAPTATION, under its OWN denominators ------------------------
+        # Never folded into the immediate-wake pair above: `fd_wake_occurred` /
+        # `fd_wake_meta_action` keep meaning the IMMEDIATE fuel-damage wake, and an
+        # approved measurement is reported over exactly those two.
+        "post_fd_policy": post_fd.get("policy"),
+        "post_fd_armed": post_fd.get("armed"),
+        "post_fd_active": post_fd.get("active"),
+        "post_fd_deactivation_reason": post_fd.get("deactivation_reason"),
+        "post_fd_boundaries_confirmed": post_fd.get("boundaries_confirmed"),
+        "post_fd_boundaries_with_remaining_mission": post_fd.get(
+            "boundaries_with_remaining_mission"),
+        "post_fd_boundaries_terminal": post_fd.get("boundaries_terminal"),
+        "post_fd_boundary_wakes": post_fd.get("boundary_wakes"),
+        "post_fd_boundary_ticks": post_fd.get("boundary_ticks"),
+        "post_fd_boundary_meta_actions": post_fd.get("boundary_meta_actions"),
+        "post_fd_boundary_meta_action_names": [
+            MetaAction(int(m)).name
+            for m in (post_fd.get("boundary_meta_actions") or [])
+        ],
+        "post_fd_adaptation": out.post_fd_adaptation,
+        # --- THE REWARD-BEARING REFERENCE and the reward's decomposition -----------
+        # `u_ref` is the denominator source under BOTH policies (on the static path it
+        # EQUALS `u_oracle`), so a consumer asking "what was this normalized by?" reads
+        # ONE field and is correct either way. `u_oracle` is `null` under the opt-in
+        # policy because no static full-set optimum was ever solved -- `0.0` there would
+        # fabricate a perfect oracle.
+        "reference_kind": reference.get("kind") or breakdown.get("reference_kind"),
+        "reference_checkpoint_tick": breakdown.get("checkpoint_tick"),
+        "u_achieved": breakdown.get("u_achieved"),
+        "u_oracle": breakdown.get("u_oracle"),
+        "u_ref": breakdown.get("u_ref"),
+        "u_prefix": breakdown.get("u_prefix"),
+        "u_cont_ref": breakdown.get("u_cont_ref"),
+        "u_post": breakdown.get("u_post"),
+        "u_aircraft": breakdown.get("u_aircraft"),
+        "reward_ratio": breakdown.get("ratio"),
+        "reward_penalty": breakdown.get("penalty"),
+        "unique_completed_targets": breakdown.get("unique_completed_targets"),
+        "scored_completed_targets": breakdown.get("scored_completed_targets"),
+        "unscored_completed_targets": breakdown.get("unscored_completed_targets"),
+        "unscored_completed_target_ids": list(
+            breakdown.get("unscored_completed_target_ids") or ()
+        ),
+        "reference_allocated_task_count": reference.get("allocated_task_count"),
+        "reference_candidate_task_count": reference.get("candidate_task_count"),
+        "reference_continuation_agent_count": (
+            None if not reference
+            else len(reference.get("continuation_agent_ids") or ())
+        ),
+        "reference_excluded_agents": reference.get("excluded_agents"),
+        "reference_solver_invoked": reference.get("solver_invoked"),
+        "reference_solver_accepted": reference.get("solver_accepted"),
+        "reference_solver_termination": reference.get("solver_termination"),
+        "reference_solver_seconds": reference.get("solver_seconds"),
+        "reference_record": out.reference,
+        # --- FROZEN-BENCHMARK identity (a manifest-driven eval member only) --------
+        **(benchmark or _EMPTY_BENCHMARK_KEYS),
     }
+
+
+#: The benchmark identity keys, present as ``null`` on every NON-benchmark episode so one
+#: schema reads both. A key that appears on only some rows makes a jsonl stream awkward to
+#: load into a table, and its ABSENCE is indistinguishable from a writer that forgot it.
+_EMPTY_BENCHMARK_KEYS: Dict[str, Any] = {
+    "benchmark_manifest_id": None,
+    "benchmark_stratum": None,
+    "benchmark_group_key": None,
+    "benchmark_agent_count": None,
+    "benchmark_load_bucket": None,
+    "benchmark_world_ordinal": None,
+    "benchmark_world_identity": None,
+}
+
+
+def _backoff_rejections(audit: Optional[Dict[str, Any]]) -> Optional[List[str]]:
+    """The bounded-backoff candidates' REJECTION REASONS, in visit order.
+
+    A flat list of stable slugs beside the full audit, so "why did this world realize
+    fewer hidden targets than it requested?" can be tallied straight off the record
+    without re-walking a nested structure. ``None`` -- not ``[]`` -- when there is no
+    audit at all: no backoff ran, which is a different fact from a backoff that rejected
+    nobody.
+    """
+    if not audit:
+        return None
+    candidates = (audit.get("backoff") or {}).get("candidates") or []
+    return [
+        str(c.get("reason")) for c in candidates
+        if not c.get("accepted") and c.get("reason") is not None
+    ]
+
+
+def _eligibility_rejections(audit: Dict[str, Any]) -> Optional[List[str]]:
+    """The certified FD-eligibility walk's REJECTION REASONS, in visit order.
+
+    ``None`` when no certified walk ran (the legacy policy), for the same reason as
+    :func:`_backoff_rejections`.
+    """
+    if not audit:
+        return None
+    return [
+        str(c.get("reason")) for c in (audit.get("candidates") or [])
+        if not c.get("accepted") and c.get("reason") is not None
+    ]
 
 
 def _append_episode_outcome_record(
@@ -2295,24 +2689,50 @@ def _bonmin_provenance() -> Dict[str, Any]:
     return out
 
 
-def seed_bands(cfg: TrainConfig) -> Dict[str, Any]:
-    """The run's two seed bands as HALF-OPEN ranges, plus the derivation formulas.
+#: How a run's EVALUATION seeds were really obtained.
+#:
+#: Only the MANIFEST value is ever WRITTEN, and deliberately so: a fixed-cell run's
+#: provenance block keeps exactly its historical shape (adding a source label there would
+#: change an artifact every existing reader and every preserved run already has), so the
+#: historical source is identified by the ABSENCE of `benchmark_evaluation` rather than by
+#: a new key. The generalized block states its source outright, because a provenance block
+#: that names a schedule the run did not execute is worse than one that names none: a
+#: reviewer re-checking "was this held out?" would re-derive the wrong band.
+EVAL_SEED_SOURCE_BAND: str = "eval_seed_band"
+EVAL_SEED_SOURCE_MANIFEST: str = "benchmark_manifest"
 
-    Recorded rather than left implicit because "held out" is a claim about these two
-    intervals: :meth:`TrainConfig.validate` refuses a config whose bands overlap, and
-    this block is the artifact that lets a reviewer re-check that refusal without
-    re-deriving the arithmetic. Half-open is stated in the payload
-    (``stop`` EXCLUSIVE) so an off-by-one reading is not available.
 
-    Computed from the same three pure functions the loop itself uses
-    (:func:`global_episode_index`, :func:`train_seed`, :func:`eval_seed`), so this
+def seed_bands(
+    cfg: TrainConfig, *, benchmark: Optional[BenchmarkManifest] = None
+) -> Dict[str, Any]:
+    """The run's seed schedule as HALF-OPEN ranges, plus the derivation formulas.
+
+    Recorded rather than left implicit because "held out" is a claim about intervals, and
+    this block is the artifact that lets a reviewer re-check that claim without
+    re-deriving the arithmetic. Half-open is stated in the payload (``stop`` EXCLUSIVE)
+    so an off-by-one reading is not available.
+
+    THE TRAINING HALF IS THE SAME UNDER BOTH DESIGNS, and is computed from the same pure
+    functions the loop uses (:func:`global_episode_index`, :func:`train_seed`), so it
     cannot describe a schedule other than the one that runs.
+
+    THE EVALUATION HALF STATES ITS ACTUAL SOURCE. ``benchmark`` omitted (every
+    fixed-cell run, and every direct pre-Task-4 caller) leaves this function's output
+    BYTE-UNCHANGED: the configured band and ``eval_seed = eval_base_seed + e``, which is
+    exactly the schedule such a run executes. Supplied, the run's evaluation seeds come
+    from the FROZEN MANIFEST instead, and the block says so: the manifest's identity, how
+    many world seeds it holds, an ordered-seed digest and the seeds themselves, plus the
+    verified held-out result against the training band. The configured band is then
+    reported under ``unused_eval_band`` -- retained so a reader can see it was configured
+    and NOT executed, rather than deleted (which would leave a reader wondering) or left
+    in ``eval_band`` (which would assert a schedule that never ran).
     """
     train_start = int(cfg.base_seed)
+    train_stop = train_start + int(cfg.total_episodes)
     band: Dict[str, Any] = {
         "train_band": {
             "start": train_start,
-            "stop": train_start + int(cfg.total_episodes),
+            "stop": train_stop,
             "half_open": True,
             "count": int(cfg.total_episodes),
         },
@@ -2323,6 +2743,46 @@ def seed_bands(cfg: TrainConfig) -> Dict[str, Any]:
         "eval_seed_formula": "eval_seed = eval_base_seed + e",
         "eval_band_is_fixed_across_rounds": True,
     }
+    if benchmark is not None:
+        # The seeds this run REALLY evaluates. `eval_band` / `eval_seed_formula` are
+        # emptied rather than left carrying the legacy band, so nothing in this block can
+        # be read as the executed schedule.
+        seeds = benchmark.seeds()
+        overlap = manifest_seed_overlap(
+            benchmark, start=train_start, stop=train_stop)
+        band["eval_seed_source"] = EVAL_SEED_SOURCE_MANIFEST
+        band["eval_band"] = None
+        band["eval_seed_formula"] = None
+        band["benchmark_evaluation"] = {
+            "manifest_id": str(benchmark.manifest_id),
+            "n_world_seeds": len(seeds),
+            "n_member_episodes_per_round": int(benchmark.n_members),
+            # Ordered digest AND the list itself: the digest is the compact re-check, and
+            # the list is small enough to be worth reading directly (one seed per matched
+            # world GROUP, not per episode).
+            "seed_list_sha256": benchmark.seed_digest(),
+            "seeds": [int(x) for x in seeds],
+            "held_out_against_train_band": {
+                "start": train_start, "stop": train_stop, "half_open": True,
+            },
+            "held_out_overlap_count": len(overlap),
+            "held_out_verified": not overlap,
+        }
+        band["unused_legacy_eval_band"] = {
+            "start": int(cfg.eval_base_seed),
+            "stop": int(cfg.eval_base_seed) + int(cfg.eval_episodes),
+            "half_open": True,
+            "count": int(cfg.eval_episodes),
+            "executed": False,
+            "note": ("configured but NOT executed: this run's evaluation seeds come "
+                     "from the frozen benchmark manifest"),
+        }
+        return band
+    # THE HISTORICAL BLOCK, BYTE-UNCHANGED. No key is added on this path -- not even the
+    # source label -- because a fixed-cell run's provenance must keep exactly the shape
+    # every existing reader and every preserved run artifact already has. A reader tells
+    # the two apart by the PRESENCE of `benchmark_evaluation`, which is a fact about the
+    # generalized block rather than a new field on this one.
     if cfg.eval_enabled:
         eval_start = int(cfg.eval_base_seed)
         band["eval_band"] = {
@@ -2339,6 +2799,7 @@ def collect_provenance(
     *,
     argv: Optional[List[str]] = None,
     repo_root: Union[str, Path, None] = None,
+    benchmark: Optional[BenchmarkManifest] = None,
 ) -> Dict[str, Any]:
     """Everything needed to attribute a run, collected BEFORE any solver-heavy work.
 
@@ -2388,7 +2849,10 @@ def collect_provenance(
         },
         "packages": {name: _module_provenance(name) for name in _PROVENANCE_MODULES},
         "solver": {"bonmin": _bonmin_provenance()},
-        "seeds": seed_bands(cfg),
+        # `benchmark` omitted (every fixed-cell run) leaves this block byte-unchanged;
+        # supplied, the evaluation half states the MANIFEST as its actual seed source
+        # instead of a band this run never evaluates.
+        "seeds": seed_bands(cfg, benchmark=benchmark),
         "train_config_location": "run_config.json:/train_config",
     }
 
@@ -2422,12 +2886,74 @@ def _scheduled_cell_probabilities(cfg: TrainConfig) -> Dict[str, float]:
     }
 
 
+def _construction_record(cfg: TrainConfig) -> Dict[str, Any]:
+    """The ``construction`` block of ``run_config.json``, per design.
+
+    ``fixed_cell_v1`` returns exactly the historical block: the configured cell IS the
+    executed one there, and every existing reader keeps resolving.
+
+    ``generalized_v1`` returns a block that cannot be misread as a fixed cell. The
+    geometry half is unchanged (it really is configured and really is applied to every
+    generated world); the CARDINALITY half says it is dynamic, names the two sources it
+    comes from, and carries the configured-but-unused counts under
+    ``unused_fixed_cell_config`` so a reader can see what was configured AND that it was
+    not executed.
+    """
+    geometry = {
+        "min_target_distance_km": float(cfg.min_target_distance_km),
+        "min_known_separation_km": float(cfg.min_known_separation_km),
+        "detection_km": float(DETECTION_KM),
+        "ensure_discovery_chain": False,
+        "strict_geometry": True,
+        "setup_mode": "construction",
+    }
+    if not cfg.generalized:
+        return {
+            "num_agents": int(cfg.num_agents),
+            "n_known": int(cfg.n_known),
+            "n_hidden": int(cfg.n_hidden),
+            "n_targets_generated": int(cfg.n_known),
+            "n_targets_emitted": cfg.n_targets_emitted,
+            **geometry,
+        }
+    return {
+        "cardinality_source": "per_episode_sampler_and_benchmark_manifest",
+        "fixed_cell_config_used": False,
+        "training_cardinality": {
+            "source": "per_episode_sampler",
+            "policy": CARDINALITY_SAMPLER_POLICY,
+            "rng_domain": CARDINALITY_RNG_DOMAIN,
+            "agent_counts": [int(a) for a in GENERALIZED_AGENT_COUNTS],
+            "rule": "A ~ Uniform(agent_counts); K == A; H_requested ~ Uniform({1..A})",
+        },
+        "evaluation_cardinality": {
+            "source": "benchmark_manifest",
+            "note": ("a benchmark member's cell is its frozen stratum's, never a "
+                     "function of its seed"),
+        },
+        # The counts are REALIZED per episode and may fall short of the request under
+        # bounded backoff, so no single number here could describe the run.
+        "n_targets_emitted": None,
+        "realized_cardinality_recorded_in": _EPISODE_OUTCOMES_FILENAME,
+        "unused_fixed_cell_config": {
+            "num_agents": int(cfg.num_agents),
+            "n_known": int(cfg.n_known),
+            "n_hidden": int(cfg.n_hidden),
+            "executed": False,
+            "note": ("configured but NOT read on this path: the cell is sampled per "
+                     "episode and taken from the manifest for benchmark members"),
+        },
+        **geometry,
+    }
+
+
 def write_run_config(
     run_dir: Path,
     cfg: TrainConfig,
     *,
     provenance: Optional[Dict[str, Any]] = None,
     config_source: Optional[Dict[str, Any]] = None,
+    benchmark: Optional[BenchmarkManifest] = None,
 ) -> Path:
     """Write ``run_dir/run_config.json`` -- the full resolved config of THIS run.
 
@@ -2467,21 +2993,20 @@ def write_run_config(
     payload = {
         "train_config": asdict(cfg),
         "provenance": (
-            collect_provenance(cfg) if provenance is None else provenance
+            collect_provenance(cfg, benchmark=benchmark) if provenance is None
+            else provenance
         ),
-        "construction": {
-            "num_agents": int(cfg.num_agents),
-            "n_known": int(cfg.n_known),
-            "n_hidden": int(cfg.n_hidden),
-            "n_targets_generated": int(cfg.n_known),
-            "n_targets_emitted": cfg.n_targets_emitted,
-            "min_target_distance_km": float(cfg.min_target_distance_km),
-            "min_known_separation_km": float(cfg.min_known_separation_km),
-            "detection_km": float(DETECTION_KM),
-            "ensure_discovery_chain": False,
-            "strict_geometry": True,
-            "setup_mode": "construction",
-        },
+        # THE CONSTRUCTION CELL. Under `fixed_cell_v1` this is the resolved, executed
+        # cell and the block is byte-unchanged. Under `generalized_v1` the three count
+        # fields are NOT read by anything -- training cardinality is sampled per episode
+        # and benchmark cardinality comes from the manifest -- so writing them in the
+        # same shape would let the artifact be read as "this run executed 3/3/3", which
+        # is a plausible-looking false statement about the population. The generalized
+        # block therefore states that the cell is DYNAMIC, names where each half really
+        # comes from, and keeps the configured numbers only under an explicitly-labelled
+        # UNUSED sub-block. Per-episode REALIZED cardinalities are deliberately not
+        # duplicated here; they belong in `episode_outcomes.jsonl`.
+        "construction": _construction_record(cfg),
         # PHASE B: WHICH TRAINING ALGORITHM RAN, stated rather than inferred. A reader
         # must not have to deduce it from whether a `ctde` block happens to be present
         # (it always is -- it has dataclass defaults), so `mode` and `ctde_enabled` say
@@ -2526,6 +3051,38 @@ def write_run_config(
                 "formula_changed": False,
             },
         },
+        # GENERALIZED-V1: WHICH POPULATION this run draws from, stated rather than
+        # inferred. The four low-level policy ids are RESOLVED here from the one design
+        # selector, so a reader never has to know the bundle to check what ran, and
+        # `p(destroy)` is recorded explicitly to state -- rather than imply -- that the
+        # redesign did not touch it.
+        "episode_design": {
+            **cfg.design.to_record(),
+            "target_destruction_probability": float(TARGET_DESTRUCTION_PROBABILITY),
+            # The sampler is the TRAINING population's rule. Recorded on both designs:
+            # under `fixed_cell_v1` it is `null`, which is the truthful statement that
+            # the cell was configured rather than sampled.
+            "cardinality_sampler": (
+                cardinality_sampler_record() if cfg.generalized else None
+            ),
+            "fixed_cell": (
+                None if cfg.generalized else {
+                    "num_agents": int(cfg.num_agents),
+                    "n_known": int(cfg.n_known),
+                    "n_hidden": int(cfg.n_hidden),
+                }
+            ),
+            # The FROZEN benchmark this run evaluates on -- its content hash included, so
+            # "the two arms ran the same benchmark" is a checkable claim rather than an
+            # assertion. `null` when no manifest is involved.
+            "benchmark_manifest": (
+                None if benchmark is None else {
+                    "path": str(cfg.benchmark_manifest),
+                    "absolute_path": str(Path(str(cfg.benchmark_manifest)).resolve()),
+                    **benchmark.identity_record(),
+                }
+            ),
+        },
         "derived_split": cfg.split_preview,
         # Never `null`, and never MISLABELLED: an omitted source means a caller built
         # this config in Python, which is a third provenance -- not a command line that
@@ -2542,8 +3099,82 @@ def write_run_config(
     return path
 
 
-def build_variation_config(cfg: TrainConfig, seed: int) -> VariationConfig:
+def episode_cardinality(
+    cfg: TrainConfig, seed: int, *, benchmark_cardinality: Optional[
+        EpisodeCardinality] = None
+) -> EpisodeCardinality:
+    """THE ONE site that answers "what cardinality is this scheduled attempt?".
+
+    Three sources, and a record always says which one it was:
+
+      * a BENCHMARK member states its own -- it comes from the frozen manifest stratum,
+        so it is passed in and used verbatim (an evaluation member's world shape is not a
+        function of its seed, it is a function of the stratum it was frozen into);
+      * a ``generalized_v1`` TRAINING episode SAMPLES one from its seed, through the
+        sampler's private rng domain (:func:`sample_generalized_cardinality`);
+      * a ``fixed_cell_v1`` episode reads the configured cell verbatim -- no draw, no
+        seed, no derivation, so the historical path resolves exactly what it always did.
+
+    The sampler is never consulted on the fixed-cell path, so its rng domain is not even
+    touched there, and the benchmark cardinality always wins where it is supplied -- a
+    manifest member whose shape was re-derived from its seed would silently leave the
+    stratum it was frozen into.
+    """
+    if benchmark_cardinality is not None:
+        return benchmark_cardinality
+    if cfg.generalized:
+        return sample_generalized_cardinality(episode_seed=int(seed))
+    return fixed_cell_cardinality(
+        agent_count=int(cfg.num_agents),
+        known_count=int(cfg.n_known),
+        hidden_requested=int(cfg.n_hidden),
+    )
+
+
+def _cardinality_kwargs(
+    cardinality: Optional[EpisodeCardinality],
+) -> Dict[str, Any]:
+    """``_run_one_episode``'s cardinality keyword -- or NOTHING on the fixed-cell path.
+
+    The SAME keyword-omission rule as :func:`_artifact_kwargs` and :func:`_ctde_kwargs`,
+    for the same reason: a ``fixed_cell_v1`` run must call ``_run_one_episode`` with
+    exactly the arguments it did before Task 4 existed, not with a new keyword carrying a
+    value it could have derived itself. That is also the stronger invariance claim.
+    """
+    if cardinality is None:
+        return {}
+    return {"cardinality": cardinality}
+
+
+def _generalized_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
+    """``setup_episode``'s two GENERALIZED-V1 policy keywords -- or NOTHING.
+
+    Same rule again, one level down: on the historical path ``setup_episode`` is called
+    with exactly its pre-Task-4 argument list, so the default ``exact_v1`` /
+    ``static_t0_v1`` resolution happens inside setup as it always has.
+    """
+    if not cfg.generalized:
+        return {}
+    design = cfg.design
+    return {
+        "hidden_policy": design.hidden_policy,
+        "reference_policy": design.reference_policy,
+    }
+
+
+def build_variation_config(
+    cfg: TrainConfig,
+    seed: int,
+    *,
+    cardinality: Optional[EpisodeCardinality] = None,
+) -> VariationConfig:
     """The ONE site that turns a :class:`TrainConfig` into the generator's input.
+
+    ``cardinality`` overrides the CELL for this one episode and nothing else: the fleet
+    size and the known-target count come from it, while the geometry, the discovery-chain
+    switch, the strictness and the detection radius stay exactly as configured. Omitted
+    (the historical call), the configured fixed cell is used and this function is
+    byte-unchanged.
 
     This is the B1 construction request, and every part of it is deliberate:
 
@@ -2565,10 +3196,15 @@ def build_variation_config(cfg: TrainConfig, seed: int) -> VariationConfig:
     ``VariationConfig`` is a dataclass, so a test can compare the whole request for
     equality instead of re-listing the fields.
     """
+    cell = cardinality if cardinality is not None else fixed_cell_cardinality(
+        agent_count=int(cfg.num_agents),
+        known_count=int(cfg.n_known),
+        hidden_requested=int(cfg.n_hidden),
+    )
     return VariationConfig(
         include_sams=cfg.include_sams,
-        num_aircraft=int(cfg.num_agents),
-        num_red_airbases=int(cfg.n_known),
+        num_aircraft=int(cell.agent_count),
+        num_red_airbases=int(cell.known_count),
         randomize_red_airbase_positions=cfg.randomize_red_airbase_positions,
         stretch_target_ratio=float(cfg.stretch_target_ratio),
         min_target_distance_km=float(cfg.min_target_distance_km),
@@ -3475,25 +4111,107 @@ class _AttemptArtifacts:
             ) from exc
 
 
-def _require_scheduled_cell(roster: "_TargetRoster", cfg: TrainConfig) -> None:
+@dataclass(frozen=True)
+class _ScheduledCell:
+    """The world the roster is REQUIRED to describe, and where each number came from.
+
+    Built by :func:`_scheduled_cell`, which is the only site allowed to decide what
+    "hidden" should be -- see there for why the answer differs by design.
+    """
+
+    n_known: int
+    n_hidden: int
+    n_targets_executed: int
+    hidden_requested: int
+    realized_short: bool
+
+
+def _scheduled_cell(
+    cardinality: EpisodeCardinality, construction_audit: Any
+) -> _ScheduledCell:
+    """What the roster must contain, given the schedule and the construction's own audit.
+
+    THE TWO DESIGNS DIFFER IN EXACTLY ONE PLACE -- what "hidden" means:
+
+      * ``exact_v1`` construction is EXACT by contract, so the expected hidden count IS
+        the requested one and any disagreement is a measurement fault. There is no audit
+        on that path (``construction_audit is None``), which is precisely how a reader
+        tells which policy ran.
+      * ``bounded_backoff_v1`` may legitimately realize FEWER hidden targets than were
+        requested (handoff 3l.1), so the expected count is the audit's ``hidden_realized``
+        -- the construction's own statement of what it really built. The REQUEST is not
+        rewritten to match it: it travels beside it so requested-vs-realized stays
+        readable as a distribution, and a short realization is a recorded outcome rather
+        than a failure.
+
+    The audit is VERIFIED rather than trusted where it exists: it must agree with the
+    schedule about ``A`` and about ``H_requested``, because an audit that disagrees with
+    the schedule that produced it means the two describe different episodes.
+
+    Raises:
+        EpisodeRosterError: the construction audit contradicts the schedule.
+    """
+    known = int(cardinality.known_count)
+    requested = int(cardinality.hidden_requested)
+    if construction_audit is None:
+        return _ScheduledCell(
+            n_known=known,
+            n_hidden=requested,
+            n_targets_executed=known + requested,
+            hidden_requested=requested,
+            realized_short=False,
+        )
+    audit_agents = int(getattr(construction_audit, "agent_count", -1))
+    audit_requested = int(getattr(construction_audit, "hidden_requested", -1))
+    audit_realized = int(getattr(construction_audit, "hidden_realized", -1))
+    wrong = []
+    if audit_agents != int(cardinality.agent_count):
+        wrong.append("agent count: audit %d, scheduled %d"
+                     % (audit_agents, int(cardinality.agent_count)))
+    if audit_requested != requested:
+        wrong.append("hidden requested: audit %d, scheduled %d"
+                     % (audit_requested, requested))
+    if wrong:
+        raise EpisodeRosterError(
+            "the construction audit contradicts the schedule that produced it (%s): the "
+            "episode and its accounting describe different worlds"
+            % "; ".join(wrong)
+        )
+    return _ScheduledCell(
+        n_known=known,
+        n_hidden=audit_realized,
+        n_targets_executed=known + audit_realized,
+        hidden_requested=requested,
+        realized_short=audit_realized < requested,
+    )
+
+
+def _require_scheduled_cell(
+    roster: "_TargetRoster", expected: _ScheduledCell
+) -> None:
     """The roster must describe the cell the schedule asked for, or the run ABORTS.
 
-    ``TrainConfig`` states the cell exactly -- ``n_known`` known targets, ``n_hidden``
-    constructed ones, ``n_targets_emitted`` in the executed world -- and
-    ``setup_episode``'s construction path already enforces that cardinality LOUDLY on its
-    own side (exact ``len(placements) == n_hidden``, a known-target-loss check and a world
-    cardinality check). So a roster that disagrees is not a scenario that came out
-    differently; it is this module measuring the world wrongly, and every number derived
-    from it -- confirmation counts, denominators, manifest target blocks -- is suspect.
+    ``expected`` states the cell exactly -- how many known targets, how many constructed
+    ones, and how many the executed world holds -- and ``setup_episode``'s construction
+    path already enforces its own cardinality LOUDLY on its own side (exact
+    ``len(placements) == n_hidden`` under ``exact_v1``, a realized-count reconciliation
+    under ``bounded_backoff_v1``, a known-target-loss check and a world cardinality
+    check). So a roster that disagrees is not a scenario that came out differently; it is
+    this module measuring the world wrongly, and every number derived from it --
+    confirmation counts, denominators, manifest target blocks -- is suspect.
 
     Raised as an :class:`EpisodeRosterError` for that reason: a measurement-integrity
     fault, not a scientific episode outcome. Checked BEFORE the fuel-damage plan and
     before ``run_episode``, so nothing is paid for and no partial measurement exists.
+
+    A generalized world that realized FEWER hidden targets than requested is NOT a
+    disagreement -- :func:`_scheduled_cell` already resolved the expectation against the
+    construction's own audit, so the shortfall is accounted, not rejected.
     """
     checks = (
-        ("known targets", len(roster.known_ids), int(cfg.n_known)),
-        ("hidden targets", len(roster.hidden_ids), int(cfg.n_hidden)),
-        ("executed targets", int(roster.total), int(cfg.n_targets_emitted)),
+        ("known targets", len(roster.known_ids), int(expected.n_known)),
+        ("hidden targets", len(roster.hidden_ids), int(expected.n_hidden)),
+        ("executed targets", int(roster.total), int(expected.n_targets_executed)),
     )
     wrong = ["%s: observed %d, scheduled %d" % (what, got, want)
              for what, got, want in checks if got != want]
@@ -3503,6 +4221,76 @@ def _require_scheduled_cell(roster: "_TargetRoster", cfg: TrainConfig) -> None:
             "measured against a world the configuration did not ask for"
             % "; ".join(wrong)
         )
+
+
+def _reward_breakdown_record(ep_reward: Any) -> Dict[str, Any]:
+    """The ``EpisodeReward`` fields this run PERSISTS, read duck-typed.
+
+    An explicit field list rather than ``asdict``, for two reasons. It pins exactly which
+    of the reward's fields become a durable record -- so a future field added to
+    ``EpisodeReward`` for an internal purpose does not silently start appearing in a
+    scientific artifact -- and it reads through ``getattr``, which is how this module
+    already consumes every optional structure it does not own. That keeps the record
+    writable from the lightweight reward stubs the test suite drives the trainer with,
+    without weakening anything: a REAL ``EpisodeReward`` supplies every field below.
+
+    ``u_oracle`` and the checkpoint fields stay ``None`` where the reward left them
+    ``None`` -- on a normalized regret scale ``0`` is the OPTIMUM, so a coerced zero
+    would read as a perfect measurement rather than an absent one.
+    """
+    fields = (
+        "u_achieved", "u_oracle", "u_ref", "u_aircraft", "n_lost", "ratio", "penalty",
+        "reward", "reference_policy", "reference_kind", "checkpoint_tick",
+        "u_prefix", "u_cont_ref", "u_post", "unique_completed_targets",
+        "scored_completed_targets", "unscored_completed_targets",
+    )
+    record: Dict[str, Any] = {
+        name: getattr(ep_reward, name, None) for name in fields
+    }
+    record["unscored_completed_target_ids"] = [
+        str(t) for t in (getattr(ep_reward, "unscored_completed_target_ids", ()) or ())
+    ]
+    return record
+
+
+def _observe_world_identity(
+    ctx: Any, *, roster: "_TargetRoster", fd_plan_record: Dict[str, Any]
+) -> WorldIdentity:
+    """The ID-FREE identity of the world an episode really built.
+
+    This is what makes "the three members of a matched benchmark group ran the SAME
+    world" checkable rather than assumed, and what a frozen manifest's preflight is
+    compared against. Every component is deliberately chosen to be reproducible from the
+    SEED, so it can be compared BETWEEN runs:
+
+      * the realized cardinality, taken from the RAW pre-solve world snapshots through the
+        roster -- never from an allocated-only task list (the Stage-0 world-inventory
+        contract);
+      * ``geometric_fingerprint(ctx.placements)`` -- COORDINATES ONLY. Generated target
+        uuids are not seed-derived (``CLAUDE.md`` section 8), so an id-keyed comparison
+        would report two runs of the same seed as different worlds;
+      * the certified damaged ego's ORDINAL, for exactly the same reason -- its uuid is
+        not seed-derived, its position in the scheduled agent sequence is;
+      * a content hash of the FD event certificate with the ego uuid REMOVED, which pins
+        the event tick, position, fuel and both severity bands in one comparable scalar.
+
+    ``None`` components are truthful absences: a legacy (uncertified) plan has no
+    certificate and no eligibility ordinal, and fabricating either would make "these two
+    worlds certified the same event" answerable where it is not.
+    """
+    audit = (fd_plan_record or {}).get("eligibility_audit") or {}
+    selected_ordinal = audit.get("selected_ordinal")
+    return WorldIdentity(
+        hidden_realized=len(roster.hidden_ids),
+        known_realized=len(roster.known_ids),
+        geometric_fingerprint=geometric_fingerprint(getattr(ctx, "placements", ())),
+        fd_selected_ordinal=(
+            None if selected_ordinal is None else int(selected_ordinal)
+        ),
+        fd_certificate_fingerprint=certificate_fingerprint(
+            (fd_plan_record or {}).get("certificate")
+        ),
+    )
 
 
 def _recording_kwargs(artifacts: Optional[_AttemptArtifacts]) -> Dict[str, Any]:
@@ -3618,6 +4406,39 @@ class _EpisodeOutcome:
     # "the ego did not RTB", a claim about an ego that does not exist.
     selected_ego_rtb_issued: Optional[bool]
 
+    # --- GENERALIZED-V1 (Task 4): the per-episode diagnostics Tasks 1-3 produce -----
+    # These DO carry defaults, and the reason is different from the fields above rather
+    # than a relaxation of them. The fields above are what an episode MEASURED, and a
+    # missing one is the false-zero this class exists to make inexpressible. These are
+    # STRUCTURES a design may or may not produce at all: an `exact_v1` construction has
+    # no backoff audit, a legacy fuel-damage plan has no certificate, a `single_wake_v1`
+    # run has no post-FD adaptation, and a `static_t0_v1` episode has no reference
+    # object. `None` here means "this design produced no such structure", which is a
+    # truthful statement and not an absent measurement.
+    #
+    # `_run_one_episode` populates every one of them on BOTH designs wherever the
+    # structure exists, so a `None` in a real run's record is a fact about the design.
+    cardinality: Optional[EpisodeCardinality] = None
+    """The REQUESTED cardinality this attempt was scheduled with (never rewritten)."""
+
+    hidden_realized: Optional[int] = None
+    """How many hidden targets the construction really built (<= requested)."""
+
+    construction_audit: Optional[Dict[str, Any]] = None
+    """``ConstructionAudit.as_dict()`` -- GENERALIZED-V1 bounded backoff only."""
+
+    post_fd_adaptation: Optional[Dict[str, Any]] = None
+    """``PostFdAdaptationOutcome.to_record()`` -- completion-boundary policy only."""
+
+    reference: Optional[Dict[str, Any]] = None
+    """``EpisodeReference.to_record()`` -- event-conditioned reference policy only."""
+
+    reward_breakdown: Optional[Dict[str, Any]] = None
+    """The ``EpisodeReward`` decomposition, carried whole rather than re-derived."""
+
+    world_identity: Optional[WorldIdentity] = None
+    """The id-free identity of the world this attempt really built (benchmark checks)."""
+
 
 def _run_one_episode(
     policy: Any,
@@ -3630,6 +4451,7 @@ def _run_one_episode(
     fuel_damage_mode: Optional[str] = None,
     artifacts: Optional[_AttemptArtifacts] = None,
     central_recorder: Optional[CentralStateRecorder] = None,
+    cardinality: Optional[EpisodeCardinality] = None,
 ) -> _EpisodeOutcome:
     """Generate -> setup -> run -> reward for ONE episode; always closes its env.
 
@@ -3710,6 +4532,11 @@ def _run_one_episode(
     random.seed(seed)
     torch.manual_seed(seed)
     fd_params = cfg.fuel_damage_parameters(fuel_damage_mode)
+    # The cell this attempt was SCHEDULED with. Supplied by a generalized caller (sampled
+    # for training, taken from the frozen stratum for a benchmark member) and omitted on
+    # the historical path, where it resolves to the configured fixed cell and every call
+    # below is exactly the pre-Task-4 one.
+    cell = episode_cardinality(cfg, seed, benchmark_cardinality=cardinality)
 
     # Claimed BEFORE generation: the known-only scenario is the first artifact, and a
     # directory collision must be discovered before an episode is paid for.
@@ -3718,7 +4545,7 @@ def _run_one_episode(
 
     t0 = time.perf_counter()
     try:
-        var = build_variation_config(cfg, seed)
+        var = build_variation_config(cfg, seed, **_cardinality_kwargs(cardinality))
         scenario_path = gen.generate(episode=int(episode_tag), config=var)
     except Exception as exc:
         raise EpisodeAttemptError("generation", exc) from exc
@@ -3735,8 +4562,13 @@ def _run_one_episode(
                 # the hidden half from the solved routes (solve -> place -> patch ->
                 # reload). `cfg.partial_ratio` is the legacy split surface and is
                 # deliberately NOT passed -- `split_tasks` never runs here.
-                n_hidden=int(cfg.n_hidden),
+                n_hidden=int(cell.hidden_requested),
                 placement_rng=random.Random(seed),
+                # GENERALIZED-V1: the hidden-cardinality and reward-reference policies,
+                # resolved from the ONE design selector. Absent entirely on the
+                # historical path, where setup resolves its own `exact_v1` /
+                # `static_t0_v1` defaults exactly as it always has.
+                **_generalized_setup_kwargs(cfg),
                 # Recording is ARMED here or nowhere; the tick loop drives it. Absent
                 # entirely when artifacts are off.
                 **_recording_kwargs(artifacts),
@@ -3765,7 +4597,13 @@ def _run_one_episode(
         # episode handler below.
         try:
             roster = _episode_target_roster(ctx)
-            _require_scheduled_cell(roster, cfg)
+            # DUCK-TYPED, like every other optional context field this module reads
+            # (`graph_reward.uses_event_conditioned_reference` does the same): an ABSENT
+            # audit resolves to the historical exact-cardinality expectation, which is
+            # the only direction an unknown context may ever be read in.
+            scheduled = _scheduled_cell(
+                cell, getattr(ctx, "construction_audit", None))
+            _require_scheduled_cell(roster, scheduled)
         except MeasurementIntegrityError:
             raise
         except Exception as exc:
@@ -3800,6 +4638,19 @@ def _run_one_episode(
                 # loop is called exactly as it was before Phase B.
                 **_central_kwargs(central_recorder),
             )
+        except ReferenceIntegrityError as exc:
+            # GENERALIZED-V1 Task 4: the reference layer states WHY it refused, as a
+            # stable slug, and the routing reads that slug and NOTHING ELSE -- never the
+            # message text. An INSTRUMENT contradiction (a policy that requires a
+            # reference produced none, nothing retained to solve from, an unknown kind, a
+            # record whose arithmetic does not close) implicates every episode the layer
+            # touched, so it is re-raised here and ABORTS, exactly as a roster or
+            # certificate fault does. A solver that was ASKED and did not ANSWER is a
+            # fact about this one attempt: it falls through to the broad handler below and
+            # is accounted as ordinary `run`-stage attrition, spent once and never retried.
+            if reference_fault_aborts(exc):
+                raise
+            raise EpisodeAttemptError("run", exc) from exc
         except FuelDamageIntegrityError:
             # GENERALIZED-V1 (handoff 3l.3): under the certified eligibility policy this
             # world was proven FD-capable BEFORE a tick was paid for, so a live event
@@ -3855,6 +4706,12 @@ def _run_one_episode(
             # `ctx.oracle_solution` it always has. Computed only once the measurement is
             # known to be sound.
             ep_reward = compute_episode_reward(ctx, result, cfg.reward_config())
+        except ReferenceIntegrityError as exc:
+            # The same two-way routing as the run stage above, and the same reason: an
+            # instrument contradiction aborts, an unanswered solve is accounted.
+            if reference_fault_aborts(exc):
+                raise
+            raise EpisodeAttemptError("reward", exc) from exc
         except Exception as exc:
             raise EpisodeAttemptError("reward", exc) from exc
 
@@ -3873,9 +4730,12 @@ def _run_one_episode(
         if artifacts is not None:
             artifacts.finalize(
                 expected={
-                    "n_known": int(cfg.n_known),
-                    "n_hidden": int(cfg.n_hidden),
-                    "n_targets_executed": int(cfg.n_targets_emitted),
+                    # The RESOLVED cell -- which on the generalized path already accounts
+                    # for a legitimately short hidden realization, so a bundle is never
+                    # left `incomplete` for a shortfall the design permits.
+                    "n_known": int(scheduled.n_known),
+                    "n_hidden": int(scheduled.n_hidden),
+                    "n_targets_executed": int(scheduled.n_targets_executed),
                 },
                 observed={
                     "n_known": len(roster.known_names),
@@ -3884,6 +4744,22 @@ def _run_one_episode(
                     "targets_confirmed_unique": int(targets_confirmed_unique),
                 },
             )
+
+        # The GENERALIZED-V1 per-episode diagnostics, read from the structures Tasks 1-3
+        # already produce and carried WHOLE rather than flattened -- a subset copied here
+        # would be a second, drifting description of the same event. Every one is `None`
+        # when the design that produces it did not run.
+        construction_audit = getattr(ctx, "construction_audit", None)
+        # Duck-typed for the same reason the context fields above are: this module
+        # consumes the fuel-damage controller through its published surface, and an
+        # absent post-FD record simply means the wake policy that produces one did not
+        # run. `None` is the truthful reading of that, not a missing measurement.
+        post_fd = getattr(fuel_damage, "post_fd_outcome", None)
+        reference = getattr(result, "reference", None)
+        fd_plan_record = fuel_damage.plan.to_record()
+        world_identity = _observe_world_identity(
+            ctx, roster=roster, fd_plan_record=fd_plan_record
+        )
 
         return _EpisodeOutcome(
             trajectory=list(result.trajectory),
@@ -3900,9 +4776,18 @@ def _run_one_episode(
             hidden_target_names=roster.hidden_names,
             known_confirmed_names=known_confirmed,
             hidden_confirmed_names=hidden_confirmed,
-            fuel_damage_plan=fuel_damage.plan.to_record(),
+            fuel_damage_plan=fd_plan_record,
             fuel_damage_outcome=fd_outcome.to_record(),
             selected_ego_rtb_issued=selected_ego_rtb,
+            cardinality=cell,
+            hidden_realized=int(scheduled.n_hidden),
+            construction_audit=(
+                None if construction_audit is None else construction_audit.as_dict()
+            ),
+            post_fd_adaptation=(None if post_fd is None else post_fd.to_record()),
+            reference=(None if reference is None else reference.to_record()),
+            reward_breakdown=_reward_breakdown_record(ep_reward),
+            world_identity=world_identity,
         )
     finally:
         if ctx is not None:
@@ -4055,10 +4940,13 @@ def evaluate(
                     **_artifact_kwargs(artifacts),
                 )
             except (_VisualArtifactError, MeasurementIntegrityError,
-                    FuelDamageIntegrityError):
+                    FuelDamageIntegrityError, ReferenceIntegrityError):
                 # INFRASTRUCTURE / DATA INTEGRITY, not science: none names a pipeline
                 # stage, none may enter the ledger or a condition tally, and none may be
-                # skipped. Re-raised ahead of the broad handler so the run stops loudly
+                # skipped. A `ReferenceIntegrityError` reaching here has ALREADY been
+                # classified by `_run_one_episode`: the attrition case (an unanswered
+                # solve) was wrapped as an `EpisodeAttemptError` there, so only the
+                # instrument-contradiction case can arrive unwrapped. Re-raised ahead of the broad handler so the run stops loudly
                 # instead of recording a scientific failure that never happened.
                 # `FuelDamageIntegrityError` joins them under GENERALIZED-V1: a world
                 # CERTIFIED FD-capable that then contradicts its own certificate is an
@@ -4077,8 +4965,10 @@ def evaluate(
                     eval_tag="eval_e%d_%s_tag%d" % (e, cell, tag),
                     seed=seed,
                     # The ledger keeps naming the CONDITION, so `failures_by_condition`
-                    # means what it always did; the finer cell is in the tag.
+                    # means what it always did; the finer cell is now a field of its own
+                    # beside it (it was previously only inside the tag string).
                     condition=condition,
+                    cell=cell,
                     exc=exc,
                 ))
                 print("  [eval %s e%d %s] FAILED (seed=%d): %s: %s"
@@ -4111,6 +5001,7 @@ def evaluate(
                 seed=int(seed),
                 episode_tag=int(tag),
                 fuel_damage_mode=str(mode),
+                design=cfg.design,
             ))
             rewards.append(out.reward)
             unique_confirmed.append(float(out.targets_confirmed_unique))
@@ -4233,6 +5124,523 @@ def evaluate(
         "eval_kills_mean": unique_confirmed_mean,
         "eval_seconds": time.perf_counter() - t0,
     }
+
+
+# =============================================================================
+# 5b. GENERALIZED-V1: the FROZEN 18-stratum benchmark evaluation round
+# =============================================================================
+
+class _BenchmarkTally:
+    """Per-STRATUM accounting for ONE manifest-driven evaluation round.
+
+    A SEPARATE structure from :class:`_ConditionTally` rather than a widened one, because
+    it answers a different question with a different denominator. ``_ConditionTally``
+    answers "how did the CLEAN / MILD / SEVERE cells do in this round" and is kept beside
+    this one, unchanged, so a benchmark round still reports every number a legacy round
+    does. This answers "how did each of the EIGHTEEN REQUESTED STRATA do", which a
+    cell-level tally cannot: a mean over ``severe`` pools six different team-size / load
+    combinations, and pooling is exactly what the stratification exists to avoid.
+
+    EVERY STRATUM IS PRESENT FROM THE START, including one that saw no attempt, so a
+    stratum with an empty denominator reports an explicit 0 / ``None`` rather than
+    vanishing from the record -- an absent key and a measured zero must never look alike.
+
+    REQUESTED-VS-REALIZED IS TRACKED HERE, NOT INFERRED. Each successful attempt records
+    the hidden count its world REALLY built beside the one its stratum ASKED for, so the
+    distribution a human must inspect before any measurement (handoff 3l.6) is readable
+    straight off the round. NOTHING here decides whether a HIGH stratum has "degenerated"
+    -- this module deliberately invents no threshold for that; it reports the distribution
+    and the research review decides.
+    """
+
+    def __init__(self) -> None:
+        self.strata: Tuple[str, ...] = BENCHMARK_STRATUM_KEYS
+        self.attempted: Dict[str, int] = {k: 0 for k in self.strata}
+        self.failed: Dict[str, int] = {k: 0 for k in self.strata}
+        self.rewards: Dict[str, List[float]] = {k: [] for k in self.strata}
+        self.fd_wakes: Dict[str, int] = {k: 0 for k in self.strata}
+        self.fd_fired: Dict[str, int] = {k: 0 for k in self.strata}
+        self.fd_meta: Dict[str, Dict[str, int]] = {
+            k: _empty_meta_counts() for k in self.strata
+        }
+        self.deaths: Dict[str, int] = {k: 0 for k in self.strata}
+        self.rtb: Dict[str, int] = {k: 0 for k in self.strata}
+        self.targets: Dict[str, List[float]] = {k: [] for k in self.strata}
+        # REQUESTED vs REALIZED hidden cardinality, per stratum. `realized` is a
+        # histogram keyed by the realized count, so a HIGH stratum that keeps realizing 1
+        # is visible as a distribution rather than only as a mean.
+        self.hidden_requested: Dict[str, int] = {k: 0 for k in self.strata}
+        self.hidden_realized: Dict[str, List[int]] = {k: [] for k in self.strata}
+        self.short_realized: Dict[str, int] = {k: 0 for k in self.strata}
+        # Complete matched GROUPS and their within-group deltas, per BASE CELL and
+        # overall. A group contributes to a delta only when ALL THREE members completed.
+        self.groups_attempted: Dict[str, int] = {}
+        self.groups_successful: Dict[str, int] = {}
+        self.deltas: Dict[Tuple[str, str], List[float]] = {
+            pair: [] for pair in BENCHMARK_DELTAS
+        }
+        self.cell_deltas: Dict[str, Dict[Tuple[str, str], List[float]]] = {}
+
+    # ---- attempts ---------------------------------------------------------------
+    def attempt(self, stratum: str) -> None:
+        if str(stratum) not in self.attempted:
+            raise MeasurementIntegrityError(
+                "a scheduled benchmark attempt names stratum %r, which is not one of "
+                "the %d requested strata; its denominator would be invisible."
+                % (stratum, len(self.strata))
+            )
+        self.attempted[str(stratum)] += 1
+
+    def failure(self, stratum: str) -> None:
+        self.failed[str(stratum)] = self.failed.get(str(stratum), 0) + 1
+
+    def success(self, stratum: str, out: "_EpisodeOutcome", *, requested: int) -> None:
+        """Fold one successful benchmark member in, under its own stratum."""
+        key = str(stratum)
+        if key not in self.rewards:
+            raise MeasurementIntegrityError(
+                "a successful benchmark episode reports stratum %r, which this round "
+                "does not report (%d strata)." % (key, len(self.strata))
+            )
+        outcome = out.fuel_damage_outcome or {}
+        self.rewards[key].append(float(out.reward))
+        self.deaths[key] += int(out.n_dead)
+        self.targets[key].append(float(out.targets_confirmed_unique))
+        if out.selected_ego_rtb_issued:
+            self.rtb[key] += 1
+        if outcome.get("fired"):
+            self.fd_fired[key] += 1
+        if outcome.get("wake_occurred"):
+            self.fd_wakes[key] += 1
+            meta = outcome.get("wake_meta_action")
+            if meta is not None:
+                self.fd_meta[key][MetaAction(int(meta)).name] += 1
+        self.hidden_requested[key] += int(requested)
+        realized = int(out.hidden_realized or 0)
+        self.hidden_realized[key].append(realized)
+        if realized < int(requested):
+            self.short_realized[key] += 1
+
+    # ---- matched groups ---------------------------------------------------------
+    def group(
+        self, base_cell: str, member_rewards: Dict[str, float], *, complete: bool
+    ) -> None:
+        """Record one matched world group, and its deltas ONLY when it is complete."""
+        self.groups_attempted[base_cell] = self.groups_attempted.get(base_cell, 0) + 1
+        cell_deltas = self.cell_deltas.setdefault(
+            base_cell, {pair: [] for pair in BENCHMARK_DELTAS}
+        )
+        if not complete:
+            # A partial group is NOT a matched measurement, and filling the gap with its
+            # surviving members would report a within-world difference nobody measured.
+            # It stays visible in `groups_attempted` and in the per-stratum counts.
+            return
+        self.groups_successful[base_cell] = self.groups_successful.get(base_cell, 0) + 1
+        for pair in BENCHMARK_DELTAS:
+            cell, reference = pair
+            delta = member_rewards[cell] - member_rewards[reference]
+            self.deltas[pair].append(delta)
+            cell_deltas[pair].append(delta)
+
+    # ---- the record -------------------------------------------------------------
+    def to_record(self) -> Dict[str, Any]:
+        """The round's stratified accounting, every metric beside its own denominator."""
+        strata: Dict[str, Any] = {}
+        for key in self.strata:
+            rewards = self.rewards[key]
+            realized = self.hidden_realized[key]
+            denom = int(self.fd_wakes[key])
+            counts = self.fd_meta[key]
+            strata[key] = {
+                "n_attempted": int(self.attempted[key]),
+                "n_successful": len(rewards),
+                "n_failed": int(self.failed[key]),
+                "success_fraction": _fraction(len(rewards), int(self.attempted[key])),
+                "reward_mean": _stats_or_none(rewards)["mean"],
+                "reward_min": _stats_or_none(rewards)["min"],
+                "reward_max": _stats_or_none(rewards)["max"],
+                "targets_confirmed_unique_mean": _stats_or_none(
+                    self.targets[key])["mean"],
+                "n_deaths": int(self.deaths[key]),
+                "n_rtb_command_issued": int(self.rtb[key]),
+                "n_fd_fired": int(self.fd_fired[key]),
+                "n_fd_wakes": denom,
+                "fd_meta_action_counts": dict(counts),
+                "fd_meta_action_rates": {
+                    name: _fraction(int(counts.get(name, 0)), denom)
+                    for name in _META_NAMES
+                },
+                "fd_rates_over": "fd_wakes",
+                # REQUESTED vs REALIZED, the distribution a human inspects before any
+                # scientific measurement. `hidden_realized_histogram` is the honest
+                # shape; the mean is a convenience beside it, never instead of it.
+                "hidden_requested_total": int(self.hidden_requested[key]),
+                "hidden_realized_total": int(sum(realized)),
+                "hidden_realized_mean": _stats_or_none(
+                    [float(r) for r in realized])["mean"],
+                "hidden_realized_histogram": {
+                    str(v): realized.count(v) for v in sorted(set(realized))
+                },
+                "n_short_realized": int(self.short_realized[key]),
+                "short_realized_fraction": _fraction(
+                    int(self.short_realized[key]), len(realized)),
+                "aggregates_over": "successful_episodes",
+            }
+        base_cells: Dict[str, Any] = {}
+        for cell_key in sorted(
+            set(self.groups_attempted) | set(self.cell_deltas)
+        ):
+            attempted = int(self.groups_attempted.get(cell_key, 0))
+            successful = int(self.groups_successful.get(cell_key, 0))
+            entry: Dict[str, Any] = {
+                "n_groups_attempted": attempted,
+                "n_groups_successful": successful,
+                "group_success_fraction": _fraction(successful, attempted),
+            }
+            for pair, values in self.cell_deltas.get(cell_key, {}).items():
+                entry[_delta_key(*pair)] = _stats_or_none(values)["mean"]
+            base_cells[cell_key] = entry
+        record: Dict[str, Any] = {
+            "benchmark_strata": strata,
+            "benchmark_stratum_keys": list(self.strata),
+            "benchmark_base_cells": base_cells,
+            "benchmark_delta_keys": [_delta_key(c, r) for c, r in BENCHMARK_DELTAS],
+            "benchmark_delta_over": "world_groups_with_all_members_successful",
+        }
+        for pair, values in self.deltas.items():
+            stats = _stats_or_none(values)
+            key = _delta_key(*pair)
+            record[key] = stats["mean"]
+            record["%s_min" % key] = stats["min"]
+            record["%s_max" % key] = stats["max"]
+            record["%s_n" % key] = len(values)
+        return record
+
+
+def _benchmark_member_identity(
+    manifest: BenchmarkManifest, world: Any, cell: str,
+    identity: Optional[WorldIdentity],
+) -> Dict[str, Any]:
+    """The frozen-benchmark identity keys one member's records carry."""
+    return {
+        "benchmark_manifest_id": str(manifest.manifest_id),
+        "benchmark_stratum": world.stratum_key(cell),
+        "benchmark_group_key": world.key,
+        "benchmark_agent_count": int(world.agent_count),
+        "benchmark_load_bucket": str(world.load_bucket),
+        "benchmark_world_ordinal": int(world.world_ordinal),
+        "benchmark_world_identity": (
+            None if identity is None else identity.to_record()
+        ),
+    }
+
+
+def evaluate_benchmark(
+    policy: Any,
+    gen: ScenarioGenerator,
+    cfg: TrainConfig,
+    manifest: BenchmarkManifest,
+    *,
+    iteration: Optional[int],
+    stage: str = _EVAL_STAGE_POST_UPDATE,
+    updates_completed: int = 0,
+    round_ordinal: int = 0,
+    failures_path: Optional[Path] = None,
+    outcomes_path: Optional[Path] = None,
+    artifacts_root: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """ONE deterministic round over the FROZEN 18-stratum benchmark.
+
+    THE STRUCTURE IS THE SAME AS :func:`evaluate`'S -- matched groups on one world, one
+    attempt per member, skip-and-account on failure, deltas over COMPLETE groups only --
+    and the two differences are exactly the two the stratified design needs:
+
+      * the population comes from the FROZEN MANIFEST, not from the held-out seed band.
+        A benchmark member's world SHAPE is its stratum's, not a function of its seed, so
+        the cardinality is taken from the manifest and never re-derived;
+      * accounting is per STRATUM as well as per cell. A mean over ``severe`` pools six
+        team-size / load combinations, which is the pooling the stratification exists to
+        avoid, so every stratified metric carries its own stratum denominator.
+
+    MATCHED WORLD GROUPS ARE VERIFIED, NOT ASSUMED. The three members share one seed and
+    one requested cardinality, and under the certified eligibility policy -- whose walk
+    depends on the episode seed ALONE -- they certify the same ego at the same event
+    point. That is a claim, so it is CHECKED: each completed member's id-free world
+    identity is compared against the others', and (when the manifest was preflighted)
+    against the frozen record. A disagreement is a
+    :class:`~match_aou.rl.training.graph_generalized.BenchmarkIdentityError` and ABORTS --
+    two members that built different worlds would make their delta a between-worlds
+    comparison wearing a within-world label.
+
+    NO SUBSTITUTION, EVER. A failed member is recorded once and skipped; its group becomes
+    incomplete and contributes to NO delta; no other world, seed or stratum takes its
+    place; and the manifest is never regenerated to route around it.
+
+    ``evaluate`` is left completely untouched by this function -- a ``fixed_cell_v1`` run
+    still runs exactly the round it always did.
+    """
+    rewards: List[float] = []
+    unique_confirmed: List[float] = []
+    wakes: List[float] = []
+    meta_counts = _empty_meta_counts()
+    ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
+    tally = _ConditionTally(BENCHMARK_CELLS)
+    bench = _BenchmarkTally()
+    n_failed = 0
+    n_groups_successful = 0
+    n_groups = manifest.n_worlds
+    n_attempted = manifest.n_members
+    t0 = time.perf_counter()
+
+    for w, world in enumerate(manifest.worlds):
+        cardinality = world.cardinality()
+        member_rewards: Dict[str, float] = {}
+        identities: Dict[str, WorldIdentity] = {}
+
+        for member, (cell, mode) in enumerate(world.members()):
+            stratum = world.stratum_key(cell)
+            tag = eval_member_tag(round_ordinal=round_ordinal, e=w, member=member,
+                                  group_size=BENCHMARK_GROUP_SIZE)
+            condition = cell_condition(cell)
+            tally.attempt(cell)
+            bench.attempt(stratum)
+            artifacts = None
+            if artifacts_root is not None:
+                artifacts = _AttemptArtifacts(
+                    root=artifacts_root,
+                    identity=_AttemptIdentity(
+                        phase=str(stage),
+                        iteration=iteration,
+                        updates_completed=int(updates_completed),
+                        eval_round_ordinal=int(round_ordinal),
+                        eval_episode_index=int(w),
+                        eval_pair_member=int(member),
+                        attempt_ordinal=w * BENCHMARK_GROUP_SIZE + member,
+                        episode_index=None,
+                        seed=int(world.seed),
+                        condition=str(condition),
+                        severity=(str(cell) if cell in SEVERITIES else None),
+                        episode_tag=int(tag),
+                    ),
+                )
+            try:
+                out = _run_one_episode(
+                    policy, gen, cfg,
+                    seed=int(world.seed),
+                    episode_tag=tag,
+                    deterministic=True,
+                    fuel_damage_mode=mode,
+                    cardinality=cardinality,
+                    **_artifact_kwargs(artifacts),
+                )
+            except (_VisualArtifactError, MeasurementIntegrityError,
+                    FuelDamageIntegrityError, BenchmarkIdentityError,
+                    ReferenceIntegrityError):
+                # INFRASTRUCTURE / DATA INTEGRITY, not science: none names a pipeline
+                # stage, none may enter the ledger or a tally, and none may be skipped.
+                # A `ReferenceIntegrityError` reaching HERE has already been classified
+                # by `_run_one_episode` -- the attrition case was wrapped as an
+                # `EpisodeAttemptError` there, so only the instrument-contradiction case
+                # can arrive unwrapped, and it aborts.
+                raise
+            except Exception as exc:
+                n_failed += 1
+                tally.failure(cell)
+                bench.failure(stratum)
+                _append_failure_record(failures_path, _failure_record(
+                    phase="eval",
+                    evaluation_stage=stage,
+                    updates_completed=updates_completed,
+                    iteration=iteration,
+                    attempt_ordinal=w * BENCHMARK_GROUP_SIZE + member,
+                    episode_index=None,
+                    eval_tag="benchmark_%s_%s_tag%d" % (world.key, cell, tag),
+                    seed=int(world.seed),
+                    condition=condition,
+                    cell=cell,
+                    cardinality=cardinality,
+                    benchmark=_benchmark_member_identity(manifest, world, cell, None),
+                    exc=exc,
+                ))
+                print("  [bench %s %s %s] FAILED (seed=%d): %s: %s"
+                      % (stage, world.key, cell, world.seed,
+                         type(exc).__name__, exc))
+                traceback.print_exc()
+                continue
+
+            print(_format_episode_block(
+                "[bench stage=%s %s %s seed=%d]"
+                % (_ascii(stage), world.key, cell, world.seed), out
+            ))
+            # THE WORLD THIS MEMBER REALLY BUILT, checked against the frozen manifest
+            # BEFORE its reward is allowed anywhere near a stratum or a group.
+            identity = out.world_identity
+            if identity is not None:
+                require_world_matches_manifest(world, identity)
+                identities[cell] = identity
+            member_rewards[tally.success(out, expected_cell=cell)] = out.reward
+            bench.success(stratum, out,
+                          requested=int(cardinality.hidden_requested))
+            _append_episode_outcome_record(outcomes_path, _episode_outcome_record(
+                out,
+                phase=str(stage),
+                iteration=iteration,
+                updates_completed=int(updates_completed),
+                updates_completed_before=int(updates_completed),
+                attempt_ordinal=w * BENCHMARK_GROUP_SIZE + member,
+                episode_index=None,
+                eval_round_ordinal=int(round_ordinal),
+                eval_episode_index=int(w),
+                eval_group_member=int(member),
+                seed=int(world.seed),
+                episode_tag=int(tag),
+                fuel_damage_mode=str(mode),
+                design=cfg.design,
+                benchmark=_benchmark_member_identity(
+                    manifest, world, cell, identity),
+            ))
+            rewards.append(out.reward)
+            unique_confirmed.append(float(out.targets_confirmed_unique))
+            wakes.append(float(out.n_wakes))
+            _add_meta_action_counts(meta_counts, out.trajectory)
+            if out.ended in ended_counts:
+                ended_counts[out.ended] += 1
+
+        # THE MATCHED-GROUP CHECK, over the members that completed. Runs BEFORE the
+        # deltas, so two members that built different worlds can never be differenced.
+        require_matched_group_identity(world, identities)
+        complete = all(cell in member_rewards for cell, _mode in world.members())
+        bench.group(world.base_cell_key, member_rewards, complete=complete)
+        if complete:
+            n_groups_successful += 1
+
+    n_successful = len(rewards)
+    episodes_with_wakes = sum(1 for x in wakes if x > 0)
+    r = _stats_or_none(rewards)
+    unique_confirmed_mean = _stats_or_none(unique_confirmed)["mean"]
+    return {
+        "evaluation_stage": str(stage),
+        "updates_completed": int(updates_completed),
+        "iteration": None if iteration is None else int(iteration),
+        "eval_round_ordinal": int(round_ordinal),
+        "episode_tag_start": eval_member_tag(
+            round_ordinal=round_ordinal, e=0, member=0,
+            group_size=BENCHMARK_GROUP_SIZE),
+        # --- WHICH frozen population this round measured -------------------------
+        "eval_population": "benchmark_manifest",
+        "benchmark_manifest_id": str(manifest.manifest_id),
+        "benchmark_label": manifest.label,
+        "benchmark_n_worlds": int(manifest.n_worlds),
+        "benchmark_n_members": int(manifest.n_members),
+        "benchmark_n_strata": len(BENCHMARK_STRATA),
+        # --- attempt accounting ---------------------------------------------------
+        "n_attempted": n_attempted,
+        "n_successful": n_successful,
+        "n_failed": n_failed,
+        "success_fraction": _fraction(n_successful, n_attempted),
+        "episodes_with_wakes": int(episodes_with_wakes),
+        "wake_fraction_of_successful": _fraction(episodes_with_wakes, n_successful),
+        # --- matched WORLD GROUPS, with their own denominator ---------------------
+        "eval_group_kind": _EVAL_GROUP_KIND_TRIAD,
+        "eval_group_size": BENCHMARK_GROUP_SIZE,
+        "eval_group_cells": list(BENCHMARK_CELLS),
+        "n_groups_attempted": n_groups,
+        "n_groups_successful": int(n_groups_successful),
+        "group_success_fraction": _fraction(n_groups_successful, n_groups),
+        "eval_delta_keys": [_delta_key(c, r_) for c, r_ in BENCHMARK_DELTAS],
+        "eval_delta_over": "world_groups_with_all_members_successful",
+        # LEGACY ALIASES, so every existing reader of an eval record still resolves.
+        "n_pairs_attempted": n_groups,
+        "n_pairs_successful": int(n_groups_successful),
+        "pair_success_fraction": _fraction(n_groups_successful, n_groups),
+        "eval_paired_reward_delta": None,
+        "paired_delta_over": "world_groups_with_all_members_successful",
+        # --- aggregates over the SUCCESSFUL subset only ---------------------------
+        "eval_reward_mean": r["mean"],
+        "eval_reward_min": r["min"],
+        "eval_reward_max": r["max"],
+        "eval_targets_confirmed_unique_mean": unique_confirmed_mean,
+        "target_confirmation_count_semantics": _TARGET_CONFIRMATION_SEMANTICS,
+        "eval_wakes_mean": _stats_or_none(wakes)["mean"],
+        "aggregates_over": "successful_episodes",
+        "meta_action_counts": dict(meta_counts),
+        "meta_action_fractions": _meta_fractions(meta_counts),
+        "ended_counts": dict(ended_counts),
+        # The per-CELL numbers a legacy round also reports, so the two record shapes stay
+        # readable side by side -- and the per-STRATUM ones beside them.
+        **tally.to_record(prefix="eval_"),
+        **bench.to_record(),
+        "n_episodes": n_attempted,
+        "n_ok": n_successful,
+        "eval_kills_mean": unique_confirmed_mean,
+        "eval_seconds": time.perf_counter() - t0,
+    }
+
+
+def _require_benchmark_seeds_held_out(
+    manifest: BenchmarkManifest, cfg: TrainConfig
+) -> None:
+    """The benchmark's ACTUAL seeds must lie outside the scheduled TRAINING band.
+
+    THIS IS THE HELD-OUT CHECK FOR A MANIFEST-DRIVEN RUN, and the legacy one cannot serve
+    as it. ``TrainConfig.validate`` compares the training band against
+    ``eval_base_seed .. eval_base_seed + eval_episodes`` -- exactly the right test when
+    that band IS the evaluation schedule, and simply not this run's schedule at all when
+    the seeds come from a frozen manifest. Leaving the legacy check to stand in for this
+    one would be wrong in both directions: it could reject a perfectly held-out manifest
+    because an unused configured band happened to overlap, and it could validate a
+    manifest that contains a training seed.
+
+    A collision is a HELD-OUT FAILURE, not attrition: an evaluation world the policy
+    trained on measures memorization while reporting generalization, and the numbers it
+    produces look entirely normal. So it REFUSES the run, names every offending seed, and
+    offers no repair -- no retry, no seed replacement, no manifest rewrite, because each
+    of those silently changes the population a result is reported over.
+
+    Called after the manifest is loaded and BEFORE the run directory, the provenance, the
+    policy, the generator or any solver work exists, so a refused run costs nothing and
+    leaves nothing behind.
+
+    Raises:
+        ValueError: one or more manifest world seeds lie inside the training band.
+    """
+    train_lo = int(cfg.base_seed)
+    train_hi = train_lo + int(cfg.total_episodes)      # exclusive
+    overlap = manifest_seed_overlap(manifest, start=train_lo, stop=train_hi)
+    if overlap:
+        raise ValueError(
+            "benchmark manifest %s is NOT held out: %d of its %d world seed(s) lie "
+            "inside this run's training band [%d, %d) -- %s. The policy would be "
+            "evaluated on worlds it trained on, which measures memorization while "
+            "reporting generalization. Refused: no seed is replaced, retried or "
+            "rewritten. Move the training band (base_seed / n_iterations x "
+            "episodes_per_iteration) or freeze a manifest outside it."
+            % (manifest.manifest_id[:16], len(overlap), manifest.n_worlds,
+               train_lo, train_hi,
+               ", ".join(str(s) for s in overlap[:8])
+               + (" ..." if len(overlap) > 8 else ""))
+        )
+
+
+def _require_benchmark_tag_namespace(
+    manifest: BenchmarkManifest, cfg: TrainConfig
+) -> None:
+    """The benchmark's scenario-tag namespace must fit one eval round, or REFUSE.
+
+    An artifact-NAMING bound, not a seed bound -- but a violation is the same class of
+    silent loss the held-out band's own check exists to prevent: one round's scenario
+    JSON overwriting another's. It is checked against the MANIFEST's member count rather
+    than ``eval_episodes``, because a manifest-driven round's size is the manifest's, and
+    ``TrainConfig.validate`` cannot know it (it holds a path, not a population).
+    """
+    if manifest.n_members > _EVAL_ROUND_TAG_STRIDE:
+        raise ValueError(
+            "the benchmark manifest schedules %d member episode(s) per round, which "
+            "exceeds one eval round's scenario-tag namespace (%d): consecutive rounds "
+            "would write over each other's scenario files. Shorten the manifest or "
+            "raise _EVAL_ROUND_TAG_STRIDE."
+            % (manifest.n_members, _EVAL_ROUND_TAG_STRIDE)
+        )
 
 
 # =============================================================================
@@ -4408,13 +5816,28 @@ def train(
     """
     cfg.validate()
 
+    # THE FROZEN BENCHMARK, loaded and VERIFIED before anything is created and before a
+    # second of compute is spent: a manifest that fails its own content hash, is out of
+    # canonical order, or is missing a stratum must cost nothing and leave nothing
+    # behind. `validate` has already refused a generalized run that named none, and a
+    # fixed-cell run that named one, so reaching here with a path means the design asked
+    # for it. `None` -> this run evaluates the historical held-out band (or not at all).
+    benchmark: Optional[BenchmarkManifest] = None
+    if cfg.generalized and cfg.eval_enabled:
+        benchmark = load_benchmark_manifest(str(cfg.benchmark_manifest))
+        # THE held-out check for this run's real evaluation seeds. Deliberately here --
+        # after the manifest is known, before the run directory, the provenance, the
+        # policy, the generator or any solver work exists.
+        _require_benchmark_seeds_held_out(benchmark, cfg)
+        _require_benchmark_tag_namespace(benchmark, cfg)
+
     # PROVENANCE FIRST -- before this run creates ANYTHING. Not merely before the
     # engine, the policy, the generator or bonmin: before the run directory itself.
     # `output_dir` may point inside the repository, and a directory this run created is
     # untracked, so collecting after `mkdir` would let the run's own scenarios and
     # ledger show up as pre-existing dirty SOURCE state -- provenance contaminated by
     # the act of recording it.
-    provenance = collect_provenance(cfg)
+    provenance = collect_provenance(cfg, benchmark=benchmark)
     git_info = provenance["git"]
 
     run_dir = Path(cfg.output_dir)
@@ -4438,7 +5861,8 @@ def train(
     # Written BEFORE the completeness gate below, so a refused run still leaves an
     # inspectable record of what was attempted and why it was refused.
     run_config_path = write_run_config(run_dir, cfg, provenance=provenance,
-                                       config_source=config_source)
+                                       config_source=config_source,
+                                       benchmark=benchmark)
 
     if not git_info["available"]:
         raise RuntimeError(
@@ -4514,12 +5938,40 @@ def train(
     # The construction cell as the run will really build it. This is the standing
     # defence against a config that reads plausibly and generates something else: the
     # operator sees the EMITTED target count, not a derived one, before compute is spent.
-    print("scenario (construction): num_agents=%d  n_known=%d + n_hidden=%d "
-          "-> %d target(s) in the executed world"
-          % (cfg.num_agents, cfg.n_known, cfg.n_hidden, cfg.n_targets_emitted))
-    print("          the generator writes the %d known target(s); setup_episode places "
-          "the %d hidden one(s) route-relative and patches them in (split_tasks NOT run)"
-          % (cfg.n_known, cfg.n_hidden))
+    # WHICH POPULATION, echoed before compute is spent -- an operator who meant to run
+    # the generalized design and typed the fixed cell (or the reverse) sees it here, not
+    # in the results.
+    design = cfg.design
+    print("episode_design: %s  [hidden=%s  fd_eligibility=%s  post_fd_wake=%s  "
+          "reference=%s]"
+          % (design.design, design.hidden_policy, design.eligibility_policy,
+             design.post_fd_wake_policy, design.reference_policy))
+    if cfg.generalized:
+        print("scenario (GENERALIZED-V1): the cell is SAMPLED PER EPISODE -- "
+              "A ~ U{%s}, K == A, H_requested ~ U{1..A}"
+              % ",".join(str(a) for a in GENERALIZED_AGENT_COUNTS))
+        print("          sampler=%s rng_domain=%s (its OWN seed domain: it cannot move, "
+              "and cannot be moved by, the fuel-damage or placement streams)"
+              % (CARDINALITY_SAMPLER_POLICY, CARDINALITY_RNG_DOMAIN))
+        print("          num_agents / n_known / n_hidden are NOT read on this path")
+        print("          bounded backoff may realize FEWER hidden targets than "
+              "requested; that is a RECORDED outcome, never a retry")
+    else:
+        print("scenario (construction): num_agents=%d  n_known=%d + n_hidden=%d "
+              "-> %d target(s) in the executed world"
+              % (cfg.num_agents, cfg.n_known, cfg.n_hidden, cfg.n_targets_emitted))
+        print("          the generator writes the %d known target(s); setup_episode "
+              "places the %d hidden one(s) route-relative and patches them in "
+              "(split_tasks NOT run)" % (cfg.n_known, cfg.n_hidden))
+    if benchmark is not None:
+        print("benchmark: %s  %d world group(s) x %d member(s) = %d episode(s)/round, "
+              "%d requested strata"
+              % (benchmark.manifest_id[:16], benchmark.n_worlds, BENCHMARK_GROUP_SIZE,
+                 benchmark.n_members, len(BENCHMARK_STRATA)))
+        print("          worlds per base cell: %s"
+              % benchmark.worlds_per_base_cell())
+        print("          a failed member is recorded and SKIPPED; its group contributes "
+              "to NO within-world delta and is never substituted")
     print("          geometry: min_target_distance=%.1f km  min_known_separation=%.1f km"
           "  detection=%.1f km  discovery_chain=OFF  strict=ON"
           % (cfg.min_target_distance_km, cfg.min_known_separation_km, DETECTION_KM))
@@ -4565,6 +6017,23 @@ def train(
           "accounted, never replaced)" % _EXACT_CARDINALITY_POLICY)
     print("=" * 78)
 
+    def _eval_round(
+        *, iteration: Optional[int], stage: str, updates: int, ordinal: int
+    ) -> Dict[str, Any]:
+        """ONE dispatch site for "run an evaluation round", so the three call sites below
+        (pre-update, periodic and final) cannot drift into evaluating different
+        populations. A ``generalized_v1`` run measures the FROZEN 18-stratum benchmark; a
+        ``fixed_cell_v1`` run measures the historical held-out band, through exactly the
+        call it always made."""
+        common = dict(
+            iteration=iteration, stage=stage, updates_completed=updates,
+            round_ordinal=ordinal, failures_path=failures_path,
+            outcomes_path=outcomes_path, artifacts_root=artifacts_root,
+        )
+        if benchmark is not None:
+            return evaluate_benchmark(policy, gen, cfg, benchmark, **common)
+        return evaluate(policy, gen, cfg, **common)
+
     train_records: List[Dict[str, Any]] = []
     eval_records: List[Dict[str, Any]] = []
     last_eval_iteration = -1
@@ -4589,12 +6058,8 @@ def train(
         # measured later is a trained policy, and a curve without this point has no
         # origin to be compared against.
         if cfg.eval_enabled:
-            ev = evaluate(policy, gen, cfg, iteration=None,
-                          stage=_EVAL_STAGE_PRE_UPDATE, updates_completed=0,
-                          round_ordinal=eval_round_ordinal,
-                          failures_path=failures_path,
-                          outcomes_path=outcomes_path,
-                          artifacts_root=artifacts_root)
+            ev = _eval_round(iteration=None, stage=_EVAL_STAGE_PRE_UPDATE,
+                             updates=0, ordinal=eval_round_ordinal)
             eval_round_ordinal += 1
             eval_records.append(ev)
             eval_fh.write(json.dumps(ev) + "\n")
@@ -4644,6 +6109,16 @@ def train(
                 severity = resolve_severity(episode_seed=seed, params=fd_params)
                 cell = str(severity) if severity else str(condition)
                 tally.attempt(cell)
+                # GENERALIZED-V1: this episode's world SHAPE, drawn from the sampler's
+                # own rng domain and from the episode seed alone -- so it cannot move,
+                # and cannot be moved by, the fuel-damage draws resolved just above, the
+                # hidden-placement stream, or torch's action sampling. `None` on the
+                # historical path, where `_run_one_episode` receives no such keyword at
+                # all and resolves the configured fixed cell exactly as it always did.
+                card = (
+                    sample_generalized_cardinality(episode_seed=seed)
+                    if cfg.generalized else None
+                )
                 artifacts = None
                 if artifacts_root is not None:
                     artifacts = _AttemptArtifacts(
@@ -4677,9 +6152,12 @@ def train(
                         **_artifact_kwargs(artifacts),
                         # Absent entirely unless this is a CTDE run (`_ctde_kwargs`).
                         **_ctde_kwargs(central_recorder),
+                        # Absent entirely on the fixed-cell path (`_cardinality_kwargs`).
+                        **_cardinality_kwargs(card),
                     )
                 except (_VisualArtifactError, MeasurementIntegrityError,
-                        FuelDamageIntegrityError):
+                        FuelDamageIntegrityError, BenchmarkIdentityError,
+                        ReferenceIntegrityError):
                     # INFRASTRUCTURE / DATA INTEGRITY, not science. Re-raised ahead of the
                     # broad handler so none can be written to the ledger as a
                     # `generation` / `setup` / `run` / `reward` failure, enter
@@ -4707,8 +6185,12 @@ def train(
                         eval_tag=None,
                         seed=seed,
                         # The ledger keeps naming the CONDITION, so
-                        # `failures_by_condition` means what it always did.
+                        # `failures_by_condition` means what it always did; the finer
+                        # cell and the scheduled world shape are added beside it so a
+                        # per-cell and a per-cardinality denominator stay complete.
                         condition=condition,
+                        cell=cell,
+                        cardinality=card,
                         exc=exc,
                     ))
                     print("  [iter %d ep %d] FAILED (seed=%d, cell=%s, stage=%s): %s: %s"
@@ -4745,6 +6227,7 @@ def train(
                     seed=int(seed),
                     episode_tag=int(g),
                     fuel_damage_mode=str(cfg.fuel_damage_mode),
+                    design=cfg.design,
                 ))
                 # The SAME episode, recorded under the credit structure its training
                 # mode uses. CTDE keeps the GLOBAL decision order beside the central
@@ -4910,13 +6393,10 @@ def train(
 
             # ---- periodic eval ----
             if cfg.eval_enabled and ((iteration + 1) % cfg.eval_every == 0):
-                ev = evaluate(policy, gen, cfg, iteration=iteration,
-                              stage=_EVAL_STAGE_POST_UPDATE,
-                              updates_completed=updates_completed,
-                              round_ordinal=eval_round_ordinal,
-                              failures_path=failures_path,
-                              outcomes_path=outcomes_path,
-                              artifacts_root=artifacts_root)
+                ev = _eval_round(iteration=iteration,
+                                 stage=_EVAL_STAGE_POST_UPDATE,
+                                 updates=updates_completed,
+                                 ordinal=eval_round_ordinal)
                 eval_round_ordinal += 1
                 eval_records.append(ev)
                 eval_fh.write(json.dumps(ev) + "\n")
@@ -4943,13 +6423,10 @@ def train(
         # ---- final eval + final checkpoint (skipped if this iteration just did one) ----
         final_iteration = cfg.n_iterations - 1
         if cfg.eval_enabled and last_eval_iteration != final_iteration:
-            ev = evaluate(policy, gen, cfg, iteration=final_iteration,
-                          stage=_EVAL_STAGE_POST_UPDATE,
-                          updates_completed=updates_completed,
-                          round_ordinal=eval_round_ordinal,
-                          failures_path=failures_path,
-                          outcomes_path=outcomes_path,
-                          artifacts_root=artifacts_root)
+            ev = _eval_round(iteration=final_iteration,
+                             stage=_EVAL_STAGE_POST_UPDATE,
+                             updates=updates_completed,
+                             ordinal=eval_round_ordinal)
             eval_round_ordinal += 1
             eval_records.append(ev)
             eval_fh.write(json.dumps(ev) + "\n")
@@ -5154,6 +6631,224 @@ def _severity_response_from_outcomes(
     return out
 
 
+def _tally_slugs(values: Sequence[Any]) -> Dict[str, int]:
+    """Count stable slugs into a plain dict (sorted, so a record is diff-stable)."""
+    counts: Dict[str, int] = {}
+    for value in values:
+        if value is None:
+            continue
+        counts[str(value)] = counts.get(str(value), 0) + 1
+    return {k: counts[k] for k in sorted(counts)}
+
+
+def _histogram(values: Sequence[Any]) -> Dict[str, int]:
+    """A count-by-value histogram keyed by the value's string form."""
+    return _tally_slugs(values)
+
+
+def _generalized_summary(
+    outcome_records: List[Dict[str, Any]],
+    failure_records: List[Dict[str, Any]],
+    eval_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The GENERALIZED-V1 roll-up, DERIVED FROM THE CANONICAL jsonl STREAMS.
+
+    ONE metric path, exactly as ``_severity_response_from_outcomes`` already is: every
+    number here is read from ``episode_outcomes.jsonl`` (successful attempts),
+    ``episode_failures.jsonl`` (failed ones) and the per-round eval records, never from a
+    parallel in-memory aggregate -- so the summary cannot describe a run its own artifacts
+    do not.
+
+    EVERY DENOMINATOR IS EXPLICIT, and the two streams are DISJOINT by construction, so
+    ``attempted == successful + failed`` per bucket rather than by assumption. A failed
+    attempt still carries the world it was SCHEDULED to build (the ledger records its
+    cardinality precisely because it never built one), which is what keeps a HIGH-load
+    stratum's denominator complete instead of quietly shrinking to the attempts that
+    happened to succeed.
+
+    THE REQUESTED-VS-REALIZED DISTRIBUTION IS REPORTED, NOT JUDGED. ``hidden_realized``
+    is emitted as a HISTOGRAM per requested load, so a HIGH stratum that keeps realizing
+    one hidden target is visible as a shape rather than hidden inside a mean. This
+    function deliberately invents NO threshold for "systematic degeneration" and returns
+    no verdict: the handoff requires that distribution to be INSPECTED by the research
+    review before any measurement, and a threshold here would pre-empt that decision
+    (handoff 3l.6).
+    """
+    successes = [r for r in outcome_records if r.get("generalized")]
+    failures = [r for r in failure_records if r.get("agent_count") is not None]
+    if not successes and not failures:
+        return {}
+
+    def _by(key: str) -> Dict[str, Any]:
+        """attempted / successful / failed, bucketed by one scheduled field."""
+        buckets: Dict[str, Dict[str, int]] = {}
+        for rec in successes:
+            b = buckets.setdefault(str(rec.get(key)), {"successful": 0, "failed": 0})
+            b["successful"] += 1
+        for rec in failures:
+            b = buckets.setdefault(str(rec.get(key)), {"successful": 0, "failed": 0})
+            b["failed"] += 1
+        return {
+            name: {
+                "n_attempted": b["successful"] + b["failed"],
+                "n_successful": b["successful"],
+                "n_failed": b["failed"],
+                "success_fraction": _fraction(
+                    b["successful"], b["successful"] + b["failed"]),
+            }
+            for name, b in sorted(buckets.items())
+        }
+
+    # --- requested vs realized hidden cardinality, per REQUESTED load ------------
+    realized_by_request: Dict[str, List[int]] = {}
+    for rec in successes:
+        requested = rec.get("hidden_requested")
+        realized = rec.get("hidden_realized")
+        if requested is None or realized is None:
+            continue
+        realized_by_request.setdefault(str(int(requested)), []).append(int(realized))
+    cardinality = {
+        request: {
+            "n_successful": len(values),
+            "hidden_realized_histogram": _histogram(values),
+            "hidden_realized_mean": _stats_or_none([float(v) for v in values])["mean"],
+            "n_short_realized": sum(1 for v in values if v < int(request)),
+            "short_realized_fraction": _fraction(
+                sum(1 for v in values if v < int(request)), len(values)),
+        }
+        for request, values in sorted(realized_by_request.items())
+    }
+
+    # --- reference-solve health, over the episodes that produced a reference -----
+    ref_rows = [r for r in successes if r.get("reference_kind") is not None]
+    invoked = [r for r in ref_rows if r.get("reference_solver_invoked")]
+    seconds = [float(r["reference_solver_seconds"]) for r in invoked
+               if r.get("reference_solver_seconds") is not None]
+    allocated = [float(r["reference_allocated_task_count"]) for r in ref_rows
+                 if r.get("reference_allocated_task_count") is not None]
+    candidates = [float(r["reference_candidate_task_count"]) for r in ref_rows
+                  if r.get("reference_candidate_task_count") is not None]
+    scored = [int(r["scored_completed_targets"]) for r in successes
+              if r.get("scored_completed_targets") is not None]
+    unscored = [int(r["unscored_completed_targets"]) for r in successes
+                if r.get("unscored_completed_targets") is not None]
+
+    # --- post-FD completion-boundary adaptation ---------------------------------
+    boundary_rows = [r for r in successes if r.get("post_fd_armed")]
+    boundary_meta: List[str] = []
+    for rec in boundary_rows:
+        boundary_meta.extend(rec.get("post_fd_boundary_meta_action_names") or [])
+
+    # --- the frozen benchmark, from the LAST round and across every round -------
+    bench_rounds = [r for r in eval_records if r.get("benchmark_strata")]
+    benchmark: Optional[Dict[str, Any]] = None
+    if bench_rounds:
+        final = bench_rounds[-1]
+        totals: Dict[str, Dict[str, int]] = {}
+        for round_record in bench_rounds:
+            for key, entry in (round_record.get("benchmark_strata") or {}).items():
+                acc = totals.setdefault(
+                    key, {"n_attempted": 0, "n_successful": 0, "n_failed": 0,
+                          "n_short_realized": 0, "n_fd_wakes": 0})
+                for field_name in acc:
+                    acc[field_name] += int(entry.get(field_name, 0) or 0)
+        benchmark = {
+            "manifest_id": final.get("benchmark_manifest_id"),
+            "n_worlds": final.get("benchmark_n_worlds"),
+            "n_members_per_round": final.get("benchmark_n_members"),
+            "n_strata": final.get("benchmark_n_strata"),
+            "n_rounds": len(bench_rounds),
+            # The FINAL round is the clean statistical unit for the finished policy; the
+            # cross-round totals describe the TRAJECTORY and are NOT independent worlds
+            # (every round re-measures the same frozen manifest), which is why they are
+            # reported under their own name and never pooled into the final round's.
+            "final_round_strata": final.get("benchmark_strata"),
+            "final_round_base_cells": final.get("benchmark_base_cells"),
+            "final_round_deltas": {
+                key: final.get(key) for key in (final.get("benchmark_delta_keys") or [])
+            },
+            "final_round_delta_n": {
+                key: final.get("%s_n" % key)
+                for key in (final.get("benchmark_delta_keys") or [])
+            },
+            "final_round_groups_successful": final.get("n_groups_successful"),
+            "final_round_groups_attempted": final.get("n_groups_attempted"),
+            "strata_attempt_totals_across_rounds": totals,
+            "totals_across_rounds_are_repeated_measures": True,
+        }
+
+    return {
+        "episode_design": (
+            successes[0].get("episode_design") if successes
+            else EPISODE_DESIGN_GENERALIZED_V1
+        ),
+        "cardinality_sampler": cardinality_sampler_record(),
+        "train_by_agent_count": _by("agent_count"),
+        "train_by_hidden_requested": _by("hidden_requested"),
+        "cardinality_requested_vs_realized": cardinality,
+        "construction_backoff_rejections": _tally_slugs(
+            [reason for rec in successes
+             for reason in (rec.get("construction_backoff_rejections") or [])]
+        ),
+        "fd_eligibility_rejections": _tally_slugs(
+            [reason for rec in successes
+             for reason in (rec.get("fd_eligibility_rejections") or [])]
+        ),
+        "fd_eligibility_selected_ordinals": _histogram(
+            [rec.get("fd_eligibility_selected_ordinal") for rec in successes]
+        ),
+        "post_fd_adaptation": {
+            "n_episodes_armed": len(boundary_rows),
+            "n_boundaries_confirmed": sum(
+                int(r.get("post_fd_boundaries_confirmed") or 0)
+                for r in boundary_rows),
+            "n_boundaries_with_remaining_mission": sum(
+                int(r.get("post_fd_boundaries_with_remaining_mission") or 0)
+                for r in boundary_rows),
+            "n_boundaries_terminal": sum(
+                int(r.get("post_fd_boundaries_terminal") or 0)
+                for r in boundary_rows),
+            "n_boundary_wakes": sum(
+                int(r.get("post_fd_boundary_wakes") or 0) for r in boundary_rows),
+            # A rate over BOUNDARY WAKES, which is at most the boundary count and can be
+            # smaller: a TERMINAL boundary correctly wakes nobody, so the two are
+            # counted apart rather than one inferred from the other.
+            "boundary_meta_action_counts": _tally_slugs(boundary_meta),
+            "boundary_meta_action_rates": {
+                name: _fraction(boundary_meta.count(name), len(boundary_meta))
+                for name in _META_NAMES
+            },
+            "rates_over": "post_fd_boundary_wakes",
+            "deactivation_reasons": _tally_slugs(
+                [r.get("post_fd_deactivation_reason") for r in boundary_rows]),
+        },
+        "reference": {
+            "n_episodes_with_reference": len(ref_rows),
+            "kinds": _tally_slugs([r.get("reference_kind") for r in ref_rows]),
+            "n_solver_invoked": len(invoked),
+            # A SKIPPED degenerate solve is not a failure: it is a legitimate zero
+            # reference that costs no BONMIN call, which is why invoked/accepted are
+            # reported separately from the episode count.
+            "n_solver_accepted": sum(
+                1 for r in ref_rows if r.get("reference_solver_accepted")),
+            "terminations": _tally_slugs(
+                [r.get("reference_solver_termination") for r in ref_rows]),
+            "solver_seconds_mean": _stats_or_none(seconds)["mean"],
+            "solver_seconds_max": _stats_or_none(seconds)["max"],
+            "allocated_task_count_mean": _stats_or_none(allocated)["mean"],
+            "candidate_task_count_mean": _stats_or_none(candidates)["mean"],
+            "n_scored_completed_targets": sum(scored),
+            "n_unscored_completed_targets": sum(unscored),
+            "scored_vs_unscored_over": "successful_episodes_with_a_reference",
+        },
+        # An accounted reference refusal (an unanswered solve). An ABORTING one never
+        # reaches the ledger at all, so a non-empty tally here is always attrition.
+        "reference_fault_attrition": _tally_slugs(
+            [r.get("reference_fault_reason") for r in failure_records]),
+        "benchmark": benchmark,
+    }
+
+
 def _summarize(
     train_records: List[Dict[str, Any]],
     eval_records: List[Dict[str, Any]],
@@ -5341,6 +7036,20 @@ def _summarize(
         "severity_response": severity_response,
         "severity_response_source": _EPISODE_OUTCOMES_FILENAME,
         "episode_outcomes_recorded": len(outcome_rows),
+        # WHICH POPULATION this run drew from. Recorded on BOTH designs, and taken from
+        # the config rather than guessed from the records, so a run with zero completed
+        # episodes still states its design.
+        "episode_design": (
+            None if cfg is None else str(cfg.episode_design)
+        ),
+        "episode_design_policies": (
+            None if cfg is None else cfg.design.to_record()
+        ),
+        # The GENERALIZED-V1 roll-up, DERIVED from the same two durable streams the
+        # severity table is (one metric path). `{}` -- never fabricated content -- for a
+        # run whose records carry no generalized episode.
+        "generalized": _generalized_summary(
+            outcome_rows, failure_records, eval_records),
         # The held-out numbers the factor is measured by, taken from the LAST round and
         # always carrying their group denominator. `final_eval_paired_reward_delta` is
         # the LEGACY damaged-minus-clean key and is `null` for a triad run, whose three
@@ -5949,6 +7658,7 @@ def _plot_measurement_health(
     plots_dir: Path,
     train_records: List[Dict[str, Any]],
     eval_records: List[Dict[str, Any]],
+    outcome_records: Optional[List[Dict[str, Any]]] = None,
 ) -> Path:
     """MEASUREMENT HEALTH -- the denominators. Explicitly NOT a performance figure.
 
@@ -5992,7 +7702,20 @@ def _plot_measurement_health(
     cells = _record_cells(eval_records)
     kind = str((eval_records[-1].get("eval_group_kind") if eval_records else None)
                or _EVAL_GROUP_KIND_PAIR)
-    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    # GENERALIZED-V1: a FOURTH panel, and only when the run has a cardinality to show.
+    # It is deliberately part of MEASUREMENT HEALTH rather than a new figure: requested
+    # -vs-realized hidden load is a DENOMINATOR question -- a HIGH stratum that keeps
+    # realizing one hidden target is not a HIGH stratum -- and it belongs beside the
+    # other denominators, read together with them. A fixed-cell run draws the three
+    # panels it always did, on the same axes, unchanged.
+    cardinality_rows = [
+        r for r in (outcome_records or [])
+        if r.get("generalized") and r.get("hidden_requested") is not None
+        and r.get("hidden_realized") is not None
+    ]
+    n_panels = 4 if cardinality_rows else 3
+    fig, axes = plt.subplots(
+        n_panels, 1, figsize=(10, 4 * n_panels), sharex=False)
 
     ax = axes[0]
     series = (
@@ -6088,6 +7811,37 @@ def _plot_measurement_health(
     ax.legend(loc="lower right", fontsize=8)
     ax.grid(alpha=0.25)
 
+    if cardinality_rows:
+        # REQUESTED vs REALIZED hidden load, as GROUPED COUNTS per requested load --
+        # a distribution, never a mean. The mean is exactly what would hide the failure
+        # mode this panel exists to make visible: a HIGH stratum whose realized load
+        # collapses toward 1 still has a respectable-looking average.
+        ax = axes[3]
+        requests = sorted({int(r["hidden_requested"]) for r in cardinality_rows})
+        realized_values = sorted({int(r["hidden_realized"])
+                                  for r in cardinality_rows})
+        width = 0.8 / max(len(realized_values), 1)
+        for i, realized in enumerate(realized_values):
+            counts = [
+                sum(1 for r in cardinality_rows
+                    if int(r["hidden_requested"]) == req
+                    and int(r["hidden_realized"]) == realized)
+                for req in requests
+            ]
+            offsets = [x - 0.4 + width * (i + 0.5) for x in range(len(requests))]
+            ax.bar(offsets, counts, width=width,
+                   label="realized H = %d" % realized)
+        ax.set_xticks(range(len(requests)))
+        ax.set_xticklabels(["requested H = %d" % req for req in requests])
+        ax.set_ylabel("successful episodes")
+        ax.set_ylim(bottom=0)
+        ax.set_title(
+            "GENERALIZED-V1 hidden load: REQUESTED vs REALIZED (bounded backoff may "
+            "realize fewer -- INSPECT before measuring; no threshold is applied here)",
+            fontsize=10)
+        ax.legend(loc="upper right", fontsize=8)
+        ax.grid(alpha=0.25, axis="y")
+
     fig.tight_layout(rect=(0, 0.03, 1, 1))
     _annotate_x_semantics(fig)
     out_path = plots_dir / _PLOT_MEASUREMENT_HEALTH
@@ -6133,6 +7887,10 @@ def plot_training(run_dir: Union[str, Path]) -> List[Path]:
     run_path = Path(run_dir)
     train_records = _read_jsonl(run_path / "train_records.jsonl")
     eval_records = _read_jsonl(run_path / "eval_records.jsonl")
+    # The per-attempt stream, read here for the SAME reason the summary reads it: the
+    # cardinality-health panel is derived from the canonical artifact, not from a second
+    # aggregate. Missing (a pre-Task-4 run directory) is simply an empty population.
+    outcome_records = _read_jsonl(run_path / _EPISODE_OUTCOMES_FILENAME)
     if not train_records and not eval_records:
         print("plot_training: no train_records.jsonl / eval_records.jsonl in %s -- "
               "nothing to plot." % str(run_path))
@@ -6153,7 +7911,8 @@ def plot_training(run_dir: Union[str, Path]) -> List[Path]:
     written = [
         _plot_training_performance(plt, plots_dir, train_records, eval_records),
         _plot_policy_diagnostics(plt, plots_dir, train_records, eval_records),
-        _plot_measurement_health(plt, plots_dir, train_records, eval_records),
+        _plot_measurement_health(plt, plots_dir, train_records, eval_records,
+                                 outcome_records),
     ]
     for path in written:
         print("plot_training: wrote %s" % str(path))
@@ -6616,6 +8375,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "FORMULA is unchanged); 0 makes losing an aircraft free "
                         "(default: %(default)s)")
     # --- PHASE B: which TRAINING algorithm runs. Execution is decentralized in both. ---
+    # --- GENERALIZED-V1: the population selector, and the frozen benchmark ---
+    p.add_argument("--episode-design", type=str, choices=list(EPISODE_DESIGNS),
+                   default=d_cfg.episode_design,
+                   help="which episode POPULATION to draw from: %s preserves the "
+                        "historical fixed cell and its four historical policies; %s "
+                        "selects the complete GENERALIZED-V1 bundle and samples the "
+                        "cell per episode (default: %%(default)s)"
+                        % (EPISODE_DESIGN_FIXED_CELL_V1,
+                           EPISODE_DESIGN_GENERALIZED_V1))
+    p.add_argument("--benchmark-manifest", type=str,
+                   default=d_cfg.benchmark_manifest,
+                   help="path to a FROZEN 18-stratum benchmark manifest; REQUIRED for "
+                        "a %s run with evaluation enabled, and refused otherwise"
+                        % EPISODE_DESIGN_GENERALIZED_V1)
     p.add_argument("--training-mode", type=str, choices=list(TRAINING_MODES),
                    default=d_cfg.training_mode,
                    help="actor_only = the Phase-A reference path (no critic, no central "

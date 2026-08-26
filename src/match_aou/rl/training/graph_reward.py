@@ -182,6 +182,40 @@ CONTINUATION_EXCLUSION_REASONS: Tuple[str, ...] = (
 )
 
 
+#: WHY a reference could not be produced honestly. Stable, machine-readable slugs, and
+#: the ONLY thing a caller may branch on -- a routing decision taken by matching on an
+#: exception's MESSAGE breaks the moment the wording improves.
+#:
+#: The set is split into exactly two ROUTING CLASSES, and the split is the whole point:
+#:
+#:   * :data:`REFERENCE_FAULT_SOLVE_UNACCEPTABLE` is ORDINARY ACCOUNTED ATTRITION. The
+#:     question was asked and the solver did not answer it. Nothing was contradicted, no
+#:     other episode is implicated, and the scheduled attempt is spent -- recorded once,
+#:     never retried, never replaced, never converted into a zero-valued reference.
+#:   * everything else is a MEASUREMENT-INTEGRITY fault: the instrument contradicted
+#:     itself (a policy that requires a reference produced none, a reference was asked for
+#:     with nothing to solve from, an unknown kind, or a record whose own arithmetic does
+#:     not close). Every episode the reference layer touched is then suspect, so the
+#:     harness ABORTS rather than shrinking a scientific denominator by attrition.
+REFERENCE_FAULT_SOLVE_UNACCEPTABLE: str = "reference_solve_unacceptable"
+REFERENCE_FAULT_MISSING: str = "reference_missing"
+REFERENCE_FAULT_NO_UNIVERSE: str = "reference_universe_unavailable"
+REFERENCE_FAULT_UNKNOWN_KIND: str = "reference_kind_unknown"
+REFERENCE_FAULT_ARITHMETIC: str = "reference_arithmetic_contradiction"
+
+#: Every legal reason, in routing order (the one attrition reason first).
+REFERENCE_FAULT_REASONS: Tuple[str, ...] = (
+    REFERENCE_FAULT_SOLVE_UNACCEPTABLE,
+    REFERENCE_FAULT_MISSING,
+    REFERENCE_FAULT_NO_UNIVERSE,
+    REFERENCE_FAULT_UNKNOWN_KIND,
+    REFERENCE_FAULT_ARITHMETIC,
+)
+
+#: The reasons that are ORDINARY EPISODE ATTRITION. Everything else aborts.
+REFERENCE_ATTRITION_REASONS: Tuple[str, ...] = (REFERENCE_FAULT_SOLVE_UNACCEPTABLE,)
+
+
 class ReferenceIntegrityError(RuntimeError):
     """The reward-bearing reference could not be established, or contradicts itself.
 
@@ -196,15 +230,54 @@ class ReferenceIntegrityError(RuntimeError):
       * the event-conditioned policy is in force but no reference reached the reward, so
         the static ``oracle_solution`` / ``oracle_tasks`` (which that policy deliberately
         leaves EMPTY) would have been read as if they were one;
+      * a reference was asked for with no retained t=0 universe to solve from;
+      * an unknown reference KIND;
       * a reference's own arithmetic does not reconcile (``U_ref != U_prefix + U_cont_ref``).
 
-    It is deliberately a plain ``RuntimeError`` subclass and NOT a
-    ``FuelDamageError`` / ``EpisodeRosterError`` sibling: this layer must not import the
-    trainer, and the trainer's existing broad ``except Exception`` around
-    ``compute_episode_reward`` already accounts it as a ``reward``-stage episode failure.
-    Routing it as an aborting instrument fault is a Task-4 decision, not one this layer
-    may take on the trainer's behalf.
+    ``reason`` IS A REQUIRED KEYWORD, and it is what a caller routes on. An optional one
+    would let a future raise site skip the classification by omission and fall into
+    whichever routing happened to be the default -- the same class of defect that made a
+    roster fault look like ordinary episode attrition. There is deliberately no default
+    and no inference from the message text.
+
+    THIS LAYER STILL TAKES NO ROUTING DECISION AND IMPORTS NO TRAINER. It is a plain
+    ``RuntimeError`` subclass, not a ``FuelDamageError`` / ``EpisodeRosterError`` sibling;
+    what it now carries is the machine-readable FACT the harness needs in order to route
+    correctly (:func:`reference_fault_aborts`).
     """
+
+    def __init__(self, message: str, *, reason: str) -> None:
+        if str(reason) not in REFERENCE_FAULT_REASONS:
+            raise ValueError(
+                "unknown ReferenceIntegrityError reason %r; expected one of %r"
+                % (reason, list(REFERENCE_FAULT_REASONS))
+            )
+        super().__init__(message)
+        self.reason: str = str(reason)
+
+    @property
+    def is_measurement_integrity(self) -> bool:
+        """True iff this fault means the INSTRUMENT contradicted itself.
+
+        The complement of "the solver was asked and did not answer", which is a fact
+        about one attempt rather than about the measurement apparatus.
+        """
+        return self.reason not in REFERENCE_ATTRITION_REASONS
+
+
+def reference_fault_aborts(exc: BaseException) -> bool:
+    """Should this reference fault ABORT the run, rather than be accounted as attrition?
+
+    THE ONE PREDICATE a harness routes on, so the classification lives beside the reasons
+    it classifies instead of being re-derived (differently) at four handler sites. It
+    reads the exception's ``reason`` SLUG and nothing else -- never its message.
+
+    An exception that is not a :class:`ReferenceIntegrityError` is not this layer's fault
+    to classify, and returns ``False``.
+    """
+    if not isinstance(exc, ReferenceIntegrityError):
+        return False
+    return exc.is_measurement_integrity
 
 
 # =============================================================================
@@ -448,12 +521,14 @@ class EpisodeReference:
                 "reference arithmetic does not reconcile: u_ref=%r but u_prefix=%r + "
                 "u_cont_ref=%r = %r"
                 % (self.u_ref, self.u_prefix, self.u_cont_ref,
-                   self.u_prefix + self.u_cont_ref)
+                   self.u_prefix + self.u_cont_ref),
+                reason=REFERENCE_FAULT_ARITHMETIC,
             )
         if self.kind not in REFERENCE_KINDS:
             raise ReferenceIntegrityError(
                 "unknown reference kind %r; expected one of %r"
-                % (self.kind, list(REFERENCE_KINDS))
+                % (self.kind, list(REFERENCE_KINDS)),
+                reason=REFERENCE_FAULT_UNKNOWN_KIND,
             )
 
     @property
@@ -637,7 +712,8 @@ def compute_episode_reward(
             raise ReferenceIntegrityError(
                 "the episode declares %r but carries no EpisodeResult.reference; the "
                 "static oracle it would fall back on was deliberately never solved"
-                % REFERENCE_POLICY_EVENT_CONDITIONED_V1
+                % REFERENCE_POLICY_EVENT_CONDITIONED_V1,
+                reason=REFERENCE_FAULT_MISSING,
             )
         breakdown = _static_t0_breakdown(ctx, cfg)
     else:

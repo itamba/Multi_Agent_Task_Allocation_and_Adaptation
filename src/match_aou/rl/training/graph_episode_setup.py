@@ -144,6 +144,9 @@ from .graph_reward import (
     CONTINUATION_EXCLUSION_DEAD,
     CONTINUATION_EXCLUSION_NOT_AIRBORNE,
     CONTINUATION_EXCLUSION_RTB,
+    REFERENCE_FAULT_NO_UNIVERSE,
+    REFERENCE_FAULT_SOLVE_UNACCEPTABLE,
+    REFERENCE_FAULT_UNKNOWN_KIND,
     REFERENCE_KIND_DAMAGED_EVENT,
     REFERENCE_KINDS,
     REFERENCE_POLICIES,
@@ -1877,7 +1880,8 @@ def _solve_reference(
             "(termination=%s, %d agent(s), %d open task(s)). This is NOT the same fact "
             "as an accepted solve that allocated nothing, and it must not be recorded "
             "as a zero reference."
-            % (what, audit.termination_condition, len(agents), len(open_tasks))
+            % (what, audit.termination_condition, len(agents), len(open_tasks)),
+            reason=REFERENCE_FAULT_SOLVE_UNACCEPTABLE,
         )
     return solution, allocated, audit
 
@@ -1906,13 +1910,15 @@ def build_t0_reference(ctx: EpisodeContext, *, kind: str) -> EpisodeReference:
     """
     if kind not in REFERENCE_KINDS:
         raise ReferenceIntegrityError(
-            "build_t0_reference: unknown reference kind %r" % (kind,)
+            "build_t0_reference: unknown reference kind %r" % (kind,),
+            reason=REFERENCE_FAULT_UNKNOWN_KIND,
         )
     t0_tasks = list(ctx.t0_reference_tasks)
     if not t0_tasks:
         raise ReferenceIntegrityError(
             "build_t0_reference: the episode retained no t=0 task universe, so its "
-            "deferred reference cannot be solved"
+            "deferred reference cannot be solved",
+            reason=REFERENCE_FAULT_NO_UNIVERSE,
         )
     agents = list(ctx.agents)
     solution, allocated, audit = _solve_reference(
@@ -2064,7 +2070,8 @@ def build_continuation_reference(
         raise ReferenceIntegrityError(
             "build_continuation_reference: the episode retained no t=0 task universe, so "
             "the checkpoint for ego %s at tick %d cannot be scored"
-            % (damaged_ego_id, int(tick))
+            % (damaged_ego_id, int(tick)),
+            reason=REFERENCE_FAULT_NO_UNIVERSE,
         )
     # FROZEN NOW: a copy, so a later Phase-2 confirmation cannot retroactively move the
     # prefix this reference was built against.

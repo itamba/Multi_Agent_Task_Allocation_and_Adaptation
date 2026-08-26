@@ -765,16 +765,58 @@ def test_po1_a_refused_event_manufactures_no_reference_solve() -> None:
     assert stub.calls[0].target_ids == ["tA", "tB", "tPeer"]
 
 
-def test_po1_no_harness_selects_the_new_policy() -> None:
-    """Task 4 owns harness exposure. Today NOTHING reaches the opt-in path by default."""
-    for name in ("graph_train.py", "graph_rollout.py"):
-        src = (SRC / "match_aou" / "rl" / "training" / name).read_text(encoding="utf-8")
-        assert "reference_policy" not in src, (
-            "%s must not select or expose the reference policy in task 3" % name
+def test_po1_the_opt_in_policy_is_reachable_only_through_the_design_selector() -> None:
+    """The harnesses now EXPOSE the policy -- and only behind the explicit selector.
+
+    SUPERSEDES the Task-3 guard that asserted no harness mentioned the reference policy
+    at all. That was the correct invariant while harness exposure was unimplemented;
+    GENERALIZED-V1 Task 4 is the task that implements it, so the invariant it replaces
+    is the one that actually matters now: a harness may select the opt-in policy, but
+    ONLY as part of the whole approved bundle, ONLY when asked explicitly, and NEVER by
+    default.
+
+    What is proven here is therefore the DEFAULT and the ROUTE, not the absence:
+
+      * both harnesses still DEFAULT to ``fixed_cell_v1``, which resolves the historical
+        ``static_t0_v1`` reference -- so every existing config, preset and command line
+        keeps the reference every approved measurement was taken on;
+      * the opt-in reference is reachable ONLY by naming ``generalized_v1``, and it comes
+        bundled with the other three approved policies rather than as a knob of its own;
+      * an unknown design id RAISES rather than resolving to either bundle.
+    """
+    from match_aou.rl.training.graph_generalized import (
+        EPISODE_DESIGN_FIXED_CELL_V1,
+        EPISODE_DESIGN_GENERALIZED_V1,
+        REFERENCE_POLICY_EVENT_CONDITIONED_V1 as _EVENT,
+    )
+    from match_aou.rl.training.graph_rollout import RolloutConfig
+    from match_aou.rl.training.graph_train import TrainConfig
+
+    for cfg in (TrainConfig(n_iterations=1), RolloutConfig()):
+        assert cfg.episode_design == EPISODE_DESIGN_FIXED_CELL_V1, (
+            "the historical design must remain the DEFAULT of both harnesses"
         )
-        assert "event_conditioned_continuation_v1" not in src, name
-        assert "build_continuation_reference" not in src, name
-    # And a caller that passes nothing gets the historical field value.
+        assert cfg.generalized is False
+        assert cfg.design.reference_policy == REFERENCE_POLICY_STATIC_T0_V1, (
+            "a default run must still be scored against the static t=0 reference"
+        )
+
+    # The opt-in path exists, and it arrives as the WHOLE approved bundle.
+    generalized = TrainConfig(
+        n_iterations=1, episode_design=EPISODE_DESIGN_GENERALIZED_V1
+    ).design
+    assert generalized.reference_policy == _EVENT
+    assert generalized.generalized is True
+
+    # An unknown id resolves to NEITHER bundle.
+    for bad in ("generalized", "GENERALIZED_V1", "", "static_t0_v1"):
+        try:
+            TrainConfig(n_iterations=1, episode_design=bad).design
+        except ValueError:
+            continue
+        raise AssertionError("episode_design=%r must not resolve" % (bad,))
+
+    # And a caller that passes nothing to `setup_episode` gets the historical field value.
     assert ges.EpisodeContext.reference_policy == REFERENCE_POLICY_STATIC_T0_V1
     assert ges.EpisodeContext.t0_reference_tasks == ()
 
