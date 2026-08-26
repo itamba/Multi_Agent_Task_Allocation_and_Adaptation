@@ -4370,11 +4370,17 @@ a stub, because normal production does not currently generate it.
     authorized.** No benchmark manifest is committed or tracked in the repository;
     `build_benchmark_manifest` REFUSES to invent a world count and has no production caller
     (tests are its only consumer); `configs/graph_train/final_cell_probe.json` remains the
-    ONLY repository preset and it is `fixed_cell_v1`; and **no generalized preset, contract
-    or campaign exists.** **That negative is scoped deliberately:** transient manifests built
-    in memory or in a temporary directory by tests and engineering validation are legitimate,
-    are neither committed nor a scientific population, and repository state cannot establish
-    a global negative over local scratch files. Bounded runtime / solver validation, before
+    ONLY repository preset and it is `fixed_cell_v1`, so **no repository preset selects
+    `generalized_v1`**; and **no FINAL SCIENTIFIC benchmark/run preset and no finalized
+    scientific campaign contract or schedule has been created or authorized.**
+    **THAT IS A CLAIM ABOUT SCIENTIFIC ARTIFACTS ONLY, AND NEVER ABOUT THE TECHNICAL
+    CONTRACTS.** The GENERALIZED-V1 Task-1/2/3/4 technical contracts **DO exist**, are
+    implemented, reviewed and locked, and are AUTHORITATIVE in §4 / §5 / §6 / §7 of this
+    document — nothing here may be read as denying them. **The rest of the negative is
+    scoped deliberately too:** transient manifests built in memory or in a temporary
+    directory by tests and engineering validation are legitimate, are neither committed nor
+    a scientific population, and repository state cannot establish a global negative over
+    local scratch files. Bounded runtime / solver validation, before
     that scale is selected, is a SEPARATE later step and is NOT done. **SUPERSEDED, and corrected here:** this bullet previously said
     that neither harness carried any generalized policy field, that nothing persisted or
     aggregated the diagnostic structures, and that there was no generalized training sampler

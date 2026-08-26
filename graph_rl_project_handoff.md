@@ -308,9 +308,13 @@ cross-references it rather than duplicating it.
     only — schema, builder, canonical serialization, content hash, verifying loader,
     consumer and identity checks — and the builder deliberately REFUSES to invent a world
     count. `configs/graph_train/final_cell_probe.json` remains the ONLY
-    repository preset and it is `fixed_cell_v1`; **no generalized preset, contract or
-    campaign exists.** Choosing the scale is **Task 5's** business and comes after bounded
-    runtime / solver validation.
+    repository preset and it is `fixed_cell_v1`, so **no repository preset selects
+    `generalized_v1`**, and **no FINAL SCIENTIFIC benchmark/run preset and no finalized
+    scientific campaign contract or schedule has been created or authorized.** *(That is a
+    claim about SCIENTIFIC artifacts ONLY. The GENERALIZED-V1 Task-1/2/3/4 TECHNICAL
+    contracts DO exist, are implemented, reviewed and locked, and are AUTHORITATIVE in
+    `CLAUDE.md` §4 / §5 / §6 / §7.)* Choosing the scale is **Task 5's** business and comes
+    after bounded runtime / solver validation.
   - **NO generalized scientific measurement exists, is running, is scheduled or is
     authorized**, and **no generalized result of any kind may be pre-claimed.** **No final
     actor-only or CTDE generalized campaign is authorized**, and **no actor-only-vs-CTDE
@@ -2313,8 +2317,11 @@ that make all of it readable (§3l.7).
   nor a scientific population, and repository state cannot establish a global negative over
   local scratch files.* Task 4 delivered the manifest MECHANISM only, and its builder
   REFUSES to invent a world count. `configs/graph_train/final_cell_probe.json` remains the
-  ONLY repository preset and it is `fixed_cell_v1`; no generalized preset, contract or
-  campaign exists.
+  ONLY repository preset and it is `fixed_cell_v1`, so no repository preset selects
+  `generalized_v1`, and no FINAL SCIENTIFIC benchmark/run preset and no finalized scientific
+  campaign contract or schedule has been created or authorized. *(A claim about SCIENTIFIC
+  artifacts ONLY — the GENERALIZED-V1 Task-1/2/3/4 TECHNICAL contracts DO exist, are locked,
+  and are authoritative in `CLAUDE.md` §4 / §5 / §6 / §7.)*
 - **OWNERSHIP:** the **GPT orchestrator** owns the work. **No documentation record is a
   standing writable task** — each is the sole writable candidate only while its own draft PR
   is open — and **no implementation candidate is active**: the Task-4 branch and PR are
