@@ -5733,6 +5733,259 @@ def test_gen_reference_attrition_is_accounted_and_contradiction_aborts() -> None
         raise AssertionError("an instrument contradiction must abort")
 
 
+def _held_out_manifest(base_seed: int = 8_000_000):
+    """A manifest whose seeds sit far outside any training band used in these tests."""
+    return build_benchmark_manifest(
+        worlds_per_cell=1, benchmark_base_seed=base_seed, label="held-out")
+
+
+def test_fix2_a_manifest_containing_a_training_seed_is_refused(tmp_path: Path) -> None:
+    """REVIEW FIX 2. A benchmark world the policy TRAINED on is refused before compute.
+
+    THE DEFECT THIS CLOSES. A generalized run executes `BenchmarkWorld.seed` from the
+    manifest, but the only held-out check was the legacy one over
+    `eval_base_seed .. + eval_episodes` -- a band this run never evaluates. So a manifest
+    could contain a training seed and validate cleanly, and the run would measure
+    memorization while reporting generalization, producing numbers that look entirely
+    normal.
+
+    The refusal must happen BEFORE the run directory exists: a run refused for this
+    reason has to cost nothing and leave nothing behind.
+    """
+    from match_aou.rl.training.graph_generalized import BENCHMARK_BASE_CELLS
+
+    run_dir = tmp_path / "run"
+    # base_seed 0 x (4 iterations x 2 episodes) -> training band [0, 8).
+    colliding = build_benchmark_manifest(worlds=[
+        {"agent_count": a, "load_bucket": bucket,
+         "seed": (5 if i == 0 else 8_100_000 + i)}
+        for i, (a, bucket) in enumerate(BENCHMARK_BASE_CELLS)
+    ])
+    path = write_benchmark_manifest(colliding, tmp_path / "colliding.json")
+    cfg = TrainConfig(
+        n_iterations=4, episodes_per_iteration=2, base_seed=0, output_dir=run_dir,
+        eval_every=1, eval_episodes=1, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        benchmark_manifest=str(path),
+    )
+    # The CONFIG alone cannot see it -- the manifest is a path at that point.
+    cfg.validate()
+
+    try:
+        _run_stub_training(cfg, wakes_per_episode=1)
+    except ValueError as exc:
+        assert "NOT held out" in str(exc)
+        assert "[0, 8)" in str(exc)
+        assert "5" in str(exc), "the offending seed must be named"
+        assert "replaced, retried or rewritten" in str(exc)
+    else:
+        raise AssertionError("a manifest containing a training seed was accepted")
+    assert not run_dir.exists(), (
+        "a run refused for a held-out failure must leave no run directory"
+    )
+
+    # ... and the same schedule with a properly held-out manifest is ACCEPTED.
+    ok_path = write_benchmark_manifest(
+        _held_out_manifest(), tmp_path / "held_out.json")
+    ok_cfg = TrainConfig(
+        n_iterations=4, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "ok", eval_every=1, eval_episodes=1, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        benchmark_manifest=str(ok_path),
+    )
+    summary, _events, _state = _run_stub_training(ok_cfg, wakes_per_episode=1)
+    assert summary["train_episodes_attempted"] == 8
+
+
+def test_fix2_an_unused_legacy_band_neither_rejects_nor_validates(
+    tmp_path: Path,
+) -> None:
+    """REVIEW FIX 2C. The legacy band must not stand in for the manifest's held-outness.
+
+    Wrong in BOTH directions, and both are checked here:
+
+      * FALSE REJECTION -- a configured `eval_base_seed` that overlaps the training band
+        must not refuse a run whose real evaluation seeds are the manifest's and are
+        properly held out;
+      * FALSE VALIDATION -- a perfectly disjoint configured band must not make a manifest
+        containing a training seed acceptable.
+    """
+    from match_aou.rl.training.graph_generalized import BENCHMARK_BASE_CELLS
+
+    held_out = write_benchmark_manifest(
+        _held_out_manifest(), tmp_path / "held_out.json")
+
+    # (a) FALSE REJECTION: the legacy band overlaps training, the manifest does not.
+    #     The historical check would raise here; the manifest path must not.
+    overlapping_legacy = TrainConfig(
+        n_iterations=4, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "a", eval_every=1, eval_episodes=4, eval_base_seed=2,
+        checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        benchmark_manifest=str(held_out),
+    )
+    overlapping_legacy.validate()          # must NOT raise
+    summary, _e, _s = _run_stub_training(overlapping_legacy, wakes_per_episode=1)
+    assert summary["train_episodes_attempted"] == 8
+
+    # The SAME config without a manifest is still refused by the historical check --
+    # so the fixed-cell rule was not weakened, it simply does not apply above.
+    legacy_equivalent = TrainConfig(
+        n_iterations=4, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "b", eval_every=1, eval_episodes=4, eval_base_seed=2,
+        checkpoint_every=0,
+    )
+    try:
+        legacy_equivalent.validate()
+    except ValueError as exc:
+        assert "OVERLAP" in str(exc)
+    else:
+        raise AssertionError("the historical band check was weakened")
+
+    # (b) FALSE VALIDATION: a disjoint legacy band cannot excuse a colliding manifest.
+    colliding = build_benchmark_manifest(worlds=[
+        {"agent_count": a, "load_bucket": bucket,
+         "seed": (3 if i == 0 else 8_200_000 + i)}
+        for i, (a, bucket) in enumerate(BENCHMARK_BASE_CELLS)
+    ])
+    cfg = TrainConfig(
+        n_iterations=4, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "c", eval_every=1, eval_episodes=1,
+        eval_base_seed=9_000_000, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        benchmark_manifest=str(
+            write_benchmark_manifest(colliding, tmp_path / "colliding.json")),
+    )
+    cfg.validate()                          # the legacy band is disjoint: no complaint
+    try:
+        _run_stub_training(cfg, wakes_per_episode=1)
+    except ValueError as exc:
+        assert "NOT held out" in str(exc)
+    else:
+        raise AssertionError("a disjoint legacy band excused a colliding manifest")
+
+
+def test_fix2_generalized_provenance_states_the_manifest_as_the_seed_source(
+    tmp_path: Path,
+) -> None:
+    """REVIEW FIX 2D. Provenance names the schedule that RAN, not one that did not.
+
+    A provenance block asserting `eval_seed = eval_base_seed + e` for a manifest-driven
+    run is worse than one that says nothing: a reviewer re-checking "was this held out?"
+    would re-derive the wrong band and conclude it was.
+    """
+    manifest = _held_out_manifest()
+    path = write_benchmark_manifest(manifest, tmp_path / "bench.json")
+    cfg = TrainConfig(
+        n_iterations=4, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=1, eval_episodes=1, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        benchmark_manifest=str(path),
+    )
+    _run_stub_training(cfg, wakes_per_episode=1)
+    seeds = json.loads(
+        (Path(cfg.output_dir) / "run_config.json").read_text(encoding="utf-8")
+    )["provenance"]["seeds"]
+
+    # The training half is untouched.
+    assert seeds["train_band"] == {"start": 0, "stop": 8, "half_open": True, "count": 8}
+    # The evaluation half names the MANIFEST and presents no executed formula.
+    assert seeds["eval_seed_source"] == "benchmark_manifest"
+    assert seeds["eval_band"] is None
+    assert seeds["eval_seed_formula"] is None, (
+        "the legacy formula must not be presented as this run's executed schedule"
+    )
+    bench = seeds["benchmark_evaluation"]
+    assert bench["manifest_id"] == manifest.manifest_id
+    assert bench["n_world_seeds"] == manifest.n_worlds == 6
+    assert bench["seeds"] == list(manifest.seeds())
+    assert bench["seed_list_sha256"] == manifest.seed_digest()
+    assert bench["held_out_overlap_count"] == 0
+    assert bench["held_out_verified"] is True
+    assert bench["held_out_against_train_band"] == {
+        "start": 0, "stop": 8, "half_open": True}
+    # The configured band is retained but explicitly marked NOT executed.
+    assert seeds["unused_legacy_eval_band"]["executed"] is False
+    assert "NOT executed" in seeds["unused_legacy_eval_band"]["note"]
+
+
+def test_fix3_generalized_construction_cannot_be_read_as_the_fixed_cell(
+    tmp_path: Path,
+) -> None:
+    """REVIEW FIX 3. A generalized run_config must not claim it executed 3/3/3.
+
+    Under `generalized_v1` the configured `num_agents` / `n_known` / `n_hidden` are not
+    read by anything: training cardinality is SAMPLED per episode and benchmark
+    cardinality comes from the MANIFEST. Writing them in the fixed-cell shape would let
+    the artifact be read as a resolved executed cell -- a plausible-looking false
+    statement about the population, which is exactly the class of provenance defect this
+    project treats as worse than a missing field.
+    """
+    cfg = _gen_cfg(tmp_path, episodes_per_iteration=2)
+    _run_stub_training(cfg, wakes_per_episode=1)
+    block = json.loads(
+        (Path(cfg.output_dir) / "run_config.json").read_text(encoding="utf-8")
+    )["construction"]
+
+    # The three counts do NOT appear where a reader would take them as executed.
+    for key in ("num_agents", "n_known", "n_hidden"):
+        assert key not in block, "%r reads as the executed generalized cell" % key
+    assert block["n_targets_emitted"] is None, (
+        "no single emitted count can describe a per-episode population"
+    )
+    assert block["cardinality_source"] == "per_episode_sampler_and_benchmark_manifest"
+    assert block["fixed_cell_config_used"] is False
+    assert block["training_cardinality"]["source"] == "per_episode_sampler"
+    assert block["training_cardinality"]["policy"] == \
+        "generalized_cardinality_uniform_v1"
+    assert block["evaluation_cardinality"]["source"] == "benchmark_manifest"
+    assert block["realized_cardinality_recorded_in"] == "episode_outcomes.jsonl"
+
+    # The configured values are RETAINED, but only under an explicitly unused label.
+    unused = block["unused_fixed_cell_config"]
+    assert unused == {
+        "num_agents": 3, "n_known": 3, "n_hidden": 3, "executed": False,
+        "note": unused["note"],
+    }
+    assert "NOT read" in unused["note"]
+    # The GEOMETRY half really is configured and applied, and is unchanged.
+    assert block["min_target_distance_km"] == 200.0
+    assert block["strict_geometry"] is True
+    assert block["setup_mode"] == "construction"
+
+
+def test_fix3_fixed_cell_construction_and_provenance_are_unchanged(
+    tmp_path: Path,
+) -> None:
+    """REVIEW FIX 3 / F3. The historical block keeps EXACTLY its shape and values."""
+    cfg = TrainConfig(n_iterations=2, episodes_per_iteration=2, base_seed=0,
+                      output_dir=tmp_path / "fixed", eval_every=1, eval_episodes=2,
+                      checkpoint_every=0)
+    _run_stub_training(cfg, wakes_per_episode=1)
+    payload = json.loads(
+        (Path(cfg.output_dir) / "run_config.json").read_text(encoding="utf-8"))
+
+    assert payload["construction"] == {
+        "num_agents": 3, "n_known": 3, "n_hidden": 3,
+        "n_targets_generated": 3, "n_targets_emitted": 6,
+        "min_target_distance_km": 200.0, "min_known_separation_km": 100.0,
+        "detection_km": 50.0, "ensure_discovery_chain": False,
+        "strict_geometry": True, "setup_mode": "construction",
+    }
+    # The historical seed block gains NO key -- not even a source label. A reader tells
+    # the designs apart by the PRESENCE of `benchmark_evaluation` on the other one.
+    assert payload["provenance"]["seeds"] == {
+        "train_band": {"start": 0, "stop": 4, "half_open": True, "count": 4},
+        "train_seed_formula":
+            "train_seed = base_seed + (iteration * episodes_per_iteration + j)",
+        "eval_enabled": True,
+        "eval_band": {"start": 1_000_000, "stop": 1_000_002, "half_open": True,
+                      "count": 2},
+        "eval_seed_formula": "eval_seed = eval_base_seed + e",
+        "eval_band_is_fixed_across_rounds": True,
+    }
+
+
 def test_gen_cli_and_rollout_expose_the_selector_without_drift() -> None:
     """PO1. Both harnesses expose the selector, and neither CLI default drifts.
 
@@ -6057,6 +6310,17 @@ if __name__ == "__main__":
          test_gen_reference_attrition_is_accounted_and_contradiction_aborts, False),
         ("gen_cli_and_rollout_expose_the_selector_without_drift",
          test_gen_cli_and_rollout_expose_the_selector_without_drift, False),
+        # --- GENERALIZED-V1 Task 4 REVIEW FIX 1: manifest integrity + held-outness ---
+        ("fix2_a_manifest_containing_a_training_seed_is_refused",
+         test_fix2_a_manifest_containing_a_training_seed_is_refused, True),
+        ("fix2_an_unused_legacy_band_neither_rejects_nor_validates",
+         test_fix2_an_unused_legacy_band_neither_rejects_nor_validates, True),
+        ("fix2_generalized_provenance_states_the_manifest_as_the_seed_source",
+         test_fix2_generalized_provenance_states_the_manifest_as_the_seed_source, True),
+        ("fix3_generalized_construction_cannot_be_read_as_the_fixed_cell",
+         test_fix3_generalized_construction_cannot_be_read_as_the_fixed_cell, True),
+        ("fix3_fixed_cell_construction_and_provenance_are_unchanged",
+         test_fix3_fixed_cell_construction_and_provenance_are_unchanged, True),
     ]
     for name, fn, needs_tmp in tests:
         try:

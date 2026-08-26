@@ -343,6 +343,7 @@ from .graph_generalized import (
     certificate_fingerprint,
     fixed_cell_cardinality,
     load_benchmark_manifest,
+    manifest_seed_overlap,
     require_matched_group_identity,
     require_world_matches_manifest,
     resolve_episode_design,
@@ -1291,6 +1292,32 @@ class TrainConfig:
                   % (lo_n, self.partial_ratio, known, hidden))
 
         if not self.eval_enabled:
+            return
+
+        if str(self.benchmark_manifest or ""):
+            # MANIFEST EVALUATION: the two legacy bounds below are about a schedule this
+            # run does not execute, so they are NOT applied here -- and that is a
+            # correctness decision, not a relaxation.
+            #
+            #   * the eval TAG-namespace bound is sized from `eval_episodes`, while a
+            #     manifest round's size is the MANIFEST's member count;
+            #   * the train/eval band overlap test compares the training band against
+            #     `eval_base_seed .. + eval_episodes`, which this run never evaluates.
+            #
+            # Letting either stand in would be wrong in BOTH directions: an unused
+            # configured band could falsely reject a properly held-out manifest, and it
+            # could falsely validate one that contains a training seed. The real checks
+            # need the manifest itself and therefore run at LOAD time, before the run
+            # directory or any compute exists -- `_require_benchmark_seeds_held_out`
+            # (the held-out claim) and `_require_benchmark_tag_namespace` (the naming
+            # bound). The training-tag bound below is still checked, because benchmark
+            # tags share that one namespace.
+            if self.total_episodes > _EVAL_EPISODE_TAG_BASE:
+                raise ValueError(
+                    "total training episodes (%d) reaches the eval scenario-tag base "
+                    "(%d): training and benchmark scenarios would collide by filename."
+                    % (self.total_episodes, _EVAL_EPISODE_TAG_BASE)
+                )
             return
 
         # --- the eval scenario-TAG namespace must stay disjoint (see eval_episode_tag)
@@ -2662,24 +2689,50 @@ def _bonmin_provenance() -> Dict[str, Any]:
     return out
 
 
-def seed_bands(cfg: TrainConfig) -> Dict[str, Any]:
-    """The run's two seed bands as HALF-OPEN ranges, plus the derivation formulas.
+#: How a run's EVALUATION seeds were really obtained.
+#:
+#: Only the MANIFEST value is ever WRITTEN, and deliberately so: a fixed-cell run's
+#: provenance block keeps exactly its historical shape (adding a source label there would
+#: change an artifact every existing reader and every preserved run already has), so the
+#: historical source is identified by the ABSENCE of `benchmark_evaluation` rather than by
+#: a new key. The generalized block states its source outright, because a provenance block
+#: that names a schedule the run did not execute is worse than one that names none: a
+#: reviewer re-checking "was this held out?" would re-derive the wrong band.
+EVAL_SEED_SOURCE_BAND: str = "eval_seed_band"
+EVAL_SEED_SOURCE_MANIFEST: str = "benchmark_manifest"
 
-    Recorded rather than left implicit because "held out" is a claim about these two
-    intervals: :meth:`TrainConfig.validate` refuses a config whose bands overlap, and
-    this block is the artifact that lets a reviewer re-check that refusal without
-    re-deriving the arithmetic. Half-open is stated in the payload
-    (``stop`` EXCLUSIVE) so an off-by-one reading is not available.
 
-    Computed from the same three pure functions the loop itself uses
-    (:func:`global_episode_index`, :func:`train_seed`, :func:`eval_seed`), so this
+def seed_bands(
+    cfg: TrainConfig, *, benchmark: Optional[BenchmarkManifest] = None
+) -> Dict[str, Any]:
+    """The run's seed schedule as HALF-OPEN ranges, plus the derivation formulas.
+
+    Recorded rather than left implicit because "held out" is a claim about intervals, and
+    this block is the artifact that lets a reviewer re-check that claim without
+    re-deriving the arithmetic. Half-open is stated in the payload (``stop`` EXCLUSIVE)
+    so an off-by-one reading is not available.
+
+    THE TRAINING HALF IS THE SAME UNDER BOTH DESIGNS, and is computed from the same pure
+    functions the loop uses (:func:`global_episode_index`, :func:`train_seed`), so it
     cannot describe a schedule other than the one that runs.
+
+    THE EVALUATION HALF STATES ITS ACTUAL SOURCE. ``benchmark`` omitted (every
+    fixed-cell run, and every direct pre-Task-4 caller) leaves this function's output
+    BYTE-UNCHANGED: the configured band and ``eval_seed = eval_base_seed + e``, which is
+    exactly the schedule such a run executes. Supplied, the run's evaluation seeds come
+    from the FROZEN MANIFEST instead, and the block says so: the manifest's identity, how
+    many world seeds it holds, an ordered-seed digest and the seeds themselves, plus the
+    verified held-out result against the training band. The configured band is then
+    reported under ``unused_eval_band`` -- retained so a reader can see it was configured
+    and NOT executed, rather than deleted (which would leave a reader wondering) or left
+    in ``eval_band`` (which would assert a schedule that never ran).
     """
     train_start = int(cfg.base_seed)
+    train_stop = train_start + int(cfg.total_episodes)
     band: Dict[str, Any] = {
         "train_band": {
             "start": train_start,
-            "stop": train_start + int(cfg.total_episodes),
+            "stop": train_stop,
             "half_open": True,
             "count": int(cfg.total_episodes),
         },
@@ -2690,6 +2743,46 @@ def seed_bands(cfg: TrainConfig) -> Dict[str, Any]:
         "eval_seed_formula": "eval_seed = eval_base_seed + e",
         "eval_band_is_fixed_across_rounds": True,
     }
+    if benchmark is not None:
+        # The seeds this run REALLY evaluates. `eval_band` / `eval_seed_formula` are
+        # emptied rather than left carrying the legacy band, so nothing in this block can
+        # be read as the executed schedule.
+        seeds = benchmark.seeds()
+        overlap = manifest_seed_overlap(
+            benchmark, start=train_start, stop=train_stop)
+        band["eval_seed_source"] = EVAL_SEED_SOURCE_MANIFEST
+        band["eval_band"] = None
+        band["eval_seed_formula"] = None
+        band["benchmark_evaluation"] = {
+            "manifest_id": str(benchmark.manifest_id),
+            "n_world_seeds": len(seeds),
+            "n_member_episodes_per_round": int(benchmark.n_members),
+            # Ordered digest AND the list itself: the digest is the compact re-check, and
+            # the list is small enough to be worth reading directly (one seed per matched
+            # world GROUP, not per episode).
+            "seed_list_sha256": benchmark.seed_digest(),
+            "seeds": [int(x) for x in seeds],
+            "held_out_against_train_band": {
+                "start": train_start, "stop": train_stop, "half_open": True,
+            },
+            "held_out_overlap_count": len(overlap),
+            "held_out_verified": not overlap,
+        }
+        band["unused_legacy_eval_band"] = {
+            "start": int(cfg.eval_base_seed),
+            "stop": int(cfg.eval_base_seed) + int(cfg.eval_episodes),
+            "half_open": True,
+            "count": int(cfg.eval_episodes),
+            "executed": False,
+            "note": ("configured but NOT executed: this run's evaluation seeds come "
+                     "from the frozen benchmark manifest"),
+        }
+        return band
+    # THE HISTORICAL BLOCK, BYTE-UNCHANGED. No key is added on this path -- not even the
+    # source label -- because a fixed-cell run's provenance must keep exactly the shape
+    # every existing reader and every preserved run artifact already has. A reader tells
+    # the two apart by the PRESENCE of `benchmark_evaluation`, which is a fact about the
+    # generalized block rather than a new field on this one.
     if cfg.eval_enabled:
         eval_start = int(cfg.eval_base_seed)
         band["eval_band"] = {
@@ -2706,6 +2799,7 @@ def collect_provenance(
     *,
     argv: Optional[List[str]] = None,
     repo_root: Union[str, Path, None] = None,
+    benchmark: Optional[BenchmarkManifest] = None,
 ) -> Dict[str, Any]:
     """Everything needed to attribute a run, collected BEFORE any solver-heavy work.
 
@@ -2755,7 +2849,10 @@ def collect_provenance(
         },
         "packages": {name: _module_provenance(name) for name in _PROVENANCE_MODULES},
         "solver": {"bonmin": _bonmin_provenance()},
-        "seeds": seed_bands(cfg),
+        # `benchmark` omitted (every fixed-cell run) leaves this block byte-unchanged;
+        # supplied, the evaluation half states the MANIFEST as its actual seed source
+        # instead of a band this run never evaluates.
+        "seeds": seed_bands(cfg, benchmark=benchmark),
         "train_config_location": "run_config.json:/train_config",
     }
 
@@ -2786,6 +2883,67 @@ def _scheduled_cell_probabilities(cfg: TrainConfig) -> Dict[str, float]:
         CONDITION_CLEAN: 1.0 - p_damaged,
         SEVERITY_MILD: p_damaged * p_mild,
         SEVERITY_SEVERE: p_damaged * (1.0 - p_mild),
+    }
+
+
+def _construction_record(cfg: TrainConfig) -> Dict[str, Any]:
+    """The ``construction`` block of ``run_config.json``, per design.
+
+    ``fixed_cell_v1`` returns exactly the historical block: the configured cell IS the
+    executed one there, and every existing reader keeps resolving.
+
+    ``generalized_v1`` returns a block that cannot be misread as a fixed cell. The
+    geometry half is unchanged (it really is configured and really is applied to every
+    generated world); the CARDINALITY half says it is dynamic, names the two sources it
+    comes from, and carries the configured-but-unused counts under
+    ``unused_fixed_cell_config`` so a reader can see what was configured AND that it was
+    not executed.
+    """
+    geometry = {
+        "min_target_distance_km": float(cfg.min_target_distance_km),
+        "min_known_separation_km": float(cfg.min_known_separation_km),
+        "detection_km": float(DETECTION_KM),
+        "ensure_discovery_chain": False,
+        "strict_geometry": True,
+        "setup_mode": "construction",
+    }
+    if not cfg.generalized:
+        return {
+            "num_agents": int(cfg.num_agents),
+            "n_known": int(cfg.n_known),
+            "n_hidden": int(cfg.n_hidden),
+            "n_targets_generated": int(cfg.n_known),
+            "n_targets_emitted": cfg.n_targets_emitted,
+            **geometry,
+        }
+    return {
+        "cardinality_source": "per_episode_sampler_and_benchmark_manifest",
+        "fixed_cell_config_used": False,
+        "training_cardinality": {
+            "source": "per_episode_sampler",
+            "policy": CARDINALITY_SAMPLER_POLICY,
+            "rng_domain": CARDINALITY_RNG_DOMAIN,
+            "agent_counts": [int(a) for a in GENERALIZED_AGENT_COUNTS],
+            "rule": "A ~ Uniform(agent_counts); K == A; H_requested ~ Uniform({1..A})",
+        },
+        "evaluation_cardinality": {
+            "source": "benchmark_manifest",
+            "note": ("a benchmark member's cell is its frozen stratum's, never a "
+                     "function of its seed"),
+        },
+        # The counts are REALIZED per episode and may fall short of the request under
+        # bounded backoff, so no single number here could describe the run.
+        "n_targets_emitted": None,
+        "realized_cardinality_recorded_in": _EPISODE_OUTCOMES_FILENAME,
+        "unused_fixed_cell_config": {
+            "num_agents": int(cfg.num_agents),
+            "n_known": int(cfg.n_known),
+            "n_hidden": int(cfg.n_hidden),
+            "executed": False,
+            "note": ("configured but NOT read on this path: the cell is sampled per "
+                     "episode and taken from the manifest for benchmark members"),
+        },
+        **geometry,
     }
 
 
@@ -2835,21 +2993,20 @@ def write_run_config(
     payload = {
         "train_config": asdict(cfg),
         "provenance": (
-            collect_provenance(cfg) if provenance is None else provenance
+            collect_provenance(cfg, benchmark=benchmark) if provenance is None
+            else provenance
         ),
-        "construction": {
-            "num_agents": int(cfg.num_agents),
-            "n_known": int(cfg.n_known),
-            "n_hidden": int(cfg.n_hidden),
-            "n_targets_generated": int(cfg.n_known),
-            "n_targets_emitted": cfg.n_targets_emitted,
-            "min_target_distance_km": float(cfg.min_target_distance_km),
-            "min_known_separation_km": float(cfg.min_known_separation_km),
-            "detection_km": float(DETECTION_KM),
-            "ensure_discovery_chain": False,
-            "strict_geometry": True,
-            "setup_mode": "construction",
-        },
+        # THE CONSTRUCTION CELL. Under `fixed_cell_v1` this is the resolved, executed
+        # cell and the block is byte-unchanged. Under `generalized_v1` the three count
+        # fields are NOT read by anything -- training cardinality is sampled per episode
+        # and benchmark cardinality comes from the manifest -- so writing them in the
+        # same shape would let the artifact be read as "this run executed 3/3/3", which
+        # is a plausible-looking false statement about the population. The generalized
+        # block therefore states that the cell is DYNAMIC, names where each half really
+        # comes from, and keeps the configured numbers only under an explicitly-labelled
+        # UNUSED sub-block. Per-episode REALIZED cardinalities are deliberately not
+        # duplicated here; they belong in `episode_outcomes.jsonl`.
+        "construction": _construction_record(cfg),
         # PHASE B: WHICH TRAINING ALGORITHM RAN, stated rather than inferred. A reader
         # must not have to deduce it from whether a `ctde` block happens to be present
         # (it always is -- it has dataclass defaults), so `mode` and `ctde_enabled` say
@@ -5420,6 +5577,51 @@ def evaluate_benchmark(
     }
 
 
+def _require_benchmark_seeds_held_out(
+    manifest: BenchmarkManifest, cfg: TrainConfig
+) -> None:
+    """The benchmark's ACTUAL seeds must lie outside the scheduled TRAINING band.
+
+    THIS IS THE HELD-OUT CHECK FOR A MANIFEST-DRIVEN RUN, and the legacy one cannot serve
+    as it. ``TrainConfig.validate`` compares the training band against
+    ``eval_base_seed .. eval_base_seed + eval_episodes`` -- exactly the right test when
+    that band IS the evaluation schedule, and simply not this run's schedule at all when
+    the seeds come from a frozen manifest. Leaving the legacy check to stand in for this
+    one would be wrong in both directions: it could reject a perfectly held-out manifest
+    because an unused configured band happened to overlap, and it could validate a
+    manifest that contains a training seed.
+
+    A collision is a HELD-OUT FAILURE, not attrition: an evaluation world the policy
+    trained on measures memorization while reporting generalization, and the numbers it
+    produces look entirely normal. So it REFUSES the run, names every offending seed, and
+    offers no repair -- no retry, no seed replacement, no manifest rewrite, because each
+    of those silently changes the population a result is reported over.
+
+    Called after the manifest is loaded and BEFORE the run directory, the provenance, the
+    policy, the generator or any solver work exists, so a refused run costs nothing and
+    leaves nothing behind.
+
+    Raises:
+        ValueError: one or more manifest world seeds lie inside the training band.
+    """
+    train_lo = int(cfg.base_seed)
+    train_hi = train_lo + int(cfg.total_episodes)      # exclusive
+    overlap = manifest_seed_overlap(manifest, start=train_lo, stop=train_hi)
+    if overlap:
+        raise ValueError(
+            "benchmark manifest %s is NOT held out: %d of its %d world seed(s) lie "
+            "inside this run's training band [%d, %d) -- %s. The policy would be "
+            "evaluated on worlds it trained on, which measures memorization while "
+            "reporting generalization. Refused: no seed is replaced, retried or "
+            "rewritten. Move the training band (base_seed / n_iterations x "
+            "episodes_per_iteration) or freeze a manifest outside it."
+            % (manifest.manifest_id[:16], len(overlap), manifest.n_worlds,
+               train_lo, train_hi,
+               ", ".join(str(s) for s in overlap[:8])
+               + (" ..." if len(overlap) > 8 else ""))
+        )
+
+
 def _require_benchmark_tag_namespace(
     manifest: BenchmarkManifest, cfg: TrainConfig
 ) -> None:
@@ -5623,6 +5825,10 @@ def train(
     benchmark: Optional[BenchmarkManifest] = None
     if cfg.generalized and cfg.eval_enabled:
         benchmark = load_benchmark_manifest(str(cfg.benchmark_manifest))
+        # THE held-out check for this run's real evaluation seeds. Deliberately here --
+        # after the manifest is known, before the run directory, the provenance, the
+        # policy, the generator or any solver work exists.
+        _require_benchmark_seeds_held_out(benchmark, cfg)
         _require_benchmark_tag_namespace(benchmark, cfg)
 
     # PROVENANCE FIRST -- before this run creates ANYTHING. Not merely before the
@@ -5631,7 +5837,7 @@ def train(
     # untracked, so collecting after `mkdir` would let the run's own scenarios and
     # ledger show up as pre-existing dirty SOURCE state -- provenance contaminated by
     # the act of recording it.
-    provenance = collect_provenance(cfg)
+    provenance = collect_provenance(cfg, benchmark=benchmark)
     git_info = provenance["git"]
 
     run_dir = Path(cfg.output_dir)

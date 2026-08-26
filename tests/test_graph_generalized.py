@@ -93,6 +93,8 @@ from match_aou.rl.training.graph_generalized import (  # noqa: E402
     hidden_requested_for,
     load_benchmark_manifest,
     manifest_from_record,
+    manifest_identity,
+    manifest_seed_overlap,
     require_matched_group_identity,
     require_world_matches_manifest,
     resolve_episode_design,
@@ -515,6 +517,170 @@ def test_po2_a_tampered_manifest_is_refused_not_rehashed(tmp_path: Path) -> None
         raise AssertionError("a tampered manifest was accepted")
 
 
+#: Every CANONICAL field of a stored manifest payload, with a value that differs from
+#: the one this schema produces. `manifest_id` is excluded (it is the hash, not payload)
+#: and `notes` is excluded only because the fixture leaves it `None` and the mutation
+#: below sets a string -- it is covered by the `label` case, which has the same shape.
+_CANONICAL_FIELD_MUTATIONS = (
+    ("group_size", 99),
+    ("group_cells", ["clean", "mild"]),
+    ("group_modes", ["forced_clean"]),
+    ("n_strata", 3),
+    ("strata", []),
+    ("n_worlds", 1),
+    ("n_members", 1),
+    ("schema_version", 2),
+    ("label", "a-different-population"),
+    ("worlds", []),
+)
+
+
+def test_fix1_every_canonical_field_is_covered_by_the_manifest_id() -> None:
+    """REVIEW FIX 1. The id authenticates the EXACT STORED payload, not a reconstruction.
+
+    THE DEFECT THIS CLOSES. The loader used to rebuild the canonical fields from CURRENT
+    CONSTANTS and hash THAT, so every field it rebuilt -- `group_size`, `group_cells`,
+    `group_modes`, `n_strata`, `strata`, `n_worlds`, `n_members` -- could be edited in a
+    stored file and still pass, because the edit was discarded before the hash was taken.
+    A frozen, content-addressed manifest has to authenticate the bytes a reviewer can
+    actually read, or "the two arms ran the same benchmark" is not a checkable claim.
+
+    Each mutation here is a single stored field changed and NOTHING else -- in particular
+    the id is left alone, so what is proven is that the stored id no longer matches the
+    stored content.
+    """
+    manifest = _manifest()
+    record = manifest.to_record()
+
+    for field, value in _CANONICAL_FIELD_MUTATIONS:
+        assert field in record, "%r is not a canonical field any more" % field
+        tampered = json.loads(json.dumps(record))
+        assert tampered[field] != value, field
+        tampered[field] = value
+        try:
+            manifest_from_record(tampered)
+        except BenchmarkManifestError as exc:
+            # `schema_version` is caught EARLIER, by the dedicated version check, which
+            # is the more informative refusal for a file this code cannot read at all.
+            # Every other field must fail on the identity itself.
+            if field != "schema_version":
+                assert "MISMATCH" in str(exc), (field, str(exc))
+            continue
+        raise AssertionError(
+            "a manifest with %r edited to %r was ACCEPTED" % (field, value)
+        )
+
+
+def test_fix1_an_injected_or_missing_canonical_field_is_refused() -> None:
+    """REVIEW FIX 1. Unknown and missing canonical content is REFUSED, never ignored."""
+    record = _manifest().to_record()
+
+    injected = json.loads(json.dumps(record))
+    injected["injected_field"] = {"anything": 1}
+    for mutate, what in (
+        (lambda r: r.__setitem__("injected_field", {"anything": 1}), "extra field"),
+        (lambda r: r.pop("n_strata"), "missing n_strata"),
+        (lambda r: r.pop("group_modes"), "missing group_modes"),
+        (lambda r: r.pop("worlds"), "missing worlds"),
+    ):
+        tampered = json.loads(json.dumps(record))
+        mutate(tampered)
+        try:
+            manifest_from_record(tampered)
+        except BenchmarkManifestError:
+            continue
+        raise AssertionError("a manifest with %s was ACCEPTED" % what)
+
+
+def test_fix1_a_self_consistently_rehashed_forgery_is_still_refused() -> None:
+    """REVIEW FIX 1. The hash check ALONE is not enough, and both layers are proven.
+
+    A forger who edits a canonical field AND re-hashes produces a document that is
+    internally consistent -- it passes the identity check by construction. It is still
+    not the payload this schema defines, and it is refused by the SECOND check: the
+    stored payload must EQUAL the canonical payload the parsed manifest produces.
+
+    The two checks are independent and neither implies the other, which is why both
+    exist: this test would pass with only the equality check, and
+    :func:`test_fix1_every_canonical_field_is_covered_by_the_manifest_id` would pass with
+    only the hash check.
+    """
+    record = _manifest().to_record()
+
+    # The DERIVED fields only -- the ones the old loader rebuilt from current constants
+    # and therefore could not authenticate. `label` / `notes` are deliberately excluded:
+    # they are free-form pass-throughs, so a re-hashed document with a different label is
+    # a legitimately DIFFERENT population carrying a DIFFERENT id, not a forgery of this
+    # one (and the no-re-hash case above already proves editing it in place is refused).
+    # `worlds` is excluded because an empty world list is refused for its own, equally
+    # correct reason (no base cell is populated), which would not exercise this check.
+    derived = tuple(
+        (f, v) for f, v in _CANONICAL_FIELD_MUTATIONS
+        if f not in ("label", "notes", "worlds")
+    )
+    for field, value in derived + (("injected", "x"),):
+        tampered = json.loads(json.dumps(record))
+        tampered[field] = value
+        # Re-hash so the document authenticates its OWN edited content.
+        payload = {k: v for k, v in tampered.items() if k != "manifest_id"}
+        tampered["manifest_id"] = manifest_identity(payload)
+        try:
+            manifest_from_record(tampered)
+        except BenchmarkManifestError as exc:
+            # `schema_version` is again caught by the earlier version check; everything
+            # else must be refused by the CANONICAL-PAYLOAD comparison, since a re-hashed
+            # document passes the identity check by construction.
+            if field != "schema_version":
+                assert "canonical payload" in str(exc), (field, str(exc))
+            continue
+        raise AssertionError(
+            "a self-consistently re-hashed forgery of %r was ACCEPTED" % field
+        )
+
+
+def test_fix1_a_manifest_without_a_usable_id_is_refused() -> None:
+    """REVIEW FIX 1. An unidentified population is not the frozen one."""
+    record = _manifest().to_record()
+    for mutate, what in (
+        (lambda r: r.pop("manifest_id"), "no manifest_id"),
+        (lambda r: r.__setitem__("manifest_id", ""), "empty manifest_id"),
+        (lambda r: r.__setitem__("manifest_id", None), "null manifest_id"),
+        (lambda r: r.__setitem__("manifest_id", 12345), "non-string manifest_id"),
+    ):
+        tampered = json.loads(json.dumps(record))
+        mutate(tampered)
+        try:
+            manifest_from_record(tampered)
+        except BenchmarkManifestError:
+            continue
+        raise AssertionError("a manifest with %s was ACCEPTED" % what)
+
+
+def test_fix1_a_valid_manifest_round_trips_content_identically(tmp_path: Path) -> None:
+    """REVIEW FIX 1. Tightening the loader did not break the honest path.
+
+    The stored document, the reloaded manifest's canonical payload and a freshly built
+    one all agree exactly -- so the stricter equality check is satisfied by the writer
+    this module ships, not merely by a hand-built fixture.
+    """
+    manifest = _manifest(label="round-trip", notes="engineering fixture")
+    path = write_benchmark_manifest(manifest, tmp_path / "bench.json")
+
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    loaded = load_benchmark_manifest(path)
+
+    assert loaded.manifest_id == manifest.manifest_id
+    # The STORED payload is exactly the canonical payload, key for key and value for
+    # value -- which is the property the loader now enforces.
+    stored_payload = {k: v for k, v in stored.items() if k != "manifest_id"}
+    assert stored_payload == json.loads(json.dumps(manifest.payload()))
+    assert stored_payload == json.loads(json.dumps(loaded.payload()))
+    assert manifest_identity(stored_payload) == manifest.manifest_id
+    # And re-writing the reloaded manifest reproduces the same bytes.
+    again = write_benchmark_manifest(loaded, tmp_path / "again.json")
+    assert again.read_text(encoding="utf-8") == path.read_text(encoding="utf-8")
+
+
 def test_po2_a_reordered_manifest_is_refused_not_resorted() -> None:
     """The stored ORDER is part of the identity, so it is never silently re-sorted."""
     record = json.loads(json.dumps(_manifest().to_record()))
@@ -618,6 +784,50 @@ def test_po2_the_three_within_group_deltas_are_the_approved_ones() -> None:
         (SEVERITY_SEVERE, CONDITION_CLEAN),
         (SEVERITY_SEVERE, SEVERITY_MILD),
     )
+
+
+def test_fix2_seed_overlap_names_the_offending_worlds() -> None:
+    """REVIEW FIX 2. The held-out test for a manifest is about ITS OWN seeds.
+
+    The legacy check compares two CONFIGURED intervals, which is the right test exactly
+    when the evaluation schedule IS that band -- and simply not this run's schedule when
+    the seeds come from a frozen manifest. This helper answers the question that actually
+    applies, and returns the offending seeds rather than a bool so a refusal can name
+    which worlds collide.
+    """
+    manifest = build_benchmark_manifest(worlds=[
+        {"agent_count": a, "load_bucket": bucket, "seed": 100 + i}
+        for i, (a, bucket) in enumerate(BENCHMARK_BASE_CELLS)
+    ])
+    assert manifest.seeds() == (100, 101, 102, 103, 104, 105)
+
+    # Half-open, exactly like every other band in this project: `stop` is EXCLUSIVE.
+    assert manifest_seed_overlap(manifest, start=0, stop=100) == ()
+    assert manifest_seed_overlap(manifest, start=106, stop=200) == ()
+    assert manifest_seed_overlap(manifest, start=100, stop=101) == (100,)
+    assert manifest_seed_overlap(manifest, start=102, stop=105) == (102, 103, 104)
+    assert manifest_seed_overlap(manifest, start=0, stop=1000) == manifest.seeds()
+    # An empty band excludes nothing.
+    assert manifest_seed_overlap(manifest, start=50, stop=50) == ()
+
+
+def test_fix2_the_seed_digest_is_ordered_and_stable() -> None:
+    """REVIEW FIX 2. Provenance can re-check the executed seeds without the manifest.
+
+    ORDERED on purpose: two manifests holding the same seeds in a different order are
+    different populations, because the order is part of a manifest's identity.
+    """
+    a = _manifest()
+    b = _manifest()
+    assert a.seed_digest() == b.seed_digest()
+    assert len(a.seed_digest()) == 64
+    # A different population -> a different digest.
+    assert _manifest(benchmark_base_seed=_TEST_BASE_SEED + 1).seed_digest() !=         a.seed_digest()
+    # The digest really is over the ORDER, not the set.
+    from match_aou.rl.training.graph_generalized import _content_hash
+    forward = _content_hash({"seeds": [1, 2, 3]})
+    backward = _content_hash({"seeds": [3, 2, 1]})
+    assert forward != backward
 
 
 def test_po2_a_preflighted_world_that_comes_out_different_is_refused() -> None:

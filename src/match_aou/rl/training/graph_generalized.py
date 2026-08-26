@@ -812,7 +812,19 @@ class BenchmarkManifest:
         }
 
     def seeds(self) -> Tuple[int, ...]:
+        """The world seeds in canonical order -- the ACTUAL evaluation seed source."""
         return tuple(int(w.seed) for w in self.worlds)
+
+    def seed_digest(self) -> str:
+        """A stable hash of the ORDERED world-seed list.
+
+        Recorded in provenance so "which seeds did this run really evaluate?" is
+        re-checkable from the run directory without copying the whole manifest into it,
+        and so two arms can be shown to have evaluated the same seeds in the same order.
+        Ordered on purpose: two manifests holding the same seeds in different orders are
+        different populations (the order is part of the manifest's identity).
+        """
+        return _content_hash({"seeds": [int(s) for s in self.seeds()]})
 
 
 # =============================================================================
@@ -1011,21 +1023,50 @@ def _require_well_formed_worlds(worlds: Sequence[BenchmarkWorld]) -> None:
 def manifest_from_record(record: Mapping[str, Any]) -> BenchmarkManifest:
     """Rebuild and VERIFY a manifest from its JSON document.
 
-    Verifies, in order: the schema and version; that the design is ``generalized_v1``;
-    that the stored world order is exactly the canonical order (a reordered manifest is a
-    different population presented as the same one); that the worlds are well formed and
-    cover every base cell; that each world's stated ``known_requested`` /
-    ``hidden_requested`` match what its stratum requires; and finally that the stored
-    ``manifest_id`` is the hash of the payload the file actually carries.
+    THE IDENTITY AUTHENTICATES THE EXACT STORED PAYLOAD, NOT A RECONSTRUCTION OF IT.
+    That distinction is the whole contract, and getting it wrong is a real hole rather
+    than a technicality: if the loader rebuilt the canonical fields from CURRENT
+    CONSTANTS and then hashed THAT, every stored field it chose to rebuild --
+    ``group_size``, ``group_cells``, ``group_modes``, ``n_strata``, ``strata``,
+    ``n_worlds``, ``n_members`` -- could be edited in the file and still pass, because
+    the edit would be discarded before the hash was taken. A frozen manifest must
+    authenticate the bytes a reviewer can read, so verification runs in this order:
 
-    THE HASH IS CHECKED LAST AND IS NOT ADVISORY. A manifest whose content no longer
-    matches its identity is REFUSED -- not repaired, not re-hashed, and not loaded with a
-    warning -- because silently accepting it is exactly the substitution the frozen
-    manifest exists to prevent.
+      1. the document must carry a ``manifest_id`` and declare THIS schema, version and
+         design (checked first, so a file that is not a manifest at all fails saying so);
+      2. **the STORED payload -- the document minus ``manifest_id`` -- is hashed exactly
+         as it was found**, and must equal the stored id. Nothing is normalized,
+         re-sorted, filled in or dropped before this check;
+      3. the semantic manifest is parsed and validated: canonical world order, well-formed
+         and complete base cells, and each world's stated cardinality against its stratum;
+      4. **the stored payload must EQUAL the canonical payload the parsed manifest
+         produces.** This is what makes an unknown, missing or divergent canonical field a
+         REFUSAL rather than something quietly ignored: the canonical key set and every
+         canonical value are compared, so an injected top-level field, a removed one, or a
+         ``group_size`` that disagrees with the design all fail here.
+
+    Steps 2 and 4 are BOTH required and neither implies the other. Step 2 alone would
+    accept a self-consistently forged document that is not this schema's payload; step 4
+    alone would accept a correctly-shaped document whose id belongs to a different
+    population.
+
+    NOTHING IS EVER REPAIRED. A manifest that fails any check is refused -- not
+    re-sorted, not re-hashed, not loaded with a warning -- because silently accepting one
+    is exactly the substitution the frozen manifest exists to prevent.
 
     Raises:
         BenchmarkManifestError: on any of the above.
     """
+    if "manifest_id" not in record:
+        raise BenchmarkManifestError(
+            "benchmark manifest carries no manifest_id: an unidentified population "
+            "cannot be the frozen one two arms compared themselves by"
+        )
+    stored_id = record.get("manifest_id")
+    if not isinstance(stored_id, str) or not stored_id:
+        raise BenchmarkManifestError(
+            "benchmark manifest_id must be a non-empty string, got %r" % (stored_id,)
+        )
     schema = str(record.get("schema"))
     if schema != BENCHMARK_SCHEMA:
         raise BenchmarkManifestError(
@@ -1044,6 +1085,19 @@ def manifest_from_record(record: Mapping[str, Any]) -> BenchmarkManifest:
             "benchmark manifest design=%r; the stratified benchmark is defined for %r "
             "only" % (record.get("design"), EPISODE_DESIGN_GENERALIZED_V1)
         )
+
+    # STEP 2 -- the STORED payload, hashed exactly as found. Taken before any parsing so
+    # nothing this loader reconstructs can stand in for what the file actually says.
+    stored_payload = {k: v for k, v in dict(record).items() if k != "manifest_id"}
+    recomputed = manifest_identity(stored_payload)
+    if stored_id != recomputed:
+        raise BenchmarkManifestError(
+            "benchmark manifest identity MISMATCH: the file states manifest_id=%r but "
+            "its STORED content hashes to %r. The population was edited after it was "
+            "frozen, so it is refused rather than silently re-hashed."
+            % (stored_id, recomputed)
+        )
+
     raw_worlds = list(record.get("worlds") or ())
     worlds = tuple(BenchmarkWorld.from_record(w) for w in raw_worlds)
     if worlds != _canonical_world_order(worlds):
@@ -1072,19 +1126,51 @@ def manifest_from_record(record: Mapping[str, Any]) -> BenchmarkManifest:
         schema_version=version,
         design=design,
         worlds=worlds,
-        manifest_id=str(record.get("manifest_id", "")),
+        manifest_id=stored_id,
         label=record.get("label"),
         notes=record.get("notes"),
     )
-    recomputed = manifest_identity(manifest.payload())
-    if manifest.manifest_id != recomputed:
+
+    # STEP 4 -- the stored payload must BE this schema's canonical payload. Step 2 proved
+    # the id authenticates these exact bytes; this proves those bytes are the document
+    # this schema defines, so a canonical field that was added, removed or altered is
+    # REFUSED rather than ignored. The two checks are independent: a self-consistently
+    # forged document passes step 2, and a correctly-shaped document carrying another
+    # population's id passes step 4.
+    canonical = manifest.payload()
+    divergent = _payload_differences(stored_payload, canonical)
+    if divergent:
         raise BenchmarkManifestError(
-            "benchmark manifest identity MISMATCH: the file states manifest_id=%r but "
-            "its content hashes to %r. The population was edited after it was frozen, "
-            "so it is refused rather than silently re-hashed."
-            % (manifest.manifest_id, recomputed)
+            "benchmark manifest is not this schema's canonical payload (%s). Its stored "
+            "content is self-consistent with its own id, but it is not the document this "
+            "schema defines, so it is refused rather than normalized into one."
+            % "; ".join(divergent)
         )
     return manifest
+
+
+def _payload_differences(
+    stored: Mapping[str, Any], canonical: Mapping[str, Any]
+) -> List[str]:
+    """How a STORED manifest payload differs from the canonical one (empty when equal).
+
+    Reports the KEY SET first (an injected or missing top-level field is the difference
+    most likely to be an edit rather than a version skew), then per-key value
+    differences. Values are compared through :func:`_canonical_json`, so the comparison
+    is insensitive to key ORDER inside nested objects -- which JSON does not preserve --
+    while remaining exact about content.
+    """
+    stored_keys = set(stored)
+    canonical_keys = set(canonical)
+    wrong: List[str] = []
+    for extra in sorted(stored_keys - canonical_keys):
+        wrong.append("unexpected field %r" % extra)
+    for missing in sorted(canonical_keys - stored_keys):
+        wrong.append("missing field %r" % missing)
+    for key in sorted(stored_keys & canonical_keys):
+        if _canonical_json(stored[key]) != _canonical_json(canonical[key]):
+            wrong.append("field %r does not match the canonical value" % key)
+    return wrong
 
 
 def load_benchmark_manifest(path: Union[str, Path]) -> BenchmarkManifest:
@@ -1117,6 +1203,27 @@ def write_benchmark_manifest(
 # =============================================================================
 # 3c. Matched-world identity checks
 # =============================================================================
+
+def manifest_seed_overlap(
+    manifest: BenchmarkManifest, *, start: int, stop: int
+) -> Tuple[int, ...]:
+    """The manifest world seeds that fall inside the HALF-OPEN band ``[start, stop)``.
+
+    THE HELD-OUT TEST FOR A MANIFEST-DRIVEN EVALUATION, and it is a different question
+    from the historical one. The legacy check compares two CONFIGURED intervals -- the
+    training band against ``eval_base_seed .. eval_base_seed + eval_episodes`` -- which is
+    the right test exactly when the evaluation schedule really is that band. A generalized
+    run does not evaluate that band at all: its evaluation seeds are the manifest's, so
+    "held out" is a claim about THESE seeds and nothing else, and an unused configured
+    band can neither validate nor reject them.
+
+    Returns the offending seeds (empty when the population is properly held out) rather
+    than a bool, so a refusal can name exactly which worlds collide instead of only that
+    something did.
+    """
+    lo, hi = int(start), int(stop)
+    return tuple(s for s in manifest.seeds() if lo <= int(s) < hi)
+
 
 def require_world_matches_manifest(
     world: BenchmarkWorld, observed: WorldIdentity
