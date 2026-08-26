@@ -92,6 +92,16 @@ from .graph_fuel_damage import (
     FuelDamageParameters,
     build_fuel_damage_controller,
 )
+from .graph_generalized import (
+    EPISODE_DESIGN_FIXED_CELL_V1,
+    EPISODE_DESIGN_GENERALIZED_V1,
+    EPISODE_DESIGNS,
+    GENERALIZED_AGENT_COUNTS,
+    EpisodeDesign,
+    fixed_cell_cardinality,
+    resolve_episode_design,
+    sample_generalized_cardinality,
+)
 from .graph_tick_loop import build_policy, run_episode
 from .graph_reward import RewardConfig, compute_episode_reward
 from ..action.graph_action import MetaAction
@@ -139,6 +149,18 @@ class RolloutConfig:
     dataclasses' defaults directly (they stay STRUCTURALLY aligned rather than sharing
     an import: the trainer is a torch/PPO leaf and this harness must not depend on it).
     """
+
+    # --- GENERALIZED-V1: WHICH POPULATION this rollout draws from -----------------
+    # Mirrors `graph_train.TrainConfig.episode_design` field for field, and for the same
+    # reason the FD knobs are mirrored: a diagnostic rollout must be able to build the
+    # SAME episode a training run does, or it stops being a diagnostic of it.
+    #
+    # A ROLLOUT STAYS DIAGNOSTIC UNDER BOTH DESIGNS. It runs the seeded MIXTURE only, it
+    # trains nothing, and it evaluates no matched group: matched clean/mild/severe worlds
+    # and the frozen 18-stratum benchmark are an EVALUATION construct and live in
+    # `graph_train`. Selecting `generalized_v1` here samples the same TRAINING population
+    # a generalized training batch is drawn from -- and makes no benchmark claim.
+    episode_design: str = EPISODE_DESIGN_FIXED_CELL_V1
 
     n_episodes: int = 20
     # Episode i uses VariationConfig(seed=base_seed+i) AND reseeds global `random`
@@ -189,13 +211,29 @@ class RolloutConfig:
         self, mode: Optional[str] = None
     ) -> FuelDamageParameters:
         """The ONE site that turns this config into a :class:`FuelDamageParameters`."""
+        design = self.design
         return FuelDamageParameters(
             mode=str(self.fuel_damage_mode if mode is None else mode),
             probability=float(self.fuel_damage_probability),
             leg_progress_threshold=float(self.fuel_damage_leg_progress),
             rtb_safety_margin=float(self.fuel_damage_rtb_margin),
             mild_probability=float(self.fuel_damage_mild_probability),
+            # Resolved from the ONE design selector, exactly as the trainer does. Under
+            # `fixed_cell_v1` these ARE the historical defaults, so the constructed
+            # object is identical to the pre-Task-4 one.
+            eligibility_policy=design.eligibility_policy,
+            post_fd_wake_policy=design.post_fd_wake_policy,
         )
+
+    @property
+    def design(self) -> EpisodeDesign:
+        """THE ONE resolution site: this rollout's four low-level policy ids."""
+        return resolve_episode_design(self.episode_design)
+
+    @property
+    def generalized(self) -> bool:
+        """True iff this rollout draws from the GENERALIZED-V1 population."""
+        return self.design.generalized
 
     def reward_config(self) -> RewardConfig:
         """The ONE site that turns this config into a :class:`RewardConfig`.
@@ -226,6 +264,27 @@ class RolloutConfig:
         """
         if int(self.n_episodes) < 1:
             raise ValueError(f"n_episodes must be >= 1, got {self.n_episodes}")
+        # GENERALIZED-V1: the design selector, checked before anything reads it. Same
+        # verdicts as the trainer, from the same resolution site, so a design that is
+        # invalid for a training run is invalid for a diagnostic rollout too.
+        if str(self.episode_design) not in EPISODE_DESIGNS:
+            raise ValueError(
+                "episode_design must be one of %s, got %r"
+                % (list(EPISODE_DESIGNS), self.episode_design)
+            )
+        if self.generalized:
+            if str(self.fuel_damage_mode) != FuelDamageMode.SEEDED_VARIABLE:
+                raise ValueError(
+                    "episode_design=%r requires fuel_damage_mode=%r (the approved "
+                    "0.50 clean / 0.25 mild / 0.25 severe mixture); got %r."
+                    % (EPISODE_DESIGN_GENERALIZED_V1, FuelDamageMode.SEEDED_VARIABLE,
+                       self.fuel_damage_mode)
+                )
+            print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
+                  "read. Each episode's cell is SAMPLED from its seed "
+                  "(A ~ U{%s}, K == A, H ~ U{1..A}). Proceeding."
+                  % (EPISODE_DESIGN_GENERALIZED_V1,
+                     ",".join(str(a) for a in GENERALIZED_AGENT_COUNTS)))
         if int(self.num_agents) < 1:
             raise ValueError(f"num_agents must be >= 1, got {self.num_agents}")
         if int(self.n_known) < 1:
@@ -422,10 +481,22 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                 # world of exactly n_known targets, Layer 1 OFF (it would cluster the
                 # known targets and flatten route diversity), and the requested geometry
                 # declared STRICT so the generator raises instead of weakening it.
+                # The cell this episode is built with: SAMPLED from the seed under
+                # the generalized design (its own rng domain, so it cannot move the
+                # fuel-damage or placement streams), and the configured fixed cell
+                # otherwise -- in which case every value below is the pre-Task-4 one.
+                cell = (
+                    sample_generalized_cardinality(episode_seed=seed)
+                    if cfg.generalized else fixed_cell_cardinality(
+                        agent_count=int(cfg.num_agents),
+                        known_count=int(cfg.n_known),
+                        hidden_requested=int(cfg.n_hidden),
+                    )
+                )
                 var = VariationConfig(
                     include_sams=cfg.include_sams,
-                    num_aircraft=int(cfg.num_agents),
-                    num_red_airbases=int(cfg.n_known),
+                    num_aircraft=int(cell.agent_count),
+                    num_red_airbases=int(cell.known_count),
                     randomize_red_airbase_positions=cfg.randomize_red_airbase_positions,
                     stretch_target_ratio=float(cfg.stretch_target_ratio),
                     min_target_distance_km=float(cfg.min_target_distance_km),
@@ -445,8 +516,15 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     # builds the hidden half from the solved routes (solve -> place ->
                     # patch -> reload). `partial_ratio` is the legacy split surface and
                     # is deliberately NOT passed -- `split_tasks` never runs here.
-                    n_hidden=int(cfg.n_hidden),
+                    n_hidden=int(cell.hidden_requested),
                     placement_rng=placement_rng,
+                    # GENERALIZED-V1 policy seams, resolved from the ONE design
+                    # selector. Absent entirely on the historical path, where setup
+                    # resolves its own `exact_v1` / `static_t0_v1` defaults as always.
+                    **({} if not cfg.generalized else {
+                        "hidden_policy": cfg.design.hidden_policy,
+                        "reference_policy": cfg.design.reference_policy,
+                    }),
                     recording_export_path=rec_path,
                 )
                 setup_seconds = time.perf_counter() - t_setup
@@ -482,10 +560,24 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
 
                 # --- SCALAR-ONLY per-episode record (read split_meta keys directly) ---
                 meta = ctx.split_meta
+                audit = getattr(ctx, "construction_audit", None)
                 record = {
                     "episode": i,
                     "seed": seed,
                     "scenario_path": str(scenario_path),
+                    # WHICH POPULATION, and the REQUESTED cell -- stated rather than
+                    # inferred, on both designs.
+                    **cfg.design.to_record(),
+                    "agent_count": int(cell.agent_count),
+                    "known_requested": int(cell.known_count),
+                    "hidden_requested": int(cell.hidden_requested),
+                    "cardinality_source": str(cell.source),
+                    "hidden_realized": (
+                        None if audit is None else int(audit.hidden_realized)
+                    ),
+                    "construction_audit": (
+                        None if audit is None else audit.as_dict()
+                    ),
                     "n_agents": len(ctx.agent_ids),
                     "n_tasks_full": int(meta["full"]),
                     "n_known": int(meta["known"]),
@@ -504,7 +596,25 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     "confirmed_kills": int(result.confirmed_kills),
                     "n_dead": int(result.n_dead),
                     "u_achieved": float(ep_reward.u_achieved),
-                    "u_oracle": float(ep_reward.u_oracle),
+                    # `u_oracle` is `None` under the event-conditioned reference policy
+                    # -- setup deliberately never solved a static full-set optimum there
+                    # -- so it is recorded as `null` rather than coerced to a float. A
+                    # `0.0` would fabricate a perfect oracle. `u_ref` is the denominator
+                    # source under BOTH policies (on the static path it EQUALS
+                    # `u_oracle`), so a reader asking "what was this normalized by?"
+                    # reads ONE field and is correct either way.
+                    "u_oracle": (
+                        None if ep_reward.u_oracle is None
+                        else float(ep_reward.u_oracle)
+                    ),
+                    "u_ref": float(ep_reward.u_ref),
+                    "reference_policy": str(ep_reward.reference_policy),
+                    "reference_kind": ep_reward.reference_kind,
+                    "u_prefix": ep_reward.u_prefix,
+                    "u_cont_ref": ep_reward.u_cont_ref,
+                    "u_post": ep_reward.u_post,
+                    "scored_completed_targets": ep_reward.scored_completed_targets,
+                    "unscored_completed_targets": ep_reward.unscored_completed_targets,
                     "ratio": float(ep_reward.ratio),
                     "penalty": float(ep_reward.penalty),
                     "reward": float(ep_reward.reward),
@@ -680,6 +790,21 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="argmax instead of sampling (default: stochastic)")
     p.add_argument("--record-first", action="store_true",
                    help="record episode 0 with the BLADE PlaybackRecorder")
+    # GENERALIZED-V1: the population selector, mirroring the trainer's flag. The
+    # fuel-damage mode is exposed alongside it because `generalized_v1` REQUIRES
+    # `seeded_variable`, and a flag that could only ever be rejected would be a trap.
+    p.add_argument("--episode-design", type=str, choices=list(EPISODE_DESIGNS),
+                   default=d.episode_design,
+                   help="which episode POPULATION to draw from: %s preserves the "
+                        "historical fixed cell; %s samples the cell per episode and "
+                        "selects the GENERALIZED-V1 policy bundle "
+                        "(default: %%(default)s)"
+                        % (EPISODE_DESIGN_FIXED_CELL_V1,
+                           EPISODE_DESIGN_GENERALIZED_V1))
+    p.add_argument("--fuel-damage-mode", type=str,
+                   choices=list(_ROLLOUT_FUEL_DAMAGE_MODES),
+                   default=d.fuel_damage_mode,
+                   help="the seeded fuel-damage mixture (default: %(default)s)")
     return p
 
 
@@ -691,6 +816,8 @@ def main(argv: Optional[List[str]] = None) -> None:
         output_dir=args.out,
         deterministic=args.deterministic,
         record_first_episode=args.record_first,
+        episode_design=args.episode_design,
+        fuel_damage_mode=args.fuel_damage_mode,
     )
     run_rollout(cfg)
 

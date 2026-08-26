@@ -132,6 +132,7 @@ from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     certify_fd_candidate,
     plan_fuel_damage,
     resolve_condition,
+    resolve_severity,
 )
 from match_aou.rl.training.graph_ppo import PPOConfig, PPOUpdater  # noqa: E402
 from match_aou.rl.training.graph_tick_loop import build_policy  # noqa: E402
@@ -852,10 +853,28 @@ def test_both_harnesses_call_setup_in_construction_mode() -> None:
     """
     for module in (graph_train, graph_rollout):
         source = Path(inspect.getsourcefile(module)).read_text(encoding="utf-8")
-        assert "n_hidden=int(cfg.n_hidden)" in source, module.__name__
+        # GENERALIZED-V1 Task 4 moved the hidden count from the config to the RESOLVED
+        # per-episode cell (`episode_cardinality` / `sample_generalized_cardinality`),
+        # which under `fixed_cell_v1` is `cfg.n_hidden` verbatim. The claim being locked
+        # is unchanged -- setup is handed a hidden COUNT and an explicit per-episode rng
+        # -- so the literal it is read off moves with it.
+        assert "n_hidden=int(cell.hidden_requested)" in source, module.__name__
         assert "random.Random(seed)" in source, module.__name__
         # The pre-B3 constant is gone from both harnesses.
         assert "_ALL_KNOWN_PARTIAL_RATIO" not in source, module.__name__
+
+    # ... and the resolved cell IS the configured one on the historical path, so the
+    # substitution above changes what is passed for exactly no fixed-cell run.
+    from match_aou.rl.training.graph_generalized import fixed_cell_cardinality
+    cfg = TrainConfig(n_iterations=1, num_agents=2, n_known=5, n_hidden=4)
+    resolved = graph_train.episode_cardinality(cfg, seed=11)
+    assert (resolved.agent_count, resolved.known_count, resolved.hidden_requested) == (
+        cfg.num_agents, cfg.n_known, cfg.n_hidden
+    )
+    assert resolved == fixed_cell_cardinality(
+        agent_count=cfg.num_agents, known_count=cfg.n_known,
+        hidden_requested=cfg.n_hidden,
+    )
 
     # `setup_episode` refuses a half-supplied pair, so neither caller can drift into
     # passing only one half without failing loudly.
@@ -1405,14 +1424,21 @@ def _stub_fuel_damage_fields(cfg, seed: int, mode) -> dict:
     the per-condition accounting these tests exercise would be checking the stub's
     opinion rather than the loop's.
     """
-    condition = resolve_condition(
-        episode_seed=int(seed), params=cfg.fuel_damage_parameters(mode)
-    )
+    params = cfg.fuel_damage_parameters(mode)
+    condition = resolve_condition(episode_seed=int(seed), params=params)
+    # The SEVERITY is resolved through the production function too, so a stubbed episode
+    # reports the same CELL the loop scheduled it under. Without it a `seeded_variable`
+    # run's stub plan would report `damaged` while its schedule counted `mild`, and the
+    # tally would (correctly) refuse the episode -- exercising that refusal instead of
+    # the feature under test. `None` under every legacy mode, which is what keeps the
+    # clean/damaged tests byte-unchanged.
+    severity = resolve_severity(episode_seed=int(seed), params=params)
     damaged = condition == CONDITION_DAMAGED
     return {
-        "fuel_damage_plan": {"condition": condition,
+        "fuel_damage_plan": {"condition": condition, "severity": severity,
                              "ego_id": "ego_0" if damaged else None},
-        "fuel_damage_outcome": {"condition": condition, "fired": damaged,
+        "fuel_damage_outcome": {"condition": condition, "severity": severity,
+                                "fired": damaged,
                                 "wake_occurred": damaged, "wake_meta_action": None},
         "selected_ego_rtb_issued": True if damaged else None,
     }
@@ -1516,8 +1542,12 @@ def _run_stub_training(
         # record whether the keyword was passed AT ALL. A run that did not opt in must
         # call `_run_one_episode` exactly as it did before the feature existed, which is
         # a stronger claim than "it passed None".
+        # GENERALIZED-V1 (Task 4): elements 7 and 8 record the CARDINALITY keyword the
+        # same way -- its value, and whether it was passed AT ALL. Appended rather than
+        # inserted, so every existing positional read of this tuple is unaffected.
         events.append(("episode", phase, int(seed), int(episode_tag), fuel_damage_mode,
-                       extra.get("artifacts"), "artifacts" in extra))
+                       extra.get("artifacts"), "artifacts" in extra,
+                       extra.get("cardinality"), "cardinality" in extra))
         # Stand in for the file the real generator would have written under this tag.
         if state["scen_dir"] is not None:
             state["scen_dir"].mkdir(parents=True, exist_ok=True)
@@ -1541,6 +1571,14 @@ def _run_stub_training(
         if seed in failures:
             stage, message = failures[seed]
             raise EpisodeAttemptError(stage, ValueError(message))
+        # GENERALIZED-V1: the real `_run_one_episode` resolves the scheduled cell and
+        # reports what the world REALIZED, so the stub models both. On the fixed-cell
+        # path no keyword arrives and the cardinality is the configured cell, which is
+        # exactly what the real body resolves there too.
+        stub_card = extra.get("cardinality") or graph_train.fixed_cell_cardinality(
+            agent_count=int(cfg_.num_agents), known_count=int(cfg_.n_known),
+            hidden_requested=int(cfg_.n_hidden),
+        )
         return _EpisodeOutcome(
             trajectory=[_StubTransition("ego_%d" % (k % 2), k % 3)
                         for k in range(n_wakes)],
@@ -1549,6 +1587,10 @@ def _run_stub_training(
             confirmed_kills=_STUB_CONFIRMED_KILLS, n_dead=0, seconds=0.01,
             **roster_fields,
             **_stub_fuel_damage_fields(cfg_, seed, fuel_damage_mode),
+            cardinality=stub_card,
+            hidden_realized=int(stub_card.hidden_requested),
+            reward_breakdown={"u_ref": -1.0, "u_achieved": -1.0,
+                              "reference_policy": cfg_.design.reference_policy},
         )
 
     graph_train._git_provenance = lambda repo_root: dict(git_verdict)
@@ -2389,12 +2431,16 @@ def _reference_ctx(*, done, raise_names=(), known=3, hidden=3,
     )
 
 
-def _run_one_episode_against(ctx, *, confirmed_kills=0):
+def _run_one_episode_against(ctx, *, confirmed_kills=0, reward=None):
     """Drive the REAL `_run_one_episode` against a fake context; returns its outcome.
 
     Only the BLADE / solver seams are replaced. The roster snapshot, the unique-id
     computation, the name split, the failure attribution and the outcome construction
     are the production code paths.
+
+    ``reward`` replaces the stubbed ``compute_episode_reward`` outright, so a caller can
+    make the REWARD STAGE raise and exercise its attribution -- which is otherwise
+    unreachable, because this helper installs its own stub last.
     """
     cfg = TrainConfig(n_iterations=1, episodes_per_iteration=1, base_seed=0,
                       eval_every=0, checkpoint_every=0)
@@ -2406,7 +2452,9 @@ def _run_one_episode_against(ctx, *, confirmed_kills=0):
     graph_train.setup_episode = lambda *a, **k: ctx
     graph_train.run_episode = lambda *a, **k: _FakeResult(
         confirmed_kills=confirmed_kills)
-    graph_train.compute_episode_reward = lambda *a, **k: _FakeReward()
+    graph_train.compute_episode_reward = (
+        reward if reward is not None else (lambda *a, **k: _FakeReward())
+    )
     try:
         return graph_train._run_one_episode(
             None, _FakeGenerator(), cfg,
@@ -2735,10 +2783,18 @@ def test_the_roster_must_match_the_scheduled_cell() -> None:
     assert "hidden targets: observed 2, scheduled 3" in str(exc), str(exc)
     assert "executed targets: observed 5, scheduled 6" in str(exc), str(exc)
 
-    # The valid cell passes the same gate untouched.
+    # The valid cell passes the same gate untouched. The expectation is now the RESOLVED
+    # scheduled cell rather than the config -- `_scheduled_cell` is the one site that
+    # decides what "hidden" should be, and on the historical path (no construction audit)
+    # it resolves to exactly the configured count.
     roster = graph_train._episode_target_roster(_reference_ctx(done=set()))
-    graph_train._require_scheduled_cell(
-        roster, TrainConfig(n_iterations=1, n_known=3, n_hidden=3))
+    cfg = TrainConfig(n_iterations=1, n_known=3, n_hidden=3)
+    expected = graph_train._scheduled_cell(
+        graph_train.episode_cardinality(cfg, seed=0), None
+    )
+    assert (expected.n_known, expected.n_hidden, expected.n_targets_executed) == (3, 3, 6)
+    assert expected.realized_short is False
+    graph_train._require_scheduled_cell(roster, expected)
 
 
 def test_an_integrity_fault_aborts_the_run_and_writes_no_ledger_row(
@@ -3439,8 +3495,17 @@ def test_plot_separates_performance_from_diagnostics_and_health() -> None:
     # it stayed INSIDE the diagnostics figure rather than becoming a fourth file.
     assert "plt.subplots(3, 1" in inspect.getsource(
         graph_train._plot_policy_diagnostics), "diagnostics is not 3 panels"
-    assert "plt.subplots(3, 1" in inspect.getsource(
-        graph_train._plot_measurement_health), "health is not 3 panels"
+    # MEASUREMENT HEALTH is 3 panels for a fixed-cell run and gains a FOURTH -- the
+    # GENERALIZED-V1 requested-vs-realized hidden load -- only when the run has a
+    # cardinality to show. It stayed INSIDE the health figure rather than becoming a
+    # fourth FILE, for the same reason the severity-response panel stayed inside
+    # diagnostics: requested-vs-realized is a DENOMINATOR question, and the denominators
+    # are read together.
+    health_src = inspect.getsource(graph_train._plot_measurement_health)
+    assert "n_panels = 4 if cardinality_rows else 3" in health_src, (
+        "health must default to 3 panels and only conditionally add the fourth"
+    )
+    assert "plt.subplots(\n        n_panels, 1" in health_src, "health is not n_panels"
     # The retired single dashboard is gone as an OUTPUT (its name survives only in the
     # prose explaining why).
     assert 'savefig(out_path' in source
@@ -4966,6 +5031,740 @@ def test_probe_preset_claims_scheduled_iterations_not_productive_updates() -> No
     assert raw["episodes_per_iteration"] == 4
 
 
+# =============================================================================
+# GENERALIZED-V1 TASK 4 -- harness selection, cardinality, benchmark, persistence
+# =============================================================================
+
+from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
+    SEVERITY_MILD,
+    SEVERITY_SEVERE,
+)
+from match_aou.rl.training.graph_generalized import (  # noqa: E402
+    BenchmarkIdentityError,
+    BenchmarkManifestError,
+    BENCHMARK_GROUP_SIZE,
+    BENCHMARK_STRATUM_KEYS,
+    EPISODE_DESIGN_FIXED_CELL_V1,
+    EPISODE_DESIGN_GENERALIZED_V1,
+    LOAD_HIGH,
+    LOAD_LOW,
+    WorldIdentity,
+    build_benchmark_manifest,
+    sample_generalized_cardinality,
+    write_benchmark_manifest,
+)
+from match_aou.rl.training.graph_reward import (  # noqa: E402
+    REFERENCE_FAULT_MISSING,
+    REFERENCE_FAULT_SOLVE_UNACCEPTABLE,
+    ReferenceIntegrityError,
+)
+
+_GEN_MODE = FuelDamageMode.SEEDED_VARIABLE
+
+
+def _gen_cfg(tmp_path: Path, **kwargs) -> TrainConfig:
+    """A minimal GENERALIZED-V1 training config with evaluation OFF.
+
+    Evaluation is off because a generalized run REQUIRES a frozen benchmark to evaluate,
+    and the benchmark tests below drive `evaluate_benchmark` directly rather than through
+    a whole training run.
+    """
+    base = dict(
+        n_iterations=1, episodes_per_iteration=4, base_seed=0,
+        output_dir=tmp_path / "gen", eval_every=0, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+    )
+    base.update(kwargs)
+    return TrainConfig(**base)
+
+
+def _episode_cardinalities(events) -> list:
+    """`(cardinality, was_the_keyword_passed)` for every stubbed attempt, in order."""
+    return [(e[7], e[8]) for e in events if e[0] == "episode"]
+
+
+def test_gen_a_fixed_cell_run_passes_no_generalized_keyword(tmp_path: Path) -> None:
+    """PO1. The historical path calls `_run_one_episode` EXACTLY as it did before.
+
+    The keyword-OMISSION claim, not a "passes None" claim: a fixed-cell run must not
+    acquire a new argument at all, which is both the stronger invariance statement and
+    what keeps the independent stubs in the sibling test files working. The same
+    discipline `_artifact_kwargs` and `_ctde_kwargs` already hold themselves to.
+    """
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=3, base_seed=0,
+        output_dir=tmp_path / "fixed", eval_every=0, checkpoint_every=0,
+    )
+    _summary, events, _state = _run_stub_training(cfg, wakes_per_episode=1)
+
+    passed = _episode_cardinalities(events)
+    assert passed, "the stub recorded no attempt"
+    assert all(was_passed is False for _card, was_passed in passed), (
+        "a fixed_cell_v1 run must not pass a cardinality keyword at all"
+    )
+    # And the two setup keywords are omitted for the same reason.
+    assert graph_train._generalized_setup_kwargs(cfg) == {}
+    assert graph_train._cardinality_kwargs(None) == {}
+
+
+def test_gen_a_generalized_run_passes_the_sampled_cardinality(tmp_path: Path) -> None:
+    """PO1. Every generalized training attempt carries the cell its SEED determines.
+
+    Re-derived independently from the seed through the public sampler, so the loop is
+    proven to pass the sampler's answer rather than something it computed its own way.
+    """
+    cfg = _gen_cfg(tmp_path, episodes_per_iteration=6)
+    _summary, events, _state = _run_stub_training(cfg, wakes_per_episode=1)
+
+    seeds = _episode_seeds(events, "train")
+    passed = _episode_cardinalities(events)
+    assert len(seeds) == 6 and len(passed) == 6
+    for seed, (card, was_passed) in zip(seeds, passed):
+        assert was_passed is True, "a generalized run must pass its cardinality"
+        expected = sample_generalized_cardinality(episode_seed=int(seed))
+        assert card == expected, seed
+        assert card.known_count == card.agent_count
+        assert 1 <= card.hidden_requested <= card.agent_count
+
+    # The two setup keywords ARE supplied on this path, as the whole bundle.
+    kwargs = graph_train._generalized_setup_kwargs(cfg)
+    assert kwargs == {
+        "hidden_policy": cfg.design.hidden_policy,
+        "reference_policy": cfg.design.reference_policy,
+    }
+
+
+def test_gen_the_fd_parameters_carry_the_designs_two_policies() -> None:
+    """PO1. The FD seams are resolved from the ONE selector, never set independently.
+
+    And on the historical path the constructed object is IDENTICAL to the pre-Task-4 one
+    -- proven by equality against a parameter object built with no policy arguments at
+    all, which is what every pre-Task-4 call site produced.
+    """
+    fixed = TrainConfig(n_iterations=1)
+    historical = FuelDamageParameters(
+        mode=fixed.fuel_damage_mode,
+        probability=fixed.fuel_damage_probability,
+        leg_progress_threshold=fixed.fuel_damage_leg_progress,
+        rtb_safety_margin=fixed.fuel_damage_rtb_margin,
+        mild_probability=fixed.fuel_damage_mild_probability,
+    )
+    assert fixed.fuel_damage_parameters() == historical
+
+    gen = TrainConfig(n_iterations=1, episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+                      fuel_damage_mode=_GEN_MODE)
+    params = gen.fuel_damage_parameters()
+    assert params.eligibility_policy == gen.design.eligibility_policy
+    assert params.post_fd_wake_policy == gen.design.post_fd_wake_policy
+    assert params.certified_eligibility is True
+    assert params.completion_boundary_wakes is True
+
+
+def test_gen_validate_refuses_a_half_configured_generalized_run(tmp_path: Path) -> None:
+    """PO1/PO2. Every way of reaching a MISLABELLED generalized run is refused.
+
+    Each of these would produce a run whose records claim the generalized design while
+    measuring something else -- which is the failure mode the selector exists to prevent.
+    """
+    def _refuses(**kwargs) -> str:
+        cfg = TrainConfig(n_iterations=1, output_dir=tmp_path / "x", **kwargs)
+        try:
+            cfg.validate()
+        except ValueError as exc:
+            return str(exc)
+        raise AssertionError("accepted: %r" % (kwargs,))
+
+    # An unknown design.
+    assert "episode_design must be one of" in _refuses(episode_design="generalized")
+    # Generalized on a mixture that makes every damaged episode structurally severe.
+    assert "seeded_variable" in _refuses(
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+        fuel_damage_mode=FuelDamageMode.SEEDED_MIXTURE, eval_every=0)
+    # Generalized WITH evaluation but no frozen benchmark: the held-out band carries no
+    # stratum, so evaluating on it would measure an unstratified population.
+    assert "benchmark_manifest" in _refuses(
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        eval_every=1, eval_episodes=2)
+    # A benchmark on a FIXED-CELL run: every world would come from the fixed cell while
+    # the record carried stratum labels the run never varied.
+    assert "18-stratum" in _refuses(benchmark_manifest="somewhere.json")
+
+    # ... and the two legitimate shapes are accepted.
+    TrainConfig(n_iterations=1, output_dir=tmp_path / "ok1").validate()
+    TrainConfig(n_iterations=1, output_dir=tmp_path / "ok2", eval_every=0,
+                episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+                fuel_damage_mode=_GEN_MODE).validate()
+
+
+def test_gen_short_realization_is_accounted_and_a_lying_audit_aborts() -> None:
+    """PO1/PO3. A legitimately short world is ACCOUNTED; a contradictory audit ABORTS.
+
+    The whole point of bounded backoff is that realizing fewer hidden targets than were
+    requested is a recorded OUTCOME, not a failure -- so the roster expectation must
+    follow the construction's own realized count. What must NOT be tolerated is an audit
+    that disagrees with the schedule that produced it: that means the episode and its
+    accounting describe different worlds.
+    """
+    card = graph_train.episode_cardinality(
+        TrainConfig(n_iterations=1, episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+                    fuel_damage_mode=_GEN_MODE),
+        seed=0,
+        benchmark_cardinality=graph_train.fixed_cell_cardinality(
+            agent_count=4, known_count=4, hidden_requested=4),
+    )
+
+    class _Audit:
+        def __init__(self, agents, requested, realized):
+            self.agent_count = agents
+            self.hidden_requested = requested
+            self.hidden_realized = realized
+
+    # Realized SHORT: expected hidden follows the audit, the REQUEST is preserved, and
+    # the shortfall is flagged rather than repaired.
+    short = graph_train._scheduled_cell(card, _Audit(4, 4, 2))
+    assert (short.n_known, short.n_hidden, short.n_targets_executed) == (4, 2, 6)
+    assert short.hidden_requested == 4, "the request must never be rewritten"
+    assert short.realized_short is True
+
+    # Realized in FULL.
+    full = graph_train._scheduled_cell(card, _Audit(4, 4, 4))
+    assert (full.n_hidden, full.realized_short) == (4, False)
+
+    # An audit that contradicts the schedule is a measurement-integrity fault.
+    for bad in (_Audit(3, 4, 2), _Audit(4, 2, 2)):
+        exc = _integrity_raise(graph_train._scheduled_cell, card, bad)
+        assert "contradicts the schedule" in str(exc)
+
+
+def test_gen_the_outcome_record_states_the_design_and_the_cardinality(
+    tmp_path: Path,
+) -> None:
+    """PO3. `episode_outcomes.jsonl` carries the design and the world, on BOTH paths.
+
+    The durable per-attempt stream is where a distributional question is answered, so the
+    design, the requested-vs-realized cardinality and the policy ids must be readable per
+    episode rather than only from the run config.
+    """
+    gen = _gen_cfg(tmp_path, episodes_per_iteration=3)
+    _run_stub_training(gen, wakes_per_episode=1)
+    rows = _read_records(gen.output_dir, "episode_outcomes.jsonl")
+    assert len(rows) == 3
+    for row in rows:
+        assert row["schema_version"] == 2
+        assert row["episode_design"] == EPISODE_DESIGN_GENERALIZED_V1
+        assert row["generalized"] is True
+        assert row["hidden_policy"] == gen.design.hidden_policy
+        assert row["eligibility_policy"] == gen.design.eligibility_policy
+        assert row["post_fd_wake_policy"] == gen.design.post_fd_wake_policy
+        assert row["reference_policy"] == gen.design.reference_policy
+        assert row["target_destruction_probability"] == 1.0
+        expected = sample_generalized_cardinality(episode_seed=int(row["seed"]))
+        assert row["agent_count"] == expected.agent_count
+        assert row["known_requested"] == expected.known_count
+        assert row["hidden_requested"] == expected.hidden_requested
+        assert row["cardinality_source"] == "generalized_sampler"
+        # The benchmark identity keys exist on EVERY row, as null on a non-benchmark one.
+        assert row["benchmark_stratum"] is None
+        assert row["benchmark_manifest_id"] is None
+
+    # The HISTORICAL path states its own design just as explicitly -- a reader must never
+    # have to infer it from the absence of keys.
+    fixed = TrainConfig(n_iterations=1, episodes_per_iteration=2, base_seed=0,
+                        output_dir=tmp_path / "fixed", eval_every=0, checkpoint_every=0)
+    _run_stub_training(fixed, wakes_per_episode=1)
+    fixed_rows = _read_records(fixed.output_dir, "episode_outcomes.jsonl")
+    assert fixed_rows and all(
+        r["episode_design"] == EPISODE_DESIGN_FIXED_CELL_V1
+        and r["generalized"] is False
+        and r["reference_policy"] == "static_t0_v1"
+        for r in fixed_rows
+    )
+
+
+def test_gen_the_failure_ledger_keeps_the_scheduled_world(tmp_path: Path) -> None:
+    """PO3. A FAILED attempt still records the world it was scheduled to build.
+
+    It matters precisely because it never built one: without the scheduled cardinality a
+    failed HIGH-load attempt would be invisible in the requested-vs-realized
+    distribution, and that stratum's denominator would quietly shrink to the attempts
+    that happened to succeed.
+    """
+    cfg = _gen_cfg(tmp_path, episodes_per_iteration=4)
+    summary, _events, _state = _run_stub_training(
+        cfg, wakes_per_episode=1, failures={1: ("setup", "no strict window")})
+
+    ledger = _read_records(cfg.output_dir, "episode_failures.jsonl")
+    assert len(ledger) == 1
+    row = ledger[0]
+    expected = sample_generalized_cardinality(episode_seed=int(row["seed"]))
+    assert row["agent_count"] == expected.agent_count
+    assert row["hidden_requested"] == expected.hidden_requested
+    assert row["cardinality_source"] == "generalized_sampler"
+    assert row["pipeline_stage"] == "setup"
+    assert row["cell"] in ("clean", "mild", "severe")
+    assert row["reference_fault_reason"] is None
+    # Disjoint streams: the failed attempt appears in NEITHER outcome file.
+    outcomes = _read_records(cfg.output_dir, "episode_outcomes.jsonl")
+    assert row["seed"] not in [o["seed"] for o in outcomes]
+    assert summary["train_episodes_attempted"] == 4
+    assert summary["train_episodes_successful"] == 3
+    assert summary["train_episodes_failed"] == 1
+    assert summary["accounting_reconciled"] is True
+
+
+def test_gen_the_summary_reports_requested_vs_realized(tmp_path: Path) -> None:
+    """PO3. The roll-up is DERIVED from the canonical jsonl, with explicit denominators.
+
+    And it reports the requested-vs-realized DISTRIBUTION without judging it: no verdict
+    key, no threshold, no "degenerate" flag -- the handoff requires a human to inspect
+    that distribution, and a threshold invented here would pre-empt that decision.
+    """
+    cfg = _gen_cfg(tmp_path, episodes_per_iteration=6)
+    summary, _events, _state = _run_stub_training(
+        cfg, wakes_per_episode=1, failures={2: ("setup", "boom")})
+
+    block = summary["generalized"]
+    assert summary["episode_design"] == EPISODE_DESIGN_GENERALIZED_V1
+    assert summary["episode_design_policies"]["hidden_policy"] == \
+        cfg.design.hidden_policy
+    assert block["episode_design"] == EPISODE_DESIGN_GENERALIZED_V1
+    assert block["cardinality_sampler"]["rng_domain"] == "generalized_cardinality_v1"
+
+    # attempted == successful + failed in EVERY bucket, by construction.
+    for key in ("train_by_agent_count", "train_by_hidden_requested"):
+        buckets = block[key]
+        assert buckets, key
+        for name, entry in buckets.items():
+            assert entry["n_attempted"] == entry["n_successful"] + entry["n_failed"], (
+                key, name)
+        assert sum(e["n_attempted"] for e in buckets.values()) == 6
+
+    # The distribution is REPORTED, and nothing in the block renders a VERDICT on it:
+    # no threshold, no "degenerate" flag, no accept/reject decision. Checked over the
+    # KEY names (a rejection-REASON tally is data about the backoff, not a verdict on
+    # the benchmark, so the word "rejections" is legitimate and appears as a key).
+    assert "cardinality_requested_vs_realized" in block
+
+    def _keys(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                yield str(k).lower()
+                for sub in _keys(v):
+                    yield sub
+
+    for key in _keys(block):
+        # `n_solver_accepted` is deliberately NOT in this list: whether a SOLVER
+        # reached acceptable optimality is solver health, not a verdict on the
+        # benchmark's stratification.
+        for verdict_word in ("degenerate", "collapse", "threshold", "verdict",
+                             "benchmark_ok", "should_reject"):
+            assert verdict_word not in key, (key, verdict_word)
+
+
+_BENCH_CELL_BY_MODE = {
+    FuelDamageMode.FORCED_CLEAN: CONDITION_CLEAN,
+    FuelDamageMode.FORCED_MILD: SEVERITY_MILD,
+    FuelDamageMode.FORCED_SEVERE: SEVERITY_SEVERE,
+}
+
+
+def _bench_outcome(mode, hidden_realized=1, identity=None, reward=-0.25):
+    """A stub `_EpisodeOutcome` shaped like a completed benchmark member.
+
+    The plan reports the cell its FORCED MODE really produces, so the tally's
+    scheduled-vs-executed guard sees agreement and these tests exercise the benchmark
+    accounting rather than that guard's refusal.
+    """
+    cell = _BENCH_CELL_BY_MODE[mode]
+    damaged = cell != CONDITION_CLEAN
+    condition = CONDITION_DAMAGED if damaged else CONDITION_CLEAN
+    return _EpisodeOutcome(
+        trajectory=[_StubTransition("ego_0", 0)], reward=reward, ticks=10,
+        ended="done", n_wakes=1, confirmed_kills=1, n_dead=0, seconds=0.01,
+        targets_confirmed_unique=1, targets_total=1 + hidden_realized,
+        known_target_names=("K",), hidden_target_names=("H",),
+        known_confirmed_names=("K",), hidden_confirmed_names=(),
+        fuel_damage_plan={"condition": condition,
+                          "severity": cell if damaged else None,
+                          "ego_id": "ego_0" if damaged else None},
+        fuel_damage_outcome={"condition": condition,
+                             "severity": cell if damaged else None,
+                             "fired": damaged, "wake_occurred": damaged,
+                             "wake_meta_action": None},
+        selected_ego_rtb_issued=True if damaged else None,
+        hidden_realized=hidden_realized,
+        world_identity=identity,
+    )
+
+
+def _run_benchmark_round(cfg, manifest, tmp_path, *, body):
+    """Drive the REAL `evaluate_benchmark` with a stubbed episode body."""
+    saved = graph_train._run_one_episode
+    graph_train._run_one_episode = body
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            return graph_train.evaluate_benchmark(
+                None, object(), cfg, manifest,
+                iteration=None, stage="post_update", updates_completed=1,
+                round_ordinal=0,
+                failures_path=tmp_path / "episode_failures.jsonl",
+                outcomes_path=tmp_path / "episode_outcomes.jsonl",
+            )
+    finally:
+        graph_train._run_one_episode = saved
+
+
+def _one_world_manifest():
+    """A one-world-per-base-cell manifest -- 6 groups, 18 member episodes, 18 strata."""
+    return build_benchmark_manifest(worlds_per_cell=1, benchmark_base_seed=2_000_000)
+
+
+def test_gen_benchmark_round_reports_all_18_strata_with_denominators(
+    tmp_path: Path,
+) -> None:
+    """PO2. A manifest round accounts EVERY requested stratum, not only the ones that ran.
+
+    Per-stratum denominators are the point: a mean over `severe` pools six team-size /
+    load combinations, which is exactly the pooling the stratification exists to avoid.
+    """
+    cfg = _gen_cfg(tmp_path, eval_every=0)
+    manifest = _one_world_manifest()
+    seen = []
+
+    def body(policy, gen, cfg_, *, seed, episode_tag, deterministic,
+             fuel_damage_mode=None, cardinality=None, **extra):
+        seen.append((seed, fuel_damage_mode, cardinality))
+        return _bench_outcome(
+            fuel_damage_mode,
+            hidden_realized=cardinality.hidden_requested,
+            identity=WorldIdentity(
+                hidden_realized=cardinality.hidden_requested,
+                known_realized=cardinality.known_count,
+                geometric_fingerprint=((float(seed), 1.0),),
+                fd_selected_ordinal=0, fd_certificate_fingerprint="c%d" % seed,
+            ),
+        )
+
+    record = _run_benchmark_round(cfg, manifest, tmp_path, body=body)
+
+    assert record["eval_population"] == "benchmark_manifest"
+    assert record["benchmark_manifest_id"] == manifest.manifest_id
+    assert record["n_attempted"] == manifest.n_members == 18
+    assert record["n_successful"] == 18 and record["n_failed"] == 0
+    assert record["n_groups_attempted"] == 6 == record["n_groups_successful"]
+
+    strata = record["benchmark_strata"]
+    assert set(strata) == set(BENCHMARK_STRATUM_KEYS)
+    assert len(strata) == 18
+    for key, entry in strata.items():
+        assert entry["n_attempted"] == 1 and entry["n_successful"] == 1
+        assert entry["success_fraction"] == 1.0
+        assert entry["reward_mean"] is not None
+        assert entry["n_short_realized"] == 0
+        assert entry["hidden_realized_histogram"], key
+
+    # Every member of a group ran the SAME seed and the SAME requested cardinality, and
+    # the three differ ONLY in the forced mode.
+    by_seed = {}
+    for seed, mode, card in seen:
+        by_seed.setdefault(seed, []).append((mode, card))
+    assert len(by_seed) == 6
+    for members in by_seed.values():
+        assert len(members) == BENCHMARK_GROUP_SIZE == 3
+        assert len({m for m, _c in members}) == 3
+        assert len({c for _m, c in members}) == 1, "one cardinality per world group"
+
+    # LOW requests 1 hidden target, HIGH requests A -- readable per stratum.
+    low = [k for k in strata if ("-%s-" % LOW_KEY) in k]
+    assert low and all(strata[k]["hidden_requested_total"] == 1 for k in low)
+    high = [k for k in strata if ("-%s-" % HIGH_KEY) in k]
+    assert high and all(strata[k]["hidden_requested_total"] >= 2 for k in high)
+
+
+LOW_KEY = LOAD_LOW
+HIGH_KEY = LOAD_HIGH
+
+
+def test_gen_benchmark_deltas_use_complete_groups_only(tmp_path: Path) -> None:
+    """PO2. A group with a failed member contributes to NO within-world delta.
+
+    Nor is it repaired from its surviving members: a clean+mild pair inside a failed
+    triad yields no mild-minus-clean delta either, because the GROUP it belonged to is
+    incomplete. It stays visible in the attempt counts.
+    """
+    cfg = _gen_cfg(tmp_path, eval_every=0)
+    manifest = _one_world_manifest()
+    doomed = manifest.worlds[0].seed
+    rewards = {"clean": -0.1, "mild": -0.2, "severe": -0.5}
+
+    def body(policy, gen, cfg_, *, seed, episode_tag, deterministic,
+             fuel_damage_mode=None, cardinality=None, **extra):
+        cell = {"forced_clean": "clean", "forced_mild": "mild",
+                "forced_severe": "severe"}[fuel_damage_mode]
+        if seed == doomed and cell == "severe":
+            raise EpisodeAttemptError("setup", ValueError("no strict window"))
+        return _bench_outcome(
+            fuel_damage_mode,
+            hidden_realized=cardinality.hidden_requested, reward=rewards[cell],
+            identity=WorldIdentity(
+                hidden_realized=cardinality.hidden_requested,
+                known_realized=cardinality.known_count,
+                geometric_fingerprint=((float(seed), 1.0),),
+                fd_selected_ordinal=0, fd_certificate_fingerprint="c%d" % seed,
+            ),
+        )
+
+    record = _run_benchmark_round(cfg, manifest, tmp_path, body=body)
+
+    assert record["n_attempted"] == 18
+    assert record["n_successful"] == 17 and record["n_failed"] == 1
+    # FIVE complete groups, not six -- the failed member's group contributes to none.
+    assert record["n_groups_attempted"] == 6
+    assert record["n_groups_successful"] == 5
+    for key in record["benchmark_delta_keys"]:
+        assert record["%s_n" % key] == 5, key
+    for key, expected in (("eval_delta_severe_minus_clean", -0.4),
+                          ("eval_delta_mild_minus_clean", -0.1),
+                          ("eval_delta_severe_minus_mild", -0.3)):
+        assert abs(record[key] - expected) < 1e-9, (key, record[key])
+
+    # The surviving members of the incomplete group ARE still counted as episodes.
+    strata = record["benchmark_strata"]
+    doomed_world = manifest.worlds[0]
+    assert strata[doomed_world.stratum_key("clean")]["n_successful"] == 1
+    assert strata[doomed_world.stratum_key("severe")]["n_successful"] == 0
+    assert strata[doomed_world.stratum_key("severe")]["n_failed"] == 1
+    assert strata[doomed_world.stratum_key("severe")]["reward_mean"] is None
+    # NOTHING was substituted for the failed member.
+    ledger = _read_records(tmp_path, "episode_failures.jsonl")
+    assert len(ledger) == 1
+    assert ledger[0]["seed"] == doomed
+    assert ledger[0]["benchmark_stratum"] == doomed_world.stratum_key("severe")
+    assert ledger[0]["benchmark_group_key"] == doomed_world.key
+
+
+def test_gen_a_matched_group_that_built_two_worlds_aborts(tmp_path: Path) -> None:
+    """PO2. Members that disagree about their world are an INSTRUMENT fault.
+
+    Their delta would be a between-worlds comparison wearing a within-world label, so the
+    round stops rather than reporting it.
+    """
+    cfg = _gen_cfg(tmp_path, eval_every=0)
+    manifest = _one_world_manifest()
+    target = manifest.worlds[0].seed
+
+    def body(policy, gen, cfg_, *, seed, episode_tag, deterministic,
+             fuel_damage_mode=None, cardinality=None, **extra):
+        # The SEVERE member of one world reports a different certified ego ordinal.
+        ordinal = 3 if (seed == target and fuel_damage_mode == "forced_severe") else 0
+        return _bench_outcome(
+            fuel_damage_mode,
+            hidden_realized=cardinality.hidden_requested,
+            identity=WorldIdentity(
+                hidden_realized=cardinality.hidden_requested,
+                known_realized=cardinality.known_count,
+                geometric_fingerprint=((float(seed), 1.0),),
+                fd_selected_ordinal=ordinal,
+                fd_certificate_fingerprint="c%d" % seed,
+            ),
+        )
+
+    try:
+        _run_benchmark_round(cfg, manifest, tmp_path, body=body)
+    except BenchmarkIdentityError as exc:
+        assert "did not produce the same world" in str(exc)
+    else:
+        raise AssertionError("a mismatched matched group was accepted")
+
+    # An instrument fault is NEVER written to the scientific ledger.
+    assert not (tmp_path / "episode_failures.jsonl").exists() or not _read_records(tmp_path, "episode_failures.jsonl")
+
+
+def test_gen_a_frozen_preflight_mismatch_aborts(tmp_path: Path) -> None:
+    """PO2. A preflighted world that comes out different is REFUSED, not substituted."""
+    cfg = _gen_cfg(tmp_path, eval_every=0)
+    preflight = {
+        "hidden_realized": 99, "known_realized": 99,
+        "geometric_fingerprint": [[0.0, 0.0]],
+        "fd_selected_ordinal": 0, "fd_certificate_fingerprint": "frozen",
+    }
+    from match_aou.rl.training.graph_generalized import BENCHMARK_BASE_CELLS
+    manifest = build_benchmark_manifest(worlds=[
+        {"agent_count": a, "load_bucket": bucket, "seed": 3_000_000 + i,
+         **({"preflight": preflight} if i == 0 else {})}
+        for i, (a, bucket) in enumerate(BENCHMARK_BASE_CELLS)
+    ])
+
+    def body(policy, gen, cfg_, *, seed, episode_tag, deterministic,
+             fuel_damage_mode=None, cardinality=None, **extra):
+        return _bench_outcome(
+            fuel_damage_mode,
+            hidden_realized=cardinality.hidden_requested,
+            identity=WorldIdentity(
+                hidden_realized=cardinality.hidden_requested,
+                known_realized=cardinality.known_count,
+                geometric_fingerprint=((1.0, 2.0),),
+                fd_selected_ordinal=0, fd_certificate_fingerprint="observed",
+            ),
+        )
+
+    try:
+        _run_benchmark_round(cfg, manifest, tmp_path, body=body)
+    except BenchmarkIdentityError as exc:
+        assert "frozen manifest" in str(exc)
+        assert "REFUSED" in str(exc)
+    else:
+        raise AssertionError("a world differing from its frozen manifest was accepted")
+
+
+def test_gen_a_tampered_manifest_never_reaches_a_run(tmp_path: Path) -> None:
+    """PO2. `train` verifies the frozen population BEFORE it creates anything.
+
+    A manifest that fails its own content hash must cost nothing and leave nothing
+    behind -- not a run directory, not a config, not a ledger.
+    """
+    manifest = _one_world_manifest()
+    path = write_benchmark_manifest(manifest, tmp_path / "bench.json")
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["worlds"][0]["seed"] = 999_999
+    path.write_text(json.dumps(record), encoding="utf-8")
+
+    run_dir = tmp_path / "run"
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=1, base_seed=0, output_dir=run_dir,
+        eval_every=1, eval_episodes=1, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        benchmark_manifest=str(path),
+    )
+    try:
+        _run_stub_training(cfg, wakes_per_episode=1)
+    except BenchmarkManifestError as exc:
+        assert "identity MISMATCH" in str(exc)
+    else:
+        raise AssertionError("a tampered manifest was accepted by train()")
+    assert not run_dir.exists(), "a refused manifest must leave no run directory"
+
+
+def test_gen_run_config_records_the_design_the_sampler_and_the_manifest(
+    tmp_path: Path,
+) -> None:
+    """PO3. `run_config.json` states the population, its rule, and the frozen benchmark.
+
+    The manifest's content HASH is what makes "the two arms ran the same benchmark" a
+    checkable claim rather than an assertion.
+    """
+    manifest = _one_world_manifest()
+    path = write_benchmark_manifest(manifest, tmp_path / "bench.json")
+    cfg = TrainConfig(
+        n_iterations=1, episodes_per_iteration=1, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=1, eval_episodes=1, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        benchmark_manifest=str(path),
+    )
+    _run_stub_training(cfg, wakes_per_episode=1)
+    payload = json.loads(
+        (Path(cfg.output_dir) / "run_config.json").read_text(encoding="utf-8"))
+
+    block = payload["episode_design"]
+    assert block["design"] == EPISODE_DESIGN_GENERALIZED_V1
+    assert block["generalized"] is True
+    assert block["hidden_policy"] == cfg.design.hidden_policy
+    assert block["reference_policy"] == cfg.design.reference_policy
+    assert block["target_destruction_probability"] == 1.0
+    assert block["cardinality_sampler"]["policy"] == \
+        "generalized_cardinality_uniform_v1"
+    assert block["fixed_cell"] is None
+    assert block["benchmark_manifest"]["manifest_id"] == manifest.manifest_id
+    assert block["benchmark_manifest"]["n_strata"] == 18
+    assert block["benchmark_manifest"]["n_worlds"] == manifest.n_worlds
+
+    # The HISTORICAL run records the same block truthfully, the other way round.
+    fixed = TrainConfig(n_iterations=1, episodes_per_iteration=1, base_seed=0,
+                        output_dir=tmp_path / "fixed", eval_every=0, checkpoint_every=0)
+    _run_stub_training(fixed, wakes_per_episode=1)
+    fixed_block = json.loads(
+        (Path(fixed.output_dir) / "run_config.json").read_text(encoding="utf-8")
+    )["episode_design"]
+    assert fixed_block["design"] == EPISODE_DESIGN_FIXED_CELL_V1
+    assert fixed_block["generalized"] is False
+    assert fixed_block["cardinality_sampler"] is None, (
+        "a configured cell was not sampled, and must not claim a sampler"
+    )
+    assert fixed_block["fixed_cell"] == {"num_agents": 3, "n_known": 3, "n_hidden": 3}
+    assert fixed_block["benchmark_manifest"] is None
+
+
+def test_gen_reference_attrition_is_accounted_and_contradiction_aborts() -> None:
+    """PO3. The reference-fault routing, through the REAL `_run_one_episode`.
+
+    An unanswered solve is a fact about ONE attempt: it is wrapped as an ordinary
+    `reward`-stage episode failure and enters `skip_and_account_v1`. An instrument
+    contradiction implicates every episode the reference layer touched, so it propagates
+    unwrapped and ABORTS. Neither can ever become a successful zero-reference episode.
+    """
+    ctx = _reference_ctx(done=set())
+
+    def _raise(reason):
+        def boom(*a, **k):
+            raise ReferenceIntegrityError("identical text", reason=reason)
+
+        return _run_one_episode_against(ctx, reward=boom)
+
+    # (a) ATTRITION: wrapped, staged, and therefore accountable.
+    try:
+        _raise(REFERENCE_FAULT_SOLVE_UNACCEPTABLE)
+    except EpisodeAttemptError as exc:
+        assert exc.stage == "reward"
+        assert isinstance(exc.original, ReferenceIntegrityError)
+        assert exc.original.reason == REFERENCE_FAULT_SOLVE_UNACCEPTABLE
+    else:
+        raise AssertionError("an unanswered solve must be accounted, not silent")
+
+    # (b) INTEGRITY: unwrapped, so both attempt handlers re-raise it and the run stops.
+    try:
+        _raise(REFERENCE_FAULT_MISSING)
+    except EpisodeAttemptError:
+        raise AssertionError("an instrument contradiction must NOT be accounted")
+    except ReferenceIntegrityError as exc:
+        assert exc.reason == REFERENCE_FAULT_MISSING
+        assert exc.is_measurement_integrity is True
+    else:
+        raise AssertionError("an instrument contradiction must abort")
+
+
+def test_gen_cli_and_rollout_expose_the_selector_without_drift() -> None:
+    """PO1. Both harnesses expose the selector, and neither CLI default drifts.
+
+    The defaults are read OFF the dataclasses rather than restated as literals, which is
+    the same anti-drift discipline every other flag in this parser holds to.
+    """
+    from match_aou.rl.training import graph_rollout as gr
+
+    train_args = graph_train._build_arg_parser().parse_args(["--iterations", "1"])
+    assert train_args.episode_design == TrainConfig(n_iterations=1).episode_design
+    assert train_args.benchmark_manifest == TrainConfig(n_iterations=1).benchmark_manifest
+
+    roll_args = gr._build_arg_parser().parse_args([])
+    assert roll_args.episode_design == gr.RolloutConfig().episode_design
+    assert roll_args.fuel_damage_mode == gr.RolloutConfig().fuel_damage_mode
+
+    # The selector is a real choice on both, and both DEFAULT to the historical design.
+    for parser in (graph_train._build_arg_parser(), gr._build_arg_parser()):
+        actions = {a.dest: a for a in parser._actions}
+        assert set(actions["episode_design"].choices) == {
+            EPISODE_DESIGN_FIXED_CELL_V1, EPISODE_DESIGN_GENERALIZED_V1
+        }
+        assert actions["episode_design"].default == EPISODE_DESIGN_FIXED_CELL_V1
+
+    # A preset may set it, through the ONE dest->field mapping.
+    assert graph_train._CLI_FIELD_BY_DEST["episode_design"] == "episode_design"
+    assert graph_train._CLI_FIELD_BY_DEST["benchmark_manifest"] == "benchmark_manifest"
+
+    # And a generalized ROLLOUT stays diagnostic: it exposes no benchmark at all.
+    assert not hasattr(gr.RolloutConfig(), "benchmark_manifest")
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -5225,6 +6024,39 @@ if __name__ == "__main__":
          test_an_eval_fuel_damage_integrity_fault_aborts_the_round, True),
         ("an_ordinary_fuel_damage_failure_is_still_accounted_attrition",
          test_an_ordinary_fuel_damage_failure_is_still_accounted_attrition, True),
+        # --- GENERALIZED-V1 Task 4: selection, cardinality, benchmark, persistence ---
+        ("gen_a_fixed_cell_run_passes_no_generalized_keyword",
+         test_gen_a_fixed_cell_run_passes_no_generalized_keyword, True),
+        ("gen_a_generalized_run_passes_the_sampled_cardinality",
+         test_gen_a_generalized_run_passes_the_sampled_cardinality, True),
+        ("gen_the_fd_parameters_carry_the_designs_two_policies",
+         test_gen_the_fd_parameters_carry_the_designs_two_policies, False),
+        ("gen_validate_refuses_a_half_configured_generalized_run",
+         test_gen_validate_refuses_a_half_configured_generalized_run, True),
+        ("gen_short_realization_is_accounted_and_a_lying_audit_aborts",
+         test_gen_short_realization_is_accounted_and_a_lying_audit_aborts, False),
+        ("gen_the_outcome_record_states_the_design_and_the_cardinality",
+         test_gen_the_outcome_record_states_the_design_and_the_cardinality, True),
+        ("gen_the_failure_ledger_keeps_the_scheduled_world",
+         test_gen_the_failure_ledger_keeps_the_scheduled_world, True),
+        ("gen_the_summary_reports_requested_vs_realized",
+         test_gen_the_summary_reports_requested_vs_realized, True),
+        ("gen_benchmark_round_reports_all_18_strata_with_denominators",
+         test_gen_benchmark_round_reports_all_18_strata_with_denominators, True),
+        ("gen_benchmark_deltas_use_complete_groups_only",
+         test_gen_benchmark_deltas_use_complete_groups_only, True),
+        ("gen_a_matched_group_that_built_two_worlds_aborts",
+         test_gen_a_matched_group_that_built_two_worlds_aborts, True),
+        ("gen_a_frozen_preflight_mismatch_aborts",
+         test_gen_a_frozen_preflight_mismatch_aborts, True),
+        ("gen_a_tampered_manifest_never_reaches_a_run",
+         test_gen_a_tampered_manifest_never_reaches_a_run, True),
+        ("gen_run_config_records_the_design_the_sampler_and_the_manifest",
+         test_gen_run_config_records_the_design_the_sampler_and_the_manifest, True),
+        ("gen_reference_attrition_is_accounted_and_contradiction_aborts",
+         test_gen_reference_attrition_is_accounted_and_contradiction_aborts, False),
+        ("gen_cli_and_rollout_expose_the_selector_without_drift",
+         test_gen_cli_and_rollout_expose_the_selector_without_drift, False),
     ]
     for name, fn, needs_tmp in tests:
         try:
