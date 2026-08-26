@@ -239,18 +239,37 @@ episode's second MATCH-AOU reference solve out of setup and into `run_episode`. 
 default OFF, and with the defaults the pipeline above is exactly what runs.** §5 owns every
 one of those contracts.
 
-**SINCE GENERALIZED-V1 TASK 4 (`db79013`, integrated `b4daa8c`, PR #40) THE FIVE SEAMS ARE
-SELECTED TOGETHER BY ONE HARNESS KNOB, AND NEVER INDIVIDUALLY.**
+**COUNT THE SEAMS AND THE POLICY IDS SEPARATELY — THEY ARE DIFFERENT QUANTITIES.** The
+paragraph above counts FIVE PIPELINE SEAM SITES (its fifth being the two further
+`run_episode` steps the completion-boundary policy opens). Those five sites are opened by
+**FOUR** low-level POLICY IDS: `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy`
+and `reference_policy`. **A seam count is not a policy-id count**, and neither is a count of
+what the generalized harness does besides resolving policies.
+
+**SINCE GENERALIZED-V1 TASK 4 (`db79013`, integrated `b4daa8c`, PR #40) THOSE FOUR POLICY
+IDS ARE RESOLVED TOGETHER BY ONE HARNESS KNOB, AND NEVER INDIVIDUALLY.**
 `TrainConfig.episode_design` / `RolloutConfig.episode_design` ∈
 `graph_generalized.EPISODE_DESIGNS` = (`fixed_cell_v1`, `generalized_v1`), DEFAULTING to
-`fixed_cell_v1`. `fixed_cell_v1` resolves the four historical policy ids, so the diagram
-above is still exactly what a default run executes; `generalized_v1` resolves the COMPLETE
-approved bundle in one word. **There is deliberately no per-policy harness field** —
-`hidden_policy`, `eligibility_policy`, `post_fd_wake_policy` and `reference_policy` are
-resolved from the one selector and are not independently settable from a config, a preset
-or a CLI flag — so a run can never resolve half a bundle. *(SUPERSEDED, and corrected here:
-this paragraph previously ended "no harness selects any of them today". That was accurate
-before PR #40 and is not now.)* §5 owns the selector contract.
+`fixed_cell_v1`. `graph_generalized.EpisodeDesign` carries the design id plus **EXACTLY
+those four** low-level policy ids and no others, and `resolve_episode_design` resolves
+exactly them. `fixed_cell_v1` resolves the four historical ids, so the diagram above is
+still exactly what a default run executes; `generalized_v1` resolves the COMPLETE approved
+bundle in one word. **There is deliberately no per-policy harness field** — the four are
+resolved from the one selector and are not independently settable from a config, a preset or
+a CLI flag — so a run can never resolve half a bundle.
+
+**TWO GENERALIZED-PATH BEHAVIOURS SIT BESIDE THAT RESOLUTION AND ARE NOT POLICY IDS ON
+`EpisodeDesign`.** (1) **`fuel_damage_mode` REMAINS A SEPARATE `TrainConfig` /
+`RolloutConfig` FIELD.** `validate()` REQUIRES it to be `seeded_variable` under
+`generalized_v1`, but the selector neither carries it nor sets it, and it keeps its own
+independent value on the fixed-cell path. (2) **The generalized TRAINING CARDINALITY SAMPLER
+is harness / POPULATION behaviour selected on the generalized path**, not a fifth policy id:
+`episode_cardinality` consults it because `cfg.generalized` is true, and `EpisodeDesign`
+neither names nor returns it. *(SUPERSEDED, and corrected here: this paragraph previously
+ended "no harness selects any of them today", and a later revision said "THE FIVE SEAMS ARE
+SELECTED TOGETHER BY ONE HARNESS KNOB". The first was accurate before PR #40; the second
+miscounted — `EpisodeDesign` holds FOUR low-level policy ids, not five.)* §5 owns the
+selector contract.
 
 **THE REWARD-REFERENCE SEAM (GENERALIZED-V1 Task 3, `24a8b1e`) CHANGES WHERE AND AGAINST
 WHAT THE SECOND SOLVE HAPPENS — NEVER THE CREDIT PLACEMENT.** Under the default
@@ -1792,21 +1811,35 @@ BENCHMARK MANIFEST AND RUN-LEVEL PERSISTENCE — `rl/training/graph_generalized.
 `rl/training/graph_train.py` + `rl/training/graph_rollout.py` + `rl/training/graph_reward.py`
 + `rl/training/graph_episode_setup.py` (`db79013`, integrated `b4daa8c`, PR #40 — §7).**
 
-This is the HARNESS-and-POPULATION layer over the five already-locked Task-1/2/3 policy
-seams. It adds NO new episode mechanism: the bounded-backoff placement geometry, the FD
-certification physics, the post-FD boundary semantics and the continuation-reference
-arithmetic are exactly the contracts above, and this layer only names their policy ids,
-decides which POPULATION an episode is drawn from, and makes what those layers already
-produce durable and aggregable.
+This is the HARNESS-and-POPULATION layer over the already-locked Task-1/2/3 policy seams
+(FOUR low-level policy ids, opening the five pipeline seam sites §4 enumerates). It adds NO
+new episode mechanism: the bounded-backoff placement geometry, the FD certification physics,
+the post-FD boundary semantics and the continuation-reference arithmetic are exactly the
+contracts above, and this layer only names their policy ids, decides which POPULATION an
+episode is drawn from, and makes what those layers already produce durable and aggregable.
 
 **ONE SELECTOR, ONE RESOLUTION SITE, AND THE BUNDLE IS ALL-OR-NOTHING.**
 `graph_generalized.EPISODE_DESIGNS = (EPISODE_DESIGN_FIXED_CELL_V1,
 EPISODE_DESIGN_GENERALIZED_V1)`, spelled `fixed_cell_v1` / `generalized_v1`, and
 `resolve_episode_design(id) -> EpisodeDesign` is the ONE site that turns an id into the four
-low-level policy ids. `EpisodeDesign` is a frozen record — `design`, `hidden_policy`,
-`eligibility_policy`, `post_fd_wake_policy`, `reference_policy`, plus the `generalized`
-predicate and `to_record()` — deliberately a record rather than four loose strings, **so a
+low-level policy ids. `EpisodeDesign` is a frozen record carrying the design id plus
+**EXACTLY FOUR** low-level policy ids and no others — `design`, then `hidden_policy`,
+`eligibility_policy`, `post_fd_wake_policy`, `reference_policy` — plus the `generalized`
+predicate and `to_record()`; deliberately a record rather than four loose strings, **so a
 partially-resolved bundle is not expressible.**
+
+**WHAT THE SELECTOR DOES *NOT* CARRY, AND MUST NEVER BE DESCRIBED AS CARRYING.**
+`EpisodeDesign` holds FOUR low-level policy ids — **not five** — and two further
+generalized-path behaviours sit BESIDE it rather than inside it:
+
+- **`fuel_damage_mode` IS A SEPARATE `TrainConfig` / `RolloutConfig` FIELD.** Under
+  `generalized_v1` `validate()` REQUIRES it to be `seeded_variable` (below), but the
+  selector neither carries it, sets it, nor returns it, and on the fixed-cell path it keeps
+  its own independent value. A required companion setting is not a resolved policy id.
+- **THE GENERALIZED TRAINING CARDINALITY SAMPLER IS HARNESS / POPULATION BEHAVIOUR**, not a
+  fifth policy id. `episode_cardinality` consults it because `cfg.generalized` is true;
+  `EpisodeDesign` neither names nor returns it, and `cardinality_sampler_record()` is a
+  separate `run_config.json` block.
 
 - **`fixed_cell_v1` IS THE DEFAULT AND IS THE PRESERVED HISTORICAL BEHAVIOUR IN FULL.**
   `FIXED_CELL_V1` = (`exact_v1`, `legacy_selected_ego_v1`, `single_wake_v1`,
@@ -1888,15 +1921,25 @@ CONDITIONAL on `A`; and `K = A` by definition, not by a draw. So a requested wor
   and about `H_requested`, else `EpisodeRosterError`. `_require_scheduled_cell` is otherwise
   unchanged, so a short realization is ACCOUNTED, not rejected.
 
-**THE FROZEN STRATIFIED BENCHMARK — MECHANISM ONLY. THE SCIENTIFIC SCALE IS NOT CHOSEN, AND
-NO CONCRETE BENCHMARK POPULATION EXISTS.** Task 4 delivered the SCHEMA, the BUILDER, the
-canonical serialization, the content hash, the LOADER and its verification, the CONSUMER
-(`evaluate_benchmark`) and the identity checks. **It did NOT choose the final
-worlds-per-cell scale and did NOT generate, commit or freeze a scientific benchmark
-population** — the repository contains no manifest file, `build_benchmark_manifest` is
-library-only and is exercised by tests alone, and **choosing the scale is later work that
-owns bounded runtime / solver validation first**. Nothing in this document may be read as
-saying a final benchmark manifest exists.
+**THE FROZEN STRATIFIED BENCHMARK — MECHANISM ONLY. NO FINAL SCIENTIFIC SCALE HAS BEEN
+SELECTED AND NO FINAL SCIENTIFIC BENCHMARK POPULATION EXISTS.** Task 4 delivered the SCHEMA,
+the BUILDER, the canonical serialization, the content hash, the LOADER and its verification,
+the CONSUMER (`evaluate_benchmark`) and the identity checks. **It did NOT select the final
+scientific worlds-per-cell SCALE, and no final scientific benchmark POPULATION has been
+committed, preserved as the comparator, scheduled or authorized** — no benchmark manifest is
+committed or tracked in the repository, `build_benchmark_manifest` has no production caller
+and is exercised by tests alone, and **selecting the scale is later work that owns bounded
+runtime / solver validation first**. Nothing in this document may be read as saying a final
+scientific benchmark manifest exists.
+
+**STATE THAT NEGATIVE AT THE RIGHT SCOPE.** The claim above is about the FINAL SCIENTIFIC
+artifact and about repository state, both of which are checkable. It is deliberately **NOT**
+a claim that no manifest object or file has ever been constructed at all: the test suite and
+engineering validation legitimately BUILD transient manifests in memory and in temporary
+directories, and repository state cannot establish a global negative over every local
+scratch file. What is asserted, and all that is asserted, is that **no benchmark manifest is
+committed or tracked here, and no final scientific benchmark population exists as an
+approved artifact.**
 
 - **18 REQUESTED STRATA, built from a product rather than listed** so the count cannot drift
   from the design: `A ∈ {2,3,4}` × load bucket ∈ `LOAD_BUCKETS = (low, high)` × cell ∈
@@ -1946,13 +1989,28 @@ saying a final benchmark manifest exists.
   within-world claims are the three deltas.
 
 **THE MANIFEST IS CANONICAL AND CONTENT-ADDRESSED, AND THE LOADER AUTHENTICATES THE EXACT
-STORED BYTES.** `_canonical_json` (sorted keys, no insignificant whitespace, ASCII-escaped,
-`allow_nan=False`) is the ONE serialization site behind both the hash and the written file,
-so a manifest's identity cannot depend on which of the two produced the bytes. `manifest_id`
-is the SHA-256 of the canonical `payload()`, which EXCLUDES `manifest_id` itself because a
-self-referential identity is unverifiable. `write_benchmark_manifest` writes those canonical
-bytes, so the file hashes to its own id. `manifest_from_record` verifies in this order, and
-**repairs nothing**:
+STORED PAYLOAD.** `_canonical_json` (sorted keys, no insignificant whitespace,
+ASCII-escaped, `allow_nan=False`) is the ONE serialization site behind both the hash and the
+written file, so a manifest's identity cannot depend on which of the two produced the bytes.
+
+**WHAT `manifest_id` IS THE HASH OF — STATED EXACTLY, BECAUSE THE SHORTHAND IS FALSE.**
+`BenchmarkManifest.payload()` is the canonical content and **EXCLUDES `manifest_id`
+itself**, because a self-referential identity is unverifiable; `manifest_id` is the SHA-256
+of `_canonical_json(payload())`. `to_record()` is `payload()` **PLUS** `manifest_id`, and
+`write_benchmark_manifest` writes `_canonical_json(to_record())`. **So the manifest_id is
+the hash of the canonical PAYLOAD, and it is NOT the SHA-256 of the full serialized file
+bytes** — the file additionally contains the id itself, so hashing the whole file cannot
+reproduce it. `manifest_from_record` closes exactly that gap by RECONSTRUCTING the payload
+from the document: it removes `manifest_id` to form `stored_payload`, hashes THAT and
+compares it against the stored id (step 2), and then independently requires
+`stored_payload` to equal the canonical payload the parsed manifest produces (step 4).
+*(SUPERSEDED, and corrected here: this paragraph previously said `write_benchmark_manifest`
+writes those canonical bytes "so the file hashes to its own id". That shorthand is literally
+false and is replaced by the statement above. The SOURCE-CODE docstrings use the same
+shorthand; **this contract, and the code's behaviour, are authoritative — no source file was
+touched by this documentation task.**)*
+
+`manifest_from_record` verifies in this order, and **repairs nothing**:
 
 1. the document must carry a non-empty `manifest_id` and declare THIS `schema`
    (`generalized_v1_benchmark_manifest`), `schema_version` (`1`) and `design`
@@ -2083,12 +2141,28 @@ recomputed, so this stream cannot disagree with the aggregate that summarizes it
 `EpisodeReward` field added for an internal purpose does not silently start appearing in a
 scientific artifact.
 
-**THE FAILURE LEDGER KEEPS THE WORLD THAT WAS SCHEDULED.** A failed attempt records
-`agent_count` / `known_requested` / `hidden_requested` / `cardinality_source` and the
-benchmark identity keys **precisely because it never built a world**: without them a failed
-HIGH-load attempt would be invisible in the requested-vs-realized distribution and a failed
-benchmark member would be missing from its stratum's denominator, so both would silently
-shrink. It also records `reference_fault_reason` — which, by the routing above, **can only
+**THE FAILURE LEDGER KEEPS THE SCHEDULED POPULATION IDENTITY, WHETHER OR NOT A WORLD WAS
+BUILT.** A failed attempt records `agent_count` / `known_requested` / `hidden_requested` /
+`cardinality_source` and the benchmark identity keys — the world it was SCHEDULED to build.
+It records those because **a failed attempt leaves NO successful `episode_outcomes` record,
+so nothing else in the artifacts can reconstruct which stratum and which requested load the
+attempt belonged to**: without them a failed HIGH-load attempt would be invisible in the
+requested-vs-realized distribution and a failed benchmark member would be missing from its
+stratum's denominator, so both would silently shrink.
+
+**A FAILED ATTEMPT MAY HAVE FAILED BEFORE *OR* AFTER WORLD CONSTRUCTION, AND THE STAGE
+ATTRIBUTION IS UNCHANGED.** `skip_and_account_v1` accounts failures at four stages —
+`generation`, `setup`, `run`, `reward` — and only the first two are necessarily
+pre-construction: a `run`- or `reward`-stage failure occurs after `setup_episode` really
+built a world and, at `reward` stage, after `run_episode` really executed one. **The ledger
+therefore records the SCHEDULED cardinality, never a realized one** (there may be no
+realized measurement it could safely report, and reading one out of a failed attempt is
+exactly the reconstruction this contract refuses). *(SUPERSEDED, and corrected here: this
+paragraph previously said those keys are recorded "precisely because it never built a
+world". That is true of a `generation` / `setup` failure and FALSE of a `run` / `reward`
+one; the stage taxonomy itself is unchanged.)*
+
+The ledger also records `reference_fault_reason` — which, by the routing above, **can only
 ever carry the attrition case**, since an aborting reference fault never reaches this ledger
 at all. A failure is still recorded ONCE, still never retried and still never replaced.
 
@@ -2174,7 +2248,9 @@ untouched. No actor, encoder, `ActionHead`, PPO, GAE or critic architecture chan
 `static_t0_v1` formula; no change to the no-communication boundary; no peer behaviour change
 and no communication channel of any kind; `DETECTION_KM`, the B2 geometry and the training
 seed formulas are unchanged. **No repository preset selects `generalized_v1`, no benchmark
-manifest exists in the repository, no final scientific benchmark scale has been chosen, and
+manifest is committed or tracked in the repository, no FINAL SCIENTIFIC benchmark
+worlds-per-cell scale has been SELECTED, no FINAL SCIENTIFIC benchmark population or
+manifest has been committed, preserved as the comparator, scheduled or authorized, and
 NO GENERALIZED SCIENTIFIC MEASUREMENT EXISTS, IS RUNNING, IS SCHEDULED OR IS AUTHORIZED**
 (§8). **No actor-only-vs-CTDE generalized result exists either.** The approved Phase-A
 (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements are untouched and remain
@@ -2415,7 +2491,7 @@ a stub, because normal production does not currently generate it.
 | Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `sync_recordings` / `finalize` (which reconciles expected vs observed world counts before it will say `complete`) / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
 | SELECT the EPISODE POPULATION — `fixed_cell_v1` (DEFAULT, historical) vs `generalized_v1` (the complete approved bundle) | `rl/training/graph_generalized.py` (`EPISODE_DESIGNS`, `EPISODE_DESIGN_FIXED_CELL_V1` / `EPISODE_DESIGN_GENERALIZED_V1`, `EpisodeDesign`, `FIXED_CELL_V1` / `GENERALIZED_V1`, `resolve_episode_design`) + `rl/training/graph_train.py` (`TrainConfig.episode_design` / `.design` / `.generalized`, `--episode-design`, the `validate()` generalized rules, `_generalized_setup_kwargs`, `_cardinality_kwargs`) + `rl/training/graph_rollout.py` (`RolloutConfig.episode_design` / `.design` / `.generalized`, `--episode-design`). **RESEARCH-VALIDITY / GRADE A**: the bundle is ALL-OR-NOTHING and there is deliberately NO per-policy harness field — `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy` and `reference_policy` are resolved from this ONE selector, an unknown id RAISES, and `fixed_cell_v1` is the DEFAULT the approved measurements (`737b4bf`, `bf1e045f`) were taken on. `training_mode` is ORTHOGONAL and unaffected (§5) |
 | Change the GENERALIZED TRAINING CARDINALITY SAMPLER (`A ~ U{2,3,4}`, `K == A`, `H_requested ~ U{1..A}`) | `rl/training/graph_generalized.py` (`sample_generalized_cardinality`, `derive_cardinality_seed`, `CARDINALITY_RNG_DOMAIN`, `CARDINALITY_SAMPLER_POLICY`, `EpisodeCardinality`, `CARDINALITY_SOURCES`, `fixed_cell_cardinality`, `cardinality_sampler_record`, the MIRRORED `GENERALIZED_AGENT_COUNTS`) + `rl/training/graph_train.py` (`episode_cardinality`, `build_variation_config(..., cardinality=...)`, `_scheduled_cell`, `_require_scheduled_cell`). **RESEARCH-VALIDITY / GRADE A**: the sampler's SHA-256 seed domain is SEPARATE from the three fuel-damage domains, from the placement rng, from global `random` and from torch — merging any of them would move the ego every damaged episode selects, or couple a world's SHAPE to action sampling. `H_requested` is NEVER rewritten to match `H_realized`; a short realization is RECORDED, never retried or replaced (§5) |
-| Build, freeze, load or CONSUME the STRATIFIED BENCHMARK MANIFEST | `rl/training/graph_generalized.py` (`BENCHMARK_STRATA` / `BENCHMARK_BASE_CELLS` / `BENCHMARK_CELLS` / `BENCHMARK_MEMBERS` / `BENCHMARK_DELTAS` / `LOAD_BUCKETS`, `Stratum`, `BenchmarkWorld`, `WorldPreflight`, `BenchmarkManifest`, `build_benchmark_manifest`, `manifest_from_record`, `load_benchmark_manifest`, `write_benchmark_manifest`, `manifest_identity`, `_canonical_json` / `_content_hash` / `_payload_differences`, `manifest_seed_overlap`, `WorldIdentity`, `certificate_fingerprint`, `require_world_matches_manifest`, `require_matched_group_identity`, `BenchmarkManifestError`, `BenchmarkIdentityError`) + `rl/training/graph_train.py` (`TrainConfig.benchmark_manifest`, `--benchmark-manifest`, `_require_benchmark_seeds_held_out`, `_require_benchmark_tag_namespace`, `evaluate_benchmark`, `_BenchmarkTally`, `_benchmark_member_identity`, `_observe_world_identity`). **RESEARCH-VALIDITY / GRADE A**: the loader authenticates the EXACT STORED payload AND independently requires it to equal the canonical payload — both checks, neither implying the other; the stored world ORDER is part of the identity and is never re-sorted; no identity uses a generated uuid; deltas use COMPLETE three-member groups ONLY and a failed member is never retried or substituted; the SCALE is never defaulted. **NO manifest exists in the repository and NO final scientific scale has been chosen** (§5, §8) |
+| Build, freeze, load or CONSUME the STRATIFIED BENCHMARK MANIFEST | `rl/training/graph_generalized.py` (`BENCHMARK_STRATA` / `BENCHMARK_BASE_CELLS` / `BENCHMARK_CELLS` / `BENCHMARK_MEMBERS` / `BENCHMARK_DELTAS` / `LOAD_BUCKETS`, `Stratum`, `BenchmarkWorld`, `WorldPreflight`, `BenchmarkManifest`, `build_benchmark_manifest`, `manifest_from_record`, `load_benchmark_manifest`, `write_benchmark_manifest`, `manifest_identity`, `_canonical_json` / `_content_hash` / `_payload_differences`, `manifest_seed_overlap`, `WorldIdentity`, `certificate_fingerprint`, `require_world_matches_manifest`, `require_matched_group_identity`, `BenchmarkManifestError`, `BenchmarkIdentityError`) + `rl/training/graph_train.py` (`TrainConfig.benchmark_manifest`, `--benchmark-manifest`, `_require_benchmark_seeds_held_out`, `_require_benchmark_tag_namespace`, `evaluate_benchmark`, `_BenchmarkTally`, `_benchmark_member_identity`, `_observe_world_identity`). **RESEARCH-VALIDITY / GRADE A**: the loader authenticates the EXACT STORED payload AND independently requires it to equal the canonical payload — both checks, neither implying the other; the stored world ORDER is part of the identity and is never re-sorted; no identity uses a generated uuid; deltas use COMPLETE three-member groups ONLY and a failed member is never retried or substituted; the SCALE is never defaulted. **NO benchmark manifest is committed or tracked in the repository and NO FINAL SCIENTIFIC worlds-per-cell scale has been SELECTED — a transient manifest built by a test is neither committed nor a scientific population** (§5, §8) |
 | Persist or AGGREGATE the generalized per-episode diagnostics | `rl/training/graph_train.py` (`_episode_outcome_record` — schema version 2, `_reward_breakdown_record`, `_failure_record`'s scheduled-cardinality + `reference_fault_reason` fields, `_EMPTY_BENCHMARK_KEYS`, `_backoff_rejections` / `_eligibility_rejections`, `_generalized_summary` and `run_summary.json:/generalized`, `_construction_record`, `seed_bands(..., benchmark=...)` / `EVAL_SEED_SOURCE_MANIFEST`, the `episode_design` block of `write_run_config`, and the FOURTH `measurement_health.png` panel in `_plot_measurement_health`). **RESEARCH-VALIDITY / GRADE A**: every aggregate is DERIVED from the canonical jsonl streams (ONE metric path), every denominator is explicit, the two streams stay DISJOINT, `null` never means `0`, cross-round benchmark totals are flagged REPEATED MEASURES, and requested-vs-realized is REPORTED for human/GPT inspection with **no automatic acceptance threshold** (§5, §8) |
 | Route a REFERENCE fault — accounted attrition vs measurement-integrity ABORT | `rl/training/graph_reward.py` (`REFERENCE_FAULT_REASONS`, `REFERENCE_ATTRITION_REASONS`, `ReferenceIntegrityError(..., reason=...)` and `.is_measurement_integrity`, `reference_fault_aborts`) + `rl/training/graph_episode_setup.py` (the reason-carrying raise sites in `_solve_reference` / `build_t0_reference` / `build_continuation_reference`) + `rl/training/graph_train.py` (the `reference_fault_aborts` branches in `_run_one_episode`'s run and reward blocks, and the `except (_VisualArtifactError, MeasurementIntegrityError, FuelDamageIntegrityError, BenchmarkIdentityError, ReferenceIntegrityError)` re-raises in the train and both eval attempt handlers). **RESEARCH-VALIDITY / GRADE A**: `reason` is REQUIRED and closed, the routing reads the SLUG and NEVER the message, an unanswered solve is ordinary accounted attrition inside `skip_and_account_v1`, and every other reason ABORTS exactly as a roster or certificate fault does (§5) |
 | SELECT a training mode — ordinary scientific USE of the already-built CTDE layer | `rl/training/graph_train.py` (`TrainConfig.training_mode` ∈ `TRAINING_MODES` = `actor_only` / `ctde`, `TrainConfig.ctde_enabled`, the nested `ctde` preset block over `CTDEConfig`). Choosing a mode, writing a preset that sets it, or running a comparison is **CONFIGURATION and MEASUREMENT, not a contract change** — it needs no layer review. The DEFAULT is `actor_only`, and it is the path the approved Phase-A baseline was measured on. `value_coeff` is NOT a mode selector: `ctde` REJECTS `value_coeff <= 0` (§5). **It is ORTHOGONAL to `episode_design`**: it selects the training ALGORITHM, never the episode POPULATION, and changes no episode-design contract |
@@ -4230,9 +4306,13 @@ a stub, because normal production does not currently generate it.
   makes no pass/fail claim of its own.
   **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #40** — no baseline, no probe,
   no scientific rollout, no generalized campaign, and **no generalized measurement exists, is
-  running, is scheduled or may be pre-claimed.** **No final benchmark scale was chosen and no
-  concrete benchmark manifest was generated, committed or frozen**; bounded runtime / solver
-  validation before that scale is chosen is a SEPARATE later task. **No actor-only-vs-CTDE
+  running, is scheduled or may be pre-claimed.** **No FINAL SCIENTIFIC worlds-per-cell scale
+  was selected, and no FINAL SCIENTIFIC benchmark population was committed, preserved as the
+  comparator, scheduled or authorized** — no benchmark manifest is committed or tracked in
+  the repository, and transient manifests built by tests and engineering validation are
+  neither committed nor a scientific population (this record makes no claim about local
+  scratch files); bounded runtime / solver validation before that scale is selected is a
+  SEPARATE later task. **No actor-only-vs-CTDE
   generalized result exists.** The approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1
   (`bf1e045f`) measurements are untouched and remain measurements of the `fixed_cell_v1`
   bundle. This lock certifies the IMPLEMENTATION; §8 owns the phase state and the next step.
@@ -4248,9 +4328,11 @@ a stub, because normal production does not currently generate it.
   MAY BE PRE-CLAIMED.** The volatile phase state — ownership, the live next step, and what is
   and is not authorized — lives in `graph_rl_project_handoff.md`, which is the authority for
   it; this bullet records only what the REPOSITORY now contains and what it still does not.
-  - **WHAT EXISTS — THE FIVE POLICY SEAMS, AND THE ONE SELECTOR THAT RESOLVES THEM
-    TOGETHER.** Three OPT-IN policy families, five seams in total, every one defaulting to
-    the historical behaviour: the hidden-CARDINALITY policy (`exact_v1` default vs
+  - **WHAT EXISTS — THE FOUR LOW-LEVEL POLICY IDS, AND THE ONE SELECTOR THAT RESOLVES THEM
+    TOGETHER.** Three OPT-IN policy families supplying **FOUR** policy ids (which open the
+    five pipeline seam SITES §4 enumerates — a seam count is not a policy-id count), every
+    one defaulting to the historical behaviour: the hidden-CARDINALITY policy (`exact_v1`
+    default vs
     `bounded_backoff_v1`) with `EpisodeContext.construction_audit`; the FD pair
     (`legacy_selected_ego_v1` default vs `certified_both_severities_v1`, and
     `single_wake_v1` default vs `completion_boundary_v1`) with `FdEligibilityAudit`,
@@ -4259,10 +4341,14 @@ a stub, because normal production does not currently generate it.
     with `EpisodeContext.reference_policy` / `t0_reference_tasks`, `SolveAudit` /
     `solve_and_normalize_audited`, `build_t0_reference` / `build_continuation_reference`,
     `EpisodeResult.reference`, `EpisodeReference` and `ReferenceIntegrityError`. Since Task 4
-    they are selected TOGETHER, and only together, by `TrainConfig.episode_design` /
-    `RolloutConfig.episode_design` ∈ (`fixed_cell_v1` DEFAULT, `generalized_v1`), through the
-    single `graph_generalized.resolve_episode_design` site. §5 states each contract in full
-    and §6 routes them.
+    those four ids are resolved TOGETHER, and only together, by `TrainConfig.episode_design`
+    / `RolloutConfig.episode_design` ∈ (`fixed_cell_v1` DEFAULT, `generalized_v1`), through
+    the single `graph_generalized.resolve_episode_design` site, and
+    `graph_generalized.EpisodeDesign` carries EXACTLY those four and no others. **The
+    generalized cardinality sampler and the SEPARATE `fuel_damage_mode` field are NOT policy
+    ids on that record** — the first is harness / population behaviour selected on the
+    generalized path, the second a config field `validate()` merely REQUIRES to be
+    `seeded_variable` there. §5 states each contract in full and §6 routes them.
   - **WHAT TASK 4 ADDED.** `rl/training/graph_generalized.py` — the episode-design selector;
     the generalized TRAINING cardinality sampler (`A ~ U{2,3,4}`, `K == A`,
     `H_requested | A ~ U{1..A}`) on its own SHA-256 rng domain
@@ -4278,14 +4364,18 @@ a stub, because normal production does not currently generate it.
     per-episode structure into the existing `episode_outcomes.jsonl` /
     `episode_failures.jsonl`, the derived `run_summary.json:/generalized` aggregates, the
     fourth `measurement_health.png` panel, and rollout selector parity.
-  - **WHAT STILL DOES NOT EXIST, AND MUST NOT BE DESCRIBED AS IF IT DID.** **No final
-    scientific benchmark SCALE has been chosen and NO concrete benchmark POPULATION has been
-    generated, committed or frozen.** The repository contains no manifest file;
-    `build_benchmark_manifest` REFUSES to invent a world count and is exercised by tests
-    only; `configs/graph_train/final_cell_probe.json` remains the ONLY repository preset and
-    it is `fixed_cell_v1`; and **no generalized preset, contract or campaign exists.**
-    Bounded runtime / solver validation, before that scale is chosen, is a SEPARATE later
-    step and is NOT done. **SUPERSEDED, and corrected here:** this bullet previously said
+  - **WHAT STILL DOES NOT EXIST, AND MUST NOT BE DESCRIBED AS IF IT DID.** **No FINAL
+    SCIENTIFIC benchmark worlds-per-cell SCALE has been SELECTED, and no FINAL SCIENTIFIC
+    benchmark POPULATION has been committed, preserved as the comparator, scheduled or
+    authorized.** No benchmark manifest is committed or tracked in the repository;
+    `build_benchmark_manifest` REFUSES to invent a world count and has no production caller
+    (tests are its only consumer); `configs/graph_train/final_cell_probe.json` remains the
+    ONLY repository preset and it is `fixed_cell_v1`; and **no generalized preset, contract
+    or campaign exists.** **That negative is scoped deliberately:** transient manifests built
+    in memory or in a temporary directory by tests and engineering validation are legitimate,
+    are neither committed nor a scientific population, and repository state cannot establish
+    a global negative over local scratch files. Bounded runtime / solver validation, before
+    that scale is selected, is a SEPARATE later step and is NOT done. **SUPERSEDED, and corrected here:** this bullet previously said
     that neither harness carried any generalized policy field, that nothing persisted or
     aggregated the diagnostic structures, and that there was no generalized training sampler
     and no frozen stratified evaluation manifest. All of that was accurate before PR #40 and

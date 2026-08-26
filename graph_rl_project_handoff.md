@@ -67,8 +67,10 @@ approved candidate `db79013897a6e5669f50d53b6e30229b16aea28d`, integrated
 is CLOSED, no Task-4 implementation branch or PR is writable or active, no implementation
 candidate remains under review**, the **SINGLE NEXT UNRESOLVED STEP is GENERALIZED-V1
 TASK 5 — bounded runtime / solver validation BEFORE the final scientific run scale is
-decided — which is NOT started and is NOT authorized by this record**, **no final scientific
-benchmark population or worlds-per-cell scale has been chosen**, and **still NO generalized
+selected — which is NOT started and is NOT authorized by this record**, **no FINAL
+SCIENTIFIC benchmark worlds-per-cell scale has been SELECTED and no FINAL SCIENTIFIC
+benchmark population or manifest has been committed, preserved as the comparator, scheduled
+or authorized**, and **still NO generalized
 scientific measurement exists, is running, is scheduled or is authorized** (§1, §3l, §4, §7,
 §8, §9).
 
@@ -81,17 +83,20 @@ integration `ca0dc406…`, PR #36), Task 3 (candidate `24a8b1ee…`, integration
 PR #38, verdict **APPROVE**) and Task 4 (final candidate `db790138…`, integration
 `b4daa8c1…`, PR #40, verdict **APPROVE**) — so **§3l.1–§3l.7 are now implemented TO THE
 EXTENT those four tasks represent**, and their technical contracts are recorded in
-`CLAUDE.md` §4 / §5 / §6 / §7. All five policy seams stay OPT-IN with their historical
-defaults and are selected TOGETHER — and only together — by the ONE `episode_design`
-selector (`fixed_cell_v1` DEFAULT vs `generalized_v1`); every Task-1/2/3 per-episode
-diagnostic structure is now PERSISTED and AGGREGATED. **GENERALIZED-V1 TASK 4 IS CLOSED: its
-implementation branch and PR are no longer writable or active, and NO implementation
-candidate remains under review.**
+`CLAUDE.md` §4 / §5 / §6 / §7. The **FOUR low-level policy seams** stay OPT-IN with their
+historical defaults and are resolved TOGETHER — and only together — by the ONE
+`episode_design` selector (`fixed_cell_v1` DEFAULT vs `generalized_v1`); the generalized
+harness ADDITIONALLY uses the generalized cardinality sampler and requires the SEPARATE
+`fuel_damage_mode` field to be `seeded_variable`, neither of which is a policy id on
+`EpisodeDesign`. Every Task-1/2/3 per-episode diagnostic structure is now PERSISTED and
+AGGREGATED. **GENERALIZED-V1 TASK 4 IS CLOSED: its implementation branch and PR are no
+longer writable or active, and NO implementation candidate remains under review.**
 **NO GENERALIZED SCIENTIFIC MEASUREMENT EXISTS, IS RUNNING, IS SCHEDULED OR IS AUTHORIZED,
-no final scientific benchmark population or worlds-per-cell SCALE has been chosen, no
-concrete benchmark manifest has been generated or frozen, no final actor-only or CTDE
-generalized campaign is authorized, and no generalized result of any kind — including any
-actor-only-vs-CTDE comparison — may be pre-claimed.** When those two arms are eventually run
+no FINAL SCIENTIFIC benchmark worlds-per-cell SCALE has been SELECTED, no FINAL SCIENTIFIC
+benchmark population or manifest has been committed, preserved as the comparator, scheduled
+or authorized, no final actor-only or CTDE generalized campaign is authorized, and no
+generalized result of any kind — including any actor-only-vs-CTDE comparison — may be
+pre-claimed.** When those two arms are eventually run
 they MUST use the SAME eventual frozen manifest. `p(destroy)` remains `1.0` and
 `p(destroy) < 1` remains DEFERRED; the solver and BLADE remain FROZEN; the approved Phase-A
 (§3h) and FD-VARIABLE-SEVERITY-v1 (§3j) measurements remain preserved and are REUSED as what
@@ -277,22 +282,32 @@ cross-references it rather than duplicating it.
     its §4 placement, §6 routing and §7 lock.** **The Task-4 implementation branch and PR are
     no longer writable or active, and NO implementation candidate remains under review.**
   - **WHAT IS THEREFORE IMPLEMENTED.** **§3l.1–§3l.7 are implemented to the extent §3l.8
-    steps 1–4 represent.** All five policy seams are OPT-IN with historical defaults, and
-    they are now selected TOGETHER — and only together — by
+    steps 1–4 represent.** The **FOUR low-level policy seams** — `hidden_policy`,
+    `eligibility_policy`, `post_fd_wake_policy`, `reference_policy` — are OPT-IN with
+    historical defaults and are resolved TOGETHER, and only together, by
     `TrainConfig.episode_design` / `RolloutConfig.episode_design` ∈ (`fixed_cell_v1`
-    DEFAULT, `generalized_v1`). Every Task-1/2/3 per-episode diagnostic structure is now
+    DEFAULT, `generalized_v1`). **`graph_generalized.EpisodeDesign` carries exactly those
+    four and no others.** The generalized harness ADDITIONALLY uses the generalized
+    cardinality sampler, and `validate()` requires the SEPARATE `fuel_damage_mode` field to
+    be `seeded_variable` — **neither is a fifth policy id on `EpisodeDesign`**. Every
+    Task-1/2/3 per-episode diagnostic structure is now
     PERSISTED into the existing `episode_outcomes.jsonl` / `episode_failures.jsonl` and
     AGGREGATED into `run_summary.json:/generalized`, with a fourth
     `measurement_health.png` panel showing requested-vs-realized hidden load. *(SUPERSEDED:
     the Task-3 record stated that §3l.6–§3l.7 were NOT IMPLEMENTED, that neither harness
     exposed any generalized policy, and that nothing persisted or aggregated the diagnostic
     structures. Each was accurate when written and is not now.)*
-  - **WHAT IS STILL NOT DECIDED, AND MUST NOT BE DESCRIBED AS IF IT WERE.** **No final
-    scientific benchmark POPULATION and no worlds-per-cell SCALE has been chosen**, and **no
-    concrete benchmark manifest has been generated, committed or frozen.** Task 4 delivered
-    the manifest MECHANISM only — schema, builder, canonical serialization, content hash,
-    verifying loader, consumer and identity checks — and the builder deliberately REFUSES to
-    invent a world count. `configs/graph_train/final_cell_probe.json` remains the ONLY
+  - **WHAT IS STILL NOT DECIDED, AND MUST NOT BE DESCRIBED AS IF IT WERE.** **No FINAL
+    SCIENTIFIC benchmark worlds-per-cell SCALE has been SELECTED**, and **no FINAL SCIENTIFIC
+    benchmark POPULATION or manifest has been committed, preserved as the comparator,
+    scheduled or authorized.** No benchmark manifest is committed or tracked in the
+    repository. *(That negative is scoped deliberately: transient manifests built in memory
+    or in a temporary directory by tests and engineering validation are legitimate, are
+    neither committed nor a scientific population, and repository state cannot establish a
+    global negative over local scratch files.)* Task 4 delivered the manifest MECHANISM
+    only — schema, builder, canonical serialization, content hash, verifying loader,
+    consumer and identity checks — and the builder deliberately REFUSES to invent a world
+    count. `configs/graph_train/final_cell_probe.json` remains the ONLY
     repository preset and it is `fixed_cell_v1`; **no generalized preset, contract or
     campaign exists.** Choosing the scale is **Task 5's** business and comes after bounded
     runtime / solver validation.
@@ -720,12 +735,16 @@ cross-references it rather than duplicating it.
     Task 9), and **no CTDE benefit is claimed**.
   - **ACTIVE PHASE: GENERALIZED-V1 — §3l.8 STEPS 1, 2, 3 AND 4 ARE ALL MERGED (PR #35,
     PR #36, PR #38, PR #40), so §3l.1–§3l.7 are IMPLEMENTED; STEP 5 (bounded runtime /
-    solver validation) IS NOT STARTED** (§3l). The GPT orchestrator owns the work. All five
-    policy seams are OPT-IN with historical defaults and are selected TOGETHER, and only
-    together, by the ONE `episode_design` selector whose DEFAULT is `fixed_cell_v1`.
+    solver validation) IS NOT STARTED** (§3l). The GPT orchestrator owns the work. The FOUR
+    low-level policy seams are OPT-IN with historical defaults and are resolved TOGETHER,
+    and only together, by the ONE `episode_design` selector whose DEFAULT is
+    `fixed_cell_v1`; the generalized cardinality sampler and the SEPARATE `fuel_damage_mode`
+    field sit beside that resolution and are NOT policy ids on `EpisodeDesign`.
     **GENERALIZED-V1 TASK 4 IS CLOSED — no writable implementation branch, no active PR, no
-    candidate under review.** **No final benchmark scale or population has been chosen, and
-    no generalized measurement exists, is running, is scheduled or is authorized.**
+    candidate under review.** **No FINAL SCIENTIFIC benchmark scale has been SELECTED and no
+    FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the
+    comparator, scheduled or authorized, and no generalized measurement exists, is running,
+    is scheduled or is authorized.**
     *(SUPERSEDED: this bullet previously read "STEPS 1, 2 AND 3 ARE MERGED … §3l.6–§3l.7 ARE
     NOT IMPLEMENTED … neither harness selects them". Accurate when written; not now.)*
   - **WRITABLE STATE — STATED IN STABLE POST-INTEGRATION FORM, so this bullet does not go
@@ -1689,17 +1708,24 @@ this record:
   `24a8b1ee…`, integration `df3abf2f…`, PR #38, **APPROVE**) and Task 4 (final candidate
   `db790138…`, integration `b4daa8c1…`, PR #40, **APPROVE**). **Their technical contracts
   are `CLAUDE.md` §4 / §5 / §6 / §7, which is authoritative for them; the prose below is the
-  DESIGN they were built from, not a second contract.** All five policy seams landed as
-  OPT-IN additions whose DEFAULTS are the historical behaviour, and since Task 4 both
-  harnesses select them TOGETHER — and only together — through the ONE
-  `episode_design` selector (`fixed_cell_v1` DEFAULT vs `generalized_v1`).
+  DESIGN they were built from, not a second contract.** The **FOUR low-level policy seams**
+  landed as OPT-IN additions whose DEFAULTS are the historical behaviour, and since Task 4
+  both harnesses resolve them TOGETHER — and only together — through the ONE
+  `episode_design` selector (`fixed_cell_v1` DEFAULT vs `generalized_v1`), which carries
+  EXACTLY those four ids. The generalized harness ADDITIONALLY uses the generalized
+  cardinality sampler and requires the SEPARATE `fuel_damage_mode` field to be
+  `seeded_variable`; **neither is a fifth policy id on `EpisodeDesign`.**
 - **WHAT IS STILL NOT DECIDED.** Task 4 delivered the frozen benchmark's SCHEMA, BUILDER,
   canonical serialization, content hash, verifying LOADER, CONSUMER and identity checks —
-  **the MECHANISM.** It did **NOT** choose the final scientific worlds-per-cell SCALE and
-  did **NOT** generate, commit or freeze a concrete benchmark POPULATION; the builder
-  deliberately refuses to invent a world count, and no manifest file exists in the
-  repository. **§3l.8 step 5 — bounded runtime / solver validation before that scale is
-  decided — is NOT started and is NOT authorized by this record.**
+  **the MECHANISM.** It did **NOT** select the final scientific worlds-per-cell SCALE, and
+  no FINAL SCIENTIFIC benchmark POPULATION or manifest has been committed, preserved as the
+  comparator, scheduled or authorized; the builder deliberately refuses to invent a world
+  count, and no benchmark manifest is committed or tracked in the repository. *(That
+  negative is scoped deliberately: transient manifests built by tests and engineering
+  validation are legitimate, are neither committed nor a scientific population, and
+  repository state cannot establish a global negative over local scratch files.)*
+  **§3l.8 step 5 — bounded runtime / solver validation before that scale is selected — is
+  NOT started and is NOT authorized by this record.**
 - **NO generalized scenario campaign, no generalized episode schedule, no frozen benchmark
   population and NO generalized measurement of any kind exists, is running, is scheduled or
   is authorized — and no generalized result may be pre-claimed.** Bounded engineering smokes
@@ -1985,12 +2011,17 @@ ARE ALL COMPLETE, REVIEWED AND INTEGRATED** — Task 1 (`5b55ca34…` → `9b305
 Task 2 (`185d39f0…` → `ca0dc406…`, PR #36), Task 3 (`24a8b1ee…` → `df3abf2f…`, PR #38,
 **APPROVE**) and Task 4 (`db790138…` → `b4daa8c1…`, PR #40, **APPROVE**) — so §3l.1–§3l.7 are
 implemented to the extent those four tasks represent, and their contracts are recorded in
-`CLAUDE.md` §4 / §5 / §6 / §7. All five policy seams are OPT-IN with historical defaults and
-are selected TOGETHER, and only together, by the ONE `episode_design` selector. **GENERALIZED-V1
+`CLAUDE.md` §4 / §5 / §6 / §7. The FOUR low-level policy seams are OPT-IN with historical
+defaults and are resolved TOGETHER, and only together, by the ONE `episode_design` selector,
+which carries exactly those four ids; the generalized harness ADDITIONALLY uses the
+generalized cardinality sampler and requires the SEPARATE `fuel_damage_mode` field to be
+`seeded_variable`, neither of which is a policy id on `EpisodeDesign`. **GENERALIZED-V1
 TASK 4 IS CLOSED: its implementation branch and PR are no longer writable or active, and NO
 implementation candidate remains under review.** **NO generalized scientific measurement
-exists, is running, is scheduled or is authorized**, **no final scientific benchmark
-population or worlds-per-cell scale has been chosen**, and **no final actor-only or CTDE
+exists, is running, is scheduled or is authorized**, **no FINAL SCIENTIFIC benchmark
+worlds-per-cell scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or
+manifest has been committed, preserved as the comparator, scheduled or authorized**, and
+**no final actor-only or CTDE
 generalized campaign is authorized.** The **GPT orchestrator owns the work**. **THE SINGLE
 NEXT UNRESOLVED STEP IS GENERALIZED-V1 TASK 5** — bounded runtime / solver validation BEFORE
 the final scientific run scale is decided (§3l.8 step 5) — and **it is NOT started and NOT
@@ -2256,24 +2287,34 @@ that make all of it readable (§3l.7).
   is running, is scheduled or is authorized** — the bounded real-BLADE / BONMIN smokes taken
   during each task's validation are ENGINEERING evidence only and carry no scientific
   contract, seed schedule, held-out band or denominator.
-- **THE FIVE SEAMS ARE OPT-IN, AND SINCE TASK 4 BOTH HARNESSES SELECT THEM TOGETHER — AND
-  ONLY TOGETHER.** `TrainConfig.episode_design` / `RolloutConfig.episode_design` ∈
-  (`fixed_cell_v1` DEFAULT, `generalized_v1`) resolve the whole approved bundle through ONE
-  site; there is deliberately NO standalone `hidden_policy`, `eligibility_policy`,
-  `post_fd_wake_policy` or `reference_policy` field on either config, so a run can never
-  resolve half a bundle. A run that does not name `generalized_v1` still builds the
+- **THE FOUR LOW-LEVEL POLICY SEAMS ARE OPT-IN, AND SINCE TASK 4 BOTH HARNESSES RESOLVE
+  THEM TOGETHER — AND ONLY TOGETHER.** `TrainConfig.episode_design` /
+  `RolloutConfig.episode_design` ∈ (`fixed_cell_v1` DEFAULT, `generalized_v1`) resolve the
+  whole approved bundle through ONE site; `graph_generalized.EpisodeDesign` carries EXACTLY
+  `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy` and `reference_policy` — four
+  ids, not five — and there is deliberately NO standalone field for any of them on either
+  config, so a run can never resolve half a bundle. **Two generalized-path behaviours sit
+  BESIDE that resolution and are NOT policy ids:** the generalized cardinality sampler
+  (harness / population behaviour, consulted because `cfg.generalized` is true) and
+  `fuel_damage_mode`, which stays a SEPARATE config field that `validate()` merely REQUIRES
+  to be `seeded_variable` under `generalized_v1`. A run that does not name `generalized_v1`
+  still builds the
   historical `exact_v1` + `legacy_selected_ego_v1` + `single_wake_v1` world and scores it
   against `static_t0_v1`, and its calls into `_run_one_episode` / `setup_episode` are
   byte-invariant. Every Task-1/2/3 per-episode diagnostic structure is now persisted and
   aggregated. *(SUPERSEDED: this bullet previously read "ALL THREE MERGED FAMILIES ARE
   OPT-IN, AND NEITHER HARNESS SELECTS THEM … Nothing persists or aggregates the new
   diagnostic structures. Wiring them up is step 4." That was accurate before PR #40.)*
-- **WHAT IS STILL NOT DECIDED.** **No final scientific benchmark POPULATION and no
-  worlds-per-cell SCALE has been chosen**, and **no concrete benchmark manifest has been
-  generated, committed or frozen.** Task 4 delivered the manifest MECHANISM only, and its
-  builder REFUSES to invent a world count. `configs/graph_train/final_cell_probe.json`
-  remains the ONLY repository preset and it is `fixed_cell_v1`; no generalized preset,
-  contract or campaign exists.
+- **WHAT IS STILL NOT DECIDED.** **No FINAL SCIENTIFIC benchmark worlds-per-cell SCALE has
+  been SELECTED**, and **no FINAL SCIENTIFIC benchmark POPULATION or manifest has been
+  committed, preserved as the comparator, scheduled or authorized.** No benchmark manifest
+  is committed or tracked in the repository — *a negative scoped deliberately: transient
+  manifests built by tests and engineering validation are legitimate, are neither committed
+  nor a scientific population, and repository state cannot establish a global negative over
+  local scratch files.* Task 4 delivered the manifest MECHANISM only, and its builder
+  REFUSES to invent a world count. `configs/graph_train/final_cell_probe.json` remains the
+  ONLY repository preset and it is `fixed_cell_v1`; no generalized preset, contract or
+  campaign exists.
 - **OWNERSHIP:** the **GPT orchestrator** owns the work. **No documentation record is a
   standing writable task** — each is the sole writable candidate only while its own draft PR
   is open — and **no implementation candidate is active**: the Task-4 branch and PR are
@@ -2443,8 +2484,10 @@ The additional actor-only FD-VARIABLE-SEVERITY-v1 baseline (§4, Task 7) is **CL
 VALID and NEGATIVE** (§3j), **PHASE-B CTDE IMPLEMENTATION is CLOSED, REVIEWED and MERGED**
 (§4, Task 8; §3k), and **the current work is the GENERALIZED TRAINING / BENCHMARK REDESIGN
 (§4, Task 10; §3l), whose §3l.8 STEPS 1, 2, 3 AND 4 ARE ALL MERGED — so §3l.1–§3l.7 are
-IMPLEMENTED — while STEP 5 (bounded runtime / solver validation) is NOT STARTED and NO
-FINAL BENCHMARK SCALE OR POPULATION HAS BEEN CHOSEN.** Out of scope:
+IMPLEMENTED — while STEP 5 (bounded runtime / solver validation) is NOT STARTED, NO FINAL
+SCIENTIFIC BENCHMARK SCALE HAS BEEN SELECTED, and NO FINAL SCIENTIFIC BENCHMARK POPULATION
+OR MANIFEST HAS BEEN COMMITTED, PRESERVED AS THE COMPARATOR, SCHEDULED OR AUTHORIZED.**
+Out of scope:
 
 - **IMPLEMENTING ANY FURTHER PART OF THE GENERALIZED REDESIGN FROM A DOCUMENTATION RECORD.**
   §3l.8 step 5 remains a PLAN and this document does not authorize it. **No bounded
@@ -2640,11 +2683,14 @@ old fixed-cell Task-9 CTDE comparison (superseded in ordering, §4), not a revie
 previously executed old-contract CTDE measurement (out of scope unless the user explicitly
 asks, §1), and not a re-run of any approved historical baseline (prohibited, §6 — the
 approved baselines are REUSED as what they are, never rerun, repaired, resumed or re-tuned).
-**NO final scientific benchmark population or worlds-per-cell scale has been chosen, no
-concrete benchmark manifest has been generated or frozen, NO generalized MEASUREMENT exists,
-is running, is scheduled or is authorized, no final actor-only or CTDE generalized campaign
-is authorized, and no generalized result — including any actor-only-vs-CTDE comparison — may
-be pre-claimed.** When those two arms are eventually run they **MUST use the SAME eventual
+**NO FINAL SCIENTIFIC benchmark worlds-per-cell scale has been SELECTED, no FINAL SCIENTIFIC
+benchmark population or manifest has been committed, preserved as the comparator, scheduled
+or authorized (no benchmark manifest is committed or tracked in the repository; transient
+manifests built by tests and engineering validation are neither, and nothing here claims a
+global negative over local scratch files), NO generalized MEASUREMENT exists, is running, is
+scheduled or is authorized, no final actor-only or CTDE generalized campaign is authorized,
+and no generalized result — including any actor-only-vs-CTDE comparison — may be
+pre-claimed.** When those two arms are eventually run they **MUST use the SAME eventual
 frozen manifest.** Steps 1–4 delivered implemented CODE with engineering evidence only, and
 `p(destroy) < 1` remains DEFERRED.
 *(SUPERSEDED: this section previously named step 1, then step 3, then step 4 as the single
@@ -2876,5 +2922,5 @@ so.
 | 2026-08-25 | **INTERMEDIATE DOCUMENTATION CHECKPOINT OPENED** because the live handoff had become STALE after two implementation merges — it still claimed nothing generalized was implemented and that Task 1 was the next action — and because `CLAUDE.md` carried no contract for behaviour that is now merged | `CLAUDE.md` gains the Task-1 and Task-2 §5 contracts, their §6 routing and their §7 locks, and its stale actor-only-vs-CTDE "never executed" wording is reconciled CONSERVATIVELY (existence acknowledged, OUT OF SCOPE, **no identity / SHA / denominator / verdict / result recorded and no CTDE benefit claimed**). This handoff records steps 1–2 as COMPLETE, §3l.5–§3l.7 as NOT IMPLEMENTED, and **Task 3 as the next unresolved task that this record does NOT authorize** (§8). It also SUPERSEDES the earlier "`CLAUDE.md` locks only at step 6" rule: locks are written PER COMPLETED TASK, and a FINAL documentation pass is still required after the later steps land. **Two files only; no code, test, config, preset or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
 | 2026-08-25 | **GENERALIZED-V1 TASK 3 IMPLEMENTED, REVIEWED AND MERGED** — the event-conditioned MATCH-AOU continuation reference and reward checkpoint (§3l.5); reviewed candidate `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integration `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, PR #38, verdict **APPROVE**, Grade A under `GPT_GITHUB` | §3l.8 step 3 is COMPLETE, so **§3l.5 is now IMPLEMENTED**. The historical `static_t0_v1` reference is PRESERVED and remains the DEFAULT, so the approved Phase-A and variable-severity measurements are untouched and are still measurements OF IT; `event_conditioned_continuation_v1` is an OPT-IN ADDITION beside it that **neither harness selects**. The checkpoint is privileged READ-ONLY measurement that reaches no acting path, advances no simulation time and never adds a THIRD reference solve. The review APPROVED ONE compatibility deviation, `damaged_event_unrealized_t0`, scoped to the LEGACY Task-2 contract and **not** generalized damaged semantics. `p(destroy)` stays `1.0`, no new `MetaAction` exists, and terminal credit placement is unchanged. **No scientific run occurred and no generalized measurement exists** |
 | 2026-08-25 | **TASK-3 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.5 while the live documents still said it was NOT IMPLEMENTED and that Task 3 was the next unresolved task | `CLAUDE.md` gains the Task-3 §5 contract, its §4 pipeline placement, its three §6 routing rows and its §7 lock, and its stale “no continuation reference / no reward change” and “`graph_reward` remains FROZEN” wording is corrected in place. This handoff records Tasks 1–3 as COMPLETE, §3l.5 as IMPLEMENTED, §3l.6–§3l.7 as NOT IMPLEMENTED, and **Task 4 as the SINGLE next unresolved task that no documentation record authorizes** (§8). It is written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
-| 2026-08-26 | **GENERALIZED-V1 TASK 4 IMPLEMENTED, REVIEWED AND MERGED** — the episode-design selector, the generalized training cardinality sampler, the frozen stratified benchmark MANIFEST MECHANISM and run-level persistence / aggregate metrics (§3l.6, §3l.7); FINAL approved candidate `db79013897a6e5669f50d53b6e30229b16aea28d`, integration `b4daa8c1a8c870061b26cceb01d4ed34169594e7`, PR #40, verdict **APPROVE**, Grade A under `GPT_GITHUB`. *(Historical process evidence: original reviewed candidate `eef1795f6bb3f0cbc4c163ba489cf5e790df4c41` → review corrections → append-only child `db790138…` → APPROVE, covering manifest integrity, real held-outness and honest generalized construction provenance.)* | §3l.8 step 4 is COMPLETE, so **§3l.6–§3l.7 are now IMPLEMENTED** and **§3l.8 steps 1–4 are ALL COMPLETE**. The five OPT-IN policy seams are now selected TOGETHER — and only together — by the ONE `episode_design` selector, whose DEFAULT `fixed_cell_v1` preserves the historical bundle the approved measurements were taken on and leaves a default run byte-invariant at the call boundary; `training_mode` stays ORTHOGONAL. Every Task-1/2/3 per-episode structure is now PERSISTED and AGGREGATED with explicit denominators, requested-vs-realized is REPORTED with **no acceptance threshold and no verdict**, and `ReferenceIntegrityError` now routes by stable REASON SLUG (unanswered solve ⇒ accounted attrition; every other reason ⇒ measurement-integrity ABORT). **Task 4 delivered the benchmark MECHANISM ONLY: no final worlds-per-cell scale was chosen and no concrete benchmark population was generated, committed or frozen.** `p(destroy)` stays `1.0` and no new `MetaAction` exists. **No scientific run occurred, no generalized measurement exists, and no actor-only-vs-CTDE generalized result exists** |
-| 2026-08-26 | **TASK-4 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.6–§3l.7 while the live documents still said Task 4 was the next unresolved task, NOT started and NOT authorized, that neither harness selected any generalized policy, and that the sampler, the manifest and run-level persistence were unimplemented | `CLAUDE.md` gains the Task-4 §5 contract, its §4 selector placement, its five §6 routing rows and its §7 lock; its stale "NEITHER HARNESS EXPOSES" wording in the Task-1/2/3 blocks is corrected in place with the superseded text preserved; and the `ReferenceIntegrityError` routing block is rewritten to record the Task-4 decision that was deliberately deferred to it. This handoff records Tasks 1–4 as COMPLETE, §3l.1–§3l.7 as IMPLEMENTED, **GENERALIZED-V1 TASK 4 as CLOSED with no writable implementation task and no candidate under review**, and **Task 5 (bounded runtime / solver validation) as the SINGLE next unresolved step that no documentation record authorizes** (§8). It records explicitly that **no final benchmark scale or population has been chosen**, that **no generalized measurement exists, is running, is scheduled or is authorized**, and that the future actor-only and CTDE arms must use the SAME eventual frozen manifest while the approved historical baselines are REUSED and never rerun. Written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset, benchmark manifest or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
+| 2026-08-26 | **GENERALIZED-V1 TASK 4 IMPLEMENTED, REVIEWED AND MERGED** — the episode-design selector, the generalized training cardinality sampler, the frozen stratified benchmark MANIFEST MECHANISM and run-level persistence / aggregate metrics (§3l.6, §3l.7); FINAL approved candidate `db79013897a6e5669f50d53b6e30229b16aea28d`, integration `b4daa8c1a8c870061b26cceb01d4ed34169594e7`, PR #40, verdict **APPROVE**, Grade A under `GPT_GITHUB`. *(Historical process evidence: original reviewed candidate `eef1795f6bb3f0cbc4c163ba489cf5e790df4c41` → review corrections → append-only child `db790138…` → APPROVE, covering manifest integrity, real held-outness and honest generalized construction provenance.)* | §3l.8 step 4 is COMPLETE, so **§3l.6–§3l.7 are now IMPLEMENTED** and **§3l.8 steps 1–4 are ALL COMPLETE**. The FOUR low-level OPT-IN policy seams are now resolved TOGETHER — and only together — by the ONE `episode_design` selector, whose DEFAULT `fixed_cell_v1` preserves the historical bundle the approved measurements were taken on and leaves a default run byte-invariant at the call boundary; `training_mode` stays ORTHOGONAL. Every Task-1/2/3 per-episode structure is now PERSISTED and AGGREGATED with explicit denominators, requested-vs-realized is REPORTED with **no acceptance threshold and no verdict**, and `ReferenceIntegrityError` now routes by stable REASON SLUG (unanswered solve ⇒ accounted attrition; every other reason ⇒ measurement-integrity ABORT). **Task 4 delivered the benchmark MECHANISM ONLY: no FINAL SCIENTIFIC worlds-per-cell scale was SELECTED and no FINAL SCIENTIFIC benchmark population was committed, preserved as the comparator, scheduled or authorized (no benchmark manifest is committed or tracked in the repository; transient manifests built by tests are neither).** `p(destroy)` stays `1.0` and no new `MetaAction` exists. **No scientific run occurred, no generalized measurement exists, and no actor-only-vs-CTDE generalized result exists** |
+| 2026-08-26 | **TASK-4 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.6–§3l.7 while the live documents still said Task 4 was the next unresolved task, NOT started and NOT authorized, that neither harness selected any generalized policy, and that the sampler, the manifest and run-level persistence were unimplemented | `CLAUDE.md` gains the Task-4 §5 contract, its §4 selector placement, its five §6 routing rows and its §7 lock; its stale "NEITHER HARNESS EXPOSES" wording in the Task-1/2/3 blocks is corrected in place with the superseded text preserved; and the `ReferenceIntegrityError` routing block is rewritten to record the Task-4 decision that was deliberately deferred to it. This handoff records Tasks 1–4 as COMPLETE, §3l.1–§3l.7 as IMPLEMENTED, **GENERALIZED-V1 TASK 4 as CLOSED with no writable implementation task and no candidate under review**, and **Task 5 (bounded runtime / solver validation) as the SINGLE next unresolved step that no documentation record authorizes** (§8). It records explicitly that **no FINAL SCIENTIFIC benchmark scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the comparator, scheduled or authorized**, that **no generalized measurement exists, is running, is scheduled or is authorized**, and that the future actor-only and CTDE arms must use the SAME eventual frozen manifest while the approved historical baselines are REUSED and never rerun. Written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset, benchmark manifest or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
