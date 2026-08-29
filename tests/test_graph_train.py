@@ -5361,6 +5361,112 @@ def test_gen_the_summary_reports_requested_vs_realized(tmp_path: Path) -> None:
             assert verdict_word not in key, (key, verdict_word)
 
 
+def _gen_outcome_row(*, phase, agent_count, hidden_requested, hidden_realized):
+    """A minimal SUCCESSFUL generalized row, shaped like `episode_outcomes.jsonl`.
+
+    Only the fields `_generalized_summary` actually reads are set: the summary is a pure
+    derivation over the canonical streams, so a hand-built row exercises exactly the
+    derivation and nothing else.
+    """
+    return {
+        "generalized": True,
+        "episode_design": EPISODE_DESIGN_GENERALIZED_V1,
+        "phase": phase,
+        "agent_count": agent_count,
+        "hidden_requested": hidden_requested,
+        "hidden_realized": hidden_realized,
+    }
+
+
+def _gen_failure_row(*, phase, agent_count, hidden_requested):
+    """A minimal FAILED generalized row, shaped like `episode_failures.jsonl`."""
+    return {
+        "phase": phase,
+        "agent_count": agent_count,
+        "hidden_requested": hidden_requested,
+        "reference_fault_reason": None,
+    }
+
+
+def test_gen_train_by_buckets_count_training_attempts_only() -> None:
+    """PO1. `train_by_*` is the TRAINING population, and evaluation stays out of it.
+
+    Both canonical streams mix phases by design -- an outcome row carries `train` /
+    `pre_update` / `post_update`, a failure row carries `train` / `eval` -- so a bucket
+    built from the unfiltered streams folds held-out evaluation attempts into a
+    denominator whose NAME says training. That is a research-validity fault, not a
+    cosmetic one: the two populations are scheduled independently, and under a frozen
+    benchmark every round re-measures the SAME worlds, so their sum describes nothing.
+
+    The counts below are chosen so the defect is visible three ways at once: an
+    agent-count bucket that exists ONLY in evaluation, evaluation successes inflating a
+    shared bucket, and evaluation failures inflating a shared bucket.
+    """
+    outcomes = (
+        # TRAINING: A=2 twice (H=1), A=3 once (H=2).
+        [_gen_outcome_row(phase="train", agent_count=2, hidden_requested=1,
+                          hidden_realized=1) for _ in range(2)]
+        + [_gen_outcome_row(phase="train", agent_count=3, hidden_requested=2,
+                            hidden_realized=1)]
+        # EVALUATION: a shared A=2 bucket, plus an A=4 / H=3 bucket that training never
+        # scheduled at all -- so its mere PRESENCE is a phase leak.
+        + [_gen_outcome_row(phase=_EVAL_STAGE_POST_UPDATE, agent_count=2,
+                            hidden_requested=1, hidden_realized=1) for _ in range(3)]
+        + [_gen_outcome_row(phase=_EVAL_STAGE_PRE_UPDATE, agent_count=4,
+                            hidden_requested=3, hidden_realized=2) for _ in range(2)]
+    )
+    failures = (
+        [_gen_failure_row(phase="train", agent_count=2, hidden_requested=1)]
+        + [_gen_failure_row(phase="eval", agent_count=3, hidden_requested=2)
+           for _ in range(2)]
+        + [_gen_failure_row(phase="eval", agent_count=4, hidden_requested=3)]
+    )
+
+    block = graph_train._generalized_summary(outcomes, failures, [])
+
+    by_agent = block["train_by_agent_count"]
+    assert set(by_agent) == {"2", "3"}, (
+        "an agent count only evaluation scheduled leaked into the training buckets")
+    assert by_agent["2"] == {"n_attempted": 3, "n_successful": 2, "n_failed": 1,
+                             "success_fraction": 2 / 3}
+    assert by_agent["3"] == {"n_attempted": 1, "n_successful": 1, "n_failed": 0,
+                             "success_fraction": 1.0}
+
+    by_hidden = block["train_by_hidden_requested"]
+    assert set(by_hidden) == {"1", "2"}, (
+        "a requested load only evaluation scheduled leaked into the training buckets")
+    assert by_hidden["1"] == {"n_attempted": 3, "n_successful": 2, "n_failed": 1,
+                              "success_fraction": 2 / 3}
+    assert by_hidden["2"] == {"n_attempted": 1, "n_successful": 1, "n_failed": 0,
+                              "success_fraction": 1.0}
+
+    # The whole scheduled TRAINING population, and nothing else: 3 successful + 1 failed.
+    for key, buckets in (("train_by_agent_count", by_agent),
+                         ("train_by_hidden_requested", by_hidden)):
+        for name, entry in buckets.items():
+            assert entry["n_attempted"] == entry["n_successful"] + entry["n_failed"], (
+                key, name)
+        assert sum(e["n_attempted"] for e in buckets.values()) == 4, key
+        assert sum(e["n_successful"] for e in buckets.values()) == 3, key
+        assert sum(e["n_failed"] for e in buckets.values()) == 1, key
+
+    # A TRAINING failure is still represented -- the repair narrows the phase, never the
+    # outcome, and a failed training attempt must stay visible in its own denominator.
+    assert by_agent["2"]["n_failed"] == 1 and by_hidden["1"]["n_failed"] == 1
+
+    # PO2 GUARD, in the same test: the OTHER blocks are untouched and still report over
+    # the full generalized population. `cardinality_requested_vs_realized` sees all
+    # EIGHT successful episodes (3 training + 5 evaluation), so the phase filter is
+    # proven local to the two `train_by_*` keys rather than applied to the whole roll-up.
+    cardinality = block["cardinality_requested_vs_realized"]
+    assert set(cardinality) == {"1", "2", "3"}
+    assert sum(e["n_successful"] for e in cardinality.values()) == 8
+    assert cardinality["3"]["n_successful"] == 2          # evaluation-only load
+    assert cardinality["3"]["n_short_realized"] == 2      # requested 3, realized 2
+    # And the accounted reference-refusal tally still reads the WHOLE failure ledger.
+    assert block["reference_fault_attrition"] == {}
+
+
 _BENCH_CELL_BY_MODE = {
     FuelDamageMode.FORCED_CLEAN: CONDITION_CLEAN,
     FuelDamageMode.FORCED_MILD: SEVERITY_MILD,
@@ -6294,6 +6400,8 @@ if __name__ == "__main__":
          test_gen_the_failure_ledger_keeps_the_scheduled_world, True),
         ("gen_the_summary_reports_requested_vs_realized",
          test_gen_the_summary_reports_requested_vs_realized, True),
+        ("gen_train_by_buckets_count_training_attempts_only",
+         test_gen_train_by_buckets_count_training_attempts_only, False),
         ("gen_benchmark_round_reports_all_18_strata_with_denominators",
          test_gen_benchmark_round_reports_all_18_strata_with_denominators, True),
         ("gen_benchmark_deltas_use_complete_groups_only",
