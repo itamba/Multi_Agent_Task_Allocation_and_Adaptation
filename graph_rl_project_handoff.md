@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — GENERALIZED-V1: IMPLEMENTATION TASKS 1–4 ALL MERGED, TASK 4 CLOSED, NO WRITABLE IMPLEMENTATION TASK, TASK 5 (BOUNDED RUNTIME / SOLVER VALIDATION) NEXT BUT NOT STARTED, NO GENERALIZED MEASUREMENT / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
+# Multi-Agent Graph RL — GENERALIZED-V1: TASKS 1–4 MERGED; TASK 5 IMPLEMENTED AND APPROVED AS A STACKED, UNMERGED TWO-PR STACK (PR #42 + PR #43, BOTH FROZEN); TASK 5A / 5B ENGINEERING VALIDATION APPROVED; THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH ITS RESULT PENDING AND UNREVIEWED; THIS DOCUMENTATION CANDIDATE IS THE SOLE WRITABLE REPOSITORY TASK / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -72,10 +72,53 @@ SCIENTIFIC benchmark worlds-per-cell scale has been SELECTED and no FINAL SCIENT
 benchmark population or manifest has been committed, preserved as the comparator, scheduled
 or authorized**, and **still NO generalized
 scientific measurement exists, is running, is scheduled or is authorized** (§1, §3l, §4, §7,
+§8, §9) — *(that "Task 5 NOT STARTED / no generalized run" framing was accurate when written
+and is SUPERSEDED by the entry below)* — and **2026-08-30, in THIS post-Task-5 documentation /
+lock checkpoint, to record that GENERALIZED-V1 TASK 5 IS IMPLEMENTED AND APPROVED AS A STACKED,
+STILL-UNMERGED TWO-PR STACK**: **PR #42**, branch `task/generalized-v1-task5-summary-phase-fix`,
+approved head `312f58650b61a85eb72d0554d60715afee862a5c` (the `train_by_*` summary-population
+correction), and **PR #43**, branch `task/generalized-v1-task5-success-quota-preflight`, FINAL
+approved head `4af6c5aa5dd28072692bfda63282964b55010aae` (the successful-episode training quota,
+the bounded attempt budget, the maximum-possible seed band and the deterministic benchmark
+preflight) — **both APPROVED, both FROZEN / READ-ONLY, and NEITHER MERGED**, with THIS
+documentation candidate the **SOLE WRITABLE REPOSITORY TASK**; to record **Task 5A and Task 5B as
+`APPROVE — VALID ENGINEERING VALIDATION`, which is ENGINEERING EVIDENCE and NEVER a scientific
+measurement**; and to record that **the FIRST full GENERALIZED-V1 ACTOR-ONLY R1 long run is
+AUTHORIZED / DISPATCHED with its RESULT PENDING and UNREVIEWED — no reward, convergence,
+attrition, benchmark or validity claim about it exists or may be inferred** (§1, §3m, §4, §7,
 §8, §9).
 
-**THE LIVE STATE (2026-08-26), STATED FIRST BECAUSE IT SUPERSEDES EVERY EARLIER LIVE-STATE
-PARAGRAPH BELOW IT.** **The repository is NOT closed and NOT idle.** The ACTIVE phase is
+**THE LIVE STATE (2026-08-30), STATED FIRST BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH
+BELOW IT, INCLUDING THE 2026-08-26 ONE.** The ACTIVE phase is still **GENERALIZED-V1**, and
+**§3l.8 STEP 5 IS NO LONGER "NOT STARTED": TASK 5 IS IMPLEMENTED AND APPROVED, AS A STACKED,
+STILL-UNMERGED TWO-PR STACK.** Live `main` at this record's checkpoint is
+`09eab0673153bd443185ec94530ccf0b042be465`; **PR #42** (`312f58650b61a85eb72d0554d60715afee862a5c`)
+and **PR #43** (`4af6c5aa5dd28072692bfda63282964b55010aae`) are **APPROVED, FROZEN / READ-ONLY and
+NOT MERGED**, and **this documentation candidate — `task/generalized-v1-task5-doc-lock`, branched
+from exact `4af6c5aa…` — is the SOLE WRITABLE REPOSITORY TASK and is itself NOT MERGED.** The
+stack is `main` → PR #42 → PR #43 → docs PR; **no merge is authorized by this record** and the
+intended later integration sequence is §3m.5. **Task 5A and Task 5B are `APPROVE — VALID
+ENGINEERING VALIDATION` — ENGINEERING EVIDENCE ONLY, never a measurement, and no reward,
+learning, attrition-rate or actor-vs-CTDE claim may be drawn from either.** **THE FIRST FULL
+GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED AND ITS RESULT IS PENDING**: it
+is UNREVIEWED, it has produced no verdict, and **nothing about its reward, convergence, attrition,
+benchmark outcome or scientific validity may be stated or inferred** — its frozen plan is recorded
+in §3m.4 so the eventual artifacts can be checked against what was authorized, and it requires
+**independent GPT artifact review** before any `APPROVE — VALID MEASUREMENT` verdict. The external
+long-run task is **RUN-ONLY and owns NO repository writes**. **No CTDE generalized run exists, is
+scheduled or is authorized**; **no reviewed early-stopping mechanism exists** and checkpoint
+RESUME stays out of scope (`graph_train` is SAVE-only); **cluster readiness is DEFERRED** because
+cluster access is not available, which does NOT block the local R1; and **`p(destroy)` remains
+`1.0`** with `p(destroy) < 1` DEFERRED (§3m). *(SUPERSEDED by this paragraph: the 2026-08-26
+record's statements that Task 5 is the single next unresolved step and is NOT STARTED, that no
+writable implementation task is active, and that no generalized run is scheduled or authorized.
+Each was accurate when written. What is UNCHANGED and still binding: no FINAL SCIENTIFIC
+worlds-per-cell scale has been SELECTED, no FINAL SCIENTIFIC benchmark population or manifest has
+been committed to the repository or preserved as the comparator, no generalized measurement RESULT
+exists, and no generalized result may be pre-claimed.)*
+
+**THE PRECEDING LIVE STATE (2026-08-26), PRESERVED AS THE RECORD IT WAS AND SUPERSEDED ONLY WHERE
+THE PARAGRAPH ABOVE SAYS SO.** **The repository is NOT closed and NOT idle.** The ACTIVE phase is
 **GENERALIZED-V1**, and its bounded implementation sequence is now COMPLETE THROUGH STEP 4.
 **§3l.8 STEPS 1, 2, 3 AND 4 ARE ALL COMPLETE, REVIEWED AND INTEGRATED** — Task 1 (candidate
 `5b55ca34…`, integration `9b305e4e…`, PR #35), Task 2 (final candidate `185d39f0…`,
@@ -234,12 +277,18 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **LIVE PHASE (2026-08-26) — GENERALIZED-V1: IMPLEMENTATION TASKS 1, 2, 3 AND 4 ARE ALL
-  MERGED. TASK 4 IS CLOSED. NO WRITABLE IMPLEMENTATION TASK IS ACTIVE. THE SINGLE NEXT
-  UNRESOLVED STEP IS TASK 5 — BOUNDED RUNTIME / SOLVER VALIDATION — WHICH IS NOT STARTED AND
-  IS NOT AUTHORIZED. NO GENERALIZED MEASUREMENT EXISTS.** The repository is **no longer
-  CLOSED / IDLE** and **no longer DESIGN-ONLY**. The approved design is in **§3l**; what is
-  now BUILT is §3l.8 steps 1 through 4.
+- **LIVE PHASE (2026-08-30) — GENERALIZED-V1: TASKS 1–4 ARE MERGED, AND TASK 5 IS
+  IMPLEMENTED AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR STACK (PR #42 + PR #43, BOTH
+  FROZEN / READ-ONLY). THIS DOCUMENTATION CANDIDATE IS THE SOLE WRITABLE REPOSITORY TASK AND
+  IS NOT MERGED. THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH
+  ITS RESULT PENDING AND UNREVIEWED. NO GENERALIZED MEASUREMENT RESULT EXISTS.** The
+  repository is **no longer CLOSED / IDLE** and **no longer DESIGN-ONLY**. The approved design
+  is in **§3l**; §3l.8 steps 1 through 4 are MERGED, step 5 is IMPLEMENTED AND APPROVED but
+  UNMERGED, and the Task-5 stack, its engineering validation, the dispatched R1 plan and the
+  intended integration sequence are in **§3m**. *(SUPERSEDED: this bullet previously read
+  "TASK 4 IS CLOSED. NO WRITABLE IMPLEMENTATION TASK IS ACTIVE. THE SINGLE NEXT UNRESOLVED
+  STEP IS TASK 5 … NOT STARTED AND … NOT AUTHORIZED. NO GENERALIZED MEASUREMENT EXISTS."
+  Every clause was accurate when written.)*
   - **GENERALIZED-V1 TASK 1 — IMPLEMENTED / REVIEWED / MERGED.** Generalized construction
     cardinality, deterministic bounded B2 backoff, and truthful requested-vs-realized
     accounting (§3l.1, §3l.2). Approved candidate
@@ -280,7 +329,41 @@ cross-references it rather than duplicating it.
     force-pushed — covering manifest integrity, real held-outness and honest generalized
     construction provenance. **Its authoritative technical contract is `CLAUDE.md` §5, with
     its §4 placement, §6 routing and §7 lock.** **The Task-4 implementation branch and PR are
-    no longer writable or active, and NO implementation candidate remains under review.**
+    no longer writable or active, and NO Task-4 candidate remains under review.**
+  - **GENERALIZED-V1 TASK 5 — IMPLEMENTED AND APPROVED, AS A STACKED, STILL-UNMERGED TWO-PR
+    STACK (§3m.1).** **PR #42**, branch `task/generalized-v1-task5-summary-phase-fix`, approved
+    head `312f58650b61a85eb72d0554d60715afee862a5c` (base `09eab067…`): the `train_by_*`
+    summary-population correction. **PR #43**, branch
+    `task/generalized-v1-task5-success-quota-preflight`, FINAL approved head
+    `4af6c5aa5dd28072692bfda63282964b55010aae` (PR base the PR-#42 branch): the
+    successful-episode training quota with deterministic replacement, the REQUIRED bounded
+    attempt budget, the MAXIMUM POSSIBLE training seed band, and the deterministic benchmark
+    preflight with its complete-manifest rule and durable failed-preflight audit. Grade A
+    under `GPT_GITHUB`. **BOTH ARE APPROVED, BOTH ARE FROZEN / READ-ONLY, AND NEITHER IS
+    MERGED** — live `main` at this record's checkpoint is still `09eab067…`, so no integration
+    SHA exists for either and none may be invented. **HISTORICAL PROCESS EVIDENCE ONLY:** PR
+    #43's original implementation candidate was
+    `734f1e786593b6ffb94f1f8d7283b1f2fc79d257`; GPT requested ONE append-only review fix; the
+    final candidate `4af6c5aa…` is its DIRECT CHILD, with no amend, rebase, squash,
+    force-push or history rewrite. **Their authoritative technical contract is `CLAUDE.md`
+    §5, routed in §6 and locked in §7.** **This documentation candidate,
+    `task/generalized-v1-task5-doc-lock` (branched from exact `4af6c5aa…`), is the SOLE
+    WRITABLE REPOSITORY TASK and is itself NOT MERGED**; **no merge is authorized by it**, and
+    the intended later integration sequence is §3m.5.
+  - **TASK 5A AND TASK 5B — `APPROVE — VALID ENGINEERING VALIDATION`, AND NEITHER IS A
+    SCIENTIFIC MEASUREMENT (§3m.3; `CLAUDE.md` §7).** They carry no scientific contract, no
+    seed schedule, no held-out band, no frozen comparator and no population denominator.
+    **No reward, learning, convergence, attrition-rate, generalized-performance or
+    actor-vs-CTDE claim may be drawn from either**, their bounded sample sizes are an
+    explicit limitation, and **the Task-5B transient benchmark is NOT the R1 comparator.**
+  - **THE FIRST GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS `AUTHORIZED / DISPATCHED — RESULT
+    PENDING` (§3m.4).** It is UNREVIEWED and has produced no verdict. **Nothing about its
+    reward, convergence, attrition, benchmark outcome or scientific validity may be stated or
+    inferred**, and this record deliberately does not claim it is `RUNNING`. Its frozen plan
+    is recorded in §3m.4 so the eventual artifacts can be checked against what was
+    authorized, and it requires **independent GPT artifact review** before any
+    `APPROVE — VALID MEASUREMENT` verdict. **The external long-run task is RUN-ONLY and owns
+    NO repository writes.** **No CTDE generalized run exists, is scheduled or is authorized.**
   - **WHAT IS THEREFORE IMPLEMENTED.** **§3l.1–§3l.7 are implemented to the extent §3l.8
     steps 1–4 represent.** The **FOUR low-level policy seams** — `hidden_policy`,
     `eligibility_policy`, `post_fd_wake_policy`, `reference_policy` — are OPT-IN with
@@ -315,14 +398,21 @@ cross-references it rather than duplicating it.
     contracts DO exist, are implemented, reviewed and locked, and are AUTHORITATIVE in
     `CLAUDE.md` §4 / §5 / §6 / §7.)* Choosing the scale is **Task 5's** business and comes
     after bounded runtime / solver validation.
-  - **NO generalized scientific measurement exists, is running, is scheduled or is
-    authorized**, and **no generalized result of any kind may be pre-claimed.** **No final
-    actor-only or CTDE generalized campaign is authorized**, and **no actor-only-vs-CTDE
-    generalized result exists.** When those two arms are eventually run they **MUST use the
-    SAME eventual frozen manifest** — the shared `manifest_id` is what makes them
-    comparable. Bounded real-BLADE / BONMIN smokes taken during implementation validation
-    are ENGINEERING evidence only: no scientific contract, no seed schedule, no held-out
-    band, no denominator.
+  - **NO generalized scientific measurement RESULT exists, and no generalized result of any
+    kind may be pre-claimed.** A first generalized **ACTOR-ONLY** R1 long run IS authorized
+    and dispatched, and its result is **PENDING and UNREVIEWED** (§3m.4) — dispatch is not a
+    result, and nothing about its reward, convergence, attrition, benchmark outcome or
+    validity may be stated or inferred until independent GPT artifact review. **No CTDE
+    generalized campaign is authorized, none is running or scheduled, and no
+    actor-only-vs-CTDE generalized result exists.** When those two arms are eventually run
+    they **MUST use the SAME eventual frozen manifest** — the shared `manifest_id` is what
+    makes them comparable. Bounded real-BLADE / BONMIN smokes taken during implementation
+    validation, and the Task-5A / Task-5B validations, are ENGINEERING evidence only: no
+    scientific contract, no seed schedule, no held-out band, no denominator (§3m.3).
+    *(SUPERSEDED: this bullet previously read "NO generalized scientific measurement exists,
+    is running, is scheduled or is authorized" and "No final actor-only or CTDE generalized
+    campaign is authorized". Accurate when written; the actor-only R1 has since been
+    authorized and dispatched.)*
   - **`p(destroy)` REMAINS `1.0`; the solver / BONMIN and the vendored BLADE engine remain
     FROZEN**; the action set is unchanged and no new `MetaAction` exists; terminal-on-last
     reward credit placement, PPO, GAE, the encoder and the actor/critic boundary are
@@ -334,10 +424,22 @@ cross-references it rather than duplicating it.
     are preserved, valid, and measurements of the `fixed_cell_v1` bundle; they are **not to
     be re-run, repaired, resumed or re-tuned**, and they are **NOT** generalized baselines,
     comparators or expectations.
-  - **THE SINGLE NEXT UNRESOLVED STEP IS GENERALIZED-V1 TASK 5** — **bounded runtime /
-    solver validation BEFORE the final scientific run scale is decided** (§3l.8 step 5).
-    **It is NOT started, and this record does NOT authorize it** (§8). No documentation
-    record authorizes an implementation, a benchmark population, a campaign or a run.
+  - **WHAT IS NEXT.** GENERALIZED-V1 Task 5 is IMPLEMENTED and APPROVED (§3m.1), and the R1
+    long run is DISPATCHED with its RESULT PENDING (§3m.4), so the live next actions are the
+    INTEGRATION of the approved stack under the exact-base re-review discipline of §3m.5 and
+    the INDEPENDENT GPT ARTIFACT REVIEW of R1's eventual artifacts. **No documentation record
+    authorizes a merge, a further implementation, a benchmark population, a campaign or a
+    run** (§8). *(SUPERSEDED: this bullet previously read "THE SINGLE NEXT UNRESOLVED STEP IS
+    GENERALIZED-V1 TASK 5 … It is NOT started, and this record does NOT authorize it." That
+    was accurate when written.)*
+  - **EARLY STOPPING, RESUME AND CLUSTER — CURRENT CAMPAIGN STATE (§3m.4).** **No reviewed
+    early-stopping mechanism exists**; R1 uses a fixed 3000-success budget; **checkpoint
+    RESUME is out of scope and `graph_train` is SAVE-only**; any future early stopping is a
+    SEPARATE research / design decision and **must not select against the same final benchmark
+    without an explicit validation / test design**, and none of it is implemented or
+    authorized here. **Cluster campaign readiness is DEFERRED** because cluster access is not
+    available — which does **not** block the local actor-only R1 — and no scheduler, queue or
+    runbook detail exists or may be invented.
   - **`CLAUDE.md` IS AUTHORITATIVE FOR EVERY TECHNICAL CONTRACT, AND IT NOW RECORDS TASKS 1
     THROUGH 4.** Their §5 contracts, §4 placements, §6 routing and §7 lock entries are
     written, because reviewed and integrated behaviour exists for them. **Locks are written
@@ -738,8 +840,9 @@ cross-references it rather than duplicating it.
     **What remains OPEN is the SCIENTIFIC COMPARISON, not the implementation** (§4,
     Task 9), and **no CTDE benefit is claimed**.
   - **ACTIVE PHASE: GENERALIZED-V1 — §3l.8 STEPS 1, 2, 3 AND 4 ARE ALL MERGED (PR #35,
-    PR #36, PR #38, PR #40), so §3l.1–§3l.7 are IMPLEMENTED; STEP 5 (bounded runtime /
-    solver validation) IS NOT STARTED** (§3l). The GPT orchestrator owns the work. The FOUR
+    PR #36, PR #38, PR #40), so §3l.1–§3l.7 are IMPLEMENTED; STEP 5 IS IMPLEMENTED AND
+    APPROVED BUT NOT MERGED (PR #42 + PR #43, both FROZEN — §3m.1)** (§3l). The GPT
+    orchestrator owns the work. The FOUR
     low-level policy seams are OPT-IN with historical defaults and are resolved TOGETHER,
     and only together, by the ONE `episode_design` selector whose DEFAULT is
     `fixed_cell_v1`; the generalized cardinality sampler and the SEPARATE `fuel_damage_mode`
@@ -747,10 +850,13 @@ cross-references it rather than duplicating it.
     **GENERALIZED-V1 TASK 4 IS CLOSED — no writable implementation branch, no active PR, no
     candidate under review.** **No FINAL SCIENTIFIC benchmark scale has been SELECTED and no
     FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the
-    comparator, scheduled or authorized, and no generalized measurement exists, is running,
-    is scheduled or is authorized.**
+    comparator, scheduled or authorized, and no generalized measurement RESULT exists.**
+    A first generalized ACTOR-ONLY R1 long run **is** authorized and dispatched, with its
+    result PENDING and unreviewed (§3m.4).
     *(SUPERSEDED: this bullet previously read "STEPS 1, 2 AND 3 ARE MERGED … §3l.6–§3l.7 ARE
-    NOT IMPLEMENTED … neither harness selects them". Accurate when written; not now.)*
+    NOT IMPLEMENTED … neither harness selects them", then "STEP 5 … IS NOT STARTED" and
+    "no generalized measurement exists, is running, is scheduled or is authorized". Each was
+    accurate when written; not now.)*
   - **WRITABLE STATE — STATED IN STABLE POST-INTEGRATION FORM, so this bullet does not go
     stale when a documentation record merges.**
     - **NO documentation record is a standing writable task.** Each one is the sole writable
@@ -760,19 +866,26 @@ cross-references it rather than duplicating it.
       opens one.
     - **A CLEAN CHECKPOINT INSIDE AN ACTIVE PHASE IS NOT A CLOSED / IDLE REPOSITORY:**
       **GENERALIZED-V1 remains the ACTIVE project phase**, §3l.8 **Tasks 1, 2, 3 and 4 are
-      ALL MERGED and TASK 4 IS CLOSED**, and **Task 5 (bounded runtime / solver validation,
-      §3l.8 step 5) is the NEXT UNRESOLVED STEP.** *(SUPERSEDED: this line previously read
-      "Tasks 1, 2 and 3 are MERGED, and Task 4 (§3l.6–§3l.7) is the NEXT UNRESOLVED
-      IMPLEMENTATION TASK". Accurate when written; not now.)*
-    - **TASK 5 IS NOT STARTED AND NOT AUTHORIZED.** It requires GPT
-      exact-SHA review of the current documentation state plus **fresh explicit user
-      authorization** before any writable implementation begins (§8). Until that
-      authorization exists, nothing is implemented, no benchmark population is frozen, and
-      nothing is generated, solved, trained or measured. *(SUPERSEDED: this line previously
-      read "TASK 4 IS NOT AUTHORIZED"; Task 4 was separately authorized, implemented,
-      reviewed and merged as PR #40.)*
-    - **NO IMPLEMENTATION CANDIDATE IS ACTIVE** — the last CODE candidate was PR #40 and it
-      is merged; its branch and PR are no longer writable.
+      ALL MERGED**, and **Task 5 is IMPLEMENTED AND APPROVED as a STACKED, STILL-UNMERGED
+      TWO-PR STACK (§3m.1).** *(SUPERSEDED: this line previously read "Tasks 1, 2 and 3 are
+      MERGED, and Task 4 (§3l.6–§3l.7) is the NEXT UNRESOLVED IMPLEMENTATION TASK", then
+      "TASK 4 IS CLOSED, and Task 5 … is the NEXT UNRESOLVED STEP". Each was accurate when
+      written; not now.)*
+    - **TWO CODE CANDIDATES EXIST AND BOTH ARE FROZEN / READ-ONLY.** **PR #42**
+      (`312f58650b61a85eb72d0554d60715afee862a5c`) and **PR #43**
+      (`4af6c5aa5dd28072692bfda63282964b55010aae`) are APPROVED and NOT merged: **do not
+      modify, push to, rebase or force-push either.** **NO MERGE IS AUTHORIZED BY ANY
+      DOCUMENTATION RECORD**; integration follows §3m.5 and requires GPT exact-SHA review of
+      the current documentation state plus **fresh explicit user authorization** (§8), with
+      PR #43 and the documentation candidate each **EXACT-BASE RE-REVIEWED after retargeting**.
+      *(SUPERSEDED: these lines previously read "TASK 5 IS NOT STARTED AND NOT AUTHORIZED …
+      nothing is implemented" and "NO IMPLEMENTATION CANDIDATE IS ACTIVE — the last CODE
+      candidate was PR #40 and it is merged". Both were accurate when written.)*
+    - **THE EXTERNAL GENERALIZED-V1 LONG-RUN TASK IS RUN-ONLY AND OWNS NO REPOSITORY
+      WRITES.** It may execute and produce artifacts outside the repository; it may not
+      create, edit, push or merge any branch, and it commits no run artifact, config, preset
+      or benchmark manifest. **This documentation candidate is the ONE current writable
+      repository task, and no other branch may be edited concurrently** (§3m.2).
     *(Historical: `task/generalized-v1-cardinality-b2` merged as PR #35,
     `task/generalized-v1-fd-adaptation` as PR #36, `task/generalized-v1-task12-doc-lock` as
     PR #37, `task/generalized-v1-task3-continuation-reference` as PR #38,
@@ -1701,7 +1814,7 @@ lock and its evidence** — this section does not duplicate them.
   LATER; it is OUT OF SCOPE for the generalized redesign and is not reviewed, compared or
   claimed anywhere in this document — §1.)*
 
-## 3l. GENERALIZED-V1 — the ACTIVE phase: APPROVED DESIGN, **§3l.1–§3l.7 ALL IMPLEMENTED (STEPS 1–4); STEP 5 NOT STARTED**
+## 3l. GENERALIZED-V1 — the ACTIVE phase: APPROVED DESIGN, **§3l.1–§3l.7 ALL IMPLEMENTED (STEPS 1–4, MERGED); STEP 5 IMPLEMENTED AND APPROVED BUT NOT YET MERGED (§3m)**
 
 **READ THIS BANNER BEFORE ANY LINE BELOW IT.** This section is the APPROVED DESIGN. As of
 this record:
@@ -1931,7 +2044,7 @@ Per accepted episode, the intended observable set is:
 - kills outside the reference;
 - setup rejection reason.
 
-### 3l.8 The bounded implementation sequence — **STEPS 1–4 COMPLETE; STEP 5 IS NEXT AND IS NOT AUTHORIZED**
+### 3l.8 The bounded implementation sequence — **STEPS 1–4 COMPLETE AND MERGED; STEP 5 IMPLEMENTED AND APPROVED BUT NOT YET MERGED**
 
 The approved ORDER, with each step its own separately scoped, separately reviewed task that
 begins only after the previous one is reviewed and integrated:
@@ -1967,9 +2080,20 @@ begins only after the previous one is reviewed and integrated:
    POPULATION.** *(SUPERSEDED: this entry previously read "THE SINGLE NEXT UNRESOLVED
    IMPLEMENTATION TASK. NOT STARTED, AND NOT AUTHORIZED BY THIS RECORD".)*
 5. **bounded runtime / solver validation BEFORE deciding the final scientific run scale** —
-   **GENERALIZED-V1 TASK 5: THE SINGLE NEXT UNRESOLVED STEP. NOT STARTED, AND NOT
-   AUTHORIZED BY THIS RECORD** (§8). It comes BEFORE any benchmark population is frozen and
-   before any scientific run is scheduled.
+   **GENERALIZED-V1 TASK 5: IMPLEMENTED AND APPROVED, AS A STACKED, STILL-UNMERGED TWO-PR
+   STACK.** **PR #42**, approved head `312f58650b61a85eb72d0554d60715afee862a5c`, and
+   **PR #43**, FINAL approved head `4af6c5aa5dd28072692bfda63282964b55010aae` (append-only fix
+   chain from `734f1e786593b6ffb94f1f8d7283b1f2fc79d257`) — **both FROZEN / READ-ONLY, neither
+   merged, so no integration SHA exists for either** (§3m.1). It delivered the `train_by_*`
+   summary-population correction, the successful-episode training quota with its REQUIRED
+   bounded attempt budget and maximum-possible seed band, and the deterministic benchmark
+   preflight that SELECTS a complete population once before the freeze and leaves a durable
+   audit when it cannot. The bounded validation itself was performed and reviewed as **Task 5A
+   and Task 5B — `APPROVE — VALID ENGINEERING VALIDATION`, ENGINEERING EVIDENCE ONLY**
+   (§3m.3). **It still did NOT select a FINAL SCIENTIFIC worlds-per-cell scale and did NOT
+   commit or freeze a benchmark POPULATION into the repository.** *(SUPERSEDED: this entry
+   previously read "THE SINGLE NEXT UNRESOLVED STEP. NOT STARTED, AND NOT AUTHORIZED BY THIS
+   RECORD".)*
 6. **documentation and `CLAUDE.md` locks for behaviour that already exists** — **PARTIALLY
    DONE and CONTINUING.**
 
@@ -2001,7 +2125,159 @@ no per-task record discharges it.
 - **A previously executed OLD-CONTRACT CTDE measurement is OUT OF SCOPE** and must not be
   reviewed or compared unless the user explicitly asks (§1).
 
-## 4. Current work — GENERALIZED-V1 (IMPLEMENTATION STEPS 1–4 ALL MERGED, TASK 4 CLOSED, NO WRITABLE IMPLEMENTATION TASK, STEP 5 NEXT AND UNAUTHORIZED); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+## 3m. GENERALIZED-V1 TASK 5 — the APPROVED STACK, the ENGINEERING VALIDATION, and the DISPATCHED R1 long run
+
+**This section is VOLATILE STATE. The technical contracts it points at live in `CLAUDE.md`
+§5 (the GENERALIZED-V1 TASK 5 block), routed in §6 and locked in §7.**
+
+### 3m.1 The implementation stack — APPROVED, FROZEN, NOT YET MERGED
+
+Task 5's implementation is **TWO separately reviewed candidates, both APPROVED and both
+still OUTSIDE `main`.** At this record's checkpoint live `main` is
+`09eab0673153bd443185ec94530ccf0b042be465` (`2026-08-26 12:49:07 +0300`, the PR-#41 Task-4
+documentation merge) and NEITHER candidate has been integrated.
+
+- **PR #42 — `task/generalized-v1-task5-summary-phase-fix`, head
+  `312f58650b61a85eb72d0554d60715afee862a5c`** (`2026-08-29 21:42:32 +0300`), base
+  `09eab067…`. The `train_by_*` summary-population correction. **APPROVED. FROZEN /
+  READ-ONLY — do not modify it, do not push to it, do not rebase it.**
+- **PR #43 — `task/generalized-v1-task5-success-quota-preflight`, FINAL approved head
+  `4af6c5aa5dd28072692bfda63282964b55010aae`** (`2026-08-30 18:02:14 +0300`), PR base the
+  PR-#42 branch. The successful-episode training quota, the bounded attempt budget, the
+  maximum-possible seed band, and the deterministic benchmark preflight. **APPROVED.
+  FROZEN / READ-ONLY — do not modify it, do not push to it, do not rebase it.**
+  **HISTORICAL PROCESS EVIDENCE ONLY:** the original implementation candidate was
+  `734f1e786593b6ffb94f1f8d7283b1f2fc79d257`; GPT requested ONE append-only review fix; the
+  final candidate `4af6c5aa…` is its DIRECT CHILD. **No amend, rebase, squash, force-push or
+  history rewrite occurred.**
+- **THE DOCUMENTATION CANDIDATE — `task/generalized-v1-task5-doc-lock`**, branched from
+  exact `4af6c5aa…`, base `task/generalized-v1-task5-success-quota-preflight`. **It is the
+  SOLE WRITABLE REPOSITORY TASK while its own draft PR is open**, and it is **NOT MERGED**.
+
+**THE STACK IS `main` → PR #42 → PR #43 → docs PR.** Its intended later integration
+sequence is §3m.5, and **no merge is authorized by this documentation record.**
+
+### 3m.2 Writable ownership — one writable task, and the long run owns none of it
+
+- **The external GENERALIZED-V1 long-run task is RUN-ONLY and owns NO repository writes.**
+  It may execute and it may produce run artifacts outside the repository; it may not create,
+  edit, push or merge any branch, and no run artifact, config, preset or benchmark manifest
+  it produces is committed by it.
+- **This documentation task is the ONE current writable repository task.** No other branch
+  may be edited concurrently, and PR #42 and PR #43 are frozen.
+- Ownership of the work remains with the **GPT orchestrator**; every orchestrator resolves
+  live branch and PR state from GitHub, never from this document.
+
+### 3m.3 Engineering validation — Task 5A and Task 5B
+
+**THE LABEL IS BINDING: ENGINEERING VALIDATION — NOT SCIENTIFIC MEASUREMENT.** Both were
+independently reviewed **`APPROVE — VALID ENGINEERING VALIDATION`**. Neither has a scientific
+contract, a seed schedule, a held-out band, a frozen comparator or a population denominator.
+**No reward, learning, convergence, attrition-rate, generalized-performance or
+actor-vs-CTDE claim may be drawn from either, now or later.** `CLAUDE.md` §7 carries the
+same record; the detail is not duplicated here.
+
+- **TASK 5A.** A bounded end-to-end generalized rehearsal against a **TRANSIENT
+  one-world-per-cell** benchmark. Its load-bearing finding is the one that changed the
+  design: a repeated **A2-LOW `pre_event_popup_risk`** failure exposed the need for
+  **eligibility selection BEFORE the freeze** — which is what `graph_benchmark_preflight`
+  now provides. **Solver runtime dominated execution.** **Repeated pre/post values measured
+  on the SAME world are NOT independent runtime observations.** No reward and no policy
+  behaviour from it is promoted anywhere.
+- **TASK 5B**, at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`. The
+  validated engineering facts, recorded only because execution planning depends on them:
+  generalized training **24/24 successful, 0 ordinary failures**; benchmark preflight
+  **18/18 first candidates accepted, 0 rejected**; **0 observed requested→realized hidden
+  shortfalls** in those bounded samples; one **TRANSIENT** benchmark round **54/54 members
+  successful, 18/18 complete matched groups**; the **real BONMIN reference solver dominated
+  runtime**; **`A4-high` showed very large runtime variance**; and **one legitimate training
+  solve of roughly 998 seconds terminated `optimal`**, which is exactly why **no short solver
+  timeout was adopted**.
+  **THE SAMPLE-SIZE LIMITATION IS BINDING.** These are bounded samples. **No attrition-rate
+  population claim** may be made from them — "0 rejections in 18 first candidates" and "0
+  shortfalls" describe those samples and are not an estimate of a full campaign's rate,
+  which is precisely why `generalized_max_attempts_per_iteration` and
+  `max_candidates_per_cell` are REQUIRED operator inputs with no defaults. **The Task-5B
+  transient benchmark is NOT the R1 comparator.**
+
+### 3m.4 The first GENERALIZED-V1 ACTOR-ONLY long run (R1) — AUTHORIZED / DISPATCHED — RESULT PENDING
+
+**STATE: `AUTHORIZED / DISPATCHED — RESULT PENDING`.** This record does **NOT** state that
+the run is currently executing, that it completed, that it is scientifically valid, or what
+it produced. **No reward, convergence, attrition, benchmark, denominator or validity claim
+about R1 exists or may be inferred from any document.** This documentation task holds no
+independently checkable execution evidence for a live process, so `RUNNING` is deliberately
+not claimed.
+
+**THE FROZEN PLAN, recorded so the eventual artifacts can be checked against what was
+authorized:**
+
+| Knob | Value |
+|---|---|
+| `training_mode` | `actor_only` |
+| iterations | 375 |
+| SUCCESSFUL episodes per iteration | 8 |
+| total successful training episodes | 3000 |
+| `generalized_max_attempts_per_iteration` | 12 |
+| training base seed | 740000 |
+| MAXIMUM POSSIBLE training seed band | `[740000, 744500)` |
+| `worlds_per_cell` | 3 |
+| R1 benchmark base seed | 840000 |
+| `max_candidates_per_cell` | 12 |
+| evaluation | every 25 iterations |
+| checkpoint | every 25 iterations |
+| early stopping | none |
+| solver timeout | none adopted |
+| CTDE arm | **not run** |
+
+The seed band is the **MAXIMUM POSSIBLE ATTEMPT BAND** — `375 × 12 = 4500` — because a
+failed replacement attempt still spends a seed (`CLAUDE.md` §5). **No CTDE run exists, is
+scheduled or is authorized**, and **no actor-only-vs-CTDE generalized result exists.**
+
+**THE REVIEW REQUIREMENT IS UNCHANGED AND IS NOT DISCHARGED BY DISPATCH.** The eventual run
+requires **independent GPT artifact review** before any **`APPROVE — VALID MEASUREMENT`**
+verdict, judged under the same gate every measurement is: **VALIDITY BEFORE PERFORMANCE**, a
+mean never read without its denominator, an all-failed batch `null` and never `0.0`,
+within-world claims only from COMPLETE matched groups, and FD-wake rates over FD WAKES. **A
+null or negative generalized result is a valid observation, not a technical failure and not
+grounds to re-tune, re-seed or re-run.** The requested-vs-realized hidden-cardinality
+inspection (§3l.6) is a **human / GPT scientific-review decision** — the code REPORTS the
+distribution and applies no threshold.
+
+**EARLY STOPPING — CURRENT CAMPAIGN STATE.** **No reviewed early-stopping mechanism
+exists.** R1 uses a **fixed 3000-success budget**. **Checkpoint RESUME is out of scope and
+`graph_train` is SAVE-only**, as its own documented contract says. Any future early stopping
+is a **SEPARATE research / design decision**, and it **must not select against the same
+final benchmark without an explicit validation / test design** — stopping on the comparator
+would make the comparator part of the training signal. **It is not implemented here and is
+not authorized here.**
+
+**CLUSTER READINESS IS DEFERRED**, because cluster access is not currently available. **This
+does NOT block the local actor-only R1.** No scheduler, queue, partition or runbook detail
+exists, and none may be invented.
+
+**`p(destroy)` REMAINS `1.0`; `p(destroy) < 1` REMAINS DEFERRED** (§3l.3, §6).
+
+### 3m.5 Intended integration sequence — RECORDED, NOT PERFORMED
+
+**NO MERGE IS AUTHORIZED BY THIS DOCUMENTATION RECORD.** The stack is `main` → PR #42 →
+PR #43 → docs PR, and the intended later sequence is:
+
+1. merge approved **PR #42** into `main`;
+2. refresh the exact live `main` SHA from GitHub;
+3. retarget **PR #43** from the PR-#42 branch to `main`;
+4. **exact-base re-review PR #43 before merging** — changing a PR's base invalidates a
+   base-relative verdict even though the candidate SHA is unchanged;
+5. merge the **unchanged approved** PR #43 head;
+6. refresh the exact live `main` SHA again;
+7. retarget the **docs PR** to `main`;
+8. **exact-base re-review the docs candidate**;
+9. merge the **unchanged** docs candidate.
+
+**No rebase, no squash, no cherry-pick, no force-push and no history rewrite at any step.**
+Prefer merge integration that preserves each reviewed commit as an ancestor / merge parent.
+
+## 4. Current work — GENERALIZED-V1 (STEPS 1–4 MERGED; TASK 5 IMPLEMENTED AND APPROVED AS AN UNMERGED STACK; THE DOCS CANDIDATE IS THE SOLE WRITABLE TASK; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
 
 Start with fresh exact-SHA initialization against the current `main` (§9). **A documentation
 record neither authorizes nor runs anything: it RECORDS state only.** No documentation record
@@ -2009,8 +2285,23 @@ authorizes CC to implement Task 5 or any later generalized step, to freeze a ben
 population, to run training, to generate a scenario, to call BONMIN, to re-run any completed
 baseline, or to review a previously executed old-contract CTDE measurement.
 
-**THE ACTIVE PHASE IS GENERALIZED-V1, AND ITS IMPLEMENTATION SEQUENCE IS NOW COMPLETE
-THROUGH STEP 4.** The repository is **NOT closed and NOT idle**. **§3l.8 STEPS 1, 2, 3 AND 4
+**THE ACTIVE PHASE IS GENERALIZED-V1. ITS IMPLEMENTATION SEQUENCE IS MERGED THROUGH STEP 4,
+AND STEP 5 IS IMPLEMENTED AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR STACK (§3m.1).**
+**PR #42** (`312f58650b61a85eb72d0554d60715afee862a5c`) and **PR #43**
+(`4af6c5aa5dd28072692bfda63282964b55010aae`) are APPROVED, FROZEN / READ-ONLY and NOT merged;
+**this documentation candidate is the SOLE WRITABLE REPOSITORY TASK and is itself NOT
+merged**, and **no merge is authorized here** (§3m.5). **Task 5A and Task 5B are
+`APPROVE — VALID ENGINEERING VALIDATION` — engineering evidence, never a measurement**
+(§3m.3). **The FIRST GENERALIZED-V1 ACTOR-ONLY R1 long run is `AUTHORIZED / DISPATCHED —
+RESULT PENDING`, unreviewed, with no verdict and nothing about its outcome stated or
+inferable** (§3m.4). **The external long-run task is RUN-ONLY and owns NO repository writes.**
+*(SUPERSEDED by the three paragraphs above: this section's "TASK 4 IS CLOSED … NO
+implementation candidate remains under review … THE SINGLE NEXT UNRESOLVED STEP IS
+GENERALIZED-V1 TASK 5 … NOT started and NOT authorized" framing, and its claim that no
+generalized run is scheduled or authorized. Each was accurate when written. The rest of this
+section is preserved and remains accurate.)*
+
+**THE PRECEDING RECORD (2026-08-26), PRESERVED.** The repository is **NOT closed and NOT idle**. **§3l.8 STEPS 1, 2, 3 AND 4
 ARE ALL COMPLETE, REVIEWED AND INTEGRATED** — Task 1 (`5b55ca34…` → `9b305e4e…`, PR #35),
 Task 2 (`185d39f0…` → `ca0dc406…`, PR #36), Task 3 (`24a8b1ee…` → `df3abf2f…`, PR #38,
 **APPROVE**) and Task 4 (`db790138…` → `b4daa8c1…`, PR #40, **APPROVE**) — so §3l.1–§3l.7 are
@@ -2057,11 +2348,13 @@ INTEGRATION into `main` gated** — **that gate is now CLOSED / SATISFIED on bot
 the measurement-validity half by item 2's verdict and the reference half by
 `pre-ctde-actor-only` = `d437084c5fb1a22c21596a48c58e03f7e15a0115`. **All four items are
 complete**, so this paragraph is now the arrangement's HISTORICAL record. **THE LIVE STATE
-IS TASK 10 / GENERALIZED-V1: §3l.8 steps 1–4 are ALL MERGED, TASK 4 is CLOSED, and TASK 5 —
-bounded runtime / solver validation — is the next unresolved step and is NOT STARTED and NOT
-AUTHORIZED** (§4 Task 10, §8). *(SUPERSEDED: this clause previously pointed at Tasks 8 and 9
-as the live state, and later at "steps 1–3 MERGED, TASK 4 next"; those records are historical
-and are unchanged.)*
+IS TASK 10 / GENERALIZED-V1: §3l.8 steps 1–4 are ALL MERGED, step 5 is IMPLEMENTED AND
+APPROVED as the STILL-UNMERGED PR #42 + PR #43 stack, this documentation candidate is the
+SOLE WRITABLE REPOSITORY TASK, and the actor-only R1 long run is AUTHORIZED / DISPATCHED
+with its RESULT PENDING** (§3m, §4 Task 10, §8). *(SUPERSEDED: this clause previously
+pointed at Tasks 8 and 9 as the live state, then at "steps 1–3 MERGED, TASK 4 next", then at
+"TASK 4 is CLOSED, and TASK 5 … is NOT STARTED and NOT AUTHORIZED"; those records are
+historical and are unchanged.)*
 
 **This supersedes the serial "(3) only then proceed to Phase-B CTDE design" rule this
 section previously stated** — that rule is HISTORY and must not be restated as live. It also
@@ -2262,9 +2555,12 @@ they measure DIFFERENT cells: §3h is the LEGACY FD-BASELINE-v1 baseline, and §
 FD-VARIABLE-SEVERITY-v1 baseline. Neither is an expectation for the other, and neither is an
 expectation for any CTDE comparison.**
 
-**Task 10 — GENERALIZED-V1. IMPLEMENTATION STEPS 1–4 ALL MERGED; TASK 4 CLOSED; NO WRITABLE
-IMPLEMENTATION TASK; STEP 5 IS THE NEXT UNRESOLVED STEP AND IS NOT STARTED AND NOT
-AUTHORIZED. THIS IS THE LIVE PHASE.** Its APPROVED DESIGN is recorded in **§3l** and is not
+**Task 10 — GENERALIZED-V1. IMPLEMENTATION STEPS 1–4 ALL MERGED; STEP 5 IMPLEMENTED AND
+APPROVED AS A STACKED, STILL-UNMERGED TWO-PR STACK; THE DOCUMENTATION CANDIDATE IS THE SOLE
+WRITABLE REPOSITORY TASK; THE ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH ITS
+RESULT PENDING (§3m). THIS IS THE LIVE PHASE.** *(SUPERSEDED: this heading previously read
+"TASK 4 CLOSED; NO WRITABLE IMPLEMENTATION TASK; STEP 5 IS THE NEXT UNRESOLVED STEP AND IS NOT
+STARTED AND NOT AUTHORIZED".)* Its APPROVED DESIGN is recorded in **§3l** and is not
 repeated here: generalized cardinality with bounded B2 backoff (§3l.1–§3l.2), FD capability
 by construction with deterministic bounded ego eligibility (§3l.3), repeated post-FD decision
 points for the damaged ego alone (§3l.4), the event-conditioned MATCH-AOU continuation
@@ -2287,10 +2583,18 @@ that make all of it readable (§3l.7).
   the append-only fix chain from the original reviewed candidate
   `eef1795f6bb3f0cbc4c163ba489cf5e790df4c41` (manifest integrity, real held-outness, honest
   generalized construction provenance).
-  **No generalized world CAMPAIGN has been generated and NO generalized measurement exists,
-  is running, is scheduled or is authorized** — the bounded real-BLADE / BONMIN smokes taken
-  during each task's validation are ENGINEERING evidence only and carry no scientific
-  contract, seed schedule, held-out band or denominator.
+  Task 5 — **PR #42** (`312f58650b61a85eb72d0554d60715afee862a5c`) and **PR #43** (FINAL
+  approved head `4af6c5aa5dd28072692bfda63282964b55010aae`, append-only child of
+  `734f1e786593b6ffb94f1f8d7283b1f2fc79d257`), **BOTH APPROVED, BOTH FROZEN / READ-ONLY and
+  NEITHER MERGED**, so no integration SHA exists for either (§3m.1).
+  **NO generalized measurement RESULT exists.** A first generalized **ACTOR-ONLY** R1 long
+  run IS authorized and dispatched with its result **PENDING and UNREVIEWED** (§3m.4); **no
+  CTDE generalized run exists, is scheduled or is authorized.** The bounded real-BLADE /
+  BONMIN smokes taken during each task's validation, and the Task-5A / Task-5B validations
+  (§3m.3), are ENGINEERING evidence only and carry no scientific contract, seed schedule,
+  held-out band or denominator. *(SUPERSEDED: this bullet previously read "No generalized
+  world CAMPAIGN has been generated and NO generalized measurement exists, is running, is
+  scheduled or is authorized". Accurate when written.)*
 - **THE FOUR LOW-LEVEL POLICY SEAMS ARE OPT-IN, AND SINCE TASK 4 BOTH HARNESSES RESOLVE
   THEM TOGETHER — AND ONLY TOGETHER.** `TrainConfig.episode_design` /
   `RolloutConfig.episode_design` ∈ (`fixed_cell_v1` DEFAULT, `generalized_v1`) resolve the
@@ -2331,13 +2635,17 @@ that make all of it readable (§3l.7).
   reviewed and integrated. **`CLAUDE.md` locks are written PER COMPLETED TASK, for behaviour
   that already exists — never for a design** — and a FINAL documentation pass is still
   required after any later step lands.
-- **THE GATE ON STEP 5.** GENERALIZED-V1 Task 5 — **bounded runtime / solver validation
-  BEFORE deciding the final scientific run scale** — may begin **only after (a) the GPT
-  orchestrator has reviewed the current documentation state at its exact full SHA, and
-  (b) the user has authorized continuation.** **NO DOCUMENTATION RECORD AUTHORIZES IT.**
-  Absent both, nothing further is implemented, no benchmark population is frozen, and no run
-  is scheduled (§8). *(SUPERSEDED: this bullet previously gated step 3, and then step 4; both
-  have since been implemented, reviewed and integrated as PR #38 and PR #40.)*
+- **STEP 5 IS NO LONGER GATED — IT IS IMPLEMENTED AND APPROVED (§3m.1), AND WHAT REMAINS IS
+  INTEGRATION AND REVIEW.** The approved stack is INTEGRATED under the exact-base re-review
+  discipline of §3m.5 — merge PR #42, refresh live `main`, RETARGET PR #43 and **exact-base
+  re-review it before merging** (changing a PR's base invalidates a base-relative verdict even
+  though the candidate SHA is unchanged), merge the unchanged head, refresh `main`, retarget
+  and re-review the docs candidate, merge it — with **no rebase, squash, cherry-pick,
+  force-push or history rewrite** at any step. **NO MERGE IS AUTHORIZED BY THIS DOCUMENTATION
+  RECORD**, and the dispatched R1 requires **independent GPT artifact review** before any
+  `APPROVE — VALID MEASUREMENT` verdict (§3m.4, §8). *(SUPERSEDED: this bullet previously
+  gated step 3, then step 4, then step 5; all three have since been implemented and reviewed —
+  steps 3 and 4 integrated as PR #38 and PR #40, step 5 approved and awaiting integration.)*
 - **BINDING CONSTRAINTS CARRIED INTO EVERY STEP.** Several approved directions in §3l
   deliberately depart from contracts `CLAUDE.md` §5 previously locked — B2 exact
   cardinality, the fixed 3/3/3 cell, the FD eligibility and failure policy, the
@@ -2491,27 +2799,39 @@ The additional actor-only FD-VARIABLE-SEVERITY-v1 baseline (§4, Task 7) is **CL
 VALID and NEGATIVE** (§3j), **PHASE-B CTDE IMPLEMENTATION is CLOSED, REVIEWED and MERGED**
 (§4, Task 8; §3k), and **the current work is the GENERALIZED TRAINING / BENCHMARK REDESIGN
 (§4, Task 10; §3l), whose §3l.8 STEPS 1, 2, 3 AND 4 ARE ALL MERGED — so §3l.1–§3l.7 are
-IMPLEMENTED — while STEP 5 (bounded runtime / solver validation) is NOT STARTED, NO FINAL
-SCIENTIFIC BENCHMARK SCALE HAS BEEN SELECTED, and NO FINAL SCIENTIFIC BENCHMARK POPULATION
-OR MANIFEST HAS BEEN COMMITTED, PRESERVED AS THE COMPARATOR, SCHEDULED OR AUTHORIZED.**
+IMPLEMENTED — while STEP 5 IS IMPLEMENTED AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR
+STACK (§3m.1), NO FINAL SCIENTIFIC BENCHMARK SCALE HAS BEEN SELECTED, and NO FINAL
+SCIENTIFIC BENCHMARK POPULATION OR MANIFEST HAS BEEN COMMITTED, PRESERVED AS THE
+COMPARATOR, SCHEDULED OR AUTHORIZED.** *(SUPERSEDED: this preamble previously said step 5
+was NOT STARTED. Accurate when written.)*
 Out of scope:
 
-- **IMPLEMENTING ANY FURTHER PART OF THE GENERALIZED REDESIGN FROM A DOCUMENTATION RECORD.**
-  §3l.8 step 5 remains a PLAN and this document does not authorize it. **No bounded
-  runtime/solver validation campaign, no concrete benchmark population, no worlds-per-cell
-  scale decision, no generalized preset and no scientific schedule may be produced on the
-  strength of this document** — **step 5 begins only after GPT exact-SHA review of the
-  current documentation state AND explicit user-authorized continuation** (§8). *(Steps 1,
-  2, 3 and 4 were each separately authorized and are DONE; that is history, not a standing
-  authorization for step 5.)*
+- **IMPLEMENTING ANYTHING FURTHER, OR MERGING ANYTHING, FROM A DOCUMENTATION RECORD.**
+  **No merge is authorized by this document** — the approved PR #42 + PR #43 stack is
+  integrated only under §3m.5, after GPT exact-SHA review of the current documentation state
+  AND explicit user-authorized continuation (§8), with PR #43 and the documentation candidate
+  each EXACT-BASE RE-REVIEWED after retargeting. **No concrete FINAL benchmark population, no
+  worlds-per-cell scale decision, no generalized preset, no early-stopping mechanism, no
+  cluster runbook and no further scientific schedule may be produced on the strength of this
+  document.** *(Steps 1–5 were each separately authorized and their code is DONE; that is
+  history, not a standing authorization for anything further.)* *(SUPERSEDED: this bullet
+  previously read "§3l.8 step 5 remains a PLAN and this document does not authorize it" and
+  "no bounded runtime/solver validation campaign … may be produced". Step 5 has since been
+  implemented and approved, and the bounded validation was performed and reviewed as Task 5A
+  and Task 5B — ENGINEERING VALIDATION ONLY, §3m.3.)*
 - **CLAIMING, IMPLYING OR ASSUMING THAT ANY GENERALIZED BEHAVIOUR HAS BEEN MEASURED, THAT A
-  FINAL BENCHMARK POPULATION EXISTS, OR THAT A FINAL SCALE WAS SELECTED.** Steps 1–4 are
-  implemented CODE with engineering evidence only: **nothing generalized is benchmarked or
-  measured, no generalized result may be pre-claimed, no concrete manifest has been frozen,
-  and no actor-only-vs-CTDE generalized result exists** (§3l);
+  FINAL BENCHMARK POPULATION EXISTS, OR THAT A FINAL SCALE WAS SELECTED.** Steps 1–5 are
+  implemented CODE with ENGINEERING evidence only: **no generalized measurement RESULT
+  exists, no generalized result may be pre-claimed, no FINAL benchmark manifest has been
+  committed or preserved as the comparator, and no actor-only-vs-CTDE generalized result
+  exists** (§3l, §3m). **The dispatched actor-only R1 is `RESULT PENDING` and UNREVIEWED —
+  dispatch is not a result, and nothing about its outcome may be stated or inferred** (§3m.4).
+  **The Task-5B transient benchmark is NOT the R1 comparator**, and Task 5A / Task 5B are
+  ENGINEERING VALIDATION, never measurement (§3m.3);
 - **WRITING `CLAUDE.md` RECORDS FOR AN UNIMPLEMENTED GENERALIZED DESIGN.** `CLAUDE.md` now
-  records steps 1, 2, 3 and 4, because reviewed and integrated behaviour exists for them; it
-  records nothing for step 5 and must not until the same is true of it;
+  records steps 1, 2, 3 and 4 as INTEGRATED behaviour, and step 5 as REVIEWED AND APPROVED
+  CANDIDATES that are explicitly **NOT YET INTEGRATED — with no invented merge SHA**, per
+  §7's hash convention. It must record nothing for behaviour that has not been reviewed;
 - **CREATING A SECOND HANDOFF OR A SEPARATE DESIGN DOCUMENT.** There is ONE handoff — this
   file — and the generalized design lives in §3l of it;
 - **REVIEWING, RE-ANALYSING OR COMPARING THE PREVIOUSLY EXECUTED OLD-CONTRACT CTDE
@@ -2665,31 +2985,54 @@ obligations and bounded implementation/lock task.
 | GENERALIZED-V1 Task 2 lands (§3l.8 step 2) — **DONE for PR #36** | The two opt-in FD policy seams with LEGACY defaults preserved, the separate `fuel_damage_eligibility_v1` RNG domain, ordinal-driven certified eligibility running for EVERY condition including CLEAN, the tick-aware certificate with its one-tick tolerance bracket and pre-event route-stability certification, `no_fd_eligible_ego` as ORDINARY ACCOUNTED ATTRITION versus `FuelDamageIntegrityError` as an INSTRUMENT abort (live contradiction AND the terminal never-fired check at the single `run_episode` exit seam, before the recording export), the certified-CLEAN non-fire allowance, unchanged LEGACY non-fire semantics, the ONE shared executor confirmation site, damaged-ego-only post-FD adaptation with local reconciliation before the CTDE capture, the append-only `POST_FD_COMPLETION` trigger with NO new `MetaAction`, and the SEPARATE boundary diagnostics — recorded as a contract in `CLAUDE.md` §5, routed in §6 (including the measurement-integrity routing row), locked in §7 with the exact nine changed files and the append-only REQUEST-FIXES → approved-child chain. **The bounded real-BLADE / BONMIN smoke is LABELLED engineering validation, never a measurement; no generalized result is pre-claimed.** Also record that NEITHER harness exposes either policy and that nothing persists the new diagnostics *(both TRUE when PR #36 landed and SUPERSEDED by PR #40, which added the `episode_design` selector and full run-level persistence)* |
 | GENERALIZED-V1 Task 3 lands (§3l.8 step 3) — **DONE for PR #38** | The ONE OPT-IN reward-reference policy beside the PRESERVED `static_t0_v1` default, `EpisodeContext.reference_policy` as the single stored source with `uses_event_conditioned_reference` as the canonical runtime predicate and an unknown id REFUSED before any BLADE object exists, the deferred second solve and its three sites (CLEAN t=0 before the first tick; the DAMAGED continuation reference at the top of the firing tick immediately after the real `current_fuel` mutation and before boundary / trigger / `central.capture` / decision / `env.step`; the legacy never-fired t=0 build at the episode-exit seam before the recording export), the checkpoint as READ-ONLY privileged measurement that advances no simulation time and reaches no acting path, the continuation universe as the retained RAW t=0 world minus the realized prefix and NEVER a private belief, continuation agents rebuilt from the LIVE post-event world with dead / RTB-committed / non-airborne egos EXCLUDED by recorded reason, the `U_ref = U_prefix + U_cont_ref` / `U_achieved = U_prefix + U_post` arithmetic with `U_prefix` FROZEN at the checkpoint, `U_post` restricted to continuation-allocated tasks, out-of-reference kills ACCOUNTING-ONLY, `U_aircraft` from the reward-bearing reference universe, NO clamping, `u_oracle is None`, and terminal-on-last credit placement UNCHANGED, the audited solve seam distinguishing an unanswered solve from an answered zero with the historical public triple byte-unchanged, `ReferenceIntegrityError` and its CURRENT ordinary-episode-failure routing, and the typed `EpisodeReference` on `EpisodeResult.reference` — recorded as a contract in `CLAUDE.md` §5, placed in §4, routed in §6 and locked in §7 with the exact five changed files and the identical-tree integration proof. **The review-APPROVED `damaged_event_unrealized_t0` compatibility deviation is recorded EXPLICITLY and scoped as a LEGACY preservation, never as generalized damaged semantics.** The at-most-two-BONMIN / never-a-third statement is recorded in its accurate form, including the degenerate `solver_invoked=False` skip. **The bounded real-BLADE / BONMIN smoke is LABELLED engineering validation, never a measurement; no generalized result is pre-claimed.** Also record that NEITHER harness exposes the policy and that nothing persists `EpisodeReference` *(both TRUE when PR #38 landed and SUPERSEDED by PR #40, which added the `episode_design` selector and full run-level persistence)* |
 | GENERALIZED-V1 Task 4 lands (§3l.8 step 4) — **DONE for PR #40** | The ONE `episode_design` selector resolving the COMPLETE approved bundle through a single site with `fixed_cell_v1` as the PRESERVED DEFAULT and NO per-policy harness field, `training_mode` as an ORTHOGONAL and unchanged training-algorithm selector, the generalized TRAINING cardinality sampler (`A ~ U{2,3,4}`, `K == A`, `H_requested | A ~ U{1..A}`) on its OWN SHA-256 rng domain disjoint from the three fuel-damage domains / the placement rng / global `random` / torch, `H_requested` NEVER rewritten and short realization RECORDED rather than retried or replaced, the 18-stratum matched CLEAN/MILD/SEVERE benchmark MECHANISM with its canonical content-addressed manifest whose loader authenticates the EXACT STORED payload AND independently requires it to equal the canonical payload (so a tampered manifest AND a self-consistently rehashed noncanonical forgery are both REFUSED), id-free world identity with no generated-uuid equality anywhere, matched-group and frozen-preflight identity VERIFIED with `BenchmarkIdentityError` routed as a measurement-integrity ABORT, deltas over COMPLETE three-member groups ONLY with no retry or substitution, the manifest's ACTUAL seeds checked against the training band at LOAD time before the run directory or any scientific compute, provenance naming the manifest as the real eval seed source with the configured band retained and marked UNUSED, UNCHANGED historical fixed-cell eval-band semantics, the reason-based `ReferenceIntegrityError` routing (an unanswered solve = accounted attrition; every other reason = measurement-integrity ABORT, read from the SLUG and never the message) with the reward arithmetic itself unchanged, run-level PERSISTENCE of the construction audit / FD eligibility audit and certificate / post-FD adaptation / reference decomposition and continuation-solver audit / scored-vs-unscored completion / aircraft-loss and selected-ego RTB / benchmark stratum and world identity, and generalized aggregates with EXPLICIT denominators — recorded as a contract in `CLAUDE.md` §5, placed in §4, routed in §6 and locked in §7 with the exact eight changed files, the append-only fix chain and the identical-tree integration proof. **Record that the generalized `run_config.json` cardinality is DYNAMIC and that the old 3/3/3 count fields are explicitly marked UNUSED, with realized per-episode cardinality living in `episode_outcomes.jsonl`, while fixed-cell construction and provenance remain historical and byte-unchanged.** **Record that requested-vs-realized HIGH-load behaviour is REPORTED for inspection and that NO automatic acceptance threshold is invented — the judgement is a human / GPT scientific review decision.** **Record that Task 4 delivered the manifest SCHEMA / BUILDER / LOADER / CONSUMER / FREEZE MECHANISM and did NOT choose the final scientific world count and did NOT commit or generate a final benchmark population — that is step 5's business — and that NO generalized measurement and NO actor-only-vs-CTDE generalized result exists or may be pre-claimed** |
-| The REMAINING GENERALIZED step lands (§3l.8 step 5) — **NOT STARTED; STEP 5 (TASK 5, bounded runtime / solver validation) IS NEXT AND IS NOT AUTHORIZED BY ANY DOCUMENTATION RECORD** | A separately scoped, separately reviewed bounded task, beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **after reviewed behaviour exists** — never in advance and never for a design. *(SUPERSEDED: this row previously said the records wait for step 6 alone, and later covered steps 4–5; practice is one documentation pass per completed task, step 4 is DONE, and a FINAL pass is still required after any later step lands.)* Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve, the fixed held-out eval band — **all five already addressed by Tasks 1–4 as their own reviewed OPT-IN seams**) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical paths are PRESERVED beside the generalized ones. **Requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting are already first-class observables (§3l.7) — record any change to them without pre-claiming any result** |
+| GENERALIZED-V1 Task 5 lands (§3l.8 step 5) — **DONE for PR #42 + PR #43, BOTH APPROVED AND FROZEN, NEITHER MERGED** | The `train_by_*` summary buckets counting TRAINING attempts only (a persisted-summary correction that changes no episode behaviour and leaves the canonical streams byte-unchanged, with training FAILURES still represented and every other generalized block keeping its own population); the successful-episode training QUOTA under `generalized_v1` with `episodes_per_iteration` counting SUCCESSFUL episodes, the REQUIRED and never-defaulted `generalized_max_attempts_per_iteration`, ONE run-wide monotone attempt ordinal whose seed is `train_attempt_seed`, an ordinary failure recorded once / spending its seed / never retried / never entering the PPO-CTDE buffer / replaced by the next deterministic attempt, `TrainingQuotaError` on exhaustion with NO partial update, the PRESERVED `scheduled_attempts_v1` fixed-cell behaviour, and the unchanged actor-vs-CTDE execution semantics; held-outness checked against the MAXIMUM POSSIBLE attempt band `[base_seed, base_seed + n_iterations * generalized_max_attempts_per_iteration)` because a failed replacement still spends a seed; and the deterministic benchmark PREFLIGHT — explicit `worlds_per_cell` / `benchmark_base_seed` / `max_candidates_per_cell` with NO scientific-scale default, six INDEPENDENT deterministic base-cell candidate windows, first valid candidates accepted in ascending order with each rejected seed spent exactly once, ordinary world-construction / certified-FD-ineligibility rejections replaceable BEFORE the freeze, accepted bounded-backoff worlds NOT rejected solely for `hidden_realized < hidden_requested` (short realization is AUDIT DATA, never an automatic failure), integrity faults PROPAGATING rather than becoming population-selection attrition, NO policy built and NO episode run so no reward or learned behaviour can influence acceptance, the COMPLETE-manifest rule, IMMUTABLE post-freeze evaluation with NO substitution in `evaluate_benchmark`, and the FAILED-preflight durable audit (`status = failed_incomplete`, `complete = false`, `manifest_written = false`, `manifest = null`, the failure block naming the exhausted cell / window / requested-accepted-missing counts, attempted seeds and rejection tallies SURVIVING, completed cells preserved, unattempted cells NAMED, the report written BEFORE the raise when an output directory exists, `BenchmarkPreflightError.report` / `.report_path` when there is none, and a pre-existing manifest NAMED via `stale_manifest_path` rather than deleted or adopted) — recorded as a contract in `CLAUDE.md` §5, routed in §6 and locked in §7 with the exact changed files and PR #43's append-only review-fix chain. **Record Task 5A and Task 5B as `APPROVE — VALID ENGINEERING VALIDATION` under a BINDING label — engineering evidence, never a measurement — with their bounded sample sizes stated as an explicit limitation and NO attrition-rate population claim, NO learning claim and NO actor-vs-CTDE claim.** **Record the dispatched actor-only R1 as `AUTHORIZED / DISPATCHED — RESULT PENDING` with its frozen plan and NOTHING about its outcome; record that it needs independent GPT artifact review before any `APPROVE — VALID MEASUREMENT`; and record that NO integration SHA exists for either PR and none may be invented** |
+| The GENERALIZED-V1 TASK-5 STACK is INTEGRATED (§3m.5) — **NOT DONE; NO MERGE IS AUTHORIZED BY ANY DOCUMENTATION RECORD** | Merge PR #42, refresh the exact live `main`, RETARGET PR #43 to `main` and **exact-base re-review it before merging** — changing a PR's base invalidates a base-relative verdict even though the candidate SHA is unchanged — then merge the unchanged approved head, refresh `main`, retarget and re-review the documentation candidate, and merge it unchanged. **No rebase, no squash, no cherry-pick, no force-push, no history rewrite**; prefer merge integration preserving each reviewed commit as an ancestor / merge parent. Record each integration SHA only once it exists, per §7's hash convention |
+| The DISPATCHED GENERALIZED ACTOR-ONLY R1 completes — **DISPATCHED; RESULT PENDING; UNREVIEWED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Nothing may be recorded before independent GPT artifact review, and no reward, convergence or validity claim may be pre-stated. VALIDITY IS JUDGED BEFORE PERFORMANCE; a null or negative result is a valid observation, not a technical failure and not grounds to re-tune, re-seed or re-run.** The requested-vs-realized hidden-cardinality inspection stays a HUMAN / GPT decision — the code reports the distribution and applies no threshold |
+| A future EARLY-STOPPING mechanism is proposed — **NOT IMPLEMENTED, NOT REVIEWED, NOT AUTHORIZED** | It is a SEPARATE research / design decision with its own proof obligations. **It must not select against the same final benchmark without an explicit validation / test design** — stopping on the comparator makes the comparator part of the training signal. Checkpoint RESUME remains out of scope; `graph_train` is SAVE-only. R1 uses a fixed 3000-success budget |
+| CLUSTER campaign readiness — **DEFERRED; cluster access is not available** | Not a blocker for the local actor-only R1. **Invent no scheduler, queue, partition or runbook detail**; record it only once real access and a reviewed design exist |
+| *(HISTORICAL, superseded by the Task-5 row above)* The REMAINING GENERALIZED step lands (§3l.8 step 5) — **was NOT STARTED and NOT AUTHORIZED when written** | A separately scoped, separately reviewed bounded task, beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **after reviewed behaviour exists** — never in advance and never for a design. *(SUPERSEDED: this row previously said the records wait for step 6 alone, and later covered steps 4–5; practice is one documentation pass per completed task, step 4 is DONE, and a FINAL pass is still required after any later step lands.)* Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve, the fixed held-out eval band — **all five already addressed by Tasks 1–4 as their own reviewed OPT-IN seams**) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical paths are PRESERVED beside the generalized ones. **Requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting are already first-class observables (§3l.7) — record any change to them without pre-claiming any result** |
 | The FROZEN GENERALIZED BENCHMARK POPULATION is built — **NOT STARTED; the MECHANISM exists since PR #40, the POPULATION and its SCALE do NOT** | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator**. **Task 4 delivered the schema, builder, canonical serialization, content hash, verifying loader, consumer and identity checks; it deliberately did NOT choose the worlds-per-cell scale and did NOT generate, commit or freeze a population, and its builder REFUSES to invent a world count. Choosing the scale comes AFTER §3l.8 step 5's bounded runtime / solver validation.** |
 | The FIRST GENERALIZED scientific measurement completes — **NOT RUN, NOT AUTHORIZED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Validity is judged BEFORE performance; a null or negative generalized result is a valid observation, not a technical failure** |
 
 ## 8. Next action
 
-**THE SINGLE NEXT ACTION IS UNAMBIGUOUS: GENERALIZED-V1 TASK 5 — BOUNDED RUNTIME / SOLVER
-VALIDATION BEFORE THE FINAL SCIENTIFIC RUN SCALE IS DECIDED (§3l.8 step 5) — AND NO
-DOCUMENTATION RECORD AUTHORIZES IT.** The live phase is GENERALIZED-V1 (§3l, §4 Task 10);
-**steps 1, 2, 3 and 4 are ALL COMPLETE, REVIEWED and INTEGRATED** (PR #35, `5b55ca34…` →
-`9b305e4e…`; PR #36, `185d39f0…` → `ca0dc406…`; PR #38, `24a8b1ee…` → `df3abf2f…`,
-**APPROVE**; PR #40, `db790138…` → `b4daa8c1…`, **APPROVE**), **GENERALIZED-V1 TASK 4 IS
-CLOSED with no writable branch, no active PR and no candidate under review**, and the GPT
-orchestrator owns the work. Task 5 may begin **ONLY after BOTH of:**
+**THE LIVE STATE IS TWO OPEN THREADS, AND NEITHER IS AUTHORIZED BY THIS RECORD:**
+**(A) INTEGRATION of the APPROVED, FROZEN, STILL-UNMERGED GENERALIZED-V1 TASK-5 STACK** under
+the exact-base re-review discipline of §3m.5, and **(B) INDEPENDENT GPT ARTIFACT REVIEW of the
+DISPATCHED ACTOR-ONLY R1 long run once its artifacts exist** (§3m.4). The live phase is
+GENERALIZED-V1 (§3l, §3m, §4 Task 10); **steps 1, 2, 3 and 4 are COMPLETE, REVIEWED and
+INTEGRATED** (PR #35, `5b55ca34…` → `9b305e4e…`; PR #36, `185d39f0…` → `ca0dc406…`; PR #38,
+`24a8b1ee…` → `df3abf2f…`, **APPROVE**; PR #40, `db790138…` → `b4daa8c1…`, **APPROVE**), and
+**step 5 is IMPLEMENTED and APPROVED as PR #42 (`312f5865…`) + PR #43 (`4af6c5aa…`), BOTH
+FROZEN / READ-ONLY and NEITHER MERGED** — live `main` at this record's checkpoint is still
+`09eab0673153bd443185ec94530ccf0b042be465`, so **no integration SHA exists for either and none
+may be invented.** **This documentation candidate is the SOLE WRITABLE REPOSITORY TASK**, the
+external long-run task is **RUN-ONLY and owns NO repository writes**, and the GPT orchestrator
+owns the work.
 
-1. **the GPT orchestrator has reviewed the current documentation state at its exact full
-   SHA**, and
-2. **the user has authorized continuation.**
+**NO MERGE IS AUTHORIZED BY THIS RECORD**, and integration proceeds only after **(a) the GPT
+orchestrator has reviewed the current documentation state at its exact full SHA** and **(b)
+the user has authorized continuation** — with **PR #43 and the documentation candidate each
+EXACT-BASE RE-REVIEWED after their base is retargeted**, because changing a PR's base
+invalidates a base-relative verdict even though the candidate SHA is unchanged.
 
-**Until both hold, NOTHING further is implemented, generated, solved, trained or measured.**
-Task 5 is NOT started, NOT in progress and NOT authorized. No other task is next: not the
-old fixed-cell Task-9 CTDE comparison (superseded in ordering, §4), not a review of the
-previously executed old-contract CTDE measurement (out of scope unless the user explicitly
-asks, §1), and not a re-run of any approved historical baseline (prohibited, §6 — the
-approved baselines are REUSED as what they are, never rerun, repaired, resumed or re-tuned).
+**THE DISPATCHED R1 IS `AUTHORIZED / DISPATCHED — RESULT PENDING`: unreviewed, with no verdict,
+and NOTHING about its reward, convergence, attrition, benchmark outcome or scientific validity
+may be stated or inferred.** It requires independent GPT artifact review before any
+**`APPROVE — VALID MEASUREMENT`** verdict, judged under the unchanged gate — **VALIDITY BEFORE
+PERFORMANCE** — and **a null or negative generalized result is a valid observation, not a
+technical failure and not grounds to re-tune, re-seed or re-run.** **Task 5A and Task 5B are
+ENGINEERING VALIDATION ONLY and establish nothing scientific** (§3m.3). **No CTDE generalized
+run exists, is scheduled or is authorized**, **no reviewed early-stopping mechanism exists**
+(R1 uses a fixed 3000-success budget; checkpoint RESUME is out of scope and `graph_train` is
+SAVE-only), and **cluster readiness is DEFERRED** for want of access — which does not block
+the local R1 (§3m.4).
+
+No other task is next: not the old fixed-cell Task-9 CTDE comparison (superseded in ordering,
+§4), not a review of the previously executed old-contract CTDE measurement (out of scope
+unless the user explicitly asks, §1), and not a re-run of any approved historical baseline
+(prohibited, §6 — the approved baselines are REUSED as what they are, never rerun, repaired,
+resumed or re-tuned).
 **NO FINAL SCIENTIFIC benchmark worlds-per-cell scale has been SELECTED, no FINAL SCIENTIFIC
 benchmark population or manifest has been committed, preserved as the comparator, scheduled
 or authorized (no benchmark manifest is committed or tracked in the repository; transient
@@ -2698,11 +3041,16 @@ global negative over local scratch files), NO generalized MEASUREMENT exists, is
 scheduled or is authorized, no final actor-only or CTDE generalized campaign is authorized,
 and no generalized result — including any actor-only-vs-CTDE comparison — may be
 pre-claimed.** When those two arms are eventually run they **MUST use the SAME eventual
-frozen manifest.** Steps 1–4 delivered implemented CODE with engineering evidence only, and
+frozen manifest.** Steps 1–5 delivered implemented CODE with engineering evidence only, and
 `p(destroy) < 1` remains DEFERRED.
-*(SUPERSEDED: this section previously named step 1, then step 3, then step 4 as the single
-next action, and stated that Task 4 was NOT started and NOT authorized. Each was accurate
-when written; steps 1, 2, 3 and 4 have since been implemented, reviewed and integrated.)*
+*(SUPERSEDED: this section previously named step 1, then step 3, then step 4, then step 5 as
+the single next action, and stated that Task 5 was NOT started and NOT authorized and that no
+generalized run was scheduled or authorized. Each was accurate when written; steps 1–4 have
+since been implemented, reviewed and integrated, step 5 is implemented and approved but not
+merged, and the actor-only R1 has been authorized and dispatched with its result pending.
+What is UNCHANGED: no FINAL SCIENTIFIC worlds-per-cell scale has been SELECTED, no FINAL
+SCIENTIFIC benchmark population or manifest has been committed to the repository or preserved
+as the comparator, and no generalized measurement RESULT exists.)*
 
 **THE REST OF THIS SECTION IS THE PRESERVED RECORD OF THE CLOSED PHASES**, accurate about
 them and unchanged in meaning.
@@ -2866,17 +3214,22 @@ replacement for it.
 
 Resolve live branch and PR state from GitHub; this document does not track it.
 
-**THE NEXT REPOSITORY ACTION, RESTATED ONCE AND ONLY ONCE: GENERALIZED-V1 TASK 5 — BOUNDED
-RUNTIME / SOLVER VALIDATION (§3l.8 step 5), AND ONLY AFTER GPT EXACT-SHA REVIEW OF THE
-CURRENT DOCUMENTATION STATE PLUS USER-AUTHORIZED CONTINUATION.** Nothing else is next.
-**§3l.8 steps 1–4 are IMPLEMENTED, REVIEWED and INTEGRATED (PR #35, PR #36, PR #38, PR #40)
-and GENERALIZED-V1 TASK 4 IS CLOSED**; no final benchmark scale or population has been
-chosen; no generalized measurement exists, is running, is scheduled or is authorized;
-`p(destroy) < 1`, SAMs, dense reward, solver or reward-formula changes and any further
-difficulty factor remain OUTSIDE it (§6); and the approved historical measurements are
-REUSED as what they are — neither re-run nor reinterpreted. *(SUPERSEDED: this paragraph
-previously named GENERALIZED IMPLEMENTATION TASK 1 as the next action and described the §3l
-design as approved but NOT IMPLEMENTED. Accurate when written; not now.)*
+**THE NEXT REPOSITORY ACTIONS, RESTATED ONCE AND ONLY ONCE: (A) INTEGRATION OF THE APPROVED,
+FROZEN, STILL-UNMERGED GENERALIZED-V1 TASK-5 STACK UNDER §3m.5, AND (B) INDEPENDENT GPT
+ARTIFACT REVIEW OF THE DISPATCHED ACTOR-ONLY R1 ONCE ITS ARTIFACTS EXIST — BOTH ONLY AFTER
+GPT EXACT-SHA REVIEW OF THE CURRENT DOCUMENTATION STATE PLUS USER-AUTHORIZED CONTINUATION.**
+Nothing else is next, and **no merge is authorized by any documentation record.**
+**§3l.8 steps 1–4 are IMPLEMENTED, REVIEWED and INTEGRATED (PR #35, PR #36, PR #38, PR #40),
+and step 5 is IMPLEMENTED and APPROVED as PR #42 + PR #43, both FROZEN / READ-ONLY and
+NEITHER MERGED**; no FINAL SCIENTIFIC benchmark scale or population has been chosen or
+committed; **no generalized measurement RESULT exists** and the dispatched actor-only R1 is
+**RESULT PENDING and UNREVIEWED**; `p(destroy) < 1`, SAMs, dense reward, solver or
+reward-formula changes, early stopping and any further difficulty factor remain OUTSIDE it
+(§6, §3m.4); and the approved historical measurements are REUSED as what they are — neither
+re-run nor reinterpreted. *(SUPERSEDED: this paragraph previously named GENERALIZED
+IMPLEMENTATION TASK 1 as the next action and described the §3l design as approved but NOT
+IMPLEMENTED, and later named TASK 5 as the next action while stating that no generalized
+measurement was running, scheduled or authorized. Each was accurate when written; not now.)*
 
 **This document authorizes neither an implementation nor a training run.**
 
@@ -2930,4 +3283,8 @@ so.
 | 2026-08-25 | **GENERALIZED-V1 TASK 3 IMPLEMENTED, REVIEWED AND MERGED** — the event-conditioned MATCH-AOU continuation reference and reward checkpoint (§3l.5); reviewed candidate `24a8b1ee42b1d32731fa7f5cef09fcfab50bb33e`, integration `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, PR #38, verdict **APPROVE**, Grade A under `GPT_GITHUB` | §3l.8 step 3 is COMPLETE, so **§3l.5 is now IMPLEMENTED**. The historical `static_t0_v1` reference is PRESERVED and remains the DEFAULT, so the approved Phase-A and variable-severity measurements are untouched and are still measurements OF IT; `event_conditioned_continuation_v1` is an OPT-IN ADDITION beside it that **neither harness selects**. The checkpoint is privileged READ-ONLY measurement that reaches no acting path, advances no simulation time and never adds a THIRD reference solve. The review APPROVED ONE compatibility deviation, `damaged_event_unrealized_t0`, scoped to the LEGACY Task-2 contract and **not** generalized damaged semantics. `p(destroy)` stays `1.0`, no new `MetaAction` exists, and terminal credit placement is unchanged. **No scientific run occurred and no generalized measurement exists** |
 | 2026-08-25 | **TASK-3 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.5 while the live documents still said it was NOT IMPLEMENTED and that Task 3 was the next unresolved task | `CLAUDE.md` gains the Task-3 §5 contract, its §4 pipeline placement, its three §6 routing rows and its §7 lock, and its stale “no continuation reference / no reward change” and “`graph_reward` remains FROZEN” wording is corrected in place. This handoff records Tasks 1–3 as COMPLETE, §3l.5 as IMPLEMENTED, §3l.6–§3l.7 as NOT IMPLEMENTED, and **Task 4 as the SINGLE next unresolved task that no documentation record authorizes** (§8). It is written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
 | 2026-08-26 | **GENERALIZED-V1 TASK 4 IMPLEMENTED, REVIEWED AND MERGED** — the episode-design selector, the generalized training cardinality sampler, the frozen stratified benchmark MANIFEST MECHANISM and run-level persistence / aggregate metrics (§3l.6, §3l.7); FINAL approved candidate `db79013897a6e5669f50d53b6e30229b16aea28d`, integration `b4daa8c1a8c870061b26cceb01d4ed34169594e7`, PR #40, verdict **APPROVE**, Grade A under `GPT_GITHUB`. *(Historical process evidence: original reviewed candidate `eef1795f6bb3f0cbc4c163ba489cf5e790df4c41` → review corrections → append-only child `db790138…` → APPROVE, covering manifest integrity, real held-outness and honest generalized construction provenance.)* | §3l.8 step 4 is COMPLETE, so **§3l.6–§3l.7 are now IMPLEMENTED** and **§3l.8 steps 1–4 are ALL COMPLETE**. The FOUR low-level OPT-IN policy seams are now resolved TOGETHER — and only together — by the ONE `episode_design` selector, whose DEFAULT `fixed_cell_v1` preserves the historical bundle the approved measurements were taken on and leaves a default run byte-invariant at the call boundary; `training_mode` stays ORTHOGONAL. Every Task-1/2/3 per-episode structure is now PERSISTED and AGGREGATED with explicit denominators, requested-vs-realized is REPORTED with **no acceptance threshold and no verdict**, and `ReferenceIntegrityError` now routes by stable REASON SLUG (unanswered solve ⇒ accounted attrition; every other reason ⇒ measurement-integrity ABORT). **Task 4 delivered the benchmark MECHANISM ONLY: no FINAL SCIENTIFIC worlds-per-cell scale was SELECTED and no FINAL SCIENTIFIC benchmark population was committed, preserved as the comparator, scheduled or authorized (no benchmark manifest is committed or tracked in the repository; transient manifests built by tests are neither).** `p(destroy)` stays `1.0` and no new `MetaAction` exists. **No scientific run occurred, no generalized measurement exists, and no actor-only-vs-CTDE generalized result exists** |
+| 2026-08-30 | **GENERALIZED-V1 TASK 5 IMPLEMENTED AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR STACK** — **PR #42**, branch `task/generalized-v1-task5-summary-phase-fix`, approved head `312f58650b61a85eb72d0554d60715afee862a5c` (the `train_by_*` summary-population correction), and **PR #43**, branch `task/generalized-v1-task5-success-quota-preflight`, FINAL approved head `4af6c5aa5dd28072692bfda63282964b55010aae` (the successful-episode training quota, the bounded attempt budget, the maximum-possible seed band and the deterministic benchmark preflight), Grade A under `GPT_GITHUB`. *(Historical process evidence: PR #43's original implementation candidate `734f1e786593b6ffb94f1f8d7283b1f2fc79d257` → ONE requested review fix → append-only DIRECT CHILD `4af6c5aa…` → APPROVE; no amend, rebase, squash, force-push or history rewrite.)* | §3l.8 step 5 is IMPLEMENTED and APPROVED but **NOT MERGED**: live `main` is still `09eab0673153bd443185ec94530ccf0b042be465`, so **no integration SHA exists for either PR and none may be invented**, and both PRs are **FROZEN / READ-ONLY**. The historical `scheduled_attempts_v1` fixed-cell attempt behaviour and every fixed-cell seed band and check are PRESERVED, so the approved Phase-A and variable-severity measurements are untouched. Held-outness is now checked against the **MAXIMUM POSSIBLE attempt band**, because a failed replacement attempt still spends a seed. Benchmark population SELECTION happens ONCE, before the freeze, and **post-freeze evaluation still performs NO substitution**; a failed preflight creates NO manifest and leaves a durable candidate audit that **is not a benchmark population**. **`p(destroy)` stays `1.0`, no new `MetaAction` exists, and NO generalized measurement RESULT exists** |
+| 2026-08-30 | **TASK 5A and TASK 5B reviewed `APPROVE — VALID ENGINEERING VALIDATION`** (§3m.3) | **ENGINEERING EVIDENCE, NEVER A SCIENTIFIC MEASUREMENT** — no scientific contract, no seed schedule, no held-out band, no frozen comparator, no population denominator. Task 5A's repeated **A2-LOW `pre_event_popup_risk`** failure on a TRANSIENT one-world-per-cell benchmark is what exposed the need for eligibility selection BEFORE the freeze; solver runtime dominated, and repeated pre/post values on the SAME world are **not** independent observations. Task 5B, at measured code SHA `4af6c5aa…`, validated the mechanics (24/24 training successes, 18/18 first candidates accepted, 0 observed hidden shortfalls, one transient 54/54 benchmark round with 18/18 complete groups, BONMIN dominating runtime, large `A4-high` variance, and a legitimate ~998 s solve terminating `optimal` — which is why **no short solver timeout was adopted**). **Bounded samples: NO attrition-rate population claim, NO learning claim, NO actor-vs-CTDE claim, and the Task-5B transient benchmark is NOT the R1 comparator** |
+| 2026-08-30 | **THE FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN AUTHORIZED AND DISPATCHED** with the frozen plan in §3m.4 — `actor_only`, 375 iterations × 8 SUCCESSFUL episodes = 3000 successful training episodes, `generalized_max_attempts_per_iteration = 12`, training base seed 740000 with maximum-possible band `[740000, 744500)`, `worlds_per_cell = 3`, R1 benchmark base seed 840000, `max_candidates_per_cell = 12`, evaluation and checkpoint every 25 iterations, no early stopping, no solver timeout, no CTDE arm | **STATE: `AUTHORIZED / DISPATCHED — RESULT PENDING`.** It is UNREVIEWED and has produced no verdict; **nothing about its reward, convergence, attrition, benchmark outcome or validity may be stated or inferred**, and this record deliberately does not claim it is `RUNNING`. It requires **independent GPT artifact review** before any `APPROVE — VALID MEASUREMENT`. The plan is recorded so the eventual artifacts can be checked against what was authorized. **The external long-run task is RUN-ONLY and owns NO repository writes.** No reviewed early-stopping mechanism exists and checkpoint RESUME stays out of scope; cluster readiness is DEFERRED without blocking the local R1 |
+| 2026-08-30 | **POST-TASK-5 DOCUMENTATION / LOCK CHECKPOINT OPENED**, because reviewed and approved behaviour existed for §3l.8 step 5 while the live documents still said Task 5 was NOT STARTED and NOT AUTHORIZED, that no writable implementation task was active, and that no generalized run was scheduled or authorized | `CLAUDE.md` gains the Task-5 §5 contract (summary population, the two attempt policies and the bounded budget, the maximum-possible seed band, the deterministic preflight, the complete-manifest rule with immutable post-freeze evaluation, and the failed-preflight durable audit), its four §6 routing rows, and its §7 entries for **PR #42** and **PR #43 recorded as APPROVED and NOT YET INTEGRATED — with no invented merge SHA** — plus the Task-5A / Task-5B engineering-validation entry under a BINDING label; and its stale global "no generalized measurement exists / is running / is scheduled" wording is scoped in place. This handoff records the Task-5 stack, the ownership split (**the long run is RUN-ONLY; this docs candidate is the SOLE writable repository task**), the dispatched R1 as **RESULT PENDING**, the early-stopping / resume / cluster state, and the intended integration sequence in a new §3m — **recorded, not performed: no merge is authorized.** **Two files only; no source, test, config, preset, benchmark manifest or run artifact committed; no run; no ref moved; no historical measurement reinterpreted; no result claimed for R1** |
 | 2026-08-26 | **TASK-4 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.6–§3l.7 while the live documents still said Task 4 was the next unresolved task, NOT started and NOT authorized, that neither harness selected any generalized policy, and that the sampler, the manifest and run-level persistence were unimplemented | `CLAUDE.md` gains the Task-4 §5 contract, its §4 selector placement, its five §6 routing rows and its §7 lock; its stale "NEITHER HARNESS EXPOSES" wording in the Task-1/2/3 blocks is corrected in place with the superseded text preserved; and the `ReferenceIntegrityError` routing block is rewritten to record the Task-4 decision that was deliberately deferred to it. This handoff records Tasks 1–4 as COMPLETE, §3l.1–§3l.7 as IMPLEMENTED, **GENERALIZED-V1 TASK 4 as CLOSED with no writable implementation task and no candidate under review**, and **Task 5 (bounded runtime / solver validation) as the SINGLE next unresolved step that no documentation record authorizes** (§8). It records explicitly that **no FINAL SCIENTIFIC benchmark scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the comparator, scheduled or authorized**, that **no generalized measurement exists, is running, is scheduled or is authorized**, and that the future actor-only and CTDE arms must use the SAME eventual frozen manifest while the approved historical baselines are REUSED and never rerun. Written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset, benchmark manifest or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
