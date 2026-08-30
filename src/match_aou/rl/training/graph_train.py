@@ -39,12 +39,23 @@ SEEDING SCHEDULE (this module owns it -- the two bands are DISJOINT BY VALIDATIO
   * TRAINING: global episode index ``g = iteration * episodes_per_iteration + j``;
     episode seed ``base_seed + g``. This continues the rollout convention -- given the
     policy weights at that point, an episode is a pure function of its seed.
+    GENERALIZED-V1 Task 5C GENERALIZES ``g`` WITHOUT CHANGING IT: under
+    ``episode_design = generalized_v1`` an ordinary failure is REPLACED rather than
+    losing its slot, so ``g`` becomes the run-wide ATTEMPT ordinal -- monotone over the
+    whole run, advanced by every attempt, successful or failed
+    (:func:`train_attempt_seed`). When every slot is attempted exactly once, which is
+    the whole of the fixed-cell policy, the two expressions are IDENTICAL and the
+    historical loop still calls :func:`train_seed`. A failed seed is SPENT either way:
+    nothing is ever retried at the same seed.
   * EVAL: a FIXED, disjoint band -- eval episode ``e`` always uses
     ``eval_base_seed + e``, the SAME E seeds on EVERY eval round. Evaluating the same
     held-out scenarios each round is what isolates policy improvement from scenario
     variance; a fresh eval sample each round would make the curve mostly noise.
     :meth:`TrainConfig.validate` REFUSES a config whose training band would reach into
-    the eval band, so "held-out" is enforced, not hoped for.
+    the eval band, so "held-out" is enforced, not hoped for. The band it checks is the
+    MAXIMUM POSSIBLE attempt band (:attr:`TrainConfig.max_training_attempts`), which
+    under replacement is wider than the successful-episode quota and on the fixed-cell
+    path is exactly ``total_episodes``.
   * BOTH bands reseed global ``random`` AND torch at the head of every episode. That is
     what makes eval observationally pure with respect to training: the RNG state
     entering any episode depends only on that episode's seed, never on how many
@@ -593,6 +604,34 @@ TRAINING_MODE_ACTOR_ONLY = "actor_only"
 TRAINING_MODE_CTDE = "ctde"
 TRAINING_MODES = (TRAINING_MODE_ACTOR_ONLY, TRAINING_MODE_CTDE)
 
+# =============================================================================
+# GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTS
+# =============================================================================
+# TWO training ATTEMPT policies, selected by `episode_design` and by nothing else.
+#
+#   `scheduled_attempts_v1` (FIXED CELL, historical, unchanged) -- `episodes_per_iteration`
+#       is a count of scheduled ATTEMPTS. Each is made exactly once, a failure is recorded
+#       and the slot is simply lost, and the batch that reaches the updater is whatever
+#       survived. Every approved measurement was taken under this policy; nothing about it
+#       moves here.
+#
+#   `successful_quota_with_deterministic_replacement_v1` (GENERALIZED) --
+#       `episodes_per_iteration` is a count of SUCCESSFUL episodes the batch must hold.
+#       Ordinary attrition is REPLACED by the next deterministic attempt rather than
+#       silently shrinking the batch: the generalized population is drawn from a sampler
+#       whose worlds legitimately fail construction or FD certification, so a fixed
+#       attempt count would make the PPO batch size a function of world attrition and the
+#       learning curve of two arms incomparable. A failed attempt is still recorded ONCE,
+#       still SPENDS its seed, and is never retried at that seed.
+#
+# The replacement is bounded: `generalized_max_attempts_per_iteration` is an explicit
+# operator budget, and exhausting it ABORTS rather than updating on a partial batch.
+TRAINING_ATTEMPT_POLICY_SCHEDULED = "scheduled_attempts_v1"
+TRAINING_ATTEMPT_POLICY_QUOTA = "successful_quota_with_deterministic_replacement_v1"
+TRAINING_ATTEMPT_POLICIES = (
+    TRAINING_ATTEMPT_POLICY_SCHEDULED, TRAINING_ATTEMPT_POLICY_QUOTA,
+)
+
 # JSON has no comments, so a preset may carry any number of underscore-prefixed keys as
 # prose. Everything else must be a real field name -- an unrecognized key is REFUSED
 # rather than ignored, because a typo that silently leaves a knob at its default is a
@@ -629,6 +668,8 @@ _CLI_FIELD_BY_DEST = {
     "training_mode": "training_mode",
     "episode_design": "episode_design",
     "benchmark_manifest": "benchmark_manifest",
+    "generalized_max_attempts_per_iteration":
+        "generalized_max_attempts_per_iteration",
 }
 
 # CLI dest -> PPOConfig field (the nested block).
@@ -820,6 +861,20 @@ class TrainConfig:
     # label. To train generalized without a benchmark, disable evaluation explicitly.
     benchmark_manifest: Optional[str] = None
 
+    # The GENERALIZED-only bounded ATTEMPT BUDGET per iteration. `None` on the
+    # historical path, where it is REFUSED if set (a fixed-cell run must not silently
+    # acquire replacement behaviour), and REQUIRED under `generalized_v1`, where
+    # `episodes_per_iteration` stops meaning "attempts" and starts meaning "SUCCESSFUL
+    # episodes the PPO/CTDE batch must hold" (:data:`TRAINING_ATTEMPT_POLICY_QUOTA`).
+    #
+    # It has NO DEFAULT ON PURPOSE. How many attempts a generalized iteration needs
+    # depends on the world-attrition rate of a population whose bounded runtime / solver
+    # validation has not been done, so a number invented here would silently make that
+    # scientific decision -- exactly as `build_benchmark_manifest` refuses to invent
+    # `worlds_per_cell`. It must be >= `episodes_per_iteration`, and reaching it before
+    # the quota is full ABORTS the run rather than updating on a partial batch.
+    generalized_max_attempts_per_iteration: Optional[int] = None
+
     # --- THE OFFLINE SCENARIO-CONSTRUCTION REFERENCE CELL (B1) ---------------------
     # Stated outright, never derived from a ratio. A CELL, NOT A LAW: a later phase
     # varies these per episode, so nothing downstream may hard-code them.
@@ -916,6 +971,53 @@ class TrainConfig:
     def eval_enabled(self) -> bool:
         """True iff evaluation rounds run at all (both knobs must be positive)."""
         return self.eval_every > 0 and self.eval_episodes > 0
+
+    # ------------------------------------------------------------------
+    # GENERALIZED-V1 Task 5C: attempts vs SUCCESSFUL episodes.
+    #
+    # `total_episodes` above keeps its meaning under BOTH designs -- the training
+    # episodes the run intends to COLLECT -- and the three properties below say how many
+    # ATTEMPTS that collection may cost. On the fixed-cell path they collapse to exactly
+    # the historical arithmetic (one attempt per scheduled episode), which is what keeps
+    # every seed-band, tag-namespace and provenance statement byte-identical there.
+    @property
+    def training_attempt_policy(self) -> str:
+        """Whether ``episodes_per_iteration`` counts ATTEMPTS or SUCCESSFUL episodes."""
+        return (TRAINING_ATTEMPT_POLICY_QUOTA if self.generalized
+                else TRAINING_ATTEMPT_POLICY_SCHEDULED)
+
+    @property
+    def max_attempts_per_iteration(self) -> int:
+        """The most ordinary training attempts ONE iteration may make.
+
+        Under the historical policy an iteration makes exactly
+        ``episodes_per_iteration`` attempts, so this IS that number and no new field is
+        consulted. Under the quota policy it is the operator's explicit budget, which
+        ``validate`` has already required to be present and ``>= episodes_per_iteration``.
+        """
+        if not self.generalized:
+            return int(self.episodes_per_iteration)
+        budget = self.generalized_max_attempts_per_iteration
+        if budget is None:
+            raise ValueError(
+                "episode_design=%r requires an explicit "
+                "generalized_max_attempts_per_iteration; validate() refuses a run "
+                "without one." % EPISODE_DESIGN_GENERALIZED_V1
+            )
+        return int(budget)
+
+    @property
+    def max_training_attempts(self) -> int:
+        """The MAXIMUM number of training seeds this run can possibly consume.
+
+        THE BOUND EVERY HELD-OUT CLAIM MUST BE MADE AGAINST. Under replacement a run may
+        spend more seeds than it collects episodes, so ``total_episodes`` is no longer an
+        upper bound on the training band and using it would let a benchmark world sit in
+        a seed range the training loop can actually reach -- a held-out failure that
+        produces entirely normal-looking numbers. On the fixed-cell path this EQUALS
+        ``total_episodes``, so nothing about that path's bands or checks changes.
+        """
+        return int(self.n_iterations) * int(self.max_attempts_per_iteration)
 
     @property
     def ctde_enabled(self) -> bool:
@@ -1181,7 +1283,48 @@ class TrainConfig:
                   "read. A training episode's cardinality is SAMPLED per seed "
                   "(A ~ U{2,3,4}, K == A, H ~ U{1..A}); a benchmark member's comes from "
                   "its stratum. Proceeding." % EPISODE_DESIGN_GENERALIZED_V1)
-        elif str(self.benchmark_manifest or ""):
+            # THE BOUNDED ATTEMPT BUDGET (Task 5C). Under this design
+            # `episodes_per_iteration` is a SUCCESSFUL-episode quota, so the loop must be
+            # told how many attempts it may spend obtaining it. Required and never
+            # defaulted: a number invented here would silently decide how much world
+            # attrition the campaign tolerates, and it is also the bound every held-out
+            # seed claim is made against (`max_training_attempts`).
+            budget = self.generalized_max_attempts_per_iteration
+            if budget is None:
+                raise ValueError(
+                    "episode_design=%r requires an explicit "
+                    "generalized_max_attempts_per_iteration: under this design "
+                    "episodes_per_iteration (%d) is a quota of SUCCESSFUL episodes, and "
+                    "the loop needs a bounded attempt budget to obtain it. There is no "
+                    "default -- the value decides how much world attrition the run "
+                    "tolerates, and it also sets the maximum training seed band the "
+                    "benchmark is held out against."
+                    % (EPISODE_DESIGN_GENERALIZED_V1, int(self.episodes_per_iteration))
+                )
+            if isinstance(budget, bool) or not isinstance(budget, int):
+                raise ValueError(
+                    "generalized_max_attempts_per_iteration must be an int, got %r"
+                    % (budget,)
+                )
+            if int(budget) < int(self.episodes_per_iteration):
+                raise ValueError(
+                    "generalized_max_attempts_per_iteration (%d) must be >= "
+                    "episodes_per_iteration (%d): the budget is the most ATTEMPTS an "
+                    "iteration may make to collect that many SUCCESSFUL episodes, so a "
+                    "smaller budget could never fill the quota."
+                    % (int(budget), int(self.episodes_per_iteration))
+                )
+        elif self.generalized_max_attempts_per_iteration is not None:
+            raise ValueError(
+                "generalized_max_attempts_per_iteration is set but episode_design=%r: "
+                "the successful-episode quota and its deterministic replacement are a "
+                "%r behaviour. A fixed-cell run makes exactly episodes_per_iteration "
+                "attempts per iteration and must not silently acquire replacement, "
+                "which would change the population every approved measurement was taken "
+                "over."
+                % (self.episode_design, EPISODE_DESIGN_GENERALIZED_V1)
+            )
+        if not design.generalized and str(self.benchmark_manifest or ""):
             raise ValueError(
                 "benchmark_manifest is set but episode_design=%r: the 18-stratum "
                 "benchmark is defined for %r only, and a fixed-cell run evaluating it "
@@ -1312,11 +1455,15 @@ class TrainConfig:
             # (the held-out claim) and `_require_benchmark_tag_namespace` (the naming
             # bound). The training-tag bound below is still checked, because benchmark
             # tags share that one namespace.
-            if self.total_episodes > _EVAL_EPISODE_TAG_BASE:
+            # Bounded by the MAXIMUM POSSIBLE attempt count, not by the quota: a
+            # training scenario is tagged by its global ATTEMPT ordinal, so replacements
+            # push the training tag namespace up to `max_training_attempts`. Identical
+            # to `total_episodes` on the fixed-cell path.
+            if self.max_training_attempts > _EVAL_EPISODE_TAG_BASE:
                 raise ValueError(
-                    "total training episodes (%d) reaches the eval scenario-tag base "
+                    "maximum training attempts (%d) reaches the eval scenario-tag base "
                     "(%d): training and benchmark scenarios would collide by filename."
-                    % (self.total_episodes, _EVAL_EPISODE_TAG_BASE)
+                    % (self.max_training_attempts, _EVAL_EPISODE_TAG_BASE)
                 )
             return
 
@@ -1337,15 +1484,19 @@ class TrainConfig:
                 % (int(self.eval_episodes), group_size, self.eval_group_kind,
                    int(self.eval_episodes) * group_size, _EVAL_ROUND_TAG_STRIDE)
             )
-        if self.total_episodes > _EVAL_EPISODE_TAG_BASE:
+        if self.max_training_attempts > _EVAL_EPISODE_TAG_BASE:
             raise ValueError(
-                "total training episodes (%d) reaches the eval scenario-tag base (%d): "
-                "training and eval scenarios would collide by filename."
-                % (self.total_episodes, _EVAL_EPISODE_TAG_BASE)
+                "maximum training attempts (%d) reaches the eval scenario-tag base "
+                "(%d): training and eval scenarios would collide by filename."
+                % (self.max_training_attempts, _EVAL_EPISODE_TAG_BASE)
             )
 
         train_lo = int(self.base_seed)
-        train_hi = train_lo + self.total_episodes            # exclusive
+        # THE MAXIMUM POSSIBLE band, so a replacement can never reach an eval seed. On
+        # the fixed-cell path -- the only design that reaches this legacy check, because
+        # a generalized run with evaluation enabled must use a manifest and returned
+        # above -- this is exactly `total_episodes` and the test is byte-unchanged.
+        train_hi = train_lo + self.max_training_attempts     # exclusive
         eval_lo = int(self.eval_base_seed)
         eval_hi = eval_lo + int(self.eval_episodes)          # exclusive
         if train_lo < eval_hi and eval_lo < train_hi:        # half-open overlap test
@@ -1656,6 +1807,29 @@ def global_episode_index(cfg: TrainConfig, iteration: int, j: int) -> int:
 def train_seed(cfg: TrainConfig, iteration: int, j: int) -> int:
     """Seed of training episode ``j`` of ``iteration``: ``base_seed + g``."""
     return int(cfg.base_seed) + global_episode_index(cfg, iteration, j)
+
+
+def train_attempt_seed(cfg: TrainConfig, attempt_ordinal: int) -> int:
+    """Seed of the run's ``attempt_ordinal``-th training ATTEMPT: ``base_seed + n``.
+
+    THE ONE SEED FORMULA UNDER BOTH POLICIES, expressed over the quantity that is
+    monotone in both: a run-wide attempt ordinal that advances on EVERY attempt, whether
+    it succeeded or failed. That is what makes a replacement deterministic (it is simply
+    the next ordinal), makes a failed seed SPENT (no later attempt can revisit it), and
+    keeps every artifact tag unique even when an iteration takes more attempts than it
+    collects episodes.
+
+    It is a GENERALIZATION of :func:`train_seed`, not a competitor to it: when every
+    scheduled slot is attempted exactly once -- which is the whole of the fixed-cell
+    policy -- the run's ordinal at iteration ``i`` slot ``j`` is ``i *
+    episodes_per_iteration + j``, so ``train_attempt_seed(cfg,
+    global_episode_index(cfg, i, j)) == train_seed(cfg, i, j)`` identically. The
+    historical loop therefore keeps calling :func:`train_seed` and is unchanged.
+    """
+    n = int(attempt_ordinal)
+    if n < 0:
+        raise ValueError("attempt_ordinal must be >= 0, got %d" % n)
+    return int(cfg.base_seed) + n
 
 
 def eval_seed(cfg: TrainConfig, e: int) -> int:
@@ -2728,13 +2902,17 @@ def seed_bands(
     in ``eval_band`` (which would assert a schedule that never ran).
     """
     train_start = int(cfg.base_seed)
-    train_stop = train_start + int(cfg.total_episodes)
+    # THE MAXIMUM POSSIBLE training band. On the fixed-cell path this is exactly
+    # `total_episodes` and the block below is byte-unchanged; under the generalized quota
+    # policy a run may SPEND more seeds than it collects episodes, and the band a
+    # held-out claim is made against must cover every seed the loop can reach.
+    train_stop = train_start + int(cfg.max_training_attempts)
     band: Dict[str, Any] = {
         "train_band": {
             "start": train_start,
             "stop": train_stop,
             "half_open": True,
-            "count": int(cfg.total_episodes),
+            "count": int(cfg.max_training_attempts),
         },
         "train_seed_formula":
             "train_seed = base_seed + (iteration * episodes_per_iteration + j)",
@@ -2743,6 +2921,31 @@ def seed_bands(
         "eval_seed_formula": "eval_seed = eval_base_seed + e",
         "eval_band_is_fixed_across_rounds": True,
     }
+    if cfg.generalized:
+        # ADDED ONLY on the generalized path, exactly as `benchmark_evaluation` is: the
+        # historical block must keep the shape every existing reader and every preserved
+        # run artifact already has, and a reader tells the two apart by the PRESENCE of
+        # this key. It says what `train_band` now counts, so "count" is never misread as
+        # the number of episodes the run collected.
+        band["train_seed_formula"] = (
+            "train_seed = base_seed + global_attempt_ordinal "
+            "(monotone over the whole run; every attempt spends one, successful or not)"
+        )
+        band["train_attempt_policy"] = {
+            "policy": cfg.training_attempt_policy,
+            "successful_episodes_required_per_iteration":
+                int(cfg.episodes_per_iteration),
+            "max_attempts_per_iteration": int(cfg.max_attempts_per_iteration),
+            "n_iterations": int(cfg.n_iterations),
+            "successful_episode_quota_total": int(cfg.total_episodes),
+            "max_possible_training_attempts": int(cfg.max_training_attempts),
+            "train_band_counts": "maximum_possible_attempts",
+            "note": (
+                "episodes_per_iteration is a quota of SUCCESSFUL episodes; ordinary "
+                "attrition is replaced by the next deterministic attempt seed, so the "
+                "run may consume up to max_possible_training_attempts seeds"
+            ),
+        }
     if benchmark is not None:
         # The seeds this run REALLY evaluates. `eval_band` / `eval_seed_formula` are
         # emptied rather than left carrying the legacy band, so nothing in this block can
@@ -3019,6 +3222,29 @@ def write_run_config(
             "ctde_enabled": bool(cfg.ctde_enabled),
             "ctde": asdict(cfg.ctde) if cfg.ctde_enabled else None,
             "execution": "decentralized_actor_only",
+            # GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTS, and the
+            # bounded budget behind it. Recorded on BOTH designs and stated positively:
+            # the fixed-cell entry says the historical contract out loud (one attempt per
+            # scheduled episode, no replacement) rather than leaving it to be inferred.
+            # `max_possible_training_attempts` is the number every held-out claim in this
+            # run's provenance is made against.
+            "attempt_policy": {
+                "policy": cfg.training_attempt_policy,
+                "episodes_per_iteration_counts": (
+                    "successful_episodes" if cfg.generalized
+                    else "scheduled_attempts"
+                ),
+                "successful_episodes_required_per_iteration":
+                    int(cfg.episodes_per_iteration),
+                "max_attempts_per_iteration": int(cfg.max_attempts_per_iteration),
+                "generalized_max_attempts_per_iteration": (
+                    None if cfg.generalized_max_attempts_per_iteration is None
+                    else int(cfg.generalized_max_attempts_per_iteration)
+                ),
+                "successful_episode_quota_total": int(cfg.total_episodes),
+                "max_possible_training_attempts": int(cfg.max_training_attempts),
+                "replacement": bool(cfg.generalized),
+            },
         },
         # FD-BASELINE-v1: the run's ONE difficulty factor and the reward coefficient that
         # gives it teeth, recorded next to the cell they modify. `resolved_*` names the
@@ -3325,6 +3551,31 @@ class EpisodeRosterError(MeasurementIntegrityError):
 
     The name is retained from before the routing change so an audit trail keeps reading:
     what changed is where it goes, not what it means.
+    """
+
+
+class TrainingQuotaError(MeasurementIntegrityError):
+    """A generalized iteration exhausted its attempt budget before filling its quota.
+
+    GENERALIZED-V1 Task 5C. Under
+    :data:`TRAINING_ATTEMPT_POLICY_QUOTA` ``episodes_per_iteration`` is a count of
+    SUCCESSFUL episodes, so an iteration that runs out of
+    ``generalized_max_attempts_per_iteration`` has NOT produced the batch its config
+    declares. The only two things it could do instead are both wrong: updating on the
+    partial batch would make the PPO/CTDE batch size a silent function of world
+    attrition -- the very coupling the quota exists to remove -- and raising the budget
+    on the fly would change the population mid-run.
+
+    A :class:`MeasurementIntegrityError` deliberately, for the same reason the roster and
+    certificate faults are: what it reports is that the INSTRUMENT cannot produce the
+    population the run declared, so proceeding would yield a measurement whose batch
+    composition nobody chose. Subclassing also means every existing abort re-raise
+    already routes it correctly rather than letting a future handler account it as
+    episode attrition.
+
+    It is NOT a verdict on the worlds: an exhausted budget says the attrition rate is
+    higher than the operator planned for, which is a scheduling fact to be inspected --
+    never a reason to retry a spent seed.
     """
 
 
@@ -5580,7 +5831,12 @@ def evaluate_benchmark(
 def _require_benchmark_seeds_held_out(
     manifest: BenchmarkManifest, cfg: TrainConfig
 ) -> None:
-    """The benchmark's ACTUAL seeds must lie outside the scheduled TRAINING band.
+    """The benchmark's ACTUAL seeds must lie outside every reachable TRAINING seed.
+
+    THE BAND IS THE MAXIMUM POSSIBLE ATTEMPT BAND (``cfg.max_training_attempts``), which
+    under the generalized quota policy is wider than the successful-episode quota because
+    ordinary attrition is replaced by further attempts. On the fixed-cell path the two
+    are the same number and this check is byte-unchanged.
 
     THIS IS THE HELD-OUT CHECK FOR A MANIFEST-DRIVEN RUN, and the legacy one cannot serve
     as it. ``TrainConfig.validate`` compares the training band against
@@ -5605,16 +5861,24 @@ def _require_benchmark_seeds_held_out(
         ValueError: one or more manifest world seeds lie inside the training band.
     """
     train_lo = int(cfg.base_seed)
-    train_hi = train_lo + int(cfg.total_episodes)      # exclusive
+    # THE MAXIMUM POSSIBLE ATTEMPT BAND, not the successful-episode quota. Under the
+    # generalized replacement policy an iteration may spend up to
+    # `generalized_max_attempts_per_iteration` seeds to collect `episodes_per_iteration`
+    # SUCCESSFUL episodes, so `total_episodes` is no longer an upper bound on which seeds
+    # the training loop can reach. Checking against the quota would leave a corridor of
+    # seeds a run with ordinary attrition really does train on while its manifest was
+    # certified held out -- exactly the silent failure this function exists to prevent.
+    # Identical to `total_episodes` on the fixed-cell path.
+    train_hi = train_lo + int(cfg.max_training_attempts)      # exclusive
     overlap = manifest_seed_overlap(manifest, start=train_lo, stop=train_hi)
     if overlap:
         raise ValueError(
             "benchmark manifest %s is NOT held out: %d of its %d world seed(s) lie "
-            "inside this run's training band [%d, %d) -- %s. The policy would be "
-            "evaluated on worlds it trained on, which measures memorization while "
-            "reporting generalization. Refused: no seed is replaced, retried or "
-            "rewritten. Move the training band (base_seed / n_iterations x "
-            "episodes_per_iteration) or freeze a manifest outside it."
+            "inside this run's MAXIMUM POSSIBLE training attempt band [%d, %d) -- %s. "
+            "The policy would be evaluated on worlds it trained on, which measures "
+            "memorization while reporting generalization. Refused: no seed is replaced, "
+            "retried or rewritten. Move the training band (base_seed / n_iterations x "
+            "the per-iteration attempt budget) or freeze a manifest outside it."
             % (manifest.manifest_id[:16], len(overlap), manifest.n_worlds,
                train_lo, train_hi,
                ", ".join(str(s) for s in overlap[:8])
@@ -5914,7 +6178,18 @@ def train(
     print("graph_train: %d iteration(s) x %d episode(s) = %d training episodes"
           % (cfg.n_iterations, cfg.episodes_per_iteration, cfg.total_episodes))
     print("base_seed=%d  train seeds [%d, %d)"
-          % (cfg.base_seed, cfg.base_seed, cfg.base_seed + cfg.total_episodes))
+          % (cfg.base_seed, cfg.base_seed,
+             cfg.base_seed + cfg.max_training_attempts))
+    if cfg.generalized:
+        # ECHOED BEFORE COMPUTE, because it changes what the line above means: the band
+        # is the MAXIMUM POSSIBLE attempt band, and `episodes_per_iteration` is a quota
+        # of SUCCESSFUL episodes rather than a count of attempts.
+        print("training attempts: %s -- %d SUCCESSFUL episode(s) per iteration, at most "
+              "%d attempt(s) each (%d seeds max for the run). An ordinary failure is "
+              "recorded, SPENDS its seed, and is replaced by the next attempt; "
+              "exhausting the budget ABORTS rather than updating on a partial batch."
+              % (cfg.training_attempt_policy, cfg.episodes_per_iteration,
+                 cfg.max_attempts_per_iteration, cfg.max_training_attempts))
     if cfg.eval_enabled:
         print("eval: every %d iter, %d held-out seed(s) x %d matched %s member(s) "
               "(%s) = %d episode(s), FIXED seeds [%d, %d)"
@@ -6069,6 +6344,16 @@ def train(
                      ev["n_attempted"], ev["eval_seconds"]))
             _print_eval_pair_line(ev)
 
+        # GENERALIZED-V1 Task 5C: the attempt policy, resolved ONCE for the whole run,
+        # and the ONE monotone run-wide attempt ordinal it is expressed over. The
+        # ordinal advances on EVERY training attempt of the run -- successful or failed,
+        # in every iteration -- which is what makes a spent seed unrecoverable, a
+        # replacement deterministic, and every training artifact tag unique.
+        quota_policy = cfg.generalized
+        quota = int(cfg.episodes_per_iteration)
+        attempt_budget = int(cfg.max_attempts_per_iteration)
+        global_attempt_ordinal = 0
+
         for iteration in range(cfg.n_iterations):
             t_iter = time.perf_counter()
             # One buffer kind per training mode. They are separate classes rather than
@@ -6089,16 +6374,83 @@ def train(
             # same way and can be read side by side.
             tally = _ConditionTally(cfg.reported_cells)
             n_failed_iter = 0
-            n_attempted_iter = int(cfg.episodes_per_iteration)
+            # THE ATTEMPT COUNT IS MEASURED, NOT ASSUMED (Task 5C). Under the historical
+            # policy every scheduled slot is attempted exactly once, so this ends the
+            # loop at `episodes_per_iteration` and the record is byte-identical; under
+            # the quota policy it is the real number of attempts the iteration spent.
+            n_attempted_iter = 0
             # How much learning stands behind the episodes collected BELOW -- they are
             # generated by the policy as it is now, before this iteration's update.
             updates_before = updates_completed
 
             # ---- collect the batch ----
             t_eps = time.perf_counter()
-            for j in range(cfg.episodes_per_iteration):
-                g = global_episode_index(cfg, iteration, j)
-                seed = train_seed(cfg, iteration, j)
+            while True:
+                # THE ONE PLACE THE TWO ATTEMPT POLICIES DIFFER (Task 5C).
+                #
+                # HISTORICAL (`scheduled_attempts_v1`): exactly `episodes_per_iteration`
+                # attempts, whatever they produce. Byte-identical to the `for j in
+                # range(...)` this replaced -- the loop still makes one attempt per slot,
+                # in order, and a failure still simply loses its slot.
+                #
+                # QUOTA (`successful_quota_with_deterministic_replacement_v1`): keep
+                # attempting until the batch holds `episodes_per_iteration` SUCCESSFUL
+                # episodes, bounded by the operator's explicit attempt budget. Exhausting
+                # that budget ABORTS -- it never updates on the partial batch, because a
+                # PPO/CTDE batch whose size is a silent function of world attrition is
+                # the exact coupling the quota exists to remove.
+                if quota_policy:
+                    if len(rewards) >= quota:
+                        break
+                    if n_attempted_iter >= attempt_budget:
+                        raise TrainingQuotaError(
+                            "iteration %d exhausted its attempt budget: %d attempt(s) "
+                            "produced only %d of the %d SUCCESSFUL episode(s) "
+                            "episodes_per_iteration requires (%d failed). The run stops "
+                            "rather than updating on a partial batch -- no seed is "
+                            "retried, no failure is reclassified, and no budget is "
+                            "raised mid-run. Every attempt is recorded: inspect "
+                            "episode_failures.jsonl, then either raise "
+                            "generalized_max_attempts_per_iteration or investigate the "
+                            "world-attrition rate."
+                            % (iteration, n_attempted_iter, len(rewards), quota,
+                               n_failed_iter)
+                        )
+                elif n_attempted_iter >= quota:
+                    break
+
+                # This attempt's position INSIDE the iteration. Under the historical
+                # policy it is the scheduled slot; under the quota policy it is the
+                # attempt index, which is what keeps a replacement's artifact identity
+                # distinct from the failed attempt it replaces.
+                j = n_attempted_iter
+                if quota_policy:
+                    # ONE monotone run-wide ordinal, advanced by EVERY attempt. A failed
+                    # seed is therefore SPENT (nothing can revisit it) and a replacement
+                    # is simply the next ordinal -- deterministic, and unique across the
+                    # whole run, so no replacement can overwrite the artifacts of the
+                    # attempt it replaced.
+                    g = global_attempt_ordinal
+                    seed = train_attempt_seed(cfg, g)
+                else:
+                    # THE HISTORICAL FORMULAS, still called. The run-wide counter is
+                    # VERIFIED to agree with them rather than assumed to: on this path
+                    # every slot is attempted exactly once, so the two must coincide, and
+                    # a divergence would mean the seed schedule had silently moved.
+                    g = global_episode_index(cfg, iteration, j)
+                    seed = train_seed(cfg, iteration, j)
+                    if g != global_attempt_ordinal:
+                        raise MeasurementIntegrityError(
+                            "training attempt ordinal drift at iteration %d slot %d: "
+                            "the historical schedule says %d and the run-wide attempt "
+                            "counter says %d. The seed schedule is the run's identity, "
+                            "so this stops rather than measuring an unknown population."
+                            % (iteration, j, g, global_attempt_ordinal)
+                        )
+                # SPENT BEFORE THE ATTEMPT IS MADE, so a `continue` out of the failure
+                # handler below can never re-use this ordinal or this seed.
+                n_attempted_iter += 1
+                global_attempt_ordinal += 1
                 # The SCHEDULED cell, resolved from the seed and the mode alone. Known
                 # before the episode is built and still known if it never builds, which
                 # is what lets a failure be accounted under its own cell. Under a legacy
@@ -6291,6 +6643,20 @@ def train(
                 # --- compatibility names kept so pre-B4 readers still parse a record --
                 "episodes_per_iteration": cfg.episodes_per_iteration,
                 "n_failed_episodes": n_failed_iter,
+                # GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTED here, and
+                # what the iteration really spent to obtain it. Present on BOTH designs
+                # so a reader never has to infer the policy from an absence -- on the
+                # fixed-cell path it truthfully states the historical contract, where the
+                # quota IS the attempt count and no replacement exists.
+                "training_attempt_policy": cfg.training_attempt_policy,
+                "successful_episodes_required": quota,
+                "max_attempts_per_iteration": attempt_budget,
+                # The attempts spent BEYOND the quota. Under the quota policy a completed
+                # iteration has `n_successful == quota`, so this equals `n_failed` by
+                # construction; it is recorded under its own name because "how many
+                # replacements did this iteration need" is the question the number
+                # answers. Always 0 under the historical policy, which replaces nothing.
+                "n_replacement_attempts": max(0, n_attempted_iter - quota),
                 # The training learning-curve value IS diag["baseline"]: the mean
                 # episode R over the iteration's SUCCESSFUL episodes, zero-wake episodes
                 # included. Recorded from the update, never recomputed a second way.
@@ -7015,6 +7381,25 @@ def _summarize(
         "train_episodes_with_wakes": wake_episodes,
         "train_wake_fraction_of_successful": _fraction(wake_episodes, train_ok),
         "train_zero_wake_episodes": max(train_ok - wake_episodes, 0),
+        # GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTED, and how many
+        # attempts the run really spent. DERIVED from `train_records.jsonl` like every
+        # other number here -- one metric path, so the summary cannot describe a run its
+        # own artifacts do not. Present on BOTH designs and truthful on each: a
+        # fixed-cell run reports `scheduled_attempts_v1` with zero replacements, which is
+        # the historical contract stated rather than left to be inferred.
+        "training_attempt_policy": (
+            str(train_records[-1].get(
+                "training_attempt_policy", TRAINING_ATTEMPT_POLICY_SCHEDULED))
+            if train_records else None
+        ),
+        "train_replacement_attempts": _sum_field(
+            train_records, "n_replacement_attempts", "__absent__"),
+        "train_iterations_at_full_quota": sum(
+            1 for r in train_records
+            if int(r.get("n_successful", 0) or 0)
+            >= int(r.get("successful_episodes_required",
+                         r.get("episodes_per_iteration", 0)) or 0)
+        ),
         # DISJOINT by construction (see `_iteration_outcome`): an iteration in which
         # every attempt failed is a data-yield failure, NOT an iteration in which
         # episodes ran and nobody woke.
@@ -7218,6 +7603,14 @@ def _print_summary(s: Dict[str, Any]) -> None:
     print("            transitions=%d  wake-bearing=%d  zero-wake eps=%d"
           % (s["total_transitions"], s["train_episodes_with_wakes"],
              s["train_zero_wake_episodes"]))
+    # Printed only under the quota policy, so a fixed-cell run's console is unchanged.
+    # There the line would say nothing anyway: one attempt per scheduled episode, zero
+    # replacements, by contract.
+    if s.get("training_attempt_policy") == TRAINING_ATTEMPT_POLICY_QUOTA:
+        print("            attempt policy=%s  replacements=%d  iterations at full "
+              "quota=%d/%d"
+              % (s["training_attempt_policy"], s["train_replacement_attempts"],
+                 s["train_iterations_at_full_quota"], s["n_iterations"]))
     print("iterations: productive=%d  zero-wake=%d  all-failed=%d   (disjoint: an "
           "all-failed iteration measured nothing)"
           % (s["n_productive_iterations"], s["n_zero_wake_iterations"],
@@ -8419,6 +8812,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    default=d_cfg.benchmark_manifest,
                    help="path to a FROZEN 18-stratum benchmark manifest; REQUIRED for "
                         "a %s run with evaluation enabled, and refused otherwise"
+                        % EPISODE_DESIGN_GENERALIZED_V1)
+    p.add_argument("--generalized-max-attempts-per-iteration",
+                   type=_bounded_type(int, 1, inclusive=True,
+                                      what="generalized_max_attempts_per_iteration"),
+                   default=d_cfg.generalized_max_attempts_per_iteration,
+                   help="bounded attempt budget per iteration; REQUIRED for a %s run "
+                        "(where episodes_per_iteration is a quota of SUCCESSFUL "
+                        "episodes) and refused otherwise. Must be >= "
+                        "episodes_per_iteration. NO DEFAULT: it decides how much world "
+                        "attrition the run tolerates and sets the maximum training seed "
+                        "band the benchmark is held out against."
                         % EPISODE_DESIGN_GENERALIZED_V1)
     p.add_argument("--training-mode", type=str, choices=list(TRAINING_MODES),
                    default=d_cfg.training_mode,
