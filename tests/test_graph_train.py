@@ -176,9 +176,15 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     resolve_train_config,
     save_checkpoint,
     seed_bands,
+    train_attempt_seed,
     train_seed,
     write_run_config,
     write_run_summary,
+)
+from match_aou.rl.training.graph_train import (  # noqa: E402
+    TRAINING_ATTEMPT_POLICY_QUOTA,
+    TRAINING_ATTEMPT_POLICY_SCHEDULED,
+    TrainingQuotaError,
 )
 from match_aou.utils.blade_utils.scenario_generator import VariationConfig  # noqa: E402
 
@@ -5075,6 +5081,12 @@ def _gen_cfg(tmp_path: Path, **kwargs) -> TrainConfig:
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
     )
     base.update(kwargs)
+    # Task 5C: the attempt budget is REQUIRED under this design and never defaulted.
+    # These tests are about the POPULATION, not about attrition, so unless a caller says
+    # otherwise the budget is exactly the quota -- no replacement headroom, hence every
+    # seed band is identical to what these tests asserted before 5C existed.
+    base.setdefault("generalized_max_attempts_per_iteration",
+                    int(base["episodes_per_iteration"]))
     return TrainConfig(**base)
 
 
@@ -5193,7 +5205,8 @@ def test_gen_validate_refuses_a_half_configured_generalized_run(tmp_path: Path) 
     TrainConfig(n_iterations=1, output_dir=tmp_path / "ok1").validate()
     TrainConfig(n_iterations=1, output_dir=tmp_path / "ok2", eval_every=0,
                 episode_design=EPISODE_DESIGN_GENERALIZED_V1,
-                fuel_damage_mode=_GEN_MODE).validate()
+                fuel_damage_mode=_GEN_MODE,
+                generalized_max_attempts_per_iteration=8).validate()
 
 
 def test_gen_short_realization_is_accounted_and_a_lying_audit_aborts() -> None:
@@ -5289,7 +5302,10 @@ def test_gen_the_failure_ledger_keeps_the_scheduled_world(tmp_path: Path) -> Non
     distribution, and that stratum's denominator would quietly shrink to the attempts
     that happened to succeed.
     """
-    cfg = _gen_cfg(tmp_path, episodes_per_iteration=4)
+    # Task 5C: budget headroom, because under this design a failure is REPLACED. The
+    # quota is 4 SUCCESSFUL episodes; the one injected failure costs a fifth attempt.
+    cfg = _gen_cfg(tmp_path, episodes_per_iteration=4,
+                   generalized_max_attempts_per_iteration=6)
     summary, _events, _state = _run_stub_training(
         cfg, wakes_per_episode=1, failures={1: ("setup", "no strict window")})
 
@@ -5306,8 +5322,10 @@ def test_gen_the_failure_ledger_keeps_the_scheduled_world(tmp_path: Path) -> Non
     # Disjoint streams: the failed attempt appears in NEITHER outcome file.
     outcomes = _read_records(cfg.output_dir, "episode_outcomes.jsonl")
     assert row["seed"] not in [o["seed"] for o in outcomes]
-    assert summary["train_episodes_attempted"] == 4
-    assert summary["train_episodes_successful"] == 3
+    # The quota was FILLED (4 successful) and the failure was REPLACED, so the run
+    # attempted 5. `attempted == successful + failed` still holds exactly.
+    assert summary["train_episodes_attempted"] == 5
+    assert summary["train_episodes_successful"] == 4
     assert summary["train_episodes_failed"] == 1
     assert summary["accounting_reconciled"] is True
 
@@ -5319,7 +5337,8 @@ def test_gen_the_summary_reports_requested_vs_realized(tmp_path: Path) -> None:
     key, no threshold, no "degenerate" flag -- the handoff requires a human to inspect
     that distribution, and a threshold invented here would pre-empt that decision.
     """
-    cfg = _gen_cfg(tmp_path, episodes_per_iteration=6)
+    cfg = _gen_cfg(tmp_path, episodes_per_iteration=6,
+                   generalized_max_attempts_per_iteration=8)
     summary, _events, _state = _run_stub_training(
         cfg, wakes_per_episode=1, failures={2: ("setup", "boom")})
 
@@ -5337,7 +5356,8 @@ def test_gen_the_summary_reports_requested_vs_realized(tmp_path: Path) -> None:
         for name, entry in buckets.items():
             assert entry["n_attempted"] == entry["n_successful"] + entry["n_failed"], (
                 key, name)
-        assert sum(e["n_attempted"] for e in buckets.values()) == 6
+        # 6 SUCCESSFUL episodes plus the one replaced failure = 7 attempts.
+        assert sum(e["n_attempted"] for e in buckets.values()) == 7
 
     # The distribution is REPORTED, and nothing in the block renders a VERDICT on it:
     # no threshold, no "degenerate" flag, no accept/reject decision. Checked over the
@@ -5741,6 +5761,7 @@ def test_gen_a_tampered_manifest_never_reaches_a_run(tmp_path: Path) -> None:
         n_iterations=1, episodes_per_iteration=1, base_seed=0, output_dir=run_dir,
         eval_every=1, eval_episodes=1, checkpoint_every=0,
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=1,
         benchmark_manifest=str(path),
     )
     try:
@@ -5766,6 +5787,7 @@ def test_gen_run_config_records_the_design_the_sampler_and_the_manifest(
         n_iterations=1, episodes_per_iteration=1, base_seed=0,
         output_dir=tmp_path / "run", eval_every=1, eval_episodes=1, checkpoint_every=0,
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=1,
         benchmark_manifest=str(path),
     )
     _run_stub_training(cfg, wakes_per_episode=1)
@@ -5872,6 +5894,7 @@ def test_fix2_a_manifest_containing_a_training_seed_is_refused(tmp_path: Path) -
         n_iterations=4, episodes_per_iteration=2, base_seed=0, output_dir=run_dir,
         eval_every=1, eval_episodes=1, checkpoint_every=0,
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=2,
         benchmark_manifest=str(path),
     )
     # The CONFIG alone cannot see it -- the manifest is a path at that point.
@@ -5897,6 +5920,7 @@ def test_fix2_a_manifest_containing_a_training_seed_is_refused(tmp_path: Path) -
         n_iterations=4, episodes_per_iteration=2, base_seed=0,
         output_dir=tmp_path / "ok", eval_every=1, eval_episodes=1, checkpoint_every=0,
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=2,
         benchmark_manifest=str(ok_path),
     )
     summary, _events, _state = _run_stub_training(ok_cfg, wakes_per_episode=1)
@@ -5928,6 +5952,7 @@ def test_fix2_an_unused_legacy_band_neither_rejects_nor_validates(
         output_dir=tmp_path / "a", eval_every=1, eval_episodes=4, eval_base_seed=2,
         checkpoint_every=0,
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=2,
         benchmark_manifest=str(held_out),
     )
     overlapping_legacy.validate()          # must NOT raise
@@ -5959,6 +5984,7 @@ def test_fix2_an_unused_legacy_band_neither_rejects_nor_validates(
         output_dir=tmp_path / "c", eval_every=1, eval_episodes=1,
         eval_base_seed=9_000_000, checkpoint_every=0,
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=2,
         benchmark_manifest=str(
             write_benchmark_manifest(colliding, tmp_path / "colliding.json")),
     )
@@ -5986,6 +6012,7 @@ def test_fix2_generalized_provenance_states_the_manifest_as_the_seed_source(
         n_iterations=4, episodes_per_iteration=2, base_seed=0,
         output_dir=tmp_path / "run", eval_every=1, eval_episodes=1, checkpoint_every=0,
         episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=2,
         benchmark_manifest=str(path),
     )
     _run_stub_training(cfg, wakes_per_episode=1)
@@ -6122,6 +6149,502 @@ def test_gen_cli_and_rollout_expose_the_selector_without_drift() -> None:
 
     # And a generalized ROLLOUT stays diagnostic: it exposes no benchmark at all.
     assert not hasattr(gr.RolloutConfig(), "benchmark_manifest")
+
+# =============================================================================
+# GENERALIZED-V1 Task 5C -- the SUCCESSFUL-EPISODE QUOTA and its seed-band consequence
+# =============================================================================
+#
+# PO1  a generalized iteration collects exactly `episodes_per_iteration` SUCCESSFUL
+#      episodes, may attempt more, records every failure once, spends every failed seed,
+#      replaces deterministically, keeps every artifact identity unique, and updates only
+#      on the full batch. Exhausting the budget ABORTS instead of updating on a partial
+#      one.
+# PO2  `fixed_cell_v1` keeps its historical no-replacement scheduling exactly; the
+#      MAXIMUM POSSIBLE attempt band -- not the quota -- is what a frozen manifest is held
+#      out against; and the attempt-seed logic is identical in both training modes.
+
+
+def _quota_cfg(tmp_path: Path, *, episodes=3, budget=6, iterations=1, **kwargs):
+    """A generalized training config with explicit budget headroom for replacement."""
+    base = dict(
+        n_iterations=iterations, episodes_per_iteration=episodes, base_seed=0,
+        output_dir=tmp_path / "quota", eval_every=0, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=budget,
+    )
+    base.update(kwargs)
+    return TrainConfig(**base)
+
+
+# --- PO1 -------------------------------------------------------------------------
+
+def test_task5c_a_generalized_iteration_fills_its_successful_quota(
+    tmp_path: Path,
+) -> None:
+    """PO1. `episodes_per_iteration` counts SUCCESSFUL episodes, and attrition is REPLACED.
+
+    THE DEFECT THIS CLOSES. Under the historical scheduling every failed attempt simply
+    lost its slot, so a generalized batch -- drawn from a sampler whose worlds
+    legitimately fail construction or FD certification -- would reach the updater with
+    however many episodes happened to survive. That makes the PPO/CTDE batch size a
+    silent function of world attrition, and two campaign arms with different attrition
+    would train on different batch sizes while their learning curves were compared as
+    though they had not.
+
+    Two of the first five seeds fail here, so a 3-episode quota costs 5 attempts.
+    """
+    cfg = _quota_cfg(tmp_path, episodes=3, budget=6)
+    summary, events, _state = _run_stub_training(
+        cfg, wakes_per_episode=1,
+        failures={1: ("setup", "no strict window"), 3: ("setup", "no eligible ego")},
+    )
+
+    attempted = _episode_seeds(events, "train")
+    assert attempted == [0, 1, 2, 3, 4], (
+        "the replacement seeds are not the next deterministic ordinals: %r" % attempted
+    )
+    # THE QUOTA IS FILLED EXACTLY -- not "at least", not "whatever survived".
+    assert summary["train_episodes_successful"] == 3
+    assert summary["train_episodes_attempted"] == 5
+    assert summary["train_episodes_failed"] == 2
+    assert summary["accounting_reconciled"] is True
+
+    record = _read_records(cfg.output_dir, "train_records.jsonl")[0]
+    assert record["n_successful"] == 3
+    assert record["n_attempted"] == 5
+    assert record["n_failed"] == 2
+    assert record["n_attempted"] == record["n_successful"] + record["n_failed"]
+    assert record["n_replacement_attempts"] == 2
+    assert record["training_attempt_policy"] == TRAINING_ATTEMPT_POLICY_QUOTA
+    assert record["successful_episodes_required"] == 3
+    assert record["max_attempts_per_iteration"] == 6
+
+    # THE UPDATE SAW THE FULL BATCH. `_RecordingUpdater` logs the number of episode
+    # records the buffer held, so a partial batch would be visible here as a smaller
+    # number rather than having to be inferred from the reward.
+    updates = [e[1] for e in events if e[0] == "update"]
+    assert updates == [3], "the updater did not receive exactly the quota: %r" % updates
+
+
+def test_task5c_a_failed_seed_is_spent_and_recorded_once(tmp_path: Path) -> None:
+    """PO1. A failure is recorded ONCE, its seed is never revisited, and it is disjoint.
+
+    "Replaced" must never come to mean "retried": a seed that produced a recorded failure
+    is part of the attempted population forever, and re-attempting it would let one world
+    contribute two records to the same denominator.
+    """
+    cfg = _quota_cfg(tmp_path, episodes=2, budget=5)
+    _summary, events, _state = _run_stub_training(
+        cfg, wakes_per_episode=1, failures={0: ("setup", "boom")})
+
+    attempted = _episode_seeds(events, "train")
+    assert attempted == [0, 1, 2]
+    assert len(attempted) == len(set(attempted)), "a seed was attempted twice"
+
+    ledger = _read_records(cfg.output_dir, "episode_failures.jsonl")
+    assert [row["seed"] for row in ledger] == [0]
+    assert ledger[0]["iteration"] == 0
+    # The attempt's position is recorded twice over: `attempt_ordinal` inside the
+    # iteration and `episode_index` as the run-wide attempt ordinal. Both are needed to
+    # place a replacement, and both are already carried -- no schema change.
+    assert ledger[0]["attempt_ordinal"] == 0
+    assert ledger[0]["episode_index"] == 0
+
+    outcomes = _read_records(cfg.output_dir, "episode_outcomes.jsonl")
+    assert [row["seed"] for row in outcomes] == [1, 2]
+    # DISJOINT BY CONSTRUCTION: an attempt appears in exactly one of the two streams.
+    assert not (set(row["seed"] for row in outcomes)
+                & set(row["seed"] for row in ledger))
+
+
+def test_task5c_a_replacement_never_overwrites_the_attempt_it_replaced(
+    tmp_path: Path,
+) -> None:
+    """PO1. Attempt identities stay unique when an iteration takes extra attempts.
+
+    The training scenario TAG is the run-wide attempt ordinal, so a replacement writes its
+    own file. If the tag had stayed the SLOT index, the replacement would have written
+    over the scenario of the attempt it replaced and a finished run could no longer show
+    which world the failed attempt had been given.
+    """
+    cfg = _quota_cfg(tmp_path, episodes=2, budget=5, iterations=2)
+    _summary, events, state = _run_stub_training(
+        cfg, wakes_per_episode=1,
+        failures={0: ("setup", "boom"), 4: ("setup", "boom")})
+
+    episode_events = [e for e in events if e[0] == "episode" and e[1] == "train"]
+    tags = [e[3] for e in episode_events]
+    seeds = [e[2] for e in episode_events]
+    assert seeds == [0, 1, 2, 3, 4, 5]
+    assert tags == seeds, "the training tag is not the run-wide attempt ordinal"
+    assert len(tags) == len(set(tags)), "two attempts shared one scenario tag"
+    written = sorted(p.name for p in state["scen_dir"].glob("episode_*_scenario.json"))
+    assert len(written) == 6, written
+
+
+def test_task5c_exhausting_the_budget_aborts_without_a_partial_update(
+    tmp_path: Path,
+) -> None:
+    """PO1. The cap is a HARD stop: no update on a partial batch, and it fails loudly.
+
+    The two alternatives are both wrong. Updating on the partial batch reintroduces the
+    exact attrition-dependent batch size the quota exists to remove; raising the budget on
+    the fly changes the population mid-run. So the run stops and says why.
+    """
+    cfg = _quota_cfg(tmp_path, episodes=3, budget=4)
+    events: list = []
+    try:
+        _run_stub_training(
+            cfg, wakes_per_episode=1, events=events,
+            failures={0: ("setup", "boom"), 1: ("setup", "boom"),
+                      2: ("setup", "boom")},
+        )
+    except TrainingQuotaError as exc:
+        assert "exhausted its attempt budget" in str(exc)
+        assert "partial batch" in str(exc)
+    else:
+        raise AssertionError("a partial batch was accepted")
+
+    # NO UPDATE RAN. That is the load-bearing half: an abort that still updated would
+    # have trained on a batch nobody chose.
+    assert [e[0] for e in events if e[0] == "update"] == []
+    assert _episode_seeds(events, "train") == [0, 1, 2, 3]
+    # Every attempt it did make is still durably accounted for.
+    ledger = _read_records(cfg.output_dir, "episode_failures.jsonl")
+    assert [row["seed"] for row in ledger] == [0, 1, 2]
+    assert len(_read_records(cfg.output_dir, "episode_outcomes.jsonl")) == 1
+    # It is a MeasurementIntegrityError, so every existing abort re-raise already routes
+    # it rather than a future handler accounting it as episode attrition.
+    assert issubclass(TrainingQuotaError, graph_train.MeasurementIntegrityError)
+
+
+def test_task5c_a_measurement_integrity_fault_is_never_replacement_eligible(
+    tmp_path: Path,
+) -> None:
+    """PO1. An instrument fault still ABORTS -- it is not attrition, so it is not replaced.
+
+    Replacing it would be the worst possible outcome: the run would continue, the defect
+    would be invisible, and the only trace would be a population selected by a bug.
+    """
+    cfg = _quota_cfg(tmp_path, episodes=3, budget=8)
+    events: list = []
+    try:
+        _run_stub_training(cfg, wakes_per_episode=1, events=events,
+                           integrity_failures=(1,))
+    except EpisodeRosterError:
+        pass
+    else:
+        raise AssertionError("a measurement-integrity fault was replaced")
+    assert _episode_seeds(events, "train") == [0, 1], "the walk continued past the fault"
+    assert _read_records(cfg.output_dir, "episode_failures.jsonl") == []
+
+
+def test_task5c_the_quota_loop_holds_across_iterations(tmp_path: Path) -> None:
+    """PO1. The attempt ordinal is RUN-WIDE, so iteration 2 starts after iteration 1 spent.
+
+    A per-iteration ordinal would restart the seed stream at `iteration *
+    episodes_per_iteration` and a replacement in iteration 1 would then collide with
+    iteration 2's first scheduled seed -- two different attempts on one seed.
+    """
+    cfg = _quota_cfg(tmp_path, episodes=2, budget=4, iterations=3)
+    summary, events, _state = _run_stub_training(
+        cfg, wakes_per_episode=1, failures={1: ("setup", "boom")})
+
+    assert _episode_seeds(events, "train") == [0, 1, 2, 3, 4, 5, 6]
+    assert summary["train_episodes_successful"] == 6      # 3 iterations x quota 2
+    assert summary["train_episodes_attempted"] == 7
+    records = _read_records(cfg.output_dir, "train_records.jsonl")
+    assert [r["n_successful"] for r in records] == [2, 2, 2]
+    assert [r["n_attempted"] for r in records] == [3, 2, 2]
+    assert [e[1] for e in events if e[0] == "update"] == [2, 2, 2]
+    # The run-level roll-up is DERIVED from those records -- one metric path.
+    assert summary["training_attempt_policy"] == TRAINING_ATTEMPT_POLICY_QUOTA
+    assert summary["train_replacement_attempts"] == 1
+    assert summary["train_iterations_at_full_quota"] == 3
+
+
+# --- PO2 -------------------------------------------------------------------------
+
+def test_task5c_the_fixed_cell_path_keeps_its_historical_scheduling(
+    tmp_path: Path,
+) -> None:
+    """PO2. `fixed_cell_v1` attempts each slot ONCE and never acquires replacement.
+
+    The approved Phase-A and FD-VARIABLE-SEVERITY-v1 measurements were taken on this
+    scheduling, so a failure there must still simply lose its slot: the population every
+    one of those results is reported over depends on it.
+    """
+    cfg = TrainConfig(
+        n_iterations=2, episodes_per_iteration=3, base_seed=0,
+        output_dir=tmp_path / "fixed", eval_every=0, checkpoint_every=0,
+    )
+    summary, events, _state = _run_stub_training(
+        cfg, wakes_per_episode=1, failures={1: ("setup", "boom")})
+
+    assert cfg.training_attempt_policy == TRAINING_ATTEMPT_POLICY_SCHEDULED
+    assert _episode_seeds(events, "train") == [0, 1, 2, 3, 4, 5]
+    assert summary["train_episodes_attempted"] == 6
+    assert summary["train_episodes_successful"] == 5, "the lost slot was replaced"
+    assert summary["train_episodes_failed"] == 1
+    record = _read_records(cfg.output_dir, "train_records.jsonl")[0]
+    assert record["n_attempted"] == 3 and record["n_successful"] == 2
+    assert record["n_replacement_attempts"] == 0
+    assert record["training_attempt_policy"] == TRAINING_ATTEMPT_POLICY_SCHEDULED
+    assert summary["training_attempt_policy"] == TRAINING_ATTEMPT_POLICY_SCHEDULED
+    assert summary["train_replacement_attempts"] == 0
+    # The updater saw the SURVIVORS, exactly as it always did.
+    assert [e[1] for e in events if e[0] == "update"] == [2, 3]
+    # ... and the config refuses to carry the generalized budget at all.
+    try:
+        TrainConfig(n_iterations=1, output_dir=tmp_path / "x",
+                    generalized_max_attempts_per_iteration=4).validate()
+    except ValueError as exc:
+        assert EPISODE_DESIGN_GENERALIZED_V1 in str(exc)
+    else:
+        raise AssertionError("a fixed-cell run accepted the replacement budget")
+
+
+def test_task5c_the_attempt_seed_generalizes_the_historical_formula() -> None:
+    """PO2. `train_attempt_seed` IS `train_seed` whenever every slot is attempted once.
+
+    The equivalence is what lets the historical loop keep calling the historical
+    functions while the generalized loop expresses the same schedule over one run-wide
+    ordinal -- a claim, and therefore something to check rather than assert in prose.
+    """
+    cfg = TrainConfig(n_iterations=5, episodes_per_iteration=4, base_seed=137,
+                      output_dir="unused")
+    for iteration in range(cfg.n_iterations):
+        for j in range(cfg.episodes_per_iteration):
+            g = global_episode_index(cfg, iteration, j)
+            assert train_attempt_seed(cfg, g) == train_seed(cfg, iteration, j)
+    assert train_attempt_seed(cfg, 0) == 137
+    try:
+        train_attempt_seed(cfg, -1)
+    except ValueError as exc:
+        assert "attempt_ordinal must be >= 0" in str(exc)
+    else:
+        raise AssertionError("a negative attempt ordinal was accepted")
+
+
+def test_task5c_the_maximum_attempt_band_is_what_a_manifest_is_held_out_against(
+    tmp_path: Path,
+) -> None:
+    """PO2. THE CORRECTION. A manifest seed inside the REPLACEMENT band is refused.
+
+    Under replacement `total_episodes` is no longer an upper bound on which seeds the
+    training loop can reach, so checking the manifest against the QUOTA would leave a
+    corridor of seeds a run with ordinary attrition really does train on while its
+    manifest was certified held out. That produces entirely normal-looking numbers, which
+    is exactly the failure mode the held-out check exists to prevent.
+    """
+    run_dir = tmp_path / "run"
+    # quota 2 x 2 iterations = 4 collected episodes, but up to 5 x 2 = 10 ATTEMPTS.
+    cfg = TrainConfig(
+        n_iterations=2, episodes_per_iteration=2, base_seed=0, output_dir=run_dir,
+        eval_every=1, eval_episodes=1, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=5,
+        benchmark_manifest=str(write_benchmark_manifest(
+            build_benchmark_manifest(worlds_per_cell=1, benchmark_base_seed=7), tmp_path / "inside.json")),
+    )
+    assert cfg.total_episodes == 4
+    assert cfg.max_training_attempts == 10
+    assert cfg.max_attempts_per_iteration == 5
+    try:
+        _run_stub_training(cfg, wakes_per_episode=1)
+    except ValueError as exc:
+        assert "NOT held out" in str(exc)
+        assert "MAXIMUM POSSIBLE training attempt band" in str(exc)
+        assert "[0, 10)" in str(exc)
+    else:
+        raise AssertionError("a manifest inside the replacement band was accepted")
+    assert not run_dir.exists(), "a refused manifest must leave no run directory"
+
+    # ... and a manifest OUTSIDE that wider band still passes.
+    ok = TrainConfig(
+        n_iterations=2, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "ok", eval_every=1, eval_episodes=1, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=5,
+        benchmark_manifest=str(write_benchmark_manifest(
+            build_benchmark_manifest(worlds_per_cell=1,
+                                     benchmark_base_seed=1_000_000), tmp_path / "outside.json")),
+    )
+    summary, _events, _state = _run_stub_training(ok, wakes_per_episode=1)
+    assert summary["train_episodes_successful"] == 4
+
+    # The PROVENANCE says which band it was: the seed bands report the maximum possible
+    # attempt band and say what it counts, so a reader is not left inferring it.
+    band = seed_bands(ok)
+    assert band["train_band"] == {
+        "start": 0, "stop": 10, "half_open": True, "count": 10,
+    }
+    policy = band["train_attempt_policy"]
+    assert policy["policy"] == TRAINING_ATTEMPT_POLICY_QUOTA
+    assert policy["successful_episodes_required_per_iteration"] == 2
+    assert policy["max_attempts_per_iteration"] == 5
+    assert policy["successful_episode_quota_total"] == 4
+    assert policy["max_possible_training_attempts"] == 10
+    assert policy["train_band_counts"] == "maximum_possible_attempts"
+
+
+def test_task5c_fixed_cell_seed_bands_are_byte_unchanged(tmp_path: Path) -> None:
+    """PO2. The historical provenance block keeps EXACTLY the shape it always had.
+
+    Presence-based discrimination, the same rule `benchmark_evaluation` already follows:
+    a fixed-cell run must not acquire a new key, because every existing reader and every
+    preserved run artifact was written against the old shape.
+    """
+    cfg = TrainConfig(n_iterations=3, episodes_per_iteration=4, base_seed=0,
+                      output_dir=tmp_path / "fixed", eval_every=1, eval_episodes=2,
+                      eval_base_seed=1_000_000)
+    band = seed_bands(cfg)
+    assert set(band) == {
+        "train_band", "train_seed_formula", "eval_enabled", "eval_band",
+        "eval_seed_formula", "eval_band_is_fixed_across_rounds",
+    }
+    assert "train_attempt_policy" not in band
+    assert band["train_band"] == {
+        "start": 0, "stop": 12, "half_open": True, "count": 12,
+    }
+    assert band["train_seed_formula"] == (
+        "train_seed = base_seed + (iteration * episodes_per_iteration + j)"
+    )
+    # `max_training_attempts` collapses to `total_episodes` there, which is what makes
+    # every band, tag bound and held-out check on that path identical.
+    assert cfg.max_training_attempts == cfg.total_episodes == 12
+    assert cfg.max_attempts_per_iteration == cfg.episodes_per_iteration == 4
+
+
+def test_task5c_both_training_modes_share_one_attempt_seed_logic(
+    tmp_path: Path,
+) -> None:
+    """PO2. `training_mode` is ORTHOGONAL: it cannot move which worlds a run trains on.
+
+    A paired actor-only / CTDE comparison within one replicate is only a comparison if
+    both arms draw the same worlds in the same order, so the attempt-seed logic must not
+    read the training mode at all.
+    """
+    seeds = {}
+    for mode in ("actor_only", "ctde"):
+        cfg = _quota_cfg(tmp_path, episodes=2, budget=5, iterations=2,
+                         training_mode=mode, output_dir=tmp_path / mode)
+        assert cfg.max_training_attempts == 10
+        assert cfg.max_attempts_per_iteration == 5
+        assert cfg.training_attempt_policy == TRAINING_ATTEMPT_POLICY_QUOTA
+        # `wakes_per_episode=0` because this harness stubs the episode body and therefore
+        # captures no central states: a CTDE record validates 1:1 alignment on
+        # construction, and an empty decision sequence is aligned. The SEED SCHEDULE is
+        # what is under test and it is unaffected by how many decisions an episode made.
+        _summary, events, _state = _run_stub_training(
+            cfg, wakes_per_episode=0, failures={1: ("setup", "boom")})
+        seeds[mode] = _episode_seeds(events, "train")
+    assert seeds["actor_only"] == seeds["ctde"] == [0, 1, 2, 3, 4]
+
+
+def test_task5c_run_config_records_what_episodes_per_iteration_counts(
+    tmp_path: Path,
+) -> None:
+    """PO2. The attempt contract is recorded on BOTH designs, stated positively.
+
+    Recorded on the fixed-cell path too, because "this run made one attempt per scheduled
+    episode" is a fact about the population and leaving it to be inferred from an absent
+    key is how a reader ends up guessing.
+    """
+    gen_cfg = _quota_cfg(tmp_path, episodes=3, budget=7, iterations=2,
+                         output_dir=tmp_path / "gen_run")
+    _run_stub_training(gen_cfg, wakes_per_episode=1)
+    block = json.loads(
+        (Path(gen_cfg.output_dir) / "run_config.json").read_text(encoding="utf-8")
+    )["training"]["attempt_policy"]
+    assert block["policy"] == TRAINING_ATTEMPT_POLICY_QUOTA
+    assert block["episodes_per_iteration_counts"] == "successful_episodes"
+    assert block["successful_episodes_required_per_iteration"] == 3
+    assert block["max_attempts_per_iteration"] == 7
+    assert block["generalized_max_attempts_per_iteration"] == 7
+    assert block["successful_episode_quota_total"] == 6
+    assert block["max_possible_training_attempts"] == 14
+    assert block["replacement"] is True
+
+    fixed_cfg = TrainConfig(n_iterations=2, episodes_per_iteration=3, base_seed=0,
+                            output_dir=tmp_path / "fixed_run", eval_every=0,
+                            checkpoint_every=0)
+    _run_stub_training(fixed_cfg, wakes_per_episode=1)
+    fixed = json.loads(
+        (Path(fixed_cfg.output_dir) / "run_config.json").read_text(encoding="utf-8")
+    )["training"]["attempt_policy"]
+    assert fixed["policy"] == TRAINING_ATTEMPT_POLICY_SCHEDULED
+    assert fixed["episodes_per_iteration_counts"] == "scheduled_attempts"
+    assert fixed["generalized_max_attempts_per_iteration"] is None
+    assert fixed["max_possible_training_attempts"] == 6
+    assert fixed["replacement"] is False
+
+
+def test_task5c_the_budget_is_required_and_bounded(tmp_path: Path) -> None:
+    """PO2. The budget has NO DEFAULT, must be an int, and must be >= the quota.
+
+    No default because the value decides how much world attrition the campaign tolerates
+    AND sets the maximum training seed band the benchmark is held out against -- two
+    scientific decisions a fallback would make silently.
+    """
+    def _refuses(**kwargs) -> str:
+        base = dict(n_iterations=1, episodes_per_iteration=4, base_seed=0,
+                    output_dir=tmp_path / "v", eval_every=0,
+                    episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+                    fuel_damage_mode=_GEN_MODE)
+        base.update(kwargs)
+        try:
+            TrainConfig(**base).validate()
+        except ValueError as exc:
+            return str(exc)
+        raise AssertionError("accepted %r" % (kwargs,))
+
+    assert "requires an explicit generalized_max_attempts_per_iteration" in _refuses()
+    assert "must be an int" in _refuses(generalized_max_attempts_per_iteration="6")
+    assert "must be an int" in _refuses(generalized_max_attempts_per_iteration=True)
+    assert "must be >= episodes_per_iteration" in _refuses(
+        generalized_max_attempts_per_iteration=3)
+    # The legitimate shape validates, and the property refuses to invent one when absent.
+    ok = TrainConfig(n_iterations=1, episodes_per_iteration=4, base_seed=0,
+                     output_dir=tmp_path / "ok", eval_every=0,
+                     episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+                     fuel_damage_mode=_GEN_MODE,
+                     generalized_max_attempts_per_iteration=4)
+    ok.validate()
+    assert ok.max_attempts_per_iteration == 4
+    unset = TrainConfig(n_iterations=1, episodes_per_iteration=4,
+                        output_dir=tmp_path / "u", eval_every=0,
+                        episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+                        fuel_damage_mode=_GEN_MODE)
+    try:
+        _ = unset.max_attempts_per_iteration
+    except ValueError as exc:
+        assert "requires an explicit" in str(exc)
+    else:
+        raise AssertionError("max_attempts_per_iteration invented a budget")
+
+
+def test_task5c_the_cli_exposes_the_budget_without_drift(tmp_path: Path) -> None:
+    """PO2. One dest -> one field, and the flag's default is read off the dataclass."""
+    parser = _build_arg_parser()
+    args = parser.parse_args(["--generalized-max-attempts-per-iteration", "12"])
+    assert args.generalized_max_attempts_per_iteration == 12
+    assert parser.parse_args([]).generalized_max_attempts_per_iteration == \
+        TrainConfig(n_iterations=1, output_dir="x").generalized_max_attempts_per_iteration
+    assert graph_train._CLI_FIELD_BY_DEST[
+        "generalized_max_attempts_per_iteration"] == "generalized_max_attempts_per_iteration"
+    # A preset names the FIELD, and the resolver carries it through.
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({
+        "n_iterations": 1, "episodes_per_iteration": 2, "eval_every": 0,
+        "episode_design": EPISODE_DESIGN_GENERALIZED_V1,
+        "fuel_damage_mode": _GEN_MODE,
+        "generalized_max_attempts_per_iteration": 9,
+        "output_dir": str(tmp_path / "from_preset"),
+    }), encoding="utf-8")
+    cfg, _source = _resolve([], config_path=preset)
+    assert cfg.generalized_max_attempts_per_iteration == 9
+    cfg.validate()
 
 
 if __name__ == "__main__":
@@ -6429,6 +6952,36 @@ if __name__ == "__main__":
          test_fix3_generalized_construction_cannot_be_read_as_the_fixed_cell, True),
         ("fix3_fixed_cell_construction_and_provenance_are_unchanged",
          test_fix3_fixed_cell_construction_and_provenance_are_unchanged, True),
+        # --- GENERALIZED-V1 Task 5C: successful-episode quota + seed-band consequence -
+        ("task5c_a_generalized_iteration_fills_its_successful_quota",
+         test_task5c_a_generalized_iteration_fills_its_successful_quota, True),
+        ("task5c_a_failed_seed_is_spent_and_recorded_once",
+         test_task5c_a_failed_seed_is_spent_and_recorded_once, True),
+        ("task5c_a_replacement_never_overwrites_the_attempt_it_replaced",
+         test_task5c_a_replacement_never_overwrites_the_attempt_it_replaced, True),
+        ("task5c_exhausting_the_budget_aborts_without_a_partial_update",
+         test_task5c_exhausting_the_budget_aborts_without_a_partial_update, True),
+        ("task5c_a_measurement_integrity_fault_is_never_replacement_eligible",
+         test_task5c_a_measurement_integrity_fault_is_never_replacement_eligible, True),
+        ("task5c_the_quota_loop_holds_across_iterations",
+         test_task5c_the_quota_loop_holds_across_iterations, True),
+        ("task5c_the_fixed_cell_path_keeps_its_historical_scheduling",
+         test_task5c_the_fixed_cell_path_keeps_its_historical_scheduling, True),
+        ("task5c_the_attempt_seed_generalizes_the_historical_formula",
+         test_task5c_the_attempt_seed_generalizes_the_historical_formula, False),
+        ("task5c_the_maximum_attempt_band_is_what_a_manifest_is_held_out_against",
+         test_task5c_the_maximum_attempt_band_is_what_a_manifest_is_held_out_against,
+         True),
+        ("task5c_fixed_cell_seed_bands_are_byte_unchanged",
+         test_task5c_fixed_cell_seed_bands_are_byte_unchanged, True),
+        ("task5c_both_training_modes_share_one_attempt_seed_logic",
+         test_task5c_both_training_modes_share_one_attempt_seed_logic, True),
+        ("task5c_run_config_records_what_episodes_per_iteration_counts",
+         test_task5c_run_config_records_what_episodes_per_iteration_counts, True),
+        ("task5c_the_budget_is_required_and_bounded",
+         test_task5c_the_budget_is_required_and_bounded, True),
+        ("task5c_the_cli_exposes_the_budget_without_drift",
+         test_task5c_the_cli_exposes_the_budget_without_drift, True),
     ]
     for name, fn, needs_tmp in tests:
         try:
