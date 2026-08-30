@@ -6666,6 +6666,12 @@ def _generalized_summary(
     stratum's denominator complete instead of quietly shrinking to the attempts that
     happened to succeed.
 
+    THE PHASE A BUCKET IS TAKEN OVER IS PART OF ITS NAME. ``train_by_agent_count`` and
+    ``train_by_hidden_requested`` are the TRAINING population and are therefore derived
+    from the training-phase rows of both streams alone; held-out evaluation attempts --
+    which are scheduled independently and, under a frozen benchmark, re-measure the same
+    worlds every round -- belong to the ``benchmark`` block and never to these two.
+
     THE REQUESTED-VS-REALIZED DISTRIBUTION IS REPORTED, NOT JUDGED. ``hidden_realized``
     is emitted as a HISTOGRAM per requested load, so a HIGH stratum that keeps realizing
     one hidden target is visible as a shape rather than hidden inside a mean. This
@@ -6679,13 +6685,36 @@ def _generalized_summary(
     if not successes and not failures:
         return {}
 
-    def _by(key: str) -> Dict[str, Any]:
-        """attempted / successful / failed, bucketed by one scheduled field."""
+    # THE `train_by_*` AGGREGATES ARE TRAINING-POPULATION ACCOUNTING, so they are taken
+    # over the TRAINING phase alone. Both canonical streams mix phases by design -- an
+    # outcome row carries `train` / `pre_update` / `post_update` and a failure row
+    # carries `train` / `eval` -- so a bucket built from the unfiltered streams would
+    # silently fold held-out evaluation attempts into a denominator whose NAME says
+    # training. That is a research-validity fault rather than a cosmetic one: the two
+    # populations are scheduled independently (a benchmark round re-measures the same
+    # frozen worlds every round), so their sum describes nothing. Filtering here, at the
+    # ONE derived site, leaves the canonical streams and every other block untouched.
+    train_successes = [r for r in successes
+                       if str(r.get("phase")) == _ARTIFACT_PHASE_TRAIN]
+    train_failures = [r for r in failures
+                      if str(r.get("phase")) == _ARTIFACT_PHASE_TRAIN]
+
+    def _by(
+        key: str,
+        rows_successful: List[Dict[str, Any]],
+        rows_failed: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """attempted / successful / failed, bucketed by one scheduled field.
+
+        The two populations are passed in EXPLICITLY rather than closed over, so the
+        phase a bucket is taken over is stated at the call site and cannot drift back to
+        "whatever was in scope".
+        """
         buckets: Dict[str, Dict[str, int]] = {}
-        for rec in successes:
+        for rec in rows_successful:
             b = buckets.setdefault(str(rec.get(key)), {"successful": 0, "failed": 0})
             b["successful"] += 1
-        for rec in failures:
+        for rec in rows_failed:
             b = buckets.setdefault(str(rec.get(key)), {"successful": 0, "failed": 0})
             b["failed"] += 1
         return {
@@ -6783,8 +6812,10 @@ def _generalized_summary(
             else EPISODE_DESIGN_GENERALIZED_V1
         ),
         "cardinality_sampler": cardinality_sampler_record(),
-        "train_by_agent_count": _by("agent_count"),
-        "train_by_hidden_requested": _by("hidden_requested"),
+        "train_by_agent_count": _by(
+            "agent_count", train_successes, train_failures),
+        "train_by_hidden_requested": _by(
+            "hidden_requested", train_successes, train_failures),
         "cardinality_requested_vs_realized": cardinality,
         "construction_backoff_rejections": _tally_slugs(
             [reason for rec in successes
