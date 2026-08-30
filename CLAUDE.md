@@ -1921,19 +1921,33 @@ CONDITIONAL on `A`; and `K = A` by definition, not by a draw. So a requested wor
   and about `H_requested`, else `EpisodeRosterError`. `_require_scheduled_cell` is otherwise
   unchanged, so a short realization is ACCOUNTED, not rejected.
 
-**THE FROZEN STRATIFIED BENCHMARK — MECHANISM ONLY. NO FINAL SCIENTIFIC SCALE HAS BEEN
-SELECTED AND NO FINAL SCIENTIFIC BENCHMARK POPULATION EXISTS.** Task 4 delivered the SCHEMA,
-the BUILDER, the canonical serialization, the content hash, the LOADER and its verification,
-the CONSUMER (`evaluate_benchmark`) and the identity checks. **It did NOT select the final
-scientific worlds-per-cell SCALE, and no final scientific benchmark POPULATION has been
-committed, preserved as the comparator, scheduled or authorized** — no benchmark manifest is
-committed or tracked in the repository, `build_benchmark_manifest` has no production caller
-and is exercised by tests alone, and **selecting the scale is later work that owns bounded
-runtime / solver validation first**. Nothing in this document may be read as saying a final
-scientific benchmark manifest exists.
+**THE FROZEN STRATIFIED BENCHMARK — TASK 4 DELIVERED THE MECHANISM ONLY.** Task 4 delivered
+the SCHEMA, the BUILDER, the canonical serialization, the content hash, the LOADER and its
+verification, the CONSUMER (`evaluate_benchmark`) and the identity checks, and **it did NOT
+select a worlds-per-cell SCALE and did NOT generate, commit or freeze a benchmark
+POPULATION** — choosing a scale was left to the later bounded runtime / solver validation
+step. **AT TASK 4 `build_benchmark_manifest` HAD NO PRODUCTION CALLER AND WAS EXERCISED BY
+TESTS ALONE.**
+
+**THAT CALLER STATEMENT IS HISTORICAL, AND TASK 5 CHANGED IT.** Since PR #43 the production
+caller is `graph_benchmark_preflight.run_benchmark_preflight`, which invokes
+`build_benchmark_manifest` **only after EVERY required base-cell quota has successfully
+filled** — a failed preflight creates NO manifest at all (the Task-5 contract below). **A
+PRODUCTION CALLER EXISTING IS NOT A POPULATION EXISTING**: the preflight refuses to invent
+the scale just as firmly as the builder does, and **no benchmark manifest is committed or
+tracked in the repository.** *(SUPERSEDED, and corrected here: this paragraph previously
+said `build_benchmark_manifest` has no production caller and is exercised by tests alone,
+and headed itself "NO FINAL SCIENTIFIC SCALE HAS BEEN SELECTED AND NO FINAL SCIENTIFIC
+BENCHMARK POPULATION EXISTS" in the present tense. Both were accurate at the Task-4 state.
+The CURRENT scale / authorization state is stated once, in §8, and must be read there —
+this block is the Task-4 mechanism contract and is not a current-state claim.)* Nothing in
+this document may be read as saying an independently reviewed final scientific benchmark
+manifest exists.
 
 **STATE THAT NEGATIVE AT THE RIGHT SCOPE.** The claim above is about the FINAL SCIENTIFIC
-artifact and about repository state, both of which are checkable. It is deliberately **NOT**
+artifact and about REPOSITORY state, both of which are checkable — and, as of Task 5, the
+repository half is the part that still holds unchanged: **no benchmark manifest is committed
+or tracked here.** The SCALE and BUILD-AUTHORIZATION half is current state and lives in §8. It is deliberately **NOT**
 a claim that no manifest object or file has ever been constructed at all: the test suite and
 engineering validation legitimately BUILD transient manifests in memory and in temporary
 directories, and repository state cannot establish a global negative over every local
@@ -2039,8 +2053,19 @@ scientific-scale decision the runtime-validation step owns.
 **THE BENCHMARK'S SEEDS ARE THE RUN'S ACTUAL EVALUATION SEEDS, AND HELD-OUTNESS IS CHECKED
 AGAINST THEM.** `_require_benchmark_seeds_held_out(manifest, cfg)` uses
 `manifest_seed_overlap(manifest, start=cfg.base_seed, stop=cfg.base_seed +
-cfg.total_episodes)` and REFUSES the run — naming every offending seed, offering no repair —
-if any manifest world seed lies inside the scheduled TRAINING band. This is a DIFFERENT
+cfg.max_training_attempts)` and REFUSES the run — naming every offending seed, offering no
+repair — if any manifest world seed lies inside the TRAINING band. **THE UPPER BOUND IS THE
+MAXIMUM POSSIBLE TRAINING ATTEMPT BAND, WHICH IS THE TASK-5 CONTRACT AND IS AUTHORITATIVE
+HERE TOO** — under `generalized_v1` that is `n_iterations *
+generalized_max_attempts_per_iteration`, because a FAILED replacement attempt still SPENDS a
+seed and therefore belongs inside the exclusion band. **On the fixed-cell path
+`max_training_attempts` EQUALS `total_episodes`**, so the preserved historical statement is
+unchanged there: one attempt per scheduled episode, and the same band this check always
+used. *(SUPERSEDED, and corrected here: this paragraph previously wrote the bound as
+`cfg.base_seed + cfg.total_episodes` and described it as the SCHEDULED training band. That
+was accurate for the Task-4 state, where the two quantities coincided because no
+replacement policy existed; it is not the current contract. See the Task-5 contract below
+for the single authoritative statement of the band.)* This is a DIFFERENT
 question from the legacy check, which compares the training band against
 `eval_base_seed .. + eval_episodes`: a manifest-driven run does not evaluate that band at
 all, so letting the legacy check stand in would be wrong in BOTH directions — an unused
@@ -2247,14 +2272,16 @@ untouched. No actor, encoder, `ActionHead`, PPO, GAE or critic architecture chan
 `MetaAction`**; no change to terminal-on-last credit placement or to `graph_reward`'s static
 `static_t0_v1` formula; no change to the no-communication boundary; no peer behaviour change
 and no communication channel of any kind; `DETECTION_KM`, the B2 geometry and the training
-seed formulas are unchanged. **No repository preset selects `generalized_v1`, no benchmark
-manifest is committed or tracked in the repository, no FINAL SCIENTIFIC benchmark
-worlds-per-cell scale has been SELECTED, no FINAL SCIENTIFIC benchmark population or
-manifest has been committed, preserved as the comparator, scheduled or authorized, and
-NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS OR MAY BE PRE-CLAIMED** (§8, which
-owns the live run state — a first generalized ACTOR-ONLY long run has since been
-AUTHORIZED and DISPATCHED and its RESULT IS PENDING). **No actor-only-vs-CTDE generalized
-result exists either.** The approved Phase-A
+seed formulas are unchanged. **TASK 4 SELECTED NO worlds-per-cell SCALE and generated,
+committed or froze NO benchmark POPULATION**, and **no repository preset selects
+`generalized_v1`** — those are statements about TASK 4's SCOPE and stay accurate as such.
+**THE CURRENT SCALE / AUTHORIZATION STATE IS NOT STATED HERE AND MUST BE READ IN §8**, which
+owns it: a worlds-per-cell scale HAS since been selected and an R1 benchmark BUILD has been
+authorized and dispatched, while **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS OR MAY
+BE PRE-CLAIMED** and **no actor-only-vs-CTDE generalized result exists.** *(SUPERSEDED, and
+corrected here: this sentence previously asserted in the present tense that no FINAL
+SCIENTIFIC worlds-per-cell scale had been SELECTED and that no benchmark population had been
+scheduled or authorized. Accurate at the Task-4 state; not a current-state claim.)* The approved Phase-A
 (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements are untouched and remain
 measurements of the `fixed_cell_v1` bundle.
 
@@ -2534,10 +2561,12 @@ formulas are unchanged. `evaluate_benchmark`, `evaluate`, the manifest SCHEMA, t
 `episode_design` selector, the cardinality sampler and the per-episode persistence are all
 exactly as Task 4 left them. **NOTHING FROM THIS LAYER REACHES THE ACTING PATH:** no attempt
 ordinal, quota, budget, candidate outcome, rejection slug, preflight status or report field
-enters `GraphObservation` or `CentralGraphObservation`. **No repository preset selects
-`generalized_v1`, no benchmark manifest is committed or tracked in the repository, no FINAL
-SCIENTIFIC worlds-per-cell scale has been SELECTED, and NO GENERALIZED SCIENTIFIC
-MEASUREMENT RESULT EXISTS OR MAY BE PRE-CLAIMED** (§8).
+enters `GraphObservation` or `CentralGraphObservation`. **THIS TASK ITSELF SELECTED NO
+worlds-per-cell SCALE and COMMITTED NO benchmark POPULATION — it delivered the SELECTION
+MECHANISM, and the scale remains a REQUIRED operator input with no default** — and **no
+repository preset selects `generalized_v1` and no benchmark manifest is committed or tracked
+in the repository.** **THE CURRENT SCALE / AUTHORIZATION STATE IS §8's**, and **NO
+GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS OR MAY BE PRE-CLAIMED** (§8).
 
 **PHASE-B CTDE — the TRAINING-ONLY centralized critic —
 `rl/observation/central_graph_builder.py` + `rl/training/graph_ppo.py` (its §7 block)
@@ -2774,7 +2803,7 @@ a stub, because normal production does not currently generate it.
 | Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `sync_recordings` / `finalize` (which reconciles expected vs observed world counts before it will say `complete`) / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
 | SELECT the EPISODE POPULATION — `fixed_cell_v1` (DEFAULT, historical) vs `generalized_v1` (the complete approved bundle) | `rl/training/graph_generalized.py` (`EPISODE_DESIGNS`, `EPISODE_DESIGN_FIXED_CELL_V1` / `EPISODE_DESIGN_GENERALIZED_V1`, `EpisodeDesign`, `FIXED_CELL_V1` / `GENERALIZED_V1`, `resolve_episode_design`) + `rl/training/graph_train.py` (`TrainConfig.episode_design` / `.design` / `.generalized`, `--episode-design`, the `validate()` generalized rules, `_generalized_setup_kwargs`, `_cardinality_kwargs`) + `rl/training/graph_rollout.py` (`RolloutConfig.episode_design` / `.design` / `.generalized`, `--episode-design`). **RESEARCH-VALIDITY / GRADE A**: the bundle is ALL-OR-NOTHING and there is deliberately NO per-policy harness field — `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy` and `reference_policy` are resolved from this ONE selector, an unknown id RAISES, and `fixed_cell_v1` is the DEFAULT the approved measurements (`737b4bf`, `bf1e045f`) were taken on. `training_mode` is ORTHOGONAL and unaffected (§5) |
 | Change the GENERALIZED TRAINING CARDINALITY SAMPLER (`A ~ U{2,3,4}`, `K == A`, `H_requested ~ U{1..A}`) | `rl/training/graph_generalized.py` (`sample_generalized_cardinality`, `derive_cardinality_seed`, `CARDINALITY_RNG_DOMAIN`, `CARDINALITY_SAMPLER_POLICY`, `EpisodeCardinality`, `CARDINALITY_SOURCES`, `fixed_cell_cardinality`, `cardinality_sampler_record`, the MIRRORED `GENERALIZED_AGENT_COUNTS`) + `rl/training/graph_train.py` (`episode_cardinality`, `build_variation_config(..., cardinality=...)`, `_scheduled_cell`, `_require_scheduled_cell`). **RESEARCH-VALIDITY / GRADE A**: the sampler's SHA-256 seed domain is SEPARATE from the three fuel-damage domains, from the placement rng, from global `random` and from torch — merging any of them would move the ego every damaged episode selects, or couple a world's SHAPE to action sampling. `H_requested` is NEVER rewritten to match `H_realized`; a short realization is RECORDED, never retried or replaced (§5) |
-| Build, freeze, load or CONSUME the STRATIFIED BENCHMARK MANIFEST | `rl/training/graph_generalized.py` (`BENCHMARK_STRATA` / `BENCHMARK_BASE_CELLS` / `BENCHMARK_CELLS` / `BENCHMARK_MEMBERS` / `BENCHMARK_DELTAS` / `LOAD_BUCKETS`, `Stratum`, `BenchmarkWorld`, `WorldPreflight`, `BenchmarkManifest`, `build_benchmark_manifest`, `manifest_from_record`, `load_benchmark_manifest`, `write_benchmark_manifest`, `manifest_identity`, `_canonical_json` / `_content_hash` / `_payload_differences`, `manifest_seed_overlap`, `WorldIdentity`, `certificate_fingerprint`, `require_world_matches_manifest`, `require_matched_group_identity`, `BenchmarkManifestError`, `BenchmarkIdentityError`) + `rl/training/graph_train.py` (`TrainConfig.benchmark_manifest`, `--benchmark-manifest`, `_require_benchmark_seeds_held_out`, `_require_benchmark_tag_namespace`, `evaluate_benchmark`, `_BenchmarkTally`, `_benchmark_member_identity`, `_observe_world_identity`). **RESEARCH-VALIDITY / GRADE A**: the loader authenticates the EXACT STORED payload AND independently requires it to equal the canonical payload — both checks, neither implying the other; the stored world ORDER is part of the identity and is never re-sorted; no identity uses a generated uuid; deltas use COMPLETE three-member groups ONLY and a failed member is never retried or substituted; the SCALE is never defaulted. **NO benchmark manifest is committed or tracked in the repository and NO FINAL SCIENTIFIC worlds-per-cell scale has been SELECTED — a transient manifest built by a test is neither committed nor a scientific population** (§5, §8) |
+| Build, freeze, load or CONSUME the STRATIFIED BENCHMARK MANIFEST | `rl/training/graph_generalized.py` (`BENCHMARK_STRATA` / `BENCHMARK_BASE_CELLS` / `BENCHMARK_CELLS` / `BENCHMARK_MEMBERS` / `BENCHMARK_DELTAS` / `LOAD_BUCKETS`, `Stratum`, `BenchmarkWorld`, `WorldPreflight`, `BenchmarkManifest`, `build_benchmark_manifest`, `manifest_from_record`, `load_benchmark_manifest`, `write_benchmark_manifest`, `manifest_identity`, `_canonical_json` / `_content_hash` / `_payload_differences`, `manifest_seed_overlap`, `WorldIdentity`, `certificate_fingerprint`, `require_world_matches_manifest`, `require_matched_group_identity`, `BenchmarkManifestError`, `BenchmarkIdentityError`) + `rl/training/graph_train.py` (`TrainConfig.benchmark_manifest`, `--benchmark-manifest`, `_require_benchmark_seeds_held_out`, `_require_benchmark_tag_namespace`, `evaluate_benchmark`, `_BenchmarkTally`, `_benchmark_member_identity`, `_observe_world_identity`). **RESEARCH-VALIDITY / GRADE A**: the loader authenticates the EXACT STORED payload AND independently requires it to equal the canonical payload — both checks, neither implying the other; the stored world ORDER is part of the identity and is never re-sorted; no identity uses a generated uuid; deltas use COMPLETE three-member groups ONLY and a failed member is never retried or substituted; the SCALE is never defaulted. **`build_benchmark_manifest`'s PRODUCTION caller is `graph_benchmark_preflight.run_benchmark_preflight`, which calls it only after every base-cell quota has filled** (Task 5, §5) — at Task 4 it had none. **NO benchmark manifest is committed or tracked in the repository, and a transient manifest built by a test or by engineering validation is neither committed nor a scientific population; the CURRENT scale / authorization state is §8's** (§5, §8) |
 | Persist or AGGREGATE the generalized per-episode diagnostics | `rl/training/graph_train.py` (`_episode_outcome_record` — schema version 2, `_reward_breakdown_record`, `_failure_record`'s scheduled-cardinality + `reference_fault_reason` fields, `_EMPTY_BENCHMARK_KEYS`, `_backoff_rejections` / `_eligibility_rejections`, `_generalized_summary` and `run_summary.json:/generalized`, `_construction_record`, `seed_bands(..., benchmark=...)` / `EVAL_SEED_SOURCE_MANIFEST`, the `episode_design` block of `write_run_config`, and the FOURTH `measurement_health.png` panel in `_plot_measurement_health`). **RESEARCH-VALIDITY / GRADE A**: every aggregate is DERIVED from the canonical jsonl streams (ONE metric path), every denominator is explicit, the two streams stay DISJOINT, `null` never means `0`, cross-round benchmark totals are flagged REPEATED MEASURES, and requested-vs-realized is REPORTED for human/GPT inspection with **no automatic acceptance threshold** (§5, §8) |
 | Change what `episodes_per_iteration` COUNTS, or the bounded generalized attempt budget | `rl/training/graph_train.py` (`TRAINING_ATTEMPT_POLICIES` = `TRAINING_ATTEMPT_POLICY_SCHEDULED` / `TRAINING_ATTEMPT_POLICY_QUOTA`, `TrainConfig.training_attempt_policy` / `.generalized_max_attempts_per_iteration` / `.max_attempts_per_iteration` / `.max_training_attempts`, `--generalized-max-attempts-per-iteration`, the `validate()` budget rules, `train_attempt_seed` beside the unchanged `train_seed` / `global_episode_index`, the `while True` collect loop's `quota_policy` branch and its `global_attempt_ordinal`, `TrainingQuotaError`, and the `training_attempt_policy` / `successful_episodes_required` / `max_attempts_per_iteration` / `n_replacement_attempts` training-record fields). **RESEARCH-VALIDITY / GRADE A**: `scheduled_attempts_v1` is the fixed-cell DEFAULT and is the policy every approved measurement (`737b4bf`, `bf1e045f`) was taken under; a failed attempt SPENDS its seed and its run-wide ordinal, is recorded once, is never retried and never enters the PPO/CTDE buffer; the budget is REQUIRED and never defaulted; and exhausting it ABORTS rather than updating on a partial batch (§5, §8) |
 | Ask "which TRAINING seeds can this run possibly reach?" (held-outness) | `rl/training/graph_train.py` (`TrainConfig.max_training_attempts` — **NOT** `total_episodes` — consumed by `validate()`'s train-vs-eval overlap test and tag-namespace bound, by `_require_benchmark_seeds_held_out` through `manifest_seed_overlap`, and by `seed_bands`' `train_band` + generalized `train_attempt_policy` block). **RESEARCH-VALIDITY / GRADE A**: a FAILED replacement attempt still consumes one seed and therefore belongs to the exclusion band; checking against the successful-episode quota would leave a corridor of seeds a run really trains on while its benchmark was certified held out. Identical to `total_episodes` on the fixed-cell path (§5) |
@@ -4595,13 +4624,14 @@ a stub, because normal production does not currently generate it.
   makes no pass/fail claim of its own.
   **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #40** — no baseline, no probe,
   no scientific rollout, no generalized campaign, and **no generalized measurement existed at
-  this lock, and no generalized result may be pre-claimed** (§8 owns the live run state). **No FINAL SCIENTIFIC worlds-per-cell scale
-  was selected, and no FINAL SCIENTIFIC benchmark population was committed, preserved as the
-  comparator, scheduled or authorized** — no benchmark manifest is committed or tracked in
+  this lock, and no generalized result may be pre-claimed** (§8 owns the live run state).
+  **PR #40 ITSELF selected no worlds-per-cell scale and committed no benchmark population**
+  — a statement about THAT PR's SCOPE, never a current-state claim; **the CURRENT scale /
+  authorization state is §8's.** No benchmark manifest is committed or tracked in
   the repository, and transient manifests built by tests and engineering validation are
-  neither committed nor a scientific population (this record makes no claim about local
-  scratch files); bounded runtime / solver validation before that scale is selected is a
-  SEPARATE later task. **No actor-only-vs-CTDE
+  neither committed nor a reviewed comparator (this record makes no claim about local
+  scratch files); bounded runtime / solver validation was, at THIS lock, a SEPARATE later
+  task — it has since been performed and reviewed as Task 5A / Task 5B (§7, below). **No actor-only-vs-CTDE
   generalized result exists.** The approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1
   (`bf1e045f`) measurements are untouched and remain measurements of the `fixed_cell_v1`
   bundle. This lock certifies the IMPLEMENTATION; §8 owns the phase state and the next step.
@@ -4714,25 +4744,39 @@ a stub, because normal production does not currently generate it.
   no pass/fail claim of its own.**
   **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #43** — no baseline, no probe,
   no scientific rollout, no generalized campaign, and **no generalized measurement result
-  exists or may be pre-claimed.** **No FINAL SCIENTIFIC worlds-per-cell scale was selected
-  and no FINAL SCIENTIFIC benchmark population was committed, preserved as the comparator,
-  scheduled or authorized** — no benchmark manifest is committed or tracked in the
-  repository, and transient manifests built by tests and engineering validation are neither
-  committed nor a scientific population (this record makes no claim about local scratch
-  files). The approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`)
+  exists or may be pre-claimed.** **PR #43 ITSELF selected no worlds-per-cell scale and
+  committed no benchmark population — it delivered the SELECTION MECHANISM, and the scale
+  remains a REQUIRED operator input with no default.** That is a statement about THIS PR's
+  SCOPE; **the CURRENT scale / authorization state is §8's, and it records that the R1 scale
+  IS selected and its construction IS authorized and dispatched.** No benchmark manifest is
+  committed or tracked in the repository, and transient manifests built by tests and
+  engineering validation are neither committed nor a reviewed comparator (this record makes
+  no claim about local scratch files). The approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`)
   measurements are untouched and remain measurements of the `fixed_cell_v1` bundle under the
   preserved `scheduled_attempts_v1` policy. This entry certifies the CANDIDATE; §8 owns the
   phase state.
 
 - **GENERALIZED-V1 TASK 5A / TASK 5B — BOUNDED ENGINEERING VALIDATION. THE LABEL IS
   BINDING: ENGINEERING VALIDATION, NOT SCIENTIFIC MEASUREMENT.** Both were independently
-  reviewed `APPROVE — VALID ENGINEERING VALIDATION`. **NEITHER IS A MEASUREMENT**: neither
-  has a scientific contract, a seed schedule, a held-out band, a frozen comparator or a
-  population denominator, and **no reward, learning, convergence, generalized-performance or
-  actor-vs-CTDE claim may be drawn from either, now or later.** They are recorded here for
-  exactly one purpose — they are what the currently authorized campaign's mechanics were
-  chosen from — and this DOCUMENTATION task re-ran neither of them and reports their
-  findings as ALREADY-REVIEWED evidence rather than as anything it verified itself.
+  reviewed `APPROVE — VALID ENGINEERING VALIDATION`.
+  **WHAT MAKES THEM NOT MEASUREMENTS IS THEIR DESIGNATED PURPOSE, NOT AN ABSENCE OF
+  MECHANICS.** Task 5B in particular really did carry engineering mechanics — an explicit
+  training seed band `[720000, 720072)`, an explicit benchmark candidate band, the
+  PRODUCTION held-out verification, a TRANSIENT frozen manifest, and 18 worlds / 54 members
+  for its ONE evaluation round. **Those mechanics existed solely to validate system
+  behaviour, attrition and runtime, and were explicitly NOT designated as the scientific
+  comparator or as a policy-performance measurement.** Both runs were AUTHORIZED, EXECUTED
+  and REVIEWED as engineering validation, and that designation is what the label rests on.
+  Therefore, and bindingly: **no reward or learning claim, no generalized-performance claim,
+  no actor-vs-CTDE claim, and no promotion of Task 5B's transient manifest into R1.** They
+  are recorded here for exactly one purpose — they are what the currently authorized
+  campaign's mechanics were chosen from — and this DOCUMENTATION task re-ran neither of them
+  and reports their findings as ALREADY-REVIEWED evidence rather than as anything it
+  verified itself. *(SUPERSEDED, and corrected here: this entry previously said neither run
+  had a scientific contract, a seed schedule, a held-out band, a frozen comparator or a
+  population denominator. That is too broad and is factually wrong for Task 5B, which had
+  seed bands, held-out verification and a transient frozen manifest; the engineering-only
+  label is UNCHANGED and rests on designated purpose instead.)*
   - **TASK 5A — the bounded end-to-end generalized rehearsal.** It ran against a TRANSIENT
     one-world-per-cell benchmark, and its load-bearing engineering finding is the one that
     changed the design: an A2-LOW world failed REPEATEDLY on `pre_event_popup_risk`, the
@@ -4830,21 +4874,33 @@ a stub, because normal production does not currently generate it.
     historical seed band and check unchanged. §5 states both contracts in full and §6 routes
     them. **BOTH ARE CODE. NEITHER IS A MEASUREMENT**, and the bounded Task-5A / Task-5B
     validations beside them are ENGINEERING VALIDATION ONLY (§7).
-  - **WHAT STILL DOES NOT EXIST, AND MUST NOT BE DESCRIBED AS IF IT DID.** **No FINAL
-    SCIENTIFIC benchmark worlds-per-cell SCALE has been SELECTED, and no FINAL SCIENTIFIC
-    benchmark POPULATION has been committed, preserved as the comparator, scheduled or
-    authorized.** No benchmark manifest is committed or tracked in the repository;
-    `build_benchmark_manifest` REFUSES to invent a world count — and since PR #43 it does
-    have a production caller, `graph_benchmark_preflight.run_benchmark_preflight`, which
-    refuses to invent the scale just as firmly, so a CALLER existing is not a POPULATION
-    existing; `configs/graph_train/final_cell_probe.json` remains the
-    ONLY repository preset and it is `fixed_cell_v1`, so **no repository preset selects
-    `generalized_v1`**; and **no FINAL SCIENTIFIC benchmark/run preset and no finalized
-    scientific campaign contract or schedule has been created or authorized.**
-    **THAT IS A CLAIM ABOUT SCIENTIFIC ARTIFACTS ONLY, AND NEVER ABOUT THE TECHNICAL
+  - **THE CURRENT SCALE / AUTHORIZATION / RESULT STATE — FOUR DIFFERENT FACTS, AND THEY MUST
+    NOT BE COLLAPSED INTO ONE NEGATIVE.**
+    1. **THE R1 SCIENTIFIC BENCHMARK SCALE IS SELECTED AND AUTHORIZED: `worlds_per_cell = 3`.**
+       The scale was the decision the bounded runtime / solver validation existed to inform,
+       and it has been taken.
+    2. **THE R1 BENCHMARK CONSTRUCTION IS AUTHORIZED AND DISPATCHED** — candidate base seed
+       `840000`, `max_candidates_per_cell = 12`, to be built by the deterministic preflight
+       before training.
+    3. **NO CONCRETE R1 MANIFEST HAS BEEN INDEPENDENTLY REVIEWED OR APPROVED AS THE
+       COMPARATOR.** R1 is `RESULT PENDING`; **do not claim that an R1 manifest exists**
+       unless execution evidence later establishes it. **No benchmark manifest is committed
+       or tracked in the repository**, `configs/graph_train/final_cell_probe.json` remains
+       the ONLY repository preset and it is `fixed_cell_v1` (**no repository preset selects
+       `generalized_v1`**), and `build_benchmark_manifest` still REFUSES to invent a world
+       count — its production caller `graph_benchmark_preflight.run_benchmark_preflight`
+       refuses just as firmly, so a CALLER existing is not a REVIEWED POPULATION existing.
+    4. **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS** — no reward, convergence or
+       validity result, and **no actor-only-vs-CTDE generalized result.**
+    *(SUPERSEDED, and corrected here: this bullet previously asserted in the present tense
+    that no FINAL SCIENTIFIC worlds-per-cell SCALE had been SELECTED and that no benchmark
+    population had been scheduled or authorized. Both were accurate through Task 4 and are
+    not now; facts 1 and 2 above replace them, and facts 3 and 4 are what survives.)*
+    **ALL FOUR ARE CLAIMS ABOUT SCIENTIFIC ARTIFACTS ONLY, AND NEVER ABOUT THE TECHNICAL
     CONTRACTS.** The GENERALIZED-V1 Task-1/2/3/4 technical contracts **DO exist**, are
-    implemented, reviewed and locked, and are AUTHORITATIVE in §4 / §5 / §6 / §7 of this
-    document — nothing here may be read as denying them. **The rest of the negative is
+    implemented, reviewed, locked and INTEGRATED, and the Task-5 contract **DO exist** as
+    reviewed and APPROVED (though not yet integrated) candidates; all are AUTHORITATIVE in
+    §4 / §5 / §6 / §7 of this document — nothing here may be read as denying them. **The rest of the negative is
     scoped deliberately too:** transient manifests built in memory or in a temporary
     directory by tests and engineering validation are legitimate, are neither committed nor
     a scientific population, and repository state cannot establish a global negative over
@@ -4852,9 +4908,10 @@ a stub, because normal production does not currently generate it.
     bounded runtime / solver validation before the scale is selected was a separate later
     step and was NOT done. Bounded ENGINEERING validation has since been performed and
     reviewed as Task 5A and Task 5B (§7) — **engineering validation, never measurement** —
-    and it is what the currently authorized campaign's mechanics were chosen from. It did
-    NOT select a FINAL SCIENTIFIC worlds-per-cell scale and did NOT commit a benchmark
-    population, so every negative in this bullet stands. This bullet also previously said
+    and it is what the currently authorized campaign's mechanics were chosen from — including
+    the `worlds_per_cell = 3` scale decision recorded as fact 1 above, which the validation
+    INFORMED and an operator TOOK. Task 5A / Task 5B did not by themselves commit a benchmark
+    population, and facts 3 and 4 above are the negatives that survive. This bullet also previously said
     that neither harness carried any generalized policy field, that nothing persisted or
     aggregated the diagnostic structures, and that there was no generalized training sampler
     and no frozen stratified evaluation manifest. All of that was accurate before PR #40 and

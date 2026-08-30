@@ -72,8 +72,10 @@ SCIENTIFIC benchmark worlds-per-cell scale has been SELECTED and no FINAL SCIENT
 benchmark population or manifest has been committed, preserved as the comparator, scheduled
 or authorized**, and **still NO generalized
 scientific measurement exists, is running, is scheduled or is authorized** (§1, §3l, §4, §7,
-§8, §9) — *(that "Task 5 NOT STARTED / no generalized run" framing was accurate when written
-and is SUPERSEDED by the entry below)* — and **2026-08-30, in THIS post-Task-5 documentation /
+§8, §9) — *(that entry's "Task 5 NOT STARTED / no generalized run scheduled or authorized"
+framing, AND its "no FINAL SCIENTIFIC worlds-per-cell scale has been SELECTED / no benchmark
+population is scheduled or authorized" framing, were both accurate when written and are
+SUPERSEDED by the entry below)* — and **2026-08-30, in THIS post-Task-5 documentation /
 lock checkpoint, to record that GENERALIZED-V1 TASK 5 IS IMPLEMENTED AND APPROVED AS A STACKED,
 STILL-UNMERGED TWO-PR STACK**: **PR #42**, branch `task/generalized-v1-task5-summary-phase-fix`,
 approved head `312f58650b61a85eb72d0554d60715afee862a5c` (the `train_by_*` summary-population
@@ -112,10 +114,15 @@ cluster access is not available, which does NOT block the local R1; and **`p(des
 `1.0`** with `p(destroy) < 1` DEFERRED (§3m). *(SUPERSEDED by this paragraph: the 2026-08-26
 record's statements that Task 5 is the single next unresolved step and is NOT STARTED, that no
 writable implementation task is active, and that no generalized run is scheduled or authorized.
-Each was accurate when written. What is UNCHANGED and still binding: no FINAL SCIENTIFIC
-worlds-per-cell scale has been SELECTED, no FINAL SCIENTIFIC benchmark population or manifest has
-been committed to the repository or preserved as the comparator, no generalized measurement RESULT
-exists, and no generalized result may be pre-claimed.)*
+Each was accurate when written, AS IS every "no scale selected / no benchmark authorized"
+statement in the preserved paragraphs below — those are SUPERSEDED as current state by
+§3m.4 and by §1's four-fact block, and are retained only as the record they were. **THE
+CURRENT STATE IS FOUR DISTINCT FACTS:** **the R1 benchmark SCALE is SELECTED and AUTHORIZED (`worlds_per_cell = 3`) and its
+CONSTRUCTION is AUTHORIZED and DISPATCHED (candidate base seed `840000`,
+`max_candidates_per_cell = 12`); no concrete R1 manifest has yet been independently reviewed
+or approved as the comparator, and none is committed or tracked in the repository; and no
+GENERALIZED scientific measurement RESULT exists**, **and no generalized result — including
+any actor-only-vs-CTDE comparison — may be pre-claimed.**)*
 
 **THE PRECEDING LIVE STATE (2026-08-26), PRESERVED AS THE RECORD IT WAS AND SUPERSEDED ONLY WHERE
 THE PARAGRAPH ABOVE SAYS SO.** **The repository is NOT closed and NOT idle.** The ACTIVE phase is
@@ -134,7 +141,10 @@ harness ADDITIONALLY uses the generalized cardinality sampler and requires the S
 `EpisodeDesign`. Every Task-1/2/3 per-episode diagnostic structure is now PERSISTED and
 AGGREGATED. **GENERALIZED-V1 TASK 4 IS CLOSED: its implementation branch and PR are no
 longer writable or active, and NO implementation candidate remains under review.**
-**NO GENERALIZED SCIENTIFIC MEASUREMENT EXISTS, IS RUNNING, IS SCHEDULED OR IS AUTHORIZED,
+*(HISTORICAL as of 2026-08-30 — every clause in this sentence is SUPERSEDED as CURRENT
+state by the four-fact block in the live-state paragraph above and by §3m.4; it is retained
+as the 2026-08-26 record it was.)* **NO GENERALIZED SCIENTIFIC MEASUREMENT EXISTS, IS
+RUNNING, IS SCHEDULED OR IS AUTHORIZED,
 no FINAL SCIENTIFIC benchmark worlds-per-cell SCALE has been SELECTED, no FINAL SCIENTIFIC
 benchmark population or manifest has been committed, preserved as the comparator, scheduled
 or authorized, no final actor-only or CTDE generalized campaign is authorized, and no
@@ -351,11 +361,19 @@ cross-references it rather than duplicating it.
     WRITABLE REPOSITORY TASK and is itself NOT MERGED**; **no merge is authorized by it**, and
     the intended later integration sequence is §3m.5.
   - **TASK 5A AND TASK 5B — `APPROVE — VALID ENGINEERING VALIDATION`, AND NEITHER IS A
-    SCIENTIFIC MEASUREMENT (§3m.3; `CLAUDE.md` §7).** They carry no scientific contract, no
-    seed schedule, no held-out band, no frozen comparator and no population denominator.
-    **No reward, learning, convergence, attrition-rate, generalized-performance or
-    actor-vs-CTDE claim may be drawn from either**, their bounded sample sizes are an
-    explicit limitation, and **the Task-5B transient benchmark is NOT the R1 comparator.**
+    SCIENTIFIC MEASUREMENT (§3m.3; `CLAUDE.md` §7).** **What makes them not measurements is
+    their DESIGNATED PURPOSE, not an absence of mechanics**: Task 5B really did have an
+    explicit training seed band `[720000, 720072)`, an explicit benchmark candidate band,
+    production held-out verification, a TRANSIENT frozen manifest and 18 worlds / 54 members
+    for its one evaluation round — all of it existing solely to validate system behaviour,
+    attrition and runtime, and explicitly NOT designated as the scientific comparator or as a
+    policy-performance measurement. **No reward or learning claim, no generalized-performance
+    claim, no actor-vs-CTDE claim**, bounded sample sizes are an explicit limitation, and
+    **the Task-5B transient manifest is NOT the R1 comparator and must never be promoted into
+    R1.** *(SUPERSEDED, and corrected here: this bullet previously said they carry "no
+    scientific contract, no seed schedule, no held-out band, no frozen comparator and no
+    population denominator" — too broad, and factually wrong for Task 5B. The
+    engineering-only label is UNCHANGED.)*
   - **THE FIRST GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS `AUTHORIZED / DISPATCHED — RESULT
     PENDING` (§3m.4).** It is UNREVIEWED and has produced no verdict. **Nothing about its
     reward, convergence, attrition, benchmark outcome or scientific validity may be stated or
@@ -380,24 +398,41 @@ cross-references it rather than duplicating it.
     the Task-3 record stated that §3l.6–§3l.7 were NOT IMPLEMENTED, that neither harness
     exposed any generalized policy, and that nothing persisted or aggregated the diagnostic
     structures. Each was accurate when written and is not now.)*
-  - **WHAT IS STILL NOT DECIDED, AND MUST NOT BE DESCRIBED AS IF IT WERE.** **No FINAL
-    SCIENTIFIC benchmark worlds-per-cell SCALE has been SELECTED**, and **no FINAL SCIENTIFIC
-    benchmark POPULATION or manifest has been committed, preserved as the comparator,
-    scheduled or authorized.** No benchmark manifest is committed or tracked in the
-    repository. *(That negative is scoped deliberately: transient manifests built in memory
-    or in a temporary directory by tests and engineering validation are legitimate, are
-    neither committed nor a scientific population, and repository state cannot establish a
-    global negative over local scratch files.)* Task 4 delivered the manifest MECHANISM
-    only — schema, builder, canonical serialization, content hash, verifying loader,
-    consumer and identity checks — and the builder deliberately REFUSES to invent a world
-    count. `configs/graph_train/final_cell_probe.json` remains the ONLY
-    repository preset and it is `fixed_cell_v1`, so **no repository preset selects
-    `generalized_v1`**, and **no FINAL SCIENTIFIC benchmark/run preset and no finalized
-    scientific campaign contract or schedule has been created or authorized.** *(That is a
-    claim about SCIENTIFIC artifacts ONLY. The GENERALIZED-V1 Task-1/2/3/4 TECHNICAL
-    contracts DO exist, are implemented, reviewed and locked, and are AUTHORITATIVE in
-    `CLAUDE.md` §4 / §5 / §6 / §7.)* Choosing the scale is **Task 5's** business and comes
-    after bounded runtime / solver validation.
+  - **THE SCALE / AUTHORIZATION / RESULT STATE — FOUR DIFFERENT FACTS, AND THEY MUST NOT BE
+    COLLAPSED INTO ONE NEGATIVE.**
+    1. **THE R1 SCIENTIFIC BENCHMARK SCALE IS SELECTED AND AUTHORIZED: `worlds_per_cell = 3`**
+       (§3m.4). The scale was the decision the bounded runtime / solver validation existed to
+       inform, and it has been taken.
+    2. **THE R1 BENCHMARK CONSTRUCTION IS AUTHORIZED AND DISPATCHED** — candidate base seed
+       `840000`, `max_candidates_per_cell = 12`, a NEW R1 benchmark to be built by the
+       deterministic preflight BEFORE training (§3m.4).
+    3. **NO CONCRETE R1 MANIFEST HAS BEEN INDEPENDENTLY REVIEWED OR APPROVED AS THE
+       COMPARATOR.** R1 is `RESULT PENDING`; **do not claim an R1 manifest exists** unless
+       execution evidence later establishes it. **No benchmark manifest is committed or
+       tracked in the repository**, and `configs/graph_train/final_cell_probe.json` remains
+       the ONLY repository preset and is `fixed_cell_v1`, so **no repository preset selects
+       `generalized_v1`.** *(That repository negative is scoped deliberately: transient
+       manifests built in memory or in a temporary directory by tests and engineering
+       validation are legitimate, are neither committed nor a scientific comparator, and
+       repository state cannot establish a global negative over local scratch files.)*
+    4. **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS** — no reward, convergence or
+       validity result, and **no actor-only-vs-CTDE generalized result.**
+    *(SUPERSEDED, and corrected here: this bullet previously read "No FINAL SCIENTIFIC
+    benchmark worlds-per-cell SCALE has been SELECTED, and no FINAL SCIENTIFIC benchmark
+    POPULATION or manifest has been committed, preserved as the comparator, scheduled or
+    authorized", and closed with "Choosing the scale is Task 5's business and comes after
+    bounded runtime / solver validation". All of that was accurate through Task 4; the scale
+    and the build have since been decided and authorized, and facts 3 and 4 are what
+    survives.)* **HISTORICALLY: Task 4 delivered the manifest MECHANISM only** — schema,
+    builder, canonical serialization, content hash, verifying loader, consumer and identity
+    checks — with the builder REFUSING to invent a world count and no production caller at
+    all; **Task 5 added that production caller,
+    `graph_benchmark_preflight.run_benchmark_preflight`, which creates a manifest only after
+    every base-cell quota has filled and creates NONE when a preflight fails.** *(All four
+    facts are claims about SCIENTIFIC artifacts ONLY. The GENERALIZED-V1 Task-1/2/3/4
+    TECHNICAL contracts DO exist and are integrated, and the Task-5 contract DOES exist as
+    reviewed and APPROVED but unmerged candidates; all are AUTHORITATIVE in `CLAUDE.md`
+    §4 / §5 / §6 / §7.)*
   - **NO generalized scientific measurement RESULT exists, and no generalized result of any
     kind may be pre-claimed.** A first generalized **ACTOR-ONLY** R1 long run IS authorized
     and dispatched, and its result is **PENDING and UNREVIEWED** (§3m.4) — dispatch is not a
@@ -848,15 +883,19 @@ cross-references it rather than duplicating it.
     `fixed_cell_v1`; the generalized cardinality sampler and the SEPARATE `fuel_damage_mode`
     field sit beside that resolution and are NOT policy ids on `EpisodeDesign`.
     **GENERALIZED-V1 TASK 4 IS CLOSED — no writable implementation branch, no active PR, no
-    candidate under review.** **No FINAL SCIENTIFIC benchmark scale has been SELECTED and no
-    FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the
-    comparator, scheduled or authorized, and no generalized measurement RESULT exists.**
-    A first generalized ACTOR-ONLY R1 long run **is** authorized and dispatched, with its
-    result PENDING and unreviewed (§3m.4).
+    candidate under review.** The R1 benchmark **SCALE IS SELECTED AND AUTHORIZED**
+    (`worlds_per_cell = 3`) and its **CONSTRUCTION IS AUTHORIZED AND DISPATCHED** (candidate
+    base seed `840000`, `max_candidates_per_cell = 12`); **no concrete R1 manifest has yet
+    been independently reviewed or approved as the comparator and none is committed or
+    tracked in the repository**; and **no generalized measurement RESULT exists.** A first
+    generalized ACTOR-ONLY R1 long run **is** authorized and dispatched, with its result
+    PENDING and unreviewed (§3m.4; the four facts in full are in the block above).
     *(SUPERSEDED: this bullet previously read "STEPS 1, 2 AND 3 ARE MERGED … §3l.6–§3l.7 ARE
-    NOT IMPLEMENTED … neither harness selects them", then "STEP 5 … IS NOT STARTED" and
-    "no generalized measurement exists, is running, is scheduled or is authorized". Each was
-    accurate when written; not now.)*
+    NOT IMPLEMENTED … neither harness selects them", then "STEP 5 … IS NOT STARTED", then
+    "no generalized measurement exists, is running, is scheduled or is authorized", and then
+    "No FINAL SCIENTIFIC benchmark scale has been SELECTED and no FINAL SCIENTIFIC benchmark
+    population or manifest has been … scheduled or authorized". Each was accurate when
+    written; not now.)*
   - **WRITABLE STATE — STATED IN STABLE POST-INTEGRATION FORM, so this bullet does not go
     stale when a documentation record merges.**
     - **NO documentation record is a standing writable task.** Each one is the sole writable
@@ -1832,12 +1871,17 @@ this record:
   EXACTLY those four ids. The generalized harness ADDITIONALLY uses the generalized
   cardinality sampler and requires the SEPARATE `fuel_damage_mode` field to be
   `seeded_variable`; **neither is a fifth policy id on `EpisodeDesign`.**
-- **WHAT IS STILL NOT DECIDED.** Task 4 delivered the frozen benchmark's SCHEMA, BUILDER,
-  canonical serialization, content hash, verifying LOADER, CONSUMER and identity checks —
-  **the MECHANISM.** It did **NOT** select the final scientific worlds-per-cell SCALE, and
-  no FINAL SCIENTIFIC benchmark POPULATION or manifest has been committed, preserved as the
-  comparator, scheduled or authorized; the builder deliberately refuses to invent a world
-  count, and no benchmark manifest is committed or tracked in the repository. *(That
+- **WHAT TASK 4 DID AND DID NOT DELIVER.** Task 4 delivered the frozen benchmark's SCHEMA,
+  BUILDER, canonical serialization, content hash, verifying LOADER, CONSUMER and identity
+  checks — **the MECHANISM.** **It did NOT select a worlds-per-cell SCALE and committed no
+  benchmark POPULATION**, and the builder deliberately refuses to invent a world count.
+  **Task 5 then added the PRODUCTION selection caller** (`run_benchmark_preflight`), and the
+  **R1 scale IS now selected and its construction IS authorized and dispatched** (§3m.4) —
+  while **no concrete R1 manifest has yet been independently reviewed or approved as the
+  comparator and no benchmark manifest is committed or tracked in the repository.**
+  *(SUPERSEDED, and corrected here: this bullet previously read "WHAT IS STILL NOT DECIDED"
+  and asserted that no benchmark population had been scheduled or authorized. Accurate
+  through Task 4.)* *(That
   negative is scoped deliberately: transient manifests built by tests and engineering
   validation are legitimate, are neither committed nor a scientific population, and
   repository state cannot establish a global negative over local scratch files.)*
@@ -2171,11 +2215,23 @@ sequence is §3m.5, and **no merge is authorized by this documentation record.**
 ### 3m.3 Engineering validation — Task 5A and Task 5B
 
 **THE LABEL IS BINDING: ENGINEERING VALIDATION — NOT SCIENTIFIC MEASUREMENT.** Both were
-independently reviewed **`APPROVE — VALID ENGINEERING VALIDATION`**. Neither has a scientific
-contract, a seed schedule, a held-out band, a frozen comparator or a population denominator.
-**No reward, learning, convergence, attrition-rate, generalized-performance or
-actor-vs-CTDE claim may be drawn from either, now or later.** `CLAUDE.md` §7 carries the
-same record; the detail is not duplicated here.
+independently reviewed **`APPROVE — VALID ENGINEERING VALIDATION`**.
+
+**WHAT MAKES THEM NOT MEASUREMENTS IS THEIR DESIGNATED PURPOSE, NOT AN ABSENCE OF
+MECHANICS — AND THE DISTINCTION MATTERS BECAUSE TASK 5B REALLY HAD THEM.** Task 5B carried
+an explicit training seed band `[720000, 720072)`, an explicit benchmark candidate band,
+the PRODUCTION held-out verification, a TRANSIENT frozen manifest, and 18 worlds / 54
+members for its ONE evaluation round. **Those mechanics existed solely to validate system
+behaviour, attrition and runtime, and were explicitly NOT designated as the scientific
+comparator or as a policy-performance measurement.** Both runs were AUTHORIZED, EXECUTED
+and REVIEWED as engineering validation, and the label rests on that designation.
+**Therefore, bindingly: no reward or learning claim, no generalized-performance claim, no
+actor-vs-CTDE claim, and NO promotion of Task 5B's transient manifest into R1.**
+*(SUPERSEDED, and corrected here: this section previously said neither run had a scientific
+contract, a seed schedule, a held-out band, a frozen comparator or a population
+denominator. That is too broad and is factually wrong for Task 5B; the engineering-only
+label is UNCHANGED.)* `CLAUDE.md` §7 carries the same record; the detail is not duplicated
+here.
 
 - **TASK 5A.** A bounded end-to-end generalized rehearsal against a **TRANSIENT
   one-world-per-cell** benchmark. Its load-bearing finding is the one that changed the
@@ -2233,6 +2289,22 @@ authorized:**
 The seed band is the **MAXIMUM POSSIBLE ATTEMPT BAND** — `375 × 12 = 4500` — because a
 failed replacement attempt still spends a seed (`CLAUDE.md` §5). **No CTDE run exists, is
 scheduled or is authorized**, and **no actor-only-vs-CTDE generalized result exists.**
+
+**FOUR DIFFERENT FACTS, AND THEY MUST NOT BE COLLAPSED INTO ONE NEGATIVE.**
+
+1. **THE R1 SCIENTIFIC BENCHMARK SCALE IS SELECTED AND AUTHORIZED: `worlds_per_cell = 3`.**
+   This is the decision the bounded runtime / solver validation existed to inform, and it
+   has been taken. **Statements elsewhere that "no FINAL SCIENTIFIC worlds-per-cell scale
+   has been SELECTED" are HISTORICAL** — accurate through Task 4 — and are superseded here.
+2. **THE R1 BENCHMARK CONSTRUCTION IS AUTHORIZED AND DISPATCHED:** candidate base seed
+   `840000`, `max_candidates_per_cell = 12`, a **NEW R1 benchmark to be constructed by the
+   deterministic preflight BEFORE training.**
+3. **NO CONCRETE R1 MANIFEST HAS YET BEEN INDEPENDENTLY REVIEWED OR APPROVED AS THE
+   COMPARATOR.** R1 is `RESULT PENDING`. **Do not claim an R1 manifest exists** unless
+   execution evidence later establishes it, and **no benchmark manifest is committed or
+   tracked in the repository.** The Task-5B transient manifest is **NOT** it (§3m.3).
+4. **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS** — no reward, convergence or
+   validity result, and no actor-only-vs-CTDE result.
 
 **THE REVIEW REQUIREMENT IS UNCHANGED AND IS NOT DISCHARGED BY DISPATCH.** The eventual run
 requires **independent GPT artifact review** before any **`APPROVE — VALID MEASUREMENT`**
@@ -2297,9 +2369,12 @@ RESULT PENDING`, unreviewed, with no verdict and nothing about its outcome state
 inferable** (§3m.4). **The external long-run task is RUN-ONLY and owns NO repository writes.**
 *(SUPERSEDED by the three paragraphs above: this section's "TASK 4 IS CLOSED … NO
 implementation candidate remains under review … THE SINGLE NEXT UNRESOLVED STEP IS
-GENERALIZED-V1 TASK 5 … NOT started and NOT authorized" framing, and its claim that no
-generalized run is scheduled or authorized. Each was accurate when written. The rest of this
-section is preserved and remains accurate.)*
+GENERALIZED-V1 TASK 5 … NOT started and NOT authorized" framing, its claim that no
+generalized run is scheduled or authorized, AND its claim that no FINAL SCIENTIFIC
+worlds-per-cell scale has been SELECTED and no benchmark population has been scheduled or
+authorized — the R1 scale IS selected and its construction IS authorized and dispatched
+(§3m.4). Each was accurate when written. The rest of this section is preserved and remains
+accurate.)*
 
 **THE PRECEDING RECORD (2026-08-26), PRESERVED.** The repository is **NOT closed and NOT idle**. **§3l.8 STEPS 1, 2, 3 AND 4
 ARE ALL COMPLETE, REVIEWED AND INTEGRATED** — Task 1 (`5b55ca34…` → `9b305e4e…`, PR #35),
@@ -2312,7 +2387,9 @@ which carries exactly those four ids; the generalized harness ADDITIONALLY uses 
 generalized cardinality sampler and requires the SEPARATE `fuel_damage_mode` field to be
 `seeded_variable`, neither of which is a policy id on `EpisodeDesign`. **GENERALIZED-V1
 TASK 4 IS CLOSED: its implementation branch and PR are no longer writable or active, and NO
-implementation candidate remains under review.** **NO generalized scientific measurement
+implementation candidate remains under review.** *(HISTORICAL as of 2026-08-30 — the
+measurement, scale and authorization clauses that follow are SUPERSEDED as CURRENT state by
+§3m.4 and by §1's four-fact block.)* **NO generalized scientific measurement
 exists, is running, is scheduled or is authorized**, **no FINAL SCIENTIFIC benchmark
 worlds-per-cell scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or
 manifest has been committed, preserved as the comparator, scheduled or authorized**, and
@@ -2618,12 +2695,13 @@ that make all of it readable (§3l.7).
   committed, preserved as the comparator, scheduled or authorized.** No benchmark manifest
   is committed or tracked in the repository — *a negative scoped deliberately: transient
   manifests built by tests and engineering validation are legitimate, are neither committed
-  nor a scientific population, and repository state cannot establish a global negative over
+  nor a reviewed comparator, and repository state cannot establish a global negative over
   local scratch files.* Task 4 delivered the manifest MECHANISM only, and its builder
-  REFUSES to invent a world count. `configs/graph_train/final_cell_probe.json` remains the
-  ONLY repository preset and it is `fixed_cell_v1`, so no repository preset selects
-  `generalized_v1`, and no FINAL SCIENTIFIC benchmark/run preset and no finalized scientific
-  campaign contract or schedule has been created or authorized. *(A claim about SCIENTIFIC
+  REFUSES to invent a world count; **Task 5 added the production selection caller, and the
+  R1 scale IS selected and its construction IS authorized and dispatched** (§3m.4).
+  `configs/graph_train/final_cell_probe.json` remains the ONLY repository preset and it is
+  `fixed_cell_v1`, so no repository preset selects `generalized_v1`, and **no FINAL
+  SCIENTIFIC benchmark/run preset has been committed to the repository.** *(A claim about SCIENTIFIC
   artifacts ONLY — the GENERALIZED-V1 Task-1/2/3/4 TECHNICAL contracts DO exist, are locked,
   and are authoritative in `CLAUDE.md` §4 / §5 / §6 / §7.)*
 - **OWNERSHIP:** the **GPT orchestrator** owns the work. **No documentation record is a
@@ -2800,10 +2878,13 @@ VALID and NEGATIVE** (§3j), **PHASE-B CTDE IMPLEMENTATION is CLOSED, REVIEWED a
 (§4, Task 8; §3k), and **the current work is the GENERALIZED TRAINING / BENCHMARK REDESIGN
 (§4, Task 10; §3l), whose §3l.8 STEPS 1, 2, 3 AND 4 ARE ALL MERGED — so §3l.1–§3l.7 are
 IMPLEMENTED — while STEP 5 IS IMPLEMENTED AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR
-STACK (§3m.1), NO FINAL SCIENTIFIC BENCHMARK SCALE HAS BEEN SELECTED, and NO FINAL
-SCIENTIFIC BENCHMARK POPULATION OR MANIFEST HAS BEEN COMMITTED, PRESERVED AS THE
-COMPARATOR, SCHEDULED OR AUTHORIZED.** *(SUPERSEDED: this preamble previously said step 5
-was NOT STARTED. Accurate when written.)*
+STACK (§3m.1), the R1 BENCHMARK SCALE IS SELECTED AND AUTHORIZED (`worlds_per_cell = 3`)
+AND ITS CONSTRUCTION IS AUTHORIZED AND DISPATCHED, and NO CONCRETE R1 MANIFEST HAS YET BEEN
+INDEPENDENTLY REVIEWED OR APPROVED AS THE COMPARATOR — none is committed or tracked in the
+repository — and NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS (§1, §3m.4).**
+*(SUPERSEDED: this preamble previously said step 5 was NOT STARTED, and then that no FINAL
+SCIENTIFIC BENCHMARK SCALE HAD BEEN SELECTED and no population had been SCHEDULED OR
+AUTHORIZED. Each was accurate when written.)*
 Out of scope:
 
 - **IMPLEMENTING ANYTHING FURTHER, OR MERGING ANYTHING, FROM A DOCUMENTATION RECORD.**
@@ -2811,9 +2892,10 @@ Out of scope:
   integrated only under §3m.5, after GPT exact-SHA review of the current documentation state
   AND explicit user-authorized continuation (§8), with PR #43 and the documentation candidate
   each EXACT-BASE RE-REVIEWED after retargeting. **No concrete FINAL benchmark population, no
-  worlds-per-cell scale decision, no generalized preset, no early-stopping mechanism, no
-  cluster runbook and no further scientific schedule may be produced on the strength of this
-  document.** *(Steps 1–5 were each separately authorized and their code is DONE; that is
+  FURTHER scale decision, no generalized preset, no early-stopping mechanism, no cluster
+  runbook and no further scientific schedule may be produced on the strength of this
+  document** — the R1 scale and build were authorized SEPARATELY and explicitly (§3m.4), not
+  by any documentation record. *(Steps 1–5 were each separately authorized and their code is DONE; that is
   history, not a standing authorization for anything further.)* *(SUPERSEDED: this bullet
   previously read "§3l.8 step 5 remains a PLAN and this document does not authorize it" and
   "no bounded runtime/solver validation campaign … may be produced". Step 5 has since been
@@ -3033,14 +3115,20 @@ No other task is next: not the old fixed-cell Task-9 CTDE comparison (superseded
 unless the user explicitly asks, §1), and not a re-run of any approved historical baseline
 (prohibited, §6 — the approved baselines are REUSED as what they are, never rerun, repaired,
 resumed or re-tuned).
-**NO FINAL SCIENTIFIC benchmark worlds-per-cell scale has been SELECTED, no FINAL SCIENTIFIC
-benchmark population or manifest has been committed, preserved as the comparator, scheduled
-or authorized (no benchmark manifest is committed or tracked in the repository; transient
-manifests built by tests and engineering validation are neither, and nothing here claims a
-global negative over local scratch files), NO generalized MEASUREMENT exists, is running, is
-scheduled or is authorized, no final actor-only or CTDE generalized campaign is authorized,
-and no generalized result — including any actor-only-vs-CTDE comparison — may be
-pre-claimed.** When those two arms are eventually run they **MUST use the SAME eventual
+**THE SCALE / AUTHORIZATION / RESULT STATE IS FOUR DISTINCT FACTS:** **the R1 benchmark SCALE is SELECTED and AUTHORIZED (`worlds_per_cell = 3`) and its
+CONSTRUCTION is AUTHORIZED and DISPATCHED (candidate base seed `840000`,
+`max_candidates_per_cell = 12`); no concrete R1 manifest has yet been independently reviewed
+or approved as the comparator, and none is committed or tracked in the repository; and no
+GENERALIZED scientific measurement RESULT exists** — no reward,
+convergence or validity result, and **no actor-only-vs-CTDE generalized result.** (No
+benchmark manifest is committed or tracked in the repository; transient manifests built by
+tests and engineering validation are neither committed nor a comparator, and nothing here
+claims a global negative over local scratch files.) **No CTDE generalized campaign is
+authorized, none is running or scheduled, and no generalized result — including any
+actor-only-vs-CTDE comparison — may be pre-claimed.** *(SUPERSEDED, and corrected here: this
+paragraph previously asserted that no FINAL SCIENTIFIC worlds-per-cell scale had been
+SELECTED and that no benchmark population had been scheduled or authorized. Accurate through
+Task 4; not now.)* When those two arms are eventually run they **MUST use the SAME eventual
 frozen manifest.** Steps 1–5 delivered implemented CODE with engineering evidence only, and
 `p(destroy) < 1` remains DEFERRED.
 *(SUPERSEDED: this section previously named step 1, then step 3, then step 4, then step 5 as
@@ -3048,9 +3136,10 @@ the single next action, and stated that Task 5 was NOT started and NOT authorize
 generalized run was scheduled or authorized. Each was accurate when written; steps 1–4 have
 since been implemented, reviewed and integrated, step 5 is implemented and approved but not
 merged, and the actor-only R1 has been authorized and dispatched with its result pending.
-What is UNCHANGED: no FINAL SCIENTIFIC worlds-per-cell scale has been SELECTED, no FINAL
-SCIENTIFIC benchmark population or manifest has been committed to the repository or preserved
-as the comparator, and no generalized measurement RESULT exists.)*
+What is UNCHANGED: no concrete R1 manifest has yet been independently reviewed or approved as
+the comparator, none is committed or tracked in the repository, and no generalized measurement
+RESULT exists. What has CHANGED is that the R1 scale IS selected and its construction IS
+authorized and dispatched.)*
 
 **THE REST OF THIS SECTION IS THE PRESERVED RECORD OF THE CLOSED PHASES**, accurate about
 them and unchanged in meaning.
@@ -3221,9 +3310,11 @@ GPT EXACT-SHA REVIEW OF THE CURRENT DOCUMENTATION STATE PLUS USER-AUTHORIZED CON
 Nothing else is next, and **no merge is authorized by any documentation record.**
 **§3l.8 steps 1–4 are IMPLEMENTED, REVIEWED and INTEGRATED (PR #35, PR #36, PR #38, PR #40),
 and step 5 is IMPLEMENTED and APPROVED as PR #42 + PR #43, both FROZEN / READ-ONLY and
-NEITHER MERGED**; no FINAL SCIENTIFIC benchmark scale or population has been chosen or
-committed; **no generalized measurement RESULT exists** and the dispatched actor-only R1 is
-**RESULT PENDING and UNREVIEWED**; `p(destroy) < 1`, SAMs, dense reward, solver or
+NEITHER MERGED**; **the R1 benchmark SCALE IS selected and its CONSTRUCTION IS authorized and
+dispatched, while no concrete R1 manifest has yet been independently reviewed or approved as
+the comparator and none is committed or tracked in the repository**; **no generalized
+measurement RESULT exists** and the dispatched actor-only R1 is **RESULT PENDING and
+UNREVIEWED**; `p(destroy) < 1`, SAMs, dense reward, solver or
 reward-formula changes, early stopping and any further difficulty factor remain OUTSIDE it
 (§6, §3m.4); and the approved historical measurements are REUSED as what they are — neither
 re-run nor reinterpreted. *(SUPERSEDED: this paragraph previously named GENERALIZED
@@ -3284,7 +3375,7 @@ so.
 | 2026-08-25 | **TASK-3 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.5 while the live documents still said it was NOT IMPLEMENTED and that Task 3 was the next unresolved task | `CLAUDE.md` gains the Task-3 §5 contract, its §4 pipeline placement, its three §6 routing rows and its §7 lock, and its stale “no continuation reference / no reward change” and “`graph_reward` remains FROZEN” wording is corrected in place. This handoff records Tasks 1–3 as COMPLETE, §3l.5 as IMPLEMENTED, §3l.6–§3l.7 as NOT IMPLEMENTED, and **Task 4 as the SINGLE next unresolved task that no documentation record authorizes** (§8). It is written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
 | 2026-08-26 | **GENERALIZED-V1 TASK 4 IMPLEMENTED, REVIEWED AND MERGED** — the episode-design selector, the generalized training cardinality sampler, the frozen stratified benchmark MANIFEST MECHANISM and run-level persistence / aggregate metrics (§3l.6, §3l.7); FINAL approved candidate `db79013897a6e5669f50d53b6e30229b16aea28d`, integration `b4daa8c1a8c870061b26cceb01d4ed34169594e7`, PR #40, verdict **APPROVE**, Grade A under `GPT_GITHUB`. *(Historical process evidence: original reviewed candidate `eef1795f6bb3f0cbc4c163ba489cf5e790df4c41` → review corrections → append-only child `db790138…` → APPROVE, covering manifest integrity, real held-outness and honest generalized construction provenance.)* | §3l.8 step 4 is COMPLETE, so **§3l.6–§3l.7 are now IMPLEMENTED** and **§3l.8 steps 1–4 are ALL COMPLETE**. The FOUR low-level OPT-IN policy seams are now resolved TOGETHER — and only together — by the ONE `episode_design` selector, whose DEFAULT `fixed_cell_v1` preserves the historical bundle the approved measurements were taken on and leaves a default run byte-invariant at the call boundary; `training_mode` stays ORTHOGONAL. Every Task-1/2/3 per-episode structure is now PERSISTED and AGGREGATED with explicit denominators, requested-vs-realized is REPORTED with **no acceptance threshold and no verdict**, and `ReferenceIntegrityError` now routes by stable REASON SLUG (unanswered solve ⇒ accounted attrition; every other reason ⇒ measurement-integrity ABORT). **Task 4 delivered the benchmark MECHANISM ONLY: no FINAL SCIENTIFIC worlds-per-cell scale was SELECTED and no FINAL SCIENTIFIC benchmark population was committed, preserved as the comparator, scheduled or authorized (no benchmark manifest is committed or tracked in the repository; transient manifests built by tests are neither).** `p(destroy)` stays `1.0` and no new `MetaAction` exists. **No scientific run occurred, no generalized measurement exists, and no actor-only-vs-CTDE generalized result exists** |
 | 2026-08-30 | **GENERALIZED-V1 TASK 5 IMPLEMENTED AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR STACK** — **PR #42**, branch `task/generalized-v1-task5-summary-phase-fix`, approved head `312f58650b61a85eb72d0554d60715afee862a5c` (the `train_by_*` summary-population correction), and **PR #43**, branch `task/generalized-v1-task5-success-quota-preflight`, FINAL approved head `4af6c5aa5dd28072692bfda63282964b55010aae` (the successful-episode training quota, the bounded attempt budget, the maximum-possible seed band and the deterministic benchmark preflight), Grade A under `GPT_GITHUB`. *(Historical process evidence: PR #43's original implementation candidate `734f1e786593b6ffb94f1f8d7283b1f2fc79d257` → ONE requested review fix → append-only DIRECT CHILD `4af6c5aa…` → APPROVE; no amend, rebase, squash, force-push or history rewrite.)* | §3l.8 step 5 is IMPLEMENTED and APPROVED but **NOT MERGED**: live `main` is still `09eab0673153bd443185ec94530ccf0b042be465`, so **no integration SHA exists for either PR and none may be invented**, and both PRs are **FROZEN / READ-ONLY**. The historical `scheduled_attempts_v1` fixed-cell attempt behaviour and every fixed-cell seed band and check are PRESERVED, so the approved Phase-A and variable-severity measurements are untouched. Held-outness is now checked against the **MAXIMUM POSSIBLE attempt band**, because a failed replacement attempt still spends a seed. Benchmark population SELECTION happens ONCE, before the freeze, and **post-freeze evaluation still performs NO substitution**; a failed preflight creates NO manifest and leaves a durable candidate audit that **is not a benchmark population**. **`p(destroy)` stays `1.0`, no new `MetaAction` exists, and NO generalized measurement RESULT exists** |
-| 2026-08-30 | **TASK 5A and TASK 5B reviewed `APPROVE — VALID ENGINEERING VALIDATION`** (§3m.3) | **ENGINEERING EVIDENCE, NEVER A SCIENTIFIC MEASUREMENT** — no scientific contract, no seed schedule, no held-out band, no frozen comparator, no population denominator. Task 5A's repeated **A2-LOW `pre_event_popup_risk`** failure on a TRANSIENT one-world-per-cell benchmark is what exposed the need for eligibility selection BEFORE the freeze; solver runtime dominated, and repeated pre/post values on the SAME world are **not** independent observations. Task 5B, at measured code SHA `4af6c5aa…`, validated the mechanics (24/24 training successes, 18/18 first candidates accepted, 0 observed hidden shortfalls, one transient 54/54 benchmark round with 18/18 complete groups, BONMIN dominating runtime, large `A4-high` variance, and a legitimate ~998 s solve terminating `optimal` — which is why **no short solver timeout was adopted**). **Bounded samples: NO attrition-rate population claim, NO learning claim, NO actor-vs-CTDE claim, and the Task-5B transient benchmark is NOT the R1 comparator** |
-| 2026-08-30 | **THE FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN AUTHORIZED AND DISPATCHED** with the frozen plan in §3m.4 — `actor_only`, 375 iterations × 8 SUCCESSFUL episodes = 3000 successful training episodes, `generalized_max_attempts_per_iteration = 12`, training base seed 740000 with maximum-possible band `[740000, 744500)`, `worlds_per_cell = 3`, R1 benchmark base seed 840000, `max_candidates_per_cell = 12`, evaluation and checkpoint every 25 iterations, no early stopping, no solver timeout, no CTDE arm | **STATE: `AUTHORIZED / DISPATCHED — RESULT PENDING`.** It is UNREVIEWED and has produced no verdict; **nothing about its reward, convergence, attrition, benchmark outcome or validity may be stated or inferred**, and this record deliberately does not claim it is `RUNNING`. It requires **independent GPT artifact review** before any `APPROVE — VALID MEASUREMENT`. The plan is recorded so the eventual artifacts can be checked against what was authorized. **The external long-run task is RUN-ONLY and owns NO repository writes.** No reviewed early-stopping mechanism exists and checkpoint RESUME stays out of scope; cluster readiness is DEFERRED without blocking the local R1 |
+| 2026-08-30 | **TASK 5A and TASK 5B reviewed `APPROVE — VALID ENGINEERING VALIDATION`** (§3m.3) | **ENGINEERING EVIDENCE, NEVER A SCIENTIFIC MEASUREMENT — and what makes that true is their DESIGNATED PURPOSE, not an absence of mechanics.** Task 5B really did carry an explicit training seed band `[720000, 720072)`, an explicit benchmark candidate band, production held-out verification, a TRANSIENT frozen manifest and 18 worlds / 54 members for its one evaluation round — all of it existing solely to validate system behaviour, attrition and runtime, and explicitly NOT designated as the scientific comparator or as a policy-performance measurement. Task 5A's repeated **A2-LOW `pre_event_popup_risk`** failure on a TRANSIENT one-world-per-cell benchmark is what exposed the need for eligibility selection BEFORE the freeze; solver runtime dominated, and repeated pre/post values on the SAME world are **not** independent observations. Task 5B, at measured code SHA `4af6c5aa…`, validated the mechanics (24/24 training successes, 18/18 first candidates accepted, 0 observed hidden shortfalls, one transient 54/54 benchmark round with 18/18 complete groups, BONMIN dominating runtime, large `A4-high` variance, and a legitimate ~998 s solve terminating `optimal` — which is why **no short solver timeout was adopted**). **Bounded samples: NO attrition-rate population claim, NO learning claim, NO actor-vs-CTDE claim, and the Task-5B transient benchmark is NOT the R1 comparator** |
+| 2026-08-30 | **THE FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN AUTHORIZED AND DISPATCHED** with the frozen plan in §3m.4 — `actor_only`, 375 iterations × 8 SUCCESSFUL episodes = 3000 successful training episodes, `generalized_max_attempts_per_iteration = 12`, training base seed 740000 with maximum-possible band `[740000, 744500)`, `worlds_per_cell = 3`, R1 benchmark base seed 840000, `max_candidates_per_cell = 12`, evaluation and checkpoint every 25 iterations, no early stopping, no solver timeout, no CTDE arm | **THE R1 BENCHMARK SCALE IS THEREBY SELECTED AND AUTHORIZED (`worlds_per_cell = 3`) AND ITS CONSTRUCTION AUTHORIZED AND DISPATCHED (candidate base seed `840000`, `max_candidates_per_cell = 12`), which SUPERSEDES every earlier "no FINAL SCIENTIFIC scale has been SELECTED / no benchmark population is scheduled or authorized" statement as CURRENT state — those remain accurate only as the historical records they are. **STATE: `AUTHORIZED / DISPATCHED — RESULT PENDING`.** **No concrete R1 manifest has yet been independently reviewed or approved as the comparator, and none is committed or tracked in the repository.** It is UNREVIEWED and has produced no verdict; **nothing about its reward, convergence, attrition, benchmark outcome or validity may be stated or inferred**, and this record deliberately does not claim it is `RUNNING`. It requires **independent GPT artifact review** before any `APPROVE — VALID MEASUREMENT`. The plan is recorded so the eventual artifacts can be checked against what was authorized. **The external long-run task is RUN-ONLY and owns NO repository writes.** No reviewed early-stopping mechanism exists and checkpoint RESUME stays out of scope; cluster readiness is DEFERRED without blocking the local R1 |
 | 2026-08-30 | **POST-TASK-5 DOCUMENTATION / LOCK CHECKPOINT OPENED**, because reviewed and approved behaviour existed for §3l.8 step 5 while the live documents still said Task 5 was NOT STARTED and NOT AUTHORIZED, that no writable implementation task was active, and that no generalized run was scheduled or authorized | `CLAUDE.md` gains the Task-5 §5 contract (summary population, the two attempt policies and the bounded budget, the maximum-possible seed band, the deterministic preflight, the complete-manifest rule with immutable post-freeze evaluation, and the failed-preflight durable audit), its four §6 routing rows, and its §7 entries for **PR #42** and **PR #43 recorded as APPROVED and NOT YET INTEGRATED — with no invented merge SHA** — plus the Task-5A / Task-5B engineering-validation entry under a BINDING label; and its stale global "no generalized measurement exists / is running / is scheduled" wording is scoped in place. This handoff records the Task-5 stack, the ownership split (**the long run is RUN-ONLY; this docs candidate is the SOLE writable repository task**), the dispatched R1 as **RESULT PENDING**, the early-stopping / resume / cluster state, and the intended integration sequence in a new §3m — **recorded, not performed: no merge is authorized.** **Two files only; no source, test, config, preset, benchmark manifest or run artifact committed; no run; no ref moved; no historical measurement reinterpreted; no result claimed for R1** |
 | 2026-08-26 | **TASK-4 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.6–§3l.7 while the live documents still said Task 4 was the next unresolved task, NOT started and NOT authorized, that neither harness selected any generalized policy, and that the sampler, the manifest and run-level persistence were unimplemented | `CLAUDE.md` gains the Task-4 §5 contract, its §4 selector placement, its five §6 routing rows and its §7 lock; its stale "NEITHER HARNESS EXPOSES" wording in the Task-1/2/3 blocks is corrected in place with the superseded text preserved; and the `ReferenceIntegrityError` routing block is rewritten to record the Task-4 decision that was deliberately deferred to it. This handoff records Tasks 1–4 as COMPLETE, §3l.1–§3l.7 as IMPLEMENTED, **GENERALIZED-V1 TASK 4 as CLOSED with no writable implementation task and no candidate under review**, and **Task 5 (bounded runtime / solver validation) as the SINGLE next unresolved step that no documentation record authorizes** (§8). It records explicitly that **no FINAL SCIENTIFIC benchmark scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the comparator, scheduled or authorized**, that **no generalized measurement exists, is running, is scheduled or is authorized**, and that the future actor-only and CTDE arms must use the SAME eventual frozen manifest while the approved historical baselines are REUSED and never rerun. Written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset, benchmark manifest or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
