@@ -60,9 +60,21 @@ acceptances. A rejection in cell ``c`` therefore cannot shift the accepted seeds
 same worlds" checkable rather than hoped for.
 
 Exhausting a cell's window before its quota is filled ABORTS
-(:class:`BenchmarkPreflightError`) and writes NO manifest: a benchmark missing a stratum
-member is not this benchmark, and a partial manifest that presented itself as complete
-would be worse than none.
+(:class:`BenchmarkPreflightError`), stops before any later cell is scanned, and writes NO
+manifest: a benchmark missing a stratum member is not this benchmark, and a partial
+manifest that presented itself as complete would be worse than none.
+
+THE AUDIT SURVIVES THE ABORT. Every candidate already attempted has SPENT its seed, so
+its identity and its rejection reason are evidence an operator needs -- to decide whether
+to raise ``max_candidates_per_cell``, lower ``worlds_per_cell``, or investigate the
+attrition itself -- and re-running the same window cannot produce them again differently.
+So a failed preflight still WRITES ``benchmark_preflight_report.json`` before raising,
+carrying the completed cells, the exhausted cell and every accepted and rejected
+candidate inside them. The two outcomes are told apart by ONE field, ``status``
+(:data:`PREFLIGHT_STATUS_COMPLETE` / :data:`PREFLIGHT_STATUS_FAILED`), never by the shape
+of the document: a failed report carries ``manifest: null``, ``manifest_written: false``
+and a ``failure`` block naming the exhausted cell. With ``output_dir=None`` no file can be
+written, so the same report travels on the exception's ``report`` attribute instead.
 
 REPLACEMENT-ELIGIBILITY IS THE SAME DISTINCTION THE TRAINER MAKES
 ================================================================
@@ -153,6 +165,20 @@ PREFLIGHT_POLICY: str = "deterministic_per_cell_window_v1"
 _REPORT_FILENAME: str = "benchmark_preflight_report.json"
 _MANIFEST_FILENAME: str = "benchmark_manifest.json"
 
+# THE TWO OUTCOMES A BUILD REPORT CAN DESCRIBE, stated in the report itself rather than
+# left to be inferred from whether `manifest` happens to be null. A failed preflight
+# writes a report too -- its spent candidate seeds and rejection reasons are the evidence
+# the failure exists to produce -- so "is this a frozen benchmark?" must be answerable
+# from ONE unambiguous field and never from the shape of the document.
+PREFLIGHT_STATUS_COMPLETE: str = "complete"
+PREFLIGHT_STATUS_FAILED: str = "failed_incomplete"
+PREFLIGHT_STATUSES: Tuple[str, ...] = (
+    PREFLIGHT_STATUS_COMPLETE, PREFLIGHT_STATUS_FAILED,
+)
+
+# The stable slug for the ONE way a selection walk can fail after it has started.
+PREFLIGHT_FAILURE_WINDOW_EXHAUSTED: str = "candidate_window_exhausted"
+
 # The closed set of candidate outcomes. `accepted` is not a rejection; it is listed here
 # so a reader has both slugs in one place.
 CANDIDATE_ACCEPTED: str = "accepted"
@@ -161,13 +187,42 @@ CANDIDATE_OUTCOMES: Tuple[str, ...] = (CANDIDATE_ACCEPTED, CANDIDATE_REJECTED)
 
 
 class BenchmarkPreflightError(RuntimeError):
-    """A base cell could not be filled from its own candidate window.
+    """A preflight could not produce a COMPLETE population (or was asked for a bad one).
 
-    NOT an ordinary rejection: the window is the operator's explicit bound, so exhausting
-    it means the requested scale cannot be met at this attrition rate. It ABORTS and
-    writes no manifest -- a benchmark missing a stratum member is not this benchmark, and
-    a partial manifest that presented itself as complete would be worse than none.
+    NOT an ordinary rejection: a cell's candidate window is the operator's explicit
+    bound, so exhausting it means the requested scale cannot be met at this attrition
+    rate. It ABORTS and writes NO MANIFEST -- a benchmark missing a stratum member is not
+    this benchmark, and a partial manifest that presented itself as complete would be
+    worse than none.
+
+    THE AUDIT IS NOT ABORTED WITH IT. Every candidate the walk already attempted has SPENT
+    its seed, and those seeds and their rejection reasons are exactly the evidence an
+    operator needs to decide whether to raise ``max_candidates_per_cell``, lower
+    ``worlds_per_cell``, or investigate the attrition itself. Throwing that away because
+    the last cell failed would make a failed preflight unreadable and would silently
+    invite re-running the same window blind. So a failure carries its report:
+
+      * ``report`` -- the build report as a dict, ALWAYS present for an exhaustion
+        failure, so an in-memory caller (``output_dir=None``) has the full audit even
+        though no file could be written;
+      * ``report_path`` -- where that report was written, or ``None`` when the caller
+        supplied no ``output_dir``.
+
+    Both are ``None`` for the input-validation raises (a bad scale, a non-generalized
+    config, missing provenance), which fail before any candidate is attempted and
+    therefore have no audit to carry.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        report: Optional[Dict[str, Any]] = None,
+        report_path: Optional[Path] = None,
+    ) -> None:
+        super().__init__(message)
+        self.report = report
+        self.report_path = report_path
 
 
 # =============================================================================
@@ -545,8 +600,12 @@ def _scan_cell(
     quota; the remaining seeds in the window are simply never attempted, which is what
     makes a smaller ``worlds_per_cell`` a strict PREFIX of a larger one.
 
-    Raises:
-        BenchmarkPreflightError: the window was exhausted before the quota was filled.
+    IT DOES NOT DECIDE WHETHER THE CELL SUCCEEDED. It returns its COMPLETE audit --
+    every candidate it attempted, accepted and rejected alike -- and the caller judges
+    the quota. That split is the point: the exhaustion verdict used to be raised from
+    here, which discarded the outcomes on the way out and left a failed preflight with
+    nothing to inspect but an exception message. Selection logic lives here; the verdict
+    and the report live in :func:`run_benchmark_preflight`, and neither is duplicated.
     """
     accepted: List[Tuple[int, WorldPreflight]] = []
     outcomes: List[CandidateOutcome] = []
@@ -602,17 +661,6 @@ def _scan_cell(
             construction_audit=preflight.construction_audit,
         ))
 
-    if len(accepted) < int(worlds_per_cell):
-        raise BenchmarkPreflightError(
-            "base cell %s exhausted its candidate window [%d, %d): %d candidate(s) "
-            "attempted, only %d of the %d requested world(s) accepted. NO manifest is "
-            "written -- a benchmark missing a stratum member is not this benchmark, and "
-            "a partial manifest that read as complete would be worse than none. Raise "
-            "max_candidates_per_cell, lower worlds_per_cell, or investigate the "
-            "rejection reasons in the build report."
-            % (window.key, window.start, window.stop, len(outcomes),
-               len(accepted), int(worlds_per_cell))
-        )
     return accepted, outcomes
 
 
@@ -649,7 +697,12 @@ def run_benchmark_preflight(
     Raises:
         BenchmarkPreflightError: a bad scale, a non-generalized config, incomplete Git
             provenance, or a cell whose candidate window was exhausted before its quota
-            was filled.
+            was filled. ONLY the exhaustion case has an audit to carry, and it carries
+            it: the FAILED build report is written to ``output_dir`` (when one was given)
+            BEFORE the raise, and is attached to the exception as ``report`` /
+            ``report_path`` either way. No manifest is written and no later cell is
+            scanned. The input-validation cases fail before any candidate is attempted
+            and leave both attributes ``None``.
         MeasurementIntegrityError / FuelDamageIntegrityError / BenchmarkIdentityError:
             an instrument fault -- never replaced, never recorded as a rejection.
     """
@@ -722,29 +775,55 @@ def run_benchmark_preflight(
                 "seed": int(seed),
                 "preflight": preflight.to_record(),
             })
-        block = window.to_record()
-        block.update({
-            "worlds_requested": int(worlds_per_cell),
-            "n_candidates_attempted": len(outcomes),
-            "n_accepted": sum(1 for o in outcomes if o.accepted),
-            "n_rejected": sum(1 for o in outcomes if not o.accepted),
-            "accepted_seeds": [int(s) for s, _p in accepted],
-            "rejection_reasons": _tally(
-                [o.reason or o.error_type or "unknown"
-                 for o in outcomes if not o.accepted]
-            ),
-            "rejection_detail_reasons": _tally(
-                [slug for o in outcomes if not o.accepted for slug in o.detail_reasons]
-            ),
-            "hidden_realized": _tally(
-                [str(o.hidden_realized) for o in outcomes if o.accepted]
-            ),
-            "candidates": [o.to_record() for o in outcomes],
-        })
+        block = _cell_block(window, accepted, outcomes,
+                            worlds_per_cell=int(worlds_per_cell))
         cell_blocks.append(block)
         print("           accepted %d/%d after %d candidate(s): seeds %s"
               % (block["n_accepted"], int(worlds_per_cell),
                  block["n_candidates_attempted"], block["accepted_seeds"]))
+
+        # THE QUOTA VERDICT, taken HERE rather than inside the walk, so the cell's
+        # COMPLETE audit is already in `cell_blocks` and `all_candidates` before the
+        # decision is made. A failed preflight writes NO MANIFEST -- but its spent
+        # candidate seeds and their rejection reasons ARE the evidence it exists to
+        # produce, and raising from inside the walk discarded them on the way out,
+        # leaving an operator nothing to inspect but an exception message that pointed
+        # at a build report which had never been written.
+        if len(accepted) < int(worlds_per_cell):
+            failure = _failure_block(
+                window, accepted, outcomes,
+                worlds_per_cell=int(worlds_per_cell), windows=windows,
+            )
+            report = _build_report(
+                cfg,
+                status=PREFLIGHT_STATUS_FAILED,
+                git_info=git_info, windows=windows,
+                worlds_per_cell=int(worlds_per_cell),
+                benchmark_base_seed=int(benchmark_base_seed),
+                max_candidates_per_cell=int(max_candidates_per_cell),
+                cell_blocks=cell_blocks, all_candidates=all_candidates,
+                world_entries=world_entries,
+                manifest=None, manifest_path=None,
+                stale_manifest_path=_existing_manifest(out_dir, manifest_name),
+                failure=failure, seconds=time.perf_counter() - t_run,
+            )
+            report_path = _write_report(out_dir, report_name, report)
+            raise BenchmarkPreflightError(
+                "base cell %s exhausted its candidate window [%d, %d): %d candidate(s) "
+                "attempted, only %d of the %d requested world(s) accepted. NO manifest "
+                "is written and NO later cell is scanned -- a benchmark missing a "
+                "stratum member is not this benchmark, and a partial manifest that read "
+                "as complete would be worse than none. The spent candidate seeds and "
+                "their rejection reasons are preserved %s. Raise "
+                "max_candidates_per_cell, lower worlds_per_cell, or investigate the "
+                "attrition; re-running the same window cannot give a different answer."
+                % (window.key, window.start, window.stop, len(outcomes),
+                   len(accepted), int(worlds_per_cell),
+                   ("in %s" % report_path) if report_path is not None
+                   else "on this exception's `report` attribute (no output_dir was "
+                        "supplied, so no file could be written)"),
+                report=report, report_path=report_path,
+            )
 
     manifest = build_benchmark_manifest(worlds=world_entries, label=label, notes=notes)
 
@@ -752,11 +831,191 @@ def run_benchmark_preflight(
     if out_dir is not None:
         manifest_path = write_benchmark_manifest(manifest, out_dir / manifest_name)
 
-    report = {
+    report = _build_report(
+        cfg,
+        status=PREFLIGHT_STATUS_COMPLETE,
+        git_info=git_info, windows=windows,
+        worlds_per_cell=int(worlds_per_cell),
+        benchmark_base_seed=int(benchmark_base_seed),
+        max_candidates_per_cell=int(max_candidates_per_cell),
+        cell_blocks=cell_blocks, all_candidates=all_candidates,
+        world_entries=world_entries,
+        manifest=manifest, manifest_path=manifest_path,
+        stale_manifest_path=None, failure=None,
+        seconds=time.perf_counter() - t_run,
+    )
+    report_path = _write_report(out_dir, report_name, report)
+
+    return PreflightResult(
+        manifest=manifest,
+        manifest_path=manifest_path,
+        report=report,
+        report_path=report_path,
+        candidates=all_candidates,
+    )
+
+
+def _cell_block(
+    window: CellWindow,
+    accepted: Sequence[Tuple[int, WorldPreflight]],
+    outcomes: Sequence[CandidateOutcome],
+    *,
+    worlds_per_cell: int,
+) -> Dict[str, Any]:
+    """ONE base cell's audit block -- identical on the successful and failed paths.
+
+    ``worlds_missing`` and ``window_exhausted`` are carried on BOTH paths (``0`` and
+    ``False`` on a cell that filled), so the failing cell is identifiable from the cell
+    list itself rather than only by cross-referencing the failure block.
+    """
+    block = window.to_record()
+    n_accepted = sum(1 for o in outcomes if o.accepted)
+    block.update({
+        "worlds_requested": int(worlds_per_cell),
+        "n_candidates_attempted": len(outcomes),
+        "n_accepted": n_accepted,
+        "n_rejected": sum(1 for o in outcomes if not o.accepted),
+        "worlds_missing": max(int(worlds_per_cell) - n_accepted, 0),
+        "window_exhausted": bool(n_accepted < int(worlds_per_cell)),
+        "accepted_seeds": [int(seed) for seed, _p in accepted],
+        "rejection_reasons": _tally(
+            [o.reason or o.error_type or "unknown"
+             for o in outcomes if not o.accepted]
+        ),
+        "rejection_detail_reasons": _tally(
+            [slug for o in outcomes if not o.accepted for slug in o.detail_reasons]
+        ),
+        "hidden_realized": _tally(
+            [str(o.hidden_realized) for o in outcomes if o.accepted]
+        ),
+        "candidates": [o.to_record() for o in outcomes],
+    })
+    return block
+
+
+def _failure_block(
+    window: CellWindow,
+    accepted: Sequence[Tuple[int, WorldPreflight]],
+    outcomes: Sequence[CandidateOutcome],
+    *,
+    worlds_per_cell: int,
+    windows: Sequence[CellWindow],
+) -> Dict[str, Any]:
+    """WHY the preflight stopped, and exactly where.
+
+    The cells that COMPLETED and the cells that were NEVER ATTEMPTED are listed
+    separately: "this cell was not scanned" and "this cell was scanned and filled" are
+    different facts, and a reader who could not tell them apart would not know whether a
+    later cell's absence from the report meant it was skipped or that it failed too.
+    """
+    scanned_through = int(window.ordinal)
+    return {
+        "reason": PREFLIGHT_FAILURE_WINDOW_EXHAUSTED,
+        "base_cell": window.key,
+        "base_cell_ordinal": scanned_through,
+        "agent_count": int(window.agent_count),
+        "load_bucket": str(window.load_bucket),
+        "hidden_requested": window.hidden_requested,
+        "candidate_window": {
+            "start": int(window.start),
+            "stop": int(window.stop),
+            "half_open": True,
+            "size": int(window.stop) - int(window.start),
+        },
+        "worlds_requested": int(worlds_per_cell),
+        "worlds_accepted": len(accepted),
+        "worlds_missing": max(int(worlds_per_cell) - len(accepted), 0),
+        "n_candidates_attempted": len(outcomes),
+        "accepted_seeds": [int(seed) for seed, _p in accepted],
+        "attempted_seeds": [int(o.seed) for o in outcomes],
+        "rejection_reasons": _tally(
+            [o.reason or o.error_type or "unknown"
+             for o in outcomes if not o.accepted]
+        ),
+        "rejection_detail_reasons": _tally(
+            [slug for o in outcomes if not o.accepted for slug in o.detail_reasons]
+        ),
+        "cells_completed": [w.key for w in windows if w.ordinal < scanned_through],
+        "cells_not_attempted": [w.key for w in windows if w.ordinal > scanned_through],
+        "manifest_written": False,
+    }
+
+
+def _existing_manifest(
+    out_dir: Optional[Path], manifest_name: str
+) -> Optional[str]:
+    """A manifest file ALREADY sitting at the target path, if any.
+
+    REPORTED, never deleted: this is a failure path, and removing a file it did not write
+    would destroy an earlier run's artifact. Naming it is what stops a reader from finding
+    a stale manifest beside a failure report and taking the two for one run.
+    """
+    if out_dir is None:
+        return None
+    candidate = Path(out_dir) / manifest_name
+    return str(candidate) if candidate.exists() else None
+
+
+def _write_report(
+    out_dir: Optional[Path], report_name: str, report: Dict[str, Any]
+) -> Optional[Path]:
+    """Write the build report, or return ``None`` when there is nowhere to write it."""
+    if out_dir is None:
+        return None
+    path = Path(out_dir) / report_name
+    path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    return path
+
+
+def _build_report(
+    cfg: TrainConfig,
+    *,
+    status: str,
+    git_info: Dict[str, Any],
+    windows: Sequence[CellWindow],
+    worlds_per_cell: int,
+    benchmark_base_seed: int,
+    max_candidates_per_cell: int,
+    cell_blocks: List[Dict[str, Any]],
+    all_candidates: List[CandidateOutcome],
+    world_entries: List[Dict[str, Any]],
+    manifest: Optional[BenchmarkManifest],
+    manifest_path: Optional[Path],
+    stale_manifest_path: Optional[str],
+    failure: Optional[Dict[str, Any]],
+    seconds: float,
+) -> Dict[str, Any]:
+    """ONE build-report construction site, for BOTH outcomes.
+
+    Shared deliberately: a failure report assembled by a second, parallel writer would
+    drift from the successful one exactly where it matters -- the candidate audit -- and
+    the whole reason for writing one is that the audit is identical evidence either way.
+    What differs is stated explicitly, in one place: ``status``, ``manifest_written``, the
+    ``manifest`` block, and ``failure``.
+
+    ``accepted_seeds`` on a FAILED report lists the worlds accepted before the walk
+    stopped. THEY ARE NOT A BENCHMARK: no manifest was built from them, no ``manifest_id``
+    exists, ``manifest`` is ``null``, and ``status`` says so.
+    """
+    if str(status) not in PREFLIGHT_STATUSES:
+        raise BenchmarkPreflightError(
+            "unknown preflight status %r; expected one of %r"
+            % (status, list(PREFLIGHT_STATUSES))
+        )
+    complete = str(status) == PREFLIGHT_STATUS_COMPLETE
+    return {
         "schema": PREFLIGHT_SCHEMA,
         "schema_version": PREFLIGHT_SCHEMA_VERSION,
         "policy": PREFLIGHT_POLICY,
         "design": EPISODE_DESIGN_GENERALIZED_V1,
+        # THE FIRST THREE KEYS A READER NEEDS, and the ONE unambiguous answer to "is this
+        # a frozen benchmark?". Never inferred from whether `manifest` happens to be
+        # null: a failed preflight writes a report too, and a reader who had to deduce
+        # its standing from the document's shape could mistake a partial candidate audit
+        # for a population.
+        "status": str(status),
+        "complete": bool(complete),
+        "manifest_written": bool(complete and manifest_path is not None),
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "provenance": {"git": git_info},
         "request": {
@@ -804,34 +1063,32 @@ def run_benchmark_preflight(
                  for o in all_candidates if o.accepted]
             ),
         },
+        # On a FAILED report these are the worlds accepted before the walk stopped --
+        # spent candidate seeds, not a population. `status` and a `null` manifest say so.
         "accepted_seeds": [int(w["seed"]) for w in world_entries],
-        "manifest": {
-            "manifest_id": manifest.manifest_id,
-            "n_worlds": manifest.n_worlds,
-            "n_members": manifest.n_members,
-            "seed_list_sha256": manifest.seed_digest(),
-            "path": None if manifest_path is None else str(manifest_path),
-            "file_sha256": (
-                None if manifest_path is None else _file_sha256(manifest_path)
-            ),
-        },
-        "seconds": time.perf_counter() - t_run,
+        # `null` on a failure, so nothing in the document can be read as a frozen
+        # benchmark: there is no `manifest_id` to quote and no file hash to check.
+        "manifest": (
+            None if manifest is None else {
+                "manifest_id": manifest.manifest_id,
+                "n_worlds": manifest.n_worlds,
+                "n_members": manifest.n_members,
+                "seed_list_sha256": manifest.seed_digest(),
+                "path": None if manifest_path is None else str(manifest_path),
+                "file_sha256": (
+                    None if manifest_path is None else _file_sha256(manifest_path)
+                ),
+            }
+        ),
+        # A manifest file this preflight did NOT write, already sitting at the target
+        # path from an earlier run. Named rather than deleted (see `_existing_manifest`),
+        # so a stale artifact beside a failure report cannot be taken for its output.
+        "stale_manifest_path": stale_manifest_path,
+        # `null` on the successful path -- the truthful statement that nothing failed,
+        # rather than an absent key a reader has to interpret.
+        "failure": failure,
+        "seconds": float(seconds),
     }
-
-    report_path = None
-    if out_dir is not None:
-        report_path = out_dir / report_name
-        report_path.write_text(
-            json.dumps(report, indent=2, default=str), encoding="utf-8"
-        )
-
-    return PreflightResult(
-        manifest=manifest,
-        manifest_path=manifest_path,
-        report=report,
-        report_path=report_path,
-        candidates=all_candidates,
-    )
 
 
 def _tally(values: Sequence[str]) -> Dict[str, int]:
@@ -939,9 +1196,9 @@ def main(argv: Optional[List[str]] = None) -> None:
         notes=args.notes,
     )
     print("=" * 78)
-    print("manifest_id=%s  worlds=%d  members=%d"
-          % (result.manifest.manifest_id, result.manifest.n_worlds,
-             result.manifest.n_members))
+    print("status=%s  manifest_id=%s  worlds=%d  members=%d"
+          % (result.report["status"], result.manifest.manifest_id,
+             result.manifest.n_worlds, result.manifest.n_members))
     print("manifest: %s" % result.manifest_path)
     print("report  : %s" % result.report_path)
     print("candidates attempted=%d accepted=%d rejected=%d"

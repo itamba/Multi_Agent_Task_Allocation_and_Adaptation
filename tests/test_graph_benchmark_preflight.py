@@ -15,7 +15,9 @@ WHAT IT PROVES (task PO3):
   * exactly ``worlds_per_cell`` worlds are accepted per cell, each carrying a frozen
     ``WorldPreflight``;
   * a manifest written from the preflight RELOADS to the same ``manifest_id``;
-  * candidate-window exhaustion ABORTS and writes no partial benchmark;
+  * candidate-window exhaustion ABORTS with NO manifest, stops before any later cell,
+    and STILL writes a report that says it failed and preserves every spent candidate
+    seed and rejection reason (the review fix);
   * a fixed candidate seed reproduces the same preflight decision;
   * measurement-integrity faults are NEVER replacement-eligible;
   * the preflight population-selection policy lives HERE and not inside
@@ -39,8 +41,11 @@ if str(SRC) not in sys.path:
 from match_aou.rl.training.graph_benchmark_preflight import (  # noqa: E402
     CANDIDATE_ACCEPTED,
     CANDIDATE_REJECTED,
+    PREFLIGHT_FAILURE_WINDOW_EXHAUSTED,
     PREFLIGHT_POLICY,
     PREFLIGHT_SCHEMA,
+    PREFLIGHT_STATUS_COMPLETE,
+    PREFLIGHT_STATUS_FAILED,
     BenchmarkPreflightError,
     cell_windows,
     run_benchmark_preflight,
@@ -351,6 +356,15 @@ def test_po3_the_build_report_is_the_audit_trail(tmp_path: Path) -> None:
     assert report["schema"] == PREFLIGHT_SCHEMA
     assert report["policy"] == PREFLIGHT_POLICY
     assert report["design"] == EPISODE_DESIGN_GENERALIZED_V1
+    # THE SUCCESSFUL OUTCOME, pinned against the failed one: one field answers "is this a
+    # frozen benchmark?", and a complete report carries no failure block.
+    assert report["status"] == PREFLIGHT_STATUS_COMPLETE
+    assert report["complete"] is True
+    assert report["manifest_written"] is True
+    assert report["failure"] is None
+    assert report["stale_manifest_path"] is None
+    assert all(c["window_exhausted"] is False for c in report["cells"])
+    assert all(c["worlds_missing"] == 0 for c in report["cells"])
     assert report["provenance"]["git"]["commit"] == _FAKE_GIT_OK["commit"]
     assert report["request"] == {
         "worlds_per_cell": 2, "benchmark_base_seed": 800_000,
@@ -423,22 +437,178 @@ def _seeds_by_cell(result) -> dict:
 # PO3.5 -- refusals: exhaustion, instrument faults, bad inputs
 # =============================================================================
 
-def test_po3_window_exhaustion_aborts_and_writes_no_partial_benchmark(
+def test_po3_window_exhaustion_aborts_with_no_manifest_but_a_failed_report(
     tmp_path: Path,
 ) -> None:
-    """A cell that cannot be filled ABORTS -- no manifest, no report, no partial freeze."""
+    """A cell that cannot be filled ABORTS with NO MANIFEST -- and KEEPS its audit.
+
+    THE DEFECT THIS CLOSES (review fix). The exhaustion verdict used to be raised from
+    inside `_scan_cell`, so the candidate outcomes never returned to the caller and the
+    report writer was never reached: a failed preflight left an exception message and
+    nothing else -- while that message told the operator to inspect a build report which
+    had never been written.
+
+    That is wrong for the Task-5C contract. Every candidate already attempted has SPENT
+    its seed, so its identity and its rejection reason cannot be recovered by re-running
+    the same window; they ARE the evidence the failure exists to produce, and they are
+    what an operator reads to decide whether to raise `max_candidates_per_cell`, lower
+    `worlds_per_cell`, or investigate the attrition. So the manifest is still refused and
+    the walk still stops before any later cell, but the FAILED report is written first.
+
+    The exhaustion is placed in the SECOND base cell on purpose: that is the only shape
+    in which "the completed cell's audit survived" and "no later cell was probed" are
+    both observable.
+    """
     out = tmp_path / "out"
-    # Reject every candidate of the first cell's whole window.
-    probe, _ = _stub_probe(reject=range(800_000, 800_004))
+    calls: list = []
+    # A2-low fills from 800000; A2-high's whole window [800003, 800006) is rejected.
+    probe, _ = _stub_probe(reject=range(800_003, 800_006), calls=calls)
     try:
-        _run(tmp_path, worlds_per_cell=2, max_candidates=4, probe=probe, output_dir=out)
+        _run(tmp_path, worlds_per_cell=1, max_candidates=3, probe=probe, output_dir=out)
     except BenchmarkPreflightError as exc:
         assert "exhausted its candidate window" in str(exc)
-        assert "NO manifest is written" in str(exc)
+        assert "NO manifest" in str(exc)
+        assert "NO later cell is scanned" in str(exc)
+        # The audit travels ON the exception too, so a caller never has to go looking.
+        assert exc.report is not None
+        assert exc.report_path == out / "benchmark_preflight_report.json"
+        raised = exc
     else:
         raise AssertionError("an unfillable cell produced a benchmark")
-    assert not (out / "benchmark_manifest.json").exists()
-    assert not (out / "benchmark_preflight_report.json").exists()
+
+    # --- NO MANIFEST, EVER -------------------------------------------------------
+    assert not (out / "benchmark_manifest.json").exists(), (
+        "a failed preflight wrote a benchmark manifest"
+    )
+    assert list(out.glob("*manifest*.json")) == [], list(out.glob("*"))
+
+    # --- THE REPORT DOES EXIST, AND SAYS IT FAILED --------------------------------
+    report_path = out / "benchmark_preflight_report.json"
+    assert report_path.exists(), "the failed preflight discarded its candidate audit"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report == raised.report, "the written report differs from the raised one"
+    assert report["schema"] == PREFLIGHT_SCHEMA
+    assert report["status"] == PREFLIGHT_STATUS_FAILED
+    assert report["complete"] is False
+    assert report["manifest_written"] is False
+    assert report["manifest"] is None
+    assert report["stale_manifest_path"] is None
+    # NOTHING in the document may read as a frozen benchmark.
+    assert "manifest_id" not in json.dumps(report)
+
+    # --- IT NAMES THE EXHAUSTED CELL ----------------------------------------------
+    failure = report["failure"]
+    exhausted = base_cell_key(*BENCHMARK_BASE_CELLS[1])
+    assert failure["reason"] == PREFLIGHT_FAILURE_WINDOW_EXHAUSTED
+    assert failure["base_cell"] == exhausted
+    assert failure["base_cell_ordinal"] == 1
+    assert failure["candidate_window"] == {
+        "start": 800_003, "stop": 800_006, "half_open": True, "size": 3,
+    }
+    assert failure["worlds_requested"] == 1
+    assert failure["worlds_accepted"] == 0
+    assert failure["worlds_missing"] == 1
+    assert failure["n_candidates_attempted"] == 3
+    assert failure["accepted_seeds"] == []
+    assert failure["manifest_written"] is False
+
+    # --- EVERY SPENT SEED IS PRESENT, EXACTLY ONCE, WITH ITS REASON ---------------
+    assert failure["attempted_seeds"] == [800_003, 800_004, 800_005]
+    assert len(failure["attempted_seeds"]) == len(set(failure["attempted_seeds"]))
+    assert failure["rejection_reasons"] == {NO_FD_ELIGIBLE_EGO: 3}
+    assert failure["rejection_detail_reasons"] == {"pre_event_popup_risk": 3}
+
+    # --- THE COMPLETED CELL'S AUDIT SURVIVED --------------------------------------
+    completed = base_cell_key(*BENCHMARK_BASE_CELLS[0])
+    assert failure["cells_completed"] == [completed]
+    assert failure["cells_not_attempted"] == [
+        base_cell_key(a, b) for a, b in BENCHMARK_BASE_CELLS[2:]
+    ]
+    assert [c["base_cell"] for c in report["cells"]] == [completed, exhausted]
+    first, second = report["cells"]
+    assert first["n_accepted"] == 1 and first["window_exhausted"] is False
+    assert first["worlds_missing"] == 0
+    assert [c["seed"] for c in first["candidates"]] == [800_000]
+    assert first["candidates"][0]["outcome"] == CANDIDATE_ACCEPTED
+    assert second["window_exhausted"] is True and second["worlds_missing"] == 1
+    assert [c["seed"] for c in second["candidates"]] == [800_003, 800_004, 800_005]
+    assert all(c["outcome"] == CANDIDATE_REJECTED for c in second["candidates"])
+
+    # Every seed the preflight spent appears EXACTLY ONCE across the whole report.
+    spent = [c["seed"] for cell in report["cells"] for c in cell["candidates"]]
+    assert spent == [800_000, 800_003, 800_004, 800_005]
+    assert len(spent) == len(set(spent))
+    assert report["totals"]["n_candidates_attempted"] == 4
+    assert report["totals"]["n_accepted"] == 1
+    assert report["totals"]["n_rejected"] == 3
+    assert report["accepted_seeds"] == [800_000]
+
+    # --- NO LATER CELL WAS PROBED -------------------------------------------------
+    assert calls == [800_000, 800_003, 800_004, 800_005], calls
+
+
+def test_po3_an_in_memory_failure_carries_its_audit_without_inventing_a_file(
+    tmp_path: Path,
+) -> None:
+    """With no ``output_dir`` there is nowhere to write -- so the report rides the raise.
+
+    The programmatic contract stays clean: `report` is the full audit and `report_path`
+    is `None`, which is the truthful "no file could be written" rather than a path to
+    something that does not exist. It must NOT invent an output directory, because a
+    caller that deliberately asked for an in-memory run has not consented to one.
+    """
+    calls: list = []
+    probe, _ = _stub_probe(reject=range(800_000, 800_003), calls=calls)
+    try:
+        _run(tmp_path, worlds_per_cell=1, max_candidates=3, probe=probe,
+             output_dir=None)
+    except BenchmarkPreflightError as exc:
+        assert exc.report_path is None
+        assert "no output_dir was supplied" in str(exc)
+        report = exc.report
+    else:
+        raise AssertionError("an unfillable cell produced a benchmark")
+
+    assert report is not None
+    assert report["status"] == PREFLIGHT_STATUS_FAILED
+    assert report["manifest"] is None and report["manifest_written"] is False
+    assert report["failure"]["attempted_seeds"] == [800_000, 800_001, 800_002]
+    assert report["failure"]["cells_completed"] == []
+    assert report["failure"]["cells_not_attempted"] == [
+        base_cell_key(a, b) for a, b in BENCHMARK_BASE_CELLS[1:]
+    ]
+    assert calls == [800_000, 800_001, 800_002]
+    # Nothing was created anywhere: the run had no output directory to create.
+    assert list(tmp_path.rglob("benchmark_*.json")) == []
+
+
+def test_po3_a_stale_manifest_beside_a_failure_is_named_not_adopted(
+    tmp_path: Path,
+) -> None:
+    """A manifest left by an EARLIER run is reported, never deleted and never claimed.
+
+    Deleting a file this preflight did not write would destroy another run's artifact;
+    staying silent about it would let a reader find a manifest beside a failure report
+    and take the two for one run. So it is NAMED, and `manifest_written` still says
+    `false`.
+    """
+    out = tmp_path / "out"
+    out.mkdir(parents=True)
+    stale = out / "benchmark_manifest.json"
+    stale.write_text('{"stale": true}', encoding="utf-8")
+
+    probe, _ = _stub_probe(reject=range(800_000, 800_003))
+    try:
+        _run(tmp_path, worlds_per_cell=1, max_candidates=3, probe=probe, output_dir=out)
+    except BenchmarkPreflightError as exc:
+        report = exc.report
+    else:
+        raise AssertionError("an unfillable cell produced a benchmark")
+
+    assert report["stale_manifest_path"] == str(stale)
+    assert report["manifest_written"] is False and report["manifest"] is None
+    # NOT deleted, and NOT overwritten.
+    assert stale.read_text(encoding="utf-8") == '{"stale": true}'
 
 
 def test_po3_measurement_integrity_faults_are_never_replacement_eligible(
