@@ -569,8 +569,10 @@ cross-references it rather than duplicating it.
     entries carry their integration SHAs, and PR #44 has its own. *(SUPERSEDED: this bullet
     previously read "TASKS 1 THROUGH 4". Accurate at that checkpoint.)* **Locks are written
     PER COMPLETED TASK, never for a design**, which supersedes this document's earlier "only
-    at step 6" rule; a FINAL documentation pass is still required after any later
-    implementation step lands.
+    at step 6" rule. **The Task-5 sequence's POST-INTEGRATION CLOSURE pass is PR #45 — IN
+    FLIGHT while its draft PR is open, COMPLETE on its integration** (§3l.8 step 6); a
+    further documentation pass would be required only for FUTURE, NEWLY IMPLEMENTED work,
+    which does not make the current closure outstanding.
 
 - **A PREVIOUSLY EXECUTED OLD-CONTRACT CTDE MEASUREMENT IS OUT OF SCOPE FOR THIS PHASE.** A
   CTDE measurement was executed under the **OLD FIXED-CELL contract**. It is **outside the
@@ -2261,19 +2263,37 @@ begins only after the previous one is reviewed and integrated:
    commit or freeze a benchmark POPULATION into the repository.** *(SUPERSEDED: this entry
    previously read "THE SINGLE NEXT UNRESOLVED STEP. NOT STARTED, AND NOT AUTHORIZED BY THIS
    RECORD".)*
-6. **documentation and `CLAUDE.md` locks for behaviour that already exists** — **PARTIALLY
-   DONE and CONTINUING.**
+6. **documentation and `CLAUDE.md` locks for behaviour that already exists** — **DONE FOR
+   EVERY IMPLEMENTED STEP (1 THROUGH 5), and its POST-INTEGRATION CLOSURE for the Task-5
+   sequence is the pass IN FLIGHT AS PR #45.** Each implemented step carries its own
+   technical lock, Task 5's being PR #44 (§3m.1); PR #45 is the separate post-integration
+   state reconciliation that follows the §3m.5 merges. **While PR #45 is open that closure
+   pass is IN FLIGHT; on its integration the Task-5 post-integration documentation closure
+   is COMPLETE and no writable repository task remains.** *(SUPERSEDED: this entry previously
+   read "PARTIALLY DONE and CONTINUING", which was accurate while steps still lacked locks
+   and before this closure pass existed.)*
 
 **HOW STEP 6 REALLY WORKS, corrected by practice.** This section previously said step 6 was
 deliberately LAST — one documentation pass after every implementation step. It is instead
-written PER COMPLETED TASK: `CLAUDE.md` §4 / §5 / §6 / §7 records for steps 1, 2, 3 and 4
+written PER COMPLETED TASK: `CLAUDE.md` §4 / §5 / §6 / §7 records for steps 1, 2, 3, 4 and 5
 are written by their own documentation records, each after that step's behaviour was
 implemented, reviewed and integrated. **The principle is unchanged and is what matters:** no
 `CLAUDE.md` contract is ever written for a design, only for behaviour that already exists.
 *(SUPERSEDED: this paragraph previously added "which is exactly why §3l.6–§3l.7 still have
-none". They have one now — the Task-4 §5 contract, its §6 routing and its §7 lock.)* **A
-FINAL documentation pass is still REQUIRED after any later implementation step lands**, and
-no per-task record discharges it.
+none", and previously said records existed for "steps 1, 2, 3 and 4". They have one now —
+the Task-4 §5 contract, its §6 routing and its §7 lock — and step 5 has its own through
+PR #44.)*
+**THE CLOSING PASS IS A DISTINCT, SCOPED ARTIFACT, NOT AN OPEN-ENDED OBLIGATION.** A
+per-task lock records a step's CONTRACT; a post-integration closure pass reconciles the
+documents' CURRENT STATE once that step's merges have actually happened. For the Task-5
+sequence that closure pass is **PR #45** — IN FLIGHT while its draft PR is open, and
+**COMPLETE on its integration**, at which point no writable repository task remains.
+**A FINAL documentation pass would be REQUIRED again only for FUTURE, NEWLY IMPLEMENTED
+work**, and that generic forward-looking rule does **NOT** mean the CURRENT Task-5
+post-integration closure is outstanding. *(SUPERSEDED, and corrected here: this paragraph
+previously ended "A FINAL documentation pass is still REQUIRED after any later
+implementation step lands, and no per-task record discharges it", with no closure pass named
+— which left the Task-5 closure reading as permanently unfinished.)*
 
 ### 3l.9 What the redesign explicitly does NOT touch
 
@@ -2907,8 +2927,11 @@ that make all of it readable (§3l.7).
   scoped, separately reviewed bounded task, and each started only after the previous one was
   reviewed and integrated. *(SUPERSEDED: this bullet previously read "STEPS 1–4 COMPLETE,
   STEP 5 NEXT".)* **`CLAUDE.md` locks are written PER COMPLETED TASK, for behaviour
-  that already exists — never for a design** — and a FINAL documentation pass is still
-  required after any later step lands.
+  that already exists — never for a design** — and the Task-5 sequence's POST-INTEGRATION
+  CLOSURE pass is **PR #45: IN FLIGHT while its draft PR is open, COMPLETE on its
+  integration** (§3l.8 step 6). A further documentation pass would be
+  required only for FUTURE, NEWLY IMPLEMENTED work, and that generic rule does not leave the
+  current Task-5 closure outstanding.
 - **STEP 5 IS IMPLEMENTED, APPROVED AND INTEGRATED (§3m.1), AND THE INTEGRATION HAS BEEN
   PERFORMED.** It ran under the exact-base re-review
   discipline of §3m.5 — merged PR #42, refreshed live `main`, RETARGETED PR #43 and
