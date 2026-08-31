@@ -132,8 +132,17 @@ SOLE WRITABLE REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN; ON ITS INTEGRATION THE
 RETURNS TO A CLEAN CHECKPOINT WITH NO WRITABLE REPOSITORY TASK, NO OPEN TASK-5 PR AND NO
 ACTIVE TASK-5 CANDIDATE, AND NONE MAY BE OPENED UNTIL A FUTURE TASK IS EXPLICITLY OPENED AND
 AUTHORIZED.** The external local R1 remains **RUN-ONLY and owns NO repository writes.**
-**CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY** against that same exact base
-SHA (§3m.6) — and **READINESS IS NOT SCIENTIFIC AUTHORIZATION**: it authorizes no run, no
+**CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY, AND ITS VALIDATION IDENTITY
+IS `926aba66fcaf2b99fc58685eb202888d8deeaf5f` — NOT THE CURRENT BASE.** The environment was
+observed and validated on the cluster against `926aba66…`; **PR #46 INTEGRATED that
+reproducibility contract into `main` at `e9f9f4f9…`, and integrating a record is not
+re-observing it**, so **NO validation, rerun or smoke was performed at `e9f9f4f9…`** and none
+may be inferred. Readiness is CARRIED FORWARD from the `926aba66…` observation, and that
+validation SHA is DURABLE: it does not move when `main` does (§3m.6). *(SUPERSEDED as CURRENT
+state: this sentence read "VALIDATED / READY against that same exact base SHA", whose
+referent became the PR-#46 merge once the base above was updated — which would have claimed a
+validation that never happened at `e9f9f4f9…`.)* **READINESS IS NOT SCIENTIFIC
+AUTHORIZATION**: it authorizes no run, no
 campaign and no launcher, and **no CTDE generalized run exists, is scheduled or is
 authorized.** **GENERALIZED-V1 NEVERTHELESS REMAINS AN ACTIVE PROJECT PHASE, because the
 actor-only R1 long run is still pending** — the repository being idle is not the phase being
@@ -154,8 +163,9 @@ generalized result exists.** **The NEXT action is NOT another implementation tas
 INDEPENDENT GPT ARTIFACT REVIEW of the actor-only R1 when its artifacts exist** (§8) — until
 then no rerun, no repair, no resume, no extension, no CTDE arm, no benchmark replacement and
 no retuning, each of which would need its own research decision and authorization.
-**CLUSTER ENVIRONMENT / RUNTIME READINESS IS NOW VALIDATED / READY** against exact `main`
-SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f` — `graph_rl_cluster`, Python 3.12.14,
+**CLUSTER ENVIRONMENT / RUNTIME READINESS IS NOW VALIDATED / READY**, validated against the
+then-current `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f` — a DURABLE validation
+identity that does NOT move with `main` — `graph_rl_cluster`, Python 3.12.14,
 CPU PyTorch, vendored BLADE editable, a Pyomo → BONMIN `optimal` smoke, and the LOAD-BEARING
 `PYTHONNOUSERSITE=1` isolation rule (§3m.6, `CLAUDE.md` §1, `environment.cluster.yml`). This
 SUPERSEDES, as CURRENT state only, every "cluster readiness is DEFERRED / cluster access is
@@ -2583,8 +2593,13 @@ docs PR, and the executed sequence was:
 9. merged the **unchanged** docs candidate `88352b2f…` — merge
    `9b9e9b85a70c8a0019c72ada92ceec3401725795`, which was the live `main` that the PR-#45
    post-integration closure record was based on. **That closure task has since been MERGED
-   itself — PR #45, `728ebf3f…` → `926aba66fcaf2b99fc58685eb202888d8deeaf5f`, which is the
-   live `main` the CURRENT record is based on** — so `9b9e9b85…` is a HISTORICAL checkpoint.
+   itself — PR #45, `728ebf3f…` → `926aba66fcaf2b99fc58685eb202888d8deeaf5f`** — so
+   `9b9e9b85…` is a HISTORICAL checkpoint. **`926aba66…` is likewise HISTORICAL as a BASE**:
+   it was the base PR #46 branched from, and it is separately the DURABLE SHA the cluster
+   environment was validated against (§3m.6). **The CURRENT record's base is the PR-#46 merge
+   `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`.** *(SUPERSEDED as CURRENT state: this passage
+   called `926aba66…` "the live `main` the CURRENT record is based on", accurate only while
+   PR #46 was still in flight.)*
 
 **No rebase, no squash, no cherry-pick, no force-push and no history rewrite occurred at any
 step.** Every integration is a normal merge commit that preserves its reviewed candidate as
