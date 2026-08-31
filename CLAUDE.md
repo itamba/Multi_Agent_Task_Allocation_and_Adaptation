@@ -2288,8 +2288,11 @@ measurements of the `fixed_cell_v1` bundle.
 **GENERALIZED-V1 TASK 5 — SUMMARY-POPULATION CORRECTION, THE SUCCESSFUL-EPISODE TRAINING
 QUOTA, AND THE DETERMINISTIC BENCHMARK PREFLIGHT —
 `rl/training/graph_train.py` + `rl/training/graph_benchmark_preflight.py` (NEW)
-(`312f586` / PR #42 and `4af6c5a` / PR #43 — §7; BOTH APPROVED, NEITHER YET INTEGRATED at
-this documentation checkpoint).**
+(`312f586` / `5dfcd8b`, PR #42 and `4af6c5a` / `b3c2e01f`, PR #43 — §7; BOTH IMPLEMENTED,
+REVIEWED, APPROVED and INTEGRATED).** *(SUPERSEDED, and corrected here: this header
+previously read "BOTH APPROVED, NEITHER YET INTEGRATED at this documentation checkpoint".
+That was accurate at that checkpoint and is not now; the technical behaviour documented
+below is UNCHANGED — only the integration state is.)*
 
 This layer adds NO episode mechanism. The bounded-backoff geometry, the FD certification
 physics, the post-FD boundary semantics and the continuation-reference arithmetic are
@@ -4637,17 +4640,26 @@ a stub, because normal production does not currently generate it.
   bundle. This lock certifies the IMPLEMENTATION; §8 owns the phase state and the next step.
 
 - `312f586` — **GENERALIZED-V1 TASK 5: the `train_by_*` summary buckets count TRAINING
-  attempts only — APPROVED, NOT YET INTEGRATED at this documentation checkpoint.** Approved
+  attempts only — CLOSED / APPROVED / MERGED.** Approved
   candidate SHA `312f58650b61a85eb72d0554d60715afee862a5c` (committed
   `2026-08-29 21:42:32 +0300`), on branch `task/generalized-v1-task5-summary-phase-fix`,
   whose PARENT is `09eab0673153bd443185ec94530ccf0b042be465` — the `main` head produced by
-  the GENERALIZED-V1 Task-4 documentation merge (PR #41). **PR #42**, Grade A under
-  `GPT_GITHUB`. **NO INTEGRATION SHA IS RECORDED HERE, AND NONE MAY BE INVENTED:** at this
-  checkpoint the candidate is APPROVED and FROZEN but is NOT merged, so `main` is still
-  `09eab067…` and the eventual merge commit does not yet exist. Per §7's hash convention the
-  integration SHA is recorded by whichever later commit can name it. The technical contract
+  the GENERALIZED-V1 Task-4 documentation merge (PR #41) — integrated by merge commit
+  `5dfcd8b632be8dca3c1730018bbf35337d07f077` (`2026-08-31 00:06:47 +0300`, **PR #42**),
+  Grade A under `GPT_GITHUB`. The candidate was merged with a normal MERGE COMMIT and
+  preserved as its SECOND PARENT (ordered parents:
+  `09eab0673153bd443185ec94530ccf0b042be465`, then
+  `312f58650b61a85eb72d0554d60715afee862a5c`); candidate and integration share the IDENTICAL
+  tree `2774effc579ea3f5f2a8cbf5184145985ab68bd6` (verified locally), so the integrated tree
+  is exactly the reviewed tree, and no rebase, squash, cherry-pick, force-push or history
+  rewrite occurred. *(SUPERSEDED, and corrected here: this entry previously read "APPROVED,
+  NOT YET INTEGRATED at this documentation checkpoint" and stated that no integration SHA
+  existed, that `main` was still `09eab067…` and that the eventual merge commit did not yet
+  exist. Every one of those was accurate AT THAT CHECKPOINT and is not now — the integration
+  SHA is recorded here by the later commit that can name it, exactly as §7's hash convention
+  prescribes.)* The technical contract
   is in §5 (the GENERALIZED-V1 TASK 5 block, item 1) and the routing in §6; this entry
-  records the CANDIDATE, not the mechanism.
+  records the LOCK, not the mechanism.
   **THE DEFECT.** `_generalized_summary` built `train_by_agent_count` and
   `train_by_hidden_requested` from the UNFILTERED canonical streams. Both streams mix phases
   by design — an outcome row carries `pre_update` / `train` / `post_update`, a failure row
@@ -4679,16 +4691,31 @@ a stub, because normal production does not currently generate it.
   a summary-accounting correction; §8 owns the phase state.
 
 - `4af6c5a` — **GENERALIZED-V1 TASK 5: the successful-episode training quota with
-  deterministic replacement, and the deterministic benchmark preflight — APPROVED, NOT YET
-  INTEGRATED at this documentation checkpoint.** FINAL approved candidate SHA
+  deterministic replacement, and the deterministic benchmark preflight — CLOSED / APPROVED /
+  MERGED.** FINAL approved candidate SHA
   `4af6c5aa5dd28072692bfda63282964b55010aae` (committed `2026-08-30 18:02:14 +0300`), on
-  branch `task/generalized-v1-task5-success-quota-preflight`, whose PR base is the PR-#42
-  branch `task/generalized-v1-task5-summary-phase-fix`. **PR #43**, Grade A under
-  `GPT_GITHUB`, implementation mode BUILD. **NO INTEGRATION SHA IS RECORDED HERE, AND NONE
-  MAY BE INVENTED:** at this checkpoint the candidate is APPROVED and FROZEN but is NOT
-  merged, and it sits on a STACKED base rather than on `main`. The technical contract is in
+  branch `task/generalized-v1-task5-success-quota-preflight`, whose PR base was ORIGINALLY
+  the PR-#42 branch `task/generalized-v1-task5-summary-phase-fix` and which was RETARGETED to
+  `main` once PR #42 was merged — integrated by merge commit
+  `b3c2e01f130afe854b09384cd6e1e196de714795` (`2026-08-31 00:13:23 +0300`, **PR #43**),
+  Grade A under `GPT_GITHUB`, implementation mode BUILD. **THE RETARGETING CHANGED THE BASE,
+  NEVER THE CANDIDATE.** Changing a PR's base invalidates a base-relative verdict even when
+  the head SHA does not move, so the unchanged approved head was **EXACT-BASE RE-REVIEWED
+  against `main` before merging**, and its effective reviewed delta was byte-identical; the
+  head remained `4af6c5aa…` throughout, and the APPEND-ONLY review-fix provenance below is
+  untouched by the retarget. The candidate was merged with a normal MERGE COMMIT and
+  preserved as its SECOND PARENT (ordered parents:
+  `5dfcd8b632be8dca3c1730018bbf35337d07f077`, then
+  `4af6c5aa5dd28072692bfda63282964b55010aae`); candidate and integration share the IDENTICAL
+  tree `aa5c0cfe456df6e74b0c1fcdb6aed4fa5e1df6d6` (verified locally), so the integrated tree
+  is exactly the reviewed tree, and no rebase, squash, cherry-pick, force-push or history
+  rewrite occurred. *(SUPERSEDED, and corrected here: this entry previously read "APPROVED,
+  NOT YET INTEGRATED at this documentation checkpoint", stated that no integration SHA
+  existed and that none might be invented, and described the candidate as sitting on a
+  STACKED base rather than on `main`. All of that was accurate AT THAT CHECKPOINT and is not
+  now.)* The technical contract is in
   §5 (the GENERALIZED-V1 TASK 5 block, items 2 through 6) and the routing in §6; this entry
-  records the CANDIDATE, not the mechanism.
+  records the LOCK, not the mechanism.
   **APPEND-ONLY FIX CHAIN, two commits on one branch and one PR** — never amend, rebase,
   squash, force-push or history rewrite. The original implementation candidate
   `734f1e786593b6ffb94f1f8d7283b1f2fc79d257` (committed `2026-08-30 17:05:13 +0300`, parent
@@ -4807,6 +4834,43 @@ a stub, because normal production does not currently generate it.
     no final scientific result is established by Task 5B**, and its transient benchmark is
     **NOT** the R1 comparator.
 
+- `88352b2f` — **GENERALIZED-V1 TASK 5 DOCUMENTATION / LOCK CHECKPOINT — CLOSED / APPROVED /
+  MERGED.** FINAL approved documentation candidate SHA
+  `88352b2fc03174e8095d3c7e8a1ef58b60e58e0b` (committed `2026-08-30 23:51:07 +0300`), on
+  branch `task/generalized-v1-task5-doc-lock`, integrated by merge commit
+  `9b9e9b85a70c8a0019c72ada92ceec3401725795` (`2026-08-31 00:39:29 +0300`, **PR #44**).
+  Grade A under `GPT_GITHUB`, implementation mode SURGICAL — Grade A because it locks
+  research-validity contracts and phase state, not because it changes behaviour. **IT IS A
+  DOCUMENTATION LOCK: it changed NO source, test, config, preset, benchmark manifest, run
+  artifact or scientific result.**
+  **REVIEWED SCOPE: EXACTLY TWO FILES** — `CLAUDE.md` and `graph_rl_project_handoff.md`
+  (verified as the complete `b3c2e01f…...9b9e9b85…` comparison). It recorded the Task-5 §5
+  contract, its §6 routing rows, the §7 entries for PR #42 and PR #43, the Task-5A /
+  Task-5B engineering-validation entry under its BINDING label, and the dispatched
+  actor-only R1 as `AUTHORIZED / DISPATCHED — RESULT PENDING`.
+  **APPEND-ONLY FIX CHAIN, two commits on one branch and one PR** — never amend, rebase,
+  squash, force-push or history rewrite. The original documentation candidate
+  `61eaa3fe1bdeb7aef3cfb7c10c4d8964caf2ed0e` (committed `2026-08-30 23:31:17 +0300`) carried
+  the record; GPT requested review fixes, and the correction landed as the DIRECT CHILD
+  COMMIT `88352b2f…`, which is the APPROVED head — the held-out band, the manifest caller,
+  the R1 scale state and the Task-5B label.
+  **THE RETARGETING CHANGED THE BASE, NEVER THE CANDIDATE.** The branch was originally
+  stacked on the PR-#43 branch and was RETARGETED to `main` once PR #43 was merged; because
+  changing a PR's base invalidates a base-relative verdict even when the head SHA does not
+  move, the unchanged approved head was **EXACT-BASE RE-REVIEWED against `main` before
+  merging**, and the head remained `88352b2f…` throughout.
+  The candidate was merged with a normal MERGE COMMIT and preserved as its SECOND PARENT
+  (ordered parents: `b3c2e01f130afe854b09384cd6e1e196de714795`, then
+  `88352b2fc03174e8095d3c7e8a1ef58b60e58e0b`); candidate and integration share the IDENTICAL
+  tree `f57c472c73e236867064e9fc26426482f538152d` (verified locally), so the integrated tree
+  is exactly the reviewed tree, and no rebase, squash, cherry-pick, force-push or history
+  rewrite occurred.
+  **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #44**, and none may be
+  inferred from it: the R1 long run remains `AUTHORIZED / DISPATCHED — RESULT PENDING`, with
+  **no reward, convergence, attrition, benchmark or validity result stated or inferable**.
+  Task 5A / Task 5B remain ENGINEERING VALIDATION under their binding label. This entry
+  records the LOCK; §8 owns the phase state.
+
 ---
 
 ## 8. OPEN (not built)
@@ -4814,8 +4878,12 @@ a stub, because normal production does not currently generate it.
 - **GENERALIZED-V1 — THE ACTIVE PHASE. TASKS 1, 2, 3 AND 4 ARE ALL IMPLEMENTED, REVIEWED AND
   MERGED** (`5b55ca3` / `9b305e4`, PR #35; `185d39f` / `ca0dc40`, PR #36; `24a8b1e` /
   `df3abf2`, PR #38; `db79013` / `b4daa8c`, PR #40 — §5 and §7), **AND THE TASK-5 STACK
-  (`312f586` / PR #42 and `4af6c5a` / PR #43) IS APPROVED AND FROZEN BUT NOT YET INTEGRATED**
-  (§5, §7). **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS, AND NO GENERALIZED RESULT
+  (`312f586` / `5dfcd8b`, PR #42 and `4af6c5a` / `b3c2e01f`, PR #43) IS NOW IMPLEMENTED,
+  REVIEWED, APPROVED AND INTEGRATED TOO, ALONGSIDE ITS DOCUMENTATION LOCK (`88352b2f` /
+  `9b9e9b85`, PR #44) — SO TASKS 1 THROUGH 5 ARE ALL INTEGRATED** (§5, §7). *(SUPERSEDED,
+  and corrected here: this sentence previously read that the Task-5 stack was "APPROVED AND
+  FROZEN BUT NOT YET INTEGRATED". Accurate at that checkpoint; not a current-state
+  claim.)* **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS, AND NO GENERALIZED RESULT
   MAY BE PRE-CLAIMED.** **A first full GENERALIZED-V1 ACTOR-ONLY long run (R1) has been
   AUTHORIZED and DISPATCHED and its RESULT IS PENDING** — it is unreviewed, it has produced
   no verdict, and nothing about its reward, convergence, attrition, benchmark outcome or
@@ -4898,8 +4966,8 @@ a stub, because normal production does not currently generate it.
     not now; facts 1 and 2 above replace them, and facts 3 and 4 are what survives.)*
     **ALL FOUR ARE CLAIMS ABOUT SCIENTIFIC ARTIFACTS ONLY, AND NEVER ABOUT THE TECHNICAL
     CONTRACTS.** The GENERALIZED-V1 Task-1/2/3/4 technical contracts **DO exist**, are
-    implemented, reviewed, locked and INTEGRATED, and the Task-5 contract **DO exist** as
-    reviewed and APPROVED (though not yet integrated) candidates; all are AUTHORITATIVE in
+    implemented, reviewed, locked and INTEGRATED, and the Task-5 contracts **DO exist** as
+    reviewed, APPROVED and INTEGRATED work as well; all are AUTHORITATIVE in
     §4 / §5 / §6 / §7 of this document — nothing here may be read as denying them. **The rest of the negative is
     scoped deliberately too:** transient manifests built in memory or in a temporary
     directory by tests and engineering validation are legitimate, are neither committed nor
