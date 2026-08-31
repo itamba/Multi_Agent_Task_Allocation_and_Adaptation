@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — GENERALIZED-V1: TASKS 1–5 ALL IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #42 + PR #43 + PR #44, ALL MERGED); TASK 5A / 5B ENGINEERING VALIDATION APPROVED; THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH ITS RESULT PENDING AND UNREVIEWED; THE POST-INTEGRATION CLOSURE TASK IS MERGED (PR #45); CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY, WHICH IS NOT SCIENTIFIC AUTHORIZATION; THE CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK CANDIDATE (PR #46, `task/cluster-env-repro-lock`) IS THE SOLE WRITABLE REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, WHILE GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
+# Multi-Agent Graph RL — GENERALIZED-V1: TASKS 1–5 ALL IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #42 + PR #43 + PR #44, ALL MERGED); TASK 5A / 5B ENGINEERING VALIDATION APPROVED; THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH ITS RESULT PENDING AND UNREVIEWED; THE POST-INTEGRATION CLOSURE TASK IS MERGED (PR #45); CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY, WHICH IS NOT SCIENTIFIC AUTHORIZATION; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED INTO `main` (PR #46); THIS POST-MERGE CLOSURE CANDIDATE IS THE SOLE WRITABLE REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, WHILE GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -109,19 +109,26 @@ UNREVIEWED, and NO generalized scientific measurement RESULT exists** (§1, §3m
 BELOW IT, INCLUDING THE 2026-08-30 AND 2026-08-26 ONES.** The ACTIVE phase is still
 **GENERALIZED-V1**, and **§3l.8 STEP 5 IS NO LONGER "APPROVED BUT UNMERGED": THE ENTIRE
 TASK-5 STACK IS INTEGRATED.** **Live `main` at this record's base is
-`926aba66fcaf2b99fc58685eb202888d8deeaf5f`** (`2026-08-31 12:50:26 +0300`, the **PR-#45**
-post-integration-closure merge, whose reviewed candidate was
-`728ebf3f4070ec999baef8d3aacc364b7e2a2776` and whose first parent is the former
-`9b9e9b85…` checkpoint). The exact Task-5 integration chain was **PR #42** `312f5865…` → merge
+`e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`** (`2026-08-31 16:40:13 +0300`, the **PR-#46**
+cluster-environment-reproducibility-lock merge, whose reviewed candidate was
+`cbc227450067d96c630eed208e22b3a5a20efc1b` and whose first parent is the former
+`926aba66…` checkpoint — the PR-#45 post-integration-closure merge, itself reviewed candidate
+`728ebf3f4070ec999baef8d3aacc364b7e2a2776`). The exact Task-5 integration chain was **PR #42** `312f5865…` → merge
 `5dfcd8b6…`, **PR #43** `4af6c5aa…` → merge `b3c2e01f…`, **PR #44** `88352b2f…` → merge
 `9b9e9b85…`, and **PR #45** `728ebf3f…` → merge `926aba66…`. *(SUPERSEDED as CURRENT state:
 this paragraph previously gave the base as `9b9e9b85a70c8a0019c72ada92ceec3401725795` and
 named "THIS POST-INTEGRATION CLOSURE CANDIDATE" as the sole writable task. Both were
 accurate while PR #45 was in flight; **PR #45 IS NOW MERGED and that closure task is NO
 LONGER WRITABLE**, and `9b9e9b85…` is now a HISTORICAL checkpoint rather than the live base.)*
-**THE CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK CANDIDATE — branch
-`task/cluster-env-repro-lock`, DRAFT PR #46, branched from exact `926aba66…` — IS THE SOLE
-WRITABLE REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN; ON ITS INTEGRATION THE REPOSITORY
+**THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED: PR #46, branch
+`task/cluster-env-repro-lock`, reviewed candidate `cbc22745…` → merge `e9f9f4f9…`, so
+`environment.cluster.yml` and the two-context environment contract are now IN `main`, and
+that task is NO LONGER WRITABLE.** *(SUPERSEDED as CURRENT state: this paragraph previously
+gave the base as `926aba66fcaf2b99fc58685eb202888d8deeaf5f` and named the
+reproducibility-lock candidate as the sole writable task while its DRAFT PR was open. Both
+were accurate while PR #46 was in flight.)* **THIS POST-MERGE CLOSURE CANDIDATE — branch
+`task/cluster-env-post-merge-closure`, DRAFT PR, branched from exact `e9f9f4f9…` — IS THE
+SOLE WRITABLE REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN; ON ITS INTEGRATION THE REPOSITORY
 RETURNS TO A CLEAN CHECKPOINT WITH NO WRITABLE REPOSITORY TASK, NO OPEN TASK-5 PR AND NO
 ACTIVE TASK-5 CANDIDATE, AND NONE MAY BE OPENED UNTIL A FUTURE TASK IS EXPLICITLY OPENED AND
 AUTHORIZED.** The external local R1 remains **RUN-ONLY and owns NO repository writes.**
@@ -358,13 +365,16 @@ cross-references it rather than duplicating it.
 - **LIVE PHASE (2026-08-31) — GENERALIZED-V1: TASKS 1 THROUGH 5 ARE ALL IMPLEMENTED,
   REVIEWED, APPROVED AND INTEGRATED (PR #42 → `5dfcd8b6…`, PR #43 → `b3c2e01f…`, PR #44 →
   `9b9e9b85…`), AND THE POST-INTEGRATION CLOSURE TASK IS MERGED TOO (PR #45,
-  `728ebf3f…` → `926aba66…`), SO **LIVE `main` IS `926aba66fcaf2b99fc58685eb202888d8deeaf5f`**.
-  THE CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK CANDIDATE (`task/cluster-env-repro-lock`, DRAFT PR #46) IS THE SOLE WRITABLE REPOSITORY TASK
+  `728ebf3f…` → `926aba66…`), AND THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED TOO
+  (PR #46, `cbc22745…` → `e9f9f4f9…`), SO **LIVE `main` IS
+  `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`**.
+  THIS POST-MERGE CLOSURE CANDIDATE (`task/cluster-env-post-merge-closure`, DRAFT PR) IS THE SOLE WRITABLE REPOSITORY TASK
   WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS
   UNTIL A FUTURE TASK IS EXPLICITLY OPENED. CLUSTER ENVIRONMENT / RUNTIME READINESS IS
   VALIDATED / READY, WHICH IS NOT SCIENTIFIC AUTHORIZATION (§3m.6).
-  *(SUPERSEDED as CURRENT state: this bullet previously named "THIS POST-INTEGRATION CLOSURE
-  CANDIDATE" as the sole writable task, which was accurate while PR #45 was in flight.)*
+  *(SUPERSEDED as CURRENT state: this bullet previously named the PR-#45 post-integration
+  closure candidate, and then the PR-#46 reproducibility-lock candidate, as the sole writable
+  task. Each was accurate while its own PR was in flight; BOTH ARE NOW MERGED.)*
   THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH
   ITS RESULT PENDING AND UNREVIEWED. NO GENERALIZED MEASUREMENT RESULT EXISTS.** The
   repository is **no longer CLOSED / IDLE** and **no longer DESIGN-ONLY**, and
@@ -2358,8 +2368,9 @@ implementation step lands, and no per-task record discharges it", with no closur
 
 Task 5's implementation is **TWO separately reviewed implementation candidates plus their
 documentation lock, ALL THREE APPROVED and ALL THREE now INSIDE `main`.** Live `main` at this
-record's base is `926aba66fcaf2b99fc58685eb202888d8deeaf5f` (`2026-08-31 12:50:26 +0300`, the
-PR-#45 post-integration-closure merge); the Task-5 stack's own final link was PR #44's merge
+record's base is `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b` (`2026-08-31 16:40:13 +0300`, the
+PR-#46 cluster-environment-reproducibility-lock merge, which superseded the `926aba66…`
+PR-#45 post-integration-closure merge as the live base); the Task-5 stack's own final link was PR #44's merge
 `9b9e9b85a70c8a0019c72ada92ceec3401725795`, which is now a HISTORICAL checkpoint rather than
 the live base. *(SUPERSEDED as CURRENT state: this subsection gave that `9b9e9b85…` merge as
 the live base, which was accurate while PR #45 was in flight.)* *(SUPERSEDED: this subsection previously read "APPROVED, FROZEN,
@@ -2396,10 +2407,15 @@ was accurate at that checkpoint and is not now.)*
   (`2026-08-31 00:39:29 +0300`), same normal-merge and tree-equality properties.
 
 **THE STACK WAS `main` → PR #42 → PR #43 → docs PR, AND IT HAS BEEN FULLY INTEGRATED IN THAT
-ORDER.** The performed sequence, with its exact merge SHAs, is §3m.5. **THIS
-POST-INTEGRATION CLOSURE CANDIDATE IS NOW THE SOLE WRITABLE REPOSITORY TASK while its own
+ORDER.** The performed sequence, with its exact merge SHAs, is §3m.5. **THAT
+POST-INTEGRATION CLOSURE CANDIDATE IS MERGED (PR #45, `728ebf3f…` → `926aba66…`), AS IS THE
+CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK THAT FOLLOWED IT (PR #46, `cbc22745…` →
+`e9f9f4f9…`); THIS POST-MERGE CLOSURE CANDIDATE
+(`task/cluster-env-post-merge-closure`) IS NOW THE SOLE WRITABLE REPOSITORY TASK while its own
 draft PR is open; on its integration no writable repository task remains, and no Task-5 PR or
-candidate is open or active.**
+candidate is open or active.** *(SUPERSEDED as CURRENT state: this passage named "THIS
+POST-INTEGRATION CLOSURE CANDIDATE" as the sole writable task, accurate while PR #45 was in
+flight.)*
 
 ### 3m.2 Writable ownership — one writable task, and the long run owns none of it
 
@@ -2586,6 +2602,15 @@ recorded so a future launch design starts from measurement rather than from gues
 **READINESS IS NOT AUTHORIZATION.** Everything here says a job COULD run on the cluster. It
 authorizes **no run, no campaign, no launcher and no scientific decision.**
 
+**THE ENVIRONMENT RECORD IS NOW INTEGRATED INTO `main`.** `environment.cluster.yml`, the
+`requirements.txt` alignment and the `CLAUDE.md` §1 two-context contract landed through
+**PR #46** — reviewed candidate `cbc227450067d96c630eed208e22b3a5a20efc1b` → merge
+`e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b` (`2026-08-31 16:40:13 +0300`), a NORMAL merge
+commit preserving its reviewed candidate as its second parent, with the integrated tree
+verified equal to the reviewed tree. **THE VALIDATION SHA BELOW IS A DURABLE OBSERVATION AND
+DOES NOT MOVE WITH `main`:** the environment was validated against `926aba66…`, and the later
+PR-#46 merge that RECORDED that validation does not retroactively change where it was taken.
+
 **VALIDATED ENVIRONMENT IDENTITY**, observed against exact `main` SHA
 `926aba66fcaf2b99fc58685eb202888d8deeaf5f`, with the cluster checkout's `HEAD` equal to
 `origin/main` and the working tree CLEAN at the final environment smoke:
@@ -2659,7 +2684,7 @@ written, designed, reviewed or authorized, and **none may be invented from this 
 dispatched actor-only R1 is unaffected: it remains the LOCAL run it was dispatched as, still
 `AUTHORIZED / DISPATCHED — RESULT PENDING` and still UNREVIEWED.
 
-## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED, AND THE POST-INTEGRATION CLOSURE TASK MERGED TOO AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK CANDIDATE / PR #46 IS THE SOLE WRITABLE TASK WHILE ITS DRAFT PR IS OPEN; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED, AND THE POST-INTEGRATION CLOSURE TASK MERGED TOO AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46; THIS POST-MERGE CLOSURE CANDIDATE IS THE SOLE WRITABLE TASK WHILE ITS DRAFT PR IS OPEN; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
 
 Start with fresh exact-SHA initialization against the current `main` (§9). **A documentation
 record neither authorizes nor runs anything: it RECORDS state only.** No documentation record
@@ -2675,11 +2700,14 @@ and the documentation lock **PR #44**
 (`88352b2fc03174e8095d3c7e8a1ef58b60e58e0b` → `9b9e9b85a70c8a0019c72ada92ceec3401725795`)
 are ALL APPROVED and ALL MERGED, **and the post-integration closure task is MERGED too
 (PR #45, `728ebf3f…` → `926aba66…`, which is the live `main` this record is based on);
-**the CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK candidate — `task/cluster-env-repro-lock`,
-DRAFT PR #46 — is the SOLE WRITABLE REPOSITORY TASK while its draft PR is open, and on its
-integration no writable repository task remains until a future task is explicitly opened**
-*(SUPERSEDED as CURRENT state: this passage named "this post-integration closure candidate"
-as the sole writable task, accurate while PR #45 was in flight)* — while
+**the CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK is MERGED too (PR #46, `cbc22745…` →
+`e9f9f4f9…`, the live `main` this record is based on), and THIS POST-MERGE CLOSURE candidate
+— `task/cluster-env-post-merge-closure`, DRAFT PR — is the SOLE WRITABLE REPOSITORY TASK
+while its draft PR is open, and on its integration no writable repository task remains until
+a future task is explicitly opened**
+*(SUPERSEDED as CURRENT state: this passage named first the PR-#45 post-integration closure
+candidate and then the PR-#46 reproducibility-lock candidate as the sole writable task; each
+was accurate while its own PR was in flight, and BOTH ARE NOW MERGED)* — while
 **GENERALIZED-V1 itself stays an ACTIVE phase, because R1 is still pending.**
 *(SUPERSEDED: this passage previously read "MERGED THROUGH STEP 4, AND STEP 5 IS IMPLEMENTED
 AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR STACK … both APPROVED, FROZEN / READ-ONLY
@@ -2753,9 +2781,10 @@ the measurement-validity half by item 2's verdict and the reference half by
 complete**, so this paragraph is now the arrangement's HISTORICAL record. **THE LIVE STATE
 IS TASK 10 / GENERALIZED-V1: §3l.8 steps 1–5 are ALL MERGED (PR #42 → `5dfcd8b6…`,
 PR #43 → `b3c2e01f…`, PR #44 → `9b9e9b85…`), the post-integration closure task is MERGED as
-PR #45 (`728ebf3f…` → `926aba66…`), the CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK candidate
-(`task/cluster-env-repro-lock`, DRAFT PR #46) is the SOLE WRITABLE REPOSITORY TASK while its
-draft PR is open, and the actor-only R1 long run
+PR #45 (`728ebf3f…` → `926aba66…`) and the CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK is MERGED
+as PR #46 (`cbc22745…` → `e9f9f4f9…`), THIS POST-MERGE CLOSURE candidate
+(`task/cluster-env-post-merge-closure`, DRAFT PR) is the SOLE WRITABLE REPOSITORY TASK while
+its draft PR is open, and the actor-only R1 long run
 is AUTHORIZED / DISPATCHED with its RESULT PENDING** (§3m, §4 Task 10, §8). *(SUPERSEDED:
 this clause previously pointed at Tasks 8 and 9 as the live state, then at "steps 1–3
 MERGED, TASK 4 next", then at "TASK 4 is CLOSED, and TASK 5 … is NOT STARTED and NOT
@@ -2962,10 +2991,11 @@ FD-VARIABLE-SEVERITY-v1 baseline. Neither is an expectation for the other, and n
 expectation for any CTDE comparison.**
 
 **Task 10 — GENERALIZED-V1. IMPLEMENTATION STEPS 1–5 ALL MERGED, AND THE POST-INTEGRATION
-CLOSURE TASK MERGED TOO AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK CANDIDATE
-(`task/cluster-env-repro-lock`, DRAFT PR #46) IS THE SOLE WRITABLE REPOSITORY TASK WHILE ITS
-DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE
-TASK IS EXPLICITLY OPENED; THE ACTOR-ONLY R1 LONG RUN IS AUTHORIZED /
+CLOSURE TASK MERGED TOO AS PR #45, AND THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS
+PR #46; THIS POST-MERGE CLOSURE CANDIDATE
+(`task/cluster-env-post-merge-closure`, DRAFT PR) IS THE SOLE WRITABLE REPOSITORY TASK WHILE
+ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS UNTIL A
+FUTURE TASK IS EXPLICITLY OPENED; THE ACTOR-ONLY R1 LONG RUN IS AUTHORIZED /
 DISPATCHED WITH ITS RESULT PENDING (§3m). THIS IS THE LIVE PHASE — ACTIVE BECAUSE R1 IS
 PENDING, NOT BECAUSE A REPOSITORY TASK IS OPEN.** *(SUPERSEDED: this heading previously read
 "TASK 4 CLOSED; NO WRITABLE IMPLEMENTATION TASK; STEP 5 IS THE NEXT UNRESOLVED STEP AND IS NOT
@@ -3459,13 +3489,15 @@ GENERALIZED-V1 (§3l, §3m, §4 Task 10); **steps 1, 2, 3, 4 and 5 are ALL COMPL
 and INTEGRATED** (PR #35, `5b55ca34…` → `9b305e4e…`; PR #36, `185d39f0…` → `ca0dc406…`;
 PR #38, `24a8b1ee…` → `df3abf2f…`, **APPROVE**; PR #40, `db790138…` → `b4daa8c1…`,
 **APPROVE**; PR #42, `312f5865…` → `5dfcd8b6…`; PR #43, `4af6c5aa…` → `b3c2e01f…`; PR #44,
-`88352b2f…` → `9b9e9b85…`; PR #45, `728ebf3f…` → `926aba66…`) — **live `main` at this
-record's base is `926aba66fcaf2b99fc58685eb202888d8deeaf5f`**, the PR-#45 merge.
-*(SUPERSEDED as CURRENT state: this sentence gave the base as `9b9e9b85…` and named "This
-post-integration closure candidate" as the sole writable task — both accurate while PR #45
-was in flight.)* **The CLUSTER ENVIRONMENT REPRODUCIBILITY-LOCK candidate —
-`task/cluster-env-repro-lock`, DRAFT PR #46 — is the SOLE WRITABLE REPOSITORY TASK while its
-draft PR is open, and on its integration the repository returns to a clean checkpoint with NO
+`88352b2f…` → `9b9e9b85…`; PR #45, `728ebf3f…` → `926aba66…`) — and the CLUSTER ENVIRONMENT
+REPRODUCIBILITY LOCK is MERGED as PR #46 (`cbc22745…` → `e9f9f4f9…`), so **live `main` at
+this record's base is `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`**, the PR-#46 merge.
+*(SUPERSEDED as CURRENT state: this sentence gave the base first as `9b9e9b85…` and then as
+`926aba66…`, and named first the post-integration closure candidate and then the
+reproducibility-lock candidate as the sole writable task — each accurate while its own PR was
+in flight, and all of those PRs are now MERGED.)* **THIS POST-MERGE CLOSURE candidate —
+`task/cluster-env-post-merge-closure`, DRAFT PR — is the SOLE WRITABLE REPOSITORY TASK while
+its draft PR is open, and on its integration the repository returns to a clean checkpoint with NO
 writable repository task, NO open Task-5 PR and NO active Task-5 candidate, and none may be
 opened until a future task is explicitly opened and authorized** — while **GENERALIZED-V1 remains an ACTIVE phase, because
 R1 is pending.** The
@@ -3501,15 +3533,18 @@ unless the user explicitly asks, §1), and not a re-run of any approved historic
 (prohibited, §6 — the approved baselines are REUSED as what they are, never rerun, repaired,
 resumed or re-tuned).
 
-**OWNERSHIP AT THIS RECORD (VOLATILE).** The CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK
-candidate — branch `task/cluster-env-repro-lock`, branched from exact
-`926aba66fcaf2b99fc58685eb202888d8deeaf5f` — **is the SOLE WRITABLE REPOSITORY TASK while its
+**OWNERSHIP AT THIS RECORD (VOLATILE).** **The CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS
+MERGED (PR #46, `cbc22745…` → `e9f9f4f9…`) and its branch `task/cluster-env-repro-lock` is NO
+LONGER WRITABLE.** THIS POST-MERGE CLOSURE candidate — branch
+`task/cluster-env-post-merge-closure`, branched from exact
+`e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b` — **is the SOLE WRITABLE REPOSITORY TASK while its
 own draft PR is open.** The external local R1 remains **RUN-ONLY and owns NO repository
 writes.** **On this candidate's integration NO writable repository task remains**, and none
 may be opened until the future scientific-launch task is EXPLICITLY opened and authorized.
 *(SUPERSEDED as CURRENT state: the ownership statements elsewhere in this document naming the
-post-integration closure candidate as the sole writable task were accurate while its PR — #45,
-now merged — was open.)*
+PR-#45 post-integration closure candidate, and then the PR-#46 reproducibility-lock
+candidate, as the sole writable task were each accurate while that PR was open; BOTH ARE NOW
+MERGED.)*
 
 **THE NEXT ACTION AFTER THIS DOCUMENTATION TASK IS INTEGRATED IS TO OPEN A FRESH ORCHESTRATION
 THREAD, AND THAT THREAD OWNS FIVE ITEMS — ALL OF THEM STILL OPEN AND NONE OF THEM DECIDED
@@ -3802,3 +3837,4 @@ so.
 | 2026-08-31 | **POST-INTEGRATION CLOSURE RECORD OPENED**, because the live documents still described the Task-5 stack as approved-but-unmerged, named the merged doc-lock branch as the sole writable task, and carried an integration sequence marked "RECORDED, NOT PERFORMED" | Both documents are moved from that pre-integration state to the exact integrated state: `CLAUDE.md` records the PR #42 / PR #43 integration SHAs in its §5 header and §7 entries, adds the §7 entry for **PR #44**, and updates §8 to say Tasks 1–5 are ALL integrated; this handoff updates its title, live state, §1, §3l.8, §3m.1, §3m.2, §3m.5 (now **PERFORMED**), §4, §8, §9 and this table. **The temporary closure PR is distinguished from the post-merge state: this candidate is the SOLE writable repository task while its own draft PR is open, and on its integration NO writable repository task remains — while GENERALIZED-V1 stays an ACTIVE phase because R1 is pending.** **Two files only; no source, test, config, preset, benchmark manifest or run artifact touched; no run; no ref moved or deleted; no historical measurement reinterpreted; no result claimed or inferred for R1; this record's own integrating merge SHA is deliberately NOT named** |
 | 2026-08-26 | **TASK-4 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.6–§3l.7 while the live documents still said Task 4 was the next unresolved task, NOT started and NOT authorized, that neither harness selected any generalized policy, and that the sampler, the manifest and run-level persistence were unimplemented | `CLAUDE.md` gains the Task-4 §5 contract, its §4 selector placement, its five §6 routing rows and its §7 lock; its stale "NEITHER HARNESS EXPOSES" wording in the Task-1/2/3 blocks is corrected in place with the superseded text preserved; and the `ReferenceIntegrityError` routing block is rewritten to record the Task-4 decision that was deliberately deferred to it. This handoff records Tasks 1–4 as COMPLETE, §3l.1–§3l.7 as IMPLEMENTED, **GENERALIZED-V1 TASK 4 as CLOSED with no writable implementation task and no candidate under review**, and **Task 5 (bounded runtime / solver validation) as the SINGLE next unresolved step that no documentation record authorizes** (§8). It records explicitly that **no FINAL SCIENTIFIC benchmark scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the comparator, scheduled or authorized**, that **no generalized measurement exists, is running, is scheduled or is authorized**, and that the future actor-only and CTDE arms must use the SAME eventual frozen manifest while the approved historical baselines are REUSED and never rerun. Written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset, benchmark manifest or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
 | 2026-08-31 | **BGU CLUSTER EXECUTION ENVIRONMENT VALIDATED AND RECORDED; CLUSTER ENVIRONMENT / RUNTIME READINESS MOVES FROM DEFERRED TO VALIDATED / READY** against exact `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f`, because cluster access now exists and the environment was independently validated there against that exact SHA with a clean working tree (§3m.6) | A NEW `environment.cluster.yml` records the DIRECT validated surface (`graph_rl_cluster`, conda-forge only + `nodefaults`, Python 3.12.14, NumPy 1.26.4, SciPy 1.17.1, **`pytorch-cpu` 2.13.0**, Pyomo 6.10.1, `coin-or-bonmin` 1.8.9, Gymnasium 0.29.1, Shapely 2.0.6, Haversine 2.9.0) and is deliberately **NOT a transitive lockfile** and deliberately excludes stable-baselines3 / TensorBoard / CUDA / pytest / plotting libraries; vendored BLADE stays a SEPARATE editable install from `src/match_aou/integrations/panopticon-main/gym`. `requirements.txt` stays the broad PYTHON surface but stops CONTRADICTING BLADE — `shapely` is pinned `==2.0.6` to match BLADE's own `install_requires`, the gymnasium floor is kept broad with BLADE's `==0.29.1` extra recorded, and the solver note is corrected to name BONMIN via conda-forge `coin-or-bonmin` instead of suggesting Ipopt/GLPK as substitutes. `CLAUDE.md` §1 now carries TWO execution contexts without contradiction — the PRESERVED local Windows `nlp_env` contract with its existing caveats intact, and the cluster contract with the **LOAD-BEARING `PYTHONNOUSERSITE=1`** isolation rule and the CPU-only PyTorch state — and §2's frozen-BLADE wording now covers both install locations WITHOUT weakening the frozen contract. The handoff gains §3m.6 as VOLATILE operations: the observed `course` QoS limits (`MaxWall 1-00:00:00`, `MaxTRESPU cpu=66 / gres/gpu=1 / mem=64G`, `MaxMemPerCPU 4096 MB`, `DefCpuPerGPU=6`, `MaxNodes=1`), the `sinteractive` conclusion (**no wrapper change needed**; `DefCpuPerGPU` explains the 6-CPU allocation; launch it OUTSIDE the repository), and the note that **no compute-node performance benchmark is a closure gate** because existing engineering evidence already identifies solver/runtime dominance. **THE ENVIRONMENT SMOKE IS ENGINEERING / RUNTIME VALIDATION, NEVER A MEASUREMENT** — the long `graph_train` selftest was EXTERNALLY TERMINATED and **must not be recorded as a full PASS**, and expected fixed-cell attrition and synthetic test tracebacks must not be read as environment failures. **READINESS IS NOT AUTHORIZATION:** no scientific `sbatch` / job-array launcher exists, is designed or is authorized; no partition / queue / walltime decision is made; **no five-run matrix is defined**; **no benchmark manifest is constructed, frozen, committed or approved**; **no CTDE generalized run is authorized**; `p(destroy)` remains `1.0`; and **R1 is UNTOUCHED — still the LOCAL run it was dispatched as, still `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED, with no result stated or inferable.** Historical "cluster readiness is DEFERRED" statements are SUPERSEDED as CURRENT state only and PRESERVED as the records they were. **Four files; ZERO source, test, BLADE, solver, config, preset, benchmark-manifest or run-artifact changes; no run; no ref moved; no historical measurement reinterpreted** |
+| 2026-08-31 | **THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS INTEGRATED, AND THIS POST-MERGE CLOSURE RECORD IS OPENED**, because merging PR #46 made the handoff's own present-tense ownership and base state stale the moment it landed: the document still said the reproducibility-lock candidate was the sole writable task "while its DRAFT PR is open" and still gave the live base as `926aba66…` | **PR #46** — branch `task/cluster-env-repro-lock`, reviewed candidate `cbc227450067d96c630eed208e22b3a5a20efc1b`, GPT verdict **APPROVE**, user-authorized merge — integrated by **NORMAL merge commit `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`** (`2026-08-31 16:40:13 +0300`), whose ordered parents are `926aba66…` then `cbc22745…`, so the reviewed candidate is preserved as its SECOND PARENT and remains reachable; **the integrated tree was verified IDENTICAL to the reviewed tree** (all four files, and the whole tree). **No rebase, no squash, no cherry-pick, no force-push, no amend and no history rewrite.** The merged branch was then safely deleted only after its tip was proven equal to `cbc22745…`, reachable from integrated `main`, and carrying zero commits outside it. This closure record moves the volatile state to its POST-MERGE condition: **live `main` is `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`**, PR #46 is MERGED and no longer writable, and **THIS post-merge closure candidate (`task/cluster-env-post-merge-closure`) is the SOLE WRITABLE REPOSITORY TASK while its draft PR is open, with NO writable repository task remaining after its integration until a future task is explicitly opened.** **The `926aba66…` VALIDATION SHA is deliberately NOT rewritten** — the cluster environment really was validated there, and recording that validation later does not move where it was taken. Preserved unchanged: cluster environment / runtime readiness **VALIDATED / READY** and **NOT scientific authorization**; GENERALIZED-V1 ACTIVE because R1 is pending; Tasks 1–5 integrated; Task 5A / 5B ENGINEERING EVIDENCE ONLY; R1 **`AUTHORIZED / DISPATCHED — RESULT PENDING`** and UNREVIEWED with no result stated or inferable; **no CTDE generalized run authorized**; **no five-run scientific matrix defined**; **no frozen scientific benchmark manifest approved or committed**; **no scientific `sbatch` / job-array launcher exists**; `p(destroy)` remains `1.0` with `p(destroy) < 1` DEFERRED. The five open items for the next fresh orchestration thread are unchanged and remain UNDECIDED. **One file; ZERO source, test, BLADE, solver, config, preset, benchmark-manifest, launcher and run-artifact changes; no run; no ref moved beyond deleting the merged PR-#46 branch; no historical measurement reinterpreted** |
