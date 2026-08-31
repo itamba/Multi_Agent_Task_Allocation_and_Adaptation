@@ -508,8 +508,22 @@ cross-references it rather than duplicating it.
     actor-only-vs-CTDE generalized result exists.** When those two arms are eventually run
     they **MUST use the SAME eventual frozen manifest** — the shared `manifest_id` is what
     makes them comparable. Bounded real-BLADE / BONMIN smokes taken during implementation
-    validation, and the Task-5A / Task-5B validations, are ENGINEERING evidence only: no
-    scientific contract, no seed schedule, no held-out band, no denominator (§3m.3).
+    validation are ENGINEERING evidence only: no
+    scientific contract, no seed schedule, no held-out band, no denominator. **Task 5A and
+    Task 5B are ENGINEERING VALIDATION too, but for a DIFFERENT reason — their DESIGNATED
+    PURPOSE, not an absence of mechanics** (§3m.3): Task 5B really did carry an explicit
+    training seed band `[720000, 720072)`, an explicit benchmark candidate band, PRODUCTION
+    held-out verification, a TRANSIENT frozen manifest and 18 worlds / 54 members for its ONE
+    evaluation round, all of it existing solely to validate system behaviour, attrition and
+    runtime and explicitly NOT designated as the scientific comparator or as a
+    policy-performance measurement. Their binding status stays
+    **`APPROVE — VALID ENGINEERING VALIDATION`**, so **no reward or learning claim, no
+    generalized-performance claim, no actor-vs-CTDE claim, and NO promotion of Task 5B's
+    transient manifest into R1.** *(SUPERSEDED, and corrected here: this sentence previously
+    swept Task 5A / Task 5B into the smokes' "no scientific contract, no seed schedule, no
+    held-out band, no denominator" characterization — too broad, and factually wrong for
+    Task 5B. The engineering-only label is UNCHANGED and rests on designated purpose
+    instead.)*
     *(SUPERSEDED: this bullet previously read "NO generalized scientific measurement exists,
     is running, is scheduled or is authorized" and "No final actor-only or CTDE generalized
     campaign is authorized". Accurate when written; the actor-only R1 has since been
@@ -525,14 +539,22 @@ cross-references it rather than duplicating it.
     are preserved, valid, and measurements of the `fixed_cell_v1` bundle; they are **not to
     be re-run, repaired, resumed or re-tuned**, and they are **NOT** generalized baselines,
     comparators or expectations.
-  - **WHAT IS NEXT.** GENERALIZED-V1 Task 5 is IMPLEMENTED and APPROVED (§3m.1), and the R1
-    long run is DISPATCHED with its RESULT PENDING (§3m.4), so the live next actions are the
-    INTEGRATION of the approved stack under the exact-base re-review discipline of §3m.5 and
-    the INDEPENDENT GPT ARTIFACT REVIEW of R1's eventual artifacts. **No documentation record
+  - **WHAT IS NEXT.** GENERALIZED-V1 **Tasks 1 THROUGH 5 are ALL IMPLEMENTED, REVIEWED,
+    APPROVED and INTEGRATED** (§3m.1, §3m.5), so **NO further implementation or integration
+    action is pending**, and the R1
+    long run is DISPATCHED with its RESULT PENDING (§3m.4). **THE ONE NEXT SCIENTIFIC ACTION
+    IS INDEPENDENT GPT ARTIFACT REVIEW OF THE ACTOR-ONLY R1 WHEN ITS ARTIFACTS EXIST**, and
+    it is NOT an implementation task. **Until that review happens there is NO rerun, NO
+    repair, NO resume, NO extension, NO CTDE arm, NO benchmark replacement and NO retuning**
+    — each would be a separate research decision requiring its own explicit authorization.
+    **No documentation record
     authorizes a merge, a further implementation, a benchmark population, a campaign or a
     run** (§8). *(SUPERSEDED: this bullet previously read "THE SINGLE NEXT UNRESOLVED STEP IS
-    GENERALIZED-V1 TASK 5 … It is NOT started, and this record does NOT authorize it." That
-    was accurate when written.)*
+    GENERALIZED-V1 TASK 5 … It is NOT started, and this record does NOT authorize it", and
+    then that "the live next actions are the INTEGRATION of the approved stack under the
+    exact-base re-review discipline of §3m.5 and the INDEPENDENT GPT ARTIFACT REVIEW of R1's
+    eventual artifacts". Each was accurate when written; that integration has since been
+    PERFORMED, so only the R1 artifact review remains.)*
   - **EARLY STOPPING, RESUME AND CLUSTER — CURRENT CAMPAIGN STATE (§3m.4).** **No reviewed
     early-stopping mechanism exists**; R1 uses a fixed 3000-success budget; **checkpoint
     RESUME is out of scope and `graph_train` is SAVE-only**; any future early stopping is a
@@ -542,8 +564,10 @@ cross-references it rather than duplicating it.
     available — which does **not** block the local actor-only R1 — and no scheduler, queue or
     runbook detail exists or may be invented.
   - **`CLAUDE.md` IS AUTHORITATIVE FOR EVERY TECHNICAL CONTRACT, AND IT NOW RECORDS TASKS 1
-    THROUGH 4.** Their §5 contracts, §4 placements, §6 routing and §7 lock entries are
-    written, because reviewed and integrated behaviour exists for them. **Locks are written
+    THROUGH 5.** Their §5 contracts, §4 placements, §6 routing and §7 lock entries are
+    written, because reviewed and integrated behaviour exists for them — the Task-5 §7
+    entries carry their integration SHAs, and PR #44 has its own. *(SUPERSEDED: this bullet
+    previously read "TASKS 1 THROUGH 4". Accurate at that checkpoint.)* **Locks are written
     PER COMPLETED TASK, never for a design**, which supersedes this document's earlier "only
     at step 6" rule; a FINAL documentation pass is still required after any later
     implementation step lands.
@@ -1930,16 +1954,21 @@ lock and its evidence** — this section does not duplicate them.
   LATER; it is OUT OF SCOPE for the generalized redesign and is not reviewed, compared or
   claimed anywhere in this document — §1.)*
 
-## 3l. GENERALIZED-V1 — the ACTIVE phase: APPROVED DESIGN, **§3l.1–§3l.7 ALL IMPLEMENTED (STEPS 1–4, MERGED); STEP 5 IMPLEMENTED AND APPROVED BUT NOT YET MERGED (§3m)**
+## 3l. GENERALIZED-V1 — the ACTIVE phase: APPROVED DESIGN, **§3l.1–§3l.7 ALL IMPLEMENTED; §3l.8 STEPS 1–5 ALL COMPLETE, REVIEWED AND INTEGRATED (§3m)**
 
 **READ THIS BANNER BEFORE ANY LINE BELOW IT.** This section is the APPROVED DESIGN. As of
 this record:
 
-- **§3l.1–§3l.7 are IMPLEMENTED, REVIEWED and MERGED, to the extent §3l.8 steps 1, 2, 3 and
-  4 represent** — Task 1 (candidate `5b55ca34…`, integration `9b305e4e…`, PR #35), Task 2
+- **§3l.1–§3l.7 are IMPLEMENTED, REVIEWED and MERGED, and §3l.8 STEPS 1 THROUGH 5 ARE ALL
+  COMPLETE, REVIEWED AND INTEGRATED** — Task 1 (candidate `5b55ca34…`, integration
+  `9b305e4e…`, PR #35), Task 2
   (final candidate `185d39f0…`, integration `ca0dc406…`, PR #36), Task 3 (candidate
-  `24a8b1ee…`, integration `df3abf2f…`, PR #38, **APPROVE**) and Task 4 (final candidate
-  `db790138…`, integration `b4daa8c1…`, PR #40, **APPROVE**). **Their technical contracts
+  `24a8b1ee…`, integration `df3abf2f…`, PR #38, **APPROVE**), Task 4 (final candidate
+  `db790138…`, integration `b4daa8c1…`, PR #40, **APPROVE**) and **Task 5** (PR #42
+  `312f5865…` → `5dfcd8b6…`; PR #43 `4af6c5aa…` → `b3c2e01f…`; documentation lock PR #44
+  `88352b2f…` → `9b9e9b85…` — §3m.1, §3m.5). *(SUPERSEDED: this bullet previously read
+  "to the extent §3l.8 steps 1, 2, 3 and 4 represent". Accurate at that checkpoint.)*
+  **Their technical contracts
   are `CLAUDE.md` §4 / §5 / §6 / §7, which is authoritative for them; the prose below is the
   DESIGN they were built from, not a second contract.** The **FOUR low-level policy seams**
   landed as OPT-IN additions whose DEFAULTS are the historical behaviour, and since Task 4
@@ -1962,13 +1991,25 @@ this record:
   negative is scoped deliberately: transient manifests built by tests and engineering
   validation are legitimate, are neither committed nor a scientific population, and
   repository state cannot establish a global negative over local scratch files.)*
-  **§3l.8 step 5 — bounded runtime / solver validation before that scale is selected — is
-  NOT started and is NOT authorized by this record.**
-- **NO generalized scenario campaign, no generalized episode schedule, no frozen benchmark
-  population and NO generalized measurement of any kind exists, is running, is scheduled or
-  is authorized — and no generalized result may be pre-claimed.** Bounded engineering smokes
-  taken during implementation validation are not measurements. **No final actor-only or CTDE
-  generalized campaign is authorized, and no actor-only-vs-CTDE generalized result exists.**
+  **§3l.8 step 5 — bounded runtime / solver validation — is IMPLEMENTED, REVIEWED, APPROVED
+  and INTEGRATED (PR #42, PR #43 and the documentation lock PR #44; §3m.1, §3m.5), and the
+  bounded validation itself was performed and reviewed as Task 5A / Task 5B —
+  `APPROVE — VALID ENGINEERING VALIDATION`, engineering evidence only (§3m.3).**
+  *(SUPERSEDED: this line previously read "is NOT started and is NOT authorized by this
+  record". Accurate at that checkpoint.)*
+- **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS, and no generalized result may be
+  pre-claimed.** Bounded engineering smokes
+  taken during implementation validation are not measurements, and neither are Task 5A /
+  Task 5B (§3m.3). **A first generalized ACTOR-ONLY R1 long run IS authorized and dispatched
+  with its RESULT PENDING and UNREVIEWED** (§3m.4) — dispatch is not a result, and it is
+  neither `RUNNING`, nor `COMPLETED`, nor `VALID`. **No CTDE
+  generalized campaign is authorized, none is running or scheduled, and no
+  actor-only-vs-CTDE generalized result exists.** *(SUPERSEDED, and corrected here: this
+  bullet previously read "NO generalized scenario campaign, no generalized episode schedule,
+  no frozen benchmark population and NO generalized measurement of any kind exists, is
+  running, is scheduled or is authorized" and "No final actor-only … generalized campaign is
+  authorized". Accurate through Task 4; the actor-only R1 and its benchmark construction have
+  since been authorized and dispatched.)*
 
 *(SUPERSEDED, preserved as history: this banner previously read "NONE OF IT IS
 IMPLEMENTED", then that §3l.5 was NOT IMPLEMENTED, then that §3l.6–§3l.7 were NOT
@@ -2165,7 +2206,7 @@ Per accepted episode, the intended observable set is:
 - kills outside the reference;
 - setup rejection reason.
 
-### 3l.8 The bounded implementation sequence — **STEPS 1–4 COMPLETE AND MERGED; STEP 5 IMPLEMENTED AND APPROVED BUT NOT YET MERGED**
+### 3l.8 The bounded implementation sequence — **STEPS 1–5 ALL COMPLETE, REVIEWED AND INTEGRATED**
 
 The approved ORDER, with each step its own separately scoped, separately reviewed task that
 begins only after the previous one is reviewed and integrated:
@@ -2509,9 +2550,13 @@ which carries exactly those four ids; the generalized harness ADDITIONALLY uses 
 generalized cardinality sampler and requires the SEPARATE `fuel_damage_mode` field to be
 `seeded_variable`, neither of which is a policy id on `EpisodeDesign`. **GENERALIZED-V1
 TASK 4 IS CLOSED: its implementation branch and PR are no longer writable or active, and NO
-implementation candidate remains under review.** *(HISTORICAL as of 2026-08-30 — the
-measurement, scale and authorization clauses that follow are SUPERSEDED as CURRENT state by
-§3m.4 and by §1's four-fact block.)* **NO generalized scientific measurement
+implementation candidate remains under review.** *(HISTORICAL as of 2026-08-30, and further
+as of 2026-08-31 — EVERY clause that follows in this preserved paragraph, including its
+measurement, scale and authorization statements AND its "THE SINGLE NEXT UNRESOLVED STEP IS
+GENERALIZED-V1 TASK 5 … NOT started and NOT authorized" clause, is SUPERSEDED as CURRENT
+state by §3m.1, §3m.4, §3m.5 and §1. **Task 5 is now IMPLEMENTED, REVIEWED, APPROVED and
+INTEGRATED (PR #42, PR #43, PR #44), so nothing below may be read as saying its integration
+is still pending.** The text is retained only as the record it was.)* **NO generalized scientific measurement
 exists, is running, is scheduled or is authorized**, **no FINAL SCIENTIFIC benchmark
 worlds-per-cell scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or
 manifest has been committed, preserved as the comparator, scheduled or authorized**, and
@@ -2798,9 +2843,17 @@ that make all of it readable (§3l.7).
   **NO generalized measurement RESULT exists.** A first generalized **ACTOR-ONLY** R1 long
   run IS authorized and dispatched with its result **PENDING and UNREVIEWED** (§3m.4); **no
   CTDE generalized run exists, is scheduled or is authorized.** The bounded real-BLADE /
-  BONMIN smokes taken during each task's validation, and the Task-5A / Task-5B validations
-  (§3m.3), are ENGINEERING evidence only and carry no scientific contract, seed schedule,
-  held-out band or denominator. *(SUPERSEDED: this bullet previously read "No generalized
+  BONMIN smokes taken during each task's validation
+  are ENGINEERING evidence only and carry no scientific contract, seed schedule,
+  held-out band or denominator. **Task 5A and Task 5B are ENGINEERING VALIDATION as well,
+  but on a DIFFERENT ground — their DESIGNATED PURPOSE, not an absence of mechanics**
+  (§3m.3): Task 5B did carry a seed band, a benchmark candidate band, production held-out
+  verification and a transient frozen manifest, and it remains
+  **`APPROVE — VALID ENGINEERING VALIDATION`** with **no reward, learning,
+  generalized-performance or actor-vs-CTDE claim, and its transient benchmark is NOT the R1
+  comparator.** *(SUPERSEDED, and corrected here: this sentence previously folded Task 5A /
+  Task 5B into the smokes' "no scientific contract, seed schedule, held-out band or
+  denominator" characterization — too broad, and factually wrong for Task 5B.)* *(SUPERSEDED: this bullet previously read "No generalized
   world CAMPAIGN has been generated and NO generalized measurement exists, is running, is
   scheduled or is authorized". Accurate when written.)*
 - **THE FOUR LOW-LEVEL POLICY SEAMS ARE OPT-IN, AND SINCE TASK 4 BOTH HARNESSES RESOLVE
@@ -2821,15 +2874,25 @@ that make all of it readable (§3l.7).
   aggregated. *(SUPERSEDED: this bullet previously read "ALL THREE MERGED FAMILIES ARE
   OPT-IN, AND NEITHER HARNESS SELECTS THEM … Nothing persists or aggregates the new
   diagnostic structures. Wiring them up is step 4." That was accurate before PR #40.)*
-- **WHAT IS STILL NOT DECIDED.** **No FINAL SCIENTIFIC benchmark worlds-per-cell SCALE has
-  been SELECTED**, and **no FINAL SCIENTIFIC benchmark POPULATION or manifest has been
-  committed, preserved as the comparator, scheduled or authorized.** No benchmark manifest
+- **WHAT IS DECIDED AND WHAT IS STILL PENDING — FOUR DISTINCT FACTS, AND THEY MUST NOT BE
+  COLLAPSED.** **(1) THE R1 SCIENTIFIC BENCHMARK SCALE IS SELECTED AND AUTHORIZED:
+  `worlds_per_cell = 3`.** **(2) R1 BENCHMARK CONSTRUCTION IS AUTHORIZED AND DISPATCHED**,
+  with benchmark base seed `840000` and `max_candidates_per_cell = 12` (§3m.4). **(3) NO
+  concrete R1 manifest has yet been INDEPENDENTLY REVIEWED or APPROVED as the comparator**,
+  and none is committed or tracked in the repository. **(4) NO generalized scientific
+  measurement RESULT exists**, and no generalized result — including any
+  actor-only-vs-CTDE comparison — may be pre-claimed. *(SUPERSEDED, and corrected here: this
+  bullet was titled "WHAT IS STILL NOT DECIDED" and asserted that no FINAL SCIENTIFIC
+  worlds-per-cell SCALE had been SELECTED and that no benchmark POPULATION had been
+  scheduled or authorized. Both were accurate through Task 4 and are contradicted by facts 1
+  and 2; facts 3 and 4 are what survives of that negative.)* No benchmark manifest
   is committed or tracked in the repository — *a negative scoped deliberately: transient
   manifests built by tests and engineering validation are legitimate, are neither committed
   nor a reviewed comparator, and repository state cannot establish a global negative over
-  local scratch files.* Task 4 delivered the manifest MECHANISM only, and its builder
-  REFUSES to invent a world count; **Task 5 added the production selection caller, and the
-  R1 scale IS selected and its construction IS authorized and dispatched** (§3m.4).
+  local scratch files* — and **Task 5B's transient manifest is NOT the R1 comparator and may
+  never be promoted into one.** Task 4 delivered the manifest MECHANISM only, and its builder
+  REFUSES to invent a world count; **Task 5 added the production selection caller
+  (`run_benchmark_preflight`)**.
   `configs/graph_train/final_cell_probe.json` remains the ONLY repository preset and it is
   `fixed_cell_v1`, so no repository preset selects `generalized_v1`, and **no FINAL
   SCIENTIFIC benchmark/run preset has been committed to the repository.** *(A claim about SCIENTIFIC
