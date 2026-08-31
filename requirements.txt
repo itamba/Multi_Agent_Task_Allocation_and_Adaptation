@@ -1,25 +1,46 @@
 # =============================================================================
 # Multi-Agent Task Allocation & Adaptation - Dependencies
 # =============================================================================
+#
+# THIS FILE IS THE PYTHON DEPENDENCY SURFACE, NOT AN EXACT ENVIRONMENT LOCK.
+# It stays deliberately broad wherever no locked compatibility reason exists.
+#
+# The VALIDATED BGU Slurm cluster environment and its exact pinned versions live
+# in `environment.cluster.yml` (Conda, conda-forge only). That file — not this
+# one — owns the validated cluster versions. See CLAUDE.md §1 for the two
+# execution contexts (local Windows `nlp_env`, and cluster `graph_rl_cluster`).
+# =============================================================================
 
 # Core scientific computing
 numpy>=1.21.0
 scipy>=1.7.0
 
 # Deep learning (Graph Transformer policy + PPO)
+# The validated cluster environment uses a CPU build; GPU is not required.
 torch>=2.0.0
 
 # Optimization (MATCH-AOU MINLP solver)
 pyomo>=6.0
-# Note: Pyomo requires a solver backend. Install one of:
-#   conda install -c conda-forge ipopt
-#   apt-get install coinor-libipopt-dev   (then: pip install cyipopt)
-#   conda install -c conda-forge glpk     (for GLPK)
-# The project uses 'bonmin' by default.
+#
+# BONMIN IS A NON-PIP SOLVER DEPENDENCY AND CANNOT BE INSTALLED BY pip.
+# Pyomo only drives it; the `bonmin` executable must be on PATH separately.
+# The project solves with BONMIN — not Ipopt and not GLPK, which are NOT
+# substitutes for it. The validated cluster environment obtains it from
+# conda-forge:
+#   conda install -c conda-forge coin-or-bonmin
+# (Windows/local: it ships inside the `nlp_env` conda environment.)
 
-# Simulation environment (BLADE / Panopticon)
+# Simulation environment (BLADE / Panopticon, vendored under
+# src/match_aou/integrations/panopticon-main/gym and installed editable)
+# BLADE's own `gym` extra names gymnasium==0.29.1, which is the version the
+# validated cluster environment pins. The floor below is kept broad because the
+# approved local Windows measurements ran a later gymnasium; do not narrow it
+# without a reviewed reason.
 gymnasium>=0.28.0
 
 # Geospatial
-shapely>=2.0.0
+# shapely is pinned EXACTLY because the vendored BLADE engine declares
+# `install_requires=["shapely==2.0.6"]`. A looser floor here would permit a
+# version BLADE forbids, so this pin follows BLADE rather than leading it.
+shapely==2.0.6
 haversine>=2.8.0

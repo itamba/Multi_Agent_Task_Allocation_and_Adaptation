@@ -1,0 +1,95 @@
+# =============================================================================
+# Multi-Agent Task Allocation & Adaptation
+# BGU Slurm cluster reference environment
+# =============================================================================
+#
+# WHAT THIS FILE IS: a small, human-maintainable record of the DIRECT dependency
+# surface that was validated on the BGU Linux/Slurm cluster against repository
+# SHA 926aba66fcaf2b99fc58685eb202888d8deeaf5f.
+#
+# WHAT THIS FILE IS NOT: a full transitive lockfile. It deliberately does NOT
+# enumerate the `conda list --explicit` closure, and it deliberately omits
+# packages that are not part of this project's direct surface (for example
+# stable-baselines3, TensorBoard, CUDA toolkit/runtime, plotting libraries and
+# test runners). `requirements.txt` remains the broader Python dependency
+# surface; THIS file owns the exact validated cluster versions.
+#
+# LOCAL WINDOWS EXECUTION IS A SEPARATE, STILL-VALID CONTEXT and is NOT
+# described here — see CLAUDE.md §1 for the `nlp_env` contract.
+#
+# -----------------------------------------------------------------------------
+# CREATE
+# -----------------------------------------------------------------------------
+#   conda env create -f environment.cluster.yml
+#   conda activate graph_rl_cluster
+#
+# -----------------------------------------------------------------------------
+# THEN INSTALL THE VENDORED BLADE ENGINE (REQUIRED, and deliberately NOT a pip
+# entry below — a relative editable path in a YAML resolves against the caller's
+# working directory, not against this file, which makes it fragile):
+# -----------------------------------------------------------------------------
+#   pip install -e src/match_aou/integrations/panopticon-main/gym
+#
+# Run that from the repository root. BLADE's own setup.py declares
+# `install_requires=["shapely==2.0.6"]`, which the shapely pin below matches
+# exactly. Install it WITHOUT the `[gym]` extra: that extra additionally pins
+# stable-baselines3, which this project does not use. The gymnasium pin below
+# matches the version that extra names.
+#
+# The BLADE engine is FROZEN (CLAUDE.md §2). Installing it editable is what makes
+# `import blade` resolve to the vendored fork at
+# src/match_aou/integrations/panopticon-main/gym/blade/__init__.py
+#
+# -----------------------------------------------------------------------------
+# LOAD-BEARING CLUSTER ISOLATION RULE
+# -----------------------------------------------------------------------------
+# Every cluster validation and scientific command MUST set PYTHONNOUSERSITE=1.
+# Without it, an unrelated user-site PyTorch under ~/.local was observed to
+# SHADOW this environment. With user-site disabled, PyTorch resolves inside
+# graph_rl_cluster.
+#
+#   PYTHONNOUSERSITE=1 conda run -n graph_rl_cluster --no-capture-output python ...
+#
+# -----------------------------------------------------------------------------
+# PYTORCH IS CPU-ONLY BY DESIGN HERE
+# -----------------------------------------------------------------------------
+# `pytorch-cpu` is the conda-forge-native way to constrain PyTorch to a CPU build
+# without silently pulling a CUDA runtime. (`cpuonly` is NOT usable here: it is
+# published on the `pytorch` channel, which this conda-forge-only environment
+# excludes.) GPU execution is neither validated nor required by this record.
+# =============================================================================
+
+name: graph_rl_cluster
+
+channels:
+  - conda-forge
+  - nodefaults
+
+dependencies:
+  # --- interpreter -----------------------------------------------------------
+  - python=3.12.14
+
+  # --- install tooling -------------------------------------------------------
+  - pip
+  - setuptools
+  - wheel
+
+  # --- core scientific computing --------------------------------------------
+  - numpy=1.26.4
+  - scipy=1.17.1
+
+  # --- deep learning (Graph Transformer policy + PPO), CPU build -------------
+  - pytorch-cpu=2.13.0
+
+  # --- optimization: MATCH-AOU MINLP (Pyomo -> BONMIN) -----------------------
+  # BONMIN is a non-pip solver dependency and MUST come from conda-forge.
+  - pyomo=6.10.1
+  - coin-or-bonmin=1.8.9
+
+  # --- simulation environment (vendored BLADE / Panopticon) ------------------
+  # BLADE itself is installed editable from the repository — see the header.
+  - gymnasium=0.29.1
+
+  # --- geospatial ------------------------------------------------------------
+  - shapely=2.0.6
+  - haversine=2.9.0

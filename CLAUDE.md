@@ -92,17 +92,54 @@ cleanup began) — **this document describes the graph model only.**
   `CLAUDE_MOUNTED_MAIN` CC supplies focused changed hunks and targeted test evidence on
   request — required for Grade A. Otherwise return targeted run output and direct answers
   only, and put a genuinely long report in the repo.
-- **Environment:** Windows + PyCharm terminal + `nlp_env` conda env, Python 3.10+. Avoid POSIX-only idioms; use Python/PowerShell equivalents. Run from repo root.
-- **`pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env`.
-- **`blade` and `gymnasium` DO resolve in the base env** (measured at `dd14ab4`): `import blade` returns the SAME vendored fork the editable install points at (`src/match_aou/integrations/panopticon-main/gym/blade/__init__.py`), and `gymnasium` imports cleanly. This CLOSES the former "is the base env the same fork?" question — a base-env test may build a `Game`, `gymnasium.make("blade/BLADE-v0", …)` and `env.reset()`, which is what lets `tests/test_graph_setup_seam.py`'s BLADE tier run under plain `pytest`. **The missing base-env dependency is BONMIN, not BLADE**: `shutil.which("bonmin")` is `None` in the base env and `…/envs/nlp_env/Library/bin/bonmin.EXE` under `nlp_env`. Nothing here relaxes the solver rule below — anything that SOLVES still runs under `nlp_env`.
-- **🛑 Solver/bonmin commands MUST run under `nlp_env`** (`conda run -n nlp_env ...`; add `--no-capture-output` to avoid Windows cp1255 re-encode crashes on Unicode prints). The base env lacks `bonmin` and fails **silently** (exits 0). **Never trust the exit code alone** — verify no `CRASH`/`Traceback` and that the run actually solved before claiming success.
+- **Environment — TWO VALIDATED EXECUTION CONTEXTS, and BOTH are CURRENT.** The LOCAL
+  Windows context is the historical one **every approved measurement to date was taken
+  on**, and it is unchanged. The BGU Slurm cluster context beside it was validated LATER,
+  against exact `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f`. **Neither supersedes
+  the other.** Establish which context you are in FIRST, then use only that context's
+  commands — the two have different environment names, different interpreters and different
+  isolation rules, and mixing them silently produces a run in the wrong environment.
+- **LOCAL context:** Windows + PyCharm terminal + `nlp_env` conda env, Python 3.10+. Avoid POSIX-only idioms; use Python/PowerShell equivalents. Run from repo root.
+- **LOCAL — `pytest` is NOT installed in `nlp_env`** — it lives in the base env, so `python -m pytest` under `nlp_env` fails with `No module named pytest`. Solver-free suites can be run with the base-env `pytest`; test files carrying a `__main__` runner (e.g. `tests/test_graph_train.py`) should ALSO be run directly under `nlp_env`.
+- **LOCAL — `blade` and `gymnasium` DO resolve in the base env** (measured at `dd14ab4`): `import blade` returns the SAME vendored fork the editable install points at (`src/match_aou/integrations/panopticon-main/gym/blade/__init__.py`), and `gymnasium` imports cleanly. This CLOSES the former "is the base env the same fork?" question — a base-env test may build a `Game`, `gymnasium.make("blade/BLADE-v0", …)` and `env.reset()`, which is what lets `tests/test_graph_setup_seam.py`'s BLADE tier run under plain `pytest`. **The missing base-env dependency is BONMIN, not BLADE**: `shutil.which("bonmin")` is `None` in the base env and `…/envs/nlp_env/Library/bin/bonmin.EXE` under `nlp_env`. Nothing here relaxes the solver rule below — anything that SOLVES still runs under `nlp_env`.
+- **🛑 LOCAL — Solver/bonmin commands MUST run under `nlp_env`** (`conda run -n nlp_env ...`; add `--no-capture-output` to avoid Windows cp1255 re-encode crashes on Unicode prints). The base env lacks `bonmin` and fails **silently** (exits 0). **Never trust the exit code alone** — verify no `CRASH`/`Traceback` and that the run actually solved before claiming success.
+- **BGU CLUSTER context:** Linux + Slurm + the `graph_rl_cluster` conda env, **Python
+  3.12.14**, validated against exact `main` SHA
+  `926aba66fcaf2b99fc58685eb202888d8deeaf5f` with a clean working tree. Its DIRECT
+  dependency surface is owned by **`environment.cluster.yml`** (conda-forge only, no
+  defaults) — NumPy 1.26.4, SciPy 1.17.1, PyTorch 2.13.0 (**CPU build**), Pyomo 6.10.1,
+  `coin-or-bonmin` 1.8.9, Gymnasium 0.29.1, Shapely 2.0.6, Haversine 2.9.0. The vendored
+  BLADE engine is installed EDITABLE from
+  `src/match_aou/integrations/panopticon-main/gym`, and `import blade` was confirmed to
+  resolve to that vendored fork's `blade/__init__.py`. **The validated environment is
+  CPU-only: GPU execution is NOT validated and is NOT required by this record**, so do
+  not infer a GPU requirement, a CUDA dependency or a GPU-shaped run from it.
+- **🛑 CLUSTER — every cluster validation and scientific command MUST set
+  `PYTHONNOUSERSITE=1`.** This is LOAD-BEARING, not hygiene: without it an unrelated
+  user-site PyTorch under `~/.local` was OBSERVED to SHADOW the conda environment, so the
+  run would import a torch the environment never declared. With user-site disabled,
+  PyTorch resolves inside `graph_rl_cluster`. Example:
+  `PYTHONNOUSERSITE=1 conda run -n graph_rl_cluster --no-capture-output python -m ...`.
+- **🛑 CLUSTER — solver/bonmin commands run under `graph_rl_cluster`** (the exact
+  counterpart of the LOCAL `nlp_env` rule above, and it does NOT relax it). Validated at
+  that SHA: the project imports succeeded, BLADE resolved from the vendored editable
+  checkout, Pyomo's `SolverFactory("bonmin")` reported available, and a small MINLP solved
+  through Pyomo → BONMIN with `termination_condition == optimal`. **Never trust the exit
+  code alone here either.**
+- **What that cluster smoke IS and IS NOT.** It is ENGINEERING / RUNTIME validation of the
+  environment — **never scientific evidence, and no result may be drawn from it.** The
+  real `graph_train` selftest progressed through real BONMIN allocation, BLADE execution,
+  fuel-damage/reward processing and a real PPO update, but the long selftest process was
+  **externally terminated**, so it must **NOT** be recorded as a full PASS. When reading
+  cluster output, do not convert **expected fixed-cell episode attrition** or **synthetic
+  test tracebacks** into environment failures — they are neither.
 
 ---
 
 ## 2. Do NOT touch without explicit discussion
 
 ### 🛑 BLADE engine (vendored Panopticon fork) — FROZEN
-`Game.py`, `Scenario.py`, `Side.py`, `blade.py`, `weaponEngagement.py`, `Airbase.py`, `Aircraft.py`, `Facility.py`, `Weapon.py`, `Ship.py`, `ReferencePoint.py`, `PlaybackRecorder.py` — do not refactor/reformat/"improve". If the API changes, discuss the upgrade path first. The engine is editable-installed into `nlp_env` (`pip install -e …/panopticon-main/gym`), so `import blade` resolves to the edited vendored engine.
+`Game.py`, `Scenario.py`, `Side.py`, `blade.py`, `weaponEngagement.py`, `Airbase.py`, `Aircraft.py`, `Facility.py`, `Weapon.py`, `Ship.py`, `ReferencePoint.py`, `PlaybackRecorder.py` — do not refactor/reformat/"improve". If the API changes, discuss the upgrade path first. The engine is editable-installed into the ACTIVE environment of whichever execution context you are in (`pip install -e …/panopticon-main/gym`) — `nlp_env` LOCALLY, `graph_rl_cluster` on the BGU cluster (§1) — so in BOTH contexts `import blade` resolves to the edited vendored engine at `src/match_aou/integrations/panopticon-main/gym/blade/__init__.py`. **That is an INSTALL-LOCATION fact and it does not weaken the FROZEN contract by one inch**: the engine's source stays frozen in every context. Install it WITHOUT the `[gym]` extra — that extra additionally pins `stable-baselines3`, which this project does not use; BLADE's own `install_requires` is `shapely==2.0.6`, which `requirements.txt` and `environment.cluster.yml` both match exactly.
 
 **Load-bearing additive `Game.py` edits (graph executor depends on these):**
 - `Game.handle_aircraft_attack(aircraft_id, target_id)` 2-arg form: `weapon_id` → highest-engagement-range weapon; `weapon_quantity` → 2 (keeps "one ATTACK step ⇒ target destroyed"). 4-arg callers unchanged.

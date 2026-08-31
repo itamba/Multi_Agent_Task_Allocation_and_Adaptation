@@ -134,6 +134,16 @@ generalized result exists.** **The NEXT action is NOT another implementation tas
 INDEPENDENT GPT ARTIFACT REVIEW of the actor-only R1 when its artifacts exist** (§8) — until
 then no rerun, no repair, no resume, no extension, no CTDE arm, no benchmark replacement and
 no retuning, each of which would need its own research decision and authorization.
+**CLUSTER ENVIRONMENT / RUNTIME READINESS IS NOW VALIDATED / READY** against exact `main`
+SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f` — `graph_rl_cluster`, Python 3.12.14,
+CPU PyTorch, vendored BLADE editable, a Pyomo → BONMIN `optimal` smoke, and the LOAD-BEARING
+`PYTHONNOUSERSITE=1` isolation rule (§3m.6, `CLAUDE.md` §1, `environment.cluster.yml`). This
+SUPERSEDES, as CURRENT state only, every "cluster readiness is DEFERRED / cluster access is
+not available" statement in this document — each of which remains accurate as the record it
+was. **READINESS IS NOT AUTHORIZATION:** the validated environment authorizes NO run, NO
+campaign and NO launcher; **no scientific `sbatch` / job-array launcher exists, is designed or
+is authorized**; the observed Slurm `course` limits are VOLATILE observed policy rather than a
+software contract; and R1 is unaffected — it remains the LOCAL run it was dispatched as.
 
 **THE PRECEDING LIVE STATE (2026-08-30), PRESERVED AS THE RECORD IT WAS AND SUPERSEDED WHERE
 THE PARAGRAPH ABOVE SAYS SO.** The ACTIVE phase is still **GENERALIZED-V1**, and
@@ -560,9 +570,17 @@ cross-references it rather than duplicating it.
     RESUME is out of scope and `graph_train` is SAVE-only**; any future early stopping is a
     SEPARATE research / design decision and **must not select against the same final benchmark
     without an explicit validation / test design**, and none of it is implemented or
-    authorized here. **Cluster campaign readiness is DEFERRED** because cluster access is not
-    available — which does **not** block the local actor-only R1 — and no scheduler, queue or
-    runbook detail exists or may be invented.
+    authorized here. **CLUSTER ENVIRONMENT / RUNTIME READINESS IS NO LONGER DEFERRED: IT IS
+    VALIDATED / READY FOR EXECUTION** against exact `main` SHA
+    `926aba66fcaf2b99fc58685eb202888d8deeaf5f` (§3m.6). *(SUPERSEDED as CURRENT state: this
+    bullet previously read "**Cluster campaign readiness is DEFERRED** because cluster access
+    is not available — which does not block the local actor-only R1 — and no scheduler, queue
+    or runbook detail exists or may be invented." That was accurate while access did not
+    exist; access now exists and the environment has been validated.)* **READINESS IS NOT
+    AUTHORIZATION.** A validated environment says a job COULD run there; it authorizes NO
+    run, NO scientific launcher and NO campaign. **No scientific `sbatch` / job-array
+    launcher exists, none is designed and none is authorized**, and the observed Slurm quotas
+    in §3m.6 are VOLATILE operational observations, not a software contract.
   - **`CLAUDE.md` IS AUTHORITATIVE FOR EVERY TECHNICAL CONTRACT, AND IT NOW RECORDS TASKS 1
     THROUGH 5.** Their §5 contracts, §4 placements, §6 routing and §7 lock entries are
     written, because reviewed and integrated behaviour exists for them — the Task-5 §7
@@ -2488,9 +2506,19 @@ final benchmark without an explicit validation / test design** — stopping on t
 would make the comparator part of the training signal. **It is not implemented here and is
 not authorized here.**
 
-**CLUSTER READINESS IS DEFERRED**, because cluster access is not currently available. **This
-does NOT block the local actor-only R1.** No scheduler, queue, partition or runbook detail
-exists, and none may be invented.
+**CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY FOR EXECUTION** against exact
+`main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f` — the detail is §3m.6.
+*(SUPERSEDED as CURRENT state: this paragraph previously read "**CLUSTER READINESS IS
+DEFERRED**, because cluster access is not currently available. **This does NOT block the local
+actor-only R1.** No scheduler, queue, partition or runbook detail exists, and none may be
+invented." Every word of that was accurate while cluster access did not exist; access now
+exists and the environment has been validated. The historical "deferred" statements elsewhere
+in this document remain the records they were.)* **IT CHANGES NOTHING ABOUT R1**, which
+remains the LOCAL run it was dispatched as, still `AUTHORIZED / DISPATCHED — RESULT PENDING`
+and still UNREVIEWED. **READINESS IS NOT AUTHORIZATION:** no scientific `sbatch` / job-array
+launcher exists, none is designed, none is reviewed and none is authorized; no scientific run
+is scheduled on the cluster; and **no partition, queue, walltime or resource choice for any
+future scientific job is decided here.**
 
 **`p(destroy)` REMAINS `1.0`; `p(destroy) < 1` REMAINS DEFERRED** (§3l.3, §6).
 
@@ -2523,6 +2551,89 @@ step.** Every integration is a normal merge commit that preserves its reviewed c
 an ancestor / merge parent, and in all three cases the integrated tree was verified equal to
 the reviewed tree, so **all three candidate commits remain reachable through normal merge
 history.**
+
+### 3m.6 BGU cluster execution environment — VALIDATED / READY (VOLATILE OPERATIONS)
+
+**THIS SUBSECTION IS VOLATILE OPERATIONAL STATE, NOT A SOFTWARE CONTRACT.** The durable
+environment contract lives in `CLAUDE.md` §1 and in `environment.cluster.yml`; the Slurm
+numbers below are **OBSERVED CLUSTER POLICY that may change without notice**, and they are
+recorded so a future launch design starts from measurement rather than from guesswork.
+
+**READINESS IS NOT AUTHORIZATION.** Everything here says a job COULD run on the cluster. It
+authorizes **no run, no campaign, no launcher and no scientific decision.**
+
+**VALIDATED ENVIRONMENT IDENTITY**, observed against exact `main` SHA
+`926aba66fcaf2b99fc58685eb202888d8deeaf5f`, with the cluster checkout's `HEAD` equal to
+`origin/main` and the working tree CLEAN at the final environment smoke:
+
+- conda env **`graph_rl_cluster`**, Linux / BGU Slurm, rebuilt core from **conda-forge only**;
+- **Python 3.12.14**; NumPy 1.26.4; SciPy 1.17.1; **PyTorch 2.13.0, CPU build**; Pyomo 6.10.1;
+  **`coin-or-bonmin` 1.8.9**; Gymnasium 0.29.1; Shapely 2.0.6; Haversine 2.9.0;
+- the direct surface is owned by **`environment.cluster.yml`**, which is a small reference
+  environment and deliberately **NOT** a full transitive lockfile;
+- **the validated environment is CPU-only. GPU execution is NOT validated and NOT required**,
+  so no GPU requirement may be inferred from this record.
+
+**VENDORED BLADE — EDITABLE, FROM THE REPOSITORY.** Installed editable from
+`src/match_aou/integrations/panopticon-main/gym`, and `import blade` was confirmed to resolve
+to that vendored fork's `blade/__init__.py`. BLADE's `setup.py` pins `shapely==2.0.6`, which
+the cluster environment matches exactly. **BLADE stays FROZEN** (`CLAUDE.md` §2) and was not
+modified.
+
+**🛑 `PYTHONNOUSERSITE=1` IS MANDATORY FOR EVERY CLUSTER VALIDATION AND SCIENTIFIC
+COMMAND, AND IT IS LOAD-BEARING.** Without it, an unrelated user-site PyTorch under
+`~/.local` was **OBSERVED to SHADOW** the conda environment — the run would import a torch
+the environment never declared. With user-site disabled, PyTorch resolved inside
+`graph_rl_cluster`. This is the single most easily lost fact in this subsection.
+
+**ENVIRONMENT SMOKE — ENGINEERING / RUNTIME VALIDATION, NEVER SCIENTIFIC EVIDENCE.** Observed:
+project imports succeeded; BLADE resolved from the vendored editable checkout; Pyomo's
+`SolverFactory("bonmin")` reported available; and a small MINLP solved through
+Pyomo → BONMIN with `termination_condition == optimal`. The real `graph_train` selftest
+progressed through real BONMIN allocation, BLADE execution, fuel-damage / reward processing
+and a real PPO update **before the long selftest process was EXTERNALLY TERMINATED** — so it
+**MUST NOT be recorded as a full PASS**, and no completion may be inferred from it.
+**No reward, learning, convergence, attrition or performance claim may be drawn from any of
+this**, and it is emphatically not a measurement.
+
+**TWO READING RULES FOR CLUSTER OUTPUT, both of which prevent a false alarm.** Do **NOT**
+convert **expected fixed-cell episode attrition** into an environment failure — B2
+exact-cardinality and fuel-window failures are EXPECTED SCIENTIFIC OUTCOMES of the current
+contract (`CLAUDE.md` §8). Do **NOT** convert **synthetic test tracebacks** into an
+environment failure either — several suites deliberately INJECT faults and print tracebacks
+on the passing path.
+
+**OBSERVED SLURM LIMITS — `course` ACCOUNT / QoS, OBSERVED 2026-08-31, VOLATILE.** Recorded as
+a handoff for a future launch design, and explicitly **not** a permanent compatibility
+guarantee:
+
+| Observed | Value |
+|---|---|
+| usable account / QoS | `course` |
+| `course` QoS `MaxWall` | `1-00:00:00` (24 h per job) |
+| `MaxTRESPU` | `cpu=66`, `gres/gpu=1`, `mem=64G` |
+| `course` partition `MaxMemPerCPU` | 4096 MB |
+| `course` partition `JobDefaults` | `DefCpuPerGPU=6` |
+| `course` partition `MaxNodes` | 1 |
+
+**`sinteractive` — INSPECTED, NO CHANGE REQUIRED.** It does **not** itself rewrite a 1-CPU
+request into 6 CPUs; **`DefCpuPerGPU=6` explains the 6-CPU allocation when one GPU is
+requested.** **No change to the global `sinteractive` wrapper is required.** It does create a
+temporary `interactive.sbatch` in its current working directory, **so launch it OUTSIDE the
+repository** to avoid dropping a stray file into the tree.
+
+**NO COMPUTE-NODE PERFORMANCE BENCHMARK IS REQUIRED AS A CLOSURE GATE.** Existing engineering
+evidence already identifies solver / runtime dominance sufficiently for the current planning
+decision (§3m.3: BONMIN dominated runtime, `A4-high` showed very large variance, and one
+legitimate training solve of roughly 998 s terminated `optimal` — which is exactly why **no
+short solver timeout was adopted**). A benchmark may still be chosen later as a design input;
+it is **not** a prerequisite for closing this environment record.
+
+**WHAT STILL DOES NOT EXIST ON THE CLUSTER.** **No scientific `sbatch` script, no job array,
+no launcher, no queue/partition/walltime decision and no monitoring runbook** — none is
+written, designed, reviewed or authorized, and **none may be invented from this record.** The
+dispatched actor-only R1 is unaffected: it remains the LOCAL run it was dispatched as, still
+`AUTHORIZED / DISPATCHED — RESULT PENDING` and still UNREVIEWED.
 
 ## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED; THE POST-INTEGRATION CLOSURE CANDIDATE IS THE SOLE WRITABLE TASK WHILE ITS PR IS OPEN; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
 
@@ -3298,7 +3409,7 @@ obligations and bounded implementation/lock task.
 | The GENERALIZED-V1 TASK-5 STACK is INTEGRATED (§3m.5) — **DONE (2026-08-30/31)** *(this row previously read "NOT DONE; NO MERGE IS AUTHORIZED BY ANY DOCUMENTATION RECORD"; the merges were separately authorized and have since been performed)* | The nine-step sequence was PERFORMED exactly as planned: merged PR #42 (→ `5dfcd8b632be8dca3c1730018bbf35337d07f077`), refreshed the exact live `main`, RETARGETED PR #43 to `main` and **exact-base re-reviewed it before merging** — changing a PR's base invalidates a base-relative verdict even though the candidate SHA is unchanged — then merged the unchanged approved head (→ `b3c2e01f130afe854b09384cd6e1e196de714795`), refreshed `main`, retargeted and re-reviewed the documentation candidate, and merged it unchanged (→ `9b9e9b85a70c8a0019c72ada92ceec3401725795`, PR #44). **No rebase, no squash, no cherry-pick, no force-push, no history rewrite** occurred; every integration is a normal merge commit preserving its reviewed commit as an ancestor / merge parent, with the integrated tree verified equal to the reviewed tree. Each integration SHA is recorded here, per §7's hash convention, by the first record able to name it |
 | The DISPATCHED GENERALIZED ACTOR-ONLY R1 completes — **DISPATCHED; RESULT PENDING; UNREVIEWED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Nothing may be recorded before independent GPT artifact review, and no reward, convergence or validity claim may be pre-stated. VALIDITY IS JUDGED BEFORE PERFORMANCE; a null or negative result is a valid observation, not a technical failure and not grounds to re-tune, re-seed or re-run.** The requested-vs-realized hidden-cardinality inspection stays a HUMAN / GPT decision — the code reports the distribution and applies no threshold |
 | A future EARLY-STOPPING mechanism is proposed — **NOT IMPLEMENTED, NOT REVIEWED, NOT AUTHORIZED** | It is a SEPARATE research / design decision with its own proof obligations. **It must not select against the same final benchmark without an explicit validation / test design** — stopping on the comparator makes the comparator part of the training signal. Checkpoint RESUME remains out of scope; `graph_train` is SAVE-only. R1 uses a fixed 3000-success budget |
-| CLUSTER campaign readiness — **DEFERRED; cluster access is not available** | Not a blocker for the local actor-only R1. **Invent no scheduler, queue, partition or runbook detail**; record it only once real access and a reviewed design exist |
+| CLUSTER ENVIRONMENT / RUNTIME readiness — **VALIDATED / READY at `926aba66…` (§3m.6)**; CLUSTER CAMPAIGN readiness — **STILL NOT AUTHORIZED** *(this row previously read "DEFERRED; cluster access is not available", accurate while that was so)* | Record the validated `graph_rl_cluster` identity, the mandatory `PYTHONNOUSERSITE=1` isolation rule, the BLADE editable path and the Pyomo→BONMIN `optimal` smoke as **ENGINEERING / RUNTIME validation, never a measurement** — and record the observed Slurm `course` limits as **VOLATILE observed policy**, in the handoff and NOT as a `CLAUDE.md` software contract. **READINESS IS NOT AUTHORIZATION:** still **invent no scheduler, queue, partition, walltime or runbook decision**, and record a scientific launcher only once one is separately designed, reviewed and authorized |
 | *(HISTORICAL, superseded by the Task-5 row above)* The REMAINING GENERALIZED step lands (§3l.8 step 5) — **was NOT STARTED and NOT AUTHORIZED when written** | A separately scoped, separately reviewed bounded task, beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **after reviewed behaviour exists** — never in advance and never for a design. *(SUPERSEDED: this row previously said the records wait for step 6 alone, and later covered steps 4–5; practice is one documentation pass per completed task, step 4 is DONE, and a FINAL pass is still required after any later step lands.)* Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve, the fixed held-out eval band — **all five already addressed by Tasks 1–4 as their own reviewed OPT-IN seams**) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical paths are PRESERVED beside the generalized ones. **Requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting are already first-class observables (§3l.7) — record any change to them without pre-claiming any result** |
 | The FROZEN GENERALIZED BENCHMARK POPULATION is built — **NOT STARTED; the MECHANISM exists since PR #40, the POPULATION and its SCALE do NOT** | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator**. **Task 4 delivered the schema, builder, canonical serialization, content hash, verifying loader, consumer and identity checks; it deliberately did NOT choose the worlds-per-cell scale and did NOT generate, commit or freeze a population, and its builder REFUSES to invent a world count. Choosing the scale comes AFTER §3l.8 step 5's bounded runtime / solver validation.** |
 | The FIRST GENERALIZED scientific measurement completes — **NOT RUN, NOT AUTHORIZED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Validity is judged BEFORE performance; a null or negative generalized result is a valid observation, not a technical failure** |
@@ -3340,14 +3451,50 @@ technical failure and not grounds to re-tune, re-seed or re-run.** **Task 5A and
 ENGINEERING VALIDATION ONLY and establish nothing scientific** (§3m.3). **No CTDE generalized
 run exists, is scheduled or is authorized**, **no reviewed early-stopping mechanism exists**
 (R1 uses a fixed 3000-success budget; checkpoint RESUME is out of scope and `graph_train` is
-SAVE-only), and **cluster readiness is DEFERRED** for want of access — which does not block
-the local R1 (§3m.4).
+SAVE-only), and **CLUSTER ENVIRONMENT / RUNTIME READINESS IS NOW VALIDATED / READY at exact
+`main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f`** (§3m.6) — *(SUPERSEDED as CURRENT
+state: this clause previously read "**cluster readiness is DEFERRED** for want of access —
+which does not block the local R1", which was accurate while access did not exist)*.
+**READINESS IS NOT AUTHORIZATION:** it changes nothing about R1, which remains the LOCAL run
+it was dispatched as, and **no scientific cluster launcher exists, is designed or is
+authorized** (§3m.4, §3m.6).
 
 No other task is next: not the old fixed-cell Task-9 CTDE comparison (superseded in ordering,
 §4), not a review of the previously executed old-contract CTDE measurement (out of scope
 unless the user explicitly asks, §1), and not a re-run of any approved historical baseline
 (prohibited, §6 — the approved baselines are REUSED as what they are, never rerun, repaired,
 resumed or re-tuned).
+
+**OWNERSHIP AT THIS RECORD (VOLATILE).** The CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK
+candidate — branch `task/cluster-env-repro-lock`, branched from exact
+`926aba66fcaf2b99fc58685eb202888d8deeaf5f` — **is the SOLE WRITABLE REPOSITORY TASK while its
+own draft PR is open.** The external local R1 remains **RUN-ONLY and owns NO repository
+writes.** **On this candidate's integration NO writable repository task remains**, and none
+may be opened until the future scientific-launch task is EXPLICITLY opened and authorized.
+*(SUPERSEDED as CURRENT state: the ownership statements elsewhere in this document naming the
+post-integration closure candidate as the sole writable task were accurate while its PR — #45,
+now merged — was open.)*
+
+**THE NEXT ACTION AFTER THIS DOCUMENTATION TASK IS INTEGRATED IS TO OPEN A FRESH ORCHESTRATION
+THREAD, AND THAT THREAD OWNS FIVE ITEMS — ALL OF THEM STILL OPEN AND NONE OF THEM DECIDED
+HERE:**
+
+1. the **exact five-run scientific design**;
+2. **benchmark-manifest identity, freeze and review**;
+3. the **Slurm resource / 24 h-walltime launch decision**;
+4. **scientific `sbatch` / job-array design**;
+5. **launch and monitoring.**
+
+**NOTHING ABOUT THOSE FIVE IS PRE-DECIDED, PRE-DESIGNED OR PRE-AUTHORIZED BY THIS RECORD, AND
+LISTING THEM IS NOT AUTHORIZING THEM.** In particular: **the five-run matrix is NOT defined
+here**; **no benchmark manifest is constructed, frozen, committed or approved as a
+comparator**; **no partition, queue, CPU/memory or walltime choice is made**; **no `sbatch`
+script or job array exists or is designed**; and **no launch is scheduled.** The observed
+Slurm `course` limits in §3m.6 are VOLATILE INPUTS to item 3, never its answer. **A CTDE
+generalized run remains unauthorized**, **`p(destroy)` remains `1.0` with `p(destroy) < 1`
+DEFERRED**, and **R1 stays `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED** —
+independent GPT artifact review of R1 remains the open scientific thread and is NOT displaced
+by this list.
 **THE SCALE / AUTHORIZATION / RESULT STATE IS FOUR DISTINCT FACTS:** **the R1 benchmark SCALE is SELECTED and AUTHORIZED (`worlds_per_cell = 3`) and its
 CONSTRUCTION is AUTHORIZED and DISPATCHED (candidate base seed `840000`,
 `max_candidates_per_cell = 12`); no concrete R1 manifest has yet been independently reviewed
@@ -3618,3 +3765,4 @@ so.
 | 2026-08-31 | **THE WHOLE GENERALIZED-V1 TASK-5 STACK INTEGRATED — A THREE-PR SEQUENCE, ALL MERGED.** **PR #42** `312f58650b61a85eb72d0554d60715afee862a5c` → merge `5dfcd8b632be8dca3c1730018bbf35337d07f077`; **PR #43** `4af6c5aa5dd28072692bfda63282964b55010aae` → merge `b3c2e01f130afe854b09384cd6e1e196de714795`; **PR #44** (the Task-5 documentation lock, append-only child of `61eaa3fe1bdeb7aef3cfb7c10c4d8964caf2ed0e`) `88352b2fc03174e8095d3c7e8a1ef58b60e58e0b` → merge `9b9e9b85a70c8a0019c72ada92ceec3401725795`. PR #43 and PR #44 were each RETARGETED to `main` and **EXACT-BASE RE-REVIEWED** with their heads unchanged | The §3m.5 nine-step sequence was PERFORMED. Every integration is a **normal merge commit** preserving its reviewed candidate as an ancestor / merge parent, with the integrated tree verified equal to the reviewed tree; **no rebase, no squash, no cherry-pick, no force-push and no history rewrite** occurred, so all three candidates remain reachable through normal merge history. **§3l.8 steps 1–5 are now ALL INTEGRATED.** The retired `task/*` Task-5 branches are cleanup-eligible, NOT writable, and were NOT deleted; `flat-final`, `phase-a-baseline`, `pre-ctde-actor-only` and the `pre-cleanup` tag are UNTOUCHED. **R1 remains `AUTHORIZED / DISPATCHED — RESULT PENDING`** — neither `RUNNING`, nor `COMPLETED`, nor `VALID` — and **NO generalized measurement RESULT exists** |
 | 2026-08-31 | **POST-INTEGRATION CLOSURE RECORD OPENED**, because the live documents still described the Task-5 stack as approved-but-unmerged, named the merged doc-lock branch as the sole writable task, and carried an integration sequence marked "RECORDED, NOT PERFORMED" | Both documents are moved from that pre-integration state to the exact integrated state: `CLAUDE.md` records the PR #42 / PR #43 integration SHAs in its §5 header and §7 entries, adds the §7 entry for **PR #44**, and updates §8 to say Tasks 1–5 are ALL integrated; this handoff updates its title, live state, §1, §3l.8, §3m.1, §3m.2, §3m.5 (now **PERFORMED**), §4, §8, §9 and this table. **The temporary closure PR is distinguished from the post-merge state: this candidate is the SOLE writable repository task while its own draft PR is open, and on its integration NO writable repository task remains — while GENERALIZED-V1 stays an ACTIVE phase because R1 is pending.** **Two files only; no source, test, config, preset, benchmark manifest or run artifact touched; no run; no ref moved or deleted; no historical measurement reinterpreted; no result claimed or inferred for R1; this record's own integrating merge SHA is deliberately NOT named** |
 | 2026-08-26 | **TASK-4 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.6–§3l.7 while the live documents still said Task 4 was the next unresolved task, NOT started and NOT authorized, that neither harness selected any generalized policy, and that the sampler, the manifest and run-level persistence were unimplemented | `CLAUDE.md` gains the Task-4 §5 contract, its §4 selector placement, its five §6 routing rows and its §7 lock; its stale "NEITHER HARNESS EXPOSES" wording in the Task-1/2/3 blocks is corrected in place with the superseded text preserved; and the `ReferenceIntegrityError` routing block is rewritten to record the Task-4 decision that was deliberately deferred to it. This handoff records Tasks 1–4 as COMPLETE, §3l.1–§3l.7 as IMPLEMENTED, **GENERALIZED-V1 TASK 4 as CLOSED with no writable implementation task and no candidate under review**, and **Task 5 (bounded runtime / solver validation) as the SINGLE next unresolved step that no documentation record authorizes** (§8). It records explicitly that **no FINAL SCIENTIFIC benchmark scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the comparator, scheduled or authorized**, that **no generalized measurement exists, is running, is scheduled or is authorized**, and that the future actor-only and CTDE arms must use the SAME eventual frozen manifest while the approved historical baselines are REUSED and never rerun. Written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset, benchmark manifest or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
+| 2026-08-31 | **BGU CLUSTER EXECUTION ENVIRONMENT VALIDATED AND RECORDED; CLUSTER ENVIRONMENT / RUNTIME READINESS MOVES FROM DEFERRED TO VALIDATED / READY** against exact `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f`, because cluster access now exists and the environment was independently validated there against that exact SHA with a clean working tree (§3m.6) | A NEW `environment.cluster.yml` records the DIRECT validated surface (`graph_rl_cluster`, conda-forge only + `nodefaults`, Python 3.12.14, NumPy 1.26.4, SciPy 1.17.1, **`pytorch-cpu` 2.13.0**, Pyomo 6.10.1, `coin-or-bonmin` 1.8.9, Gymnasium 0.29.1, Shapely 2.0.6, Haversine 2.9.0) and is deliberately **NOT a transitive lockfile** and deliberately excludes stable-baselines3 / TensorBoard / CUDA / pytest / plotting libraries; vendored BLADE stays a SEPARATE editable install from `src/match_aou/integrations/panopticon-main/gym`. `requirements.txt` stays the broad PYTHON surface but stops CONTRADICTING BLADE — `shapely` is pinned `==2.0.6` to match BLADE's own `install_requires`, the gymnasium floor is kept broad with BLADE's `==0.29.1` extra recorded, and the solver note is corrected to name BONMIN via conda-forge `coin-or-bonmin` instead of suggesting Ipopt/GLPK as substitutes. `CLAUDE.md` §1 now carries TWO execution contexts without contradiction — the PRESERVED local Windows `nlp_env` contract with its existing caveats intact, and the cluster contract with the **LOAD-BEARING `PYTHONNOUSERSITE=1`** isolation rule and the CPU-only PyTorch state — and §2's frozen-BLADE wording now covers both install locations WITHOUT weakening the frozen contract. The handoff gains §3m.6 as VOLATILE operations: the observed `course` QoS limits (`MaxWall 1-00:00:00`, `MaxTRESPU cpu=66 / gres/gpu=1 / mem=64G`, `MaxMemPerCPU 4096 MB`, `DefCpuPerGPU=6`, `MaxNodes=1`), the `sinteractive` conclusion (**no wrapper change needed**; `DefCpuPerGPU` explains the 6-CPU allocation; launch it OUTSIDE the repository), and the note that **no compute-node performance benchmark is a closure gate** because existing engineering evidence already identifies solver/runtime dominance. **THE ENVIRONMENT SMOKE IS ENGINEERING / RUNTIME VALIDATION, NEVER A MEASUREMENT** — the long `graph_train` selftest was EXTERNALLY TERMINATED and **must not be recorded as a full PASS**, and expected fixed-cell attrition and synthetic test tracebacks must not be read as environment failures. **READINESS IS NOT AUTHORIZATION:** no scientific `sbatch` / job-array launcher exists, is designed or is authorized; no partition / queue / walltime decision is made; **no five-run matrix is defined**; **no benchmark manifest is constructed, frozen, committed or approved**; **no CTDE generalized run is authorized**; `p(destroy)` remains `1.0`; and **R1 is UNTOUCHED — still the LOCAL run it was dispatched as, still `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED, with no result stated or inferable.** Historical "cluster readiness is DEFERRED" statements are SUPERSEDED as CURRENT state only and PRESERVED as the records they were. **Four files; ZERO source, test, BLADE, solver, config, preset, benchmark-manifest or run-artifact changes; no run; no ref moved; no historical measurement reinterpreted** |
