@@ -632,6 +632,68 @@ TRAINING_ATTEMPT_POLICIES = (
     TRAINING_ATTEMPT_POLICY_SCHEDULED, TRAINING_ATTEMPT_POLICY_QUOTA,
 )
 
+# GENERALIZED-V1 EARLY STOPPING: one OPT-IN policy over TRAINING reward alone.
+#
+# `training_reward_plateau_v1` ends a run once its TRAINING reward has stopped
+# improving. It is OFF by default -- a run that does not opt in is fixed-budget and
+# behaves exactly as it always did -- and `validate` approves it for `generalized_v1`
+# only.
+#
+# THE STOPPING SIGNAL IS `train_reward_mean` AND NOTHING ELSE. Not a benchmark or
+# held-out reward, not a success or feasibility rate, not a PPO/CTDE diagnostic, not the
+# critic, not a checkpoint, not any final-comparator result. That exclusion is the whole
+# research-validity content of the feature: the frozen benchmark is the COMPARATOR two
+# arms are judged by, so letting it decide when an arm stops training would let each arm
+# pick its own stopping point on the very population the comparison is made over, and
+# the measured difference would no longer be attributable to the training algorithm. The
+# separation is MECHANICAL rather than a convention -- the decision is computed from the
+# iteration's own training record, before any evaluation triggered at that same boundary
+# can run (see `train`), and `_EarlyStoppingMonitor` is handed one number.
+#
+# ACTOR-ONLY AND CTDE SHARE THIS MECHANISM WITH NO MODE-SPECIFIC BRANCH. `training_mode`
+# is not read anywhere in it. Two arms compared under this policy share
+#     the same maximum budget + the same frozen stopping rule
+#     + the same training-population contract,
+# which is deliberately NOT "the same actual number of iterations": the actual count is
+# an OUTCOME of the rule, and forcing the two to match would defeat the rule's purpose.
+#
+# IT DOES NOT ESTABLISH CONVERGENCE. A triggered stop records that the configured
+# plateau rule fired -- never that a global optimum was reached, nor that the training
+# reward has provably converged. Nothing here may be reported as a convergence claim.
+EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU = "training_reward_plateau_v1"
+EARLY_STOPPING_POLICIES = (EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,)
+
+# The ONE quantity the policy reads, named as a constant so "which metric stopped this
+# run?" is a STATED fact in every record rather than something a reader infers. It is
+# the same key `train_records.jsonl` already persists, and the monitor is handed the
+# value read back OFF that record -- one metric path, not two.
+EARLY_STOPPING_METRIC = "train_reward_mean"
+
+# What a due check IS. The first one has no earlier best to improve on and only
+# establishes one; every later one is a comparison against that best. They are named
+# apart so `best_window_mean_before = null` is never read as a measured zero.
+EARLY_STOPPING_CHECK_BASELINE = "baseline"
+EARLY_STOPPING_CHECK_COMPARISON = "comparison"
+EARLY_STOPPING_CHECK_KINDS = (
+    EARLY_STOPPING_CHECK_BASELINE, EARLY_STOPPING_CHECK_COMPARISON,
+)
+
+# The key a DUE check is persisted under inside a training record. Added only on an
+# iteration that really took a check, and never at all on a run with the feature off --
+# ABSENT, not null, which is the discipline the CTDE critic diagnostics already follow.
+_EARLY_STOPPING_RECORD_KEY = "early_stopping_check"
+
+# WHY the training loop ended, recorded in `run_summary.json:/early_stopping`. Three
+# unambiguous values, so "this run is short" is never left to be inferred by comparing
+# two counts.
+TERMINATION_REASON_PLATEAU = "training_reward_plateau"
+TERMINATION_REASON_MAX_BUDGET = "maximum_budget_reached"
+TERMINATION_REASON_DISABLED = "disabled_fixed_budget"
+TERMINATION_REASONS = (
+    TERMINATION_REASON_PLATEAU, TERMINATION_REASON_MAX_BUDGET,
+    TERMINATION_REASON_DISABLED,
+)
+
 # JSON has no comments, so a preset may carry any number of underscore-prefixed keys as
 # prose. Everything else must be a real field name -- an unrecognized key is REFUSED
 # rather than ignored, because a typo that silently leaves a knob at its default is a
@@ -670,6 +732,11 @@ _CLI_FIELD_BY_DEST = {
     "benchmark_manifest": "benchmark_manifest",
     "generalized_max_attempts_per_iteration":
         "generalized_max_attempts_per_iteration",
+    "early_stopping": "early_stopping",
+    "early_stopping_min_iterations": "early_stopping_min_iterations",
+    "early_stopping_window_iterations": "early_stopping_window_iterations",
+    "early_stopping_patience_windows": "early_stopping_patience_windows",
+    "early_stopping_min_delta": "early_stopping_min_delta",
 }
 
 # CLI dest -> PPOConfig field (the nested block).
@@ -875,6 +942,41 @@ class TrainConfig:
     # the quota is full ABORTS the run rather than updating on a partial batch.
     generalized_max_attempts_per_iteration: Optional[int] = None
 
+    # --- GENERALIZED-V1 EARLY STOPPING: opt-in, OFF by default --------------------
+    # `early_stopping` selects `training_reward_plateau_v1`
+    # (:data:`EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU`). OFF, the run is fixed-budget
+    # and every control-flow decision below is exactly the one it always was: no check is
+    # computed, no key is added to a training record, and the loop cannot exit early.
+    #
+    # ON, the run still declares its MAXIMUM budget through `n_iterations`, and every
+    # held-out / seed-band claim is still made against that maximum
+    # (:attr:`max_training_attempts`) rather than against wherever the run happens to
+    # stop. Early stopping changes only what a run ACTUALLY consumes.
+    #
+    # The four parameters below are the approved defaults, and every one of them is a
+    # COMPLETED-ITERATION count, never a zero-based index:
+    #   min_iterations     = 100 : the first monitored check. With 8 successful episodes
+    #                              per iteration, monitoring begins after 800 successful
+    #                              episodes.
+    #   window_iterations  = 25  : each check averages `train_reward_mean` over the most
+    #                              recent 25 completed iterations. Checks fall every 25
+    #                              iterations from `min_iterations`, so the monitored
+    #                              windows are NON-OVERLAPPING and the first 75 completed
+    #                              iterations sit outside every window.
+    #   patience_windows   = 3   : consecutive non-improving windows before stopping, so
+    #                              the earliest possible stop is 100 + 3 x 25 = 175
+    #                              completed iterations (1400 successful episodes at 8
+    #                              per iteration).
+    #   min_delta          = 0.01: the smallest reward gain that counts as a MEANINGFUL
+    #                              improvement. Below it the window is stale.
+    # They are validated only when the feature is enabled -- the unused block may hold
+    # any value on a fixed-budget run, exactly as the unused `ctde` block may.
+    early_stopping: bool = False
+    early_stopping_min_iterations: int = 100
+    early_stopping_window_iterations: int = 25
+    early_stopping_patience_windows: int = 3
+    early_stopping_min_delta: float = 0.01
+
     # --- THE OFFLINE SCENARIO-CONSTRUCTION REFERENCE CELL (B1) ---------------------
     # Stated outright, never derived from a ratio. A CELL, NOT A LAW: a later phase
     # varies these per episode, so nothing downstream may hard-code them.
@@ -1018,6 +1120,33 @@ class TrainConfig:
         ``total_episodes``, so nothing about that path's bands or checks changes.
         """
         return int(self.n_iterations) * int(self.max_attempts_per_iteration)
+
+    # ------------------------------------------------------------------
+    @property
+    def early_stopping_enabled(self) -> bool:
+        """True iff this run may end before its maximum budget.
+
+        THE ONE predicate behind every early-stopping branch in this module, so "is this
+        run early-stopped?" has a single answer and cannot be re-derived (differently) at
+        the loop, the header and the summary. It reads the opt-in flag and nothing else
+        -- notably NOT ``training_mode``: the stopping mechanism is identical under
+        ``actor_only`` and ``ctde``, which is what keeps two arms comparable.
+        """
+        return bool(self.early_stopping)
+
+    @property
+    def early_stopping_earliest_stop_iterations(self) -> int:
+        """The FEWEST completed iterations at which a stop could possibly occur.
+
+        ``min_iterations + patience_windows * window_iterations``: the baseline check,
+        then that many consecutive non-improving windows. At the approved defaults this
+        is ``100 + 3 * 25 = 175``. :meth:`validate` requires ``n_iterations`` to reach it,
+        because a run too short to ever stop would record an ACTIVE stopping policy whose
+        mechanism was structurally inert.
+        """
+        return (int(self.early_stopping_min_iterations)
+                + int(self.early_stopping_patience_windows)
+                * int(self.early_stopping_window_iterations))
 
     @property
     def ctde_enabled(self) -> bool:
@@ -1332,6 +1461,69 @@ class TrainConfig:
                 "labels it never varied."
                 % (self.episode_design, EPISODE_DESIGN_GENERALIZED_V1)
             )
+
+        # --- GENERALIZED-V1 EARLY STOPPING: approved for THIS design only ---
+        # Refused elsewhere rather than quietly tolerated. The approved stopping contract
+        # is a GENERALIZED-V1 one, and a fixed-cell run that ended early would no longer
+        # be the fixed-budget path every approved measurement (CLAUDE.md section 7) was
+        # taken on -- while its records would carry the same schedule fields and read as
+        # though it were. The parameters are checked ONLY when the feature is enabled:
+        # an unused block may hold any value, exactly as the unused `ctde` block may.
+        if self.early_stopping_enabled:
+            if not design.generalized:
+                raise ValueError(
+                    "early_stopping is enabled but episode_design=%r: the "
+                    "%r stopping policy is approved for %r only. A fixed-cell run must "
+                    "stay fixed-budget -- that is the path every approved measurement "
+                    "was taken on, and a run that stopped early would silently be a "
+                    "different training contract under the same record schema."
+                    % (self.episode_design,
+                       EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,
+                       EPISODE_DESIGN_GENERALIZED_V1)
+                )
+            # `bool` is an `int` subclass, so it is rejected explicitly (the same guard
+            # `generalized_max_attempts_per_iteration` carries): `True` silently reading
+            # as a one-iteration window is exactly the kind of value that produces a
+            # plausible-looking wrong stop.
+            for name in ("early_stopping_min_iterations",
+                         "early_stopping_window_iterations",
+                         "early_stopping_patience_windows"):
+                value = getattr(self, name)
+                if isinstance(value, bool) or not isinstance(value, int):
+                    raise ValueError("%s must be an int, got %r" % (name, value))
+                if int(value) < 1:
+                    raise ValueError("%s must be >= 1, got %r" % (name, value))
+            if (int(self.early_stopping_min_iterations)
+                    < int(self.early_stopping_window_iterations)):
+                raise ValueError(
+                    "early_stopping_min_iterations (%d) must be >= "
+                    "early_stopping_window_iterations (%d): the first monitored check "
+                    "averages a FULL window of completed iterations, so a smaller "
+                    "minimum would take that first decision over a partial window."
+                    % (int(self.early_stopping_min_iterations),
+                       int(self.early_stopping_window_iterations))
+                )
+            delta = self.early_stopping_min_delta
+            if isinstance(delta, bool) or not isinstance(delta, (int, float)):
+                raise ValueError(
+                    "early_stopping_min_delta must be a number, got %r" % (delta,))
+            if float(delta) < 0.0:
+                raise ValueError(
+                    "early_stopping_min_delta must be >= 0 (it is the smallest reward "
+                    "GAIN that counts as an improvement), got %r" % (delta,))
+            earliest = self.early_stopping_earliest_stop_iterations
+            if int(self.n_iterations) < earliest:
+                raise ValueError(
+                    "n_iterations (%d) is shorter than the earliest possible stop (%d = "
+                    "min_iterations %d + patience_windows %d x window_iterations %d): "
+                    "this run could never reach a stopping decision, so it would record "
+                    "an ACTIVE stopping policy whose mechanism was structurally inert. "
+                    "Raise n_iterations, or shorten the policy."
+                    % (int(self.n_iterations), earliest,
+                       int(self.early_stopping_min_iterations),
+                       int(self.early_stopping_patience_windows),
+                       int(self.early_stopping_window_iterations))
+                )
 
         # --- the construction cell: shape errors RAISE, before any compute ---
         if int(self.num_agents) < 1:
@@ -3576,6 +3768,26 @@ class TrainingQuotaError(MeasurementIntegrityError):
     It is NOT a verdict on the worlds: an exhausted budget says the attrition rate is
     higher than the operator planned for, which is a scheduling fact to be inspected --
     never a reason to retry a spent seed.
+    """
+
+
+class EarlyStoppingIntegrityError(MeasurementIntegrityError):
+    """A monitored early-stopping window holds an iteration with no training reward.
+
+    GENERALIZED-V1 early stopping. ``train_reward_mean`` is ``None`` only when EVERY
+    attempt of an iteration failed, and under
+    :data:`TRAINING_ATTEMPT_POLICY_QUOTA` -- the only policy this feature is approved
+    for -- that cannot happen: an iteration either fills its quota of SUCCESSFUL
+    episodes or raises :class:`TrainingQuotaError` first. So a ``None`` inside a
+    monitored window means the instrument contradicts its own attempt contract.
+
+    The two alternatives are both wrong. Averaging the window's remaining values would
+    fabricate a window mean over a population nobody chose; treating the missing value
+    as ``0.0`` would insert the ORACLE OPTIMUM into a plateau test and could stop a run
+    by declaring a total data loss the best window it ever saw. A
+    :class:`MeasurementIntegrityError` deliberately, for the same reason the roster,
+    certificate and quota faults are: proceeding would produce convergence evidence
+    about a run whose own records cannot support it.
     """
 
 
@@ -6019,6 +6231,166 @@ def save_checkpoint(
 # 7. The training loop
 # =============================================================================
 
+class _EarlyStoppingMonitor:
+    """The ``training_reward_plateau_v1`` state machine, over TRAINING reward alone.
+
+    PURE: it is handed one number per completed iteration and holds no reference to the
+    policy, the critic, the buffer, the updater, an evaluation record, the benchmark
+    manifest or the config. That is not a stylistic choice -- it is the comparator
+    isolation the policy exists to guarantee, expressed as a type signature: there is no
+    channel through which a held-out or benchmark quantity could reach the decision even
+    by accident (:data:`EARLY_STOPPING_METRIC`).
+
+    THE STATE MACHINE, in COMPLETED-ITERATION counts (never zero-based indices):
+
+      * checks fall at ``min_iterations`` and every ``window_iterations`` afterwards, so
+        with the approved defaults they are 100, 125, 150, 175, ...;
+      * each check averages the most recent ``window_iterations`` values, so consecutive
+        monitored windows do NOT overlap and the first ``min_iterations -
+        window_iterations`` completed iterations (75 at the defaults) fall outside every
+        window;
+      * the FIRST check only establishes the best window mean and cannot stop
+        (``patience_windows >= 1``);
+      * a later window is a MEANINGFUL improvement iff
+        ``window_mean >= best_window_mean + min_delta``. It then becomes the new best and
+        resets the stale counter; otherwise the stale counter increments;
+      * the run stops when ``stale_windows >= patience_windows`` -- 175 completed
+        iterations at the earliest, on the approved defaults.
+
+    A missing ``train_reward_mean`` inside a monitored window RAISES
+    (:class:`EarlyStoppingIntegrityError`) instead of being skipped or read as ``0.0``.
+    A ``None`` outside every monitored window is not consumed by the rule and is
+    therefore not judged here -- what is refused is fabricating a window mean, never an
+    iteration the mechanism never reads.
+
+    It decides WHETHER to stop and records WHY; it never touches the loop, the records or
+    the artifacts. The caller owns all of that.
+    """
+
+    def __init__(
+        self,
+        *,
+        min_iterations: int,
+        window_iterations: int,
+        patience_windows: int,
+        min_delta: float,
+    ) -> None:
+        self.policy = EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU
+        self.metric = EARLY_STOPPING_METRIC
+        self.min_iterations = int(min_iterations)
+        self.window_iterations = int(window_iterations)
+        self.patience_windows = int(patience_windows)
+        self.min_delta = float(min_delta)
+        # (completed_iteration, train_reward_mean) for the most recent window, kept as a
+        # list of PAIRS so a refusal can name the offending iteration rather than only
+        # its position.
+        self._window: List[Tuple[int, Optional[float]]] = []
+        self._best: Optional[float] = None
+        self._stale = 0
+        self.checks: List[Dict[str, Any]] = []
+        self.stop_triggered = False
+        self.stop_completed_iterations: Optional[int] = None
+
+    # ------------------------------------------------------------------
+    def is_due(self, completed_iterations: int) -> bool:
+        """True iff a check falls at this COMPLETED-ITERATION count."""
+        count = int(completed_iterations)
+        if count < self.min_iterations:
+            return False
+        return (count - self.min_iterations) % self.window_iterations == 0
+
+    def observe(
+        self, *, completed_iterations: int, train_reward_mean: Optional[float]
+    ) -> Optional[Dict[str, Any]]:
+        """Record one completed iteration; return its check record, or ``None``.
+
+        ``None`` means no check was due at this count -- not that a check passed. The
+        returned dict carries everything needed to reconstruct the decision, and
+        ``stop_triggered`` is the caller's signal to leave the loop.
+        """
+        count = int(completed_iterations)
+        self._window.append(
+            (count, None if train_reward_mean is None else float(train_reward_mean))
+        )
+        if len(self._window) > self.window_iterations:
+            self._window = self._window[-self.window_iterations:]
+        if not self.is_due(count):
+            return None
+
+        if len(self._window) < self.window_iterations:
+            # Unreachable while `validate` requires min_iterations >= window_iterations;
+            # kept so a partial window can never be averaged as though it were full.
+            raise EarlyStoppingIntegrityError(
+                "early stopping: the window due at %d completed iteration(s) holds only "
+                "%d of %d values. A partial window is not the quantity the policy is "
+                "defined over, so this stops rather than averaging a shorter one."
+                % (count, len(self._window), self.window_iterations)
+            )
+        missing = [i for i, value in self._window if value is None]
+        if missing:
+            raise EarlyStoppingIntegrityError(
+                "early stopping: the window due at %d completed iteration(s) contains "
+                "%d iteration(s) with no %s (%s). Under the successful-episode quota an "
+                "iteration cannot complete without one, so this is an instrument "
+                "contradiction. Skipping the value would average a window over a "
+                "population nobody chose, and reading it as 0.0 would insert the oracle "
+                "OPTIMUM into a plateau test -- both fabricate convergence evidence."
+                % (count, len(missing), self.metric,
+                   ", ".join("iteration %d" % i for i in missing))
+            )
+
+        values = [float(value) for _i, value in self._window]
+        window_mean = sum(values) / len(values)
+        stale_before = self._stale
+        best_before = self._best
+        if best_before is None:
+            # THE BASELINE. There is no earlier best to improve on, so it sets one and
+            # cannot stop; `best_window_mean_before` stays null so a reader is never left
+            # comparing against a fabricated zero.
+            kind = EARLY_STOPPING_CHECK_BASELINE
+            improvement: Optional[float] = None
+            meaningful = True
+        else:
+            kind = EARLY_STOPPING_CHECK_COMPARISON
+            improvement = window_mean - best_before
+            meaningful = window_mean >= best_before + self.min_delta
+        if meaningful:
+            self._best = window_mean
+            self._stale = 0
+        else:
+            self._stale = stale_before + 1
+        stop = self._stale >= self.patience_windows
+        if stop:
+            self.stop_triggered = True
+            self.stop_completed_iterations = count
+
+        check = {
+            "policy": self.policy,
+            "metric": self.metric,
+            "check_kind": kind,
+            # Both forms, so neither a reader nor a later aggregate has to convert one
+            # into the other and risk an off-by-one between them.
+            "completed_iterations": count,
+            "iteration": count - 1,
+            "min_iterations": self.min_iterations,
+            "window_iterations": self.window_iterations,
+            "window_first_completed_iteration": self._window[0][0],
+            "window_last_completed_iteration": self._window[-1][0],
+            "window_mean": window_mean,
+            "best_window_mean_before": best_before,
+            "best_window_mean_after": self._best,
+            "min_delta": self.min_delta,
+            "improvement": improvement,
+            "meaningful_improvement": bool(meaningful),
+            "stale_windows_before": stale_before,
+            "stale_windows": self._stale,
+            "patience_windows": self.patience_windows,
+            "stop_triggered": bool(stop),
+        }
+        self.checks.append(check)
+        return check
+
+
 def train(
     cfg: TrainConfig,
     *,
@@ -6065,6 +6437,16 @@ def train(
     Each eval round is given the NEXT scenario-tag namespace (``eval_round_ordinal`` ->
     :func:`eval_episode_tag`), so every round's generated worlds survive the run instead
     of the next round overwriting them. The held-out SEEDS are untouched.
+
+    EARLY STOPPING (opt-in, ``generalized_v1`` only). With ``early_stopping`` off this
+    loop is fixed-budget and nothing below changes. On, ONE check may fall at the end of
+    an iteration, and its ORDERING is the contract: the iteration's training record is
+    built, the check is computed FROM THAT RECORD'S ``train_reward_mean`` and attached to
+    it, the record is flushed -- and only then, if the plateau rule fired, the loop exits
+    BEFORE the periodic evaluation and checkpoint branch for that same boundary. So no
+    held-out or benchmark measurement can influence the decision, and the final
+    evaluation is strictly post-decision. Finalization then uses the ACTUAL last
+    completed iteration, which is the maximum-budget one on a run that was not stopped.
 
     Every successful attempt prints one ``OK`` block on return
     (:func:`_format_episode_block`), before the next attempt starts.
@@ -6190,6 +6572,22 @@ def train(
               "exhausting the budget ABORTS rather than updating on a partial batch."
               % (cfg.training_attempt_policy, cfg.episodes_per_iteration,
                  cfg.max_attempts_per_iteration, cfg.max_training_attempts))
+    # THE STOPPING RULE, echoed before compute is spent -- and only when it is armed, so
+    # a fixed-budget run's console is unchanged. `n_iterations` is stated as the MAXIMUM
+    # it now is, next to the earliest point the rule could possibly fire.
+    if cfg.early_stopping_enabled:
+        print("early stopping: %s on %s -- min_iterations=%d window=%d patience=%d "
+              "min_delta=%.4f"
+              % (EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU, EARLY_STOPPING_METRIC,
+                 cfg.early_stopping_min_iterations,
+                 cfg.early_stopping_window_iterations,
+                 cfg.early_stopping_patience_windows,
+                 float(cfg.early_stopping_min_delta)))
+        print("          n_iterations=%d is the MAXIMUM budget; the earliest possible "
+              "stop is %d completed iteration(s). The decision reads TRAINING reward "
+              "only -- no held-out, benchmark, critic or PPO diagnostic enters it, and "
+              "a stop is NOT a convergence claim."
+              % (cfg.n_iterations, cfg.early_stopping_earliest_stop_iterations))
     if cfg.eval_enabled:
         print("eval: every %d iter, %d held-out seed(s) x %d matched %s member(s) "
               "(%s) = %d episode(s), FIXED seeds [%d, %d)"
@@ -6313,6 +6711,11 @@ def train(
     eval_records: List[Dict[str, Any]] = []
     last_eval_iteration = -1
     last_ckpt_iteration = -1
+    # The ACTUAL last completed iteration, which finalization is keyed on. It is
+    # `n_iterations - 1` on a run that spends its whole budget -- so nothing about the
+    # fixed-budget path moves -- and the real stopping point on a run that ended early,
+    # where `n_iterations - 1` would name an iteration that never ran.
+    last_completed_iteration = -1
     # Which eval round is next, and therefore which SCENARIO-TAG namespace it writes into
     # (see `eval_episode_tag`). 0 is the pre-update round; every later round takes the
     # next ordinal so no round can overwrite an earlier round's scenario artifacts. It
@@ -6353,6 +6756,19 @@ def train(
         quota = int(cfg.episodes_per_iteration)
         attempt_budget = int(cfg.max_attempts_per_iteration)
         global_attempt_ordinal = 0
+        # GENERALIZED-V1 EARLY STOPPING, resolved ONCE for the whole run. `None` is the
+        # fixed-budget path: no check is computed, no record key is added and the loop
+        # cannot exit early. There is deliberately no `training_mode` branch here or
+        # anywhere below it -- actor-only and CTDE stop by the identical rule.
+        monitor = (
+            _EarlyStoppingMonitor(
+                min_iterations=cfg.early_stopping_min_iterations,
+                window_iterations=cfg.early_stopping_window_iterations,
+                patience_windows=cfg.early_stopping_patience_windows,
+                min_delta=cfg.early_stopping_min_delta,
+            )
+            if cfg.early_stopping_enabled else None
+        )
 
         for iteration in range(cfg.n_iterations):
             t_iter = time.perf_counter()
@@ -6718,9 +7134,30 @@ def train(
                     "value_target_mean": float(diag["value_target_mean"]),
                     "critic_grad_norm": float(diag["critic_grad_norm"]),
                 })
+            # ---- EARLY STOPPING: decided here, from TRAINING reward alone ----
+            # DELIBERATELY at this point and no other. The record is complete, so the
+            # decision reads the SAME `train_reward_mean` the artifact persists (one
+            # metric path); and this is still BEFORE the periodic evaluation branch
+            # below, so nothing measured on the frozen benchmark -- the comparator the
+            # two arms are judged by -- can reach the decision that ends an arm's
+            # training. A due check is attached to the record it was computed from, so
+            # every decision is reconstructable from `train_records.jsonl` alone.
+            stop_early = False
+            early_stopping_check: Optional[Dict[str, Any]] = None
+            if monitor is not None:
+                early_stopping_check = monitor.observe(
+                    completed_iterations=iteration + 1,
+                    train_reward_mean=record["train_reward_mean"],
+                )
+                if early_stopping_check is not None:
+                    record[_EARLY_STOPPING_RECORD_KEY] = early_stopping_check
+                    stop_early = bool(early_stopping_check["stop_triggered"])
+
             train_records.append(record)
             train_fh.write(json.dumps(record) + "\n")
             train_fh.flush()
+            # The iteration is now COMPLETE and durably recorded, whatever happens next.
+            last_completed_iteration = iteration
 
             # Exactly ONE of the three states, never two at once: an all-failed batch
             # used to print both flags and so read as "episodes ran, nobody woke".
@@ -6757,6 +7194,25 @@ def train(
                      record["fuel_damage_wakes"], record["fuel_damage_rtb_issued"],
                      record["deaths"]))
 
+            # ---- EARLY STOP: leave BEFORE this boundary's periodic eval/checkpoint --
+            # Exiting here rather than after the branch below is what makes the final
+            # evaluation strictly POST-DECISION, and it is also what keeps the
+            # finalization single: a stopping boundary that is also an eval/checkpoint
+            # boundary produces exactly one final evaluation and one final checkpoint,
+            # never a periodic pair plus a duplicate final pair.
+            if stop_early:
+                print("  [EARLY STOP @iter %d, %d completed iteration(s)] %s: "
+                      "window_mean=%s vs best=%s over %d stale window(s) (min_delta=%s). "
+                      "The MAXIMUM budget was %d iteration(s). This records that the "
+                      "configured plateau rule fired -- it is NOT a convergence claim."
+                      % (iteration, iteration + 1,
+                         EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,
+                         _fmt_opt(early_stopping_check["window_mean"]),
+                         _fmt_opt(early_stopping_check["best_window_mean_before"]),
+                         early_stopping_check["stale_windows"],
+                         early_stopping_check["min_delta"], cfg.n_iterations))
+                break
+
             # ---- periodic eval ----
             if cfg.eval_enabled and ((iteration + 1) % cfg.eval_every == 0):
                 ev = _eval_round(iteration=iteration,
@@ -6787,7 +7243,17 @@ def train(
                 print("  [ckpt @iter %d] %s" % (iteration, path.name))
 
         # ---- final eval + final checkpoint (skipped if this iteration just did one) ----
-        final_iteration = cfg.n_iterations - 1
+        # THE ACTUAL LAST COMPLETED ITERATION, not `n_iterations - 1`. On a run that
+        # spent its whole budget the two are the same number and this is byte-unchanged;
+        # on an early-stopped run `n_iterations - 1` would name an iteration that never
+        # ran, so the final evaluation and the final checkpoint would both be labelled
+        # with a point the policy never reached. The fallback is unreachable
+        # (`validate` requires `n_iterations >= 1`, so the loop body always runs at least
+        # once) and exists only so finalization can never address a negative iteration.
+        final_iteration = (
+            last_completed_iteration if last_completed_iteration >= 0
+            else cfg.n_iterations - 1
+        )
         if cfg.eval_enabled and last_eval_iteration != final_iteration:
             ev = _eval_round(iteration=final_iteration,
                              stage=_EVAL_STAGE_POST_UPDATE,
@@ -6803,11 +7269,13 @@ def train(
                      ev["n_attempted"], ev["eval_seconds"]))
             _print_eval_pair_line(ev)
 
-    if last_ckpt_iteration != cfg.n_iterations - 1:
+    if last_ckpt_iteration != final_iteration:
+        # SAVE-only, exactly as before (`save_checkpoint` has no loader and this task
+        # added none) -- and at the iteration the run really reached.
         path = save_checkpoint(
-            policy, updater, cfg.n_iterations - 1, ckpt_dir, critic=critic
+            policy, updater, final_iteration, ckpt_dir, critic=critic
         )
-        print("  [ckpt @iter %d, final] %s" % (cfg.n_iterations - 1, path.name))
+        print("  [ckpt @iter %d, final] %s" % (final_iteration, path.name))
 
     # Re-read the jsonl artifacts rather than summarizing the in-memory lists: the
     # summary must be DERIVED from what was durably recorded, so it cannot describe a
@@ -7010,6 +7478,106 @@ def _tally_slugs(values: Sequence[Any]) -> Dict[str, int]:
 def _histogram(values: Sequence[Any]) -> Dict[str, int]:
     """A count-by-value histogram keyed by the value's string form."""
     return _tally_slugs(values)
+
+
+def _early_stopping_summary(
+    train_records: List[Dict[str, Any]],
+    *,
+    cfg: Optional[TrainConfig],
+    train_attempted: int,
+    train_successful: int,
+) -> Dict[str, Any]:
+    """The run's stopping block: what was configured, what fired, and what it cost.
+
+    DERIVED FROM THE DURABLE RECORDS. The check history is read back out of
+    ``train_records.jsonl`` -- the same dicts :func:`train` attached to the iterations
+    they were computed on -- rather than from a parallel in-memory tally, so this cannot
+    describe a decision the artifacts do not contain. ``cfg`` supplies only the
+    CONFIGURED shape and the PLANNED budget, which the records cannot know, exactly as it
+    does for ``episode_design``; every planned/actual pair is reported side by side so
+    "this run is short" never has to be inferred by comparing two numbers from different
+    files.
+
+    ``termination_reason`` is one of :data:`TERMINATION_REASONS` and describes what the
+    RECORDS show: ``training_reward_plateau`` when a check fired,
+    ``maximum_budget_reached`` for an enabled run that did not, and
+    ``disabled_fixed_budget`` when the feature was off. It is ``None`` only when neither
+    the records nor a config can say (a summary built over a pre-feature run directory
+    with no ``cfg``).
+
+    A TRIGGERED STOP IS NOT A CONVERGENCE CLAIM. What is recorded is that the configured
+    plateau rule fired on ``train_reward_mean``; nothing here asserts an optimum.
+    """
+    checks = [
+        r[_EARLY_STOPPING_RECORD_KEY] for r in train_records
+        if isinstance(r.get(_EARLY_STOPPING_RECORD_KEY), dict)
+    ]
+    stop_check = next(
+        (c for c in checks if bool(c.get("stop_triggered"))), None
+    )
+    triggered = stop_check is not None
+
+    if cfg is None:
+        # No config: a check history proves the feature was on, but its ABSENCE does not
+        # prove it was off (a short enabled run reaches no check), so `None` is the
+        # truthful answer there rather than a guessed `False`.
+        enabled: Optional[bool] = True if checks else None
+    else:
+        enabled = bool(cfg.early_stopping_enabled)
+
+    if enabled is False:
+        reason: Optional[str] = TERMINATION_REASON_DISABLED
+    elif triggered:
+        reason = TERMINATION_REASON_PLATEAU
+    elif enabled is True:
+        reason = TERMINATION_REASON_MAX_BUDGET
+    else:
+        reason = None
+
+    configured = enabled is True and cfg is not None
+    return {
+        "enabled": enabled,
+        # The policy and its metric are STATED, never left to be inferred from the
+        # presence of a check: a run that stopped and a run that never reached a check
+        # must describe the same rule.
+        "policy": (
+            EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU if enabled
+            else None
+        ),
+        "metric": EARLY_STOPPING_METRIC if enabled else None,
+        "min_iterations": (
+            int(cfg.early_stopping_min_iterations) if configured else None),
+        "window_iterations": (
+            int(cfg.early_stopping_window_iterations) if configured else None),
+        "patience_windows": (
+            int(cfg.early_stopping_patience_windows) if configured else None),
+        "min_delta": (
+            float(cfg.early_stopping_min_delta) if configured else None),
+        "earliest_possible_stop_iterations": (
+            int(cfg.early_stopping_earliest_stop_iterations) if configured else None),
+        "triggered": bool(triggered),
+        "termination_reason": reason,
+        # --- planned vs actual, always as a PAIR ---
+        "planned_iterations": None if cfg is None else int(cfg.n_iterations),
+        "completed_iterations": len(train_records),
+        "planned_successful_episodes": None if cfg is None else int(cfg.total_episodes),
+        "actual_successful_episodes": int(train_successful),
+        "planned_max_training_attempts": (
+            None if cfg is None else int(cfg.max_training_attempts)),
+        "actual_training_attempts": int(train_attempted),
+        # Where it stopped, in both forms. `null` -- never 0 -- when nothing fired: 0 is
+        # a real completed-iteration count and a real iteration index.
+        "stop_completed_iterations": (
+            int(stop_check["completed_iterations"]) if stop_check else None),
+        "stop_iteration_index": (
+            int(stop_check["iteration"]) if stop_check else None),
+        # THE DURABLE CHECK HISTORY, verbatim: every due check, in order, each carrying
+        # its window, its comparison and its stale count, so each decision can be
+        # re-derived without re-running anything.
+        "n_checks": len(checks),
+        "checks": checks,
+        "checks_source": "train_records.jsonl",
+    }
 
 
 def _generalized_summary(
@@ -7399,6 +7967,15 @@ def _summarize(
             if int(r.get("n_successful", 0) or 0)
             >= int(r.get("successful_episodes_required",
                          r.get("episodes_per_iteration", 0)) or 0)
+        ),
+        # GENERALIZED-V1 EARLY STOPPING: whether the run ended at its maximum budget or
+        # because the configured plateau rule fired, with the planned/actual pairs and
+        # the durable check history behind it. Present on every run: a fixed-budget run
+        # reports `disabled_fixed_budget`, which states the contract rather than leaving
+        # it to be inferred from an absent key.
+        "early_stopping": _early_stopping_summary(
+            train_records, cfg=cfg,
+            train_attempted=train_attempted, train_successful=train_ok,
         ),
         # DISJOINT by construction (see `_iteration_outcome`): an iteration in which
         # every attempt failed is a data-yield failure, NOT an iteration in which
@@ -8824,6 +9401,41 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "attrition the run tolerates and sets the maximum training seed "
                         "band the benchmark is held out against."
                         % EPISODE_DESIGN_GENERALIZED_V1)
+    # --- GENERALIZED-V1 early stopping: opt-in, and the flag's absence IS the default
+    p.add_argument("--early-stopping", action="store_true",
+                   default=d_cfg.early_stopping,
+                   help="end the run once TRAINING reward plateaus (%s). Approved for a "
+                        "%s run only. --iterations then declares the MAXIMUM budget, and "
+                        "every held-out / seed-band claim is still made against it. The "
+                        "decision reads train_reward_mean ONLY -- no held-out, benchmark, "
+                        "critic or PPO diagnostic -- and a stop is not a convergence claim"
+                        % (EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,
+                           EPISODE_DESIGN_GENERALIZED_V1))
+    p.add_argument("--early-stopping-min-iterations",
+                   type=_bounded_type(int, 1, inclusive=True,
+                                      what="early_stopping_min_iterations"),
+                   default=d_cfg.early_stopping_min_iterations,
+                   help="completed iterations before the FIRST monitored check "
+                        "(default: %(default)s)")
+    p.add_argument("--early-stopping-window-iterations",
+                   type=_bounded_type(int, 1, inclusive=True,
+                                      what="early_stopping_window_iterations"),
+                   default=d_cfg.early_stopping_window_iterations,
+                   help="completed iterations averaged per monitored window, and the "
+                        "interval between checks -- so windows do not overlap "
+                        "(default: %(default)s)")
+    p.add_argument("--early-stopping-patience-windows",
+                   type=_bounded_type(int, 1, inclusive=True,
+                                      what="early_stopping_patience_windows"),
+                   default=d_cfg.early_stopping_patience_windows,
+                   help="consecutive non-improving windows before stopping "
+                        "(default: %(default)s)")
+    p.add_argument("--early-stopping-min-delta",
+                   type=_bounded_type(float, 0.0, inclusive=True,
+                                      what="early_stopping_min_delta"),
+                   default=d_cfg.early_stopping_min_delta,
+                   help="smallest reward GAIN over the best window that counts as a "
+                        "meaningful improvement (default: %(default)s)")
     p.add_argument("--training-mode", type=str, choices=list(TRAINING_MODES),
                    default=d_cfg.training_mode,
                    help="actor_only = the Phase-A reference path (no critic, no central "
