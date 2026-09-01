@@ -1590,6 +1590,140 @@ def test_actor_only_run_episode_builds_no_central_state():
     assert len(result.trajectory) == 1
 
 
+
+
+# =============================================================================
+# GENERALIZED-V1 EARLY STOPPING -- actor-only / CTDE PARITY
+# =============================================================================
+
+def _plateau_updaters(schedule):
+    """Actor-only and CTDE updater stand-ins reporting ONE shared reward trajectory.
+
+    The parity claim is about the STOPPING MECHANISM, so both arms must be fed the
+    identical `train_reward_mean` sequence; anything else would leave "they stopped at
+    the same iteration" explainable by the rewards rather than by the rule. Each stand-in
+    keeps the real constructor shape (`train` checkpoints the updater, so it needs a
+    genuine optimizer and a genuine PPOConfig) and replaces only `update`.
+    """
+    state = {"i": 0}
+
+    def _diag(n_episodes):
+        value = schedule[min(state["i"], len(schedule) - 1)]
+        state["i"] += 1
+        return {
+            "baseline": value,
+            "policy_loss": -0.01, "total_loss": -0.02, "entropy": 1.5,
+            "mean_ratio": 1.0, "clip_fraction": 0.0, "approx_kl": 0.0,
+            "max_ratio_dev": 0.0, "grad_norm": 0.5, "adv_std_raw": 0.1,
+            "n_transitions": 2 * n_episodes, "n_episodes": n_episodes,
+            "episodes_with_wakes": n_episodes,
+            "n_epochs_run": 1 if n_episodes else 0,
+            "value_loss": 0.0, "value_mean": 0.0, "value_target_mean": 0.0,
+            "critic_grad_norm": 0.0,
+        }
+
+    class _ActorOnly:
+        def __init__(self, policy, ppo):
+            self.cfg = ppo
+            self.optimizer = torch.optim.Adam(policy.encoder.parameters(), lr=1e-4)
+
+        def update(self, buf):
+            return _diag(int(getattr(buf, "n_episodes", 0)))
+
+    class _Ctde:
+        def __init__(self, policy, critic, ppo, ctde):
+            self.cfg = ppo
+            self.ctde_cfg = ctde
+            self.optimizer = torch.optim.Adam(policy.encoder.parameters(), lr=1e-4)
+            self.critic_optimizer = torch.optim.Adam(critic.parameters(), lr=1e-4)
+
+        def update(self, buf):
+            return _diag(int(getattr(buf, "n_episodes", 0)))
+
+    return _ActorOnly, _Ctde
+
+
+def _early_stopping_cfg(out_dir, mode):
+    """A GENERALIZED-V1 run differing ONLY in `training_mode`.
+
+    min=4 / window=2 / patience=2 -> checks at 4, 6, 8 completed iterations, earliest
+    possible stop at 8 of the 10 scheduled: the approved 100 / 25 / 3 -> 175 machine at a
+    size a stubbed test can execute.
+    """
+    return graph_train.TrainConfig(
+        n_iterations=10, episodes_per_iteration=2, base_seed=0,
+        eval_every=0, eval_episodes=0, checkpoint_every=0,
+        output_dir=str(out_dir),
+        episode_design="generalized_v1",
+        fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE,
+        generalized_max_attempts_per_iteration=2,
+        training_mode=mode,
+        early_stopping=True,
+        early_stopping_min_iterations=4,
+        early_stopping_window_iterations=2,
+        early_stopping_patience_windows=2,
+        early_stopping_min_delta=0.01,
+    )
+
+
+def test_early_stopping_is_identical_under_actor_only_and_ctde(tmp_path):
+    """PO1. The two training modes stop by the SAME rule, at the SAME iteration.
+
+    Early stopping exists to be applied to BOTH arms of the actor-only-vs-CTDE
+    comparison, and the comparison's semantics are "same maximum budget + same frozen
+    stopping rule + same training-population contract" -- NOT "same actual number of
+    iterations". That only holds if the rule itself carries no mode-specific branch: an
+    arm whose stopping rule was even slightly different would be trained under a
+    different protocol while being reported under a shared one.
+
+    Fed one shared plateau trajectory, the two runs must produce byte-identical
+    early-stopping check histories and stop at the identical completed-iteration count.
+    """
+    restore = ["_run_one_episode", "_build_generator", "_git_provenance",
+               "PPOUpdater", "CTDEUpdater"]
+    schedule = [-0.5] * 20                     # a PLATEAU, identical for both arms
+
+    results = {}
+    for mode in (graph_train.TRAINING_MODE_ACTOR_ONLY, graph_train.TRAINING_MODE_CTDE):
+        actor_cls, ctde_cls = _plateau_updaters(schedule)
+        saved_ppo, saved_ctde = graph_train.PPOUpdater, graph_train.CTDEUpdater
+        cfg = _early_stopping_cfg(tmp_path / mode, mode)
+        try:
+            graph_train.PPOUpdater = actor_cls
+            graph_train.CTDEUpdater = ctde_cls
+            summary = _run_stub_training(cfg, restore)
+        finally:
+            graph_train.PPOUpdater, graph_train.CTDEUpdater = saved_ppo, saved_ctde
+        results[mode] = (summary, _train_records(cfg.output_dir))
+
+    actor_summary, actor_records = results[graph_train.TRAINING_MODE_ACTOR_ONLY]
+    ctde_summary, ctde_records = results[graph_train.TRAINING_MODE_CTDE]
+
+    # Both really stopped early, at the point the state machine dictates.
+    assert len(actor_records) == len(ctde_records) == 8, (
+        len(actor_records), len(ctde_records))
+    for summary in (actor_summary, ctde_summary):
+        block = summary["early_stopping"]
+        assert block["enabled"] is True and block["triggered"] is True
+        assert block["termination_reason"] == graph_train.TERMINATION_REASON_PLATEAU
+        assert block["stop_completed_iterations"] == 8
+        assert block["planned_iterations"] == 10
+
+    # THE PARITY: the check histories are identical, field for field.
+    key = graph_train._EARLY_STOPPING_RECORD_KEY
+    actor_checks = [r[key] for r in actor_records if key in r]
+    ctde_checks = [r[key] for r in ctde_records if key in r]
+    assert actor_checks == ctde_checks, (actor_checks, ctde_checks)
+    assert [c["completed_iterations"] for c in actor_checks] == [4, 6, 8]
+    assert actor_summary["early_stopping"]["checks"] == \
+        ctde_summary["early_stopping"]["checks"]
+
+    # The CTDE arm really did build a critic (so this is a parity result about two
+    # different training algorithms, not about one run twice).
+    assert "value_loss" in ctde_records[0]
+    assert "value_loss" not in actor_records[0]
+
+
 # =============================================================================
 # Standalone runner (pytest is absent under nlp_env)
 # =============================================================================

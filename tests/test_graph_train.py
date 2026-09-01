@@ -92,6 +92,7 @@ Run: python -m pytest tests/test_graph_train.py -v
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import dataclasses
 import io
@@ -185,6 +186,20 @@ from match_aou.rl.training.graph_train import (  # noqa: E402
     TRAINING_ATTEMPT_POLICY_QUOTA,
     TRAINING_ATTEMPT_POLICY_SCHEDULED,
     TrainingQuotaError,
+)
+from match_aou.rl.training.graph_train import (  # noqa: E402
+    EARLY_STOPPING_CHECK_BASELINE,
+    EARLY_STOPPING_CHECK_COMPARISON,
+    EARLY_STOPPING_METRIC,
+    EARLY_STOPPING_POLICIES,
+    EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,
+    TERMINATION_REASON_DISABLED,
+    TERMINATION_REASON_MAX_BUDGET,
+    TERMINATION_REASON_PLATEAU,
+    TERMINATION_REASONS,
+    EarlyStoppingIntegrityError,
+    _EARLY_STOPPING_RECORD_KEY,
+    _EarlyStoppingMonitor,
 )
 from match_aou.utils.blade_utils.scenario_generator import VariationConfig  # noqa: E402
 
@@ -1460,6 +1475,7 @@ def _run_stub_training(
     events=None,
     roster_variant: str = "default",
     capture_stdout: bool = False,
+    reward_for_seed=None,
 ):
     """Drive the REAL `train()` with the BLADE+solver episode body replaced by a stub.
 
@@ -1479,6 +1495,11 @@ def _run_stub_training(
     not show it.
     `wakes_per_episode` gives every SUCCESSFUL episode that many wakes -- 0 models the
     zero-wake case (real episodes, no gradient step, so no completed update).
+
+    `reward_for_seed` overrides the stub episode reward as a function of the seed, which
+    is what lets a test drive a DETERMINISTIC per-iteration `train_reward_mean`
+    trajectory (a plateau, or a steadily improving run) without touching the trainer.
+    Omitted, the historical `-0.5 + 0.01 * (seed % 7)` is unchanged.
 
     `git` replaces `_git_provenance`'s verdict; it defaults to `_FAKE_GIT_OK` so these
     tests neither depend on the developer checkout's live state nor trip the
@@ -1588,7 +1609,9 @@ def _run_stub_training(
         return _EpisodeOutcome(
             trajectory=[_StubTransition("ego_%d" % (k % 2), k % 3)
                         for k in range(n_wakes)],
-            reward=-0.5 + 0.01 * (seed % 7), ticks=42,
+            reward=(-0.5 + 0.01 * (seed % 7) if reward_for_seed is None
+                    else float(reward_for_seed(seed))),
+            ticks=42,
             ended="done", n_wakes=n_wakes,
             confirmed_kills=_STUB_CONFIRMED_KILLS, n_dead=0, seconds=0.01,
             **roster_fields,
@@ -5056,6 +5079,7 @@ from match_aou.rl.training.graph_generalized import (  # noqa: E402
     LOAD_LOW,
     WorldIdentity,
     build_benchmark_manifest,
+    load_benchmark_manifest,
     sample_generalized_cardinality,
     write_benchmark_manifest,
 )
@@ -6647,6 +6671,604 @@ def test_task5c_the_cli_exposes_the_budget_without_drift(tmp_path: Path) -> None
     cfg.validate()
 
 
+
+# =============================================================================
+# T18 -- GENERALIZED-V1 EARLY STOPPING (`training_reward_plateau_v1`)
+# =============================================================================
+#
+# THE RESEARCH CLAIM UNDER TEST is not "the loop can exit early" -- it is that WHEN it
+# exits is decided by TRAINING reward alone, that the decision is taken before any
+# evaluation at the same boundary can exist, and that the PLANNED maximum budget (not
+# the actual stopping point) still governs every seed-band and held-out claim. A
+# stopping rule that could see the frozen benchmark would let each arm of the
+# actor-only-vs-CTDE comparison choose its own stopping point on the very population the
+# comparison is made over, and the measured difference would stop being attributable to
+# the training algorithm.
+
+# The quantities the stopping decision must never be able to reach, as they are SPELLED
+# in this module. Matched against IDENTIFIERS (not prose), so the monitor's own
+# docstring may name them while its code may not.
+_ES_FORBIDDEN_TOKENS = (
+    "eval", "benchmark", "manifest", "critic", "ctde", "value_loss", "value_mean",
+    "value_target", "entropy", "approx_kl", "clip_fraction", "grad_norm", "checkpoint",
+    "success_fraction", "training_mode", "n_successful", "n_attempted", "reference",
+    "u_ref", "policy_loss", "adv_std",
+)
+# Deliberately NOT forbidden: `baseline`. It is the updater's name for the batch's mean
+# episode reward -- i.e. `train_reward_mean` itself, the one quantity the policy is
+# DEFINED over -- so banning the word would ban the metric.
+
+
+def _es_identifiers(node) -> set:
+    """Every identifier a syntax tree MENTIONS: names, attributes, args, defs."""
+    found = set()
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name):
+            found.add(sub.id)
+        elif isinstance(sub, ast.Attribute):
+            found.add(sub.attr)
+        elif isinstance(sub, ast.arg):
+            found.add(sub.arg)
+        elif isinstance(sub, ast.keyword) and sub.arg:
+            found.add(sub.arg)
+        elif isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            found.add(sub.name)
+    return found
+
+
+def _es_cfg(tmp_path: Path, **kwargs) -> TrainConfig:
+    """A GENERALIZED-V1 run with a SMALL but structurally identical stopping policy.
+
+    min=4 / window=2 / patience=2 -> checks at 4, 6, 8 completed iterations and an
+    earliest possible stop at 8, which is the approved 100 / 25 / 3 -> 175 machine at a
+    size a stubbed test can execute. The approved DEFAULTS themselves, and the exact
+    100 -> 125 -> 150 -> 175 trajectory, are pinned separately against the pure monitor.
+    """
+    base = dict(
+        n_iterations=10, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "run", eval_every=0, eval_episodes=0, checkpoint_every=0,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1, fuel_damage_mode=_GEN_MODE,
+        generalized_max_attempts_per_iteration=2,
+        early_stopping=True,
+        early_stopping_min_iterations=4,
+        early_stopping_window_iterations=2,
+        early_stopping_patience_windows=2,
+        early_stopping_min_delta=0.01,
+    )
+    base.update(kwargs)
+    return TrainConfig(**base)
+
+
+def _es_flat(seed: int) -> float:
+    """A PLATEAU: every iteration measures the same training reward."""
+    return -0.5
+
+
+def _es_rising(seed: int) -> float:
+    """A steadily improving trajectory: +0.05 per iteration, well over min_delta."""
+    return -1.0 + 0.05 * (int(seed) // 2)
+
+
+def _es_logging_monitor(log):
+    """`_EarlyStoppingMonitor` with every `observe` call recorded into `log`.
+
+    The log is the SAME interleaved event list the stub harness fills, so "the stopping
+    decision happened before the final evaluation" is an assertion about one ordered
+    sequence rather than about two independent observations.
+    """
+    class _Logged(graph_train._EarlyStoppingMonitor):
+        def observe(self, **kwargs):
+            check = super().observe(**kwargs)
+            log.append((
+                "early_stopping_observe", dict(kwargs),
+                None if check is None else bool(check["stop_triggered"]),
+            ))
+            return check
+    return _Logged
+
+
+def _es_records(cfg: TrainConfig) -> list:
+    path = Path(cfg.output_dir) / "train_records.jsonl"
+    return [json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+# ---- PO1: comparator isolation / fairness -----------------------------------------
+
+def test_es_the_monitor_reads_training_reward_and_nothing_else() -> None:
+    """PO1. The stopping state machine CANNOT reach a comparator quantity.
+
+    Structural, not behavioural: `observe` takes exactly two keyword arguments -- a
+    completed-iteration count and one training reward -- and the class body mentions no
+    identifier naming an evaluation, benchmark, critic or PPO-diagnostic quantity. A
+    behavioural test could only show that the forbidden inputs were not used on the runs
+    it happened to exercise; this shows there is no channel through which they could be.
+    """
+    signature = inspect.signature(_EarlyStoppingMonitor.observe)
+    assert [p for p in signature.parameters if p != "self"] == [
+        "completed_iterations", "train_reward_mean"
+    ]
+    for name in ("completed_iterations", "train_reward_mean"):
+        assert signature.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+
+    tree = ast.parse(inspect.getsource(_EarlyStoppingMonitor))
+    identifiers = _es_identifiers(tree)
+    for token in _ES_FORBIDDEN_TOKENS:
+        offenders = sorted(n for n in identifiers if token in n.lower())
+        assert not offenders, (
+            "the stopping state machine mentions %r (%s): the decision must consume "
+            "TRAINING reward alone" % (token, offenders)
+        )
+    # And the metric it declares is the key the trainer already persists -- ONE metric
+    # path, so the decision and the artifact cannot describe different numbers.
+    assert EARLY_STOPPING_METRIC == "train_reward_mean"
+    assert EARLY_STOPPING_POLICIES == (EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,)
+
+
+def test_es_the_loop_feeds_the_monitor_the_persisted_training_reward(
+    tmp_path: Path,
+) -> None:
+    """PO1. Every value the decision saw is the value the record persisted, in order.
+
+    The structural test above proves nothing FORBIDDEN can reach the monitor; this one
+    proves the value that does reach it is exactly `train_reward_mean` as written to
+    `train_records.jsonl` -- so a reader re-deriving the decision from the artifacts gets
+    the decision that was actually taken.
+    """
+    cfg = _es_cfg(tmp_path)
+    events: list = []
+    saved = graph_train._EarlyStoppingMonitor
+    try:
+        graph_train._EarlyStoppingMonitor = _es_logging_monitor(events)
+        _run_stub_training(cfg, wakes_per_episode=1, events=events,
+                           reward_for_seed=_es_flat)
+    finally:
+        graph_train._EarlyStoppingMonitor = saved
+
+    observed = [e[1] for e in events if e[0] == "early_stopping_observe"]
+    records = _es_records(cfg)
+    assert len(observed) == len(records) > 0
+    for call, record, index in zip(observed, records, range(len(records))):
+        # Exactly the two documented arguments, and nothing else.
+        assert set(call) == {"completed_iterations", "train_reward_mean"}
+        assert call["completed_iterations"] == index + 1
+        assert call["train_reward_mean"] == record["train_reward_mean"]
+
+    # No persisted check mentions a comparator quantity either.
+    for record in records:
+        check = record.get(_EARLY_STOPPING_RECORD_KEY)
+        if check is None:
+            continue
+        assert check["metric"] == EARLY_STOPPING_METRIC
+        for key in check:
+            for token in _ES_FORBIDDEN_TOKENS:
+                assert token not in key.lower(), (key, token)
+
+
+def test_es_disabled_is_fixed_budget_and_adds_no_record_noise(tmp_path: Path) -> None:
+    """PO1. OFF, the run is fixed-budget and its records are unchanged.
+
+    Both designs are checked: a generalized run that did not opt in, and the default
+    fixed-cell run. The summary block is present on BOTH -- `disabled_fixed_budget`
+    STATES the contract, which an absent key could not -- while no training record
+    carries an early-stopping key at all.
+    """
+    gen = _es_cfg(tmp_path / "gen", early_stopping=False,
+                  n_iterations=6, output_dir=tmp_path / "gen" / "run")
+    summary, _events, _state = _run_stub_training(gen, wakes_per_episode=1,
+                                                  reward_for_seed=_es_flat)
+    records = _es_records(gen)
+    assert len(records) == 6, "a disabled run must spend its whole budget"
+    assert all(_EARLY_STOPPING_RECORD_KEY not in r for r in records)
+    block = summary["early_stopping"]
+    assert block["enabled"] is False
+    assert block["triggered"] is False
+    assert block["termination_reason"] == TERMINATION_REASON_DISABLED
+    assert block["policy"] is None and block["metric"] is None
+    assert block["stop_completed_iterations"] is None
+    assert block["completed_iterations"] == 6 == block["planned_iterations"]
+
+    fixed = TrainConfig(
+        n_iterations=2, episodes_per_iteration=2, base_seed=0,
+        output_dir=tmp_path / "fixed", eval_every=0, eval_episodes=0,
+        checkpoint_every=0,
+    )
+    fixed_summary, _e, _s = _run_stub_training(fixed, wakes_per_episode=1)
+    assert fixed_summary["early_stopping"]["enabled"] is False
+    assert fixed_summary["early_stopping"]["termination_reason"] == \
+        TERMINATION_REASON_DISABLED
+    assert all(_EARLY_STOPPING_RECORD_KEY not in r for r in _es_records(fixed))
+
+
+# ---- PO2: the approved state machine, and finalization -----------------------------
+
+def test_es_the_approved_state_machine_stops_at_175() -> None:
+    """PO2. THE approved trajectory: 100 baseline -> 125 -> 150 -> 175 stop.
+
+    Driven directly against the pure monitor at the APPROVED DEFAULTS, over a plateau,
+    so the four checks, their non-overlapping windows, the stale counter and the exact
+    stopping point are pinned as numbers rather than as a description. The first 75
+    completed iterations fall outside every monitored window, which is what the first
+    window's range asserts.
+    """
+    defaults = TrainConfig(n_iterations=1)
+    assert (defaults.early_stopping,
+            defaults.early_stopping_min_iterations,
+            defaults.early_stopping_window_iterations,
+            defaults.early_stopping_patience_windows,
+            defaults.early_stopping_min_delta) == (False, 100, 25, 3, 0.01)
+    assert defaults.early_stopping_earliest_stop_iterations == 175
+
+    monitor = _EarlyStoppingMonitor(
+        min_iterations=100, window_iterations=25, patience_windows=3, min_delta=0.01)
+    stopped_at = None
+    for completed in range(1, 400):
+        check = monitor.observe(completed_iterations=completed,
+                                train_reward_mean=-0.5)
+        if check is not None and check["stop_triggered"]:
+            stopped_at = completed
+            break
+    assert stopped_at == 175, stopped_at
+
+    checks = monitor.checks
+    assert [c["completed_iterations"] for c in checks] == [100, 125, 150, 175]
+    assert [c["check_kind"] for c in checks] == [
+        EARLY_STOPPING_CHECK_BASELINE, EARLY_STOPPING_CHECK_COMPARISON,
+        EARLY_STOPPING_CHECK_COMPARISON, EARLY_STOPPING_CHECK_COMPARISON,
+    ]
+    assert [c["stale_windows"] for c in checks] == [0, 1, 2, 3]
+    assert [c["stop_triggered"] for c in checks] == [False, False, False, True]
+    # NON-OVERLAPPING windows, and the first 75 iterations outside all of them.
+    assert [(c["window_first_completed_iteration"],
+             c["window_last_completed_iteration"]) for c in checks] == [
+        (76, 100), (101, 125), (126, 150), (151, 175)]
+    # The baseline has no earlier best, and says so rather than comparing against 0.
+    assert checks[0]["best_window_mean_before"] is None
+    assert checks[0]["improvement"] is None
+
+
+def test_es_a_meaningful_improvement_resets_patience() -> None:
+    """PO2. A gain of at least `min_delta` resets the stale counter; a smaller one does not.
+
+    The boundary is inclusive (`window_mean >= best + min_delta`) and is exercised from
+    both sides, because "improved by exactly the threshold" is the case a rewritten
+    comparison would silently flip.
+    """
+    def run(sequence, **kwargs):
+        params = dict(min_iterations=2, window_iterations=2, patience_windows=3,
+                      min_delta=0.01)
+        params.update(kwargs)
+        monitor = _EarlyStoppingMonitor(**params)
+        for index, value in enumerate(sequence, start=1):
+            monitor.observe(completed_iterations=index, train_reward_mean=value)
+        return monitor
+
+    # Two stale windows, then a clear improvement, then stale again: the counter must
+    # start over rather than continue to 3.
+    monitor = run([-0.5, -0.5, -0.5, -0.5, -0.5, -0.5,
+                   -0.2, -0.2, -0.5, -0.5, -0.5, -0.5])
+    assert [c["stale_windows"] for c in monitor.checks] == [0, 1, 2, 0, 1, 2]
+    assert [c["meaningful_improvement"] for c in monitor.checks] == [
+        True, False, False, True, False, False]
+    assert monitor.stop_triggered is False
+
+    # EXACTLY min_delta counts as an improvement; a hair under it does not.
+    exact = run([-0.50, -0.50, -0.49, -0.49])
+    assert exact.checks[-1]["meaningful_improvement"] is True
+    under = run([-0.50, -0.50, -0.4901, -0.4901])
+    assert under.checks[-1]["meaningful_improvement"] is False
+    assert under.checks[-1]["stale_windows"] == 1
+
+
+def test_es_a_missing_training_reward_in_a_window_aborts() -> None:
+    """PO2. A monitored window holding a `None` reward RAISES, never averages around it.
+
+    Skipping the value would take the decision over a window nobody chose, and reading
+    it as 0.0 would insert the ORACLE OPTIMUM (the reward is normalized regret) into a
+    plateau test. A value outside every monitored window is not consumed by the rule and
+    is therefore not judged.
+    """
+    monitor = _EarlyStoppingMonitor(min_iterations=2, window_iterations=2,
+                                    patience_windows=1, min_delta=0.01)
+    assert monitor.observe(completed_iterations=1, train_reward_mean=None) is None
+    try:
+        monitor.observe(completed_iterations=2, train_reward_mean=-0.5)
+    except EarlyStoppingIntegrityError as exc:
+        assert "iteration 1" in str(exc)
+        # It ABORTS the run: an instrument fault, never accounted episode attrition.
+        assert isinstance(exc, graph_train.MeasurementIntegrityError)
+    else:
+        raise AssertionError("a missing training reward must not be averaged around")
+
+    # Outside every window (min=4, window=2 -> the first window is iterations 3..4),
+    # a None is simply never read.
+    quiet = _EarlyStoppingMonitor(min_iterations=4, window_iterations=2,
+                                  patience_windows=1, min_delta=0.01)
+    quiet.observe(completed_iterations=1, train_reward_mean=None)
+    quiet.observe(completed_iterations=2, train_reward_mean=None)
+    quiet.observe(completed_iterations=3, train_reward_mean=-0.5)
+    check = quiet.observe(completed_iterations=4, train_reward_mean=-0.5)
+    assert check is not None and check["window_first_completed_iteration"] == 3
+
+
+def test_es_the_stop_precedes_the_final_evaluation_and_finalizes_once(
+    tmp_path: Path,
+) -> None:
+    """PO2. The decision is taken BEFORE the boundary's evaluation, and finalization runs once.
+
+    The stopping boundary here is deliberately ALSO a periodic evaluation AND checkpoint
+    boundary (completed iteration 8, with eval_every = checkpoint_every = 4). Two things
+    must hold at once: nothing measured on the frozen benchmark may precede the decision
+    at that boundary, and the boundary must yield exactly ONE final evaluation and ONE
+    final checkpoint -- not a periodic pair plus a duplicate final pair. Both the
+    evaluation and the checkpoint must be labelled with the iteration the run really
+    reached, never `n_iterations - 1`.
+    """
+    manifest = write_benchmark_manifest(_held_out_manifest(), tmp_path / "bench.json")
+    cfg = _es_cfg(tmp_path, eval_every=4, eval_episodes=1, checkpoint_every=4,
+                  benchmark_manifest=str(manifest))
+    events: list = []
+    saved = graph_train._EarlyStoppingMonitor
+    try:
+        graph_train._EarlyStoppingMonitor = _es_logging_monitor(events)
+        summary, _events, _state = _run_stub_training(
+            cfg, wakes_per_episode=1, events=events, reward_for_seed=_es_flat)
+    finally:
+        graph_train._EarlyStoppingMonitor = saved
+
+    # --- it stopped where the state machine says it must (min 4 + patience 2 x 2) ---
+    records = _es_records(cfg)
+    assert len(records) == 8, "expected a stop at 8 of 10 scheduled iterations"
+    checks = [r[_EARLY_STOPPING_RECORD_KEY] for r in records
+              if _EARLY_STOPPING_RECORD_KEY in r]
+    assert [c["completed_iterations"] for c in checks] == [4, 6, 8]
+    assert [c["stop_triggered"] for c in checks] == [False, False, True]
+    block = summary["early_stopping"]
+    assert block["enabled"] is True and block["triggered"] is True
+    assert block["termination_reason"] == TERMINATION_REASON_PLATEAU
+    assert block["policy"] == EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU
+    assert block["stop_completed_iterations"] == 8
+    assert block["stop_iteration_index"] == 7
+    assert block["planned_iterations"] == 10 and block["completed_iterations"] == 8
+    assert [c["completed_iterations"] for c in block["checks"]] == [4, 6, 8]
+
+    # --- ORDERING: after the stopping decision, ONLY evaluation happened ---
+    stop_index = max(
+        i for i, e in enumerate(events)
+        if e[0] == "early_stopping_observe" and e[2] is True
+    )
+    after = events[stop_index + 1:]
+    assert after, "the final post-decision evaluation must still run"
+    assert not [e for e in after if e[0] == "episode" and e[1] == "train"], (
+        "no training episode may follow the stop"
+    )
+    assert [e for e in after if e[0] == "episode" and e[1] == "eval"], (
+        "the final evaluation must come AFTER the decision"
+    )
+    assert not [e for e in after if e[0] == "update"], "no update may follow the stop"
+
+    # --- finalization: exactly one final eval round, at the ACTUAL last iteration ---
+    eval_rounds = [json.loads(line) for line in
+                   (Path(cfg.output_dir) / "eval_records.jsonl")
+                   .read_text(encoding="utf-8").splitlines() if line]
+    stages = [r["evaluation_stage"] for r in eval_rounds]
+    assert stages == [_EVAL_STAGE_PRE_UPDATE, _EVAL_STAGE_POST_UPDATE,
+                      _EVAL_STAGE_POST_UPDATE], stages
+    assert [r["iteration"] for r in eval_rounds] == [None, 3, 7], (
+        "the final round must be labelled with the iteration the run reached"
+    )
+
+    # --- finalization: exactly one checkpoint per boundary, none for iteration 9 ---
+    names = sorted(p.name for p in (Path(cfg.output_dir) / "checkpoints").iterdir())
+    assert names == ["ckpt_iter0003.pt", "ckpt_iter0007.pt"], names
+
+
+def test_es_a_full_budget_run_finalizes_exactly_as_before(tmp_path: Path) -> None:
+    """PO2. A run that never plateaus keeps the historical finalization, duplicates included.
+
+    Two shapes. (a) The last iteration is ALSO a periodic boundary: the periodic
+    evaluation and checkpoint are the final ones and nothing is repeated -- which is the
+    behaviour keying finalization on the actual last completed iteration must preserve,
+    since there it equals `n_iterations - 1`. (b) It is not: exactly one extra final
+    evaluation and one extra final checkpoint follow, as they always did.
+    """
+    manifest = write_benchmark_manifest(_held_out_manifest(), tmp_path / "bench.json")
+    aligned = _es_cfg(tmp_path, n_iterations=8, eval_every=4, eval_episodes=1,
+                      checkpoint_every=4, benchmark_manifest=str(manifest),
+                      output_dir=tmp_path / "aligned")
+    summary, _e, _s = _run_stub_training(aligned, wakes_per_episode=1,
+                                         reward_for_seed=_es_rising)
+    assert len(_es_records(aligned)) == 8, "a rising trajectory must not stop early"
+    block = summary["early_stopping"]
+    assert block["triggered"] is False
+    assert block["termination_reason"] == TERMINATION_REASON_MAX_BUDGET
+    assert block["completed_iterations"] == block["planned_iterations"] == 8
+    rounds = [json.loads(line) for line in
+              (Path(aligned.output_dir) / "eval_records.jsonl")
+              .read_text(encoding="utf-8").splitlines() if line]
+    assert [r["iteration"] for r in rounds] == [None, 3, 7], "no duplicate final round"
+    assert sorted(p.name for p in
+                  (Path(aligned.output_dir) / "checkpoints").iterdir()) == [
+        "ckpt_iter0003.pt", "ckpt_iter0007.pt"]
+
+    unaligned = _es_cfg(tmp_path, n_iterations=9, eval_every=4, eval_episodes=1,
+                        checkpoint_every=4, benchmark_manifest=str(manifest),
+                        output_dir=tmp_path / "unaligned")
+    _run_stub_training(unaligned, wakes_per_episode=1, reward_for_seed=_es_rising)
+    rounds = [json.loads(line) for line in
+              (Path(unaligned.output_dir) / "eval_records.jsonl")
+              .read_text(encoding="utf-8").splitlines() if line]
+    assert [r["iteration"] for r in rounds] == [None, 3, 7, 8]
+    assert sorted(p.name for p in
+                  (Path(unaligned.output_dir) / "checkpoints").iterdir()) == [
+        "ckpt_iter0003.pt", "ckpt_iter0007.pt", "ckpt_iter0008.pt"]
+
+
+# ---- PO3: the PLANNED budget still governs reproducibility -------------------------
+
+def test_es_the_planned_budget_governs_the_seed_band_after_an_early_stop(
+    tmp_path: Path,
+) -> None:
+    """PO3. Early stopping changes ACTUAL consumption only -- never the claimed band.
+
+    The seed band a benchmark is held out against must stay the MAXIMUM POSSIBLE one
+    (`n_iterations * max_attempts_per_iteration`). If it shrank to what the run happened
+    to spend, a later manifest could be certified held out against a corridor of seeds a
+    longer run of the same config really trains on -- a held-out failure that produces
+    entirely normal-looking numbers.
+    """
+    cfg = _es_cfg(tmp_path)                      # 10 iterations x budget 2 = 20 seeds
+    summary, _e, _s = _run_stub_training(cfg, wakes_per_episode=1,
+                                         reward_for_seed=_es_flat)
+    assert len(_es_records(cfg)) == 8, "expected the run to stop at 8 iterations"
+
+    # The PLANNED bound is unmoved, and is what the recorded band states.
+    assert cfg.max_training_attempts == 20
+    seeds = json.loads(
+        (Path(cfg.output_dir) / "run_config.json").read_text(encoding="utf-8")
+    )["provenance"]["seeds"]
+    assert seeds["train_band"] == {"start": 0, "stop": 20, "half_open": True,
+                                   "count": 20}
+    # A manifest inside the PLANNED band is still refused, even though the run would
+    # have stopped long before reaching those seeds.
+    inside = write_benchmark_manifest(
+        build_benchmark_manifest(worlds_per_cell=1, benchmark_base_seed=5),
+        tmp_path / "inside.json")
+    try:
+        graph_train._require_benchmark_seeds_held_out(
+            load_benchmark_manifest(str(inside)), cfg)
+    except ValueError as exc:
+        assert "NOT held out" in str(exc)
+    else:
+        raise AssertionError("the planned band must still refuse an overlapping manifest")
+
+    # PLANNED vs ACTUAL are reported as a PAIR, never collapsed into one number.
+    block = summary["early_stopping"]
+    assert block["planned_max_training_attempts"] == 20
+    assert block["actual_training_attempts"] == 16       # 8 iterations x 2 attempts
+    assert block["planned_successful_episodes"] == 20
+    assert block["actual_successful_episodes"] == 16
+
+
+def test_es_checkpoints_stay_save_only(tmp_path: Path) -> None:
+    """PO3. No resume path was introduced, and the actor-only payload is untouched.
+
+    Restoring a run remains deferred: an early-stopped run must not quietly acquire
+    continuation semantics through the checkpoint it now writes at a different iteration.
+    """
+    cfg = _es_cfg(tmp_path, checkpoint_every=0)
+    _run_stub_training(cfg, wakes_per_episode=1, reward_for_seed=_es_flat)
+    names = sorted(p.name for p in (Path(cfg.output_dir) / "checkpoints").iterdir())
+    assert names == ["ckpt_iter0007.pt"], names
+    payload = torch.load(Path(cfg.output_dir) / "checkpoints" / names[0],
+                         weights_only=False)
+    assert set(payload) == {"iteration", "encoder", "head", "optimizer", "ppo_config"}
+    assert payload["iteration"] == 7
+
+    # No loader, and none hiding inside `save_checkpoint`.
+    assert not [n for n in dir(graph_train)
+                if "load_checkpoint" in n or "resume" in n.lower()]
+    assert "torch.load" not in inspect.getsource(graph_train.save_checkpoint)
+
+
+# ---- configuration surface ---------------------------------------------------------
+
+def test_es_validate_refuses_a_misconfigured_or_non_generalized_policy(
+    tmp_path: Path,
+) -> None:
+    """The policy is approved for GENERALIZED-V1 only, and its shape is checked up front.
+
+    A fixed-cell run that stopped early would no longer be the fixed-budget path every
+    approved measurement was taken on, while its records would carry the same schedule
+    fields; and a run too short to ever reach a stopping decision would record an ACTIVE
+    policy whose mechanism was structurally inert.
+    """
+    _es_cfg(tmp_path).validate()                       # the approved shape passes
+
+    bad = [
+        (dict(episode_design=EPISODE_DESIGN_FIXED_CELL_V1,
+              fuel_damage_mode=FuelDamageMode.SEEDED_MIXTURE,
+              generalized_max_attempts_per_iteration=None), "approved for"),
+        (dict(n_iterations=7), "earliest possible stop"),
+        (dict(early_stopping_min_iterations=1), "must be >="),
+        (dict(early_stopping_patience_windows=0), "must be >= 1"),
+        (dict(early_stopping_window_iterations=True), "must be an int"),
+        (dict(early_stopping_min_delta=-0.001), "must be >= 0"),
+    ]
+    for kwargs, fragment in bad:
+        try:
+            _es_cfg(tmp_path, **kwargs).validate()
+        except ValueError as exc:
+            assert fragment in str(exc), (fragment, str(exc))
+        else:
+            raise AssertionError("not refused: %r" % (kwargs,))
+
+    # DISABLED, the unused block is not validated -- exactly as the unused `ctde` block
+    # is not. A default fixed-cell config still validates with the defaults in place.
+    _es_cfg(tmp_path, early_stopping=False, early_stopping_patience_windows=0,
+            n_iterations=1).validate()
+    TrainConfig(n_iterations=1, output_dir=tmp_path / "d").validate()
+
+
+def test_es_the_cli_and_preset_expose_the_policy_without_drift(tmp_path: Path) -> None:
+    """One dest -> one field; the flag defaults are read off the dataclass; presets carry it."""
+    parser = _build_arg_parser()
+    defaults = TrainConfig(n_iterations=1, output_dir="x")
+    plain = parser.parse_args(["--iterations", "1"])
+    assert plain.early_stopping == defaults.early_stopping
+    assert plain.early_stopping_min_iterations == defaults.early_stopping_min_iterations
+    assert plain.early_stopping_window_iterations == \
+        defaults.early_stopping_window_iterations
+    assert plain.early_stopping_patience_windows == \
+        defaults.early_stopping_patience_windows
+    assert plain.early_stopping_min_delta == defaults.early_stopping_min_delta
+
+    typed = parser.parse_args([
+        "--iterations", "1", "--early-stopping",
+        "--early-stopping-min-iterations", "12",
+        "--early-stopping-window-iterations", "4",
+        "--early-stopping-patience-windows", "2",
+        "--early-stopping-min-delta", "0.5",
+    ])
+    assert (typed.early_stopping, typed.early_stopping_min_iterations,
+            typed.early_stopping_window_iterations,
+            typed.early_stopping_patience_windows,
+            typed.early_stopping_min_delta) == (True, 12, 4, 2, 0.5)
+    for dest in ("early_stopping", "early_stopping_min_iterations",
+                 "early_stopping_window_iterations",
+                 "early_stopping_patience_windows", "early_stopping_min_delta"):
+        assert graph_train._CLI_FIELD_BY_DEST[dest] == dest
+
+    preset = tmp_path / "preset.json"
+    preset.write_text(json.dumps({
+        "n_iterations": 10, "episodes_per_iteration": 2, "eval_every": 0,
+        "episode_design": EPISODE_DESIGN_GENERALIZED_V1,
+        "fuel_damage_mode": _GEN_MODE,
+        "generalized_max_attempts_per_iteration": 2,
+        "early_stopping": True,
+        "early_stopping_min_iterations": 4,
+        "early_stopping_window_iterations": 2,
+        "early_stopping_patience_windows": 2,
+        "early_stopping_min_delta": 0.02,
+        "output_dir": str(tmp_path / "from_preset"),
+    }), encoding="utf-8")
+    cfg, _source = _resolve([], config_path=preset)
+    assert cfg.early_stopping is True
+    assert cfg.early_stopping_min_iterations == 4
+    assert cfg.early_stopping_min_delta == 0.02
+    cfg.validate()
+    # The resolved policy is recorded through the normal config path.
+    run_dir = tmp_path / "cfgrec"
+    run_dir.mkdir()
+    payload = json.loads(write_run_config(run_dir, cfg).read_text(encoding="utf-8"))
+    assert payload["train_config"]["early_stopping"] is True
+    assert payload["train_config"]["early_stopping_patience_windows"] == 2
+    assert TERMINATION_REASONS == (TERMINATION_REASON_PLATEAU,
+                                   TERMINATION_REASON_MAX_BUDGET,
+                                   TERMINATION_REASON_DISABLED)
+
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -6982,6 +7604,30 @@ if __name__ == "__main__":
          test_task5c_the_budget_is_required_and_bounded, True),
         ("task5c_the_cli_exposes_the_budget_without_drift",
          test_task5c_the_cli_exposes_the_budget_without_drift, True),
+        ("es_the_monitor_reads_training_reward_and_nothing_else",
+         test_es_the_monitor_reads_training_reward_and_nothing_else, False),
+        ("es_the_loop_feeds_the_monitor_the_persisted_training_reward",
+         test_es_the_loop_feeds_the_monitor_the_persisted_training_reward, True),
+        ("es_disabled_is_fixed_budget_and_adds_no_record_noise",
+         test_es_disabled_is_fixed_budget_and_adds_no_record_noise, True),
+        ("es_the_approved_state_machine_stops_at_175",
+         test_es_the_approved_state_machine_stops_at_175, False),
+        ("es_a_meaningful_improvement_resets_patience",
+         test_es_a_meaningful_improvement_resets_patience, False),
+        ("es_a_missing_training_reward_in_a_window_aborts",
+         test_es_a_missing_training_reward_in_a_window_aborts, False),
+        ("es_the_stop_precedes_the_final_evaluation_and_finalizes_once",
+         test_es_the_stop_precedes_the_final_evaluation_and_finalizes_once, True),
+        ("es_a_full_budget_run_finalizes_exactly_as_before",
+         test_es_a_full_budget_run_finalizes_exactly_as_before, True),
+        ("es_the_planned_budget_governs_the_seed_band_after_an_early_stop",
+         test_es_the_planned_budget_governs_the_seed_band_after_an_early_stop, True),
+        ("es_checkpoints_stay_save_only",
+         test_es_checkpoints_stay_save_only, True),
+        ("es_validate_refuses_a_misconfigured_or_non_generalized_policy",
+         test_es_validate_refuses_a_misconfigured_or_non_generalized_policy, True),
+        ("es_the_cli_and_preset_expose_the_policy_without_drift",
+         test_es_the_cli_and_preset_expose_the_policy_without_drift, True),
     ]
     for name, fn, needs_tmp in tests:
         try:
