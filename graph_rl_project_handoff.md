@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — GENERALIZED-V1: TASKS 1–5 ALL IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #42 + PR #43 + PR #44, ALL MERGED); TASK 5A / 5B ENGINEERING VALIDATION APPROVED; THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH ITS RESULT PENDING AND UNREVIEWED; THE POST-INTEGRATION CLOSURE TASK IS MERGED (PR #45); CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY, WHICH IS NOT SCIENTIFIC AUTHORIZATION; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED INTO `main` (PR #46); THIS POST-MERGE CLOSURE CANDIDATE IS THE SOLE WRITABLE REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, WHILE GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
+# Multi-Agent Graph RL — GENERALIZED-V1: TASKS 1–5 ALL IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #42 + PR #43 + PR #44, ALL MERGED); THE POST-INTEGRATION CLOSURE TASK IS MERGED (PR #45); THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED (PR #46) AND ITS POST-MERGE CLOSURE IS MERGED TOO (PR #47); OPT-IN TRAINING-REWARD EARLY STOPPING (`training_reward_plateau_v1`) IS BUILT, REVIEWED AND INTEGRATED (PR #48), OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; TASK 5A / 5B ENGINEERING VALIDATION APPROVED; THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH ITS RESULT PENDING AND UNREVIEWED, GOVERNED BY ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY STOPPING; CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY, WHICH IS NOT SCIENTIFIC AUTHORIZATION; THIS EARLY-STOPPING DOCUMENTATION / LOCK CANDIDATE IS THE SOLE WRITABLE REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, WHILE GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -105,8 +105,78 @@ while **the actor-only R1 long run remains `AUTHORIZED / DISPATCHED — RESULT P
 UNREVIEWED, and NO generalized scientific measurement RESULT exists** (§1, §3m, §4, §7, §8,
 §9).
 
-**THE LIVE STATE (2026-08-31), STATED FIRST BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH
-BELOW IT, INCLUDING THE 2026-08-30 AND 2026-08-26 ONES.** The ACTIVE phase is still
+**THE LIVE STATE (2026-09-01), STATED FIRST BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH
+BELOW IT, INCLUDING THE 2026-08-31, 2026-08-30 AND 2026-08-26 ONES.** The ACTIVE phase is
+still **GENERALIZED-V1**. **Live `main` at this record's base is
+`0b9a1d63f257a8ed9555f81a1d2bf10e30168e66`** (`2026-09-01 18:29:13 +0300`, the **PR-#48**
+early-stopping merge, whose reviewed candidate was
+`bdfd80d546e9d5779e4d52b522d5db6d8eb610e9` and whose first parent is
+`6f98b4becb39556081389b0e5b48b2dbb7675a5d` — the **PR-#47** post-merge-closure merge, itself
+reviewed candidate `0e1be78…` on branch `task/cluster-env-post-merge-closure`).
+**PR #47 IS MERGED**, so that closure task is NO LONGER WRITABLE, and `e9f9f4f9…` is now a
+HISTORICAL checkpoint rather than the live base.
+
+**OPT-IN TRAINING-REWARD EARLY STOPPING IS BUILT, REVIEWED, APPROVED AND INTEGRATED (PR #48,
+`bdfd80d546e9d5779e4d52b522d5db6d8eb610e9` → `0b9a1d63f257a8ed9555f81a1d2bf10e30168e66`,
+Grade A under `GPT_GITHUB`, verdict APPROVE).** The mechanism is
+`training_reward_plateau_v1`, its authoritative technical contract is `CLAUDE.md` §5 (routed
+in §6, locked in §7), and the approved rule is **`min_iterations = 100` / `window = 25` /
+`patience = 3` / `min_delta = 0.01`**. It is **OFF BY DEFAULT** and approved for
+`generalized_v1` ONLY; the disabled/default path is the PRESERVED FIXED-BUDGET path, adds no
+record key and cannot exit early. The decision reads the persisted `train_reward_mean` and
+**nothing else** — no benchmark or held-out reward, no success/feasibility rate, no PPO or
+CTDE-critic diagnostic, no checkpoint state, no final-comparator result — and the isolation is
+MECHANICAL, not a convention. `training_mode` is read nowhere in it, so **actor-only and CTDE
+stop by the identical rule**. At the approved defaults and the intended **8 successful
+episodes per iteration**, monitoring begins after **800 successful episodes** and the
+**EARLIEST POSSIBLE stop is 175 completed iterations = 1400 successful episodes** — **the
+EARLIEST possible stop, never a promised or expected one**, and the 1400 figure is the
+campaign interpretation at 8 episodes per iteration only.
+**THIS SUPERSEDES, AS CURRENT STATE ONLY, EVERY "NO REVIEWED EARLY-STOPPING MECHANISM EXISTS"
+STATEMENT IN THIS DOCUMENT AND IN `CLAUDE.md`** — each of which remains accurate as the record
+it was, through PR #47.
+
+**IT IS CODE, NOT A MEASUREMENT, AND R1 IS UNTOUCHED BY IT.** **No scientific run has used
+this mechanism**; there is **no reward, convergence, runtime-saving, sample-efficiency or
+performance claim** for it, none is supported anywhere, and firing the rule would record only
+that the configured training-reward plateau rule fired — **never a convergence or optimality
+claim**, and never a promise that two arms train for the same actual number of iterations.
+**THE DISPATCHED ACTOR-ONLY R1 REMAINS GOVERNED BY ITS ORIGINAL FIXED-BUDGET CONTRACT WITH
+NO EARLY STOPPING** — the frozen plan in §3m.4, unchanged — and stays
+**`AUTHORIZED / DISPATCHED — RESULT PENDING`**: UNREVIEWED, with no verdict, and **nothing
+about its reward, convergence, attrition, benchmark outcome or scientific validity may be
+stated or inferred.** It is neither `RUNNING`, nor `COMPLETED`, nor `VALID`, and no elapsed
+time implies otherwise. **CHECKPOINT RESUME REMAINS OUT OF SCOPE**: `graph_train` is still
+SAVE-only, PR #48 added no loader and no resume semantics, and what it changed is only the
+ITERATION a final checkpoint is written at. **The PLANNED `max_training_attempts` still
+governs every held-out / seed-band claim and never shrinks because a run stopped early**, so
+comparison semantics under this policy are `same maximum budget + same frozen stopping rule +
+same training-population contract`, **not** `same actual number of completed iterations`.
+**No repository preset enables it** — `configs/graph_train/final_cell_probe.json` remains the
+ONLY repository preset and is still `fixed_cell_v1` — and **no benchmark manifest is committed
+or tracked in the repository.**
+
+**THIS EARLY-STOPPING DOCUMENTATION / LOCK CANDIDATE — branch
+`task/generalized-v1-early-stopping-doc-lock`, DRAFT PR, branched from exact
+`0b9a1d63f257a8ed9555f81a1d2bf10e30168e66` — IS THE SOLE WRITABLE REPOSITORY TASK WHILE ITS
+DRAFT PR IS OPEN; ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS, AND NONE MAY BE
+OPENED UNTIL A FUTURE TASK IS EXPLICITLY OPENED AND AUTHORIZED.** **The PR-#48 implementation
+branch `task/generalized-v1-early-stopping` is MERGED and is NO LONGER WRITABLE OR ACTIVE**,
+and no implementation candidate remains under review. The external local R1 remains
+**RUN-ONLY and owns NO repository writes.** **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT
+EXISTS**, **no CTDE generalized run exists, is scheduled or is authorized**, and **no
+actor-only-vs-CTDE generalized result exists.** **CLUSTER ENVIRONMENT / RUNTIME READINESS
+REMAINS VALIDATED / READY with its DURABLE validation identity
+`926aba66fcaf2b99fc58685eb202888d8deeaf5f`** — that SHA does not move when `main` does, no
+validation or smoke was performed at `e9f9f4f9…` or at `0b9a1d63…`, and **READINESS IS NOT
+SCIENTIFIC AUTHORIZATION** (§3m.6). **GENERALIZED-V1 REMAINS AN ACTIVE PROJECT PHASE even
+once no writable task remains**, because R1 is still pending, and **the ONE next action stays
+INDEPENDENT GPT ARTIFACT REVIEW of the actor-only R1 when its artifacts exist** (§8) — this
+record authorizes no merge, no implementation, no benchmark population, no campaign and no
+run.
+
+**THE PRECEDING LIVE STATE (2026-08-31), PRESERVED AS THE RECORD IT WAS AND SUPERSEDED
+WHERE THE PARAGRAPHS ABOVE SAY SO.** The ACTIVE phase is still
 **GENERALIZED-V1**, and **§3l.8 STEP 5 IS NO LONGER "APPROVED BUT UNMERGED": THE ENTIRE
 TASK-5 STACK IS INTEGRATED.** **Live `main` at this record's base is
 `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`** (`2026-08-31 16:40:13 +0300`, the **PR-#46**
@@ -176,7 +246,7 @@ is authorized**; the observed Slurm `course` limits are VOLATILE observed policy
 software contract; and R1 is unaffected — it remains the LOCAL run it was dispatched as.
 
 **THE PRECEDING LIVE STATE (2026-08-30), PRESERVED AS THE RECORD IT WAS AND SUPERSEDED WHERE
-THE PARAGRAPH ABOVE SAYS SO.** The ACTIVE phase is still **GENERALIZED-V1**, and
+THE PARAGRAPHS ABOVE SAY SO.** The ACTIVE phase is still **GENERALIZED-V1**, and
 **§3l.8 STEP 5 IS NO LONGER "NOT STARTED": TASK 5 IS IMPLEMENTED AND APPROVED, AS A STACKED,
 STILL-UNMERGED TWO-PR STACK.** Live `main` at this record's checkpoint is
 `09eab0673153bd443185ec94530ccf0b042be465`; **PR #42** (`312f58650b61a85eb72d0554d60715afee862a5c`)
@@ -372,19 +442,25 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
-- **LIVE PHASE (2026-08-31) — GENERALIZED-V1: TASKS 1 THROUGH 5 ARE ALL IMPLEMENTED,
+- **LIVE PHASE (2026-09-01) — GENERALIZED-V1: TASKS 1 THROUGH 5 ARE ALL IMPLEMENTED,
   REVIEWED, APPROVED AND INTEGRATED (PR #42 → `5dfcd8b6…`, PR #43 → `b3c2e01f…`, PR #44 →
-  `9b9e9b85…`), AND THE POST-INTEGRATION CLOSURE TASK IS MERGED TOO (PR #45,
-  `728ebf3f…` → `926aba66…`), AND THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED TOO
-  (PR #46, `cbc22745…` → `e9f9f4f9…`), SO **LIVE `main` IS
-  `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`**.
-  THIS POST-MERGE CLOSURE CANDIDATE (`task/cluster-env-post-merge-closure`, DRAFT PR) IS THE SOLE WRITABLE REPOSITORY TASK
-  WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS
+  `9b9e9b85…`), THE POST-INTEGRATION CLOSURE TASK IS MERGED TOO (PR #45,
+  `728ebf3f…` → `926aba66…`), THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED TOO
+  (PR #46, `cbc22745…` → `e9f9f4f9…`) AND SO IS ITS POST-MERGE CLOSURE (PR #47,
+  `0e1be782…` → `6f98b4be…`), AND **OPT-IN TRAINING-REWARD EARLY STOPPING
+  (`training_reward_plateau_v1`) IS BUILT, REVIEWED, APPROVED AND INTEGRATED TOO (PR #48,
+  `bdfd80d5…` → `0b9a1d63…`)** — SO **LIVE `main` IS
+  `0b9a1d63f257a8ed9555f81a1d2bf10e30168e66`**.
+  THIS EARLY-STOPPING DOCUMENTATION / LOCK CANDIDATE
+  (`task/generalized-v1-early-stopping-doc-lock`, DRAFT PR) IS THE SOLE WRITABLE REPOSITORY
+  TASK WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS
   UNTIL A FUTURE TASK IS EXPLICITLY OPENED. CLUSTER ENVIRONMENT / RUNTIME READINESS IS
   VALIDATED / READY, WHICH IS NOT SCIENTIFIC AUTHORIZATION (§3m.6).
   *(SUPERSEDED as CURRENT state: this bullet previously named the PR-#45 post-integration
-  closure candidate, and then the PR-#46 reproducibility-lock candidate, as the sole writable
-  task. Each was accurate while its own PR was in flight; BOTH ARE NOW MERGED.)*
+  closure candidate, then the PR-#46 reproducibility-lock candidate, then the PR-#47
+  post-merge closure candidate, as the sole writable task, and gave live `main` first as
+  `926aba66…` and then as `e9f9f4f9…`. Each was accurate while its own PR was in flight; ALL
+  OF THEM ARE NOW MERGED.)*
   THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH
   ITS RESULT PENDING AND UNREVIEWED. NO GENERALIZED MEASUREMENT RESULT EXISTS.** The
   repository is **no longer CLOSED / IDLE** and **no longer DESIGN-ONLY**, and
@@ -604,12 +680,27 @@ cross-references it rather than duplicating it.
     exact-base re-review discipline of §3m.5 and the INDEPENDENT GPT ARTIFACT REVIEW of R1's
     eventual artifacts". Each was accurate when written; that integration has since been
     PERFORMED, so only the R1 artifact review remains.)*
-  - **EARLY STOPPING, RESUME AND CLUSTER — CURRENT CAMPAIGN STATE (§3m.4).** **No reviewed
-    early-stopping mechanism exists**; R1 uses a fixed 3000-success budget; **checkpoint
-    RESUME is out of scope and `graph_train` is SAVE-only**; any future early stopping is a
-    SEPARATE research / design decision and **must not select against the same final benchmark
-    without an explicit validation / test design**, and none of it is implemented or
-    authorized here. **CLUSTER ENVIRONMENT / RUNTIME READINESS IS NO LONGER DEFERRED: IT IS
+  - **EARLY STOPPING, RESUME AND CLUSTER — CURRENT CAMPAIGN STATE (§3m.4, §3m.7).**
+    **A REVIEWED, APPROVED AND INTEGRATED OPT-IN EARLY-STOPPING MECHANISM NOW EXISTS** —
+    `training_reward_plateau_v1`, PR #48, `bdfd80d5…` → `0b9a1d63…`, contract in `CLAUDE.md`
+    §5 — **OFF BY DEFAULT**, approved for `generalized_v1` only, decided from the persisted
+    `train_reward_mean` and nothing else, identical under `actor_only` and `ctde`, and
+    mechanically isolated from every benchmark / held-out comparator quantity. **IT IS CODE,
+    NOT A MEASUREMENT: no scientific run has used it**, no reward, convergence,
+    runtime-saving or performance claim is made or supported for it, and firing it would
+    record only that the configured plateau rule fired — never a convergence or optimality
+    claim. **R1 IS UNTOUCHED BY IT and still uses its fixed 3000-success budget with NO early
+    stopping**; **checkpoint RESUME is STILL out of scope and `graph_train` is STILL
+    SAVE-only** (PR #48 added no loader and no resume semantics); and **the PLANNED
+    `max_training_attempts` still governs every held-out claim and never shrinks because a
+    run stopped early.** **Nothing here authorizes a run of any kind.**
+    *(SUPERSEDED as CURRENT state: this bullet previously read "**No reviewed early-stopping
+    mechanism exists** … any future early stopping is a SEPARATE research / design decision
+    and **must not select against the same final benchmark without an explicit validation /
+    test design**, and none of it is implemented or authorized here." That was accurate
+    through PR #47. The design concern it names was HONOURED rather than dropped: the merged
+    mechanism decides on TRAINING reward alone and is mechanically prevented from reading the
+    comparator.)* **CLUSTER ENVIRONMENT / RUNTIME READINESS IS NO LONGER DEFERRED: IT IS
     VALIDATED / READY FOR EXECUTION** against exact `main` SHA
     `926aba66fcaf2b99fc58685eb202888d8deeaf5f` (§3m.6). *(SUPERSEDED as CURRENT state: this
     bullet previously read "**Cluster campaign readiness is DEFERRED** because cluster access
@@ -647,14 +738,26 @@ cross-references it rather than duplicating it.
   **That is the whole of the reconciliation**: the run was still not inspected, reviewed or
   compared, and doing so remains out of scope unless the user EXPLICITLY asks. Historical fixed-cell measurements — that CTDE run included — are
   **NOT the generalized benchmark** and are not its comparator (§3l).
-- **BASE of THIS documentation record:** `b4daa8c1a8c870061b26cceb01d4ed34169594e7`,
+- **BASE of THIS EARLY-STOPPING DOCUMENTATION / LOCK record:**
+  `0b9a1d63f257a8ed9555f81a1d2bf10e30168e66`, committed `2026-09-01 18:29:13 +0300` — the
+  `main` head produced by the **PR-#48 early-stopping integration**, whose ordered parents are
+  `6f98b4becb39556081389b0e5b48b2dbb7675a5d` (the PR-#47 post-merge closure merge) then
+  `bdfd80d546e9d5779e4d52b522d5db6d8eb610e9` (the reviewed candidate), and whose tree
+  `411126d1d9641356673efbf47510c335b4cf0f9b` is IDENTICAL to that candidate's. **That is the
+  exact base this record was DERIVED ON**, and it is a statement about this record's
+  derivation only — **not** a claim about live `main`, which this record's own integration
+  necessarily advances past. **Neither this documentation commit nor its future merge can name
+  its own SHA, and inventing either would be a false provenance claim.** **Every receiving
+  orchestrator therefore resolves the live full `main` SHA from GitHub and re-reads
+  `CLAUDE.md` and this handoff at THAT SHA — GitHub is authoritative for live branch and PR
+  state, never this document** (§9).
+- *(HISTORICAL BASE of the TASK-4 documentation record.)* `b4daa8c1a8c870061b26cceb01d4ed34169594e7`,
   committed `2026-08-26 11:30:07 +0300` — the `main` head produced by the **GENERALIZED-V1
   Task-4 integration (PR #40)**, whose ordered parents are
   `f4e8d3b8ddc61525fe0cde6b61ca4d611ebd2eed` then
-  `db79013897a6e5669f50d53b6e30229b16aea28d`. **That is the exact base this Task-4
-  DOCUMENTATION / LOCK record was DERIVED ON**, and it is a statement about this record's
-  derivation only — **not** a claim about live `main`, which this record's own integration
-  necessarily advances past. *(HISTORICAL derivation provenance: the Task-3 record was
+  `db79013897a6e5669f50d53b6e30229b16aea28d`. **That is the exact base the TASK-4
+  DOCUMENTATION / LOCK record was DERIVED ON**, and it is HISTORICAL derivation provenance
+  only — **not** a claim about live `main`, and not the base of the CURRENT record above. *(HISTORICAL derivation provenance: the Task-3 record was
   derived on `df3abf2f2eb3ac9c02bc4bd3d8320e095075bd25`, the PR-#38 integration; the
   Task-1/2 checkpoint on `ca0dc406ad11eb18e11e87e7f9ddf2e4e457f64b`, the PR-#36
   integration.)* Neither this documentation commit nor its future merge can name its own
@@ -2369,7 +2472,7 @@ implementation step lands, and no per-task record discharges it", with no closur
 - **A previously executed OLD-CONTRACT CTDE measurement is OUT OF SCOPE** and must not be
   reviewed or compared unless the user explicitly asks (§1).
 
-## 3m. GENERALIZED-V1 TASK 5 — the INTEGRATED STACK, the ENGINEERING VALIDATION, and the DISPATCHED R1 long run
+## 3m. GENERALIZED-V1 TASK 5 — the INTEGRATED STACK, the ENGINEERING VALIDATION, the DISPATCHED R1 long run, the CLUSTER ENVIRONMENT, and the INTEGRATED OPT-IN EARLY-STOPPING MECHANISM (§3m.7)
 
 **This section is VOLATILE STATE. The technical contracts it points at live in `CLAUDE.md`
 §5 (the GENERALIZED-V1 TASK 5 block), routed in §6 and locked in §7.**
@@ -2420,12 +2523,15 @@ was accurate at that checkpoint and is not now.)*
 ORDER.** The performed sequence, with its exact merge SHAs, is §3m.5. **THAT
 POST-INTEGRATION CLOSURE CANDIDATE IS MERGED (PR #45, `728ebf3f…` → `926aba66…`), AS IS THE
 CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK THAT FOLLOWED IT (PR #46, `cbc22745…` →
-`e9f9f4f9…`); THIS POST-MERGE CLOSURE CANDIDATE
-(`task/cluster-env-post-merge-closure`) IS NOW THE SOLE WRITABLE REPOSITORY TASK while its own
-draft PR is open; on its integration no writable repository task remains, and no Task-5 PR or
-candidate is open or active.** *(SUPERSEDED as CURRENT state: this passage named "THIS
-POST-INTEGRATION CLOSURE CANDIDATE" as the sole writable task, accurate while PR #45 was in
-flight.)*
+`e9f9f4f9…`), ITS POST-MERGE CLOSURE (PR #47, `0e1be782…` → `6f98b4be…`), AND THE OPT-IN
+EARLY-STOPPING IMPLEMENTATION AFTER IT (PR #48, `bdfd80d5…` → `0b9a1d63…`, §3m.7); THIS
+EARLY-STOPPING DOCUMENTATION / LOCK CANDIDATE
+(`task/generalized-v1-early-stopping-doc-lock`) IS NOW THE SOLE WRITABLE REPOSITORY TASK while
+its own draft PR is open; on its integration no writable repository task remains, and no
+implementation PR or candidate is open or active.** *(SUPERSEDED as CURRENT state: this
+passage named in turn "THIS POST-INTEGRATION CLOSURE CANDIDATE" and then the PR-#47 post-merge
+closure candidate as the sole writable task — each accurate while its own PR was in flight,
+and all of them are now MERGED.)*
 
 ### 3m.2 Writable ownership — one writable task, and the long run owns none of it
 
@@ -2433,12 +2539,16 @@ flight.)*
   It may execute and it may produce run artifacts outside the repository; it may not create,
   edit, push or merge any branch, and no run artifact, config, preset or benchmark manifest
   it produces is committed by it.
-- **This post-integration closure task is the ONE current writable repository task, and only
-  while its own draft PR is open; on its integration NO writable repository task remains.** No
-  other branch may be edited concurrently. *(SUPERSEDED: this bullet previously read "This
-  documentation task is the ONE current writable repository task … and PR #42 and PR #43 are
-  frozen". Those two PRs are now MERGED, so there is nothing left to freeze — their retired
-  branches are cleanup-eligible, not writable.)*
+- **This EARLY-STOPPING DOCUMENTATION / LOCK task (`task/generalized-v1-early-stopping-doc-lock`)
+  is the ONE current writable repository task, and only while its own draft PR is open; on
+  its integration NO writable repository task remains.** No other branch may be edited
+  concurrently. **The PR-#48 implementation branch `task/generalized-v1-early-stopping` is
+  MERGED and is NO LONGER WRITABLE OR ACTIVE**, and no implementation candidate remains under
+  review. *(SUPERSEDED as CURRENT state: this bullet previously named the Task-5
+  documentation task, then the post-integration closure task, then the post-merge closure
+  task, as the one writable task, and noted that PR #42 and PR #43 were frozen. All of those
+  PRs are now MERGED, so there is nothing left to freeze — their retired branches are
+  cleanup-eligible, not writable.)*
 - Ownership of the work remains with the **GPT orchestrator**; every orchestrator resolves
   live branch and PR state from GitHub, never from this document.
 
@@ -2546,13 +2656,22 @@ grounds to re-tune, re-seed or re-run.** The requested-vs-realized hidden-cardin
 inspection (§3l.6) is a **human / GPT scientific-review decision** — the code REPORTS the
 distribution and applies no threshold.
 
-**EARLY STOPPING — CURRENT CAMPAIGN STATE.** **No reviewed early-stopping mechanism
-exists.** R1 uses a **fixed 3000-success budget**. **Checkpoint RESUME is out of scope and
-`graph_train` is SAVE-only**, as its own documented contract says. Any future early stopping
-is a **SEPARATE research / design decision**, and it **must not select against the same
-final benchmark without an explicit validation / test design** — stopping on the comparator
-would make the comparator part of the training signal. **It is not implemented here and is
-not authorized here.**
+**EARLY STOPPING — R1 IS UNTOUCHED BY THE MERGED MECHANISM.** **R1 was dispatched with, and
+remains governed by, a FIXED 3000-success budget and NO early stopping** — the table above is
+its frozen plan and it does not change. An opt-in early-stopping mechanism
+(`training_reward_plateau_v1`) has SINCE been built, reviewed and integrated as **PR #48**
+(§3m.7; `CLAUDE.md` §5), but it is **OFF BY DEFAULT, was not used by R1, and no scientific run
+has used it**. **Checkpoint RESUME is STILL out of scope and `graph_train` is STILL
+SAVE-only**, as its own documented contract says: PR #48 added no loader and no resume
+semantics.
+*(SUPERSEDED as CURRENT state: this paragraph previously read "**No reviewed early-stopping
+mechanism exists.** … Any future early stopping is a **SEPARATE research / design decision**,
+and it **must not select against the same final benchmark without an explicit validation /
+test design** — stopping on the comparator would make the comparator part of the training
+signal. **It is not implemented here and is not authorized here.**" That was accurate through
+PR #47, and the design concern it states was HONOURED rather than dropped: the merged
+mechanism decides on TRAINING reward alone and is mechanically prevented from reading the
+comparator. **Nothing about R1 changed.**)*
 
 **CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY FOR EXECUTION** against exact
 `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f` — the detail is §3m.6.
@@ -2699,7 +2818,86 @@ written, designed, reviewed or authorized, and **none may be invented from this 
 dispatched actor-only R1 is unaffected: it remains the LOCAL run it was dispatched as, still
 `AUTHORIZED / DISPATCHED — RESULT PENDING` and still UNREVIEWED.
 
-## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED, AND THE POST-INTEGRATION CLOSURE TASK MERGED TOO AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46; THIS POST-MERGE CLOSURE CANDIDATE IS THE SOLE WRITABLE TASK WHILE ITS DRAFT PR IS OPEN; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+### 3m.7 Opt-in training-reward early stopping — BUILT / REVIEWED / INTEGRATED (PR #48)
+
+**STATE: IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED.** Reviewed candidate
+`bdfd80d546e9d5779e4d52b522d5db6d8eb610e9` (committed `2026-09-01 16:49:28 +0300`, branch
+`task/generalized-v1-early-stopping`, a SINGLE commit with no review-fix chain), integrated
+by merge `0b9a1d63f257a8ed9555f81a1d2bf10e30168e66` (`2026-09-01 18:29:13 +0300`, **PR #48**)
+from base `6f98b4becb39556081389b0e5b48b2dbb7675a5d`. Grade A under `GPT_GITHUB`, verdict
+**APPROVE**. Normal merge commit, reviewed candidate preserved as the SECOND PARENT (ordered
+parents `6f98b4be…`, then `bdfd80d5…`), integrated tree
+`411126d1d9641356673efbf47510c335b4cf0f9b` IDENTICAL to the reviewed candidate tree; no
+rebase, squash, cherry-pick, force-push or history rewrite. **THREE files only**:
+`src/match_aou/rl/training/graph_train.py`, `tests/test_graph_train.py`,
+`tests/test_graph_ctde.py` — no config, no preset, no benchmark manifest, no documentation
+file (that is what this record closes).
+
+**THE AUTHORITATIVE TECHNICAL CONTRACT IS `CLAUDE.md` §5**, routed in §6 and locked in §7.
+This subsection is the campaign-state record and does not duplicate it.
+
+**THE APPROVED RULE: `min_iterations = 100` / `window_iterations = 25` /
+`patience_windows = 3` / `min_delta = 0.01`**, all COMPLETED-ITERATION counts. Checks fall at
+100, 125, 150, 175, …; windows are NON-OVERLAPPING; the first check is a BASELINE that only
+establishes the best window and cannot stop; a later window is a meaningful improvement iff
+`window_mean >= best + min_delta` (inclusive) and resets patience, otherwise patience
+increments; the run stops at `stale_windows >= patience_windows`. **At the intended 8
+SUCCESSFUL episodes per iteration, monitoring begins after 800 successful episodes and the
+EARLIEST POSSIBLE stop is 175 completed iterations = 1400 successful episodes.**
+
+**FOUR THINGS ABOUT IT ARE BINDING, AND THEY MUST NOT BE COLLAPSED.**
+
+1. **OFF BY DEFAULT, AND THE DISABLED PATH IS THE PRESERVED FIXED-BUDGET PATH.** No monitor,
+   no check, no record key and no early exit. `validate()` approves the policy for
+   `generalized_v1` ONLY and REFUSES it on the fixed-cell path — the path every approved
+   measurement (§3h `737b4bf`, §3j `bf1e045f`) was taken on. **No repository preset enables
+   it**: `configs/graph_train/final_cell_probe.json` is still the ONLY preset and is still
+   `fixed_cell_v1`.
+2. **THE DECISION READS `train_reward_mean` AND NOTHING ELSE, AND THE ISOLATION IS
+   MECHANICAL.** No benchmark or held-out reward, no success / feasibility rate, no PPO
+   diagnostic, no CTDE critic or value diagnostic, no checkpoint state and no
+   final-comparator result can reach it. The monitor takes exactly two keyword arguments and
+   holds no reference to the policy, critic, buffer, updater, evaluation record, manifest or
+   config; and the ORDERING inside `train` — build the training record, compute the check
+   FROM it, attach, flush, then break BEFORE that boundary's periodic evaluation and
+   checkpoint — is what keeps the comparator strictly post-decision. **Letting the frozen
+   benchmark decide when an arm stops training would let each arm pick its own stopping point
+   on the very population the comparison is made over.**
+3. **ACTOR-ONLY AND CTDE STOP BY THE IDENTICAL RULE.** `training_mode` is read nowhere in it,
+   so two arms compared under this policy share **`same maximum budget + same frozen stopping
+   rule + same training-population contract`** — deliberately **NOT** `same actual number of
+   completed iterations`, because the actual count is an OUTCOME of the rule. **Nothing may
+   assume both arms would stop at 175, or at the same iteration at all.**
+4. **IT IS CODE, NOT A MEASUREMENT.** **No scientific run has used this mechanism.** There is
+   **no reward, convergence, runtime-saving, sample-efficiency or performance claim** for it
+   and none is supported anywhere; **175 is the EARLIEST POSSIBLE stop, not a promised or
+   expected one**; and firing the rule would record only that the configured training-reward
+   plateau rule fired — **never a convergence or optimality claim.**
+
+**R1 IS UNTOUCHED.** The dispatched actor-only R1 (§3m.4) was and remains governed by its
+ORIGINAL FIXED-BUDGET contract — 375 iterations × 8 successful episodes = 3000, early
+stopping `none` — and stays `AUTHORIZED / DISPATCHED — RESULT PENDING`, UNREVIEWED, with
+nothing about its outcome stated or inferable. **This mechanism's existence changes nothing
+about R1**, and no rerun, repair, resume, extension or replacement of R1 is authorized by it.
+
+**BUDGET SEMANTICS AND RESUME ARE UNCHANGED.** Early stopping changes ACTUAL consumption
+only: `n_iterations` still declares the MAXIMUM budget, and `max_training_attempts`
+(`n_iterations * max_attempts_per_iteration`) together with every held-out / seed-band claim
+made against it **never shrinks because a run stopped early**. **Checkpoint RESUME remains
+OUT OF SCOPE and `graph_train` remains SAVE-only** — PR #48 introduced no loader and no
+resume semantics; what it changed is only the ITERATION a final checkpoint is written at.
+
+**OBSERVABILITY LIVES IN THE EXISTING ARTIFACTS, AND NO NEW EARLY-STOPPING FILE EXISTS**:
+the five resolved fields in `run_config.json:/train_config`, the durable per-check history in
+`train_records.jsonl:/early_stopping_check`, and the derived
+`run_summary.json:/early_stopping` — which is present on EVERY run (a fixed-budget one
+reports `disabled_fixed_budget`) and reports planned vs actual budgets as PAIRS.
+
+**WHAT THIS SUBSECTION DOES NOT DO.** It authorizes no run, no campaign, no CTDE arm, no
+benchmark change and no merge; it defines no scientific run matrix; and it makes no claim
+about how any future run would behave.
+
+## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED; THE POST-INTEGRATION CLOSURE TASK MERGED AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46 AND ITS POST-MERGE CLOSURE AS PR #47; OPT-IN TRAINING-REWARD EARLY STOPPING MERGED AS PR #48, OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; THIS EARLY-STOPPING DOCUMENTATION / LOCK CANDIDATE IS THE SOLE WRITABLE TASK WHILE ITS DRAFT PR IS OPEN; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING, ON ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY STOPPING); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
 
 Start with fresh exact-SHA initialization against the current `main` (§9). **A documentation
 record neither authorizes nor runs anything: it RECORDS state only.** No documentation record
@@ -2714,16 +2912,21 @@ STEP 5 (§3m.1, §3m.5).**
 and the documentation lock **PR #44**
 (`88352b2fc03174e8095d3c7e8a1ef58b60e58e0b` → `9b9e9b85a70c8a0019c72ada92ceec3401725795`)
 are ALL APPROVED and ALL MERGED, **and the post-integration closure task is MERGED too
-(PR #45, `728ebf3f…` → `926aba66…`, which is the live `main` this record is based on);
-**the CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK is MERGED too (PR #46, `cbc22745…` →
-`e9f9f4f9…`, the live `main` this record is based on), and THIS POST-MERGE CLOSURE candidate
-— `task/cluster-env-post-merge-closure`, DRAFT PR — is the SOLE WRITABLE REPOSITORY TASK
-while its draft PR is open, and on its integration no writable repository task remains until
-a future task is explicitly opened**
+(PR #45, `728ebf3f…` → `926aba66…`); **the CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK is MERGED
+too (PR #46, `cbc22745…` → `e9f9f4f9…`) and so is its POST-MERGE CLOSURE (PR #47,
+`0e1be782…` → `6f98b4be…`); **OPT-IN TRAINING-REWARD EARLY STOPPING
+(`training_reward_plateau_v1`) is BUILT, REVIEWED, APPROVED and MERGED too (PR #48,
+`bdfd80d5…` → `0b9a1d63…`, the live `main` this record is based on) — OFF BY DEFAULT,
+approved for `generalized_v1` only, and USED BY NO SCIENTIFIC RUN (§3m.7)**; and THIS
+EARLY-STOPPING DOCUMENTATION / LOCK candidate —
+`task/generalized-v1-early-stopping-doc-lock`, DRAFT PR — is the SOLE WRITABLE REPOSITORY
+TASK while its draft PR is open, and on its integration no writable repository task remains
+until a future task is explicitly opened**
 *(SUPERSEDED as CURRENT state: this passage named first the PR-#45 post-integration closure
-candidate and then the PR-#46 reproducibility-lock candidate as the sole writable task; each
-was accurate while its own PR was in flight, and BOTH ARE NOW MERGED)* — while
-**GENERALIZED-V1 itself stays an ACTIVE phase, because R1 is still pending.**
+candidate, then the PR-#46 reproducibility-lock candidate, then the PR-#47 post-merge closure
+candidate, as the sole writable task, and gave the base first as `926aba66…` and then as
+`e9f9f4f9…`; each was accurate while its own PR was in flight, and ALL ARE NOW MERGED)* —
+while **GENERALIZED-V1 itself stays an ACTIVE phase, because R1 is still pending.**
 *(SUPERSEDED: this passage previously read "MERGED THROUGH STEP 4, AND STEP 5 IS IMPLEMENTED
 AND APPROVED AS A STACKED, STILL-UNMERGED TWO-PR STACK … both APPROVED, FROZEN / READ-ONLY
 and NOT merged … no merge is authorized here". Accurate at that checkpoint.)* **Task 5A and
@@ -2796,11 +2999,14 @@ the measurement-validity half by item 2's verdict and the reference half by
 complete**, so this paragraph is now the arrangement's HISTORICAL record. **THE LIVE STATE
 IS TASK 10 / GENERALIZED-V1: §3l.8 steps 1–5 are ALL MERGED (PR #42 → `5dfcd8b6…`,
 PR #43 → `b3c2e01f…`, PR #44 → `9b9e9b85…`), the post-integration closure task is MERGED as
-PR #45 (`728ebf3f…` → `926aba66…`) and the CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK is MERGED
-as PR #46 (`cbc22745…` → `e9f9f4f9…`), THIS POST-MERGE CLOSURE candidate
-(`task/cluster-env-post-merge-closure`, DRAFT PR) is the SOLE WRITABLE REPOSITORY TASK while
-its draft PR is open, and the actor-only R1 long run
-is AUTHORIZED / DISPATCHED with its RESULT PENDING** (§3m, §4 Task 10, §8). *(SUPERSEDED:
+PR #45 (`728ebf3f…` → `926aba66…`), the CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK is MERGED
+as PR #46 (`cbc22745…` → `e9f9f4f9…`) and its POST-MERGE CLOSURE as PR #47 (`0e1be782…` →
+`6f98b4be…`), OPT-IN TRAINING-REWARD EARLY STOPPING is MERGED as PR #48 (`bdfd80d5…` →
+`0b9a1d63…`) — OFF BY DEFAULT and USED BY NO SCIENTIFIC RUN (§3m.7) — THIS EARLY-STOPPING
+DOCUMENTATION / LOCK candidate (`task/generalized-v1-early-stopping-doc-lock`, DRAFT PR) is
+the SOLE WRITABLE REPOSITORY TASK while its draft PR is open, and the actor-only R1 long run
+is AUTHORIZED / DISPATCHED with its RESULT PENDING, on its ORIGINAL FIXED-BUDGET contract with
+NO early stopping** (§3m, §4 Task 10, §8). *(SUPERSEDED:
 this clause previously pointed at Tasks 8 and 9 as the live state, then at "steps 1–3
 MERGED, TASK 4 next", then at "TASK 4 is CLOSED, and TASK 5 … is NOT STARTED and NOT
 AUTHORIZED", and most recently at "step 5 is IMPLEMENTED AND APPROVED as the STILL-UNMERGED
@@ -3005,13 +3211,15 @@ they measure DIFFERENT cells: §3h is the LEGACY FD-BASELINE-v1 baseline, and §
 FD-VARIABLE-SEVERITY-v1 baseline. Neither is an expectation for the other, and neither is an
 expectation for any CTDE comparison.**
 
-**Task 10 — GENERALIZED-V1. IMPLEMENTATION STEPS 1–5 ALL MERGED, AND THE POST-INTEGRATION
-CLOSURE TASK MERGED TOO AS PR #45, AND THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS
-PR #46; THIS POST-MERGE CLOSURE CANDIDATE
-(`task/cluster-env-post-merge-closure`, DRAFT PR) IS THE SOLE WRITABLE REPOSITORY TASK WHILE
-ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK REMAINS UNTIL A
-FUTURE TASK IS EXPLICITLY OPENED; THE ACTOR-ONLY R1 LONG RUN IS AUTHORIZED /
-DISPATCHED WITH ITS RESULT PENDING (§3m). THIS IS THE LIVE PHASE — ACTIVE BECAUSE R1 IS
+**Task 10 — GENERALIZED-V1. IMPLEMENTATION STEPS 1–5 ALL MERGED; THE POST-INTEGRATION
+CLOSURE TASK MERGED AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46
+AND ITS POST-MERGE CLOSURE AS PR #47; OPT-IN TRAINING-REWARD EARLY STOPPING MERGED AS PR #48,
+OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN (§3m.7); THIS EARLY-STOPPING DOCUMENTATION / LOCK
+CANDIDATE (`task/generalized-v1-early-stopping-doc-lock`, DRAFT PR) IS THE SOLE WRITABLE
+REPOSITORY TASK WHILE ITS DRAFT PR IS OPEN, AND ON ITS INTEGRATION NO WRITABLE REPOSITORY TASK
+REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED; THE ACTOR-ONLY R1 LONG RUN IS AUTHORIZED /
+DISPATCHED WITH ITS RESULT PENDING, ON ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY
+STOPPING (§3m). THIS IS THE LIVE PHASE — ACTIVE BECAUSE R1 IS
 PENDING, NOT BECAUSE A REPOSITORY TASK IS OPEN.** *(SUPERSEDED: this heading previously read
 "TASK 4 CLOSED; NO WRITABLE IMPLEMENTATION TASK; STEP 5 IS THE NEXT UNRESOLVED STEP AND IS NOT
 STARTED AND NOT AUTHORIZED", and then "STEP 5 IMPLEMENTED AND APPROVED AS A STACKED,
@@ -3485,7 +3693,7 @@ obligations and bounded implementation/lock task.
 | GENERALIZED-V1 Task 5 lands (§3l.8 step 5) — **DONE, AND NOW INTEGRATED: PR #42 → `5dfcd8b632be8dca3c1730018bbf35337d07f077`, PR #43 → `b3c2e01f130afe854b09384cd6e1e196de714795`** *(this row's original "BOTH APPROVED AND FROZEN, NEITHER MERGED" status, and its closing "NO integration SHA exists for either PR and none may be invented", were accurate when written and are SUPERSEDED by those merge SHAs)* | The `train_by_*` summary buckets counting TRAINING attempts only (a persisted-summary correction that changes no episode behaviour and leaves the canonical streams byte-unchanged, with training FAILURES still represented and every other generalized block keeping its own population); the successful-episode training QUOTA under `generalized_v1` with `episodes_per_iteration` counting SUCCESSFUL episodes, the REQUIRED and never-defaulted `generalized_max_attempts_per_iteration`, ONE run-wide monotone attempt ordinal whose seed is `train_attempt_seed`, an ordinary failure recorded once / spending its seed / never retried / never entering the PPO-CTDE buffer / replaced by the next deterministic attempt, `TrainingQuotaError` on exhaustion with NO partial update, the PRESERVED `scheduled_attempts_v1` fixed-cell behaviour, and the unchanged actor-vs-CTDE execution semantics; held-outness checked against the MAXIMUM POSSIBLE attempt band `[base_seed, base_seed + n_iterations * generalized_max_attempts_per_iteration)` because a failed replacement still spends a seed; and the deterministic benchmark PREFLIGHT — explicit `worlds_per_cell` / `benchmark_base_seed` / `max_candidates_per_cell` with NO scientific-scale default, six INDEPENDENT deterministic base-cell candidate windows, first valid candidates accepted in ascending order with each rejected seed spent exactly once, ordinary world-construction / certified-FD-ineligibility rejections replaceable BEFORE the freeze, accepted bounded-backoff worlds NOT rejected solely for `hidden_realized < hidden_requested` (short realization is AUDIT DATA, never an automatic failure), integrity faults PROPAGATING rather than becoming population-selection attrition, NO policy built and NO episode run so no reward or learned behaviour can influence acceptance, the COMPLETE-manifest rule, IMMUTABLE post-freeze evaluation with NO substitution in `evaluate_benchmark`, and the FAILED-preflight durable audit (`status = failed_incomplete`, `complete = false`, `manifest_written = false`, `manifest = null`, the failure block naming the exhausted cell / window / requested-accepted-missing counts, attempted seeds and rejection tallies SURVIVING, completed cells preserved, unattempted cells NAMED, the report written BEFORE the raise when an output directory exists, `BenchmarkPreflightError.report` / `.report_path` when there is none, and a pre-existing manifest NAMED via `stale_manifest_path` rather than deleted or adopted) — recorded as a contract in `CLAUDE.md` §5, routed in §6 and locked in §7 with the exact changed files and PR #43's append-only review-fix chain. **Record Task 5A and Task 5B as `APPROVE — VALID ENGINEERING VALIDATION` under a BINDING label — engineering evidence, never a measurement — with their bounded sample sizes stated as an explicit limitation and NO attrition-rate population claim, NO learning claim and NO actor-vs-CTDE claim.** **Record the dispatched actor-only R1 as `AUTHORIZED / DISPATCHED — RESULT PENDING` with its frozen plan and NOTHING about its outcome; record that it needs independent GPT artifact review before any `APPROVE — VALID MEASUREMENT`; and record that NO integration SHA exists for either PR and none may be invented** |
 | The GENERALIZED-V1 TASK-5 STACK is INTEGRATED (§3m.5) — **DONE (2026-08-30/31)** *(this row previously read "NOT DONE; NO MERGE IS AUTHORIZED BY ANY DOCUMENTATION RECORD"; the merges were separately authorized and have since been performed)* | The nine-step sequence was PERFORMED exactly as planned: merged PR #42 (→ `5dfcd8b632be8dca3c1730018bbf35337d07f077`), refreshed the exact live `main`, RETARGETED PR #43 to `main` and **exact-base re-reviewed it before merging** — changing a PR's base invalidates a base-relative verdict even though the candidate SHA is unchanged — then merged the unchanged approved head (→ `b3c2e01f130afe854b09384cd6e1e196de714795`), refreshed `main`, retargeted and re-reviewed the documentation candidate, and merged it unchanged (→ `9b9e9b85a70c8a0019c72ada92ceec3401725795`, PR #44). **No rebase, no squash, no cherry-pick, no force-push, no history rewrite** occurred; every integration is a normal merge commit preserving its reviewed commit as an ancestor / merge parent, with the integrated tree verified equal to the reviewed tree. Each integration SHA is recorded here, per §7's hash convention, by the first record able to name it |
 | The DISPATCHED GENERALIZED ACTOR-ONLY R1 completes — **DISPATCHED; RESULT PENDING; UNREVIEWED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Nothing may be recorded before independent GPT artifact review, and no reward, convergence or validity claim may be pre-stated. VALIDITY IS JUDGED BEFORE PERFORMANCE; a null or negative result is a valid observation, not a technical failure and not grounds to re-tune, re-seed or re-run.** The requested-vs-realized hidden-cardinality inspection stays a HUMAN / GPT decision — the code reports the distribution and applies no threshold |
-| A future EARLY-STOPPING mechanism is proposed — **NOT IMPLEMENTED, NOT REVIEWED, NOT AUTHORIZED** | It is a SEPARATE research / design decision with its own proof obligations. **It must not select against the same final benchmark without an explicit validation / test design** — stopping on the comparator makes the comparator part of the training signal. Checkpoint RESUME remains out of scope; `graph_train` is SAVE-only. R1 uses a fixed 3000-success budget |
+| OPT-IN TRAINING-REWARD EARLY STOPPING lands — **DONE for PR #48** *(this row previously read "A future EARLY-STOPPING mechanism is proposed — NOT IMPLEMENTED, NOT REVIEWED, NOT AUTHORIZED"; that was accurate through PR #47, and the design concern it named was HONOURED rather than dropped)* | Record in `CLAUDE.md` §5 (contract), §6 (two routing rows) and §7 (lock), and here in §3m.7: the ONE opt-in policy `training_reward_plateau_v1`, **OFF BY DEFAULT** and approved for `generalized_v1` ONLY with the fixed-cell path REFUSED; the approved state machine as COMPLETED-ITERATION counts (100 / 25 / 3 / 0.01, non-overlapping windows, a BASELINE first check that cannot stop, an INCLUSIVE `>= best + min_delta` improvement test that resets patience, and a stop at `stale_windows >= patience_windows`) with **175 completed iterations = 1400 successful episodes at 8 per iteration as the EARLIEST POSSIBLE stop, never a promised one**; the decision reading `train_reward_mean` ALONE with the exclusion of every benchmark / held-out / success-rate / PPO / CTDE-critic / checkpoint / comparator quantity stated as MECHANICAL rather than conventional; the load-bearing ORDERING (record → check → attach → flush → break BEFORE that boundary's periodic evaluation and checkpoint, final evaluation strictly post-decision, finalization once, at the ACTUAL final iteration); `training_mode` read nowhere so actor-only and CTDE stop identically, with comparison semantics `same maximum budget + same frozen stopping rule + same training-population contract` and NOT `same actual number of iterations`; a missing `train_reward_mean` inside a monitored window ABORTING as `EarlyStoppingIntegrityError`; the PLANNED `max_training_attempts` still governing every held-out claim and never shrinking; checkpoints staying SAVE-only with RESUME still out of scope; and the observability carried by the EXISTING artifacts with no new file. **Record it as CODE, never a measurement: no scientific run has used it, no reward / convergence / runtime-saving / performance claim is made or supported, firing it would record only that the configured plateau rule fired, and R1 is UNTOUCHED and remains on its original fixed-budget contract with NO early stopping** |
 | CLUSTER ENVIRONMENT / RUNTIME readiness — **VALIDATED / READY at `926aba66…` (§3m.6)**; CLUSTER CAMPAIGN readiness — **STILL NOT AUTHORIZED** *(this row previously read "DEFERRED; cluster access is not available", accurate while that was so)* | Record the validated `graph_rl_cluster` identity, the mandatory `PYTHONNOUSERSITE=1` isolation rule, the BLADE editable path and the Pyomo→BONMIN `optimal` smoke as **ENGINEERING / RUNTIME validation, never a measurement** — and record the observed Slurm `course` limits as **VOLATILE observed policy**, in the handoff and NOT as a `CLAUDE.md` software contract. **READINESS IS NOT AUTHORIZATION:** still **invent no scheduler, queue, partition, walltime or runbook decision**, and record a scientific launcher only once one is separately designed, reviewed and authorized |
 | *(HISTORICAL, superseded by the Task-5 row above)* The REMAINING GENERALIZED step lands (§3l.8 step 5) — **was NOT STARTED and NOT AUTHORIZED when written** | A separately scoped, separately reviewed bounded task, beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **after reviewed behaviour exists** — never in advance and never for a design. *(SUPERSEDED: this row previously said the records wait for step 6 alone, and later covered steps 4–5; practice is one documentation pass per completed task, step 4 is DONE, and a FINAL pass is still required after any later step lands.)* Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve, the fixed held-out eval band — **all five already addressed by Tasks 1–4 as their own reviewed OPT-IN seams**) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical paths are PRESERVED beside the generalized ones. **Requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting are already first-class observables (§3l.7) — record any change to them without pre-claiming any result** |
 | The FROZEN GENERALIZED BENCHMARK POPULATION is built — **NOT STARTED; the MECHANISM exists since PR #40, the POPULATION and its SCALE do NOT** | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator**. **Task 4 delivered the schema, builder, canonical serialization, content hash, verifying loader, consumer and identity checks; it deliberately did NOT choose the worlds-per-cell scale and did NOT generate, commit or freeze a population, and its builder REFUSES to invent a world count. Choosing the scale comes AFTER §3l.8 step 5's bounded runtime / solver validation.** |
@@ -3504,18 +3712,22 @@ GENERALIZED-V1 (§3l, §3m, §4 Task 10); **steps 1, 2, 3, 4 and 5 are ALL COMPL
 and INTEGRATED** (PR #35, `5b55ca34…` → `9b305e4e…`; PR #36, `185d39f0…` → `ca0dc406…`;
 PR #38, `24a8b1ee…` → `df3abf2f…`, **APPROVE**; PR #40, `db790138…` → `b4daa8c1…`,
 **APPROVE**; PR #42, `312f5865…` → `5dfcd8b6…`; PR #43, `4af6c5aa…` → `b3c2e01f…`; PR #44,
-`88352b2f…` → `9b9e9b85…`; PR #45, `728ebf3f…` → `926aba66…`) — and the CLUSTER ENVIRONMENT
-REPRODUCIBILITY LOCK is MERGED as PR #46 (`cbc22745…` → `e9f9f4f9…`), so **live `main` at
-this record's base is `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`**, the PR-#46 merge.
-*(SUPERSEDED as CURRENT state: this sentence gave the base first as `9b9e9b85…` and then as
-`926aba66…`, and named first the post-integration closure candidate and then the
-reproducibility-lock candidate as the sole writable task — each accurate while its own PR was
-in flight, and all of those PRs are now MERGED.)* **THIS POST-MERGE CLOSURE candidate —
-`task/cluster-env-post-merge-closure`, DRAFT PR — is the SOLE WRITABLE REPOSITORY TASK while
-its draft PR is open, and on its integration the repository returns to a clean checkpoint with NO
-writable repository task, NO open Task-5 PR and NO active Task-5 candidate, and none may be
-opened until a future task is explicitly opened and authorized** — while **GENERALIZED-V1 remains an ACTIVE phase, because
-R1 is pending.** The
+`88352b2f…` → `9b9e9b85…`; PR #45, `728ebf3f…` → `926aba66…`) — the CLUSTER ENVIRONMENT
+REPRODUCIBILITY LOCK is MERGED as PR #46 (`cbc22745…` → `e9f9f4f9…`) and its POST-MERGE
+CLOSURE as PR #47 (`0e1be782…` → `6f98b4be…`), and **OPT-IN TRAINING-REWARD EARLY STOPPING
+(`training_reward_plateau_v1`) is BUILT, REVIEWED, APPROVED and MERGED as PR #48
+(`bdfd80d5…` → `0b9a1d63…`, §3m.7)** — so **live `main` at this record's base is
+`0b9a1d63f257a8ed9555f81a1d2bf10e30168e66`**, the PR-#48 merge.
+*(SUPERSEDED as CURRENT state: this sentence gave the base first as `9b9e9b85…`, then as
+`926aba66…`, then as `e9f9f4f9…`, and named in turn the post-integration closure candidate,
+the reproducibility-lock candidate and the post-merge closure candidate as the sole writable
+task — each accurate while its own PR was in flight, and all of those PRs are now MERGED.)*
+**THIS EARLY-STOPPING DOCUMENTATION / LOCK candidate —
+`task/generalized-v1-early-stopping-doc-lock`, DRAFT PR — is the SOLE WRITABLE REPOSITORY
+TASK while its draft PR is open, and on its integration the repository returns to a clean
+checkpoint with NO writable repository task, NO open implementation PR and NO active
+implementation candidate, and none may be opened until a future task is explicitly opened and
+authorized** — while **GENERALIZED-V1 remains an ACTIVE phase, because R1 is pending.** The
 external long-run task is **RUN-ONLY and owns NO repository writes**, and the GPT orchestrator
 owns the work.
 
@@ -3532,9 +3744,14 @@ may be stated or inferred.** It requires independent GPT artifact review before 
 PERFORMANCE** — and **a null or negative generalized result is a valid observation, not a
 technical failure and not grounds to re-tune, re-seed or re-run.** **Task 5A and Task 5B are
 ENGINEERING VALIDATION ONLY and establish nothing scientific** (§3m.3). **No CTDE generalized
-run exists, is scheduled or is authorized**, **no reviewed early-stopping mechanism exists**
-(R1 uses a fixed 3000-success budget; checkpoint RESUME is out of scope and `graph_train` is
-SAVE-only), and **CLUSTER ENVIRONMENT / RUNTIME READINESS IS NOW VALIDATED / READY at exact
+run exists, is scheduled or is authorized**, **an opt-in early-stopping mechanism
+(`training_reward_plateau_v1`) NOW EXISTS as reviewed and integrated CODE (PR #48, §3m.7) but
+is OFF BY DEFAULT and HAS BEEN USED BY NO SCIENTIFIC RUN — R1 is UNTOUCHED and still uses its
+fixed 3000-success budget with NO early stopping, checkpoint RESUME is STILL out of scope and
+`graph_train` is STILL SAVE-only, and no reward, convergence, runtime-saving or performance
+claim exists for it** *(SUPERSEDED as CURRENT state: this clause previously read "**no
+reviewed early-stopping mechanism exists**", accurate through PR #47)*, and **CLUSTER
+ENVIRONMENT / RUNTIME READINESS IS NOW VALIDATED / READY at exact
 `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f`** (§3m.6) — *(SUPERSEDED as CURRENT
 state: this clause previously read "**cluster readiness is DEFERRED** for want of access —
 which does not block the local R1", which was accurate while access did not exist)*.
@@ -3548,18 +3765,21 @@ unless the user explicitly asks, §1), and not a re-run of any approved historic
 (prohibited, §6 — the approved baselines are REUSED as what they are, never rerun, repaired,
 resumed or re-tuned).
 
-**OWNERSHIP AT THIS RECORD (VOLATILE).** **The CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS
-MERGED (PR #46, `cbc22745…` → `e9f9f4f9…`) and its branch `task/cluster-env-repro-lock` is NO
-LONGER WRITABLE.** THIS POST-MERGE CLOSURE candidate — branch
-`task/cluster-env-post-merge-closure`, branched from exact
-`e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b` — **is the SOLE WRITABLE REPOSITORY TASK while its
+**OWNERSHIP AT THIS RECORD (VOLATILE).** **THE PR-#48 EARLY-STOPPING IMPLEMENTATION IS MERGED
+(`bdfd80d5…` → `0b9a1d63…`) and its branch `task/generalized-v1-early-stopping` is NO LONGER
+WRITABLE OR ACTIVE**, and no implementation candidate remains under review. The PR-#47
+post-merge closure task (`task/cluster-env-post-merge-closure`) and the PR-#46
+reproducibility lock (`task/cluster-env-repro-lock`) are likewise MERGED and NO LONGER
+WRITABLE. THIS EARLY-STOPPING DOCUMENTATION / LOCK candidate — branch
+`task/generalized-v1-early-stopping-doc-lock`, branched from exact
+`0b9a1d63f257a8ed9555f81a1d2bf10e30168e66` — **is the SOLE WRITABLE REPOSITORY TASK while its
 own draft PR is open.** The external local R1 remains **RUN-ONLY and owns NO repository
 writes.** **On this candidate's integration NO writable repository task remains**, and none
-may be opened until the future scientific-launch task is EXPLICITLY opened and authorized.
+may be opened until a future task is EXPLICITLY opened and authorized.
 *(SUPERSEDED as CURRENT state: the ownership statements elsewhere in this document naming the
-PR-#45 post-integration closure candidate, and then the PR-#46 reproducibility-lock
-candidate, as the sole writable task were each accurate while that PR was open; BOTH ARE NOW
-MERGED.)*
+PR-#45 post-integration closure candidate, then the PR-#46 reproducibility-lock candidate,
+then the PR-#47 post-merge closure candidate, as the sole writable task were each accurate
+while that PR was open; ALL OF THEM ARE NOW MERGED.)*
 
 **THE NEXT ACTION AFTER THIS DOCUMENTATION TASK IS INTEGRATED IS TO OPEN A FRESH ORCHESTRATION
 THREAD, AND THAT THREAD OWNS FIVE ITEMS — ALL OF THEM STILL OPEN AND NONE OF THEM DECIDED
@@ -3853,3 +4073,5 @@ so.
 | 2026-08-26 | **TASK-4 DOCUMENTATION / LOCK RECORD OPENED**, because reviewed and integrated behaviour existed for §3l.6–§3l.7 while the live documents still said Task 4 was the next unresolved task, NOT started and NOT authorized, that neither harness selected any generalized policy, and that the sampler, the manifest and run-level persistence were unimplemented | `CLAUDE.md` gains the Task-4 §5 contract, its §4 selector placement, its five §6 routing rows and its §7 lock; its stale "NEITHER HARNESS EXPOSES" wording in the Task-1/2/3 blocks is corrected in place with the superseded text preserved; and the `ReferenceIntegrityError` routing block is rewritten to record the Task-4 decision that was deliberately deferred to it. This handoff records Tasks 1–4 as COMPLETE, §3l.1–§3l.7 as IMPLEMENTED, **GENERALIZED-V1 TASK 4 as CLOSED with no writable implementation task and no candidate under review**, and **Task 5 (bounded runtime / solver validation) as the SINGLE next unresolved step that no documentation record authorizes** (§8). It records explicitly that **no FINAL SCIENTIFIC benchmark scale has been SELECTED and no FINAL SCIENTIFIC benchmark population or manifest has been committed, preserved as the comparator, scheduled or authorized**, that **no generalized measurement exists, is running, is scheduled or is authorized**, and that the future actor-only and CTDE arms must use the SAME eventual frozen manifest while the approved historical baselines are REUSED and never rerun. Written in stable POST-INTEGRATION form: no present-tense claim that any documentation branch or PR is the active writable task. **Two files only; no code, test, config, preset, benchmark manifest or workflow change; no run; no ref moved; no historical measurement reinterpreted** |
 | 2026-08-31 | **BGU CLUSTER EXECUTION ENVIRONMENT VALIDATED AND RECORDED; CLUSTER ENVIRONMENT / RUNTIME READINESS MOVES FROM DEFERRED TO VALIDATED / READY** against exact `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f`, because cluster access now exists and the environment was independently validated there against that exact SHA with a clean working tree (§3m.6) | A NEW `environment.cluster.yml` records the DIRECT validated surface (`graph_rl_cluster`, conda-forge only + `nodefaults`, Python 3.12.14, NumPy 1.26.4, SciPy 1.17.1, **`pytorch-cpu` 2.13.0**, Pyomo 6.10.1, `coin-or-bonmin` 1.8.9, Gymnasium 0.29.1, Shapely 2.0.6, Haversine 2.9.0) and is deliberately **NOT a transitive lockfile** and deliberately excludes stable-baselines3 / TensorBoard / CUDA / pytest / plotting libraries; vendored BLADE stays a SEPARATE editable install from `src/match_aou/integrations/panopticon-main/gym`. `requirements.txt` stays the broad PYTHON surface but stops CONTRADICTING BLADE — `shapely` is pinned `==2.0.6` to match BLADE's own `install_requires`, the gymnasium floor is kept broad with BLADE's `==0.29.1` extra recorded, and the solver note is corrected to name BONMIN via conda-forge `coin-or-bonmin` instead of suggesting Ipopt/GLPK as substitutes. `CLAUDE.md` §1 now carries TWO execution contexts without contradiction — the PRESERVED local Windows `nlp_env` contract with its existing caveats intact, and the cluster contract with the **LOAD-BEARING `PYTHONNOUSERSITE=1`** isolation rule and the CPU-only PyTorch state — and §2's frozen-BLADE wording now covers both install locations WITHOUT weakening the frozen contract. The handoff gains §3m.6 as VOLATILE operations: the observed `course` QoS limits (`MaxWall 1-00:00:00`, `MaxTRESPU cpu=66 / gres/gpu=1 / mem=64G`, `MaxMemPerCPU 4096 MB`, `DefCpuPerGPU=6`, `MaxNodes=1`), the `sinteractive` conclusion (**no wrapper change needed**; `DefCpuPerGPU` explains the 6-CPU allocation; launch it OUTSIDE the repository), and the note that **no compute-node performance benchmark is a closure gate** because existing engineering evidence already identifies solver/runtime dominance. **THE ENVIRONMENT SMOKE IS ENGINEERING / RUNTIME VALIDATION, NEVER A MEASUREMENT** — the long `graph_train` selftest was EXTERNALLY TERMINATED and **must not be recorded as a full PASS**, and expected fixed-cell attrition and synthetic test tracebacks must not be read as environment failures. **READINESS IS NOT AUTHORIZATION:** no scientific `sbatch` / job-array launcher exists, is designed or is authorized; no partition / queue / walltime decision is made; **no five-run matrix is defined**; **no benchmark manifest is constructed, frozen, committed or approved**; **no CTDE generalized run is authorized**; `p(destroy)` remains `1.0`; and **R1 is UNTOUCHED — still the LOCAL run it was dispatched as, still `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED, with no result stated or inferable.** Historical "cluster readiness is DEFERRED" statements are SUPERSEDED as CURRENT state only and PRESERVED as the records they were. **Four files; ZERO source, test, BLADE, solver, config, preset, benchmark-manifest or run-artifact changes; no run; no ref moved; no historical measurement reinterpreted** |
 | 2026-08-31 | **THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS INTEGRATED, AND THIS POST-MERGE CLOSURE RECORD IS OPENED**, because merging PR #46 made the handoff's own present-tense ownership and base state stale the moment it landed: the document still said the reproducibility-lock candidate was the sole writable task "while its DRAFT PR is open" and still gave the live base as `926aba66…` | **PR #46** — branch `task/cluster-env-repro-lock`, reviewed candidate `cbc227450067d96c630eed208e22b3a5a20efc1b`, GPT verdict **APPROVE**, user-authorized merge — integrated by **NORMAL merge commit `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`** (`2026-08-31 16:40:13 +0300`), whose ordered parents are `926aba66…` then `cbc22745…`, so the reviewed candidate is preserved as its SECOND PARENT and remains reachable; **the integrated tree was verified IDENTICAL to the reviewed tree** (all four files, and the whole tree). **No rebase, no squash, no cherry-pick, no force-push, no amend and no history rewrite.** The merged branch was then safely deleted only after its tip was proven equal to `cbc22745…`, reachable from integrated `main`, and carrying zero commits outside it. This closure record moves the volatile state to its POST-MERGE condition: **live `main` is `e9f9f4f93412c8c6c3dd8ba81a7e784dc52cc68b`**, PR #46 is MERGED and no longer writable, and **THIS post-merge closure candidate (`task/cluster-env-post-merge-closure`) is the SOLE WRITABLE REPOSITORY TASK while its draft PR is open, with NO writable repository task remaining after its integration until a future task is explicitly opened.** **The `926aba66…` VALIDATION SHA is deliberately NOT rewritten** — the cluster environment really was validated there, and recording that validation later does not move where it was taken. Preserved unchanged: cluster environment / runtime readiness **VALIDATED / READY** and **NOT scientific authorization**; GENERALIZED-V1 ACTIVE because R1 is pending; Tasks 1–5 integrated; Task 5A / 5B ENGINEERING EVIDENCE ONLY; R1 **`AUTHORIZED / DISPATCHED — RESULT PENDING`** and UNREVIEWED with no result stated or inferable; **no CTDE generalized run authorized**; **no five-run scientific matrix defined**; **no frozen scientific benchmark manifest approved or committed**; **no scientific `sbatch` / job-array launcher exists**; `p(destroy)` remains `1.0` with `p(destroy) < 1` DEFERRED. The five open items for the next fresh orchestration thread are unchanged and remain UNDECIDED. **One file; ZERO source, test, BLADE, solver, config, preset, benchmark-manifest, launcher and run-artifact changes; no run; no ref moved beyond deleting the merged PR-#46 branch; no historical measurement reinterpreted** |
+| 2026-09-01 | **OPT-IN TRAINING-REWARD EARLY STOPPING (`training_reward_plateau_v1`) IS IMPLEMENTED, REVIEWED `APPROVE` (Grade A, `GPT_GITHUB`) AND INTEGRATED — PR #48, reviewed candidate `bdfd80d546e9d5779e4d52b522d5db6d8eb610e9` → merge `0b9a1d63f257a8ed9555f81a1d2bf10e30168e66`, from base `6f98b4becb39556081389b0e5b48b2dbb7675a5d`**, a normal merge preserving the reviewed candidate as its SECOND PARENT with the integrated tree `411126d1d9641356673efbf47510c335b4cf0f9b` IDENTICAL to the reviewed tree, no rebase / squash / cherry-pick / force-push / history rewrite, and a SINGLE candidate commit with no review-fix chain. THREE files only: `graph_train.py`, `test_graph_train.py`, `test_graph_ctde.py` — no config, no preset, no benchmark manifest, no documentation file | **THIS SUPERSEDES, AS CURRENT STATE ONLY, EVERY "NO REVIEWED EARLY-STOPPING MECHANISM EXISTS" STATEMENT** in this document and in `CLAUDE.md` — each remains accurate as the record it was, through PR #47. The mechanism is **OFF BY DEFAULT**, approved for `generalized_v1` ONLY with the fixed-cell path REFUSED, and decides from the persisted `train_reward_mean` and **nothing else** — no benchmark or held-out reward, no success / feasibility rate, no PPO or CTDE-critic diagnostic, no checkpoint state, no final-comparator result — with the isolation MECHANICAL (a two-keyword pure monitor, and the ordering record → check → attach → flush → break BEFORE that boundary's periodic evaluation and checkpoint). The approved rule is **100 / 25 / 3 / 0.01** in COMPLETED-ITERATION counts, so at the intended 8 successful episodes per iteration monitoring begins after **800 successful episodes** and the **EARLIEST POSSIBLE stop is 175 completed iterations = 1400 successful episodes — the EARLIEST, never a promised or expected stopping point**, and the 1400 figure is the campaign interpretation at 8 episodes per iteration only. `training_mode` is read nowhere, so **actor-only and CTDE stop by the identical rule**, and comparison semantics are `same maximum budget + same frozen stopping rule + same training-population contract` — **NOT `same actual number of completed iterations`**. **IT IS CODE, NOT A MEASUREMENT: no scientific run has used it**, no reward / convergence / runtime-saving / sample-efficiency / performance claim is made or supported, and firing it would record only that the configured plateau rule fired — never a convergence or optimality claim. **THE DISPATCHED ACTOR-ONLY R1 IS UNTOUCHED** and remains on its ORIGINAL FIXED-BUDGET contract with early stopping `none`, still `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED, with nothing about its outcome stated or inferable. **Checkpoint RESUME remains OUT OF SCOPE and `graph_train` remains SAVE-only**; the PLANNED `max_training_attempts` still governs every held-out claim and never shrinks because a run stopped early; **no repository preset enables the policy** and **no benchmark manifest is committed or tracked**; and **no CTDE generalized run is authorized, scheduled or running** |
+| 2026-09-01 | **THE EARLY-STOPPING DOCUMENTATION / LOCK RECORD IS OPENED**, because merging PR #48 made both documents' present-tense claims stale the moment it landed: `CLAUDE.md` §8 and this handoff (§1, §3m.4, §7, §8) still said **"no reviewed early-stopping mechanism exists"**, and the handoff still named the PR-#47 post-merge closure candidate as the sole writable task while giving the live base as `e9f9f4f9…` | `CLAUDE.md` gains the GENERALIZED-V1 early-stopping **§5 contract** (the closed policy set and the ONE `early_stopping_enabled` predicate; the PRESERVED fixed-budget default and its `generalized_v1`-only approval; the forbidden-input list and why the isolation is MECHANICAL; the approved state machine in COMPLETED-ITERATION counts with 175 / 1400 as the EARLIEST possible stop; actor-only / CTDE parity; `EarlyStoppingIntegrityError` on a missing `train_reward_mean` inside a monitored window; the load-bearing `train` ordering and single finalization at the ACTUAL final iteration; planned-vs-actual budget semantics with `max_training_attempts` unmoved; SAVE-only checkpoints with resume still deferred; the observability carried by the EXISTING artifacts; and the configuration surface with its `validate()` refusals), **two §6 routing rows** ("Change WHEN a GENERALIZED-V1 run stops training" and "Read why/how a run stopped"), a **§7 lock entry** for PR #48 with its exact SHAs, identical-tree proof, three-file scope and single-commit provenance, and a **§8** status bullet. This handoff gains a 2026-09-01 live-state paragraph, an updated §1 / §3m.2 / §3m.4 / §4 / §7 / §8, and a new **§3m.7**. **Two files only; no source, test, config, preset, benchmark manifest or run artifact changed; no run; no ref moved; no historical measurement reinterpreted; no result claimed for R1; and no merge, implementation, benchmark population, campaign or run authorized** |
