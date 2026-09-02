@@ -2608,6 +2608,226 @@ repository preset selects `generalized_v1` and no benchmark manifest is committe
 in the repository.** **THE CURRENT SCALE / AUTHORIZATION STATE IS §8's**, and **NO
 GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS OR MAY BE PRE-CLAIMED** (§8).
 
+**GENERALIZED-V1 OPT-IN TRAINING-REWARD EARLY STOPPING — `training_reward_plateau_v1` —
+`rl/training/graph_train.py` (`bdfd80d`, integrated `0b9a1d6`, PR #48 — §7).**
+
+ONE OPT-IN stopping policy over TRAINING reward alone. It adds NO episode mechanism: the
+bounded-backoff geometry, the FD certification physics, the post-FD boundary semantics, the
+continuation-reference arithmetic, the Task-4 selector / sampler / manifest / persistence and
+the Task-5 quota, budget and preflight are exactly the contracts above. What it changes is
+WHEN a run may stop consuming its budget, and nothing else.
+
+| knob | DEFAULT (historical, preserved) | GENERALIZED-V1 addition |
+|---|---|---|
+| `TrainConfig.early_stopping` | `False` — fixed budget | `True` — `training_reward_plateau_v1` |
+
+`EARLY_STOPPING_POLICIES` is the closed set `(EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,)`
+= (`training_reward_plateau_v1`,). **`TrainConfig.early_stopping_enabled` IS THE ONE
+PREDICATE BEHIND EVERY BRANCH**, so "is this run early-stopped?" has a single answer and
+cannot be re-derived differently at the loop, the header and the summary. It reads the opt-in
+flag and **NOTHING ELSE — notably NOT `training_mode`**.
+
+**OFF IS THE DEFAULT AND IS THE PRESERVED FIXED-BUDGET PATH.** With `early_stopping` false no
+monitor is constructed, no check is computed, **no key is added to any training record**
+(ABSENT, not null — the discipline the CTDE critic diagnostics already follow), and the loop
+cannot exit early. **Every approved measurement (`737b4bf`, `bf1e045f` — §7) was taken on a
+fixed-budget run, and this policy is REFUSED on that path**: `validate()` raises unless
+`episode_design` is `generalized_v1`, because a fixed-cell run that ended early would no
+longer be the fixed-budget contract those measurements were taken on, while its records would
+carry the same schedule fields and read as though it were.
+
+**THE STOPPING SIGNAL IS `train_reward_mean` AND NOTHING ELSE**
+(`EARLY_STOPPING_METRIC`), and that exclusion is the whole research-validity content of the
+feature. The rule MUST NOT consume, and structurally CANNOT consume:
+
+- benchmark or held-out EVALUATION reward of any kind;
+- success, feasibility, attrition or completion rates;
+- PPO diagnostics (`entropy`, `approx_kl`, `clip_fraction`, `grad_norm`, `policy_loss`, …);
+- CTDE critic / value diagnostics (`value_loss`, `value_mean`, `value_target_mean`,
+  `critic_grad_norm`);
+- checkpoint state;
+- any final-comparator result, manifest field, stratum label or reference quantity.
+
+**THE SEPARATION IS MECHANICAL, NOT A CONVENTION.** The frozen benchmark is the COMPARATOR
+two arms are judged by, so letting it decide when an arm stops training would let each arm
+pick its own stopping point on the very population the comparison is made over, and the
+measured difference would stop being attributable to the training algorithm.
+`_EarlyStoppingMonitor` is PURE: `observe` takes exactly two KEYWORD-ONLY arguments —
+`completed_iterations` and `train_reward_mean` — and the class holds no reference to the
+policy, the critic, the buffer, the updater, an evaluation record, the benchmark manifest or
+the config, so there is no channel through which a forbidden quantity could reach the
+decision even by accident. **ONE METRIC PATH:** the value handed to the monitor is read OFF
+the iteration's own completed training record, so the decision and the artifact cannot
+describe different numbers.
+
+**ACTOR-ONLY AND CTDE SHARE THIS MECHANISM WITH NO MODE-SPECIFIC BRANCH.** `training_mode` is
+read nowhere in it. Two arms compared under this policy therefore share
+
+```text
+the same maximum budget + the same frozen stopping rule
+                        + the same training-population contract
+```
+
+which is deliberately **NOT** "the same actual number of completed iterations": the actual
+count is an OUTCOME of the rule, and forcing the two to match would defeat the rule's
+purpose. Fed one shared plateau trajectory the two modes produce byte-identical check
+histories and stop at the identical completed-iteration count.
+
+**THE APPROVED STATE MACHINE, IN COMPLETED-ITERATION COUNTS — NEVER ZERO-BASED INDICES.**
+The approved defaults are `min_iterations = 100`, `window_iterations = 25`,
+`patience_windows = 3`, `min_delta = 0.01`.
+
+- checks fall at `min_iterations` and every `window_iterations` afterwards — **100, 125, 150,
+  175, …** at the defaults;
+- each check averages `train_reward_mean` over the most recent `window_iterations` completed
+  iterations, so **consecutive monitored windows do NOT overlap** and the first
+  `min_iterations - window_iterations` completed iterations (75 at the defaults) fall outside
+  every window;
+- the **FIRST check is the BASELINE** (`EARLY_STOPPING_CHECK_BASELINE`): it only establishes
+  the best window mean and cannot stop. `best_window_mean_before` stays `null` there — never
+  a fabricated zero — so a reader is never left comparing against a measured-looking `0.0`;
+- a later window (`EARLY_STOPPING_CHECK_COMPARISON`) is a MEANINGFUL IMPROVEMENT **iff
+  `window_mean >= best_window_mean + min_delta`** — the boundary is INCLUSIVE, so improving
+  by exactly `min_delta` counts. It then becomes the new best and RESETS the stale counter;
+- otherwise the stale counter INCREMENTS;
+- the run stops when **`stale_windows >= patience_windows`**.
+
+**THEREFORE, AT THE APPROVED DEFAULTS AND AT THE INTENDED 8 SUCCESSFUL EPISODES PER
+ITERATION:** monitoring begins after **800 successful episodes** (100 completed iterations),
+and the **EARLIEST POSSIBLE STOP is 175 COMPLETED ITERATIONS = 1400 SUCCESSFUL EPISODES**
+(`TrainConfig.early_stopping_earliest_stop_iterations` = `min_iterations + patience_windows *
+window_iterations`). **175 IS THE EARLIEST POSSIBLE STOP, NOT A PROMISED OR EXPECTED STOPPING
+POINT**, and **the 1400 figure is the CAMPAIGN INTERPRETATION at 8 successful episodes per
+iteration ONLY — it must not be generalized to an arbitrary `episodes_per_iteration`.**
+
+**FIRING THE RULE MEANS EXACTLY ONE THING: "the configured training-reward plateau rule
+fired."** It is **NOT** proof of convergence, **NOT** a claim of global optimality, **NOT**
+evidence that training reward has provably converged, and **NOT** a performance claim of any
+kind. Nothing about it may be reported as a convergence result.
+
+**A MISSING `train_reward_mean` INSIDE A MONITORED WINDOW ABORTS THE RUN.**
+`EarlyStoppingIntegrityError` is a SUBCLASS of `MeasurementIntegrityError`, so every existing
+abort re-raise already routes it correctly and no future handler can account it as episode
+attrition. `train_reward_mean` is `None` only when EVERY attempt of an iteration failed, and
+under `successful_quota_with_deterministic_replacement_v1` — the only attempt policy this
+feature is approved beside — that cannot happen: an iteration either fills its quota of
+SUCCESSFUL episodes or raises `TrainingQuotaError` first. So a `None` inside a monitored
+window means the instrument contradicts its own attempt contract. **Both alternatives are
+refused deliberately:** averaging the window's remaining values would fabricate a window mean
+over a population nobody chose, and reading the missing value as `0.0` would insert the
+ORACLE OPTIMUM (the reward is normalized regret) into a plateau test and could stop a run by
+declaring a total data loss the best window it ever saw. A `None` OUTSIDE every monitored
+window is never consumed by the rule and is therefore not judged — what is refused is
+fabricating a window mean, never an iteration the mechanism never reads. A PARTIAL window
+raises for the same reason (unreachable while `validate` requires
+`min_iterations >= window_iterations`, and kept so one can never be averaged as though full).
+
+**THE ORDERING INSIDE `train` IS THE CONTRACT, AND IT IS LOAD-BEARING.** Per iteration:
+
+```text
+  training iteration / PPO or CTDE update
+    → CONSTRUCT the iteration's training record
+    → COMPUTE the early-stopping check FROM THAT RECORD'S `train_reward_mean`
+    → ATTACH the due check to that same record (`early_stopping_check`)
+    → PERSIST and FLUSH the training record
+    → if the rule fired: EXIT the loop BEFORE that boundary's periodic
+      evaluation and periodic checkpoint
+    → the FINAL evaluation, when enabled, is strictly POST-DECISION
+    → the FINAL SAVE-only checkpoint uses the ACTUAL final iteration
+```
+
+- **THE COMPARATOR NEVER PARTICIPATES IN DECIDING WHEN TRAINING STOPS.** Exiting before the
+  boundary's periodic evaluation is what makes that true even when the stopping boundary is
+  ALSO an evaluation boundary.
+- **FINALIZATION HAPPENS ONCE.** A stopping boundary that is also an evaluation and
+  checkpoint boundary produces exactly ONE final evaluation and ONE final checkpoint — never
+  a periodic pair plus a duplicate final pair.
+- **`final_iteration` IS THE ACTUAL LAST COMPLETED ITERATION, NOT `n_iterations - 1`.** On a
+  full-budget run the two are the same number and finalization is byte-unchanged; on an
+  early-stopped run `n_iterations - 1` would name an iteration that never ran, so the final
+  evaluation and the final checkpoint would both be labelled with a point the policy never
+  reached.
+- **A FULL-BUDGET RUN FINALIZES EXACTLY AS BEFORE**, in both shapes — a last iteration that
+  is also a periodic boundary, and one that is not.
+
+**PLANNED VERSUS ACTUAL BUDGET — EARLY STOPPING CHANGES ACTUAL CONSUMPTION ONLY.**
+`n_iterations` still declares the run's MAXIMUM budget, and
+**`TrainConfig.max_training_attempts` (`n_iterations * max_attempts_per_iteration`) and every
+held-out / seed-band claim made against it are UNCHANGED — they NEVER shrink dynamically
+because a run stopped early.** All three consumers keep the PLANNED bound: `validate()`'s
+train-vs-eval overlap test and its scenario-tag namespace bound;
+`_require_benchmark_seeds_held_out` through `manifest_seed_overlap`; and `seed_bands`'
+`train_band`. Shrinking the band to what a run happened to spend would leave a corridor of
+seeds a longer run of the same config really trains on while its benchmark was certified held
+out — a held-out failure that produces entirely normal-looking numbers. **SCIENTIFIC
+COMPARISON SEMANTICS UNDER THIS POLICY ARE `same maximum budget + same frozen stopping rule +
+same training-population contract`, and NOT `same actual number of completed iterations`.**
+
+**CHECKPOINTS STAY SAVE-ONLY.** `save_checkpoint`'s payload contract is UNCHANGED — the
+actor-only payload still holds exactly its five keys and the CTDE payload its documented
+additions — and **NO loader and NO resume semantics were introduced.** What changed is only
+the ITERATION the final checkpoint is written at. **Restoring or continuing a run remains
+DEFERRED and out of scope**: an early-stopped run must not quietly acquire continuation
+semantics through the checkpoint it now writes at a different iteration.
+
+**OBSERVABILITY — THE EXISTING ARTIFACTS CARRY IT, AND NO NEW EARLY-STOPPING FILE EXISTS.**
+
+- **`run_config.json`** carries the five resolved fields (`early_stopping`,
+  `early_stopping_min_iterations`, `early_stopping_window_iterations`,
+  `early_stopping_patience_windows`, `early_stopping_min_delta`) through the existing
+  `asdict(cfg)` path under `/train_config`. There is deliberately no separate block.
+- **`train_records.jsonl:/early_stopping_check`** carries every DUE check, attached to the
+  iteration it was computed from — `policy`, `metric`, `check_kind`, both
+  `completed_iterations` and `iteration` forms, the window bounds, `window_mean`,
+  `best_window_mean_before` / `_after`, `min_delta`, `improvement`,
+  `meaningful_improvement`, `stale_windows_before` / `stale_windows`, `patience_windows` and
+  `stop_triggered` — so **every decision is reconstructable from `train_records.jsonl`
+  alone.** The key is added ONLY on an iteration that really took a check, and never at all
+  on a run with the feature off.
+- **`run_summary.json:/early_stopping`** (`_early_stopping_summary`) is DERIVED from those
+  durable records — ONE metric path, exactly as `severity_response` already is — so the
+  summary cannot describe a decision the artifacts do not contain. It states the configured
+  shape, `triggered`, a `termination_reason` from the closed set `TERMINATION_REASONS`
+  (`training_reward_plateau` / `maximum_budget_reached` / `disabled_fixed_budget`), the
+  verbatim check history with `checks_source`, and **every planned/actual budget pair side by
+  side**: `planned_iterations` vs `completed_iterations`, `planned_successful_episodes` vs
+  `actual_successful_episodes`, and `planned_max_training_attempts` vs
+  `actual_training_attempts` — so "this run is short" never has to be inferred by comparing
+  two numbers from different files. `stop_completed_iterations` / `stop_iteration_index` are
+  `null` — never `0` — when nothing fired, because `0` is a real completed-iteration count
+  and a real iteration index. **The block is present on EVERY run**: a fixed-budget one
+  reports `disabled_fixed_budget`, which STATES the contract rather than leaving it to be
+  inferred from an absent key.
+
+**CONFIGURATION SURFACE.** The five fields are settable from a JSON preset and from the CLI
+(`--early-stopping`, `--early-stopping-min-iterations`, `--early-stopping-window-iterations`,
+`--early-stopping-patience-windows`, `--early-stopping-min-delta`), through the ONE
+`_CLI_FIELD_BY_DEST` mapping, with every flag default read off the dataclass. `validate()`
+checks the block **ONLY when the feature is enabled** — an unused block may hold any value,
+exactly as the unused `ctde` block may — and refuses, before any compute: a
+non-`generalized_v1` design; a non-`int` (a `bool` included) or `< 1` count;
+`min_iterations < window_iterations` (the first check must average a FULL window); a
+non-numeric or negative `min_delta`; and an `n_iterations` shorter than
+`early_stopping_earliest_stop_iterations`, because a run too short to ever reach a stopping
+decision would record an ACTIVE stopping policy whose mechanism was structurally inert.
+**No repository preset enables this policy** — `configs/graph_train/final_cell_probe.json`
+remains the ONLY repository preset and is still `fixed_cell_v1`.
+
+**WHAT IS EXPLICITLY NOT IN THIS TASK.** Target destruction stays DETERMINISTIC at
+`probability = 1` — **`p(destroy) < 1` was NOT implemented here and remains a separate future
+Grade-A research task**. The frozen solver / BONMIN and the vendored BLADE engine are
+untouched. No actor, encoder, `ActionHead`, PPO, GAE or critic architecture change; **no new
+`MetaAction`**; no change to terminal-on-last credit placement, to `graph_reward`'s
+`static_t0_v1` formula, or to the no-communication boundary; no scenario, world-construction,
+reward, solver, fuel-damage, seed-formula, episode-design, cardinality-sampler, manifest,
+preflight or evaluation-schedule change; no peer behaviour change and no communication channel
+of any kind. **`evaluate`, `evaluate_benchmark` and `save_checkpoint`'s payload are
+untouched.** **NOTHING FROM THIS LAYER REACHES THE ACTING PATH:** no policy id, metric name,
+window mean, stale count, check record or termination reason enters `GraphObservation` or
+`CentralGraphObservation`. **NO SCIENTIFIC MEASUREMENT HAS USED THIS MECHANISM AND NO RESULT
+MAY BE PRE-CLAIMED FOR IT** — §8 owns the phase state, and the dispatched actor-only R1 is
+governed by its own FIXED-BUDGET contract with NO early stopping.
+
 **PHASE-B CTDE — the TRAINING-ONLY centralized critic —
 `rl/observation/central_graph_builder.py` + `rl/training/graph_ppo.py` (its §7 block)
 + `rl/training/graph_tick_loop.py` + `rl/training/graph_train.py`.**
@@ -2847,6 +3067,8 @@ a stub, because normal production does not currently generate it.
 | Persist or AGGREGATE the generalized per-episode diagnostics | `rl/training/graph_train.py` (`_episode_outcome_record` — schema version 2, `_reward_breakdown_record`, `_failure_record`'s scheduled-cardinality + `reference_fault_reason` fields, `_EMPTY_BENCHMARK_KEYS`, `_backoff_rejections` / `_eligibility_rejections`, `_generalized_summary` and `run_summary.json:/generalized`, `_construction_record`, `seed_bands(..., benchmark=...)` / `EVAL_SEED_SOURCE_MANIFEST`, the `episode_design` block of `write_run_config`, and the FOURTH `measurement_health.png` panel in `_plot_measurement_health`). **RESEARCH-VALIDITY / GRADE A**: every aggregate is DERIVED from the canonical jsonl streams (ONE metric path), every denominator is explicit, the two streams stay DISJOINT, `null` never means `0`, cross-round benchmark totals are flagged REPEATED MEASURES, and requested-vs-realized is REPORTED for human/GPT inspection with **no automatic acceptance threshold** (§5, §8) |
 | Change what `episodes_per_iteration` COUNTS, or the bounded generalized attempt budget | `rl/training/graph_train.py` (`TRAINING_ATTEMPT_POLICIES` = `TRAINING_ATTEMPT_POLICY_SCHEDULED` / `TRAINING_ATTEMPT_POLICY_QUOTA`, `TrainConfig.training_attempt_policy` / `.generalized_max_attempts_per_iteration` / `.max_attempts_per_iteration` / `.max_training_attempts`, `--generalized-max-attempts-per-iteration`, the `validate()` budget rules, `train_attempt_seed` beside the unchanged `train_seed` / `global_episode_index`, the `while True` collect loop's `quota_policy` branch and its `global_attempt_ordinal`, `TrainingQuotaError`, and the `training_attempt_policy` / `successful_episodes_required` / `max_attempts_per_iteration` / `n_replacement_attempts` training-record fields). **RESEARCH-VALIDITY / GRADE A**: `scheduled_attempts_v1` is the fixed-cell DEFAULT and is the policy every approved measurement (`737b4bf`, `bf1e045f`) was taken under; a failed attempt SPENDS its seed and its run-wide ordinal, is recorded once, is never retried and never enters the PPO/CTDE buffer; the budget is REQUIRED and never defaulted; and exhausting it ABORTS rather than updating on a partial batch (§5, §8) |
 | Ask "which TRAINING seeds can this run possibly reach?" (held-outness) | `rl/training/graph_train.py` (`TrainConfig.max_training_attempts` — **NOT** `total_episodes` — consumed by `validate()`'s train-vs-eval overlap test and tag-namespace bound, by `_require_benchmark_seeds_held_out` through `manifest_seed_overlap`, and by `seed_bands`' `train_band` + generalized `train_attempt_policy` block). **RESEARCH-VALIDITY / GRADE A**: a FAILED replacement attempt still consumes one seed and therefore belongs to the exclusion band; checking against the successful-episode quota would leave a corridor of seeds a run really trains on while its benchmark was certified held out. Identical to `total_episodes` on the fixed-cell path (§5) |
+| Change WHEN a GENERALIZED-V1 run stops training | `rl/training/graph_train.py` (`EARLY_STOPPING_POLICIES` = `EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU`, `EARLY_STOPPING_METRIC`, `EARLY_STOPPING_CHECK_BASELINE` / `EARLY_STOPPING_CHECK_COMPARISON`, `TrainConfig.early_stopping` / `.early_stopping_min_iterations` / `.early_stopping_window_iterations` / `.early_stopping_patience_windows` / `.early_stopping_min_delta`, `TrainConfig.early_stopping_enabled`, `TrainConfig.early_stopping_earliest_stop_iterations`, the `validate()` early-stopping rules, `--early-stopping` and its four companion flags, `_EarlyStoppingMonitor` with `is_due` / `observe`, `EarlyStoppingIntegrityError`, and in `train` the monitor construction, the `monitor.observe(...)` call taken FROM the completed training record, the `if stop_early: break` that precedes the periodic eval/checkpoint branch, and `final_iteration` = the ACTUAL last completed iteration). **RESEARCH-VALIDITY / GRADE A**: OFF is the DEFAULT and is the fixed-budget path every approved measurement (`737b4bf`, `bf1e045f`) was taken on, and the policy is REFUSED outside `generalized_v1`; the decision reads `train_reward_mean` ALONE — no held-out, benchmark, success-rate, PPO, CTDE-critic, checkpoint or comparator quantity may enter it, and the monitor's two-keyword signature is what makes that structural; the ORDERING (record → check → attach → flush → break before the boundary's evaluation) is the comparator isolation; `training_mode` is read nowhere, so actor-only and CTDE stop by the identical rule; the PLANNED `max_training_attempts` still governs every held-out claim; a missing `train_reward_mean` inside a monitored window ABORTS; and 175 completed iterations is the EARLIEST POSSIBLE stop, never a promised one (§5, §8) |
+| Read why/how a run stopped | `train_records.jsonl:/early_stopping_check` (the durable per-check history — one entry per DUE check, on the iteration it was computed from; ABSENT entirely on a run with the feature off) + `rl/training/graph_train.py` (`_EARLY_STOPPING_RECORD_KEY`, `_early_stopping_summary`, `TERMINATION_REASONS` = `TERMINATION_REASON_PLATEAU` / `TERMINATION_REASON_MAX_BUDGET` / `TERMINATION_REASON_DISABLED`) + `run_summary.json:/early_stopping` (`enabled`, `policy`, `metric`, the configured shape, `earliest_possible_stop_iterations`, `triggered`, `termination_reason`, the planned/actual pairs `planned_iterations` / `completed_iterations`, `planned_successful_episodes` / `actual_successful_episodes`, `planned_max_training_attempts` / `actual_training_attempts`, `stop_completed_iterations` / `stop_iteration_index`, `n_checks`, `checks`, `checks_source`). **RESEARCH-VALIDITY / GRADE A**: the summary is DERIVED from the durable records (ONE metric path), the block is present on EVERY run so `disabled_fixed_budget` STATES the fixed-budget contract rather than leaving it to be inferred, planned and actual are always reported as a PAIR, `null` never means `0`, and **a triggered stop records only that the configured plateau rule fired — never a convergence or optimality claim** (§5) |
 | SELECT the benchmark POPULATION — the deterministic preflight, run ONCE BEFORE the freeze | `rl/training/graph_benchmark_preflight.py` (`PREFLIGHT_POLICY`, `cell_windows` / `CellWindow`, `probe_world` / `ProbeFn`, `_scan_cell`, `run_benchmark_preflight`, `CandidateOutcome` / `CANDIDATE_OUTCOMES`, `_rejection_reason`, `_require_preflight_config`, `PreflightResult`). **RESEARCH-VALIDITY / GRADE A**: the SCALE (`worlds_per_cell`, `benchmark_base_seed`, `max_candidates_per_cell`) is REQUIRED and never defaulted; the six base-cell windows are INDEPENDENT so one cell's attrition cannot move another's accepted seeds; candidates are attempted in ascending order EXACTLY once and a rejected seed is spent; a short `hidden_realized` is ACCEPTED and recorded, never rejected for the shortfall alone; **no policy is built, no episode is run, and no reward or learned behaviour may influence acceptance**; and integrity faults PROPAGATE rather than becoming population-selection attrition (§5, §8) |
 | Read or change what a FAILED preflight leaves behind | `rl/training/graph_benchmark_preflight.py` (`PREFLIGHT_STATUSES` = `PREFLIGHT_STATUS_COMPLETE` / `PREFLIGHT_STATUS_FAILED`, `PREFLIGHT_FAILURE_WINDOW_EXHAUSTED`, the quota verdict in `run_benchmark_preflight` AFTER `_scan_cell` returns its complete audit, `_failure_block`, the ONE shared `_build_report`, `_write_report`, `_existing_manifest` / `stale_manifest_path`, and `BenchmarkPreflightError.report` / `.report_path`). **RESEARCH-VALIDITY / GRADE A**: on exhaustion the cell's audit is preserved, NO later cell is scanned, NO manifest is created, the FAILED report is written BEFORE the raise when an output directory exists, and `status` — never the document's shape — says whether this is a frozen benchmark. **A failed candidate audit is NOT a benchmark population** (§5, §8) |
 | Route a REFERENCE fault — accounted attrition vs measurement-integrity ABORT | `rl/training/graph_reward.py` (`REFERENCE_FAULT_REASONS`, `REFERENCE_ATTRITION_REASONS`, `ReferenceIntegrityError(..., reason=...)` and `.is_measurement_integrity`, `reference_fault_aborts`) + `rl/training/graph_episode_setup.py` (the reason-carrying raise sites in `_solve_reference` / `build_t0_reference` / `build_continuation_reference`) + `rl/training/graph_train.py` (the `reference_fault_aborts` branches in `_run_one_episode`'s run and reward blocks, and the `except (_VisualArtifactError, MeasurementIntegrityError, FuelDamageIntegrityError, BenchmarkIdentityError, ReferenceIntegrityError)` re-raises in the train and both eval attempt handlers). **RESEARCH-VALIDITY / GRADE A**: `reason` is REQUIRED and closed, the routing reads the SLUG and NEVER the message, an unanswered solve is ordinary accounted attrition inside `skip_and_account_v1`, and every other reason ABORTS exactly as a roster or certificate fault does (§5) |
@@ -4908,6 +5130,65 @@ a stub, because normal production does not currently generate it.
   Task 5A / Task 5B remain ENGINEERING VALIDATION under their binding label. This entry
   records the LOCK; §8 owns the phase state.
 
+- `bdfd80d` — **GENERALIZED-V1 OPT-IN TRAINING-REWARD EARLY STOPPING
+  (`training_reward_plateau_v1`) — CLOSED / APPROVED / MERGED.** Reviewed candidate SHA
+  `bdfd80d546e9d5779e4d52b522d5db6d8eb610e9` (committed `2026-09-01 16:49:28 +0300`), on
+  branch `task/generalized-v1-early-stopping`, integrated by merge commit
+  `0b9a1d63f257a8ed9555f81a1d2bf10e30168e66` (`2026-09-01 18:29:13 +0300`, **PR #48**),
+  from base `6f98b4becb39556081389b0e5b48b2dbb7675a5d` — the `main` head produced by the
+  PR-#47 post-merge closure merge. Grade A under `GPT_GITHUB`, verdict **APPROVE**. The
+  candidate was merged with a normal MERGE COMMIT and preserved as its SECOND PARENT
+  (ordered parents: `6f98b4becb39556081389b0e5b48b2dbb7675a5d`, then
+  `bdfd80d546e9d5779e4d52b522d5db6d8eb610e9`); candidate and integration share the IDENTICAL
+  tree `411126d1d9641356673efbf47510c335b4cf0f9b` (verified locally), so the integrated tree
+  is exactly the reviewed tree, and no rebase, squash, cherry-pick, force-push or history
+  rewrite occurred. The reviewed candidate is a SINGLE commit — there was no review-fix
+  chain, and none is invented here. The technical contract is in §5 (the GENERALIZED-V1
+  early-stopping block) and the routing in §6; this entry records the LOCK, not the
+  mechanism.
+  **WHAT IT IMPLEMENTS.** ONE OPT-IN stopping policy, `training_reward_plateau_v1`, OFF by
+  default and approved for `generalized_v1` only, decided from the persisted
+  `train_reward_mean` and from nothing else, identical under `actor_only` and `ctde`, and
+  mechanically isolated from every held-out / benchmark / comparator quantity. It adds NO
+  episode mechanism, and it changes only WHEN a run may stop consuming its budget.
+  **REVIEWED SCOPE: EXACTLY THREE FILES**, verified as the complete
+  `6f98b4be…...0b9a1d63…` comparison — `src/match_aou/rl/training/graph_train.py`
+  (+616 / −4), `tests/test_graph_train.py` (+647 / −1) and `tests/test_graph_ctde.py`
+  (+134 / −0). **No config, preset or benchmark manifest was added or changed**
+  (`configs/graph_train/final_cell_probe.json` remains the ONLY repository preset, is
+  untouched, is still `fixed_cell_v1`, and does NOT enable early stopping), and **no
+  documentation file was part of the code candidate** — that is what this documentation task
+  closes. No vendored BLADE, solver, `graph_reward`, `graph_generalized`,
+  `graph_benchmark_preflight`, `graph_episode_setup`, `graph_rollout`, PPO, encoder,
+  action-space, tick-loop, executor, fuel-damage-mechanism, hidden-placement or generator
+  file was touched, and `evaluate`, `evaluate_benchmark` and `save_checkpoint`'s payload were
+  NOT modified.
+  **WHAT IS DELIBERATELY NOT IN IT.** No loader and no resume semantics — checkpoints stay
+  SAVE-only and restoring a run remains DEFERRED. No change to the PLANNED
+  `max_training_attempts` or to any held-out / seed-band claim made against it. No scenario,
+  world-construction, reward, solver, PPO, CTDE, fuel-damage, seed-formula, episode-design,
+  cardinality-sampler, manifest, preflight or evaluation-schedule change. `p(destroy)` stays
+  `1.0`. **No new `MetaAction`**, and nothing from this layer reaches the acting path.
+  **HISTORICAL CC-REPORTED ENGINEERING EVIDENCE ONLY.** The reviewed tree carries the ten
+  `test_es_*` proof tests the packet enumerates plus two configuration-surface tests, taking
+  `tests/test_graph_train.py` from **159** to **171** tests, and the actor-only-vs-CTDE
+  parity test `test_early_stopping_is_identical_under_actor_only_and_ctde`, taking
+  `tests/test_graph_ctde.py` from **45** to **46**. Those are test COUNTS PRESENT IN THE
+  REVIEWED TREE plus the CC report made at review time — **this DOCUMENTATION task ran no
+  test suite, no solver, no BLADE episode and no smoke, and makes no pass/fail claim of its
+  own.**
+  **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #48**, and none may be
+  inferred from it. **No scientific run has used this mechanism**, **no reward, convergence,
+  runtime-saving or performance claim is made or supported for it**, and **firing the rule
+  would record only that the configured training-reward plateau rule fired — never a
+  convergence or optimality claim.** The dispatched actor-only R1 is UNTOUCHED by this work
+  and remains governed by its own FIXED-BUDGET contract with NO early stopping; it stays
+  `AUTHORIZED / DISPATCHED — RESULT PENDING` with nothing about its outcome stated or
+  inferable. The approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`)
+  measurements are untouched and remain measurements of the `fixed_cell_v1` bundle under the
+  preserved fixed-budget path. This entry certifies the IMPLEMENTATION; §8 owns the phase
+  state.
+
 ---
 
 ## 8. OPEN (not built)
@@ -4920,7 +5201,18 @@ a stub, because normal production does not currently generate it.
   `9b9e9b85`, PR #44) — SO TASKS 1 THROUGH 5 ARE ALL INTEGRATED** (§5, §7). *(SUPERSEDED,
   and corrected here: this sentence previously read that the Task-5 stack was "APPROVED AND
   FROZEN BUT NOT YET INTEGRATED". Accurate at that checkpoint; not a current-state
-  claim.)* **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS, AND NO GENERALIZED RESULT
+  claim.)* **AN OPT-IN TRAINING-REWARD EARLY-STOPPING MECHANISM
+  (`training_reward_plateau_v1`) IS NOW IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED TOO**
+  (`bdfd80d` / `0b9a1d6`, PR #48 — §5, §7): OFF BY DEFAULT, approved for `generalized_v1`
+  only, decided from the persisted `train_reward_mean` and nothing else, identical under
+  `actor_only` and `ctde`, and mechanically isolated from every benchmark / held-out
+  comparator quantity. **IT IS CODE, NOT A MEASUREMENT: no scientific run has used it**,
+  no reward, convergence, runtime-saving or performance claim is made or supported for it,
+  and firing it would record only that the configured plateau rule fired — never a
+  convergence or optimality claim. *(SUPERSEDED, and corrected here: this document and the
+  handoff previously stated that NO REVIEWED EARLY-STOPPING MECHANISM EXISTS. That was
+  accurate through PR #47 and is not now — what survives is that no scientific run has used
+  it.)* **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS, AND NO GENERALIZED RESULT
   MAY BE PRE-CLAIMED.** **A first full GENERALIZED-V1 ACTOR-ONLY long run (R1) has been
   AUTHORIZED and DISPATCHED and its RESULT IS PENDING** — it is unreviewed, it has produced
   no verdict, and nothing about its reward, convergence, attrition, benchmark outcome or
@@ -5023,6 +5315,40 @@ a stub, because normal production does not currently generate it.
     is not now — what remains true is that `fixed_cell_v1` is the DEFAULT, that a default run
     is byte-invariant at the call boundary, and that no generalized measurement RESULT
     exists.
+  - **EARLY STOPPING — THE MECHANISM EXISTS; NO SCIENTIFIC RUN HAS USED IT, AND R1 IS
+    UNTOUCHED BY IT.** Five facts, and they must not be collapsed:
+    1. **A REVIEWED, APPROVED AND INTEGRATED OPT-IN EARLY-STOPPING MECHANISM NOW EXISTS** —
+       `training_reward_plateau_v1` (`bdfd80d` / `0b9a1d6`, PR #48; the contract is §5 and
+       the routing §6). It is **OFF BY DEFAULT**, `validate()` approves it for
+       `generalized_v1` ONLY, and **no repository preset enables it** —
+       `configs/graph_train/final_cell_probe.json` remains the ONLY repository preset and is
+       still `fixed_cell_v1`.
+    2. **NO SCIENTIFIC RUN HAS USED THIS MECHANISM.** It is CODE. There is **no reward,
+       convergence, runtime-saving, sample-efficiency or performance claim** for it, none is
+       supported by anything in this repository, and firing the rule would record only that
+       the configured training-reward plateau rule fired — **never a convergence or
+       optimality claim.** **175 completed iterations (1400 successful episodes at the
+       intended 8 per iteration) is the EARLIEST POSSIBLE stop under the approved defaults,
+       not a promised or expected stopping point**, and nothing may assume that two arms
+       would train for the same actual number of iterations — the actual count is an OUTCOME
+       of the rule.
+    3. **THE DISPATCHED ACTOR-ONLY R1 IS UNTOUCHED AND DID NOT USE EARLY STOPPING.** It
+       remains governed by its ORIGINAL FIXED-BUDGET contract — the frozen plan the handoff
+       records, with early stopping `none` — and stays
+       `AUTHORIZED / DISPATCHED — RESULT PENDING`, unreviewed, with **no reward, convergence,
+       attrition, benchmark or validity result stated or inferable.** This mechanism's
+       existence changes nothing about it.
+    4. **CHECKPOINT RESUME REMAINS OUT OF SCOPE.** `save_checkpoint` is still SAVE-only, no
+       loader and no resume semantics were introduced, and restoring or continuing a run
+       remains a separate DEFERRED task. What PR #48 changed is only the ITERATION a final
+       checkpoint is written at.
+    5. **THE PLANNED BUDGET STILL GOVERNS EVERY HELD-OUT CLAIM.** `max_training_attempts` and
+       the seed bands checked against it are the MAXIMUM POSSIBLE ones and **never shrink
+       because a run stopped early**; scientific comparison semantics under this policy are
+       `same maximum budget + same frozen stopping rule + same training-population contract`,
+       **not** `same actual number of completed iterations` (§5).
+    **NO CTDE generalized run is authorized, scheduled or running**, and this mechanism
+    authorizes no run of any kind.
   - **WHAT IS UNCHANGED AND STAYS THAT WAY.** `p(destroy)` remains `1.0` and
     `p(destroy) < 1` remains a separate deferred Grade-A research task; the solver / BONMIN
     and the vendored BLADE engine remain FROZEN; `graph_reward`'s STATIC `static_t0_v1`
