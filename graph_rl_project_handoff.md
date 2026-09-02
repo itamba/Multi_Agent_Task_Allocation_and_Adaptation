@@ -3897,9 +3897,13 @@ then the PR-#47 post-merge closure candidate, then the PR-#49 early-stopping DOC
 LOCK candidate, as the sole writable task were each accurate
 while that PR was open; ALL OF THEM ARE NOW MERGED.)*
 
-**THE NEXT ACTION AFTER THIS DOCUMENTATION TASK IS INTEGRATED IS TO OPEN A FRESH ORCHESTRATION
-THREAD, AND THAT THREAD OWNS FIVE ITEMS — ALL OF THEM STILL OPEN AND NONE OF THEM DECIDED
-HERE:**
+**FUTURE CAMPAIGN ITEMS REMAIN OPEN, UNDECIDED AND NOT AUTHORIZED — AND THEY ARE NOT THE
+NEXT ACTION.** **THE ONE CURRENT NEXT ACTION IS AND STAYS INDEPENDENT GPT ARTIFACT REVIEW OF
+THE DISPATCHED ACTOR-ONLY R1 ONCE ITS ARTIFACTS EXIST**, stated at the top of this section;
+**nothing in the list below displaces it, precedes it, runs in parallel with it, or becomes
+the next action on this record's integration.** The five items are recorded ONLY so that a
+future thread — **one that must be EXPLICITLY opened and authorized, and which this record
+neither opens nor schedules** — starts from what is already known rather than from guesswork:
 
 1. the **exact five-run scientific design**;
 2. **benchmark-manifest identity, freeze and review**;
@@ -3907,9 +3911,10 @@ HERE:**
 4. **scientific `sbatch` / job-array design**;
 5. **launch and monitoring.**
 
-**NOTHING ABOUT THOSE FIVE IS PRE-DECIDED, PRE-DESIGNED OR PRE-AUTHORIZED BY THIS RECORD, AND
-LISTING THEM IS NOT AUTHORIZING THEM.** In particular: **the five-run matrix is NOT defined
-here**; **no benchmark manifest is constructed, frozen, committed or approved as a
+**ALL FIVE ARE OPEN, UNDECIDED AND UNAUTHORIZED. NOTHING ABOUT THEM IS PRE-DECIDED,
+PRE-DESIGNED, PRE-SCHEDULED OR PRE-AUTHORIZED BY THIS RECORD, AND LISTING THEM IS NOT
+AUTHORIZING THEM, NOR IS IT OPENING A THREAD TO OWN THEM.** In particular: **the five-run
+matrix is NOT defined here**; **no benchmark manifest is constructed, frozen, committed or approved as a
 comparator**; **no partition, queue, CPU/memory or walltime choice is made**; **no `sbatch`
 script or job array exists or is designed**; and **no launch is scheduled.** The observed
 Slurm `course` limits in §3m.6 are VOLATILE INPUTS to item 3, never its answer. **A CTDE
@@ -3917,6 +3922,11 @@ generalized run remains unauthorized**, **`p(destroy)` remains `1.0` with `p(des
 DEFERRED**, and **R1 stays `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED** —
 independent GPT artifact review of R1 remains the open scientific thread and is NOT displaced
 by this list.
+*(SUPERSEDED, and corrected here: this passage previously opened "THE NEXT ACTION AFTER THIS
+DOCUMENTATION TASK IS INTEGRATED IS TO OPEN A FRESH ORCHESTRATION THREAD, AND THAT THREAD
+OWNS FIVE ITEMS". That named a next action which contradicted this section's own — and this
+document's — single next-action contract, and it read as scheduling a thread no one had
+authorized. The five items themselves, and every non-claim attached to them, are unchanged.)*
 **THE SCALE / AUTHORIZATION / RESULT STATE IS FOUR DISTINCT FACTS:** **the R1 benchmark SCALE is SELECTED and AUTHORIZED (`worlds_per_cell = 3`) and its
 CONSTRUCTION is AUTHORIZED and DISPATCHED (candidate base seed `840000`,
 `max_candidates_per_cell = 12`); no concrete R1 manifest has yet been independently reviewed
