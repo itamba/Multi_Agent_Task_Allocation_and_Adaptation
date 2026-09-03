@@ -570,6 +570,11 @@ _ARTIFACT_PHASE_TRAIN = "train"
 _ARTIFACT_PHASES = (
     _EVAL_STAGE_PRE_UPDATE, _ARTIFACT_PHASE_TRAIN, _EVAL_STAGE_POST_UPDATE,
 )
+# The two EVALUATION phases, as a set apart from training. Held-out evaluation is
+# deterministic on a frozen population while training is stochastic on a sampled one, so
+# a rate whose denominator mixes them describes neither. Every scientific severity
+# quantity below is taken over THIS tuple and never over `_ARTIFACT_PHASES`.
+_EVAL_PHASES = (_EVAL_STAGE_PRE_UPDATE, _EVAL_STAGE_POST_UPDATE)
 
 # --- PLOTS: one subdirectory, three semantically separate figures ---------------
 # The legacy single `training_plot.png` dashboard is GONE. It put the stochastic
@@ -7483,6 +7488,10 @@ def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     return {
         "evaluation_stage": record.get("evaluation_stage"),
         "updates_completed": record.get("updates_completed"),
+        # The round's own ordinal, so this digest states a COMPLETE round identity --
+        # stage + update count + ordinal. Without it a consumer can only find the round
+        # again by position in the file, which is a fact about the writer.
+        "eval_round_ordinal": record.get("eval_round_ordinal"),
         "iteration": record.get("iteration"),
         "n_attempted": record.get("n_attempted", record.get("n_episodes")),
         "n_successful": record.get("n_successful", record.get("n_ok")),
@@ -7536,8 +7545,157 @@ def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     }
 
 
+def _wake_population_block(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Split ONE already-selected population of outcome records by wake kind and cell.
+
+    It takes the population as an ARGUMENT and selects nothing itself, so the caller --
+    and only the caller -- decides which phase, stage or round the block describes. That
+    is deliberate: the defect this replaces was a block that quietly pooled training and
+    held-out evaluation rows under a name that mentioned neither.
+    """
+    by_kind: Dict[str, List[Dict[str, Any]]] = {k: [] for k in WAKE_KINDS}
+    by_kind_cell: Dict[str, Dict[str, List[Dict[str, Any]]]] = {k: {} for k in WAKE_KINDS}
+    n_by_kind: Dict[str, int] = {k: 0 for k in WAKE_KINDS}
+    for rec in rows:
+        cell = str(rec.get("cell", CONDITION_CLEAN))
+        for d in rec.get("wake_decisions") or ():
+            kind = str(d.get("wake_kind") or WAKE_KIND_ORDINARY)
+            by_kind.setdefault(kind, []).append(d)
+            by_kind_cell.setdefault(kind, {}).setdefault(cell, []).append(d)
+            n_by_kind[kind] = n_by_kind.get(kind, 0) + 1
+    return {
+        "n_episode_records": len(rows),
+        "n_wakes_by_kind": {k: n_by_kind.get(k, 0) for k in by_kind},
+        "by_wake_kind": {k: _wake_diag_digest(v) for k, v in by_kind.items()},
+        "by_wake_kind_and_cell": {
+            k: {c: _wake_diag_digest(v) for c, v in cells.items()}
+            for k, cells in by_kind_cell.items()},
+    }
+
+
+def _round_identity(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """The FULL evaluation identity of one outcome record, as plain builtins.
+
+    A benchmark ``group_key`` alone is NOT an identity: the SAME frozen world group is
+    re-measured in EVERY evaluation round, so keying a matched table on it collapses
+    every round of a run into one bucket and silently turns repeated measures of one
+    world into what reads like independent worlds. The identity is therefore the
+    evaluation STAGE, the update count, the round ordinal and the manifest the round was
+    drawn from; the group key identifies the WORLD *within* that round.
+    """
+    return {
+        "evaluation_stage": (None if rec.get("phase") is None else str(rec.get("phase"))),
+        "updates_completed": (None if rec.get("updates_completed") is None
+                              else int(rec.get("updates_completed"))),
+        "eval_round_ordinal": (None if rec.get("eval_round_ordinal") is None
+                               else int(rec.get("eval_round_ordinal"))),
+        "benchmark_manifest_id": (None if rec.get("benchmark_manifest_id") is None
+                                  else str(rec.get("benchmark_manifest_id"))),
+    }
+
+
+def _immediate_fd_abort_mass(rec: Dict[str, Any]) -> Optional[float]:
+    """Mean AGGREGATE P(ABORT) over this record's IMMEDIATE-FD wakes, or ``None``.
+
+    ``None`` -- never ``0.0`` -- when the record has no immediate-FD wake at all: on a
+    probability mass 0 is a measured value and would read as "the actor put no weight on
+    aborting" when the truth is "this episode was never asked".
+    """
+    mass = [float(d["aggregate_probability_per_meta_action"][_ABORT_NAME])
+            for d in rec.get("wake_decisions") or ()
+            if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD
+            and isinstance((d.get("aggregate_probability_per_meta_action") or {})
+                           .get(_ABORT_NAME), (int, float))]
+    return (float(sum(mass)) / len(mass)) if mass else None
+
+
+def _matched_rounds(eval_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Per-ROUND matched severe-minus-mild aggregate P(ABORT). EVALUATION rows only.
+
+    Pairing uses the FULL evaluation identity (:func:`_round_identity`) plus
+    ``benchmark_group_key``: a group contributes a delta only when its MILD and SEVERE
+    members are present IN THE SAME ROUND. Two rounds that measure the same frozen world
+    therefore produce two independent deltas rather than one mixed number, and the order
+    the records happen to appear in the file cannot change either of them.
+    """
+    rounds: Dict[Any, Dict[str, Any]] = {}
+    for rec in eval_rows:
+        gkey = rec.get("benchmark_group_key")
+        if not gkey:
+            continue
+        mass = _immediate_fd_abort_mass(rec)
+        if mass is None:
+            continue
+        ident = _round_identity(rec)
+        key = (ident["evaluation_stage"], ident["updates_completed"],
+               ident["eval_round_ordinal"], ident["benchmark_manifest_id"])
+        slot = rounds.setdefault(key, {"identity": ident, "groups": {}})
+        slot["groups"].setdefault(str(gkey), {})[
+            str(rec.get("cell", ""))] = mass
+
+    out: List[Dict[str, Any]] = []
+    for key in sorted(rounds, key=lambda t: tuple(
+            (v is None, v) for v in t)):
+        slot = rounds[key]
+        deltas = [v[SEVERITY_SEVERE] - v[SEVERITY_MILD]
+                  for v in slot["groups"].values()
+                  if SEVERITY_MILD in v and SEVERITY_SEVERE in v]
+        rec_out = dict(slot["identity"])
+        rec_out.update({
+            "n_groups_with_immediate_fd_wakes": len(slot["groups"]),
+            "n": len(deltas),
+            "mean": (float(sum(deltas)) / len(deltas)) if deltas else None,
+            "min": (min(deltas) if deltas else None),
+            "max": (max(deltas) if deltas else None),
+        })
+        out.append(rec_out)
+    return out
+
+
+def _select_final_matched_round(
+    rounds: List[Dict[str, Any]],
+    final_eval: Optional[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Pick the round the FINAL evaluation digest names, BY VALIDATED IDENTITY.
+
+    Never by file order. ``eval_records[-1]`` is the last row a file happens to hold,
+    which is a statement about the writer, not about which round is final -- so the
+    selection here matches the digest's own ``evaluation_stage`` / ``updates_completed``
+    / ``eval_round_ordinal`` and REFUSES rather than guesses when that identity is
+    missing, absent from the rounds, or ambiguous. A wrong "final round" is worse than
+    none, because it looks exactly like a right one.
+    """
+    if not final_eval:
+        return None, {"selected": False, "reason": "no_final_evaluation_digest_provided"}
+    wanted = {
+        "evaluation_stage": final_eval.get("evaluation_stage"),
+        "updates_completed": final_eval.get("updates_completed"),
+        "eval_round_ordinal": final_eval.get("eval_round_ordinal"),
+    }
+    stated = {k: v for k, v in wanted.items() if v is not None}
+    if not stated:
+        return None, {"selected": False,
+                      "reason": "final_evaluation_digest_states_no_identity",
+                      "requested_identity": wanted}
+    hits = [r for r in rounds
+            if all(r.get(k) == (int(v) if k != "evaluation_stage" else str(v))
+                   for k, v in stated.items())]
+    if len(hits) == 1:
+        return hits[0], {"selected": True, "reason": "matched_by_validated_identity",
+                         "requested_identity": wanted, "n_candidates": 1}
+    return None, {
+        "selected": False,
+        "reason": ("no_matched_round_with_that_identity" if not hits
+                   else "ambiguous_identity_matched_several_rounds"),
+        "requested_identity": wanted,
+        "n_candidates": len(hits),
+    }
+
+
 def _fd_policy_sensitivity_from_outcomes(
     outcome_records: List[Dict[str, Any]],
+    *,
+    final_eval: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """The FD-policy-sensitivity digest, DERIVED FROM THE DURABLE PER-ATTEMPT STREAM.
 
@@ -7545,77 +7703,104 @@ def _fd_policy_sensitivity_from_outcomes(
     summary reads ``episode_outcomes.jsonl`` rather than a parallel in-memory aggregate,
     so it cannot describe a run its own artifacts do not.
 
-    Three populations are kept STRICTLY apart and are never pooled -- ``ordinary``,
-    ``immediate_fuel_damage`` and ``post_fd_boundary`` -- because an approved measurement
-    is reported over the immediate-FD population alone, and a boundary decision folded
-    into it would change what that measurement means. Within the immediate-FD population
-    the digest is additionally split by the episode's reporting CELL (clean / mild /
-    severe, or clean / damaged on a legacy run), which is what makes the mild-vs-severe
-    comparison readable without an offline replay.
+    **THREE POPULATIONS, KEPT APART BY PHASE.** ``train``, ``pre_update`` and
+    ``post_update`` each get their OWN block under ``by_phase`` and are never averaged
+    together. The distinction is not cosmetic: training episodes are drawn by a
+    stochastic actor from a sampled population, held-out evaluation is deterministic on a
+    frozen one, and a rate whose denominator mixes the two describes neither. A pooled
+    view is still available, but only under ``all_phases_pooled`` -- a name that states
+    what it did.
 
-    MATCHED PAIRING IS BY FROZEN BENCHMARK GROUP IDENTITY, never by target uuid: hidden
-    target uuids are minted per construction and are not seed-stable labels, so pairing
-    on them would silently drop or mis-pair worlds. A group contributes a matched delta
-    only when BOTH members are present.
+    **THREE WAKE KINDS, ALSO KEPT APART** -- ``ordinary``, ``immediate_fuel_damage`` and
+    ``post_fd_boundary`` -- because an approved measurement is reported over the
+    immediate-FD population alone, and a boundary decision folded into it would change
+    what that measurement means. Within each, the digest is additionally split by the
+    episode's reporting CELL (clean / mild / severe, or clean / damaged on a legacy run).
+
+    **MATCHED PAIRING USES THE FULL EVALUATION IDENTITY**, never ``benchmark_group_key``
+    alone and never a target uuid: the same frozen world group is re-measured every
+    round, so the round is part of what identifies a measurement. Deltas are reported
+    PER ROUND, the cross-round pool is explicitly flagged as repeated measures, and the
+    final round is selected by validated identity rather than by file order.
+
+    **SCHEMA VERSIONS ARE OBSERVED, NOT ASSERTED.** The version reported is the one the
+    records actually carry, so a legacy artifact cannot be described by this writer's
+    current constants.
 
     Returns ``{"recorded": False, ...}`` when no record carries the v3 field -- a
     truthful "not recorded", never a table of fabricated zeros.
     """
-    with_diag = [r for r in outcome_records if isinstance(r.get("wake_decisions"), list)]
+    rows = list(outcome_records or [])
+    with_diag = [r for r in rows if isinstance(r.get("wake_decisions"), list)]
+    observed_versions = sorted({
+        int(r["wake_diagnostics_schema_version"]) for r in with_diag
+        if isinstance(r.get("wake_diagnostics_schema_version"), int)
+        and not isinstance(r.get("wake_diagnostics_schema_version"), bool)})
     if not with_diag:
         return {
             "recorded": False,
             "source": _EPISODE_OUTCOMES_FILENAME,
-            "wake_diagnostics_schema_version": None,
+            "wake_diagnostics_schema_version_writer": _WAKE_DIAGNOSTICS_VERSION,
+            "wake_diagnostics_schema_versions_observed": [],
+            "wake_diagnostics_schema_version_observed": None,
             "note": ("no episode_outcomes record carries `wake_decisions`; this run "
                      "predates episode-outcome schema v3"),
         }
 
-    by_kind: Dict[str, List[Dict[str, Any]]] = {k: [] for k in WAKE_KINDS}
-    by_kind_cell: Dict[str, Dict[str, List[Dict[str, Any]]]] = {k: {} for k in WAKE_KINDS}
-    n_records_by_kind: Dict[str, int] = {k: 0 for k in WAKE_KINDS}
-    # group_key -> cell -> mean aggregate P(ABORT) over that member's immediate-FD wakes
-    matched: Dict[str, Dict[str, float]] = {}
+    by_phase: Dict[str, Dict[str, Any]] = {}
+    phases_seen = list(_ARTIFACT_PHASES) + sorted(
+        {str(r.get("phase")) for r in with_diag
+         if str(r.get("phase")) not in _ARTIFACT_PHASES})
+    for phase in phases_seen:
+        by_phase[phase] = _wake_population_block(
+            [r for r in with_diag if str(r.get("phase")) == phase])
 
-    for rec in with_diag:
-        cell = str(rec.get("cell", CONDITION_CLEAN))
-        gkey = rec.get("benchmark_group_key")
-        fd_mass: List[float] = []
-        for d in rec["wake_decisions"]:
-            kind = str(d.get("wake_kind") or WAKE_KIND_ORDINARY)
-            if kind not in by_kind:
-                by_kind[kind] = []
-                by_kind_cell[kind] = {}
-                n_records_by_kind[kind] = 0
-            by_kind[kind].append(d)
-            by_kind_cell[kind].setdefault(cell, []).append(d)
-            n_records_by_kind[kind] += 1
-            if kind == WAKE_KIND_IMMEDIATE_FD:
-                agg = d.get("aggregate_probability_per_meta_action") or {}
-                if isinstance(agg.get(_ABORT_NAME), (int, float)):
-                    fd_mass.append(float(agg[_ABORT_NAME]))
-        if gkey and fd_mass:
-            matched.setdefault(str(gkey), {})[cell] = float(sum(fd_mass)) / len(fd_mass)
+    eval_rows = [r for r in with_diag if str(r.get("phase")) in _EVAL_PHASES]
+    rounds = _matched_rounds(eval_rows)
+    final_round, selection = _select_final_matched_round(rounds, final_eval)
+    pooled = [d for r in rounds for d in ([r["mean"]] if r["n"] else [])]
+    all_deltas_n = sum(int(r["n"]) for r in rounds)
 
-    deltas = [v[SEVERITY_SEVERE] - v[SEVERITY_MILD] for v in matched.values()
-              if SEVERITY_MILD in v and SEVERITY_SEVERE in v]
     return {
         "recorded": True,
         "source": _EPISODE_OUTCOMES_FILENAME,
-        "wake_diagnostics_schema_version": _WAKE_DIAGNOSTICS_VERSION,
+        "wake_diagnostics_schema_version_writer": _WAKE_DIAGNOSTICS_VERSION,
+        "wake_diagnostics_schema_versions_observed": observed_versions,
+        "wake_diagnostics_schema_version_observed": (
+            observed_versions[0] if len(observed_versions) == 1 else None),
         "n_episode_records_with_diagnostics": len(with_diag),
-        "n_wakes_by_kind": {k: n_records_by_kind.get(k, 0) for k in by_kind},
-        "by_wake_kind": {k: _wake_diag_digest(v) for k, v in by_kind.items()},
-        "by_wake_kind_and_cell": {
-            k: {c: _wake_diag_digest(v) for c, v in cells.items()}
-            for k, cells in by_kind_cell.items()},
+        "phases": list(_ARTIFACT_PHASES),
+        "evaluation_phases": list(_EVAL_PHASES),
+        "populations_note": (
+            "train / pre_update / post_update are SEPARATE populations and are never "
+            "averaged together; `all_phases_pooled` is the only pooled view and says so "
+            "in its own name"),
+        "by_phase": by_phase,
+        "all_phases_pooled": {
+            "note": ("TRAINING AND HELD-OUT EVALUATION POOLED -- a mixed denominator, "
+                     "kept only as a coarse run-wide count. No scientific severity "
+                     "claim is made from it; use `by_phase` instead"),
+            **_wake_population_block(with_diag),
+        },
         "matched_severe_minus_mild_aggregate_p_abort": {
-            "pairing": "frozen benchmark group identity (benchmark_group_key)",
-            "over": "world_groups_with_both_mild_and_severe_present",
-            "n": len(deltas),
-            "mean": (float(sum(deltas)) / len(deltas)) if deltas else None,
-            "min": (min(deltas) if deltas else None),
-            "max": (max(deltas) if deltas else None),
+            "population": "evaluation records only (%s)" % ", ".join(_EVAL_PHASES),
+            "pairing": ("full evaluation identity (evaluation stage, updates_completed, "
+                        "eval round ordinal, benchmark manifest id) + "
+                        "benchmark_group_key"),
+            "over": "world_groups_with_both_mild_and_severe_present_in_the_same_round",
+            "n_rounds": len(rounds),
+            "by_round": rounds,
+            "pooled_across_rounds": {
+                "n_rounds_with_deltas": len(pooled),
+                "n_group_deltas": all_deltas_n,
+                "mean_of_round_means": (
+                    (float(sum(pooled)) / len(pooled)) if pooled else None),
+                "min_round_mean": (min(pooled) if pooled else None),
+                "max_round_mean": (max(pooled) if pooled else None),
+                "totals_across_rounds_are_repeated_measures": True,
+            },
+            "final_round": final_round,
+            "final_round_selection": selection,
         },
         "metric_semantics": {
             "selected_joint_cell_abort_fraction":
@@ -7631,6 +7816,62 @@ def _fd_policy_sensitivity_from_outcomes(
                 "the same entropy divided by log(valid cell count); undefined (and "
                 "excluded) when fewer than two cells are valid",
         },
+    }
+
+
+def _observed_artifact_schema(
+    outcome_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """What schema the DURABLE records actually carry -- OBSERVED, never asserted.
+
+    Reporting this writer's own ``_EPISODE_OUTCOME_VERSION`` as a run directory's schema
+    is false whenever the two differ, and it differs exactly when it matters: summarizing
+    a LEGACY run written before the current writer existed. A reader would then be told
+    a v2 artifact is v3 and that wake diagnostics are present when the file has none.
+
+    Three states are reported explicitly and never collapsed:
+    ``no_records`` (nothing to observe -- the observed version is ``None``, not a
+    default), ``uniform`` (every record agrees), and ``mixed`` (a run directory whose
+    records disagree, which is a fact about the artifact and must not be averaged away).
+    The writer's own constants are still reported, under names that say so.
+    """
+    rows = list(outcome_records or [])
+    versions = sorted({
+        int(r["schema_version"]) for r in rows
+        if isinstance(r.get("schema_version"), int)
+        and not isinstance(r.get("schema_version"), bool)})
+    n_unversioned = sum(
+        1 for r in rows
+        if not isinstance(r.get("schema_version"), int)
+        or isinstance(r.get("schema_version"), bool))
+    with_diag = [r for r in rows if isinstance(r.get("wake_decisions"), list)]
+    diag_versions = sorted({
+        int(r["wake_diagnostics_schema_version"]) for r in with_diag
+        if isinstance(r.get("wake_diagnostics_schema_version"), int)
+        and not isinstance(r.get("wake_diagnostics_schema_version"), bool)})
+    if not rows:
+        state = "no_records"
+    elif len(versions) == 1 and n_unversioned == 0:
+        state = "uniform"
+    else:
+        state = "mixed"
+    return {
+        "state": state,
+        "source": _EPISODE_OUTCOMES_FILENAME,
+        "n_episode_outcome_records": len(rows),
+        "n_records_without_schema_version": n_unversioned,
+        "episode_outcome_schema_versions_observed": versions,
+        "episode_outcome_schema_version_observed": (
+            versions[0] if state == "uniform" else None),
+        "n_records_with_wake_decisions": len(with_diag),
+        "wake_diagnostics_recorded": bool(with_diag),
+        "wake_diagnostics_schema_versions_observed": diag_versions,
+        "wake_diagnostics_schema_version_observed": (
+            diag_versions[0] if len(diag_versions) == 1 else None),
+        # The CURRENT writer, reported under names that cannot be read as an
+        # observation of the artifact.
+        "episode_outcome_schema_version_writer": _EPISODE_OUTCOME_VERSION,
+        "wake_diagnostics_schema_version_writer": _WAKE_DIAGNOSTICS_VERSION,
     }
 
 
@@ -8157,7 +8398,14 @@ def _summarize(
     # summary states nothing the artifacts do not.
     outcome_rows = list(outcome_records or [])
     severity_response = _severity_response_from_outcomes(outcome_rows)
-    fd_policy_sensitivity = _fd_policy_sensitivity_from_outcomes(outcome_rows)
+    observed_artifact_schema = _observed_artifact_schema(outcome_rows)
+    # The final EVALUATION round is identified ONCE, here, and the same digest is both
+    # reported as `final_eval` below and handed to the sensitivity table -- so the two
+    # cannot name different rounds, and the sensitivity table's "final round" is chosen
+    # by that validated identity rather than by which record the file happens to end on.
+    final_eval_digest = _eval_digest(eval_records[-1] if eval_records else None)
+    fd_policy_sensitivity = _fd_policy_sensitivity_from_outcomes(
+        outcome_rows, final_eval=final_eval_digest)
 
     run_path = Path(run_dir)
     summary: Dict[str, Any] = {
@@ -8262,8 +8510,14 @@ def _summarize(
         # PER-WAKE ACTOR DIAGNOSTICS (episode-outcome schema v3), derived from the SAME
         # durable stream. `recorded: false` -- never a table of zeros -- for a run
         # directory written before the field existed.
-        "episode_outcome_schema_version": _EPISODE_OUTCOME_VERSION,
-        "wake_diagnostics_schema_version": _WAKE_DIAGNOSTICS_VERSION,
+        #
+        # THE SCHEMA REPORTED HERE IS OBSERVED FROM THE RECORDS, NEVER THIS WRITER'S OWN
+        # CONSTANTS. `build_run_summary` runs on ANY run directory, including one written
+        # by an older writer, so stamping the current constants would tell a reader that
+        # a legacy v2 artifact is v3 and that it carries wake diagnostics it does not.
+        # The writer's constants are still reported, inside the block, under `_writer`
+        # names that cannot be mistaken for an observation.
+        "observed_artifact_schema": observed_artifact_schema,
         "wake_diagnostics_source": _EPISODE_OUTCOMES_FILENAME,
         "wake_kinds": list(WAKE_KINDS),
         "fd_policy_sensitivity": fd_policy_sensitivity,
@@ -8314,7 +8568,7 @@ def _summarize(
         ),
         # --- held-out results, each with its denominator ---
         "initial_pre_update_eval": _eval_digest(pre_update),
-        "final_eval": _eval_digest(eval_records[-1] if eval_records else None),
+        "final_eval": final_eval_digest,
         "eval_reward_best": max(eval_means) if eval_means else None,
         # --- training reward over the MEASURED iterations only ---
         "train_reward_first": measured[0] if measured else None,
@@ -8909,6 +9163,125 @@ def _plot_policy_diagnostics(
     return out_path
 
 
+# The four per-cell series `fd_policy_sensitivity.png` draws, plus the disagreement
+# series, named once so the figure and its test read the SAME keys.
+_FD_SENSITIVITY_SERIES_KEYS = (
+    "selected_joint_cell_abort_fraction",
+    "aggregate_p_abort_mean",
+    "joint_entropy_normalized_mean",
+    "distance_clipping_fraction_mean",
+)
+_FD_DISAGREEMENT_KEY = "joint_vs_aggregate_disagreement_fraction"
+# Presentation order only. Membership is decided by which cells the DATA holds, so a
+# cell missing from this tuple still gets its series and no series depends on a cell's
+# position in it.
+_FD_CELL_ORDER = (CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE, CONDITION_DAMAGED)
+
+
+def _fd_sensitivity_plot_data(
+    outcome_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The plot data behind ``fd_policy_sensitivity.png``. PURE -- no matplotlib.
+
+    Extracted from the figure so the scientific content can be TESTED without rendering
+    anything, and so the two population rules below are enforced in one readable place
+    rather than inside five plotting closures.
+
+    **EVALUATION RECORDS ONLY.** Every series here is taken over ``_EVAL_PHASES``
+    (``pre_update`` / ``post_update``). A TRAINING row can enter no value and no
+    denominator on this figure: training is a stochastic actor on a sampled population
+    and held-out evaluation is a deterministic actor on a frozen one, so a severity
+    curve that mixed them would answer neither question while looking like it answered
+    both.
+
+    **IMMEDIATE-FD WAKES ONLY**, for the same reason the digest keeps the kinds apart:
+    an approved measurement is reported over that population alone.
+
+    **THE DISAGREEMENT SERIES IS PER CELL AND ORDER-INDEPENDENT.** It is emitted for
+    EVERY cell that actually has immediate-FD wakes -- so mild and severe each get their
+    own -- and it is never taken from "whichever cell happens to sort first", which is
+    normally ``clean`` and normally has no immediate-FD wake at all, so the series would
+    silently be empty.
+    """
+    rows = [r for r in (outcome_records or [])
+            if isinstance(r.get("wake_decisions"), list)
+            and str(r.get("phase")) in _EVAL_PHASES]
+    if not rows:
+        return {"recorded": False, "evaluation_phases": list(_EVAL_PHASES),
+                "cells": [], "series": {}, "disagreement_series": {}, "matched": {}}
+
+    present = {str(r.get("cell", "")) for r in rows}
+    cells = ([c for c in _FD_CELL_ORDER if c in present]
+             + sorted(present - set(_FD_CELL_ORDER) - {""}))
+
+    # cell -> x (updates completed) -> the immediate-FD decisions measured at that x
+    buckets: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
+    for rec in rows:
+        x = rec.get("updates_completed")
+        if x is None:
+            continue
+        cell = str(rec.get("cell", ""))
+        for d in rec["wake_decisions"]:
+            if str(d.get("wake_kind") or WAKE_KIND_ORDINARY) == WAKE_KIND_IMMEDIATE_FD:
+                buckets.setdefault(cell, {}).setdefault(int(x), []).append(d)
+
+    def _series(cell: str, key: str) -> Dict[str, List[float]]:
+        xs: List[float] = []
+        ys: List[float] = []
+        for x in sorted(buckets.get(cell, {})):
+            v = _wake_diag_digest(buckets[cell][x]).get(key)
+            if v is not None:
+                xs.append(float(x))
+                ys.append(float(v))
+        return {"x": xs, "y": ys}
+
+    series = {key: {c: _series(c, key) for c in cells}
+              for key in _FD_SENSITIVITY_SERIES_KEYS}
+    # EVERY cell with immediate-FD wakes, not `cells[0]`.
+    disagreement = {c: _series(c, _FD_DISAGREEMENT_KEY)
+                    for c in cells if buckets.get(c)}
+
+    # MATCHED severe-minus-mild, per x, from the SAME round-scoped pairing the digest
+    # uses -- so the figure and `run_summary.json` cannot disagree about a delta.
+    matched_points: Dict[int, List[float]] = {}
+    per_round: Dict[Any, Dict[str, Dict[str, float]]] = {}
+    for rec in rows:
+        gkey = rec.get("benchmark_group_key")
+        x = rec.get("updates_completed")
+        if not gkey or x is None:
+            continue
+        mass = _immediate_fd_abort_mass(rec)
+        if mass is None:
+            continue
+        ident = _round_identity(rec)
+        key = (ident["evaluation_stage"], ident["updates_completed"],
+               ident["eval_round_ordinal"], ident["benchmark_manifest_id"])
+        per_round.setdefault(key, {}).setdefault(str(gkey), {})[
+            str(rec.get("cell", ""))] = mass
+    for key, groups in per_round.items():
+        x = key[1]
+        for v in groups.values():
+            if SEVERITY_MILD in v and SEVERITY_SEVERE in v:
+                matched_points.setdefault(int(x), []).append(
+                    v[SEVERITY_SEVERE] - v[SEVERITY_MILD])
+
+    xs_m = sorted(matched_points)
+    return {
+        "recorded": True,
+        "evaluation_phases": list(_EVAL_PHASES),
+        "wake_kind": WAKE_KIND_IMMEDIATE_FD,
+        "cells": cells,
+        "series": series,
+        "disagreement_series": disagreement,
+        "matched": {
+            "x": [float(x) for x in xs_m],
+            "mean": [float(sum(matched_points[x])) / len(matched_points[x])
+                     for x in xs_m],
+            "points": {int(x): list(matched_points[x]) for x in xs_m},
+        },
+    }
+
+
 def _plot_fd_policy_sensitivity(
     plt: Any,
     plots_dir: Path,
@@ -8920,6 +9293,10 @@ def _plot_fd_policy_sensitivity(
     durable artifacts alone: did the actor's SELECTED action, and the shape of the
     distribution behind it, respond to fuel-damage severity?
 
+    **HELD-OUT EVALUATION ONLY.** Every series comes from :func:`_fd_sensitivity_plot_data`,
+    which admits ``pre_update`` / ``post_update`` records and nothing else, so no training
+    row can enter a value or a denominator here.
+
     Every panel names its own quantity, because four of them are routinely conflated:
 
     * the SELECTED JOINT CELL action -- what deterministic evaluation does;
@@ -8928,100 +9305,58 @@ def _plot_fd_policy_sensitivity(
     * RAW joint entropy, in nats, which is cardinality-dependent;
     * NORMALIZED joint entropy, divided by ``log(valid cell count)``.
 
-    Populations are never pooled: immediate-FD wakes, post-FD boundary wakes and
-    ordinary wakes are separate series, and the matched panel pairs mild against severe
-    through the FROZEN BENCHMARK GROUP identity rather than through target uuids (which
-    are not seed-stable labels).
+    Populations are never pooled: post-FD boundary wakes and ordinary wakes are separate
+    populations and appear on no panel here, and the matched panel pairs mild against
+    severe through the FULL evaluation identity -- stage, update count, round ordinal,
+    manifest and frozen benchmark group -- rather than through target uuids (which are
+    not seed-stable labels) or through a group key alone (which pools every round).
 
-    Returns the written path, or ``None`` when no record carries ``wake_decisions`` --
-    a legacy run keeps its three figures and gets no fabricated fourth.
+    Returns the written path, or ``None`` when no EVALUATION record carries
+    ``wake_decisions`` -- a legacy run keeps its three figures and gets no fabricated
+    fourth.
     """
-    digest = _fd_policy_sensitivity_from_outcomes(outcome_records)
-    if not digest.get("recorded"):
+    data = _fd_sensitivity_plot_data(outcome_records)
+    if not data.get("recorded"):
         return None
 
-    # x = PPO updates completed before the measurement, exactly as the other figures.
-    def _series(kind: str, cell: str, key: str) -> Tuple[List[float], List[float]]:
-        buckets: Dict[int, List[Dict[str, Any]]] = {}
-        for rec in outcome_records:
-            wd = rec.get("wake_decisions")
-            if not isinstance(wd, list) or str(rec.get("cell", "")) != cell:
-                continue
-            x = rec.get("updates_completed")
-            if x is None:
-                continue
-            for d in wd:
-                if str(d.get("wake_kind") or WAKE_KIND_ORDINARY) == kind:
-                    buckets.setdefault(int(x), []).append(d)
-        xs, ys = [], []
-        for x in sorted(buckets):
-            v = _wake_diag_digest(buckets[x]).get(key)
-            if v is not None:
-                xs.append(float(x))
-                ys.append(float(v))
-        return xs, ys
-
-    cells = [c for c in (CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE,
-                         CONDITION_DAMAGED)
-             if any(str(r.get("cell", "")) == c and isinstance(r.get("wake_decisions"), list)
-                    for r in outcome_records)]
+    cells = data["cells"]
     colors = {CONDITION_CLEAN: "#2ca02c", SEVERITY_MILD: "#1f77b4",
               SEVERITY_SEVERE: "#d62728", CONDITION_DAMAGED: "#ff7f0e"}
+
+    def _draw(ax: Any, key: str) -> None:
+        for c in cells:
+            xy = data["series"][key].get(c) or {"x": [], "y": []}
+            if xy["x"]:
+                ax.plot(xy["x"], xy["y"], marker="o", label=c, color=colors.get(c))
 
     fig, axes = plt.subplots(1, 5, figsize=(26, 4.8))
 
     ax = axes[0]
-    for c in cells:
-        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "selected_joint_cell_abort_fraction")
-        if xs:
-            ax.plot(xs, ys, marker="o", label=c, color=colors.get(c))
+    _draw(ax, "selected_joint_cell_abort_fraction")
     ax.set_ylim(-0.05, 1.05)
     ax.set_title("SELECTED joint-cell action\nfraction of immediate-FD wakes selecting "
                  "SELF_PRESERVATION_ABORT", fontsize=9)
     ax.set_ylabel("selected-cell ABORT fraction")
 
     ax = axes[1]
-    for c in cells:
-        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "aggregate_p_abort_mean")
-        if xs:
-            ax.plot(xs, ys, marker="o", label=c, color=colors.get(c))
+    _draw(ax, "aggregate_p_abort_mean")
     ax.set_ylim(-0.05, 1.05)
     ax.set_title("AGGREGATE probability MASS on the ABORT column\n"
                  "(summed over its k cells -- NOT P(selected action))", fontsize=9)
     ax.set_ylabel("mean aggregate P(ABORT)")
 
     ax = axes[2]
-    matched: Dict[int, List[float]] = {}
-    per_x: Dict[int, Dict[str, Dict[str, float]]] = {}
-    for rec in outcome_records:
-        wd = rec.get("wake_decisions")
-        gkey = rec.get("benchmark_group_key")
-        x = rec.get("updates_completed")
-        if not isinstance(wd, list) or not gkey or x is None:
-            continue
-        mass = [float(d["aggregate_probability_per_meta_action"][_ABORT_NAME])
-                for d in wd
-                if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD
-                and isinstance((d.get("aggregate_probability_per_meta_action") or {})
-                               .get(_ABORT_NAME), (int, float))]
-        if mass:
-            per_x.setdefault(int(x), {}).setdefault(str(gkey), {})[
-                str(rec.get("cell", ""))] = float(sum(mass)) / len(mass)
-    for x, groups in per_x.items():
-        for v in groups.values():
-            if SEVERITY_MILD in v and SEVERITY_SEVERE in v:
-                matched.setdefault(x, []).append(v[SEVERITY_SEVERE] - v[SEVERITY_MILD])
-    if matched:
-        xs = sorted(matched)
-        ax.plot(xs, [sum(matched[x]) / len(matched[x]) for x in xs], marker="o",
-                color="#9467bd")
-        for x in xs:
-            ax.scatter([x] * len(matched[x]), matched[x], s=14, alpha=0.45,
-                       color="#9467bd")
+    matched = data["matched"]
+    if matched["x"]:
+        ax.plot(matched["x"], matched["mean"], marker="o", color="#9467bd")
+        for x in matched["x"]:
+            pts = matched["points"][int(x)]
+            ax.scatter([x] * len(pts), pts, s=14, alpha=0.45, color="#9467bd")
         ax.axhline(0.0, color="black", lw=0.8, ls="--")
+        last = matched["points"][int(matched["x"][-1])]
         ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
-                     "(paired by frozen benchmark group; n=%d group(s) at the last x)"
-                     % len(matched[xs[-1]]), fontsize=9)
+                     "(paired within a round by frozen benchmark group; n=%d group(s) "
+                     "at the last x)" % len(last), fontsize=9)
     else:
         ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
                      "(no matched benchmark group in this run)", fontsize=9)
@@ -9031,25 +9366,26 @@ def _plot_fd_policy_sensitivity(
 
     ax = axes[3]
     for c in cells:
-        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "joint_entropy_normalized_mean")
-        if xs:
-            ax.plot(xs, ys, marker="o", label="%s: norm. joint entropy" % c,
-                    color=colors.get(c))
-    xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, cells[0] if cells else CONDITION_CLEAN,
-                     "joint_vs_aggregate_disagreement_fraction")
-    if xs:
-        ax.plot(xs, ys, marker="s", ls=":", color="#8c564b",
-                label="joint vs aggregate argmax disagreement")
+        xy = data["series"]["joint_entropy_normalized_mean"].get(c) or {"x": []}
+        if xy["x"]:
+            ax.plot(xy["x"], xy["y"], marker="o",
+                    label="%s: norm. joint entropy" % c, color=colors.get(c))
+    # PER-CELL disagreement, for every cell that has immediate-FD wakes. Reading it from
+    # one arbitrary cell -- in practice `clean`, which has none -- made the series
+    # silently empty.
+    for c in cells:
+        xy = data["disagreement_series"].get(c) or {"x": []}
+        if xy["x"]:
+            ax.plot(xy["x"], xy["y"], marker="s", ls=":", color=colors.get(c),
+                    alpha=0.7, label="%s: joint vs aggregate argmax disagreement" % c)
     ax.set_ylim(-0.05, 1.05)
     ax.set_title("NORMALIZED joint (node, meta-action) entropy\n"
-                 "[raw entropy / log(valid cells)] + argmax disagreement", fontsize=9)
+                 "[raw entropy / log(valid cells)] + PER-CELL argmax disagreement",
+                 fontsize=9)
     ax.set_ylabel("normalized entropy / disagreement fraction")
 
     ax = axes[4]
-    for c in cells:
-        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "distance_clipping_fraction_mean")
-        if xs:
-            ax.plot(xs, ys, marker="o", label=c, color=colors.get(c))
+    _draw(ax, "distance_clipping_fraction_mean")
     ax.set_ylim(-0.05, 1.05)
     ax.set_title("task-distance features CLIPPED to 1.0\n"
                  "(a property of the fixed normalizer, not of the policy)", fontsize=9)
@@ -9061,9 +9397,11 @@ def _plot_fd_policy_sensitivity(
         handles, _labels = ax.get_legend_handles_labels()
         if handles:
             ax.legend(fontsize=7)
-    fig.suptitle("FD policy sensitivity -- immediate fuel-damage wakes only "
-                 "(post-FD boundary and ordinary wakes are SEPARATE populations "
-                 "and are not pooled here)", fontsize=11)
+    fig.suptitle("FD policy sensitivity -- HELD-OUT EVALUATION records only "
+                 "(%s), immediate fuel-damage wakes only. Training episodes, post-FD "
+                 "boundary wakes and ordinary wakes are SEPARATE populations and enter "
+                 "no value or denominator here."
+                 % ", ".join(_EVAL_PHASES), fontsize=11)
     fig.tight_layout()
     # The SAME x-axis quantity every other figure in this module carries.
     _annotate_x_semantics(fig)
