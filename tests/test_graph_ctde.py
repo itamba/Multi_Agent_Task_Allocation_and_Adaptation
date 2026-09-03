@@ -1491,7 +1491,11 @@ def test_a_post_fd_boundary_sample_is_captured_after_the_local_reconciliation():
         scen, policy=POST_FD_WAKE_COMPLETION_BOUNDARY_V1
     )
 
-    def fake_wake(policy, ego_id, obs, belief, ex, cfg, tick, *, deterministic=False):
+    # `**_kind` absorbs the OPTIONAL `wake_kind` tag the tick loop passes for a
+    # NON-ordinary wake (measurement hardening). It is reporting-only and this
+    # stub asserts nothing about it; an ordinary wake is called without it.
+    def fake_wake(policy, ego_id, obs, belief, ex, cfg, tick, *,
+                  deterministic=False, **_kind):
         return _transition(_actor_obs(), meta=0)
 
     saved = tl._wake_decision
@@ -1530,7 +1534,11 @@ def test_the_default_wake_policy_produces_no_boundary_sample():
     ctx, scen, _executor = _boundary_ctx()
     controller = _fired_boundary_controller(scen, policy=POST_FD_WAKE_SINGLE_V1)
 
-    def fake_wake(policy, ego_id, obs, belief, ex, cfg, tick, *, deterministic=False):
+    # `**_kind` absorbs the OPTIONAL `wake_kind` tag the tick loop passes for a
+    # NON-ordinary wake (measurement hardening). It is reporting-only and this
+    # stub asserts nothing about it; an ordinary wake is called without it.
+    def fake_wake(policy, ego_id, obs, belief, ex, cfg, tick, *,
+                  deterministic=False, **_kind):
         return _transition(_actor_obs(), meta=0)
 
     saved = tl._wake_decision

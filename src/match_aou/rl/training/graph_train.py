@@ -366,7 +366,14 @@ from .graph_reward import (
     compute_episode_reward,
     reference_fault_aborts,
 )
-from .graph_tick_loop import build_policy, run_episode
+from .graph_tick_loop import (
+    WAKE_KIND_IMMEDIATE_FD,
+    WAKE_KIND_ORDINARY,
+    WAKE_KIND_POST_FD_BOUNDARY,
+    WAKE_KINDS,
+    build_policy,
+    run_episode,
+)
 from ..observation.central_graph_builder import CentralStateRecorder
 from ..action.graph_action import MetaAction
 from ...models import StepKind
@@ -383,6 +390,11 @@ _BASE_SCENARIO = _REPO_ROOT / "data" / "scenarios" / "strike_training_4v5.json"
 
 # The three meta-action columns, in enum order (0..2). Fixed key set for the counts.
 _META_NAMES = [MetaAction(i).name for i in range(len(MetaAction))]
+# The two meta-action names the FD-policy diagnostics report on by name. Bound to
+# the enum rather than typed as string literals, so a rename cannot silently turn a
+# reported rate into a lookup miss.
+_PLAN_NAME = MetaAction.PLAN_COMPLIANCE.name
+_ABORT_NAME = MetaAction.SELF_PRESERVATION_ABORT.name
 
 # Eval scenarios are tagged from here up, so their filenames / scenario names can never
 # collide with a training episode's global index g. Purely a NAMING offset: the tag is
@@ -514,7 +526,15 @@ _EPISODE_OUTCOME_SCHEMA = "graph_train_episode_outcome"
 # path the design is `fixed_cell_v1`, the reference policy is `static_t0_v1`, requested
 # equals realized, and the structures the historical policies do not produce are `null`
 # rather than a fabricated zero.
-_EPISODE_OUTCOME_VERSION = 2
+_EPISODE_OUTCOME_VERSION = 3
+# VERSION 3 adds the PER-WAKE ACTOR DIAGNOSTICS (`wake_decisions`, versioned by
+# `_WAKE_DIAGNOSTICS_VERSION`): for every recorded wake, why it happened, what the actor
+# saw and what the masked joint distribution actually looked like. It exists because the
+# R1 diagnostic replay had to reconstruct all of that OFFLINE from checkpoints, which is
+# only possible while the checkpoints, the manifest and the exact code SHA all still
+# exist together. It is REPORTING-ONLY and additive: a v2 record simply lacks the key,
+# and every reader below treats an absent key as "not recorded" rather than as zero.
+_WAKE_DIAGNOSTICS_VERSION = 1
 
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
@@ -563,6 +583,14 @@ _PLOT_PERFORMANCE = "training_performance.png"
 _PLOT_DIAGNOSTICS = "policy_diagnostics.png"
 _PLOT_MEASUREMENT_HEALTH = "measurement_health.png"
 _PLOT_FILENAMES = (_PLOT_PERFORMANCE, _PLOT_DIAGNOSTICS, _PLOT_MEASUREMENT_HEALTH)
+
+# The FD-policy-sensitivity figure is OPTIONAL and is deliberately NOT in
+# `_PLOT_FILENAMES`: that tuple is the REQUIRED set, and a shortfall against it is
+# reported as "plots incomplete". This figure is drawn only from episode-outcome schema
+# v3 `wake_decisions`, so a run directory written before that field existed legitimately
+# has three figures and must not be reported as broken.
+_PLOT_FD_SENSITIVITY = "fd_policy_sensitivity.png"
+_PLOT_OPTIONAL_FILENAMES = (_PLOT_FD_SENSITIVITY,)
 
 # Every figure shares ONE x-coordinate concept, stated on every figure so a reader never
 # has to infer it: the policy state a measurement describes, counted in PPO updates
@@ -2544,6 +2572,14 @@ def _episode_outcome_record(
         "reference_solver_termination": reference.get("solver_termination"),
         "reference_solver_seconds": reference.get("solver_seconds"),
         "reference_record": out.reference,
+        # --- PER-WAKE ACTOR DIAGNOSTICS (schema v3) --------------------------------
+        # One entry per recorded wake, in trajectory order, so future runs can be
+        # diagnosed WITHOUT an offline checkpoint replay. A successful ZERO-WAKE
+        # episode records `[]` -- a real, legitimate outcome of the event-triggered
+        # design, and deliberately not `null`, which would read as "not recorded".
+        "wake_diagnostics_schema_version": _WAKE_DIAGNOSTICS_VERSION,
+        "n_wake_decisions": len(_wake_decision_records(out.trajectory)),
+        "wake_decisions": _wake_decision_records(out.trajectory),
         # --- FROZEN-BENCHMARK identity (a manifest-driven eval member only) --------
         **(benchmark or _EMPTY_BENCHMARK_KEYS),
     }
@@ -2610,6 +2646,101 @@ def _append_episode_outcome_record(
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
         fh.flush()
+
+
+def _wake_decision_records(trajectory: List[Any]) -> List[Dict[str, Any]]:
+    """The per-wake diagnostic records of one trajectory, in wake order.
+
+    Reads ``Transition.decision``, which ``graph_tick_loop._wake_decision`` already
+    built from the SAME logits and mask the actor acted on. It recomputes NOTHING: a
+    second computation here could disagree with the decision that was really made, which
+    is the whole failure mode this record exists to remove.
+
+    A transition without the field (an older object, or a caller that constructed one by
+    hand) is SKIPPED rather than filled in with invented values.
+    """
+    out: List[Dict[str, Any]] = []
+    for tr in trajectory or ():
+        rec = getattr(tr, "decision", None)
+        if isinstance(rec, dict):
+            out.append(rec)
+    return out
+
+
+def _wake_diag_digest(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Aggregate a flat list of per-wake diagnostics. REPORTING-ONLY.
+
+    Every rate carries its own explicit denominator, and an EMPTY population reports
+    ``None`` rather than ``0.0`` -- on a rate, 0 is a measured value and would read as
+    "the actor never aborted" when the truth is "no wake of this kind occurred".
+
+    The two ABORT quantities are deliberately kept apart under names that cannot be
+    confused, because they answer different questions:
+
+    * ``selected_joint_cell_abort_fraction`` -- how often the actor's SELECTED joint
+      cell was an abort. This is what deterministic evaluation actually does.
+    * ``aggregate_p_abort_mean`` -- the mean total probability MASS on the abort column,
+      summed over its ``k`` cells. It is NOT the probability of the selected action and
+      must never be labelled as one.
+    """
+    n = len(records)
+    if n == 0:
+        return {
+            "n_wakes": 0,
+            "selected_meta_action_counts": {name: 0 for name in _META_NAMES},
+            "selected_joint_cell_abort_fraction": None,
+            "aggregate_p_abort_mean": None,
+            "aggregate_p_plan_mean": None,
+            "joint_entropy_raw_mean": None,
+            "joint_entropy_normalized_mean": None,
+            "n_joint_entropy_normalized_defined": 0,
+            "aggregate_meta_action_entropy_mean": None,
+            "joint_vs_aggregate_disagreement_fraction": None,
+            "n_valid_cells_mean": None,
+            "distance_clipping_fraction_mean": None,
+            "selected_node_ownership_counts": {},
+        }
+    counts = {name: 0 for name in _META_NAMES}
+    own: Dict[str, int] = {}
+    for r in records:
+        nm = str(r.get("selected_meta_action_name") or "")
+        if nm in counts:
+            counts[nm] += 1
+        o = str(r.get("selected_node_ownership") or "")
+        if o:
+            own[o] = own.get(o, 0) + 1
+
+    def _mean(key: str) -> Optional[float]:
+        vals = [r[key] for r in records
+                if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]
+        return (float(sum(vals)) / len(vals)) if vals else None
+
+    agg = [r.get("aggregate_probability_per_meta_action") or {} for r in records]
+    abort_mass = [float(a[_ABORT_NAME]) for a in agg if isinstance(a.get(_ABORT_NAME), (int, float))]
+    plan_mass = [float(a[_PLAN_NAME]) for a in agg if isinstance(a.get(_PLAN_NAME), (int, float))]
+    norm_ent = [float(r["joint_entropy_normalized"]) for r in records
+                if isinstance(r.get("joint_entropy_normalized"), (int, float))]
+    dis = [bool(r.get("joint_vs_aggregate_disagree")) for r in records
+           if r.get("joint_vs_aggregate_disagree") is not None]
+    return {
+        "n_wakes": n,
+        "selected_meta_action_counts": counts,
+        "selected_joint_cell_abort_fraction": float(counts[_ABORT_NAME]) / n,
+        "aggregate_p_abort_mean": (float(sum(abort_mass)) / len(abort_mass)) if abort_mass else None,
+        "aggregate_p_plan_mean": (float(sum(plan_mass)) / len(plan_mass)) if plan_mass else None,
+        "joint_entropy_raw_mean": _mean("joint_entropy_raw"),
+        # Normalization is UNDEFINED for a single valid cell, so that wake contributes
+        # to neither the mean nor its denominator, and the denominator is reported.
+        "joint_entropy_normalized_mean": (
+            (float(sum(norm_ent)) / len(norm_ent)) if norm_ent else None),
+        "n_joint_entropy_normalized_defined": len(norm_ent),
+        "aggregate_meta_action_entropy_mean": _mean("aggregate_meta_action_entropy"),
+        "joint_vs_aggregate_disagreement_fraction": (
+            (float(sum(1 for d in dis if d)) / len(dis)) if dis else None),
+        "n_valid_cells_mean": _mean("n_valid_cells"),
+        "distance_clipping_fraction_mean": _mean("fraction_task_distance_clipped"),
+        "selected_node_ownership_counts": own,
+    }
 
 
 def _empty_meta_counts() -> Dict[str, int]:
@@ -7405,6 +7536,104 @@ def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     }
 
 
+def _fd_policy_sensitivity_from_outcomes(
+    outcome_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The FD-policy-sensitivity digest, DERIVED FROM THE DURABLE PER-ATTEMPT STREAM.
+
+    ONE metric path, exactly as :func:`_severity_response_from_outcomes` already is: the
+    summary reads ``episode_outcomes.jsonl`` rather than a parallel in-memory aggregate,
+    so it cannot describe a run its own artifacts do not.
+
+    Three populations are kept STRICTLY apart and are never pooled -- ``ordinary``,
+    ``immediate_fuel_damage`` and ``post_fd_boundary`` -- because an approved measurement
+    is reported over the immediate-FD population alone, and a boundary decision folded
+    into it would change what that measurement means. Within the immediate-FD population
+    the digest is additionally split by the episode's reporting CELL (clean / mild /
+    severe, or clean / damaged on a legacy run), which is what makes the mild-vs-severe
+    comparison readable without an offline replay.
+
+    MATCHED PAIRING IS BY FROZEN BENCHMARK GROUP IDENTITY, never by target uuid: hidden
+    target uuids are minted per construction and are not seed-stable labels, so pairing
+    on them would silently drop or mis-pair worlds. A group contributes a matched delta
+    only when BOTH members are present.
+
+    Returns ``{"recorded": False, ...}`` when no record carries the v3 field -- a
+    truthful "not recorded", never a table of fabricated zeros.
+    """
+    with_diag = [r for r in outcome_records if isinstance(r.get("wake_decisions"), list)]
+    if not with_diag:
+        return {
+            "recorded": False,
+            "source": _EPISODE_OUTCOMES_FILENAME,
+            "wake_diagnostics_schema_version": None,
+            "note": ("no episode_outcomes record carries `wake_decisions`; this run "
+                     "predates episode-outcome schema v3"),
+        }
+
+    by_kind: Dict[str, List[Dict[str, Any]]] = {k: [] for k in WAKE_KINDS}
+    by_kind_cell: Dict[str, Dict[str, List[Dict[str, Any]]]] = {k: {} for k in WAKE_KINDS}
+    n_records_by_kind: Dict[str, int] = {k: 0 for k in WAKE_KINDS}
+    # group_key -> cell -> mean aggregate P(ABORT) over that member's immediate-FD wakes
+    matched: Dict[str, Dict[str, float]] = {}
+
+    for rec in with_diag:
+        cell = str(rec.get("cell", CONDITION_CLEAN))
+        gkey = rec.get("benchmark_group_key")
+        fd_mass: List[float] = []
+        for d in rec["wake_decisions"]:
+            kind = str(d.get("wake_kind") or WAKE_KIND_ORDINARY)
+            if kind not in by_kind:
+                by_kind[kind] = []
+                by_kind_cell[kind] = {}
+                n_records_by_kind[kind] = 0
+            by_kind[kind].append(d)
+            by_kind_cell[kind].setdefault(cell, []).append(d)
+            n_records_by_kind[kind] += 1
+            if kind == WAKE_KIND_IMMEDIATE_FD:
+                agg = d.get("aggregate_probability_per_meta_action") or {}
+                if isinstance(agg.get(_ABORT_NAME), (int, float)):
+                    fd_mass.append(float(agg[_ABORT_NAME]))
+        if gkey and fd_mass:
+            matched.setdefault(str(gkey), {})[cell] = float(sum(fd_mass)) / len(fd_mass)
+
+    deltas = [v[SEVERITY_SEVERE] - v[SEVERITY_MILD] for v in matched.values()
+              if SEVERITY_MILD in v and SEVERITY_SEVERE in v]
+    return {
+        "recorded": True,
+        "source": _EPISODE_OUTCOMES_FILENAME,
+        "wake_diagnostics_schema_version": _WAKE_DIAGNOSTICS_VERSION,
+        "n_episode_records_with_diagnostics": len(with_diag),
+        "n_wakes_by_kind": {k: n_records_by_kind.get(k, 0) for k in by_kind},
+        "by_wake_kind": {k: _wake_diag_digest(v) for k, v in by_kind.items()},
+        "by_wake_kind_and_cell": {
+            k: {c: _wake_diag_digest(v) for c, v in cells.items()}
+            for k, cells in by_kind_cell.items()},
+        "matched_severe_minus_mild_aggregate_p_abort": {
+            "pairing": "frozen benchmark group identity (benchmark_group_key)",
+            "over": "world_groups_with_both_mild_and_severe_present",
+            "n": len(deltas),
+            "mean": (float(sum(deltas)) / len(deltas)) if deltas else None,
+            "min": (min(deltas) if deltas else None),
+            "max": (max(deltas) if deltas else None),
+        },
+        "metric_semantics": {
+            "selected_joint_cell_abort_fraction":
+                "fraction of wakes whose SELECTED joint (node, meta) cell was an abort "
+                "-- what deterministic evaluation actually does",
+            "aggregate_p_abort_mean":
+                "mean TOTAL probability mass on the abort column, summed over its k "
+                "cells. NOT the probability of the selected action",
+            "joint_entropy_raw_mean":
+                "entropy of the joint (node, meta-action) distribution, in nats, "
+                "cardinality-dependent",
+            "joint_entropy_normalized_mean":
+                "the same entropy divided by log(valid cell count); undefined (and "
+                "excluded) when fewer than two cells are valid",
+        },
+    }
+
+
 def _severity_response_from_outcomes(
     outcome_records: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
@@ -7928,6 +8157,7 @@ def _summarize(
     # summary states nothing the artifacts do not.
     outcome_rows = list(outcome_records or [])
     severity_response = _severity_response_from_outcomes(outcome_rows)
+    fd_policy_sensitivity = _fd_policy_sensitivity_from_outcomes(outcome_rows)
 
     run_path = Path(run_dir)
     summary: Dict[str, Any] = {
@@ -8029,6 +8259,14 @@ def _summarize(
         "severity_response": severity_response,
         "severity_response_source": _EPISODE_OUTCOMES_FILENAME,
         "episode_outcomes_recorded": len(outcome_rows),
+        # PER-WAKE ACTOR DIAGNOSTICS (episode-outcome schema v3), derived from the SAME
+        # durable stream. `recorded: false` -- never a table of zeros -- for a run
+        # directory written before the field existed.
+        "episode_outcome_schema_version": _EPISODE_OUTCOME_VERSION,
+        "wake_diagnostics_schema_version": _WAKE_DIAGNOSTICS_VERSION,
+        "wake_diagnostics_source": _EPISODE_OUTCOMES_FILENAME,
+        "wake_kinds": list(WAKE_KINDS),
+        "fd_policy_sensitivity": fd_policy_sensitivity,
         # WHICH POPULATION this run drew from. Recorded on BOTH designs, and taken from
         # the config rather than guessed from the records, so a run with zero completed
         # episodes still states its design.
@@ -8101,6 +8339,17 @@ def _summarize(
         "plot_paths": {
             name: str(_plots_dir(run_path) / name) for name in _PLOT_FILENAMES
         },
+        # The OPTIONAL figures. Keyed off whether this run's DATA supports the figure,
+        # not off whether the file exists yet: `build_run_summary` runs BEFORE
+        # `plot_training_subprocess`, so an existence test here would always be empty.
+        # That is also exactly the convention `plot_paths` above already follows -- it
+        # DECLARES where a figure belongs rather than stat-ing for it. Empty (never
+        # null-valued) for a run that recorded no per-wake diagnostics, so a reader
+        # never mistakes "not recorded" for "failed to render".
+        "optional_plot_paths": (
+            {_PLOT_FD_SENSITIVITY: str(_plots_dir(run_path) / _PLOT_FD_SENSITIVITY)}
+            if fd_policy_sensitivity.get("recorded") else {}
+        ),
     }
     # Pre-B4 names, kept so an existing reader of a summary still resolves.
     summary["total_train_episodes"] = train_attempted
@@ -8606,9 +8855,15 @@ def _plot_policy_diagnostics(
     ax = axes[1]
     ax.plot(train_x, entropies, color="tab:brown", linewidth=1.6,
             marker=".", markersize=4)
-    ax.set_ylabel("policy entropy (nats)")
-    ax.set_title("Policy entropy per TRAINING batch (collapse detector for the mix "
-                 "above)", fontsize=11)
+    # LABEL ONLY -- the plotted series is byte-unchanged. It is the RAW entropy of the
+    # JOINT (node, meta-action) distribution over the k x 3 surface, so it grows with the
+    # number of valid cells and is NOT comparable across episodes of different task-node
+    # counts. The cardinality-normalized form lives on `fd_policy_sensitivity.png`.
+    ax.set_ylabel("raw joint (node, meta-action) entropy (nats)")
+    ax.set_title("RAW JOINT (node, meta-action) policy entropy per TRAINING batch "
+                 "-- CARDINALITY-DEPENDENT, so not comparable across differing "
+                 "task-node counts (collapse detector for the mix above; the "
+                 "normalized form is on %s)" % _PLOT_FD_SENSITIVITY, fontsize=10)
     ax.grid(alpha=0.25)
 
     # --- Panel 3: the FD-wake severity response (the primary behavioural measurement)
@@ -8651,6 +8906,171 @@ def _plot_policy_diagnostics(
     out_path = plots_dir / _PLOT_DIAGNOSTICS
     fig.savefig(out_path, dpi=140)
     plt.close(fig)
+    return out_path
+
+
+def _plot_fd_policy_sensitivity(
+    plt: Any,
+    plots_dir: Path,
+    outcome_records: List[Dict[str, Any]],
+) -> Optional[Path]:
+    """FD-POLICY SENSITIVITY -- five panels, derived from ``episode_outcomes.jsonl``.
+
+    THE FIGURE THE R1 DIAGNOSTIC REPLAY HAD TO RECONSTRUCT OFFLINE. It answers, from
+    durable artifacts alone: did the actor's SELECTED action, and the shape of the
+    distribution behind it, respond to fuel-damage severity?
+
+    Every panel names its own quantity, because four of them are routinely conflated:
+
+    * the SELECTED JOINT CELL action -- what deterministic evaluation does;
+    * the AGGREGATE probability MASS on a meta-action column, summed over its k cells --
+      NOT the probability of the selected action, and never labelled as one;
+    * RAW joint entropy, in nats, which is cardinality-dependent;
+    * NORMALIZED joint entropy, divided by ``log(valid cell count)``.
+
+    Populations are never pooled: immediate-FD wakes, post-FD boundary wakes and
+    ordinary wakes are separate series, and the matched panel pairs mild against severe
+    through the FROZEN BENCHMARK GROUP identity rather than through target uuids (which
+    are not seed-stable labels).
+
+    Returns the written path, or ``None`` when no record carries ``wake_decisions`` --
+    a legacy run keeps its three figures and gets no fabricated fourth.
+    """
+    digest = _fd_policy_sensitivity_from_outcomes(outcome_records)
+    if not digest.get("recorded"):
+        return None
+
+    # x = PPO updates completed before the measurement, exactly as the other figures.
+    def _series(kind: str, cell: str, key: str) -> Tuple[List[float], List[float]]:
+        buckets: Dict[int, List[Dict[str, Any]]] = {}
+        for rec in outcome_records:
+            wd = rec.get("wake_decisions")
+            if not isinstance(wd, list) or str(rec.get("cell", "")) != cell:
+                continue
+            x = rec.get("updates_completed")
+            if x is None:
+                continue
+            for d in wd:
+                if str(d.get("wake_kind") or WAKE_KIND_ORDINARY) == kind:
+                    buckets.setdefault(int(x), []).append(d)
+        xs, ys = [], []
+        for x in sorted(buckets):
+            v = _wake_diag_digest(buckets[x]).get(key)
+            if v is not None:
+                xs.append(float(x))
+                ys.append(float(v))
+        return xs, ys
+
+    cells = [c for c in (CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE,
+                         CONDITION_DAMAGED)
+             if any(str(r.get("cell", "")) == c and isinstance(r.get("wake_decisions"), list)
+                    for r in outcome_records)]
+    colors = {CONDITION_CLEAN: "#2ca02c", SEVERITY_MILD: "#1f77b4",
+              SEVERITY_SEVERE: "#d62728", CONDITION_DAMAGED: "#ff7f0e"}
+
+    fig, axes = plt.subplots(1, 5, figsize=(26, 4.8))
+
+    ax = axes[0]
+    for c in cells:
+        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "selected_joint_cell_abort_fraction")
+        if xs:
+            ax.plot(xs, ys, marker="o", label=c, color=colors.get(c))
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("SELECTED joint-cell action\nfraction of immediate-FD wakes selecting "
+                 "SELF_PRESERVATION_ABORT", fontsize=9)
+    ax.set_ylabel("selected-cell ABORT fraction")
+
+    ax = axes[1]
+    for c in cells:
+        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "aggregate_p_abort_mean")
+        if xs:
+            ax.plot(xs, ys, marker="o", label=c, color=colors.get(c))
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("AGGREGATE probability MASS on the ABORT column\n"
+                 "(summed over its k cells -- NOT P(selected action))", fontsize=9)
+    ax.set_ylabel("mean aggregate P(ABORT)")
+
+    ax = axes[2]
+    matched: Dict[int, List[float]] = {}
+    per_x: Dict[int, Dict[str, Dict[str, float]]] = {}
+    for rec in outcome_records:
+        wd = rec.get("wake_decisions")
+        gkey = rec.get("benchmark_group_key")
+        x = rec.get("updates_completed")
+        if not isinstance(wd, list) or not gkey or x is None:
+            continue
+        mass = [float(d["aggregate_probability_per_meta_action"][_ABORT_NAME])
+                for d in wd
+                if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD
+                and isinstance((d.get("aggregate_probability_per_meta_action") or {})
+                               .get(_ABORT_NAME), (int, float))]
+        if mass:
+            per_x.setdefault(int(x), {}).setdefault(str(gkey), {})[
+                str(rec.get("cell", ""))] = float(sum(mass)) / len(mass)
+    for x, groups in per_x.items():
+        for v in groups.values():
+            if SEVERITY_MILD in v and SEVERITY_SEVERE in v:
+                matched.setdefault(x, []).append(v[SEVERITY_SEVERE] - v[SEVERITY_MILD])
+    if matched:
+        xs = sorted(matched)
+        ax.plot(xs, [sum(matched[x]) / len(matched[x]) for x in xs], marker="o",
+                color="#9467bd")
+        for x in xs:
+            ax.scatter([x] * len(matched[x]), matched[x], s=14, alpha=0.45,
+                       color="#9467bd")
+        ax.axhline(0.0, color="black", lw=0.8, ls="--")
+        ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
+                     "(paired by frozen benchmark group; n=%d group(s) at the last x)"
+                     % len(matched[xs[-1]]), fontsize=9)
+    else:
+        ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
+                     "(no matched benchmark group in this run)", fontsize=9)
+        ax.text(0.5, 0.5, "no matched groups", ha="center", va="center",
+                transform=ax.transAxes, color="#888888")
+    ax.set_ylabel("severe - mild aggregate P(ABORT)")
+
+    ax = axes[3]
+    for c in cells:
+        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "joint_entropy_normalized_mean")
+        if xs:
+            ax.plot(xs, ys, marker="o", label="%s: norm. joint entropy" % c,
+                    color=colors.get(c))
+    xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, cells[0] if cells else CONDITION_CLEAN,
+                     "joint_vs_aggregate_disagreement_fraction")
+    if xs:
+        ax.plot(xs, ys, marker="s", ls=":", color="#8c564b",
+                label="joint vs aggregate argmax disagreement")
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("NORMALIZED joint (node, meta-action) entropy\n"
+                 "[raw entropy / log(valid cells)] + argmax disagreement", fontsize=9)
+    ax.set_ylabel("normalized entropy / disagreement fraction")
+
+    ax = axes[4]
+    for c in cells:
+        xs, ys = _series(WAKE_KIND_IMMEDIATE_FD, c, "distance_clipping_fraction_mean")
+        if xs:
+            ax.plot(xs, ys, marker="o", label=c, color=colors.get(c))
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("task-distance features CLIPPED to 1.0\n"
+                 "(a property of the fixed normalizer, not of the policy)", fontsize=9)
+    ax.set_ylabel("mean clipped fraction")
+
+    for ax in axes:
+        ax.set_xlabel(_PLOT_X_LABEL)
+        ax.grid(alpha=0.3)
+        handles, _labels = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend(fontsize=7)
+    fig.suptitle("FD policy sensitivity -- immediate fuel-damage wakes only "
+                 "(post-FD boundary and ordinary wakes are SEPARATE populations "
+                 "and are not pooled here)", fontsize=11)
+    fig.tight_layout()
+    # The SAME x-axis quantity every other figure in this module carries.
+    _annotate_x_semantics(fig)
+    out_path = plots_dir / _PLOT_FD_SENSITIVITY
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print("  plot_training: wrote %s" % out_path)
     return out_path
 
 
@@ -8914,7 +9334,13 @@ def plot_training(run_dir: Union[str, Path]) -> List[Path]:
         _plot_policy_diagnostics(plt, plots_dir, train_records, eval_records),
         _plot_measurement_health(plt, plots_dir, train_records, eval_records,
                                  outcome_records),
+        # OPTIONAL fourth figure: drawn only from episode-outcome schema v3
+        # `wake_decisions`. Returns None -- and is filtered out below -- for a run
+        # directory written before that field existed, so an old R1 directory still
+        # plots its three figures and gets no fabricated fourth.
+        _plot_fd_policy_sensitivity(plt, plots_dir, outcome_records),
     ]
+    written = [p for p in written if p is not None]
     for path in written:
         print("plot_training: wrote %s" % str(path))
     return written
@@ -8967,6 +9393,12 @@ def plot_training_subprocess(
     plots_dir = _plots_dir(run_path)
     written = [plots_dir / name for name in _PLOT_FILENAMES
                if (plots_dir / name).exists()]
+    # COMPLETENESS is judged against the REQUIRED set only (below), but the caller is
+    # told about every figure the child really produced -- so this path returns the same
+    # list `plot_training` does rather than silently dropping the optional figure. Here
+    # existence IS the right test: the child has already finished.
+    optional = [plots_dir / name for name in _PLOT_OPTIONAL_FILENAMES
+                if (plots_dir / name).exists()]
     if proc.returncode != 0 or len(written) != len(_PLOT_FILENAMES):
         print("plot_training_subprocess: the plot child produced %d of %d figure(s) "
               "(rc=%d) -- plots incomplete; the records are intact."
@@ -8974,7 +9406,7 @@ def plot_training_subprocess(
         if proc.stderr:
             print("  child stderr (last line): %s"
                   % proc.stderr.strip().splitlines()[-1:])
-    return written
+    return written + optional
 
 
 # =============================================================================

@@ -3517,7 +3517,13 @@ def test_plot_separates_performance_from_diagnostics_and_health() -> None:
     """
     source = Path(inspect.getsourcefile(graph_train)).read_text(encoding="utf-8")
     # Exactly three figures are saved: one per claim, no fourth artifact.
-    assert source.count("fig.savefig(") == 3
+    # THREE REQUIRED figures + the OPTIONAL `fd_policy_sensitivity.png`, which is
+    # drawn only from episode-outcome schema v3 `wake_decisions` and is absent for a
+    # pre-v3 run directory (hence it is not in `_PLOT_FILENAMES`).
+    assert source.count("fig.savefig(") == 4
+    assert len(graph_train._PLOT_FILENAMES) == 3
+    assert graph_train._PLOT_OPTIONAL_FILENAMES == (
+        graph_train._PLOT_FD_SENSITIVITY,)
     assert "plt.subplots(3, 1" in inspect.getsource(
         graph_train._plot_training_performance), "performance is not 3 panels"
     # Diagnostics gained the FD-wake severity-response panel (mix / entropy / response);
@@ -3539,9 +3545,10 @@ def test_plot_separates_performance_from_diagnostics_and_health() -> None:
     # prose explaining why).
     assert 'savefig(out_path' in source
     assert '"training_plot.png"' not in source
-    # One x-axis quantity, stamped on every figure.
-    assert source.count("ax.set_xlabel(_PLOT_X_LABEL)") == 3
-    assert source.count("_annotate_x_semantics(fig)") == 3
+    # One x-axis quantity, stamped on every figure -- the three REQUIRED ones and
+    # the optional FD-policy-sensitivity figure, which shares the same axis.
+    assert source.count("ax.set_xlabel(_PLOT_X_LABEL)") == 4
+    assert source.count("_annotate_x_semantics(fig)") == 4
     # The honest placement survives: training at updates_completed_before, eval at
     # updates_completed. Neither was moved to make a curve look better.
     assert '_xy(\n        train_records, "updates_completed_before", "train_reward_mean"\n    )' in source
@@ -5287,7 +5294,8 @@ def test_gen_the_outcome_record_states_the_design_and_the_cardinality(
     rows = _read_records(gen.output_dir, "episode_outcomes.jsonl")
     assert len(rows) == 3
     for row in rows:
-        assert row["schema_version"] == 2
+        # VERSION 3 adds the per-wake actor diagnostics (`wake_decisions`).
+        assert row["schema_version"] == 3
         assert row["episode_design"] == EPISODE_DESIGN_GENERALIZED_V1
         assert row["generalized"] is True
         assert row["hidden_policy"] == gen.design.hidden_policy

@@ -101,8 +101,9 @@ gives peers ``fuel_norm = 0.0`` by construction). The feature is OFF by default
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
+import numpy as np
 import torch
 
 from ..observation.central_graph_builder import CentralStateRecorder
@@ -111,7 +112,13 @@ from ..observation.graph_builder import (
     GraphObservation,
     GraphObservationConfig,
 )
-from ..action.graph_action import ActionHead, build_action_mask, sample_action
+from ..action.graph_action import (
+    ActionHead,
+    MetaAction,
+    build_action_mask,
+    sample_action,
+    summarize_decision,
+)
 from ..action.graph_effect import apply_meta_action
 from ..action.graph_trigger import decide_triggers, never_overdue
 from ..agent.graph_encoder import GraphEncoder
@@ -139,6 +146,59 @@ from .belief import Belief
 # ``max_episode_steps=MAX_SIM_TICKS``) so the loop and BLADE expire together — the loop
 # hits ``truncated`` from the TimeLimit rather than silently out-running it.
 _DEFAULT_MAX_TICKS: int = MAX_SIM_TICKS
+
+# =============================================================================
+# WAKE KINDS -- three DISJOINT populations, tagged at the trigger, never inferred
+# =============================================================================
+# Which trigger woke the actor is a fact the orchestrator already knows when it calls
+# `_wake_decision`, and it is recorded there. It must NEVER be reconstructed afterwards
+# from the selected action: "the actor aborted" is not evidence about why it was asked.
+#
+#   * `ordinary`             -- a pop-up / peer-overdue sensing wake.
+#   * `immediate_fuel_damage`-- THE fuel-damage wake, for the ego that really lost fuel.
+#     An approved measurement is reported over exactly this population
+#     (`FuelDamageOutcome.wake_occurred` / `wake_meta_action`), so nothing else may
+#     enter its denominator.
+#   * `post_fd_boundary`     -- a LATER completion-boundary wake of that same ego under
+#     `completion_boundary_v1`. It is deliberately a SEPARATE population with its own
+#     denominator (`PostFdAdaptationOutcome.boundary_wakes`); folding it into the
+#     immediate-FD counts would silently change what the approved measurement means.
+WAKE_KIND_ORDINARY = "ordinary"
+WAKE_KIND_IMMEDIATE_FD = "immediate_fuel_damage"
+WAKE_KIND_POST_FD_BOUNDARY = "post_fd_boundary"
+WAKE_KINDS = (WAKE_KIND_ORDINARY, WAKE_KIND_IMMEDIATE_FD, WAKE_KIND_POST_FD_BOUNDARY)
+
+# Task-node ownership of the SELECTED node, read from the ego's own belief solution at
+# decision time (before `apply_meta_action` edits it).
+OWNERSHIP_EGO = "ego_assigned"
+OWNERSHIP_PEER = "peer_assigned"
+OWNERSHIP_UNASSIGNED = "unassigned"
+
+
+def _node_ownership(solution: Any, ego_key: str, node_v: int) -> str:
+    """Who owns task node ``node_v`` in this ego's PRIVATE belief solution.
+
+    Assignment tuples are positional (``assignment[0] == task_idx``), the same reading
+    ``graph_effect`` and ``_assignment_target_id`` use. A malformed tuple is skipped
+    rather than raised on: this is a reporting path and must never be able to fail an
+    episode.
+    """
+    ego_has = False
+    peer_has = False
+    for aid, assigns in (solution or {}).items():
+        for a in assigns or ():
+            try:
+                if int(a[0]) != int(node_v):
+                    continue
+            except (TypeError, ValueError, IndexError):
+                continue
+            if str(aid) == str(ego_key):
+                ego_has = True
+            else:
+                peer_has = True
+    if ego_has:
+        return OWNERSHIP_EGO
+    return OWNERSHIP_PEER if peer_has else OWNERSHIP_UNASSIGNED
 
 
 # =============================================================================
@@ -201,6 +261,25 @@ class Transition:
     entropy: float                  # detached scalar policy entropy at this wake
     reward: Optional[float] = None  # filled later by the reward task
 
+    wake_kind: str = WAKE_KIND_ORDINARY
+    """WHY this wake happened, tagged at the CALL SITE from the trigger that caused it.
+
+    One of :data:`WAKE_KINDS`. It is stamped from the orchestrator's own
+    ``ego_fuel_damage`` / ``ego_post_fd`` flags -- the same flags that decide what
+    ``decide_triggers`` is told -- and is NEVER inferred afterwards from the selected
+    action. An immediate fuel-damage wake and a later post-FD completion-boundary wake
+    are DIFFERENT POPULATIONS with different denominators (CLAUDE.md 5), and a boundary
+    decision folded into the immediate-FD denominator would silently change what an
+    approved measurement reports."""
+
+    decision: Optional[Dict[str, Any]] = None
+    """REPORTING-ONLY per-wake diagnostics, or ``None`` when not recorded.
+
+    Built by :func:`graph_action.summarize_decision` from the SAME logits and mask
+    ``sample_action`` acted on -- no second forward pass, no randomness, no gradient --
+    plus the actor-input summary this module can see. Nothing reads it back: it reaches
+    ``episode_outcomes.jsonl`` and the plots and stops there."""
+
 
 @dataclass
 class EpisodeResult:
@@ -233,6 +312,65 @@ class EpisodeResult:
 # 3. The per-wake RL step (factored out so it is unit-testable in isolation)
 # =============================================================================
 
+def _decision_record(
+    *,
+    logits: Any,
+    mask: Any,
+    gobs: GraphObservation,
+    solution: Any,
+    ego_key: str,
+    meta_action: int,
+    node_v: int,
+    wake_kind: str,
+) -> Dict[str, Any]:
+    """The durable per-wake diagnostic record. REPORTING-ONLY, JSON-ready.
+
+    Combines the action-distribution summary (:func:`graph_action.summarize_decision`,
+    computed from the SAME logits and mask the actor acted on) with the actor-INPUT
+    summary only this module can see: the graph's shape, the ego's own ``fuel_norm``,
+    the ``reachable_by_ego`` vector, the task-distance column and how much of it is
+    saturated at the normalizer.
+
+    THE DISTANCE-CLIPPING COUNT IS DELIBERATE. ``dist_to_ego_norm`` is
+    ``haversine / theater_scale_km`` CLIPPED to 1.0, so once a target sits beyond the
+    scale every such node reports the identical 1.0 and the column stops separating
+    them. That is a property of the FIXED normalizer, not of the policy, and it is
+    unobservable in an aggregate — so the count and the fraction are recorded per wake
+    and left for a reader to judge. Nothing here changes the normalizer or the feature.
+
+    Every value is a plain builtin: no tensor, no numpy scalar, no NaN.
+    """
+    tf = np.asarray(gobs.task_features, dtype=np.float64)
+    af = np.asarray(gobs.agent_features, dtype=np.float64)
+    k = int(tf.shape[0])
+    # `ego_index` is a GLOBAL node index -- tasks occupy [0, k), agents [k, k+a) -- so
+    # the ego's row in `agent_features` is that index minus the task-node count.
+    ego_row = int(gobs.ego_index) - k
+    dist = tf[:, 1] if k else np.zeros((0,), dtype=np.float64)
+    n_clipped = int((dist >= 1.0).sum())
+
+    record: Dict[str, Any] = {
+        "wake_kind": str(wake_kind),
+        "ego_id": str(ego_key),
+        "tick": int(gobs.current_time),
+        "selected_node": int(node_v),
+        "selected_meta_action": int(meta_action),
+        "selected_meta_action_name": MetaAction(int(meta_action)).name,
+        "selected_node_ownership": _node_ownership(solution, ego_key, node_v),
+        # ---- actor-input summary ----
+        "n_task_nodes": k,
+        "n_agent_nodes": int(af.shape[0]),
+        "ego_fuel_norm": (float(af[ego_row, 0]) if 0 <= ego_row < af.shape[0] else None),
+        "reachable_by_ego": tf[:, 3].tolist() if k else [],
+        "task_distance_norm": dist.tolist(),
+        "n_task_distance_clipped": n_clipped,
+        "fraction_task_distance_clipped": (float(n_clipped) / k if k else 0.0),
+        "time_norm": float(gobs.time_norm),
+    }
+    record.update(summarize_decision(logits, mask, int(meta_action), int(node_v)))
+    return record
+
+
 def _wake_decision(
     policy: Policy,
     ego_id: str,
@@ -243,6 +381,7 @@ def _wake_decision(
     tick: int,
     *,
     deterministic: bool = False,
+    wake_kind: str = WAKE_KIND_ORDINARY,
 ) -> Transition:
     """Run ONE RL decision for ``ego_id`` on the current ``obs`` + its ``belief``.
 
@@ -295,6 +434,17 @@ def _wake_decision(
             logits, mask, deterministic=deterministic
         )
 
+        # --- REPORTING-ONLY diagnostics, from the SAME logits/mask just acted on ---
+        # AFTER `sample_action`, so a stochastic draw is already taken and cannot be
+        # displaced; numpy-only inside, so the torch RNG state is untouched either way.
+        # Ownership is read BEFORE the belief edit below, because `apply_meta_action`
+        # is what changes it.
+        decision = _decision_record(
+            logits=logits, mask=mask, gobs=gobs, solution=belief.solution,
+            ego_key=ego_key, meta_action=meta_action, node_v=node_v,
+            wake_kind=wake_kind,
+        )
+
         # --- Belief edit (pure) + executor resync (this ego's slice ONLY) ---
         belief.solution = apply_meta_action(
             belief.solution, gobs, ego_key, meta_action, node_v, belief.tasks
@@ -309,6 +459,8 @@ def _wake_decision(
         node_v=int(node_v),
         log_prob=float(log_prob.item()),
         entropy=float(entropy.item()),
+        wake_kind=str(wake_kind),
+        decision=decision,
     )
 
 
@@ -634,9 +786,28 @@ def run_episode(
                         # theater scale / tick cap are the same values by construction.
                         config=cfg,
                     )
+                # WHY this wake happened, from the flags that CAUSED it -- the same
+                # `ego_fuel_damage` / `ego_post_fd` the trigger call above was given.
+                # The immediate FD wake and a later completion-boundary wake of the SAME
+                # ego are different populations with different denominators, so they are
+                # tagged apart here rather than reconstructed later from the action.
+                if ego_fuel_damage:
+                    wake_kind = WAKE_KIND_IMMEDIATE_FD
+                elif ego_post_fd:
+                    wake_kind = WAKE_KIND_POST_FD_BOUNDARY
+                else:
+                    wake_kind = WAKE_KIND_ORDINARY
+                # OMITTED when the wake is ORDINARY, so the overwhelmingly common call
+                # is BYTE-IDENTICAL to the pre-hardening one -- the same
+                # keyword-omission discipline `graph_train._artifact_kwargs` /
+                # `_ctde_kwargs` / `_cardinality_kwargs` already use, and the stronger
+                # invariance claim than passing a default. It also keeps an existing
+                # caller that substitutes its own `_wake_decision` working unchanged.
                 transition = _wake_decision(
                     policy, ego_id, obs, belief, ctx.executor, cfg, tick,
                     deterministic=deterministic,
+                    **({} if wake_kind == WAKE_KIND_ORDINARY
+                       else {"wake_kind": wake_kind}),
                 )
                 trajectory.append(transition)
                 if ego_fuel_damage and fuel_damage is not None:

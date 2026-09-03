@@ -49,8 +49,9 @@ Framework: PyTorch.
 
 from __future__ import annotations
 
+import math
 from enum import IntEnum
-from typing import Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -370,6 +371,137 @@ def sample_action(
     node_index = flat_idx // NUM_META_ACTIONS
     meta_action = flat_idx % NUM_META_ACTIONS
     return meta_action, node_index, log_prob, entropy
+
+
+def summarize_decision(
+    logits: torch.Tensor,
+    mask_np: np.ndarray,
+    meta_action: int,
+    node_v: int,
+) -> Dict[str, Any]:
+    """REPORTING-ONLY summary of ONE decision, from the SAME logits and mask.
+
+    MEASUREMENT HARDENING, NOT AN ALGORITHM CHANGE. This function is a pure function of
+    the arguments :func:`sample_action` was already called with, so it needs no second
+    encoder/head forward pass and cannot describe a distribution the actor did not act
+    on. Its output feeds artifacts and plots ONLY: nothing here reaches action selection,
+    PPO, the reward, the optimizer, early stopping, evaluation scheduling or checkpoint
+    control.
+
+    THREE PROPERTIES ARE LOAD-BEARING, and all three are structural rather than
+    conventional:
+
+    * **NO RANDOMNESS.** Every computation below is numpy on a DETACHED copy. It draws
+      from no generator, so calling it cannot shift the torch RNG state and therefore
+      cannot move a later stochastic ``sample_action`` by one draw. A diagnostic that
+      perturbed the training stream would silently change the run it is meant to
+      describe.
+    * **NO GRADIENT.** ``logits.detach()`` is taken first, so no autograd node is
+      created and the PPO graph is untouched.
+    * **THE SAME FLATTENING AS THE ACTOR.** Row-major ``flat = node*3 + meta``, exactly
+      :func:`_masked_dist`'s convention, so the reported cells are the actor's cells.
+
+    WHY BOTH A JOINT AND AN AGGREGATE VIEW. The action surface is ``k x 3``, so ONE
+    meta-action owns ``k`` cells and its total probability mass is spread across them.
+    The deterministic evaluator picks the single highest JOINT CELL, which is not
+    generally the argmax of the per-meta-action SUM: a meta-action can hold the largest
+    total mass while every one of its cells sits below a rival's single best cell. Both
+    are reported, under names that cannot be confused, together with an explicit
+    ``joint_vs_aggregate_disagree`` flag -- because reporting only the aggregate would
+    describe a choice the actor never makes, and reporting only the joint cell would
+    hide how concentrated that choice was.
+
+    Args:
+        logits: ``[k, 3]`` raw logits from :class:`ActionHead` -- the SAME tensor passed
+            to :func:`sample_action`.
+        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`.
+        meta_action: the meta-action the actor actually selected.
+        node_v: the task node the actor actually selected.
+
+    Returns:
+        A JSON-ready dict of plain builtins (no tensor, no numpy scalar, no NaN), safe
+        to write straight into a durable artifact.
+
+    Raises:
+        ValueError: if the mask leaves no valid cell (the same condition
+            :func:`_masked_dist` refuses).
+    """
+    lg = logits.detach().cpu().numpy().astype(np.float64, copy=True)
+    mk = np.asarray(mask_np, dtype=np.float64)
+    k = int(lg.shape[0])
+    masked = lg + mk
+    flat = masked.reshape(-1)                       # row-major: flat = node*3 + meta
+    valid = np.isfinite(flat)
+    n_valid = int(valid.sum())
+    if n_valid == 0:
+        raise ValueError(
+            "summarize_decision received an all -inf mask (no valid action); "
+            "the Plan-Compliance invariant should make this impossible"
+        )
+    # Stable masked softmax over the VALID cells only.
+    top = float(flat[valid].max())
+    ex = np.where(valid, np.exp(flat - top), 0.0)
+    probs = ex / ex.sum()
+    pm = probs.reshape(k, NUM_META_ACTIONS)
+
+    ranked = np.argsort(-np.where(valid, probs, -np.inf))
+    i1 = int(ranked[0])
+    i2 = int(ranked[1]) if n_valid > 1 else None
+
+    agg = [float(pm[:, m].sum()) for m in range(NUM_META_ACTIONS)]
+    per_meta_valid = [int(np.isfinite(masked[:, m]).sum()) for m in range(NUM_META_ACTIONS)]
+
+    nz = probs[probs > 0.0]
+    joint_entropy = float(-(nz * np.log(nz)).sum())
+    # `log(1) == 0` would divide by zero, and a single valid cell has no spread to
+    # normalize: report `None` rather than NaN or an invented 0.0/1.0 (an invented
+    # number would read as a measurement).
+    joint_entropy_norm: Optional[float] = (
+        float(joint_entropy / math.log(n_valid)) if n_valid > 1 else None
+    )
+    anz = np.asarray([a for a in agg if a > 0.0], dtype=np.float64)
+    agg_entropy = float(-(anz * np.log(anz)).sum()) if anz.size else 0.0
+
+    joint_meta = i1 % NUM_META_ACTIONS
+    agg_meta = int(np.argmax(np.asarray(agg)))
+
+    def _cell(idx: int) -> Dict[str, Any]:
+        return {
+            "node": int(idx // NUM_META_ACTIONS),
+            "meta_action": int(idx % NUM_META_ACTIONS),
+            "meta_action_name": MetaAction(idx % NUM_META_ACTIONS).name,
+            "probability": float(probs[idx]),
+        }
+
+    sel_meta, sel_node = int(meta_action), int(node_v)
+    return {
+        "n_task_nodes": k,
+        "n_meta_actions": int(NUM_META_ACTIONS),
+        "raw_logits": lg.tolist(),
+        "valid_action_mask": np.isfinite(mk).astype(int).tolist(),
+        "masked_probabilities": pm.tolist(),
+        "n_valid_cells": n_valid,
+        "valid_cells_per_meta_action": {
+            MetaAction(m).name: per_meta_valid[m] for m in range(NUM_META_ACTIONS)},
+        "selected_node": sel_node,
+        "selected_meta_action": sel_meta,
+        "selected_meta_action_name": MetaAction(sel_meta).name,
+        "selected_cell_probability": float(pm[sel_node, sel_meta]),
+        "top_two_valid_cells": [_cell(i1)] + ([_cell(i2)] if i2 is not None else []),
+        "top_two_probability_margin": (
+            float(probs[i1] - probs[i2]) if i2 is not None else None),
+        "aggregate_probability_per_meta_action": {
+            MetaAction(m).name: agg[m] for m in range(NUM_META_ACTIONS)},
+        "joint_argmax_cell": _cell(i1),
+        "joint_argmax_meta_action": int(joint_meta),
+        "joint_argmax_meta_action_name": MetaAction(joint_meta).name,
+        "aggregate_argmax_meta_action": agg_meta,
+        "aggregate_argmax_meta_action_name": MetaAction(agg_meta).name,
+        "joint_vs_aggregate_disagree": bool(joint_meta != agg_meta),
+        "joint_entropy_raw": joint_entropy,
+        "joint_entropy_normalized": joint_entropy_norm,
+        "aggregate_meta_action_entropy": agg_entropy,
+    }
 
 
 def evaluate_action(
