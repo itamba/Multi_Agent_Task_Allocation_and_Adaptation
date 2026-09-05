@@ -425,7 +425,7 @@ def _write_synthetic_run(
                       (1, 2, _EVAL_STAGE_POST_UPDATE),
                       (3, 4, _EVAL_STAGE_POST_UPDATE),
                       (5, 6, _EVAL_STAGE_POST_UPDATE)]
-            for it, updates, stage in rounds:
+            for ordinal, (it, updates, stage) in enumerate(rounds):
                 record = {
                     "iteration": it,
                     "n_episodes": 4,
@@ -435,6 +435,13 @@ def _write_synthetic_run(
                     record.update({
                         "evaluation_stage": stage,
                         "updates_completed": updates,
+                        # `evaluate` / `evaluate_benchmark` have always written this;
+                        # the summary's final-round SELECTOR requires it, so a fixture
+                        # that omitted it was describing a record shape no run emits.
+                        # The `legacy` branch deliberately still omits it -- a genuine
+                        # pre-B4 artifact does not carry it, and refusing there is the
+                        # correct behaviour.
+                        "eval_round_ordinal": ordinal,
                         "n_attempted": 4,
                         "n_successful": 3,
                         "n_failed": 1,

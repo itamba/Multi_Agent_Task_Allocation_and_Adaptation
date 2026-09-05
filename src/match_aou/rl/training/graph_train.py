@@ -7476,6 +7476,135 @@ def _sum_field(records: List[Dict[str, Any]], key: str, fallback: str) -> int:
     return sum(int(rec.get(key, rec.get(fallback, 0)) or 0) for rec in records)
 
 
+# The COMPLETE identity a final-evaluation selection is allowed to rely on. All three
+# are required: the stage says which kind of round it was, `updates_completed` says which
+# policy state it measured, and the ordinal says which round it was. Two of the three do
+# not identify a round -- two rounds can share an update count -- and none of them can be
+# inferred from a record's POSITION in a file, which is a fact about the writer.
+_FINAL_EVAL_IDENTITY_FIELDS = (
+    "evaluation_stage", "updates_completed", "eval_round_ordinal",
+)
+
+
+def _final_eval_identity(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The complete round identity of ONE eval record, or ``None`` if incomplete.
+
+    Strict on TYPE as well as presence: a stage outside :data:`_EVAL_PHASES` is not an
+    evaluation round, and a ``bool`` is rejected where an ``int`` is required (``True``
+    would otherwise pass as update count 1). Returning ``None`` rather than a partially
+    filled dict is what lets the caller refuse instead of ordering on a guess.
+    """
+    stage = record.get("evaluation_stage")
+    updates = record.get("updates_completed")
+    ordinal = record.get("eval_round_ordinal")
+    if not isinstance(stage, str) or stage not in _EVAL_PHASES:
+        return None
+    if not isinstance(updates, int) or isinstance(updates, bool):
+        return None
+    if not isinstance(ordinal, int) or isinstance(ordinal, bool):
+        return None
+    return {
+        "evaluation_stage": str(stage),
+        "updates_completed": int(updates),
+        "eval_round_ordinal": int(ordinal),
+    }
+
+
+def _select_final_eval_record(
+    eval_records: List[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Select THE final evaluation round SEMANTICALLY. Never ``eval_records[-1]``.
+
+    ``eval_records[-1]`` is the last row a file happens to hold. That is a property of
+    the writer, not of the run: re-reading the same rounds in another order, or a reader
+    that concatenates two artifacts, would silently relabel a different round as "final"
+    and every ``final_eval_*`` number in the summary with it. Nothing about such a
+    summary would look wrong.
+
+    The round is therefore chosen by the highest ``eval_round_ordinal`` -- the run's own
+    monotone round counter -- with ``updates_completed`` used as a CROSS-CHECK rather
+    than as a second ordering: the selected round must also hold the maximum update
+    count, because a run whose latest round measured an earlier policy state is an
+    artifact whose two orderings contradict each other.
+
+    It REFUSES, with an explicit reason, rather than guessing:
+
+    * ``no_evaluation_records`` -- nothing to select from (evaluation disabled, or none
+      completed). Not an error, and not an empty round either.
+    * ``incomplete_evaluation_identity`` -- some record does not state all three of
+      :data:`_FINAL_EVAL_IDENTITY_FIELDS`. An unorderable row in the population makes
+      "the last round" unanswerable, so the answer is refused rather than taken from the
+      rows that happen to be well-formed.
+    * ``ambiguous_identity_duplicate_rounds`` -- two records claim the SAME identity.
+    * ``ambiguous_highest_round_ordinal`` -- two records share the highest ordinal, so
+      the tie could only be broken by position.
+    * ``contradictory_ordering_ordinal_vs_updates_completed`` -- the highest-ordinal
+      round does not carry the highest update count.
+
+    Returns ``(record_or_None, selection_record)``. The selection record is PERSISTED in
+    the summary, so a refusal is visible as a stated reason rather than as a field that
+    is quietly ``None``.
+    """
+    rows = list(eval_records or ())
+    if not rows:
+        return None, {"selected": False, "reason": "no_evaluation_records",
+                      "n_eval_records": 0}
+
+    idents = [_final_eval_identity(r) for r in rows]
+    n_missing = sum(1 for i in idents if i is None)
+    if n_missing:
+        return None, {
+            "selected": False,
+            "reason": "incomplete_evaluation_identity",
+            "required_fields": list(_FINAL_EVAL_IDENTITY_FIELDS),
+            "n_eval_records": len(rows),
+            "n_records_missing_identity": n_missing,
+        }
+
+    keys = [(i["evaluation_stage"], i["updates_completed"], i["eval_round_ordinal"])
+            for i in idents]
+    n_duplicated = len(keys) - len(set(keys))
+    if n_duplicated:
+        return None, {
+            "selected": False,
+            "reason": "ambiguous_identity_duplicate_rounds",
+            "n_eval_records": len(rows),
+            "n_duplicate_identity_records": n_duplicated,
+        }
+
+    max_ordinal = max(i["eval_round_ordinal"] for i in idents)
+    finalists = [n for n, i in enumerate(idents)
+                 if i["eval_round_ordinal"] == max_ordinal]
+    if len(finalists) != 1:
+        return None, {
+            "selected": False,
+            "reason": "ambiguous_highest_round_ordinal",
+            "n_eval_records": len(rows),
+            "highest_round_ordinal": max_ordinal,
+            "n_candidates": len(finalists),
+        }
+
+    best = finalists[0]
+    max_updates = max(i["updates_completed"] for i in idents)
+    if idents[best]["updates_completed"] != max_updates:
+        return None, {
+            "selected": False,
+            "reason": "contradictory_ordering_ordinal_vs_updates_completed",
+            "n_eval_records": len(rows),
+            "highest_round_ordinal_identity": idents[best],
+            "max_updates_completed": max_updates,
+        }
+
+    return rows[best], {
+        "selected": True,
+        "reason": "selected_by_validated_identity",
+        "ordered_by": ("highest eval_round_ordinal, cross-checked against "
+                       "updates_completed"),
+        "n_eval_records": len(rows),
+        "identity": idents[best],
+    }
+
+
 def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """The reportable core of one eval round -- ALWAYS carrying its denominator.
 
@@ -8403,9 +8532,20 @@ def _summarize(
     # reported as `final_eval` below and handed to the sensitivity table -- so the two
     # cannot name different rounds, and the sensitivity table's "final round" is chosen
     # by that validated identity rather than by which record the file happens to end on.
-    final_eval_digest = _eval_digest(eval_records[-1] if eval_records else None)
+    # THE final round is chosen SEMANTICALLY, once, here -- never `eval_records[-1]`.
+    # The same selected record drives `final_eval`, every `final_eval_*` scalar below,
+    # and the FD-sensitivity table's own final-round pick, so the three cannot name
+    # different rounds; and a refusal is persisted as a stated reason.
+    final_eval_record, final_eval_selection = _select_final_eval_record(eval_records)
+    final_eval_digest = _eval_digest(final_eval_record)
     fd_policy_sensitivity = _fd_policy_sensitivity_from_outcomes(
         outcome_rows, final_eval=final_eval_digest)
+    # THE SAME ELIGIBILITY RULE THE FIGURE ITSELF APPLIES. `_plot_fd_policy_sensitivity`
+    # returns `None` on exactly this condition, so declaring the optional figure from
+    # `fd_policy_sensitivity["recorded"]` -- which is true as soon as ANY record, a
+    # TRAINING one included, carries wake diagnostics -- would promise a file a
+    # train-only or evaluation-disabled run never writes.
+    fd_sensitivity_plot_data = _fd_sensitivity_plot_data(outcome_rows)
 
     run_path = Path(run_dir)
     summary: Dict[str, Any] = {
@@ -8491,8 +8631,14 @@ def _summarize(
         # fallback for a run whose records predate the field, and `None` only when
         # neither can say -- never a guessed default that a reader could not distinguish
         # from a measured one.
+        # A RUN-INVARIANT (`pair` or `triad`), identical in every round, so this is a
+        # label rather than a measurement. It is still read from the SELECTED round
+        # whenever one exists, so it cannot depend on record order; the positional
+        # expression survives only as the fallback for a record set the selector
+        # refused, and the config remains the last resort.
         "eval_group_kind": (
-            (eval_records[-1].get("eval_group_kind") if eval_records else None)
+            ((final_eval_record or (eval_records[-1] if eval_records else None) or {})
+             .get("eval_group_kind"))
             or (None if cfg is None else cfg.eval_group_kind)
         ),
         "eval_group_cells": list(reported_cells),
@@ -8540,28 +8686,31 @@ def _summarize(
         # the LEGACY damaged-minus-clean key and is `null` for a triad run, whose three
         # named deltas are in `final_eval_group_deltas`.
         "final_eval_paired_reward_delta": (
-            eval_records[-1].get("eval_paired_reward_delta") if eval_records else None
+            final_eval_record.get("eval_paired_reward_delta")
+            if final_eval_record else None
         ),
         "final_eval_group_deltas": (
-            {key: eval_records[-1].get(key)
-             for key in (eval_records[-1].get("eval_delta_keys") or [])}
-            if eval_records else None
+            {key: final_eval_record.get(key)
+             for key in (final_eval_record.get("eval_delta_keys") or [])}
+            if final_eval_record else None
         ),
         "final_eval_groups_successful": (
-            eval_records[-1].get("n_groups_successful",
-                                 eval_records[-1].get("n_pairs_successful"))
-            if eval_records else None
+            final_eval_record.get("n_groups_successful",
+                                  final_eval_record.get("n_pairs_successful"))
+            if final_eval_record else None
         ),
         "final_eval_groups_attempted": (
-            eval_records[-1].get("n_groups_attempted",
-                                 eval_records[-1].get("n_pairs_attempted"))
-            if eval_records else None
+            final_eval_record.get("n_groups_attempted",
+                                  final_eval_record.get("n_pairs_attempted"))
+            if final_eval_record else None
         ),
         "final_eval_pairs_successful": (
-            eval_records[-1].get("n_pairs_successful") if eval_records else None
+            final_eval_record.get("n_pairs_successful")
+            if final_eval_record else None
         ),
         "final_eval_pairs_attempted": (
-            eval_records[-1].get("n_pairs_attempted") if eval_records else None
+            final_eval_record.get("n_pairs_attempted")
+            if final_eval_record else None
         ),
         "accounting_reconciled": (
             ledger_train == train_failed and ledger_eval == eval_failed
@@ -8569,6 +8718,10 @@ def _summarize(
         # --- held-out results, each with its denominator ---
         "initial_pre_update_eval": _eval_digest(pre_update),
         "final_eval": final_eval_digest,
+        # WHICH round `final_eval` and every `final_eval_*` field above came from, or
+        # WHY none could be chosen. Persisted so a refusal reads as a stated reason
+        # rather than as a set of quietly null fields.
+        "final_eval_selection": final_eval_selection,
         "eval_reward_best": max(eval_means) if eval_means else None,
         # --- training reward over the MEASURED iterations only ---
         "train_reward_first": measured[0] if measured else None,
@@ -8598,11 +8751,16 @@ def _summarize(
         # `plot_training_subprocess`, so an existence test here would always be empty.
         # That is also exactly the convention `plot_paths` above already follows -- it
         # DECLARES where a figure belongs rather than stat-ing for it. Empty (never
-        # null-valued) for a run that recorded no per-wake diagnostics, so a reader
-        # never mistakes "not recorded" for "failed to render".
+        # null-valued) for a run whose data does not support the figure, so a reader
+        # never mistakes "not applicable" for "failed to render".
+        #
+        # THE PREDICATE IS THE FIGURE'S OWN: `_fd_sensitivity_plot_data(...)["recorded"]`
+        # is precisely the condition `_plot_fd_policy_sensitivity` returns `None` on, so
+        # a v3 TRAIN-ONLY or evaluation-disabled run declares nothing. Using the digest's
+        # broader `recorded` flag instead would declare a figure that is never written.
         "optional_plot_paths": (
             {_PLOT_FD_SENSITIVITY: str(_plots_dir(run_path) / _PLOT_FD_SENSITIVITY)}
-            if fd_policy_sensitivity.get("recorded") else {}
+            if fd_sensitivity_plot_data.get("recorded") else {}
         ),
     }
     # Pre-B4 names, kept so an existing reader of a summary still resolves.

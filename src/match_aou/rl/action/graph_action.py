@@ -412,8 +412,10 @@ def summarize_decision(
       ``sample_action(..., deterministic=True)`` evaluates -- so an exact tie resolves to
       the cell the deterministic actor would really take.
 
-    JSON conversion happens ONLY after every quantity has been computed, so no reported
-    number is the product of a round trip through an intermediate representation.
+    JSON conversion happens ONLY after every quantity has been computed -- including the
+    top-two margin, which is differenced in torch on the exact probabilities rather than
+    between two already-converted python floats -- so no reported number is the product
+    of a round trip through an intermediate representation.
 
     WHY BOTH A JOINT AND AN AGGREGATE VIEW. The action surface is ``k x 3``, so ONE
     meta-action owns ``k`` cells and its total probability mass is spread across them.
@@ -470,6 +472,10 @@ def summarize_decision(
         rest = flat.clone()
         rest[i1] = float("-inf")
         i2 = int(torch.argmax(rest).item())
+    # The margin is DIFFERENCED IN TORCH, on the exact probabilities, before anything is
+    # converted: subtracting two already-converted python floats would make the reported
+    # margin a product of the conversion rather than of the distribution.
+    margin_t = None if i2 is None else (probs_t[i1] - probs_t[i2])
 
     # AGGREGATE mass per meta-action column, SUMMED FROM THOSE EXACT PROBABILITIES.
     agg_t = pm_t.sum(dim=0)
@@ -526,7 +532,7 @@ def summarize_decision(
         "selected_cell_probability": pm[sel_node][sel_meta],
         "top_two_valid_cells": [_cell(i1)] + ([_cell(i2)] if i2 is not None else []),
         "top_two_probability_margin": (
-            float(probs[i1] - probs[i2]) if i2 is not None else None),
+            None if margin_t is None else float(margin_t.item())),
         "aggregate_probability_per_meta_action": {
             MetaAction(m).name: agg[m] for m in range(NUM_META_ACTIONS)},
         "joint_argmax_cell": _cell(i1),

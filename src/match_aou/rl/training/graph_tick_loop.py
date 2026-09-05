@@ -436,9 +436,12 @@ def _wake_decision(
 
         # --- REPORTING-ONLY diagnostics, from the SAME logits/mask just acted on ---
         # AFTER `sample_action`, so a stochastic draw is already taken and cannot be
-        # displaced; numpy-only inside, so the torch RNG state is untouched either way.
-        # Ownership is read BEFORE the belief edit below, because `apply_meta_action`
-        # is what changes it.
+        # displaced. The distribution is not rebuilt here: `summarize_decision` rebuilds
+        # it through the SHARED `_masked_dist` site on a DETACHED copy of these same
+        # logits, in their original dtype, and SAMPLES NOTHING -- no `dist.sample()` and
+        # no generator of any kind -- so the torch RNG state is untouched either way and
+        # no autograd node is created. Ownership is read BEFORE the belief edit below,
+        # because `apply_meta_action` is what changes it.
         decision = _decision_record(
             logits=logits, mask=mask, gobs=gobs, solution=belief.solution,
             ego_key=ego_key, meta_action=meta_action, node_v=node_v,

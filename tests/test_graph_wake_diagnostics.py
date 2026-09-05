@@ -746,11 +746,12 @@ def test_fix3_eval_digest_states_the_round_ordinal():
 # FIX 4 -- OBSERVED SCHEMA, NEVER THE CURRENT WRITER'S CONSTANTS
 # =============================================================================
 
-def _write_run(tmp_path, name, outcome_rows):
+def _write_run(tmp_path, name, outcome_rows, eval_rows=()):
     run = tmp_path / name
     run.mkdir()
     (run / "train_records.jsonl").write_text("", encoding="utf-8")
-    (run / "eval_records.jsonl").write_text("", encoding="utf-8")
+    (run / "eval_records.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in eval_rows), encoding="utf-8")
     (run / "episode_failures.jsonl").write_text("", encoding="utf-8")
     (run / GT._EPISODE_OUTCOMES_FILENAME).write_text(
         "".join(json.dumps(r) + "\n" for r in outcome_rows), encoding="utf-8")
@@ -851,6 +852,279 @@ def test_fix5_disagreement_is_reported_even_when_only_damaged_cells_exist():
     rows = [_fd_rec("post_update", "damaged", 2, 0.5, ABORT, disagree=True)]
     dis = GT._fd_sensitivity_plot_data(rows)["disagreement_series"]
     assert dis["damaged"] == {"x": [2.0], "y": [1.0]}
+
+
+# =============================================================================
+# FIX 6 -- THE FINAL EVALUATION ROUND IS SELECTED SEMANTICALLY, NOT BY FILE ORDER
+# =============================================================================
+
+def _eval_round_row(stage, updates, ordinal, **extra):
+    """One eval record carrying a COMPLETE round identity."""
+    # `ordinal` / `updates` may be deliberately broken by an identity test, so the
+    # derived numbers fall back to 0 rather than raising inside the fixture.
+    o = ordinal if isinstance(ordinal, int) else 0
+    u = updates if isinstance(updates, int) else 0
+    row = {
+        "evaluation_stage": stage,
+        "updates_completed": updates,
+        "eval_round_ordinal": ordinal,
+        "iteration": None if stage == "pre_update" else u - 1,
+        "n_attempted": 6, "n_successful": 6, "n_failed": 0,
+        "success_fraction": 1.0,
+        "eval_reward_mean": -0.1 * o,
+        "eval_group_kind": "triad",
+        "eval_group_cells": ["clean", "mild", "severe"],
+        "eval_delta_keys": ["eval_delta_severe_minus_mild"],
+        "eval_delta_severe_minus_mild": 0.1 * o,
+        "n_groups_successful": o, "n_groups_attempted": 3,
+        "n_pairs_successful": o, "n_pairs_attempted": 3,
+        "eval_paired_reward_delta": -0.05 * o,
+    }
+    row.update(extra)
+    return row
+
+
+def _three_rounds():
+    return [
+        _eval_round_row("pre_update", 0, 0),
+        _eval_round_row("post_update", 5, 1),
+        _eval_round_row("post_update", 10, 2),
+    ]
+
+
+_FINAL_EVAL_KEYS = (
+    "final_eval", "final_eval_selection", "final_eval_paired_reward_delta",
+    "final_eval_group_deltas", "final_eval_groups_successful",
+    "final_eval_groups_attempted", "final_eval_pairs_successful",
+    "final_eval_pairs_attempted", "eval_group_kind",
+)
+
+
+def test_fix6_final_round_is_the_same_in_forward_and_reversed_record_order(tmp_path):
+    """The PERSISTED summary picks the same round whichever order the file is in."""
+    rounds = _three_rounds()
+    outcomes = [_fd_rec("post_update", "mild", 10, 0.2, PLAN, group="g0", ordinal=2),
+                _fd_rec("post_update", "severe", 10, 0.7, ABORT, group="g0", ordinal=2)]
+    fwd = GT.build_run_summary(_write_run(tmp_path, "fwd", outcomes, rounds))
+    rev = GT.build_run_summary(
+        _write_run(tmp_path, "rev", list(reversed(outcomes)),
+                   list(reversed(rounds))))
+
+    for key in _FINAL_EVAL_KEYS:
+        assert fwd[key] == rev[key], key
+
+    sel = fwd["final_eval_selection"]
+    assert sel["selected"] is True
+    assert sel["reason"] == "selected_by_validated_identity"
+    assert sel["identity"] == {"evaluation_stage": "post_update",
+                               "updates_completed": 10, "eval_round_ordinal": 2}
+    # ... and the values really are the LAST round's, not the first row's.
+    assert fwd["final_eval"]["updates_completed"] == 10
+    assert fwd["final_eval"]["eval_round_ordinal"] == 2
+    assert fwd["final_eval_groups_successful"] == 2
+    assert fwd["final_eval_paired_reward_delta"] == pytest.approx(-0.10)
+    assert fwd["final_eval_group_deltas"] == {
+        "eval_delta_severe_minus_mild": pytest.approx(0.2)}
+
+    # the FD-sensitivity table's own final round was driven by the SAME identity
+    m = fwd["fd_policy_sensitivity"]["matched_severe_minus_mild_aggregate_p_abort"]
+    assert m["final_round_selection"]["selected"] is True
+    assert m["final_round"]["updates_completed"] == 10
+    assert m["final_round"]["eval_round_ordinal"] == 2
+    assert m == rev["fd_policy_sensitivity"][
+        "matched_severe_minus_mild_aggregate_p_abort"]
+
+
+def test_fix6_a_partial_identity_is_refused_not_guessed(tmp_path):
+    """A missing ordinal (or stage, or update count) refuses with a stated reason."""
+    for name, rounds in (
+        ("no_ordinal", [_eval_round_row("post_update", 5, 1),
+                        {k: v for k, v in _eval_round_row("post_update", 10, 2).items()
+                         if k != "eval_round_ordinal"}]),
+        ("no_stage", [{k: v for k, v in _eval_round_row("post_update", 5, 1).items()
+                       if k != "evaluation_stage"}]),
+        ("no_updates", [{k: v for k, v in _eval_round_row("post_update", 5, 1).items()
+                         if k != "updates_completed"}]),
+        ("null_ordinal", [_eval_round_row("post_update", 5, 1),
+                          _eval_round_row("post_update", 10, None)]),
+        ("bad_stage", [_eval_round_row("train", 5, 1)]),
+    ):
+        summary = GT.build_run_summary(_write_run(tmp_path, name, [], rounds))
+        sel = summary["final_eval_selection"]
+        assert sel["selected"] is False, name
+        assert sel["reason"] == "incomplete_evaluation_identity", name
+        assert sel["required_fields"] == list(GT._FINAL_EVAL_IDENTITY_FIELDS)
+        assert sel["n_records_missing_identity"] >= 1, name
+        # every dependent field is None -- refused, never taken from the last row
+        assert summary["final_eval"] is None, name
+        assert summary["final_eval_paired_reward_delta"] is None, name
+        assert summary["final_eval_group_deltas"] is None, name
+        assert summary["final_eval_groups_successful"] is None, name
+        assert summary["final_eval_pairs_attempted"] is None, name
+
+
+def test_fix6_contradictory_and_ambiguous_identities_are_refused():
+    """Duplicate rounds, a tied highest ordinal, and disagreeing orderings all refuse."""
+    dup = [_eval_round_row("post_update", 5, 1), _eval_round_row("post_update", 5, 1)]
+    _rec, sel = GT._select_final_eval_record(dup)
+    assert _rec is None and sel["reason"] == "ambiguous_identity_duplicate_rounds"
+
+    tied = [_eval_round_row("post_update", 5, 2),
+            _eval_round_row("post_update", 9, 2, n_groups_successful=1)]
+    _rec, sel = GT._select_final_eval_record(tied)
+    assert _rec is None and sel["reason"] == "ambiguous_highest_round_ordinal"
+    assert sel["n_candidates"] == 2
+
+    # the highest ordinal measured an EARLIER policy state than another round
+    contra = [_eval_round_row("post_update", 20, 1), _eval_round_row("post_update", 5, 2)]
+    _rec, sel = GT._select_final_eval_record(contra)
+    assert _rec is None
+    assert sel["reason"] == "contradictory_ordering_ordinal_vs_updates_completed"
+    assert sel["max_updates_completed"] == 20
+
+    # and an empty population is a stated reason, not an empty round
+    _rec, sel = GT._select_final_eval_record([])
+    assert _rec is None and sel["reason"] == "no_evaluation_records"
+
+
+def test_fix6_selector_is_pure_and_order_independent():
+    """Every permutation of a well-formed population selects the same record."""
+    rounds = _three_rounds()
+    rec, sel = GT._select_final_eval_record(rounds)
+    assert rec is rounds[2] and sel["selected"] is True
+    for perm in ([rounds[2], rounds[0], rounds[1]],
+                 [rounds[1], rounds[2], rounds[0]],
+                 list(reversed(rounds))):
+        r2, s2 = GT._select_final_eval_record(perm)
+        assert r2 == rec and s2 == sel
+    # the input is not mutated
+    assert rounds == _three_rounds()
+
+
+# =============================================================================
+# FIX 7 -- THE OPTIONAL FIGURE IS DECLARED BY THE FIGURE'S OWN ELIGIBILITY RULE
+# =============================================================================
+
+def test_fix7_a_train_only_v3_run_declares_no_optional_figure(tmp_path):
+    """v3 diagnostics on TRAINING rows only: the figure is never written, so never
+    declared."""
+    train_only = _fd_rec("train", "severe", 2, 0.4, ABORT)
+    train_only.update({"schema_version": 3,
+                       "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
+    summary = GT.build_run_summary(_write_run(tmp_path, "train_only", [train_only]))
+
+    # the DIGEST legitimately records the training population ...
+    assert summary["fd_policy_sensitivity"]["recorded"] is True
+    assert summary["fd_policy_sensitivity"]["by_phase"]["train"][
+        "n_wakes_by_kind"][TL.WAKE_KIND_IMMEDIATE_FD] == 1
+    # ... but the FIGURE has no evaluation data, so nothing is promised
+    assert GT._fd_sensitivity_plot_data([train_only])["recorded"] is False
+    assert summary["optional_plot_paths"] == {}
+    # and the plot function really does decline, before it touches matplotlib
+    assert GT._plot_fd_policy_sensitivity(_stub_plt(), tmp_path, [train_only]) is None
+    # and it declines BEFORE pyplot is touched at all
+    plt = _stub_plt()
+    assert GT._plot_fd_policy_sensitivity(plt, tmp_path, [train_only]) is None
+    plt.subplots.assert_not_called()
+
+
+def test_fix7_an_evaluation_v3_run_declares_the_optional_figure(tmp_path):
+    ev = _fd_rec("post_update", "severe", 4, 0.6, ABORT, group="g0", ordinal=1)
+    ev.update({"schema_version": 3,
+               "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
+    summary = GT.build_run_summary(_write_run(
+        tmp_path, "with_eval", [ev], [_eval_round_row("post_update", 4, 1)]))
+    assert GT._fd_sensitivity_plot_data([ev])["recorded"] is True
+    assert list(summary["optional_plot_paths"]) == [GT._PLOT_FD_SENSITIVITY]
+    assert summary["optional_plot_paths"][GT._PLOT_FD_SENSITIVITY].endswith(
+        GT._PLOT_FD_SENSITIVITY)
+    # the REQUIRED set is untouched by the optional one
+    assert list(summary["plot_paths"]) == list(GT._PLOT_FILENAMES)
+
+
+def _stub_plt():
+    """A recording stand-in for pyplot.
+
+    matplotlib cannot be imported beside torch in one process on this stack (that is
+    why `plot_training_subprocess` exists), so the FIGURE's own decision is exercised
+    against a stub rather than by rendering. Nothing is written: `savefig` is a mock.
+    """
+    from unittest.mock import MagicMock
+    plt = MagicMock()
+    fig = MagicMock()
+    axes = [MagicMock() for _ in range(5)]
+    for ax in axes:
+        ax.get_legend_handles_labels.return_value = ([], [])
+    plt.subplots.return_value = (fig, axes)
+    return plt
+
+
+def test_fix7_declaration_and_figure_agree_on_every_shape(tmp_path):
+    """The declaration is the figure's own predicate, on four populations."""
+    def v3(rec):
+        rec.update({"schema_version": 3,
+                    "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
+        return rec
+
+    cases = {
+        "none": [],
+        "legacy_v2": [{"schema_version": 2, "phase": "train", "cell": "clean",
+                       "updates_completed": 0}],
+        "train_only_v3": [v3(_fd_rec("train", "mild", 1, 0.1, PLAN))],
+        "eval_v3": [v3(_fd_rec("pre_update", "mild", 0, 0.1, PLAN))],
+    }
+    for name, rows in cases.items():
+        declared = bool(GT.build_run_summary(
+            _write_run(tmp_path, "shape_" + name, rows))["optional_plot_paths"])
+        drawn = GT._plot_fd_policy_sensitivity(
+            _stub_plt(), tmp_path, rows) is not None
+        assert declared == drawn, name
+        assert declared == (name == "eval_v3"), name
+
+
+# =============================================================================
+# FIX 8 -- THE TOP-TWO MARGIN IS DIFFERENCED IN TORCH, BEFORE CONVERSION
+# =============================================================================
+
+def test_fix8_top_two_margin_is_the_torch_difference_not_a_python_one():
+    """A case where the two subtractions genuinely disagree in the last bits.
+
+    Differencing two ALREADY-CONVERTED python floats is a float64 operation on two
+    rounded float32 values; differencing in torch is the float32 operation the
+    distribution is defined in. The fixture below is chosen because the two really do
+    differ, so this test fails if the conversion order is ever reversed.
+    """
+    logits = torch.tensor(np.random.RandomState(11).randn(3, 3).astype(np.float32))
+    mask = np.zeros((3, 3), dtype=np.float32)
+    meta, node, _lp, _e = sample_action(logits, mask, deterministic=True)
+    d = summarize_decision(logits, mask, meta, node)
+    _flat, dist, _ent = _ref(logits, mask)
+    probs_t = dist.probs.reshape(-1)
+
+    cells = d["top_two_valid_cells"]
+    i1 = cells[0]["node"] * NUM_META_ACTIONS + cells[0]["meta_action"]
+    i2 = cells[1]["node"] * NUM_META_ACTIONS + cells[1]["meta_action"]
+    torch_margin = float((probs_t[i1] - probs_t[i2]).item())
+    python_margin = float(probs_t[i1]) - float(probs_t[i2])
+    assert torch_margin != python_margin, "fixture no longer separates the two"
+    assert d["top_two_probability_margin"] == torch_margin
+
+
+def test_fix8_a_single_valid_cell_still_reports_a_null_margin():
+    logits = torch.tensor([[0.4, 0.1, 0.2]], dtype=torch.float32)
+    mask = np.array([[0.0, NEG, NEG]], dtype=np.float32)
+    d = summarize_decision(logits, mask, PLAN, 0)
+    assert d["n_valid_cells"] == 1
+    assert d["top_two_probability_margin"] is None
+    assert len(d["top_two_valid_cells"]) == 1
+
+
+def test_fix8_tick_loop_comment_no_longer_claims_a_numpy_only_summarizer():
+    """The stale claim is gone and the truthful one is in its place."""
+    import inspect
+    src = inspect.getsource(TL._wake_decision)
+    assert "numpy-only inside" not in src
+    assert "_masked_dist" in src and "SAMPLES NOTHING" in src
 
 
 if __name__ == "__main__":  # pragma: no cover - direct runner (nlp_env)
