@@ -5,14 +5,25 @@ Organized by the task's three proof obligations:
   PO1 -- specialized-domain mathematical correctness (exact 0 / exact full utility, no
          EPSILON, multi-agent feasible with zero marginal gain, capability + round-trip
          fuel rules identical to the frozen solver).
-  PO2 -- legacy isolation and output compatibility (frozen file byte-identical, no active
-         runtime file touched, ``(task_idx, 0)`` assignments, exact unselected semantics,
-         a readable ``results.solver.termination_condition``, and no way for a
-         non-optimal outcome to be reported as an optimal empty allocation).
+  PO2 -- legacy isolation and output compatibility (the frozen MINLP byte-identical,
+         THIS formulation's EXECUTABLE code unchanged from its approved SHA, only the
+         declared surface of this branch modified, ``(task_idx, 0)`` assignments, exact
+         unselected semantics, a readable ``results.solver.termination_condition``, and
+         no way for a non-optimal outcome to be reported as an optimal empty
+         allocation).
   PO3 -- same-input engineering comparison against the legacy BONMIN MINLP. The full
          matrix lives in ``tools/benchmark_match_aou_p1_milp.py``; the tests here pin the
          same-input agreement on small hand-built worlds and are SKIPPED when no bonmin
          executable is reachable.
+
+THE BRANCH THIS FILE LIVES ON HAS TWO STAGES, and PO2's claim moved between them. At
+stage 1 the solver was ISOLATED and no active runtime file was touched, which is exactly
+what PO2 asserted. Stage 2 is the reviewed INTEGRATION: a backend cannot be selectable
+without a selector, a solve seam, a reward valuation and a harness field, so "no runtime
+file touched" is no longer true and is NO LONGER CLAIMED here. What PO2 enforces now is
+the guarantee that actually protects the reviewed work -- both approved FORMULATIONS are
+unchanged (the legacy one byte-for-byte, this one in its executable code), and only the
+declared surface of the branch differs from ``main``.
 
 Most PO1 checks are deliberately hand-evaluated against the built model
 (``c``, ``bounds``, ``constraint_matrix``) rather than asserted only through solver
@@ -26,6 +37,7 @@ machine, and the tier skips rather than failing when neither is present.
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import shutil
@@ -680,23 +692,111 @@ def test_po2_frozen_legacy_solver_is_byte_for_byte_unchanged() -> None:
     )
 
 
-def test_po2_approved_p1_formulation_is_byte_for_byte_unchanged() -> None:
-    """The APPROVED P1 solver must hash identically to its reviewed blob.
+def _strip_docstrings(tree: ast.AST) -> int:
+    """Remove ONLY genuine docstring expression nodes. Returns how many were removed.
 
-    The integration CONSUMES this formulation; it does not get to adjust it. Changing the
-    objective to make an integration fit would silently re-open a reviewed decision, so it
-    is pinned exactly as the frozen legacy solver is -- and a genuine defect found here is
-    a STOP, not an edit.
+    A docstring is the FIRST statement of a module / class / function body and is an
+    ``Expr`` whose value is a string ``Constant``. NOTHING else is touched -- and that
+    narrowness is the whole point. A weaker normalization that stripped every string
+    literal would also erase the solver's error messages, its ``options`` keys and every
+    other string the code actually EXECUTES, so it could no longer tell a documentation
+    edit from a behavioural one.
     """
-    approved_blob = _git("rev-parse", f"{P1_APPROVED_SHA}:{P1_SOLVER_RELPATH}")
-    if approved_blob is None:
+    removed = 0
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+            continue
+        body = node.body
+        if (body and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            node.body = body[1:]
+            removed += 1
+            if not node.body:  # keep the tree valid if a body was ONLY a docstring
+                node.body = [ast.Pass()]
+    return removed
+
+
+def test_po2_approved_p1_executable_code_is_unchanged() -> None:
+    """The APPROVED P1 formulation's EXECUTABLE code must be identical to its review SHA.
+
+    WHY THIS IS AN AST COMPARISON AND NOT A BLOB HASH. Stage 2's review required this
+    module's SCOPE prose to be corrected: at stage 1 it truthfully said the active runtime
+    path was untouched and that a solver selector was out of scope, and after the
+    integration both became false as CURRENT claims. Correcting a docstring necessarily
+    breaks a whole-file hash -- so the guard was STRENGTHENED rather than weakened, from
+    "these bytes" to "this code".
+
+    Docstring expression nodes are removed from BOTH sides and the trees are compared
+    through ``ast.dump(..., include_attributes=False)``. Comments never reach an AST at
+    all, so they are covered for free. Everything that decides BEHAVIOUR survives the
+    normalization and is therefore still pinned: executable statements, constants,
+    objective coefficients, constraint construction, exception types and messages,
+    EXECUTABLE string literals, function signatures and defaults, imports, and the solver
+    options dict.
+
+    The integration CONSUMES this formulation; it does not get to adjust it. A genuine
+    defect found here is a STOP, not an edit.
+    """
+    approved_source = _git("show", f"{P1_APPROVED_SHA}:{P1_SOLVER_RELPATH}")
+    if approved_source is None:
         pytest.skip("git unavailable or approved commit not present in this checkout")
 
-    working_blob = _git("hash-object", P1_SOLVER_RELPATH)
-    assert working_blob == approved_blob, (
-        "the approved P1 MILP formulation was modified "
-        f"(approved blob {approved_blob}, working blob {working_blob})"
+    current_source = (REPO_ROOT / P1_SOLVER_RELPATH).read_text(encoding="utf-8")
+
+    approved_tree = ast.parse(approved_source)
+    current_tree = ast.parse(current_source)
+    n_approved = _strip_docstrings(approved_tree)
+    n_current = _strip_docstrings(current_tree)
+
+    # A docstring COUNT change would mean a function or class was added or removed --
+    # a structural change even if the remaining code happened to match.
+    assert n_approved == n_current, (
+        "the number of docstring-bearing scopes changed "
+        f"(approved {n_approved}, current {n_current}): that is a structural edit, "
+        "not a documentation one"
     )
+    assert (ast.dump(approved_tree, include_attributes=False)
+            == ast.dump(current_tree, include_attributes=False)), (
+        "the approved P1 MILP formulation's EXECUTABLE code was modified; only "
+        "docstring and comment changes are permitted after its review"
+    )
+
+
+def test_po2_the_executable_guard_would_catch_a_behavioural_edit() -> None:
+    """The guard above must FAIL on a code change -- otherwise it proves nothing.
+
+    Three mutations a string-stripping guard could MISS are checked here: a changed
+    numeric constant, a changed EXECUTABLE string literal (a solver option key), and a
+    changed comparison. Each must survive docstring normalization and still be caught.
+    """
+    source = (REPO_ROOT / P1_SOLVER_RELPATH).read_text(encoding="utf-8")
+
+    def normalized(text: str) -> str:
+        tree = ast.parse(text)
+        _strip_docstrings(tree)
+        return ast.dump(tree, include_attributes=False)
+
+    baseline = normalized(source)
+
+    # (a) a docstring edit is INVISIBLE -- the permitted case.
+    doc_probe = '"""MATCH-AOU allocation specialized to the deterministic'
+    assert source.count(doc_probe) == 1, "docstring probe is not unique"
+    doc_edited = source.replace(doc_probe, doc_probe + " EDITED.", 1)
+    assert normalized(doc_edited) == baseline, "a docstring edit must be permitted"
+
+    # (b) behavioural mutations are all VISIBLE -- the refused cases.
+    mutations = [
+        ("_BINARY_THRESHOLD: float = 0.5", "_BINARY_THRESHOLD: float = 0.4"),
+        ('options["mip_rel_gap"]', 'options["mip_rel_gap_CHANGED"]'),
+        ("if len(steps) != 1:", "if len(steps) < 1:"),
+    ]
+    for original, mutated in mutations:
+        assert source.count(original) == 1, f"mutation probe {original!r} is not unique"
+        assert normalized(source.replace(original, mutated, 1)) != baseline, (
+            f"the guard failed to notice a behavioural edit: {original!r} -> {mutated!r}"
+        )
 
 
 def test_po2_only_the_declared_surface_was_modified() -> None:

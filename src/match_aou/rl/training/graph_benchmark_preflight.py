@@ -714,7 +714,8 @@ def run_benchmark_preflight(
     Every scale input is REQUIRED and none is defaulted: the scientific scale is a later
     decision that owns bounded runtime validation first, and a default here would make it
     silently. ``probe`` and ``generator`` are injection seams for tests; production
-    leaves both ``None`` and gets the real BLADE + BONMIN construction path.
+    leaves both ``None`` and gets the real BLADE construction path, solved by whichever
+    MATCH-AOU backend ``cfg.match_aou_backend`` selected.
 
     ``output_dir`` omitted writes nothing and returns the manifest and report in memory --
     which is what makes "the same inputs produce the same population" checkable without

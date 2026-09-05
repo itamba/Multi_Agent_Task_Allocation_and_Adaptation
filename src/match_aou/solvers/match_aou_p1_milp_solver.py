@@ -47,9 +47,10 @@ exactly what is and is not supported:
     removing that numerical stacking incentive. Removing ``EPSILON`` is not a
     presentation detail: it changes which allocations are optimal.
 
-A consequence worth stating once, plainly: swapping this solver in would change
-allocations, not merely runtime. That makes any integration a separate reviewed
-decision rather than a drop-in performance change.
+A consequence worth stating once, plainly: swapping this solver in changes ALLOCATIONS,
+not merely runtime. That is why its integration was taken as a separate reviewed decision
+rather than as a drop-in performance change -- see SCOPE below for the seam that resulted
+and for what selecting it does to the rest of the pipeline.
 
 THE FORMULATION
 ---------------
@@ -105,11 +106,31 @@ benchmark tool's environment caveat) and it is not a proof that HiGHS never stac
 
 SCOPE
 -----
-Opt-in by explicit module import only. This module is intentionally NOT exported from
-``match_aou.solvers.__init__``, so importing the package does not reach it and the active
-runtime path (``graph_episode_setup.solve_and_normalize_audited``) is untouched. A solver
-selector, an ``auto`` fallback to the legacy MINLP, ``p < 1``, multi-step tasks and
-precedence support are all explicitly out of scope here.
+**THE FORMULATION ABOVE IS THE APPROVED DETERMINISTIC-P1 FORMULATION AND IS UNCHANGED.**
+What follows describes only its RELATIONSHIP to the rest of the repository, which the
+reviewed backend-selector integration changed.
+
+  * **Still not exported from** ``match_aou.solvers.__init__``. Importing the package does
+    not reach this module, and the package's import surface is exactly what it was.
+  * **The runtime MAY now select this solver, but only EXPLICITLY.** The integration added
+    a reviewed backend seam -- ``match_aou.solvers.match_aou_backend`` -- and
+    ``graph_episode_setup.solve_and_normalize_audited`` routes to this formulation when,
+    and only when, the caller asked for
+    :data:`~match_aou.solvers.match_aou_backend.MATCH_AOU_BACKEND_P1_MILP_V1`. That seam
+    imports this module LAZILY, so naming a backend still costs nothing.
+  * **The legacy MINLP remains the DEFAULT.** A caller that says nothing gets the frozen
+    ``MatchAou`` through BONMIN -- the objective every approved measurement was taken on.
+  * **There is no** ``auto`` **and no fallback in either direction.** A refused P1 solve is
+    never rescued by the legacy solver, and one episode never mixes backends.
+  * **Selecting it is NOT a transparent performance swap.** Removing the ``EPSILON``
+    stacking incentive changes which allocations are optimal; because ``A_init`` is what
+    route-relative hidden placement predicts routes from, it can change the hidden
+    geometry, episode feasibility and what a policy learns. **No equivalence with the
+    legacy objective is claimed anywhere.**
+
+``p < 1``, multi-step tasks, precedence support and any tie-breaking rule remain
+explicitly OUT OF SCOPE for this formulation, exactly as before -- an input outside that
+contract is REFUSED rather than answered.
 """
 
 from __future__ import annotations

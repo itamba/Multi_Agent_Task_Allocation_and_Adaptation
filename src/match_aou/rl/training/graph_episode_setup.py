@@ -12,7 +12,8 @@ Pipeline position:
 
 This module is graph-native. It reuses only the independent domain helpers:
 ``create_agents_from_scenario`` / ``generate_all_enemy_tasks`` (scenario_factory),
-``MatchAou`` + ``post_solve_filter_and_level`` (solver + post-processing),
+the MATCH-AOU solver backends ``MatchAou`` / ``MatchAouP1MILP`` selected through
+``match_aou_backend`` + ``post_solve_filter_and_level`` (solve + post-processing),
 ``GraphPlanExecutor`` (the sole BLADE translation layer), ``Belief``, and — on the
 construction path — the locked PURE placement layer ``graph_hidden_placement``.
 
@@ -95,8 +96,10 @@ solve happens, and it DEFAULTS to the historical behaviour:
     ``oracle_tasks`` EMPTY, and retains ``EpisodeContext.t0_reference_tasks`` — the RAW
     t=0 task universe the deferred solve works from.
 
-The solve BUDGET is identical either way: exactly two bonmin calls per accepted episode.
-The policy moves solve #2; it never adds one. Section 5 of this module owns the
+The solve BUDGET is identical either way: AT MOST two MATCH-AOU solver invocations
+per accepted episode, and never three -- whichever backend ``match_aou_backend``
+selected, since the policy decides WHERE solve #2 happens and the backend decides WHICH
+solver answers it. The policy moves solve #2; it never adds one. Section 5 of this module owns the
 builders, and ``graph_reward`` owns the arithmetic they feed.
 
 WORLD INVENTORY vs ORACLE ALLOCATION (do not conflate them)
@@ -243,7 +246,7 @@ GENERALIZED_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4)
 class SolveAudit:
     """What one MATCH-AOU solve actually did — the fact ``solve_and_normalize`` drops.
 
-    ``MatchAou.solve`` already distinguishes two outcomes that the historical
+    BOTH MATCH-AOU backends already distinguish two outcomes that the historical
     ``solve_and_normalize`` return value CANNOT tell apart, because both collapse to the
     same empty triple:
 
@@ -270,7 +273,9 @@ class SolveAudit:
         termination_condition: the raw termination-condition name, recorded verbatim, or
             :data:`SOLVE_NOT_ATTEMPTED` when the solve was skipped.
         allocated_task_count: length of the allocated-only normalized task list.
-        seconds: wall-clock duration of the ``MatchAou.solve`` call (``0.0`` if skipped).
+        seconds: wall-clock duration of the SELECTED BACKEND's solve call (``0.0`` if
+            skipped). Each backend times only its own solve, never its model build, so
+            this field means the same thing under either one.
     """
 
     invoked: bool
@@ -285,7 +290,7 @@ class SolveAudit:
 SOLVE_NOT_ATTEMPTED: str = "not_attempted"
 #: Recorded when the results object carried no readable termination condition. This is a
 #: RECORD-COMPLETENESS fallback for the audit string only: it never affects `accepted`,
-#: which is decided by whether ``MatchAou.solve`` returned a solution at all.
+#: which is decided by whether the selected backend's solve returned a solution at all.
 SOLVE_TERMINATION_UNAVAILABLE: str = "unavailable"
 
 
@@ -1648,7 +1653,7 @@ def _setup_episode_construction(
         known_world_ids = list(known_target_ids)
 
         # GENERALIZED-V1 only: judge the requested cell against the RAW world BEFORE the
-        # solve, so an out-of-cell request costs no bonmin call and leaves no partial
+        # solve, so an out-of-cell request costs no solver call and leaves no partial
         # construction behind. `known_world_ids` is the raw world inventory, never an
         # allocation, which is the whole point of checking `K == A` against it.
         generalized = str(hidden_policy) == HIDDEN_POLICY_BOUNDED_BACKOFF_V1
@@ -1966,7 +1971,9 @@ def _finish_context(
 # =============================================================================
 #
 # THE SOLVE BUDGET IS THE POINT, so state it once here and never re-derive it:
-# an ACCEPTED episode costs EXACTLY TWO bonmin calls under BOTH policies.
+# an ACCEPTED episode costs AT MOST TWO MATCH-AOU solver invocations under BOTH policies,
+# and never three. Which SOLVER answers them is `match_aou_backend`'s business and is
+# orthogonal to this budget: the count below is the same under either backend.
 #
 #   solve #1  the known-world A_init solve                     (setup, both policies)
 #   solve #2  static_t0_v1                 -> the full t=0 reference, in setup

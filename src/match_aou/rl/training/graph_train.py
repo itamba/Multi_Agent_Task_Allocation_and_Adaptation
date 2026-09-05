@@ -8506,8 +8506,9 @@ def _generalized_summary(
             "kinds": _tally_slugs([r.get("reference_kind") for r in ref_rows]),
             "n_solver_invoked": len(invoked),
             # A SKIPPED degenerate solve is not a failure: it is a legitimate zero
-            # reference that costs no BONMIN call, which is why invoked/accepted are
-            # reported separately from the episode count.
+            # reference that costs no solver call at all -- under either backend --
+            # which is why invoked/accepted are reported separately from the episode
+            # count.
             "n_solver_accepted": sum(
                 1 for r in ref_rows if r.get("reference_solver_accepted")),
             "terminations": _tally_slugs(

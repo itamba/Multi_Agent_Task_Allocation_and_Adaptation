@@ -90,7 +90,8 @@ OUT OF SCOPE (v1 is TERMINAL + UTILITY-ONLY — these are deliberate seams, NOT 
   * any reference re-solve on the DEFAULT policy: ``static_t0_v1`` compares against the
     static t=0 full-set optimum and never re-solves. The event-conditioned policy's ONE
     continuation solve REPLACES that t=0 reference solve rather than adding to it, so an
-    accepted episode still costs exactly two BONMIN calls;
+    accepted episode still costs at most two MATCH-AOU solver invocations, and never
+    three -- under whichever backend ``match_aou_backend`` selected;
   * run-level persistence of :class:`EpisodeReference` (no jsonl field, no run_config
     block, no summary key, no plot) -- that is a later GENERALIZED-V1 task, exactly as
     ``PostFdAdaptationOutcome`` is produced but not yet persisted;
@@ -129,7 +130,8 @@ if TYPE_CHECKING:  # Types only — keeps the runtime torch-free (tick-loop) and
     from .graph_tick_loop import EpisodeResult
 
 # A normalized assignment is (task_idx, step_idx, level); plan_value only reads the
-# first two, so a raw 2-tuple solution (as returned by ``MatchAou.solve``) works too.
+# first two, so a raw 2-tuple solution (as either MATCH-AOU backend's ``solve``
+# returns) works too.
 Assignment = Tuple[int, int, int]
 Solution = Dict[str, List[Assignment]]
 
@@ -145,7 +147,8 @@ REFERENCE_POLICY_STATIC_T0_V1: str = "static_t0_v1"
 #: GENERALIZED-V1, OPT-IN: a CLEAN episode keeps a full t=0 reference solved before the
 #: first tick; a DAMAGED episode replaces that t=0 reference solve with a MATCH-AOU
 #: CONTINUATION solve taken at the fuel-damage checkpoint. Either way the episode costs
-#: exactly the same two BONMIN calls the historical path costs.
+#: exactly the same MATCH-AOU solver invocations the historical path costs -- the policy
+#: moves solve #2 rather than adding one, whichever backend answers it.
 REFERENCE_POLICY_EVENT_CONDITIONED_V1: str = "event_conditioned_continuation_v1"
 #: The closed set ``setup_episode`` validates against. An unknown id RAISES; it is never
 #: coerced, defaulted or ignored.
@@ -567,7 +570,7 @@ class EpisodeReference:
             fact is RECORDED rather than left to be inferred from an absence.
         solver_invoked: False when the solve was SKIPPED because there was nothing to
             solve (no open task, or no continuation-capable ego). That is a legitimate
-            zero reference and costs no BONMIN call.
+            zero reference and costs no solver call at all, under either backend.
         solver_accepted: whether the solver reached acceptable optimality. A reference is
             never CONSTRUCTED with ``False`` -- the builder raises
             :class:`ReferenceIntegrityError` instead -- so this is always True on a

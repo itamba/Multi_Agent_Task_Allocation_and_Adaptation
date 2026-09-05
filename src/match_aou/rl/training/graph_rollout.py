@@ -505,7 +505,8 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
             # constructed geometry of episode i is a pure function of `seed`.
             placement_rng = random.Random(seed)
             try:
-                # --- generate + setup (bonmin solves TWICE here) ---
+                # --- generate + setup (TWO MATCH-AOU solves happen here, on
+                # whichever backend `match_aou_backend` selected) ---
                 t_setup = time.perf_counter()
                 # The B1 construction request -- structurally identical to
                 # `graph_train.build_variation_config` (anti-drift test): a KNOWN-ONLY
