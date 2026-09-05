@@ -57,38 +57,46 @@ Four verdicts, and only the first is a finding to investigate:
 Agreement on the covered task set is the ONLY equivalence this tool can evidence.
 It is not evidence of a shared optimal allocation set, and must not be reported as one.
 
-WHICH ENVIRONMENT COUNTS AS EVIDENCE
-------------------------------------
-**Both arms must run in the SAME interpreter, in a VALIDATED environment** (``CLAUDE.md``
-section 1). That means either the LOCAL ``nlp_env``, or the BGU cluster's
-``graph_rl_cluster`` with ``PYTHONNOUSERSITE=1``:
+ENVIRONMENT FACTS, AND WHO JUDGES THEM
+--------------------------------------
+**This tool never certifies its own run.** It records environment FACTS -- Python, SciPy,
+Pyomo and BONMIN versions/paths, ``CONDA_DEFAULT_ENV`` and ``PYTHONNOUSERSITE`` -- into
+the printed header and into ``report.json``. Whether a given run counts as Grade-A
+evidence is an **orchestrator decision**, taken by inspecting those recorded facts
+against ``CLAUDE.md`` section 1. That contract is deliberately NOT duplicated here: a
+second copy would drift, and a benchmark that graded itself would be worthless.
 
-    # BGU cluster (validated: SciPy 1.17.1 / Pyomo 6.10.1 / coin-or-bonmin 1.8.9)
-    PYTHONNOUSERSITE=1 conda run -n graph_rl_cluster --no-capture-output \
-        python tools/benchmark_match_aou_p1_milp.py
+Accordingly there are only two evidence labels, and neither of them says "validated":
+
+  * ``diagnostic_cross_environment`` -- ``--bonmin-executable`` was supplied, so this
+    interpreter reached into some OTHER environment's solver. The two arms did not share
+    one environment.
+  * ``same_environment_unverified`` -- bonmin came from PATH, so both arms ran from this
+    one process. **That is ALL it establishes.** It does not verify that the interpreter
+    is one of the repository's validated execution contexts, nor -- on the cluster --
+    that ``PYTHONNOUSERSITE=1`` was set.
+
+The invocations a validated run is expected to use (the orchestrator still judges the
+RECORDED FACTS, never the command line):
+
+    # BGU cluster (contract pins SciPy 1.17.1 / Pyomo 6.10.1 / coin-or-bonmin 1.8.9)
+    PYTHONNOUSERSITE=1 conda run -n graph_rl_cluster --no-capture-output python tools/benchmark_match_aou_p1_milp.py
 
     # LOCAL, only if `nlp_env` can import BOTH scipy.optimize.milp AND run bonmin
-    conda run -n nlp_env --no-capture-output \
-        python tools/benchmark_match_aou_p1_milp.py
+    conda run -n nlp_env --no-capture-output python tools/benchmark_match_aou_p1_milp.py
 
-**A run in one environment that reaches ANOTHER environment's bonmin executable via
-``--bonmin-executable`` is DIAGNOSTIC ONLY and does NOT satisfy the Grade-A same-input
-proof obligation.** That option exists for local exploration, and any result produced
-through it must be reported as diagnostic rather than as validation evidence.
-
-At the time of writing this matters in practice: the LOCAL ``nlp_env`` carries a BROKEN
-SciPy (cp39-ABI extension modules under a Python 3.12 interpreter), so
-``scipy.optimize.milp`` cannot be imported there and the LOCAL same-process comparison is
-not currently available. The cluster path above is the supported one.
+At the time of writing the LOCAL ``nlp_env`` carries a BROKEN SciPy (cp39-ABI extension
+modules under a Python 3.12 interpreter), so ``scipy.optimize.milp`` cannot be imported
+there and the LOCAL same-process comparison is not currently available.
 
 USAGE
 -----
     python tools/benchmark_match_aou_p1_milp.py --bonmin-executable <path-to-bonmin>
 
-``--bonmin-executable`` may be omitted when ``bonmin`` is on PATH -- which is the correct
-way to invoke it inside a validated environment. Scenario files are written to a
-temporary directory unless ``--output-dir`` is given; nothing is written into the
-repository.
+``--bonmin-executable`` may be omitted when ``bonmin`` is already on PATH, which is how
+it is reached inside a validated environment; omitting it does not by itself make a run
+validated (see above). Scenario files are written to a temporary directory unless
+``--output-dir`` is given; nothing is written into the repository.
 """
 
 from __future__ import annotations
@@ -117,6 +125,41 @@ from match_aou.solvers.match_aou_p1_milp_solver import (  # noqa: E402
 )
 
 BASE_SCENARIO = REPO_ROOT / "data" / "scenarios" / "strike_training_4v5.json"
+
+
+#: Evidence labels. Deliberately CONSERVATIVE: this tool records environment FACTS and
+#: never certifies its own run.
+#:
+#: `--bonmin-executable` was supplied, so this interpreter is reaching into some other
+#: environment's solver. Both arms did not share one environment.
+EVIDENCE_DIAGNOSTIC_CROSS_ENVIRONMENT = "diagnostic_cross_environment"
+#: No override: bonmin came from PATH, so both solver calls CAN run from this one
+#: process. That is all it establishes. It does NOT establish that this interpreter is
+#: one of the repository's validated execution contexts (`CLAUDE.md` section 1), nor --
+#: on the cluster -- that `PYTHONNOUSERSITE=1` was set. Hence "unverified".
+EVIDENCE_SAME_ENVIRONMENT_UNVERIFIED = "same_environment_unverified"
+
+EVIDENCE_CLASSES = (
+    EVIDENCE_DIAGNOSTIC_CROSS_ENVIRONMENT,
+    EVIDENCE_SAME_ENVIRONMENT_UNVERIFIED,
+)
+
+
+def classify_evidence(*, bonmin_executable_overridden: bool) -> str:
+    """Label how the two solver arms were reached -- and nothing beyond that.
+
+    There is deliberately NO "validated" outcome. Whether a run counts as Grade-A
+    evidence is an ORCHESTRATOR decision, taken by inspecting the recorded environment
+    facts (python / scipy / pyomo / bonmin path / ``CONDA_DEFAULT_ENV`` /
+    ``PYTHONNOUSERSITE``) against ``CLAUDE.md`` section 1. Duplicating that contract in
+    here would create a second, drifting copy of it, and would let a benchmark certify
+    itself.
+    """
+    return (
+        EVIDENCE_DIAGNOSTIC_CROSS_ENVIRONMENT
+        if bonmin_executable_overridden
+        else EVIDENCE_SAME_ENVIRONMENT_UNVERIFIED
+    )
 
 
 def _pyomo_version() -> str:
@@ -632,14 +675,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         import scipy
 
-        # EVIDENCE CLASS, decided by the code rather than left to prose. Inside a
-        # validated environment bonmin is on PATH and needs no override, so an explicit
-        # --bonmin-executable means this interpreter is reaching into some OTHER
-        # environment's solver. That is diagnostic, not Grade-A same-input evidence.
+        # How the two arms were reached. This tool RECORDS environment facts; it never
+        # certifies its own run as validated -- see `classify_evidence`.
         cross_environment = args.bonmin_executable is not None
-        evidence_class = (
-            "diagnostic_cross_environment" if cross_environment
-            else "validated_same_environment"
+        evidence_class = classify_evidence(
+            bonmin_executable_overridden=cross_environment
         )
 
         print(f"python  : {sys.version.split()[0]}")
@@ -655,10 +695,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(
                 "  !! DIAGNOSTIC ONLY: --bonmin-executable was supplied, so this "
                 "interpreter is\n"
-                "     reaching another environment's bonmin. This run does NOT satisfy "
-                "the Grade-A\n"
-                "     same-input proof obligation; run inside a validated environment "
-                "instead."
+                "     reaching another environment's bonmin. The two arms did not share "
+                "one\n"
+                "     environment."
+            )
+        else:
+            print(
+                "  NOTE: bonmin came from PATH, so both arms ran from this one process.\n"
+                "        That is ALL this establishes -- it does not verify that this\n"
+                "        interpreter is a validated execution context (CLAUDE.md section "
+                "1),\n"
+                "        nor, on cluster, that PYTHONNOUSERSITE=1 was set. Grade-A "
+                "validation\n"
+                "        is an orchestrator decision over the environment facts printed "
+                "above."
             )
 
         results: List[Dict[str, Any]] = []

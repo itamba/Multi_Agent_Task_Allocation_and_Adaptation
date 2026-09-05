@@ -671,6 +671,52 @@ def test_po2_zero_mip_gap_is_requested_by_default() -> None:
 # PO3 -- same-input comparison against the frozen BONMIN MINLP
 # =============================================================================
 
+def _benchmark_module() -> Any:
+    """Import the benchmark tool (it lives in `tools/`, not on the default path)."""
+    tools_dir = REPO_ROOT / "tools"
+    if str(tools_dir) not in sys.path:
+        sys.path.insert(0, str(tools_dir))
+    import benchmark_match_aou_p1_milp  # noqa: PLC0415
+
+    return benchmark_match_aou_p1_milp
+
+
+def test_po3_evidence_labels_never_self_certify_a_validated_environment() -> None:
+    """The benchmark records environment FACTS; it must never grade its own run.
+
+    An earlier revision emitted ``validated_same_environment`` whenever
+    ``--bonmin-executable`` was absent. That was too strong: bonmin being on PATH proves
+    only that both solver arms can run from one process. It proves nothing about whether
+    the interpreter is one of the repository's validated execution contexts, nor -- on
+    the cluster -- that ``PYTHONNOUSERSITE=1`` was set. Grade-A validation is an
+    orchestrator decision over the recorded facts, so no label may assert it.
+    """
+    tool = _benchmark_module()
+
+    assert tool.classify_evidence(bonmin_executable_overridden=True) == (
+        "diagnostic_cross_environment"
+    )
+    assert tool.classify_evidence(bonmin_executable_overridden=False) == (
+        "same_environment_unverified"
+    )
+
+    # The closed set, and the anti-self-certification property that motivates it.
+    assert set(tool.EVIDENCE_CLASSES) == {
+        "diagnostic_cross_environment",
+        "same_environment_unverified",
+    }
+    for label in tool.EVIDENCE_CLASSES:
+        assert "validated" not in label.lower(), (
+            f"evidence label {label!r} asserts validation the tool cannot establish"
+        )
+
+    # The environment facts an orchestrator judges must all still be recorded.
+    for fact in ("python", "scipy", "pyomo", "bonmin", "CONDA_DEFAULT_ENV", "PYTHONNOUSERSITE"):
+        assert fact.lower() in (tool.__doc__ or "").lower(), (
+            f"the tool must document that it records {fact}"
+        )
+
+
 def _bonmin_executable() -> Optional[str]:
     """`bonmin` on PATH, else `MATCH_AOU_BONMIN_EXECUTABLE`, else None."""
     found = shutil.which("bonmin")
