@@ -2852,9 +2852,11 @@ DIAGNOSTICS BLOCK, AND THAT BLOCK IS REPRESENTED BY THREE SIBLING FIELDS ON THE 
 RECORD — NOT BY ONE FIELD**: `wake_diagnostics_schema_version` (the block's OWN version,
 `_WAKE_DIAGNOSTICS_VERSION = 1`, so the diagnostics can version independently of the
 record that carries them), `n_wake_decisions` (the count) and `wake_decisions` (the
-per-wake records themselves). They are written together and read together, so a consumer
-testing a record for the block tests for all three rather than for `wake_decisions`
-alone. **EVERY OTHER v2 FIELD IS UNCHANGED IN NAME, MEANING AND VALUE.** A
+per-wake records themselves). The writer emits all three fields together. Existing
+reporting readers remain as implemented — they detect diagnostics from a list-valued
+`wake_decisions` field and observe the diagnostics schema version separately — and
+**this contract does NOT claim atomic three-field validation.**
+**EVERY OTHER v2 FIELD IS UNCHANGED IN NAME, MEANING AND VALUE.** A
 successful ZERO-WAKE episode records `[]` — a real, legitimate outcome of the
 event-triggered design, and deliberately NOT `null`, which would read as "not recorded".
 
