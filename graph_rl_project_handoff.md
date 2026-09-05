@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — GENERALIZED-V1: TASKS 1–5 ALL IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #42 + PR #43 + PR #44, ALL MERGED); THE POST-INTEGRATION CLOSURE TASK IS MERGED (PR #45); THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK IS MERGED (PR #46) AND ITS POST-MERGE CLOSURE IS MERGED TOO (PR #47); OPT-IN TRAINING-REWARD EARLY STOPPING (`training_reward_plateau_v1`) IS BUILT, REVIEWED, APPROVED AND INTEGRATED (PR #48) AND ITS DOCUMENTATION / LOCK IS MERGED TOO (PR #49) AND ITS POST-MERGE CLOSURE IS MERGED TOO (PR #50) — SO THE MECHANISM IS BUILT / REVIEWED / APPROVED / INTEGRATED / DOCUMENTED / CLOSED, OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; TASK 5A / 5B ENGINEERING VALIDATION APPROVED; THE FIRST GENERALIZED ACTOR-ONLY R1 LONG RUN IS AUTHORIZED / DISPATCHED WITH ITS RESULT PENDING AND UNREVIEWED, GOVERNED BY ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY STOPPING; CLUSTER ENVIRONMENT / RUNTIME READINESS IS VALIDATED / READY, WHICH IS NOT SCIENTIFIC AUTHORIZATION; THIS FINAL HANDOFF-STABILIZATION CANDIDATE IS THE SOLE WRITABLE REPOSITORY TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, SO EVERY RECEIVING ORCHESTRATOR RESOLVES LIVE `main` FROM GITHUB RATHER THAN FROM ANY SHA IN THIS DOCUMENT, WHILE GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
+# Multi-Agent Graph RL — GENERALIZED-V1: THE FIRST FULL ACTOR-ONLY R1 LONG RUN IS COMPLETED, INDEPENDENTLY REVIEWED AND `APPROVE — VALID MEASUREMENT` AT MEASURED CODE SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, WITH A NEGATIVE PRIMARY FD FINDING — A VALID NEGATIVE RESULT, ONE MEASUREMENT, NOT A FIVE-RUN POPULATION RESULT AND NOT AN ACTOR-ONLY-vs-CTDE COMPARISON, AND NO RERUN / REPAIR / RESUME / EXTENSION / RETUNING IS AUTHORIZED; THE DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS MERGED (PR #52), IS CODE ONLY, MEASURED NOTHING AND DID NOT MODIFY R1; TASKS 1–5 ALL INTEGRATED (PR #42 + PR #43 + PR #44) WITH THEIR POST-INTEGRATION CLOSURE (PR #45), THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK (PR #46) AND ITS CLOSURE (PR #47), AND OPT-IN TRAINING-REWARD EARLY STOPPING BUILT / DOCUMENTED / CLOSED / STABILIZED (PR #48 + PR #49 + PR #50 + PR #51), OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; THIS R1-REVIEW DOCUMENTATION LOCK IS THE SOLE WRITABLE REPOSITORY TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, SO EVERY RECEIVING ORCHESTRATOR RESOLVES LIVE `main` FROM GITHUB RATHER THAN FROM ANY SHA IN THIS DOCUMENT; THE ONE NEXT THREAD IS DESIGN / RESEARCH ON GLOBAL-ACTION REPRESENTATION, ROUTE-RELATIVE OBSERVATION CONTEXT AND BOUNDED CLUSTER VALIDATION, WHILE FIVE FULL CLUSTER RUNS, A CTDE ARM, RESUME / REPAIR AND ANY R1 RERUN REMAIN UNAUTHORIZED; GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -133,7 +133,83 @@ orchestrator MUST resolve from GitHub — **this final-stabilization branch is t
 writable task only while its own draft PR is open, and once it is integrated NO writable
 repository task remains**, **R1 stays UNTOUCHED, fixed-budget, with NO early stopping and
 `AUTHORIZED / DISPATCHED — RESULT PENDING`**, and **no scientific result was produced by
-PR #48, PR #49, PR #50 or this record** (§1, §3m, §4, §8, §9).
+PR #48, PR #49, PR #50 or this record** (§1, §3m, §4, §8, §9) — *(that record's "R1 stays `AUTHORIZED / DISPATCHED — RESULT PENDING`" framing was accurate when written and is SUPERSEDED by the entry below)* — and **2026-09-05, in THIS GENERALIZED-V1 R1 REVIEW + FD MEASUREMENT-HARDENING DOCUMENTATION LOCK, to record that the FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING — it is `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT` at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, with a NEGATIVE primary FD finding that is a VALID NEGATIVE RESULT rather than a validity defect, is ONE measurement rather than a five-run population result, and is NOT an actor-only-vs-CTDE comparison — to record the DIAGNOSTIC REPLAY as ENGINEERING / ANALYSIS EVIDENCE whose findings NAME SUSPECTS AND PROVE NO CAUSE, to record that the DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS MERGED (PR #52, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`) as CODE that MEASURED NOTHING and DID NOT MODIFY R1, and to record that the ONE next thread is DESIGN / RESEARCH on global-action representation, route-relative observation context and bounded cluster validation while five full cluster runs, a CTDE arm, resume / repair and ANY R1 rerun REMAIN UNAUTHORIZED** (§1, §3n, §4, §8, §9).
+
+**THE LIVE STATE (2026-09-05, GENERALIZED-V1 R1 REVIEW + FD MEASUREMENT-HARDENING
+DOCUMENTATION LOCK), STATED FIRST BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH BELOW IT,
+INCLUDING THE 2026-09-02, 2026-09-01, 2026-08-31, 2026-08-30 AND 2026-08-26 ONES.** The
+ACTIVE phase is still **GENERALIZED-V1**.
+
+**THE FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING. IT IS
+`COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`** at measured code SHA
+`4af6c5aa5dd28072692bfda63282964b55010aae` (§3n; `CLAUDE.md` §7 owns the authoritative
+record). Its validity evidence: **375 / 375 iterations and PPO updates**; **3000 successful
+training episodes from 3045 attempts**, with **45 ordinary accounted `setup` failures, every
+one DETERMINISTICALLY REPLACED**; **ZERO integrity aborts**; **16 evaluation rounds**;
+**864 / 864 benchmark members successful**; **18 / 18 COMPLETE matched groups in EVERY
+round**; and **`accounting_reconciled = true`**. It was a **FIXED-BUDGET actor-only** run
+with **NO early stopping** and **NO CTDE arm**. Its comparator is the frozen benchmark
+manifest `manifest_id 0e15f007ef176bf977f8b93bb91289f48c16f25ee9eee282ffd1a89477f6fc0d`
+(file, seed-list and preflight-report hashes in §3n).
+**ITS PRIMARY FD FINDING IS NEGATIVE**: the run did **not** learn severity-conditioned
+mild-vs-severe behaviour — the policy moved GLOBALLY from `SELF_PRESERVATION_ABORT` toward
+`PLAN_COMPLIANCE` across checkpoints while treating matched mild and severe worlds almost
+identically. **THAT IS A VALID NEGATIVE RESULT, NOT A VALIDITY DEFECT**, and it is **NOT**
+grounds to re-tune, re-seed, repair, resume, extend or re-run. **IT IS ONE R1 MEASUREMENT —
+NOT a five-run population result and NOT an actor-only-vs-CTDE comparison.**
+**THIS SUPERSEDES, AS CURRENT STATE ONLY, EVERY "R1 IS `AUTHORIZED / DISPATCHED — RESULT
+PENDING`" AND EVERY "NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS" STATEMENT IN THIS
+DOCUMENT AND IN `CLAUDE.md`** — each of which remains accurate as the record it was, through
+PR #51.
+
+**THE DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS INTEGRATED — PR #52**, approved
+candidate `81a148f80317499d8897db44bd713976962db832` → merge
+`28eb8dad2643fc79d516b47ec95119a395e76257`, a NORMAL merge whose ordered parents are
+`44530abb1cc3f99d01ac867c6621047ac9343661` (the PR-#51 merge) then `81a148f8…`, and whose
+integration tree `86c3b04d104d38c6d6fc5c1e2bdda3bb5c1ab9b7` is IDENTICAL to the reviewed
+candidate's, with no rebase, squash, cherry-pick, force-push or history rewrite. Its
+authoritative technical contract is `CLAUDE.md` §5 (routed in §6, locked in §7). **IT IS
+CODE AND IT MEASURED NOTHING**: it produced no scientific measurement and **did not modify
+R1, its artifacts or its verdict** — R1 was measured at a code SHA that PREDATES it, so
+**R1's own artifacts are episode-outcome schema v2 and carry no `wake_decisions`**, and the
+layer's benefit is to FUTURE runs. Its branch
+`task/generalized-v1-fd-measurement-hardening` (tip `81a148f8…`) is RETIRED, READ-ONLY
+historical provenance and is NOT writable.
+
+**`28eb8dad…` IS THE PR-#52 INTEGRATION AND THE AUTHORING BASE OF THIS RECORD — IT IS NOT,
+AND MUST NOT BE READ AS, THE PERMANENT LIVE `main`.** Integrating THIS record necessarily
+advances `main` past it, and under the `CLAUDE.md` §7 hash convention this record cannot name
+its own future integration SHA; inventing one would be false provenance. **EVERY RECEIVING
+ORCHESTRATOR THEREFORE RESOLVES THE EXACT LIVE `main` SHA FROM GITHUB BEFORE ACTING, AND
+RE-READS `CLAUDE.md` AND THIS HANDOFF AT THAT SHA** (§9.1) — GitHub is authoritative for live
+branch and PR state, never this document.
+
+**WRITABLE OWNERSHIP, STATED SO THAT IT STAYS TRUE AFTER THIS RECORD IS INTEGRATED.** While
+THIS R1-REVIEW DOCUMENTATION LOCK is OPEN, its branch
+`task/generalized-v1-r1-review-doc-lock` is the SOLE WRITABLE REPOSITORY TASK. **ONCE THIS
+RECORD IS INTEGRATED, NO WRITABLE REPOSITORY TASK REMAINS**, and **NO NEW TASK BECOMES
+IMPLICITLY AUTHORIZED** — none may be opened until a future task is EXPLICITLY opened and
+authorized. **NO REF IS MOVED OR DELETED BY THIS RECORD**, and the preserved scientific /
+reference refs — **`phase-a-baseline` (`4f0068847b017795717c5f0e331f647bcfc30547`),
+`pre-ctde-actor-only` (`d437084c5fb1a22c21596a48c58e03f7e15a0115`), `flat-final`
+(`4d44c3454a5561a6cb9d7aed593d59a40068d6d7`) and `pre-cleanup` (peeled
+`561b7cb7f2d873e584a8c0dabe71df8050f1b4ed`)** — are **PROTECTED, UNTOUCHED and NEVER
+CLEANUP-ELIGIBLE**, as is every other preserved snapshot and every preserved run tree.
+
+**THE NEXT ACTION IS NO LONGER AN R1 REVIEW, AND IT IS NOT A RUN.** R1's review is
+DISCHARGED. **THE ONE NEXT THREAD IS DESIGN / RESEARCH — global-action representation,
+route-relative observation context, and bounded cluster validation** (§8) — and it must be
+EXPLICITLY opened and authorized; this record neither opens it, schedules it, nor decides
+anything inside it. **STILL UNAUTHORIZED until separately reviewed and explicitly
+authorized: the five full cluster runs, a CTDE arm, resume / repair, and ANY R1 rerun,
+repair, resume or extension.** **`p(destroy)` remains `1.0` with `p(destroy) < 1` DEFERRED**,
+**checkpoint RESUME remains OUT OF SCOPE** (`graph_train` is still SAVE-only), **no
+repository preset selects `generalized_v1`**, **no repository preset enables early
+stopping**, and **no benchmark manifest is committed or tracked in the repository** —
+recording R1's comparator IDENTITY adds no bytes to it. **GENERALIZED-V1 REMAINS AN ACTIVE
+PROJECT PHASE even once no writable task remains**, because the design/research thread and
+the future campaign are still ahead of it.
+
 
 **THE LIVE STATE (2026-09-02, FINAL EARLY-STOPPING HANDOFF STABILIZATION), STATED FIRST
 BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH BELOW IT, INCLUDING THE EARLIER 2026-09-02,
@@ -2757,7 +2833,9 @@ here.
   `max_candidates_per_cell` are REQUIRED operator inputs with no defaults. **The Task-5B
   transient benchmark is NOT the R1 comparator.**
 
-### 3m.4 The first GENERALIZED-V1 ACTOR-ONLY long run (R1) — AUTHORIZED / DISPATCHED — RESULT PENDING
+### 3m.4 The first GENERALIZED-V1 ACTOR-ONLY long run (R1) — *(STATE SUPERSEDED: now `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`, §3n)* AUTHORIZED / DISPATCHED — RESULT PENDING
+
+*(**STATE SUPERSEDED, 2026-09-05.** Everything in this subsection was accurate as the record it was, and its FROZEN PLAN table is UNCHANGED and remains the authorized run shape R1's artifacts are checked against — R1 executed exactly it, fixed-budget, with NO early stopping and NO CTDE arm. What is SUPERSEDED is only the STATE: R1 is no longer `AUTHORIZED / DISPATCHED — RESULT PENDING`. It is **`COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`** at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, with a **NEGATIVE primary FD finding** (§3n; `CLAUDE.md` §7 owns the authoritative record). The review requirement this subsection states is therefore DISCHARGED rather than pending, and every "nothing about R1 may be stated or inferred" sentence below is preserved as the record it was. **NO RERUN, REPAIR, RESUME, EXTENSION OR RETUNING IS AUTHORIZED.**)*
 
 **STATE: `AUTHORIZED / DISPATCHED — RESULT PENDING`.** This record does **NOT** state that
 the run is currently executing, that it completed, that it is scientifically valid, or what
@@ -3077,7 +3155,145 @@ reports `disabled_fixed_budget`) and reports planned vs actual budgets as PAIRS.
 benchmark change and no merge; it defines no scientific run matrix; and it makes no claim
 about how any future run would behave.
 
-## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED; THE POST-INTEGRATION CLOSURE TASK MERGED AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46 AND ITS POST-MERGE CLOSURE AS PR #47; OPT-IN TRAINING-REWARD EARLY STOPPING MERGED AS PR #48, ITS DOCUMENTATION / LOCK AS PR #49 AND ITS POST-MERGE CLOSURE AS PR #50, OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; THIS FINAL HANDOFF-STABILIZATION CANDIDATE IS THE SOLE WRITABLE TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING, ON ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY STOPPING); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+## 3n. The GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN — EXECUTED / REVIEWED / `APPROVE — VALID MEASUREMENT`, WITH A NEGATIVE PRIMARY FD FINDING; the DIAGNOSTIC REPLAY; and the MERGED measurement-hardening layer (PR #52)
+
+**`CLAUDE.md` §7 IS THE AUTHORITATIVE RECORD OF BOTH ENTRIES BELOW.** This section is the
+handoff-side statement of what changed for the PROJECT; it duplicates no contract and adds no
+claim §7 does not carry.
+
+### 3n.1 R1 — `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`
+
+**MEASURED CODE SHA `4af6c5aa5dd28072692bfda63282964b55010aae`** — the approved PR-#43
+candidate, and a durable MEASUREMENT identity, **never a claim about live `main`**. The run
+executed the FROZEN PLAN of §3m.4 unchanged: `training_mode = actor_only`, a FIXED budget of
+375 iterations × 8 SUCCESSFUL episodes, `episode_design = generalized_v1`,
+`fuel_damage_mode = seeded_variable`, **NO early stopping**, **NO CTDE arm**,
+`worlds_per_cell = 3`, evaluation and checkpointing every 25 iterations.
+
+**THE VALIDITY EVIDENCE, JUDGED VALIDITY BEFORE PERFORMANCE.**
+
+| Quantity | Value |
+|---|---|
+| iterations completed / scheduled | **375 / 375** |
+| PPO updates | **375** |
+| successful training episodes | **3000** |
+| training attempts | **3045** |
+| ordinary accounted `setup` failures | **45**, ALL deterministically replaced |
+| integrity aborts | **0** |
+| evaluation rounds | **16** |
+| benchmark members successful | **864 / 864** |
+| complete matched groups per round | **18 / 18, in EVERY round** |
+| `accounting_reconciled` | **true** |
+
+`3000 + 45 = 3045` and `16 × 18 × 3 = 864` reconcile by construction, and 3045 attempts sits
+well inside the MAXIMUM POSSIBLE band of `375 × 12 = 4500`. **ZERO integrity aborts** means
+no `MeasurementIntegrityError`, `EpisodeRosterError`, `TrainingQuotaError`,
+`FuelDamageIntegrityError`, `BenchmarkIdentityError`, aborting `ReferenceIntegrityError` or
+`_VisualArtifactError` — so no episode was removed from a scientific population by an
+instrument fault, which is exactly the failure that made the FIRST long baseline
+INCONCLUSIVE (§3f, §3g). Each of the 45 failures was recorded ONCE, never retried, never
+substituted, and its slot refilled by the next run-wide attempt ordinal, exactly as
+`successful_quota_with_deterministic_replacement_v1` requires.
+
+**THE FROZEN COMPARATOR, BY CONTENT-ADDRESSED IDENTITY.** Built by the deterministic
+preflight BEFORE training and evaluated unchanged in all 16 rounds:
+`manifest_id = 0e15f007ef176bf977f8b93bb91289f48c16f25ee9eee282ffd1a89477f6fc0d`;
+manifest file `SHA-256 = 76768cfd311686a51fc79b82e4bb5142dd4931fa5bb7f151a32b11106195e11d`;
+`seed_list_sha256 = c417683520bd89f4074d53652df719e6cf556808c29f0335b7fc728ce153fbb1`;
+preflight report `SHA-256 = f2041b97bc34c8a1750daa2135468b6ed5d2329d9089bd377517a5ebda43f903`.
+**`manifest_id` IS THE HASH OF THE CANONICAL PAYLOAD AND IS NOT THE HASH OF THE FILE**
+(`CLAUDE.md` §5), so those first two values are DIFFERENT quantities and neither substitutes
+for the other. **NO BENCHMARK MANIFEST IS COMMITTED OR TRACKED IN THE REPOSITORY** —
+recording an IDENTITY adds no bytes to it. **NO REVIEW-BUNDLE ZIP HASH IS RECORDED**, in this
+document or in `CLAUDE.md`: no preserved review-bundle artifact exists in this workspace to
+derive one from, and a hash may never be expanded from chat or memory. That absence is a
+statement about THIS record, not about the review.
+
+**THE PRIMARY BEHAVIOURAL RESULT IS NEGATIVE, AND IT IS A RESULT.** R1 **did NOT learn
+severity-conditioned mild-vs-severe behaviour.** The policy moved GLOBALLY from
+`SELF_PRESERVATION_ABORT` toward `PLAN_COMPLIANCE` across checkpoints, and it treated MATCHED
+mild and severe worlds **almost identically** — a global shift, not a severity-conditioned
+one. **THIS IS A VALID NEGATIVE RESULT, NOT A VALIDITY DEFECT.** It is **not** a technical
+failure, **not** evidence that training or PPO failed, **not** evidence that the actor
+ignores fuel entirely, and **not** grounds to re-tune, re-seed, repair, resume, extend or
+re-run. **NO RERUN, REPAIR, RESUME, EXTENSION OR RETUNING IS AUTHORIZED**, and each would be
+a separate research decision requiring its own explicit authorization.
+
+**THE SCOPE OF THE CLAIM, AS NARROWLY AS THE EVIDENCE ALLOWS.** This is **ONE R1
+MEASUREMENT**. It is **NOT** a five-run population result and **NOT** an
+actor-only-vs-CTDE comparison: **no CTDE arm was run, no actor-only-vs-CTDE generalized
+result exists, and no CTDE benefit or deficit is established, supported or pre-claimed.** The
+unchanged interpretation rules apply — a mean is never read without its denominator, an
+all-failed batch is `null` and never `0.0`, within-world claims come only from COMPLETE
+matched groups, and FD-wake rates are reported over FD WAKES.
+
+### 3n.2 The diagnostic replay — ENGINEERING / ANALYSIS EVIDENCE, never a second measurement
+
+**THE LABEL IS BINDING, AND IT RESTS ON DESIGNATED PURPOSE.** A bounded offline replay was
+performed against R1's own checkpoints, manifest and measured code SHA to ask WHY the
+response was flat. It schedules no population, defines no comparator, produces no verdict and
+measures no policy performance, and **no reward, learning, attrition-rate or
+actor-vs-CTDE claim may be drawn from it.** What it established:
+
+- **REPLAY EQUIVALENT TO R1** — **108 / 108 action matches**, with event ticks and ego ids
+  matching too, so the replay reproduces the run it analyses rather than a neighbouring one;
+- the ego's own **`fuel_norm` differed MATERIALLY in ALL 54 matched pairs**;
+- **`reachable_by_ego` FLIPPED in ALL 54 pairs**;
+- and the **selected meta-action changed in 0 / 54 pairs**;
+- **mean absolute matched delta in aggregate P(ABORT) = 0.0001177037203753436** — numerically
+  negligible, and it is the aggregate column MASS, **never** the probability of the selected
+  action (`CLAUDE.md` §5);
+- **joint-cell vs aggregate-meta-action argmax disagreement: 54 / 108**, so the two views of
+  the `k × 3` surface disagreed on half the decisions and must not be read as one quantity;
+- **mean task-distance clipping 98.15 %** — almost the whole `dist_to_ego_norm` column
+  saturated at the fixed normalizer, a property of the NORMALIZER rather than of the policy;
+- **normalized joint entropy remained HIGH**, so the distribution did not collapse.
+
+**ACTION ALIASING AND WEAK ROUTE-RELATIVE OBSERVATION CONTEXT ARE SUSPECTS, NOT CAUSALLY
+PROVEN EXPLANATIONS.** Nothing in the replay establishes a cause; it narrows where to look,
+and **no fix, redesign or retuning follows from it automatically.** Diagnostic bundle
+`SHA-256 = 812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792`.
+
+### 3n.3 PR #52 — the durable per-wake FD policy diagnostics layer, MERGED
+
+**APPROVED CANDIDATE `81a148f80317499d8897db44bd713976962db832` → MERGE
+`28eb8dad2643fc79d516b47ec95119a395e76257`**, a NORMAL merge preserving the candidate as its
+SECOND PARENT (ordered parents `44530abb1cc3f99d01ac867c6621047ac9343661`, then
+`81a148f8…`), with the integration tree `86c3b04d104d38c6d6fc5c1e2bdda3bb5c1ab9b7` IDENTICAL
+to the reviewed candidate's and no rebase, squash, cherry-pick, force-push or history
+rewrite. Grade A under `GPT_GITHUB`. It landed as a **CUMULATIVE FOUR-COMMIT APPEND-ONLY
+REVIEW CHAIN** on one branch and one PR (`b51515c1…` → `039a3b6d…` → `e1adb8e9…` →
+`81a148f8…`), touching **SEVEN cumulative files** — three source, four test — and **no
+documentation file, no config, no preset and no benchmark manifest.**
+
+**WHAT IT GIVES THE PROJECT.** Future runs record, AT THE DECISION, why each wake happened,
+what the actor saw and what its masked joint distribution looked like — so the questions §3n.2
+had to answer by offline checkpoint replay are answerable from durable artifacts alone. The
+authoritative contract is `CLAUDE.md` §5; its load-bearing properties are that the layer is
+**REPORTING-ONLY** — the RAW per-wake records are PERSISTED in
+`episode_outcomes.jsonl`, `run_summary.json` carries DERIVED summaries computed from that
+stream rather than a copy of it, and the figures take DERIVED plotting input from it, so
+**reporting consumers read it to persist and summarize it, but no acting, mask, belief,
+command, PPO/CTDE input, advantage, reward, optimizer, early-stopping,
+evaluation-scheduling or checkpoint-control path reads it back** — that its
+probabilities come from the actor's OWN
+shared `_masked_dist` rather than from a second implementation, that it adds **no RNG draw,
+no gradient and no control path**, that the three wake kinds are DISJOINT and tagged at the
+TRIGGER, that `train` / `pre_update` / `post_update` are SEPARATE populations, and that the
+new `fd_policy_sensitivity.png` is OPTIONAL and evaluation-only while `_PLOT_FILENAMES` still
+names exactly the three REQUIRED figures.
+
+**HISTORICAL CC-REPORTED ENGINEERING EVIDENCE ONLY**, as reported at review time: the final
+solver-free suite **602 passed, 6 skipped**; the focused wake-diagnostics suite **57
+passed**; and the `graph_tick_loop` BONMIN selftest **NOT run in the final fix chain**. **PR
+#52 PRODUCED NO SCIENTIFIC MEASUREMENT AND DID NOT MODIFY R1, ITS ARTIFACTS OR ITS VERDICT**
+— R1 was measured at a code SHA that predates it, so R1's artifacts are episode-outcome
+schema v2 and carry no `wake_decisions`.
+
+
+## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED; THE POST-INTEGRATION CLOSURE TASK MERGED AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46 AND ITS POST-MERGE CLOSURE AS PR #47; OPT-IN TRAINING-REWARD EARLY STOPPING MERGED AS PR #48, ITS DOCUMENTATION / LOCK AS PR #49 AND ITS POST-MERGE CLOSURE AS PR #50, OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; THIS FINAL HANDOFF-STABILIZATION CANDIDATE IS THE SOLE WRITABLE TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING, ON ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY STOPPING — *SUPERSEDED 2026-09-05: R1 IS NOW `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`, AND THE PER-WAKE FD DIAGNOSTICS LAYER IS MERGED AS PR #52, §3n*); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+
+*(**HEADING AND CURRENT-STATE SUPERSESSION, 2026-09-05.** This section's heading and every present-tense claim in it were accurate as the record they were, through PR #51. **TWO of them are now SUPERSEDED as CURRENT state:** the actor-only **R1 is no longer `DISPATCHED / RESULT PENDING` — it is `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`** at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae` with a NEGATIVE primary FD finding, and the **sole writable repository task is no longer the final handoff-stabilization candidate but THIS R1-REVIEW DOCUMENTATION LOCK, and only while its own draft PR is open**. **PR #52 has additionally been merged** and is CODE that measured nothing. §3n owns the new record and §8 the new next action; everything else in this section stands unchanged.)*
 
 Start with fresh exact-SHA initialization against the current `main` (§9). **A documentation
 record neither authorizes nor runs anything: it RECORDS state only.** No documentation record
@@ -3886,14 +4102,66 @@ obligations and bounded implementation/lock task.
 | GENERALIZED-V1 Task 4 lands (§3l.8 step 4) — **DONE for PR #40** | The ONE `episode_design` selector resolving the COMPLETE approved bundle through a single site with `fixed_cell_v1` as the PRESERVED DEFAULT and NO per-policy harness field, `training_mode` as an ORTHOGONAL and unchanged training-algorithm selector, the generalized TRAINING cardinality sampler (`A ~ U{2,3,4}`, `K == A`, `H_requested | A ~ U{1..A}`) on its OWN SHA-256 rng domain disjoint from the three fuel-damage domains / the placement rng / global `random` / torch, `H_requested` NEVER rewritten and short realization RECORDED rather than retried or replaced, the 18-stratum matched CLEAN/MILD/SEVERE benchmark MECHANISM with its canonical content-addressed manifest whose loader authenticates the EXACT STORED payload AND independently requires it to equal the canonical payload (so a tampered manifest AND a self-consistently rehashed noncanonical forgery are both REFUSED), id-free world identity with no generated-uuid equality anywhere, matched-group and frozen-preflight identity VERIFIED with `BenchmarkIdentityError` routed as a measurement-integrity ABORT, deltas over COMPLETE three-member groups ONLY with no retry or substitution, the manifest's ACTUAL seeds checked against the training band at LOAD time before the run directory or any scientific compute, provenance naming the manifest as the real eval seed source with the configured band retained and marked UNUSED, UNCHANGED historical fixed-cell eval-band semantics, the reason-based `ReferenceIntegrityError` routing (an unanswered solve = accounted attrition; every other reason = measurement-integrity ABORT, read from the SLUG and never the message) with the reward arithmetic itself unchanged, run-level PERSISTENCE of the construction audit / FD eligibility audit and certificate / post-FD adaptation / reference decomposition and continuation-solver audit / scored-vs-unscored completion / aircraft-loss and selected-ego RTB / benchmark stratum and world identity, and generalized aggregates with EXPLICIT denominators — recorded as a contract in `CLAUDE.md` §5, placed in §4, routed in §6 and locked in §7 with the exact eight changed files, the append-only fix chain and the identical-tree integration proof. **Record that the generalized `run_config.json` cardinality is DYNAMIC and that the old 3/3/3 count fields are explicitly marked UNUSED, with realized per-episode cardinality living in `episode_outcomes.jsonl`, while fixed-cell construction and provenance remain historical and byte-unchanged.** **Record that requested-vs-realized HIGH-load behaviour is REPORTED for inspection and that NO automatic acceptance threshold is invented — the judgement is a human / GPT scientific review decision.** **Record that Task 4 delivered the manifest SCHEMA / BUILDER / LOADER / CONSUMER / FREEZE MECHANISM and did NOT choose the final scientific world count and did NOT commit or generate a final benchmark population — that is step 5's business — and that NO generalized measurement and NO actor-only-vs-CTDE generalized result exists or may be pre-claimed** |
 | GENERALIZED-V1 Task 5 lands (§3l.8 step 5) — **DONE, AND NOW INTEGRATED: PR #42 → `5dfcd8b632be8dca3c1730018bbf35337d07f077`, PR #43 → `b3c2e01f130afe854b09384cd6e1e196de714795`** *(this row's original "BOTH APPROVED AND FROZEN, NEITHER MERGED" status, and its closing "NO integration SHA exists for either PR and none may be invented", were accurate when written and are SUPERSEDED by those merge SHAs)* | The `train_by_*` summary buckets counting TRAINING attempts only (a persisted-summary correction that changes no episode behaviour and leaves the canonical streams byte-unchanged, with training FAILURES still represented and every other generalized block keeping its own population); the successful-episode training QUOTA under `generalized_v1` with `episodes_per_iteration` counting SUCCESSFUL episodes, the REQUIRED and never-defaulted `generalized_max_attempts_per_iteration`, ONE run-wide monotone attempt ordinal whose seed is `train_attempt_seed`, an ordinary failure recorded once / spending its seed / never retried / never entering the PPO-CTDE buffer / replaced by the next deterministic attempt, `TrainingQuotaError` on exhaustion with NO partial update, the PRESERVED `scheduled_attempts_v1` fixed-cell behaviour, and the unchanged actor-vs-CTDE execution semantics; held-outness checked against the MAXIMUM POSSIBLE attempt band `[base_seed, base_seed + n_iterations * generalized_max_attempts_per_iteration)` because a failed replacement still spends a seed; and the deterministic benchmark PREFLIGHT — explicit `worlds_per_cell` / `benchmark_base_seed` / `max_candidates_per_cell` with NO scientific-scale default, six INDEPENDENT deterministic base-cell candidate windows, first valid candidates accepted in ascending order with each rejected seed spent exactly once, ordinary world-construction / certified-FD-ineligibility rejections replaceable BEFORE the freeze, accepted bounded-backoff worlds NOT rejected solely for `hidden_realized < hidden_requested` (short realization is AUDIT DATA, never an automatic failure), integrity faults PROPAGATING rather than becoming population-selection attrition, NO policy built and NO episode run so no reward or learned behaviour can influence acceptance, the COMPLETE-manifest rule, IMMUTABLE post-freeze evaluation with NO substitution in `evaluate_benchmark`, and the FAILED-preflight durable audit (`status = failed_incomplete`, `complete = false`, `manifest_written = false`, `manifest = null`, the failure block naming the exhausted cell / window / requested-accepted-missing counts, attempted seeds and rejection tallies SURVIVING, completed cells preserved, unattempted cells NAMED, the report written BEFORE the raise when an output directory exists, `BenchmarkPreflightError.report` / `.report_path` when there is none, and a pre-existing manifest NAMED via `stale_manifest_path` rather than deleted or adopted) — recorded as a contract in `CLAUDE.md` §5, routed in §6 and locked in §7 with the exact changed files and PR #43's append-only review-fix chain. **Record Task 5A and Task 5B as `APPROVE — VALID ENGINEERING VALIDATION` under a BINDING label — engineering evidence, never a measurement — with their bounded sample sizes stated as an explicit limitation and NO attrition-rate population claim, NO learning claim and NO actor-vs-CTDE claim.** **Record the dispatched actor-only R1 as `AUTHORIZED / DISPATCHED — RESULT PENDING` with its frozen plan and NOTHING about its outcome; record that it needs independent GPT artifact review before any `APPROVE — VALID MEASUREMENT`; and record that NO integration SHA exists for either PR and none may be invented** |
 | The GENERALIZED-V1 TASK-5 STACK is INTEGRATED (§3m.5) — **DONE (2026-08-30/31)** *(this row previously read "NOT DONE; NO MERGE IS AUTHORIZED BY ANY DOCUMENTATION RECORD"; the merges were separately authorized and have since been performed)* | The nine-step sequence was PERFORMED exactly as planned: merged PR #42 (→ `5dfcd8b632be8dca3c1730018bbf35337d07f077`), refreshed the exact live `main`, RETARGETED PR #43 to `main` and **exact-base re-reviewed it before merging** — changing a PR's base invalidates a base-relative verdict even though the candidate SHA is unchanged — then merged the unchanged approved head (→ `b3c2e01f130afe854b09384cd6e1e196de714795`), refreshed `main`, retargeted and re-reviewed the documentation candidate, and merged it unchanged (→ `9b9e9b85a70c8a0019c72ada92ceec3401725795`, PR #44). **No rebase, no squash, no cherry-pick, no force-push, no history rewrite** occurred; every integration is a normal merge commit preserving its reviewed commit as an ancestor / merge parent, with the integrated tree verified equal to the reviewed tree. Each integration SHA is recorded here, per §7's hash convention, by the first record able to name it |
-| The DISPATCHED GENERALIZED ACTOR-ONLY R1 completes — **DISPATCHED; RESULT PENDING; UNREVIEWED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Nothing may be recorded before independent GPT artifact review, and no reward, convergence or validity claim may be pre-stated. VALIDITY IS JUDGED BEFORE PERFORMANCE; a null or negative result is a valid observation, not a technical failure and not grounds to re-tune, re-seed or re-run.** The requested-vs-realized hidden-cardinality inspection stays a HUMAN / GPT decision — the code reports the distribution and applies no threshold |
+| The DISPATCHED GENERALIZED ACTOR-ONLY R1 completes — **DONE: EXECUTED, INDEPENDENTLY REVIEWED and `APPROVE — VALID MEASUREMENT` at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, with a NEGATIVE primary FD finding; recorded in §3n and in `CLAUDE.md` §7, phase state in `CLAUDE.md` §8** *(this row previously read "**DISPATCHED; RESULT PENDING; UNREVIEWED**", accurate through PR #51)* | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Nothing may be recorded before independent GPT artifact review, and no reward, convergence or validity claim may be pre-stated. VALIDITY IS JUDGED BEFORE PERFORMANCE; a null or negative result is a valid observation, not a technical failure and not grounds to re-tune, re-seed or re-run.** The requested-vs-realized hidden-cardinality inspection stays a HUMAN / GPT decision — the code reports the distribution and applies no threshold |
 | OPT-IN TRAINING-REWARD EARLY STOPPING lands — **DONE for PR #48, LOCKED by PR #49, and CLOSED by the PR-#49 post-merge closure pass** *(this row previously read "A future EARLY-STOPPING mechanism is proposed — NOT IMPLEMENTED, NOT REVIEWED, NOT AUTHORIZED"; that was accurate through PR #47, and the design concern it named was HONOURED rather than dropped)* | Record in `CLAUDE.md` §5 (contract), §6 (two routing rows) and §7 (lock), and here in §3m.7: the ONE opt-in policy `training_reward_plateau_v1`, **OFF BY DEFAULT** and approved for `generalized_v1` ONLY with the fixed-cell path REFUSED; the approved state machine as COMPLETED-ITERATION counts (100 / 25 / 3 / 0.01, non-overlapping windows, a BASELINE first check that cannot stop, an INCLUSIVE `>= best + min_delta` improvement test that resets patience, and a stop at `stale_windows >= patience_windows`) with **175 completed iterations = 1400 successful episodes at 8 per iteration as the EARLIEST POSSIBLE stop, never a promised one**; the decision reading `train_reward_mean` ALONE with the exclusion of every benchmark / held-out / success-rate / PPO / CTDE-critic / checkpoint / comparator quantity stated as MECHANICAL rather than conventional; the load-bearing ORDERING (record → check → attach → flush → break BEFORE that boundary's periodic evaluation and checkpoint, final evaluation strictly post-decision, finalization once, at the ACTUAL final iteration); `training_mode` read nowhere so actor-only and CTDE stop identically, with comparison semantics `same maximum budget + same frozen stopping rule + same training-population contract` and NOT `same actual number of iterations`; a missing `train_reward_mean` inside a monitored window ABORTING as `EarlyStoppingIntegrityError`; the PLANNED `max_training_attempts` still governing every held-out claim and never shrinking; checkpoints staying SAVE-only with RESUME still out of scope; and the observability carried by the EXISTING artifacts with no new file. **Record it as CODE, never a measurement: no scientific run has used it, no reward / convergence / runtime-saving / performance claim is made or supported, firing it would record only that the configured plateau rule fired, and R1 is UNTOUCHED and remains on its original fixed-budget contract with NO early stopping** |
 | CLUSTER ENVIRONMENT / RUNTIME readiness — **VALIDATED / READY at `926aba66…` (§3m.6)**; CLUSTER CAMPAIGN readiness — **STILL NOT AUTHORIZED** *(this row previously read "DEFERRED; cluster access is not available", accurate while that was so)* | Record the validated `graph_rl_cluster` identity, the mandatory `PYTHONNOUSERSITE=1` isolation rule, the BLADE editable path and the Pyomo→BONMIN `optimal` smoke as **ENGINEERING / RUNTIME validation, never a measurement** — and record the observed Slurm `course` limits as **VOLATILE observed policy**, in the handoff and NOT as a `CLAUDE.md` software contract. **READINESS IS NOT AUTHORIZATION:** still **invent no scheduler, queue, partition, walltime or runbook decision**, and record a scientific launcher only once one is separately designed, reviewed and authorized |
 | *(HISTORICAL, superseded by the Task-5 row above)* The REMAINING GENERALIZED step lands (§3l.8 step 5) — **was NOT STARTED and NOT AUTHORIZED when written** | A separately scoped, separately reviewed bounded task, beginning only after the previous is reviewed and integrated. Record the reviewed contract, its routing and its lock in `CLAUDE.md` §5–§7 **after reviewed behaviour exists** — never in advance and never for a design. *(SUPERSEDED: this row previously said the records wait for step 6 alone, and later covered steps 4–5; practice is one documentation pass per completed task, step 4 is DONE, and a FINAL pass is still required after any later step lands.)* Departures from currently locked contracts (B2 exact cardinality, the fixed 3/3/3 cell, FD eligibility and failure policy, the damaged-episode t=0 reference solve, the fixed held-out eval band — **all five already addressed by Tasks 1–4 as their own reviewed OPT-IN seams**) are **Grade-A changes routed through `CLAUDE.md` §6**, each with its own proof obligations, and the historical paths are PRESERVED beside the generalized ones. **Requested-vs-realized cardinality, backoff reasons, FD eligibility candidates and rejections, post-FD wake counts and continuation-solver accounting are already first-class observables (§3l.7) — record any change to them without pre-claiming any result** |
-| The FROZEN GENERALIZED BENCHMARK POPULATION is built — **NOT STARTED; the MECHANISM exists since PR #40, the POPULATION and its SCALE do NOT** | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator**. **Task 4 delivered the schema, builder, canonical serialization, content hash, verifying loader, consumer and identity checks; it deliberately did NOT choose the worlds-per-cell scale and did NOT generate, commit or freeze a population, and its builder REFUSES to invent a world count. Choosing the scale comes AFTER §3l.8 step 5's bounded runtime / solver validation.** |
-| The FIRST GENERALIZED scientific measurement completes — **NOT RUN, NOT AUTHORIZED** | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Validity is judged BEFORE performance; a null or negative generalized result is a valid observation, not a technical failure** |
+| The FROZEN GENERALIZED BENCHMARK POPULATION is built — **DONE for R1: the deterministic preflight built it BEFORE training at `worlds_per_cell = 3`, and it was evaluated unchanged in all 16 rounds — `manifest_id 0e15f007ef176bf977f8b93bb91289f48c16f25ee9eee282ffd1a89477f6fc0d` (§3n.1); NO benchmark manifest is committed or tracked in the repository, and recording an IDENTITY adds no bytes to it** *(this row previously read "**NOT STARTED; the MECHANISM exists since PR #40, the POPULATION and its SCALE do NOT**", accurate through PR #51; a SECOND frozen population, for any five-run campaign or CTDE arm, is still NOT STARTED and NOT AUTHORIZED)* | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator**. **Task 4 delivered the schema, builder, canonical serialization, content hash, verifying loader, consumer and identity checks; it deliberately did NOT choose the worlds-per-cell scale and did NOT generate, commit or freeze a population, and its builder REFUSES to invent a world count. Choosing the scale comes AFTER §3l.8 step 5's bounded runtime / solver validation.** |
+| The FIRST GENERALIZED scientific measurement completes — **DONE: it is the R1 run in the row above, `APPROVE — VALID MEASUREMENT`, recorded in §3n and in `CLAUDE.md` §7** *(this row previously read "**NOT RUN, NOT AUTHORIZED**", accurate through PR #51; a SECOND generalized measurement, and any five-run campaign or CTDE arm, remain NOT RUN and NOT AUTHORIZED)* | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Validity is judged BEFORE performance; a null or negative generalized result is a valid observation, not a technical failure** |
+| PER-WAKE FD POLICY DIAGNOSTICS (measurement hardening) lands — **DONE for PR #52, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`, and LOCKED by this record** | Contract in `CLAUDE.md` §5, routing in §6, implementation lock and append-only four-commit review chain in §7, phase-state correction in §8, and the project-side statement in §3n.3. **It is CODE: it produced no scientific measurement and did not modify R1, whose artifacts are episode-outcome schema v2 and carry no `wake_decisions`** |
 
 ## 8. Next action
+
+**THE R1 REVIEW THREAD IS DISCHARGED, AND THE NEXT ACTION HAS CHANGED. THIS BLOCK IS STATED
+FIRST BECAUSE IT SUPERSEDES, AS CURRENT STATE ONLY, EVERY PARAGRAPH BELOW IT IN THIS
+SECTION** — each of which remains accurate as the record it was, through PR #51.
+
+**R1 IS `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`** at measured code SHA
+`4af6c5aa5dd28072692bfda63282964b55010aae`, with a **NEGATIVE primary FD finding** (§3n;
+`CLAUDE.md` §7 owns the authoritative record). **INDEPENDENT GPT ARTIFACT REVIEW OF R1 IS NO
+LONGER THE NEXT ACTION: IT HAS BEEN PERFORMED.** **PR #52 IS INTEGRATED** (§3n.3), and it
+produced no scientific measurement and did not modify R1.
+
+**ONCE THIS DOCUMENTATION RECORD IS INTEGRATED, NO WRITABLE REPOSITORY TASK REMAINS**, and
+**NO NEW TASK BECOMES IMPLICITLY AUTHORIZED** — none may be opened until a future task is
+EXPLICITLY opened and authorized. While this record's draft PR is open, its branch
+`task/generalized-v1-r1-review-doc-lock` is the SOLE WRITABLE REPOSITORY TASK; on its
+integration the PR-#52 branch `task/generalized-v1-fd-measurement-hardening` and this record's
+own branch are retired, cleanup-only references (this one cleanup-eligible only from its own
+integration and NOT before). **NO REF IS MOVED OR DELETED BY THIS RECORD**, and
+`phase-a-baseline`, `pre-ctde-actor-only`, `flat-final`, `pre-cleanup` and every other
+preserved snapshot are **PROTECTED and NEVER CLEANUP-ELIGIBLE**.
+
+**THE ONE NEXT THREAD IS DESIGN / RESEARCH, NOT A RUN AND NOT AN IMPLEMENTATION CANDIDATE.**
+It has three subjects, and R1's negative finding plus the §3n.2 replay are what put them
+there:
+
+1. **GLOBAL-ACTION REPRESENTATION** — the `k × 3` surface aliases one meta-action across `k`
+   cells, and the replay measured the joint-cell and aggregate-column views disagreeing on
+   **54 / 108** decisions.
+2. **ROUTE-RELATIVE OBSERVATION CONTEXT** — the replay measured **98.15 %** mean
+   task-distance clipping at the fixed normalizer, so the distance column stopped separating
+   targets almost everywhere.
+3. **BOUNDED CLUSTER VALIDATION** — bounded, engineering-purpose validation on the BGU
+   cluster, whose environment is VALIDATED / READY (§3m.6) and whose **readiness is NOT
+   scientific authorization.**
+
+**THAT THREAD MUST BE EXPLICITLY OPENED AND AUTHORIZED, AND THIS RECORD NEITHER OPENS IT NOR
+SCHEDULES IT NOR DECIDES ANYTHING INSIDE IT.** **ACTION ALIASING AND WEAK ROUTE-RELATIVE
+CONTEXT ARE SUSPECTS, NOT CAUSALLY PROVEN EXPLANATIONS** (§3n.2), so listing them as subjects
+is naming where to look — **never** approving a representation change, an observation-feature
+change, a normalizer change, a new `MetaAction` or any retuning. Every such change would be
+its own Grade-A task against the locked contracts, routed through `CLAUDE.md` §6.
+
+**WHAT REMAINS UNAUTHORIZED UNTIL SEPARATELY REVIEWED AND EXPLICITLY AUTHORIZED:** the **five
+full cluster runs**; a **CTDE arm**; **resume / repair** of any kind (`graph_train` is still
+SAVE-only and checkpoint RESUME is out of scope); and **ANY R1 rerun, repair, resume or
+extension.** **`p(destroy)` remains `1.0` with `p(destroy) < 1` DEFERRED**, **no benchmark
+manifest is committed or tracked in the repository**, **no repository preset selects
+`generalized_v1`**, and **no repository preset enables early stopping.** The approved
+historical baselines are REUSED as what they are and are **never rerun, repaired, resumed or
+re-tuned** (§6).
+
 
 **THE LIVE STATE IS ONE OPEN THREAD, AND IT IS NOT AN IMPLEMENTATION TASK: INDEPENDENT GPT
 ARTIFACT REVIEW OF THE DISPATCHED ACTOR-ONLY R1 LONG RUN, ONCE ITS ARTIFACTS EXIST**
@@ -4309,3 +4577,7 @@ so.
 | 2026-09-01 | **THE EARLY-STOPPING DOCUMENTATION / LOCK RECORD IS OPENED**, because merging PR #48 made both documents' present-tense claims stale the moment it landed: `CLAUDE.md` §8 and this handoff (§1, §3m.4, §7, §8) still said **"no reviewed early-stopping mechanism exists"**, and the handoff still named the PR-#47 post-merge closure candidate as the sole writable task while giving the live base as `e9f9f4f9…` | `CLAUDE.md` gains the GENERALIZED-V1 early-stopping **§5 contract** (the closed policy set and the ONE `early_stopping_enabled` predicate; the PRESERVED fixed-budget default and its `generalized_v1`-only approval; the forbidden-input list and why the isolation is MECHANICAL; the approved state machine in COMPLETED-ITERATION counts with 175 / 1400 as the EARLIEST possible stop; actor-only / CTDE parity; `EarlyStoppingIntegrityError` on a missing `train_reward_mean` inside a monitored window; the load-bearing `train` ordering and single finalization at the ACTUAL final iteration; planned-vs-actual budget semantics with `max_training_attempts` unmoved; SAVE-only checkpoints with resume still deferred; the observability carried by the EXISTING artifacts; and the configuration surface with its `validate()` refusals), **two §6 routing rows** ("Change WHEN a GENERALIZED-V1 run stops training" and "Read why/how a run stopped"), a **§7 lock entry** for PR #48 with its exact SHAs, identical-tree proof, three-file scope and single-commit provenance, and a **§8** status bullet. This handoff gains a 2026-09-01 live-state paragraph, an updated §1 / §3m.2 / §3m.4 / §4 / §7 / §8, and a new **§3m.7**. **Two files only; no source, test, config, preset, benchmark manifest or run artifact changed; no run; no ref moved; no historical measurement reinterpreted; no result claimed for R1; and no merge, implementation, benchmark population, campaign or run authorized** |
 | 2026-09-02 | **THE EARLY-STOPPING POST-MERGE CLOSURE RECORD IS OPENED**, because merging PR #49 made this handoff's present-tense ownership and base state stale the moment it landed: it still named the early-stopping DOCUMENTATION / LOCK candidate as the sole writable task "while its DRAFT PR is open" and still gave live `main` as `0b9a1d63…`. **PR #49** — branch `task/generalized-v1-early-stopping-doc-lock`, reviewed candidate `77c26dde1396acc7793d50fbcac840474601bf88` — was integrated by **NORMAL merge commit `f74c288175a1f8228407806bf5c8056beff75239`** (`2026-09-02 13:26:52 Asia/Jerusalem`), ordered parents `0b9a1d63f257a8ed9555f81a1d2bf10e30168e66` then `77c26dde…`, reviewed candidate and integration sharing the IDENTICAL tree `1b944749fdf52ef3d2175e4437428df4ffc0b656`, with no rebase, squash, cherry-pick, force-push or history rewrite | **Live `main` is `f74c288175a1f8228407806bf5c8056beff75239`; PR #48 and PR #49 are BOTH MERGED; both early-stopping candidates and their branches are RETIRED, READ-ONLY historical provenance and NEITHER IS WRITABLE**; the mechanism is **BUILT / REVIEWED / APPROVED / INTEGRATED / DOCUMENTED**, still **OFF BY DEFAULT**, on the approved rule **`100` / `25` / `3` / `0.01`**, whose **175 completed iterations = 1400 successful episodes at 8 per iteration is the EARLIEST POSSIBLE stop, never an expected or guaranteed one**. **R1 is UNTOUCHED and governed by its ORIGINAL FIXED-BUDGET contract with NO early stopping, and remains `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED**; **no generalized CTDE run is authorized**; **checkpoint RESUME remains out of scope**; and **no scientific measurement result was produced by PR #48, PR #49 or this closure task**. **This candidate is the SOLE WRITABLE REPOSITORY TASK while its own draft PR is open, and on its integration NO writable repository task remains — the three early-stopping task branches becoming retired references pending bounded ref-only cleanup (a SEPARATE later operation, not authorized here), with NO NEW TASK IMPLICITLY AUTHORIZED** — while GENERALIZED-V1 stays an ACTIVE phase because R1 is pending. The next scientific action is UNCHANGED: **INDEPENDENT GPT ARTIFACT REVIEW of the actor-only R1 when its artifacts exist**, with no rerun, repair, resume, extension, new actor-only arm, CTDE arm, benchmark replacement, retuning or five-run execution matrix authorized. **ONE FILE ONLY (`graph_rl_project_handoff.md`); `CLAUDE.md` untouched; no technical contract altered or reinterpreted; no source, test, config, preset, benchmark manifest or run artifact touched; no run; no ref moved or deleted; this record's own integrating merge SHA is deliberately NOT named** |
 | 2026-09-02 | **THE FINAL EARLY-STOPPING HANDOFF-STABILIZATION RECORD IS OPENED**, because merging PR #50 made this handoff's own present-tense ownership and base state stale the moment it landed — it still named the early-stopping POST-MERGE CLOSURE candidate as the sole writable task "while its DRAFT PR is open" and still gave live `main` as `f74c288175a1f8228407806bf5c8056beff75239`. **PR #50** — branch `task/generalized-v1-early-stopping-post-merge-closure`, reviewed candidate `a7d6dea5375a809e8b59aaee19f763f5769499ea` — was integrated by **NORMAL merge commit `e9cbd80244926680d90c81d9440753b89e22efdc`** (`2026-09-02 16:40:45 Asia/Jerusalem`), ordered parents `f74c288175a1f8228407806bf5c8056beff75239` then `a7d6dea5…`, reviewed candidate and integration sharing the IDENTICAL tree `88f3ce73c42f0c0680e1d62411816606b2b36dda`, with no rebase, squash, cherry-pick, force-push or history rewrite. **THE DESIGN CONSTRAINT OF THIS RECORD IS THAT IT MUST REMAIN TRUE AFTER ITS OWN INTEGRATION**, so it deliberately records `e9cbd802…` as the PR-#50 integration and this record's AUTHORING BASE and NEVER as a durable "live `main`", and it names no candidate or merge SHA of its own. **THE 2026-09-02 PR-#49 ENTRY IMMEDIATELY ABOVE STATES IN ITS CONSEQUENCE COLUMN THAT “Live `main` is `f74c288175a1f8228407806bf5c8056beff75239`”; that clause is SUPERSEDED as CURRENT state by this entry** — under §9.2 an earlier entry is never rewritten, only superseded, and `f74c2881…` is now a HISTORICAL integration and PR #50’s first parent, NOT live `main` | **PR #48, PR #49 AND PR #50 ARE ALL MERGED**, so the early-stopping IMPLEMENTATION, DOCUMENTATION / LOCK and POST-MERGE CLOSURE are COMPLETE and `training_reward_plateau_v1` is **BUILT / REVIEWED / APPROVED / INTEGRATED / DOCUMENTED / CLOSED**, still **OFF BY DEFAULT**, on the approved rule **`100` / `25` / `3` / `0.01`**, whose **175 completed iterations = 1400 successful episodes at 8 per iteration is the EARLIEST POSSIBLE stop, never an expected or guaranteed one**. **This record cannot embed its own future integration SHA under the `CLAUDE.md` §7 hash convention, so EVERY RECEIVING ORCHESTRATOR MUST RESOLVE THE EXACT LIVE `main` FROM GITHUB BEFORE ACTING** (§9.1). **While this final-stabilization PR is OPEN its branch is the sole writable repository task; ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS**, all FOUR early-stopping branches becoming retired, cleanup-only references pending a bounded ref-only cleanup that is repository HYGIENE, is a SEPARATE later operation, is NOT authorized here and does NOT displace the scientific next action — the fourth branch cleanup-eligible only from its own integration and NOT before — with **NO NEW TASK IMPLICITLY AUTHORIZED**. **R1 is UNTOUCHED, fixed-budget, with NO early stopping, and remains `AUTHORIZED / DISPATCHED — RESULT PENDING` and UNREVIEWED**; **no generalized CTDE run is authorized**; **checkpoint RESUME remains out of scope**; and **no scientific measurement result was produced by PR #48, PR #49, PR #50 or this record**. The ONE current scientific next action is UNCHANGED: **INDEPENDENT GPT ARTIFACT REVIEW of the actor-only R1 once its artifacts exist**, with no rerun, repair, resume, extension, new actor-only arm, CTDE arm, benchmark replacement, retuning or five-run execution matrix authorized, and the five future campaign items remain FUTURE, OPEN, UNDECIDED, UNAUTHORIZED and **NOT NEXT**. **ONE FILE ONLY (`graph_rl_project_handoff.md`); `CLAUDE.md` untouched; no technical contract altered or reinterpreted; no source, test, config, preset, benchmark manifest or run artifact touched; no run; no ref moved, deleted or repurposed — the preserved scientific / reference refs `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and `pre-cleanup` are UNTOUCHED** |
+| 2026-09-05 | **THE FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS EXECUTED, INDEPENDENTLY REVIEWED AND `APPROVE — VALID MEASUREMENT`** at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae` (§3n.1; `CLAUDE.md` §7 owns the authoritative record): 375/375 iterations and PPO updates, 3000 successful training episodes from 3045 attempts with 45 ordinary accounted `setup` failures ALL deterministically replaced, **ZERO integrity aborts**, 16 evaluation rounds, 864/864 benchmark members successful, 18/18 COMPLETE matched groups in EVERY round, and `accounting_reconciled = true`; a FIXED-BUDGET actor-only run with NO early stopping and NO CTDE arm, against the frozen comparator `manifest_id 0e15f007…fc0d` | **The FIRST scientifically valid GENERALIZED-V1 measurement, and its PRIMARY FD FINDING IS NEGATIVE** — no severity-conditioned mild-vs-severe learning; a GLOBAL move from ABORT toward PLAN across checkpoints while matched mild and severe worlds were treated almost identically. **A VALID NEGATIVE RESULT, NOT A VALIDITY DEFECT**, and **NOT** grounds to re-tune, re-seed, repair, resume, extend or re-run — **NO RERUN, REPAIR, RESUME, EXTENSION OR RETUNING IS AUTHORIZED.** It is **ONE** measurement: **NOT** a five-run population result and **NOT** an actor-only-vs-CTDE comparison, and **no CTDE benefit or deficit is established or may be pre-claimed.** **This SUPERSEDES, as CURRENT state only, every "R1 is `AUTHORIZED / DISPATCHED — RESULT PENDING`" and "NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS" statement**, each of which stays accurate as the record it was |
+| 2026-09-05 | **THE DIAGNOSTIC REPLAY IS RECORDED AS ENGINEERING / ANALYSIS EVIDENCE** (§3n.2), bundle `SHA-256 812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792`: REPLAY EQUIVALENT TO R1 on 108/108 actions, event ticks and ego ids; `fuel_norm` materially different in ALL 54 matched pairs; `reachable_by_ego` flipped in ALL 54; selected meta-action changed in **0/54**; mean absolute matched aggregate P(ABORT) delta `0.0001177037203753436`; joint-vs-aggregate argmax disagreement 54/108; mean task-distance clipping 98.15 %; normalized joint entropy still HIGH | **ENGINEERING / ANALYSIS EVIDENCE, NEVER A SECOND MEASUREMENT** — it schedules no population, defines no comparator and produces no verdict, and **no reward, learning or performance claim may be drawn from it.** **ACTION ALIASING AND WEAK ROUTE-RELATIVE OBSERVATION CONTEXT ARE SUSPECTS, NOT CAUSALLY PROVEN EXPLANATIONS**: it narrows where to look and authorizes no representation change, observation-feature change, normalizer change, new `MetaAction` or retuning |
+| 2026-09-05 | **THE DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS IMPLEMENTED, REVIEWED `APPROVE` (Grade A, `GPT_GITHUB`) AND INTEGRATED — PR #52**, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`, ordered parents `44530abb1cc3f99d01ac867c6621047ac9343661` then `81a148f8…`, integrated tree `86c3b04d104d38c6d6fc5c1e2bdda3bb5c1ab9b7` IDENTICAL to the reviewed candidate's; a cumulative FOUR-COMMIT append-only review chain over SEVEN files (§3n.3; contract in `CLAUDE.md` §5, routed §6, locked §7) | Future runs record per-wake actor diagnostics AT THE DECISION (episode-outcome schema v3 + wake-diagnostics schema v1), so the questions the R1 replay had to answer offline are answerable from durable artifacts — RAW per-wake records PERSISTED in `episode_outcomes.jsonl`, DERIVED summaries in `run_summary.json` and DERIVED plotting input for the figures. **REPORTING-ONLY: reporting consumers read it to persist and summarize it, but no acting, mask, belief, command, PPO/CTDE input, advantage, reward, optimizer, early-stopping, evaluation-scheduling or checkpoint-control path reads it back**; probabilities come from the actor's OWN shared `_masked_dist`; **no RNG draw, no gradient, no control path**; the three wake kinds are DISJOINT and tagged at the TRIGGER; train / pre_update / post_update stay SEPARATE populations; legacy v2 artifacts stay truthful; `fd_policy_sensitivity.png` is OPTIONAL and evaluation-only and `_PLOT_FILENAMES` still names exactly the three REQUIRED figures. **PR #52 produced NO scientific measurement and did NOT modify R1, its artifacts or its verdict** — R1's artifacts are schema v2 and carry no `wake_decisions` |
+| 2026-09-05 | **THIS R1-REVIEW + FD MEASUREMENT-HARDENING DOCUMENTATION LOCK IS OPENED**, because merging PR #52 and completing the R1 review made both documents' present-tense claims stale: they still said R1 was `AUTHORIZED / DISPATCHED — RESULT PENDING`, that NO generalized scientific measurement result existed, that no concrete R1 manifest had been reviewed as the comparator, and that the ONE next action was independent GPT artifact review of R1 — and they carried no contract, routing or lock for the merged PR-#52 layer | Documentation only, exactly two files, **no source, test, config, preset, manifest, artifact or workflow change, and no training, benchmark generation, replay, resume, repair, BONMIN run, CTDE work or scientific execution.** **THE NEXT ACTION CHANGES**: R1's review is DISCHARGED, and the ONE next thread is DESIGN / RESEARCH on **global-action representation, route-relative observation context and bounded cluster validation** — which must be EXPLICITLY opened and authorized and which this record neither opens nor schedules. **Once this record is integrated NO writable repository task remains and NO new task becomes implicitly authorized**; **five full cluster runs, a CTDE arm, resume / repair and ANY R1 rerun remain UNAUTHORIZED**; `p(destroy)` stays `1.0`; and `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and `pre-cleanup` remain PROTECTED and NEVER cleanup-eligible |
