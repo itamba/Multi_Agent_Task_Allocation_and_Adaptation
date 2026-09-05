@@ -366,7 +366,14 @@ from .graph_reward import (
     compute_episode_reward,
     reference_fault_aborts,
 )
-from .graph_tick_loop import build_policy, run_episode
+from .graph_tick_loop import (
+    WAKE_KIND_IMMEDIATE_FD,
+    WAKE_KIND_ORDINARY,
+    WAKE_KIND_POST_FD_BOUNDARY,
+    WAKE_KINDS,
+    build_policy,
+    run_episode,
+)
 from ..observation.central_graph_builder import CentralStateRecorder
 from ..action.graph_action import MetaAction
 from ...models import StepKind
@@ -383,6 +390,11 @@ _BASE_SCENARIO = _REPO_ROOT / "data" / "scenarios" / "strike_training_4v5.json"
 
 # The three meta-action columns, in enum order (0..2). Fixed key set for the counts.
 _META_NAMES = [MetaAction(i).name for i in range(len(MetaAction))]
+# The two meta-action names the FD-policy diagnostics report on by name. Bound to
+# the enum rather than typed as string literals, so a rename cannot silently turn a
+# reported rate into a lookup miss.
+_PLAN_NAME = MetaAction.PLAN_COMPLIANCE.name
+_ABORT_NAME = MetaAction.SELF_PRESERVATION_ABORT.name
 
 # Eval scenarios are tagged from here up, so their filenames / scenario names can never
 # collide with a training episode's global index g. Purely a NAMING offset: the tag is
@@ -514,7 +526,15 @@ _EPISODE_OUTCOME_SCHEMA = "graph_train_episode_outcome"
 # path the design is `fixed_cell_v1`, the reference policy is `static_t0_v1`, requested
 # equals realized, and the structures the historical policies do not produce are `null`
 # rather than a fabricated zero.
-_EPISODE_OUTCOME_VERSION = 2
+_EPISODE_OUTCOME_VERSION = 3
+# VERSION 3 adds the PER-WAKE ACTOR DIAGNOSTICS (`wake_decisions`, versioned by
+# `_WAKE_DIAGNOSTICS_VERSION`): for every recorded wake, why it happened, what the actor
+# saw and what the masked joint distribution actually looked like. It exists because the
+# R1 diagnostic replay had to reconstruct all of that OFFLINE from checkpoints, which is
+# only possible while the checkpoints, the manifest and the exact code SHA all still
+# exist together. It is REPORTING-ONLY and additive: a v2 record simply lacks the key,
+# and every reader below treats an absent key as "not recorded" rather than as zero.
+_WAKE_DIAGNOSTICS_VERSION = 1
 
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
@@ -550,6 +570,11 @@ _ARTIFACT_PHASE_TRAIN = "train"
 _ARTIFACT_PHASES = (
     _EVAL_STAGE_PRE_UPDATE, _ARTIFACT_PHASE_TRAIN, _EVAL_STAGE_POST_UPDATE,
 )
+# The two EVALUATION phases, as a set apart from training. Held-out evaluation is
+# deterministic on a frozen population while training is stochastic on a sampled one, so
+# a rate whose denominator mixes them describes neither. Every scientific severity
+# quantity below is taken over THIS tuple and never over `_ARTIFACT_PHASES`.
+_EVAL_PHASES = (_EVAL_STAGE_PRE_UPDATE, _EVAL_STAGE_POST_UPDATE)
 
 # --- PLOTS: one subdirectory, three semantically separate figures ---------------
 # The legacy single `training_plot.png` dashboard is GONE. It put the stochastic
@@ -563,6 +588,14 @@ _PLOT_PERFORMANCE = "training_performance.png"
 _PLOT_DIAGNOSTICS = "policy_diagnostics.png"
 _PLOT_MEASUREMENT_HEALTH = "measurement_health.png"
 _PLOT_FILENAMES = (_PLOT_PERFORMANCE, _PLOT_DIAGNOSTICS, _PLOT_MEASUREMENT_HEALTH)
+
+# The FD-policy-sensitivity figure is OPTIONAL and is deliberately NOT in
+# `_PLOT_FILENAMES`: that tuple is the REQUIRED set, and a shortfall against it is
+# reported as "plots incomplete". This figure is drawn only from episode-outcome schema
+# v3 `wake_decisions`, so a run directory written before that field existed legitimately
+# has three figures and must not be reported as broken.
+_PLOT_FD_SENSITIVITY = "fd_policy_sensitivity.png"
+_PLOT_OPTIONAL_FILENAMES = (_PLOT_FD_SENSITIVITY,)
 
 # Every figure shares ONE x-coordinate concept, stated on every figure so a reader never
 # has to infer it: the policy state a measurement describes, counted in PPO updates
@@ -2544,6 +2577,14 @@ def _episode_outcome_record(
         "reference_solver_termination": reference.get("solver_termination"),
         "reference_solver_seconds": reference.get("solver_seconds"),
         "reference_record": out.reference,
+        # --- PER-WAKE ACTOR DIAGNOSTICS (schema v3) --------------------------------
+        # One entry per recorded wake, in trajectory order, so future runs can be
+        # diagnosed WITHOUT an offline checkpoint replay. A successful ZERO-WAKE
+        # episode records `[]` -- a real, legitimate outcome of the event-triggered
+        # design, and deliberately not `null`, which would read as "not recorded".
+        "wake_diagnostics_schema_version": _WAKE_DIAGNOSTICS_VERSION,
+        "n_wake_decisions": len(_wake_decision_records(out.trajectory)),
+        "wake_decisions": _wake_decision_records(out.trajectory),
         # --- FROZEN-BENCHMARK identity (a manifest-driven eval member only) --------
         **(benchmark or _EMPTY_BENCHMARK_KEYS),
     }
@@ -2610,6 +2651,101 @@ def _append_episode_outcome_record(
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
         fh.flush()
+
+
+def _wake_decision_records(trajectory: List[Any]) -> List[Dict[str, Any]]:
+    """The per-wake diagnostic records of one trajectory, in wake order.
+
+    Reads ``Transition.decision``, which ``graph_tick_loop._wake_decision`` already
+    built from the SAME logits and mask the actor acted on. It recomputes NOTHING: a
+    second computation here could disagree with the decision that was really made, which
+    is the whole failure mode this record exists to remove.
+
+    A transition without the field (an older object, or a caller that constructed one by
+    hand) is SKIPPED rather than filled in with invented values.
+    """
+    out: List[Dict[str, Any]] = []
+    for tr in trajectory or ():
+        rec = getattr(tr, "decision", None)
+        if isinstance(rec, dict):
+            out.append(rec)
+    return out
+
+
+def _wake_diag_digest(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Aggregate a flat list of per-wake diagnostics. REPORTING-ONLY.
+
+    Every rate carries its own explicit denominator, and an EMPTY population reports
+    ``None`` rather than ``0.0`` -- on a rate, 0 is a measured value and would read as
+    "the actor never aborted" when the truth is "no wake of this kind occurred".
+
+    The two ABORT quantities are deliberately kept apart under names that cannot be
+    confused, because they answer different questions:
+
+    * ``selected_joint_cell_abort_fraction`` -- how often the actor's SELECTED joint
+      cell was an abort. This is what deterministic evaluation actually does.
+    * ``aggregate_p_abort_mean`` -- the mean total probability MASS on the abort column,
+      summed over its ``k`` cells. It is NOT the probability of the selected action and
+      must never be labelled as one.
+    """
+    n = len(records)
+    if n == 0:
+        return {
+            "n_wakes": 0,
+            "selected_meta_action_counts": {name: 0 for name in _META_NAMES},
+            "selected_joint_cell_abort_fraction": None,
+            "aggregate_p_abort_mean": None,
+            "aggregate_p_plan_mean": None,
+            "joint_entropy_raw_mean": None,
+            "joint_entropy_normalized_mean": None,
+            "n_joint_entropy_normalized_defined": 0,
+            "aggregate_meta_action_entropy_mean": None,
+            "joint_vs_aggregate_disagreement_fraction": None,
+            "n_valid_cells_mean": None,
+            "distance_clipping_fraction_mean": None,
+            "selected_node_ownership_counts": {},
+        }
+    counts = {name: 0 for name in _META_NAMES}
+    own: Dict[str, int] = {}
+    for r in records:
+        nm = str(r.get("selected_meta_action_name") or "")
+        if nm in counts:
+            counts[nm] += 1
+        o = str(r.get("selected_node_ownership") or "")
+        if o:
+            own[o] = own.get(o, 0) + 1
+
+    def _mean(key: str) -> Optional[float]:
+        vals = [r[key] for r in records
+                if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]
+        return (float(sum(vals)) / len(vals)) if vals else None
+
+    agg = [r.get("aggregate_probability_per_meta_action") or {} for r in records]
+    abort_mass = [float(a[_ABORT_NAME]) for a in agg if isinstance(a.get(_ABORT_NAME), (int, float))]
+    plan_mass = [float(a[_PLAN_NAME]) for a in agg if isinstance(a.get(_PLAN_NAME), (int, float))]
+    norm_ent = [float(r["joint_entropy_normalized"]) for r in records
+                if isinstance(r.get("joint_entropy_normalized"), (int, float))]
+    dis = [bool(r.get("joint_vs_aggregate_disagree")) for r in records
+           if r.get("joint_vs_aggregate_disagree") is not None]
+    return {
+        "n_wakes": n,
+        "selected_meta_action_counts": counts,
+        "selected_joint_cell_abort_fraction": float(counts[_ABORT_NAME]) / n,
+        "aggregate_p_abort_mean": (float(sum(abort_mass)) / len(abort_mass)) if abort_mass else None,
+        "aggregate_p_plan_mean": (float(sum(plan_mass)) / len(plan_mass)) if plan_mass else None,
+        "joint_entropy_raw_mean": _mean("joint_entropy_raw"),
+        # Normalization is UNDEFINED for a single valid cell, so that wake contributes
+        # to neither the mean nor its denominator, and the denominator is reported.
+        "joint_entropy_normalized_mean": (
+            (float(sum(norm_ent)) / len(norm_ent)) if norm_ent else None),
+        "n_joint_entropy_normalized_defined": len(norm_ent),
+        "aggregate_meta_action_entropy_mean": _mean("aggregate_meta_action_entropy"),
+        "joint_vs_aggregate_disagreement_fraction": (
+            (float(sum(1 for d in dis if d)) / len(dis)) if dis else None),
+        "n_valid_cells_mean": _mean("n_valid_cells"),
+        "distance_clipping_fraction_mean": _mean("fraction_task_distance_clipped"),
+        "selected_node_ownership_counts": own,
+    }
 
 
 def _empty_meta_counts() -> Dict[str, int]:
@@ -7340,6 +7476,141 @@ def _sum_field(records: List[Dict[str, Any]], key: str, fallback: str) -> int:
     return sum(int(rec.get(key, rec.get(fallback, 0)) or 0) for rec in records)
 
 
+# The COMPLETE identity a final-evaluation selection is allowed to rely on. All three
+# are required: the stage says which kind of round it was, `updates_completed` says which
+# policy state it measured, and the ordinal says which round it was. Two of the three do
+# not identify a round -- two rounds can share an update count -- and none of them can be
+# inferred from a record's POSITION in a file, which is a fact about the writer.
+_FINAL_EVAL_IDENTITY_FIELDS = (
+    "evaluation_stage", "updates_completed", "eval_round_ordinal",
+)
+
+
+# The ONE refusal reason for a final-evaluation identity that is not complete. Shared by
+# `_select_final_eval_record` (over the eval RECORDS) and `_select_final_matched_round`
+# (over the digest), so "incomplete" cannot come to mean two different things.
+_INCOMPLETE_FINAL_EVAL_IDENTITY = "incomplete_evaluation_identity"
+
+
+def _final_eval_identity(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The complete round identity of ONE eval record, or ``None`` if incomplete.
+
+    Strict on TYPE as well as presence: a stage outside :data:`_EVAL_PHASES` is not an
+    evaluation round, and a ``bool`` is rejected where an ``int`` is required (``True``
+    would otherwise pass as update count 1). Returning ``None`` rather than a partially
+    filled dict is what lets the caller refuse instead of ordering on a guess.
+    """
+    stage = record.get("evaluation_stage")
+    updates = record.get("updates_completed")
+    ordinal = record.get("eval_round_ordinal")
+    if not isinstance(stage, str) or stage not in _EVAL_PHASES:
+        return None
+    if not isinstance(updates, int) or isinstance(updates, bool):
+        return None
+    if not isinstance(ordinal, int) or isinstance(ordinal, bool):
+        return None
+    return {
+        "evaluation_stage": str(stage),
+        "updates_completed": int(updates),
+        "eval_round_ordinal": int(ordinal),
+    }
+
+
+def _select_final_eval_record(
+    eval_records: List[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Select THE final evaluation round SEMANTICALLY. Never ``eval_records[-1]``.
+
+    ``eval_records[-1]`` is the last row a file happens to hold. That is a property of
+    the writer, not of the run: re-reading the same rounds in another order, or a reader
+    that concatenates two artifacts, would silently relabel a different round as "final"
+    and every ``final_eval_*`` number in the summary with it. Nothing about such a
+    summary would look wrong.
+
+    The round is therefore chosen by the highest ``eval_round_ordinal`` -- the run's own
+    monotone round counter -- with ``updates_completed`` used as a CROSS-CHECK rather
+    than as a second ordering: the selected round must also hold the maximum update
+    count, because a run whose latest round measured an earlier policy state is an
+    artifact whose two orderings contradict each other.
+
+    It REFUSES, with an explicit reason, rather than guessing:
+
+    * ``no_evaluation_records`` -- nothing to select from (evaluation disabled, or none
+      completed). Not an error, and not an empty round either.
+    * ``incomplete_evaluation_identity`` -- some record does not state all three of
+      :data:`_FINAL_EVAL_IDENTITY_FIELDS`. An unorderable row in the population makes
+      "the last round" unanswerable, so the answer is refused rather than taken from the
+      rows that happen to be well-formed.
+    * ``ambiguous_identity_duplicate_rounds`` -- two records claim the SAME identity.
+    * ``ambiguous_highest_round_ordinal`` -- two records share the highest ordinal, so
+      the tie could only be broken by position.
+    * ``contradictory_ordering_ordinal_vs_updates_completed`` -- the highest-ordinal
+      round does not carry the highest update count.
+
+    Returns ``(record_or_None, selection_record)``. The selection record is PERSISTED in
+    the summary, so a refusal is visible as a stated reason rather than as a field that
+    is quietly ``None``.
+    """
+    rows = list(eval_records or ())
+    if not rows:
+        return None, {"selected": False, "reason": "no_evaluation_records",
+                      "n_eval_records": 0}
+
+    idents = [_final_eval_identity(r) for r in rows]
+    n_missing = sum(1 for i in idents if i is None)
+    if n_missing:
+        return None, {
+            "selected": False,
+            "reason": _INCOMPLETE_FINAL_EVAL_IDENTITY,
+            "required_fields": list(_FINAL_EVAL_IDENTITY_FIELDS),
+            "n_eval_records": len(rows),
+            "n_records_missing_identity": n_missing,
+        }
+
+    keys = [(i["evaluation_stage"], i["updates_completed"], i["eval_round_ordinal"])
+            for i in idents]
+    n_duplicated = len(keys) - len(set(keys))
+    if n_duplicated:
+        return None, {
+            "selected": False,
+            "reason": "ambiguous_identity_duplicate_rounds",
+            "n_eval_records": len(rows),
+            "n_duplicate_identity_records": n_duplicated,
+        }
+
+    max_ordinal = max(i["eval_round_ordinal"] for i in idents)
+    finalists = [n for n, i in enumerate(idents)
+                 if i["eval_round_ordinal"] == max_ordinal]
+    if len(finalists) != 1:
+        return None, {
+            "selected": False,
+            "reason": "ambiguous_highest_round_ordinal",
+            "n_eval_records": len(rows),
+            "highest_round_ordinal": max_ordinal,
+            "n_candidates": len(finalists),
+        }
+
+    best = finalists[0]
+    max_updates = max(i["updates_completed"] for i in idents)
+    if idents[best]["updates_completed"] != max_updates:
+        return None, {
+            "selected": False,
+            "reason": "contradictory_ordering_ordinal_vs_updates_completed",
+            "n_eval_records": len(rows),
+            "highest_round_ordinal_identity": idents[best],
+            "max_updates_completed": max_updates,
+        }
+
+    return rows[best], {
+        "selected": True,
+        "reason": "selected_by_validated_identity",
+        "ordered_by": ("highest eval_round_ordinal, cross-checked against "
+                       "updates_completed"),
+        "n_eval_records": len(rows),
+        "identity": idents[best],
+    }
+
+
 def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """The reportable core of one eval round -- ALWAYS carrying its denominator.
 
@@ -7352,6 +7623,10 @@ def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     return {
         "evaluation_stage": record.get("evaluation_stage"),
         "updates_completed": record.get("updates_completed"),
+        # The round's own ordinal, so this digest states a COMPLETE round identity --
+        # stage + update count + ordinal. Without it a consumer can only find the round
+        # again by position in the file, which is a fact about the writer.
+        "eval_round_ordinal": record.get("eval_round_ordinal"),
         "iteration": record.get("iteration"),
         "n_attempted": record.get("n_attempted", record.get("n_episodes")),
         "n_successful": record.get("n_successful", record.get("n_ok")),
@@ -7402,6 +7677,350 @@ def _eval_digest(record: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
             for cell in (record.get("eval_group_cells") or list(CONDITIONS))
             if record.get("eval_n_%s_fd_wakes" % cell) is not None
         },
+    }
+
+
+def _wake_population_block(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Split ONE already-selected population of outcome records by wake kind and cell.
+
+    It takes the population as an ARGUMENT and selects nothing itself, so the caller --
+    and only the caller -- decides which phase, stage or round the block describes. That
+    is deliberate: the defect this replaces was a block that quietly pooled training and
+    held-out evaluation rows under a name that mentioned neither.
+    """
+    by_kind: Dict[str, List[Dict[str, Any]]] = {k: [] for k in WAKE_KINDS}
+    by_kind_cell: Dict[str, Dict[str, List[Dict[str, Any]]]] = {k: {} for k in WAKE_KINDS}
+    n_by_kind: Dict[str, int] = {k: 0 for k in WAKE_KINDS}
+    for rec in rows:
+        cell = str(rec.get("cell", CONDITION_CLEAN))
+        for d in rec.get("wake_decisions") or ():
+            kind = str(d.get("wake_kind") or WAKE_KIND_ORDINARY)
+            by_kind.setdefault(kind, []).append(d)
+            by_kind_cell.setdefault(kind, {}).setdefault(cell, []).append(d)
+            n_by_kind[kind] = n_by_kind.get(kind, 0) + 1
+    return {
+        "n_episode_records": len(rows),
+        "n_wakes_by_kind": {k: n_by_kind.get(k, 0) for k in by_kind},
+        "by_wake_kind": {k: _wake_diag_digest(v) for k, v in by_kind.items()},
+        "by_wake_kind_and_cell": {
+            k: {c: _wake_diag_digest(v) for c, v in cells.items()}
+            for k, cells in by_kind_cell.items()},
+    }
+
+
+def _round_identity(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """The FULL evaluation identity of one outcome record, as plain builtins.
+
+    A benchmark ``group_key`` alone is NOT an identity: the SAME frozen world group is
+    re-measured in EVERY evaluation round, so keying a matched table on it collapses
+    every round of a run into one bucket and silently turns repeated measures of one
+    world into what reads like independent worlds. The identity is therefore the
+    evaluation STAGE, the update count, the round ordinal and the manifest the round was
+    drawn from; the group key identifies the WORLD *within* that round.
+    """
+    return {
+        "evaluation_stage": (None if rec.get("phase") is None else str(rec.get("phase"))),
+        "updates_completed": (None if rec.get("updates_completed") is None
+                              else int(rec.get("updates_completed"))),
+        "eval_round_ordinal": (None if rec.get("eval_round_ordinal") is None
+                               else int(rec.get("eval_round_ordinal"))),
+        "benchmark_manifest_id": (None if rec.get("benchmark_manifest_id") is None
+                                  else str(rec.get("benchmark_manifest_id"))),
+    }
+
+
+def _immediate_fd_abort_mass(rec: Dict[str, Any]) -> Optional[float]:
+    """Mean AGGREGATE P(ABORT) over this record's IMMEDIATE-FD wakes, or ``None``.
+
+    ``None`` -- never ``0.0`` -- when the record has no immediate-FD wake at all: on a
+    probability mass 0 is a measured value and would read as "the actor put no weight on
+    aborting" when the truth is "this episode was never asked".
+    """
+    mass = [float(d["aggregate_probability_per_meta_action"][_ABORT_NAME])
+            for d in rec.get("wake_decisions") or ()
+            if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD
+            and isinstance((d.get("aggregate_probability_per_meta_action") or {})
+                           .get(_ABORT_NAME), (int, float))]
+    return (float(sum(mass)) / len(mass)) if mass else None
+
+
+def _matched_rounds(eval_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Per-ROUND matched severe-minus-mild aggregate P(ABORT). EVALUATION rows only.
+
+    Pairing uses the FULL evaluation identity (:func:`_round_identity`) plus
+    ``benchmark_group_key``: a group contributes a delta only when its MILD and SEVERE
+    members are present IN THE SAME ROUND. Two rounds that measure the same frozen world
+    therefore produce two independent deltas rather than one mixed number, and the order
+    the records happen to appear in the file cannot change either of them.
+    """
+    rounds: Dict[Any, Dict[str, Any]] = {}
+    for rec in eval_rows:
+        gkey = rec.get("benchmark_group_key")
+        if not gkey:
+            continue
+        mass = _immediate_fd_abort_mass(rec)
+        if mass is None:
+            continue
+        ident = _round_identity(rec)
+        key = (ident["evaluation_stage"], ident["updates_completed"],
+               ident["eval_round_ordinal"], ident["benchmark_manifest_id"])
+        slot = rounds.setdefault(key, {"identity": ident, "groups": {}})
+        slot["groups"].setdefault(str(gkey), {})[
+            str(rec.get("cell", ""))] = mass
+
+    out: List[Dict[str, Any]] = []
+    for key in sorted(rounds, key=lambda t: tuple(
+            (v is None, v) for v in t)):
+        slot = rounds[key]
+        deltas = [v[SEVERITY_SEVERE] - v[SEVERITY_MILD]
+                  for v in slot["groups"].values()
+                  if SEVERITY_MILD in v and SEVERITY_SEVERE in v]
+        rec_out = dict(slot["identity"])
+        rec_out.update({
+            "n_groups_with_immediate_fd_wakes": len(slot["groups"]),
+            "n": len(deltas),
+            "mean": (float(sum(deltas)) / len(deltas)) if deltas else None,
+            "min": (min(deltas) if deltas else None),
+            "max": (max(deltas) if deltas else None),
+        })
+        out.append(rec_out)
+    return out
+
+
+def _select_final_matched_round(
+    rounds: List[Dict[str, Any]],
+    final_eval: Optional[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Pick the round the FINAL evaluation digest names, BY COMPLETE VALIDATED IDENTITY.
+
+    Never by file order. ``eval_records[-1]`` is the last row a file happens to hold,
+    which is a statement about the writer, not about which round is final. So the round
+    is matched against the digest's own identity -- and against ALL THREE of
+    :data:`_FINAL_EVAL_IDENTITY_FIELDS`, never a subset of whichever ones happen to be
+    present.
+
+    THE SUBSET IS THE DANGEROUS CASE, which is why it is refused rather than tolerated.
+    A digest missing its ordinal still carries a stage and an update count, and those two
+    very often single out exactly one round -- so a subset match SUCCEEDS, returns a
+    round, and produces a "final round" that was selected on an identity nobody
+    validated. That is indistinguishable from a correct selection in the artifact. A
+    partial identity therefore refuses with :data:`_INCOMPLETE_FINAL_EVAL_IDENTITY`
+    even when the remaining fields would have been unique.
+
+    :func:`_final_eval_identity` is the SINGLE validator, shared with
+    :func:`_select_final_eval_record`: one definition of "a complete round identity",
+    one set of type rules (stage in :data:`_EVAL_PHASES`, ``int`` update count and
+    ordinal, ``bool`` rejected), so the two selectors cannot come to disagree about what
+    a valid identity is.
+    """
+    if not final_eval:
+        return None, {"selected": False, "reason": "no_final_evaluation_digest_provided"}
+    requested = {k: final_eval.get(k) for k in _FINAL_EVAL_IDENTITY_FIELDS}
+    identity = _final_eval_identity(final_eval)
+    if identity is None:
+        return None, {
+            "selected": False,
+            "reason": _INCOMPLETE_FINAL_EVAL_IDENTITY,
+            "required_fields": list(_FINAL_EVAL_IDENTITY_FIELDS),
+            "requested_identity": requested,
+        }
+    # ALL THREE fields, always. `identity` is already normalized by the validator, so
+    # this compares like for like without re-coercing anything here.
+    hits = [r for r in rounds
+            if all(r.get(k) == identity[k] for k in _FINAL_EVAL_IDENTITY_FIELDS)]
+    if len(hits) == 1:
+        return hits[0], {"selected": True, "reason": "matched_by_validated_identity",
+                         "requested_identity": requested,
+                         "matched_identity": identity, "n_candidates": 1}
+    return None, {
+        "selected": False,
+        "reason": ("no_matched_round_with_that_identity" if not hits
+                   else "ambiguous_identity_matched_several_rounds"),
+        "requested_identity": requested,
+        "n_candidates": len(hits),
+    }
+
+
+def _fd_policy_sensitivity_from_outcomes(
+    outcome_records: List[Dict[str, Any]],
+    *,
+    final_eval: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """The FD-policy-sensitivity digest, DERIVED FROM THE DURABLE PER-ATTEMPT STREAM.
+
+    ONE metric path, exactly as :func:`_severity_response_from_outcomes` already is: the
+    summary reads ``episode_outcomes.jsonl`` rather than a parallel in-memory aggregate,
+    so it cannot describe a run its own artifacts do not.
+
+    **THREE POPULATIONS, KEPT APART BY PHASE.** ``train``, ``pre_update`` and
+    ``post_update`` each get their OWN block under ``by_phase`` and are never averaged
+    together. The distinction is not cosmetic: training episodes are drawn by a
+    stochastic actor from a sampled population, held-out evaluation is deterministic on a
+    frozen one, and a rate whose denominator mixes the two describes neither. A pooled
+    view is still available, but only under ``all_phases_pooled`` -- a name that states
+    what it did.
+
+    **THREE WAKE KINDS, ALSO KEPT APART** -- ``ordinary``, ``immediate_fuel_damage`` and
+    ``post_fd_boundary`` -- because an approved measurement is reported over the
+    immediate-FD population alone, and a boundary decision folded into it would change
+    what that measurement means. Within each, the digest is additionally split by the
+    episode's reporting CELL (clean / mild / severe, or clean / damaged on a legacy run).
+
+    **MATCHED PAIRING USES THE FULL EVALUATION IDENTITY**, never ``benchmark_group_key``
+    alone and never a target uuid: the same frozen world group is re-measured every
+    round, so the round is part of what identifies a measurement. Deltas are reported
+    PER ROUND, the cross-round pool is explicitly flagged as repeated measures, and the
+    final round is selected by validated identity rather than by file order.
+
+    **SCHEMA VERSIONS ARE OBSERVED, NOT ASSERTED.** The version reported is the one the
+    records actually carry, so a legacy artifact cannot be described by this writer's
+    current constants.
+
+    Returns ``{"recorded": False, ...}`` when no record carries the v3 field -- a
+    truthful "not recorded", never a table of fabricated zeros.
+    """
+    rows = list(outcome_records or [])
+    with_diag = [r for r in rows if isinstance(r.get("wake_decisions"), list)]
+    observed_versions = sorted({
+        int(r["wake_diagnostics_schema_version"]) for r in with_diag
+        if isinstance(r.get("wake_diagnostics_schema_version"), int)
+        and not isinstance(r.get("wake_diagnostics_schema_version"), bool)})
+    if not with_diag:
+        return {
+            "recorded": False,
+            "source": _EPISODE_OUTCOMES_FILENAME,
+            "wake_diagnostics_schema_version_writer": _WAKE_DIAGNOSTICS_VERSION,
+            "wake_diagnostics_schema_versions_observed": [],
+            "wake_diagnostics_schema_version_observed": None,
+            "note": ("no episode_outcomes record carries `wake_decisions`; this run "
+                     "predates episode-outcome schema v3"),
+        }
+
+    by_phase: Dict[str, Dict[str, Any]] = {}
+    phases_seen = list(_ARTIFACT_PHASES) + sorted(
+        {str(r.get("phase")) for r in with_diag
+         if str(r.get("phase")) not in _ARTIFACT_PHASES})
+    for phase in phases_seen:
+        by_phase[phase] = _wake_population_block(
+            [r for r in with_diag if str(r.get("phase")) == phase])
+
+    eval_rows = [r for r in with_diag if str(r.get("phase")) in _EVAL_PHASES]
+    rounds = _matched_rounds(eval_rows)
+    final_round, selection = _select_final_matched_round(rounds, final_eval)
+    pooled = [d for r in rounds for d in ([r["mean"]] if r["n"] else [])]
+    all_deltas_n = sum(int(r["n"]) for r in rounds)
+
+    return {
+        "recorded": True,
+        "source": _EPISODE_OUTCOMES_FILENAME,
+        "wake_diagnostics_schema_version_writer": _WAKE_DIAGNOSTICS_VERSION,
+        "wake_diagnostics_schema_versions_observed": observed_versions,
+        "wake_diagnostics_schema_version_observed": (
+            observed_versions[0] if len(observed_versions) == 1 else None),
+        "n_episode_records_with_diagnostics": len(with_diag),
+        "phases": list(_ARTIFACT_PHASES),
+        "evaluation_phases": list(_EVAL_PHASES),
+        "populations_note": (
+            "train / pre_update / post_update are SEPARATE populations and are never "
+            "averaged together; `all_phases_pooled` is the only pooled view and says so "
+            "in its own name"),
+        "by_phase": by_phase,
+        "all_phases_pooled": {
+            "note": ("TRAINING AND HELD-OUT EVALUATION POOLED -- a mixed denominator, "
+                     "kept only as a coarse run-wide count. No scientific severity "
+                     "claim is made from it; use `by_phase` instead"),
+            **_wake_population_block(with_diag),
+        },
+        "matched_severe_minus_mild_aggregate_p_abort": {
+            "population": "evaluation records only (%s)" % ", ".join(_EVAL_PHASES),
+            "pairing": ("full evaluation identity (evaluation stage, updates_completed, "
+                        "eval round ordinal, benchmark manifest id) + "
+                        "benchmark_group_key"),
+            "over": "world_groups_with_both_mild_and_severe_present_in_the_same_round",
+            "n_rounds": len(rounds),
+            "by_round": rounds,
+            "pooled_across_rounds": {
+                "n_rounds_with_deltas": len(pooled),
+                "n_group_deltas": all_deltas_n,
+                "mean_of_round_means": (
+                    (float(sum(pooled)) / len(pooled)) if pooled else None),
+                "min_round_mean": (min(pooled) if pooled else None),
+                "max_round_mean": (max(pooled) if pooled else None),
+                "totals_across_rounds_are_repeated_measures": True,
+            },
+            "final_round": final_round,
+            "final_round_selection": selection,
+        },
+        "metric_semantics": {
+            "selected_joint_cell_abort_fraction":
+                "fraction of wakes whose SELECTED joint (node, meta) cell was an abort "
+                "-- what deterministic evaluation actually does",
+            "aggregate_p_abort_mean":
+                "mean TOTAL probability mass on the abort column, summed over its k "
+                "cells. NOT the probability of the selected action",
+            "joint_entropy_raw_mean":
+                "entropy of the joint (node, meta-action) distribution, in nats, "
+                "cardinality-dependent",
+            "joint_entropy_normalized_mean":
+                "the same entropy divided by log(valid cell count); undefined (and "
+                "excluded) when fewer than two cells are valid",
+        },
+    }
+
+
+def _observed_artifact_schema(
+    outcome_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """What schema the DURABLE records actually carry -- OBSERVED, never asserted.
+
+    Reporting this writer's own ``_EPISODE_OUTCOME_VERSION`` as a run directory's schema
+    is false whenever the two differ, and it differs exactly when it matters: summarizing
+    a LEGACY run written before the current writer existed. A reader would then be told
+    a v2 artifact is v3 and that wake diagnostics are present when the file has none.
+
+    Three states are reported explicitly and never collapsed:
+    ``no_records`` (nothing to observe -- the observed version is ``None``, not a
+    default), ``uniform`` (every record agrees), and ``mixed`` (a run directory whose
+    records disagree, which is a fact about the artifact and must not be averaged away).
+    The writer's own constants are still reported, under names that say so.
+    """
+    rows = list(outcome_records or [])
+    versions = sorted({
+        int(r["schema_version"]) for r in rows
+        if isinstance(r.get("schema_version"), int)
+        and not isinstance(r.get("schema_version"), bool)})
+    n_unversioned = sum(
+        1 for r in rows
+        if not isinstance(r.get("schema_version"), int)
+        or isinstance(r.get("schema_version"), bool))
+    with_diag = [r for r in rows if isinstance(r.get("wake_decisions"), list)]
+    diag_versions = sorted({
+        int(r["wake_diagnostics_schema_version"]) for r in with_diag
+        if isinstance(r.get("wake_diagnostics_schema_version"), int)
+        and not isinstance(r.get("wake_diagnostics_schema_version"), bool)})
+    if not rows:
+        state = "no_records"
+    elif len(versions) == 1 and n_unversioned == 0:
+        state = "uniform"
+    else:
+        state = "mixed"
+    return {
+        "state": state,
+        "source": _EPISODE_OUTCOMES_FILENAME,
+        "n_episode_outcome_records": len(rows),
+        "n_records_without_schema_version": n_unversioned,
+        "episode_outcome_schema_versions_observed": versions,
+        "episode_outcome_schema_version_observed": (
+            versions[0] if state == "uniform" else None),
+        "n_records_with_wake_decisions": len(with_diag),
+        "wake_diagnostics_recorded": bool(with_diag),
+        "wake_diagnostics_schema_versions_observed": diag_versions,
+        "wake_diagnostics_schema_version_observed": (
+            diag_versions[0] if len(diag_versions) == 1 else None),
+        # The CURRENT writer, reported under names that cannot be read as an
+        # observation of the artifact.
+        "episode_outcome_schema_version_writer": _EPISODE_OUTCOME_VERSION,
+        "wake_diagnostics_schema_version_writer": _WAKE_DIAGNOSTICS_VERSION,
     }
 
 
@@ -7928,6 +8547,25 @@ def _summarize(
     # summary states nothing the artifacts do not.
     outcome_rows = list(outcome_records or [])
     severity_response = _severity_response_from_outcomes(outcome_rows)
+    observed_artifact_schema = _observed_artifact_schema(outcome_rows)
+    # The final EVALUATION round is identified ONCE, here, and the same digest is both
+    # reported as `final_eval` below and handed to the sensitivity table -- so the two
+    # cannot name different rounds, and the sensitivity table's "final round" is chosen
+    # by that validated identity rather than by which record the file happens to end on.
+    # THE final round is chosen SEMANTICALLY, once, here -- never `eval_records[-1]`.
+    # The same selected record drives `final_eval`, every `final_eval_*` scalar below,
+    # and the FD-sensitivity table's own final-round pick, so the three cannot name
+    # different rounds; and a refusal is persisted as a stated reason.
+    final_eval_record, final_eval_selection = _select_final_eval_record(eval_records)
+    final_eval_digest = _eval_digest(final_eval_record)
+    fd_policy_sensitivity = _fd_policy_sensitivity_from_outcomes(
+        outcome_rows, final_eval=final_eval_digest)
+    # THE SAME ELIGIBILITY RULE THE FIGURE ITSELF APPLIES. `_plot_fd_policy_sensitivity`
+    # returns `None` on exactly this condition, so declaring the optional figure from
+    # `fd_policy_sensitivity["recorded"]` -- which is true as soon as ANY record, a
+    # TRAINING one included, carries wake diagnostics -- would promise a file a
+    # train-only or evaluation-disabled run never writes.
+    fd_sensitivity_plot_data = _fd_sensitivity_plot_data(outcome_rows)
 
     run_path = Path(run_dir)
     summary: Dict[str, Any] = {
@@ -8013,8 +8651,14 @@ def _summarize(
         # fallback for a run whose records predate the field, and `None` only when
         # neither can say -- never a guessed default that a reader could not distinguish
         # from a measured one.
+        # A RUN-INVARIANT (`pair` or `triad`), identical in every round, so this is a
+        # label rather than a measurement. It is still read from the SELECTED round
+        # whenever one exists, so it cannot depend on record order; the positional
+        # expression survives only as the fallback for a record set the selector
+        # refused, and the config remains the last resort.
         "eval_group_kind": (
-            (eval_records[-1].get("eval_group_kind") if eval_records else None)
+            ((final_eval_record or (eval_records[-1] if eval_records else None) or {})
+             .get("eval_group_kind"))
             or (None if cfg is None else cfg.eval_group_kind)
         ),
         "eval_group_cells": list(reported_cells),
@@ -8029,6 +8673,20 @@ def _summarize(
         "severity_response": severity_response,
         "severity_response_source": _EPISODE_OUTCOMES_FILENAME,
         "episode_outcomes_recorded": len(outcome_rows),
+        # PER-WAKE ACTOR DIAGNOSTICS (episode-outcome schema v3), derived from the SAME
+        # durable stream. `recorded: false` -- never a table of zeros -- for a run
+        # directory written before the field existed.
+        #
+        # THE SCHEMA REPORTED HERE IS OBSERVED FROM THE RECORDS, NEVER THIS WRITER'S OWN
+        # CONSTANTS. `build_run_summary` runs on ANY run directory, including one written
+        # by an older writer, so stamping the current constants would tell a reader that
+        # a legacy v2 artifact is v3 and that it carries wake diagnostics it does not.
+        # The writer's constants are still reported, inside the block, under `_writer`
+        # names that cannot be mistaken for an observation.
+        "observed_artifact_schema": observed_artifact_schema,
+        "wake_diagnostics_source": _EPISODE_OUTCOMES_FILENAME,
+        "wake_kinds": list(WAKE_KINDS),
+        "fd_policy_sensitivity": fd_policy_sensitivity,
         # WHICH POPULATION this run drew from. Recorded on BOTH designs, and taken from
         # the config rather than guessed from the records, so a run with zero completed
         # episodes still states its design.
@@ -8048,35 +8706,42 @@ def _summarize(
         # the LEGACY damaged-minus-clean key and is `null` for a triad run, whose three
         # named deltas are in `final_eval_group_deltas`.
         "final_eval_paired_reward_delta": (
-            eval_records[-1].get("eval_paired_reward_delta") if eval_records else None
+            final_eval_record.get("eval_paired_reward_delta")
+            if final_eval_record else None
         ),
         "final_eval_group_deltas": (
-            {key: eval_records[-1].get(key)
-             for key in (eval_records[-1].get("eval_delta_keys") or [])}
-            if eval_records else None
+            {key: final_eval_record.get(key)
+             for key in (final_eval_record.get("eval_delta_keys") or [])}
+            if final_eval_record else None
         ),
         "final_eval_groups_successful": (
-            eval_records[-1].get("n_groups_successful",
-                                 eval_records[-1].get("n_pairs_successful"))
-            if eval_records else None
+            final_eval_record.get("n_groups_successful",
+                                  final_eval_record.get("n_pairs_successful"))
+            if final_eval_record else None
         ),
         "final_eval_groups_attempted": (
-            eval_records[-1].get("n_groups_attempted",
-                                 eval_records[-1].get("n_pairs_attempted"))
-            if eval_records else None
+            final_eval_record.get("n_groups_attempted",
+                                  final_eval_record.get("n_pairs_attempted"))
+            if final_eval_record else None
         ),
         "final_eval_pairs_successful": (
-            eval_records[-1].get("n_pairs_successful") if eval_records else None
+            final_eval_record.get("n_pairs_successful")
+            if final_eval_record else None
         ),
         "final_eval_pairs_attempted": (
-            eval_records[-1].get("n_pairs_attempted") if eval_records else None
+            final_eval_record.get("n_pairs_attempted")
+            if final_eval_record else None
         ),
         "accounting_reconciled": (
             ledger_train == train_failed and ledger_eval == eval_failed
         ),
         # --- held-out results, each with its denominator ---
         "initial_pre_update_eval": _eval_digest(pre_update),
-        "final_eval": _eval_digest(eval_records[-1] if eval_records else None),
+        "final_eval": final_eval_digest,
+        # WHICH round `final_eval` and every `final_eval_*` field above came from, or
+        # WHY none could be chosen. Persisted so a refusal reads as a stated reason
+        # rather than as a set of quietly null fields.
+        "final_eval_selection": final_eval_selection,
         "eval_reward_best": max(eval_means) if eval_means else None,
         # --- training reward over the MEASURED iterations only ---
         "train_reward_first": measured[0] if measured else None,
@@ -8101,6 +8766,22 @@ def _summarize(
         "plot_paths": {
             name: str(_plots_dir(run_path) / name) for name in _PLOT_FILENAMES
         },
+        # The OPTIONAL figures. Keyed off whether this run's DATA supports the figure,
+        # not off whether the file exists yet: `build_run_summary` runs BEFORE
+        # `plot_training_subprocess`, so an existence test here would always be empty.
+        # That is also exactly the convention `plot_paths` above already follows -- it
+        # DECLARES where a figure belongs rather than stat-ing for it. Empty (never
+        # null-valued) for a run whose data does not support the figure, so a reader
+        # never mistakes "not applicable" for "failed to render".
+        #
+        # THE PREDICATE IS THE FIGURE'S OWN: `_fd_sensitivity_plot_data(...)["recorded"]`
+        # is precisely the condition `_plot_fd_policy_sensitivity` returns `None` on, so
+        # a v3 TRAIN-ONLY or evaluation-disabled run declares nothing. Using the digest's
+        # broader `recorded` flag instead would declare a figure that is never written.
+        "optional_plot_paths": (
+            {_PLOT_FD_SENSITIVITY: str(_plots_dir(run_path) / _PLOT_FD_SENSITIVITY)}
+            if fd_sensitivity_plot_data.get("recorded") else {}
+        ),
     }
     # Pre-B4 names, kept so an existing reader of a summary still resolves.
     summary["total_train_episodes"] = train_attempted
@@ -8606,9 +9287,15 @@ def _plot_policy_diagnostics(
     ax = axes[1]
     ax.plot(train_x, entropies, color="tab:brown", linewidth=1.6,
             marker=".", markersize=4)
-    ax.set_ylabel("policy entropy (nats)")
-    ax.set_title("Policy entropy per TRAINING batch (collapse detector for the mix "
-                 "above)", fontsize=11)
+    # LABEL ONLY -- the plotted series is byte-unchanged. It is the RAW entropy of the
+    # JOINT (node, meta-action) distribution over the k x 3 surface, so it grows with the
+    # number of valid cells and is NOT comparable across episodes of different task-node
+    # counts. The cardinality-normalized form lives on `fd_policy_sensitivity.png`.
+    ax.set_ylabel("raw joint (node, meta-action) entropy (nats)")
+    ax.set_title("RAW JOINT (node, meta-action) policy entropy per TRAINING batch "
+                 "-- CARDINALITY-DEPENDENT, so not comparable across differing "
+                 "task-node counts (collapse detector for the mix above; the "
+                 "normalized form is on %s)" % _PLOT_FD_SENSITIVITY, fontsize=10)
     ax.grid(alpha=0.25)
 
     # --- Panel 3: the FD-wake severity response (the primary behavioural measurement)
@@ -8651,6 +9338,255 @@ def _plot_policy_diagnostics(
     out_path = plots_dir / _PLOT_DIAGNOSTICS
     fig.savefig(out_path, dpi=140)
     plt.close(fig)
+    return out_path
+
+
+# The four per-cell series `fd_policy_sensitivity.png` draws, plus the disagreement
+# series, named once so the figure and its test read the SAME keys.
+_FD_SENSITIVITY_SERIES_KEYS = (
+    "selected_joint_cell_abort_fraction",
+    "aggregate_p_abort_mean",
+    "joint_entropy_normalized_mean",
+    "distance_clipping_fraction_mean",
+)
+_FD_DISAGREEMENT_KEY = "joint_vs_aggregate_disagreement_fraction"
+# Presentation order only. Membership is decided by which cells the DATA holds, so a
+# cell missing from this tuple still gets its series and no series depends on a cell's
+# position in it.
+_FD_CELL_ORDER = (CONDITION_CLEAN, SEVERITY_MILD, SEVERITY_SEVERE, CONDITION_DAMAGED)
+
+
+def _fd_sensitivity_plot_data(
+    outcome_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The plot data behind ``fd_policy_sensitivity.png``. PURE -- no matplotlib.
+
+    Extracted from the figure so the scientific content can be TESTED without rendering
+    anything, and so the two population rules below are enforced in one readable place
+    rather than inside five plotting closures.
+
+    **EVALUATION RECORDS ONLY.** Every series here is taken over ``_EVAL_PHASES``
+    (``pre_update`` / ``post_update``). A TRAINING row can enter no value and no
+    denominator on this figure: training is a stochastic actor on a sampled population
+    and held-out evaluation is a deterministic actor on a frozen one, so a severity
+    curve that mixed them would answer neither question while looking like it answered
+    both.
+
+    **IMMEDIATE-FD WAKES ONLY**, for the same reason the digest keeps the kinds apart:
+    an approved measurement is reported over that population alone.
+
+    **THE DISAGREEMENT SERIES IS PER CELL AND ORDER-INDEPENDENT.** It is emitted for
+    EVERY cell that actually has immediate-FD wakes -- so mild and severe each get their
+    own -- and it is never taken from "whichever cell happens to sort first", which is
+    normally ``clean`` and normally has no immediate-FD wake at all, so the series would
+    silently be empty.
+    """
+    rows = [r for r in (outcome_records or [])
+            if isinstance(r.get("wake_decisions"), list)
+            and str(r.get("phase")) in _EVAL_PHASES]
+    if not rows:
+        return {"recorded": False, "evaluation_phases": list(_EVAL_PHASES),
+                "cells": [], "series": {}, "disagreement_series": {}, "matched": {}}
+
+    present = {str(r.get("cell", "")) for r in rows}
+    cells = ([c for c in _FD_CELL_ORDER if c in present]
+             + sorted(present - set(_FD_CELL_ORDER) - {""}))
+
+    # cell -> x (updates completed) -> the immediate-FD decisions measured at that x
+    buckets: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
+    for rec in rows:
+        x = rec.get("updates_completed")
+        if x is None:
+            continue
+        cell = str(rec.get("cell", ""))
+        for d in rec["wake_decisions"]:
+            if str(d.get("wake_kind") or WAKE_KIND_ORDINARY) == WAKE_KIND_IMMEDIATE_FD:
+                buckets.setdefault(cell, {}).setdefault(int(x), []).append(d)
+
+    def _series(cell: str, key: str) -> Dict[str, List[float]]:
+        xs: List[float] = []
+        ys: List[float] = []
+        for x in sorted(buckets.get(cell, {})):
+            v = _wake_diag_digest(buckets[cell][x]).get(key)
+            if v is not None:
+                xs.append(float(x))
+                ys.append(float(v))
+        return {"x": xs, "y": ys}
+
+    series = {key: {c: _series(c, key) for c in cells}
+              for key in _FD_SENSITIVITY_SERIES_KEYS}
+    # EVERY cell with immediate-FD wakes, not `cells[0]`.
+    disagreement = {c: _series(c, _FD_DISAGREEMENT_KEY)
+                    for c in cells if buckets.get(c)}
+
+    # MATCHED severe-minus-mild, per x, from the SAME round-scoped pairing the digest
+    # uses -- so the figure and `run_summary.json` cannot disagree about a delta.
+    matched_points: Dict[int, List[float]] = {}
+    per_round: Dict[Any, Dict[str, Dict[str, float]]] = {}
+    for rec in rows:
+        gkey = rec.get("benchmark_group_key")
+        x = rec.get("updates_completed")
+        if not gkey or x is None:
+            continue
+        mass = _immediate_fd_abort_mass(rec)
+        if mass is None:
+            continue
+        ident = _round_identity(rec)
+        key = (ident["evaluation_stage"], ident["updates_completed"],
+               ident["eval_round_ordinal"], ident["benchmark_manifest_id"])
+        per_round.setdefault(key, {}).setdefault(str(gkey), {})[
+            str(rec.get("cell", ""))] = mass
+    for key, groups in per_round.items():
+        x = key[1]
+        for v in groups.values():
+            if SEVERITY_MILD in v and SEVERITY_SEVERE in v:
+                matched_points.setdefault(int(x), []).append(
+                    v[SEVERITY_SEVERE] - v[SEVERITY_MILD])
+
+    xs_m = sorted(matched_points)
+    return {
+        "recorded": True,
+        "evaluation_phases": list(_EVAL_PHASES),
+        "wake_kind": WAKE_KIND_IMMEDIATE_FD,
+        "cells": cells,
+        "series": series,
+        "disagreement_series": disagreement,
+        "matched": {
+            "x": [float(x) for x in xs_m],
+            "mean": [float(sum(matched_points[x])) / len(matched_points[x])
+                     for x in xs_m],
+            "points": {int(x): list(matched_points[x]) for x in xs_m},
+        },
+    }
+
+
+def _plot_fd_policy_sensitivity(
+    plt: Any,
+    plots_dir: Path,
+    outcome_records: List[Dict[str, Any]],
+) -> Optional[Path]:
+    """FD-POLICY SENSITIVITY -- five panels, derived from ``episode_outcomes.jsonl``.
+
+    THE FIGURE THE R1 DIAGNOSTIC REPLAY HAD TO RECONSTRUCT OFFLINE. It answers, from
+    durable artifacts alone: did the actor's SELECTED action, and the shape of the
+    distribution behind it, respond to fuel-damage severity?
+
+    **HELD-OUT EVALUATION ONLY.** Every series comes from :func:`_fd_sensitivity_plot_data`,
+    which admits ``pre_update`` / ``post_update`` records and nothing else, so no training
+    row can enter a value or a denominator here.
+
+    Every panel names its own quantity, because four of them are routinely conflated:
+
+    * the SELECTED JOINT CELL action -- what deterministic evaluation does;
+    * the AGGREGATE probability MASS on a meta-action column, summed over its k cells --
+      NOT the probability of the selected action, and never labelled as one;
+    * RAW joint entropy, in nats, which is cardinality-dependent;
+    * NORMALIZED joint entropy, divided by ``log(valid cell count)``.
+
+    Populations are never pooled: post-FD boundary wakes and ordinary wakes are separate
+    populations and appear on no panel here, and the matched panel pairs mild against
+    severe through the FULL evaluation identity -- stage, update count, round ordinal,
+    manifest and frozen benchmark group -- rather than through target uuids (which are
+    not seed-stable labels) or through a group key alone (which pools every round).
+
+    Returns the written path, or ``None`` when no EVALUATION record carries
+    ``wake_decisions`` -- a legacy run keeps its three figures and gets no fabricated
+    fourth.
+    """
+    data = _fd_sensitivity_plot_data(outcome_records)
+    if not data.get("recorded"):
+        return None
+
+    cells = data["cells"]
+    colors = {CONDITION_CLEAN: "#2ca02c", SEVERITY_MILD: "#1f77b4",
+              SEVERITY_SEVERE: "#d62728", CONDITION_DAMAGED: "#ff7f0e"}
+
+    def _draw(ax: Any, key: str) -> None:
+        for c in cells:
+            xy = data["series"][key].get(c) or {"x": [], "y": []}
+            if xy["x"]:
+                ax.plot(xy["x"], xy["y"], marker="o", label=c, color=colors.get(c))
+
+    fig, axes = plt.subplots(1, 5, figsize=(26, 4.8))
+
+    ax = axes[0]
+    _draw(ax, "selected_joint_cell_abort_fraction")
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("SELECTED joint-cell action\nfraction of immediate-FD wakes selecting "
+                 "SELF_PRESERVATION_ABORT", fontsize=9)
+    ax.set_ylabel("selected-cell ABORT fraction")
+
+    ax = axes[1]
+    _draw(ax, "aggregate_p_abort_mean")
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("AGGREGATE probability MASS on the ABORT column\n"
+                 "(summed over its k cells -- NOT P(selected action))", fontsize=9)
+    ax.set_ylabel("mean aggregate P(ABORT)")
+
+    ax = axes[2]
+    matched = data["matched"]
+    if matched["x"]:
+        ax.plot(matched["x"], matched["mean"], marker="o", color="#9467bd")
+        for x in matched["x"]:
+            pts = matched["points"][int(x)]
+            ax.scatter([x] * len(pts), pts, s=14, alpha=0.45, color="#9467bd")
+        ax.axhline(0.0, color="black", lw=0.8, ls="--")
+        last = matched["points"][int(matched["x"][-1])]
+        ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
+                     "(paired within a round by frozen benchmark group; n=%d group(s) "
+                     "at the last x)" % len(last), fontsize=9)
+    else:
+        ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
+                     "(no matched benchmark group in this run)", fontsize=9)
+        ax.text(0.5, 0.5, "no matched groups", ha="center", va="center",
+                transform=ax.transAxes, color="#888888")
+    ax.set_ylabel("severe - mild aggregate P(ABORT)")
+
+    ax = axes[3]
+    for c in cells:
+        xy = data["series"]["joint_entropy_normalized_mean"].get(c) or {"x": []}
+        if xy["x"]:
+            ax.plot(xy["x"], xy["y"], marker="o",
+                    label="%s: norm. joint entropy" % c, color=colors.get(c))
+    # PER-CELL disagreement, for every cell that has immediate-FD wakes. Reading it from
+    # one arbitrary cell -- in practice `clean`, which has none -- made the series
+    # silently empty.
+    for c in cells:
+        xy = data["disagreement_series"].get(c) or {"x": []}
+        if xy["x"]:
+            ax.plot(xy["x"], xy["y"], marker="s", ls=":", color=colors.get(c),
+                    alpha=0.7, label="%s: joint vs aggregate argmax disagreement" % c)
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("NORMALIZED joint (node, meta-action) entropy\n"
+                 "[raw entropy / log(valid cells)] + PER-CELL argmax disagreement",
+                 fontsize=9)
+    ax.set_ylabel("normalized entropy / disagreement fraction")
+
+    ax = axes[4]
+    _draw(ax, "distance_clipping_fraction_mean")
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title("task-distance features CLIPPED to 1.0\n"
+                 "(a property of the fixed normalizer, not of the policy)", fontsize=9)
+    ax.set_ylabel("mean clipped fraction")
+
+    for ax in axes:
+        ax.set_xlabel(_PLOT_X_LABEL)
+        ax.grid(alpha=0.3)
+        handles, _labels = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend(fontsize=7)
+    fig.suptitle("FD policy sensitivity -- HELD-OUT EVALUATION records only "
+                 "(%s), immediate fuel-damage wakes only. Training episodes, post-FD "
+                 "boundary wakes and ordinary wakes are SEPARATE populations and enter "
+                 "no value or denominator here."
+                 % ", ".join(_EVAL_PHASES), fontsize=11)
+    fig.tight_layout()
+    # The SAME x-axis quantity every other figure in this module carries.
+    _annotate_x_semantics(fig)
+    out_path = plots_dir / _PLOT_FD_SENSITIVITY
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print("  plot_training: wrote %s" % out_path)
     return out_path
 
 
@@ -8914,7 +9850,13 @@ def plot_training(run_dir: Union[str, Path]) -> List[Path]:
         _plot_policy_diagnostics(plt, plots_dir, train_records, eval_records),
         _plot_measurement_health(plt, plots_dir, train_records, eval_records,
                                  outcome_records),
+        # OPTIONAL fourth figure: drawn only from episode-outcome schema v3
+        # `wake_decisions`. Returns None -- and is filtered out below -- for a run
+        # directory written before that field existed, so an old R1 directory still
+        # plots its three figures and gets no fabricated fourth.
+        _plot_fd_policy_sensitivity(plt, plots_dir, outcome_records),
     ]
+    written = [p for p in written if p is not None]
     for path in written:
         print("plot_training: wrote %s" % str(path))
     return written
@@ -8967,6 +9909,12 @@ def plot_training_subprocess(
     plots_dir = _plots_dir(run_path)
     written = [plots_dir / name for name in _PLOT_FILENAMES
                if (plots_dir / name).exists()]
+    # COMPLETENESS is judged against the REQUIRED set only (below), but the caller is
+    # told about every figure the child really produced -- so this path returns the same
+    # list `plot_training` does rather than silently dropping the optional figure. Here
+    # existence IS the right test: the child has already finished.
+    optional = [plots_dir / name for name in _PLOT_OPTIONAL_FILENAMES
+                if (plots_dir / name).exists()]
     if proc.returncode != 0 or len(written) != len(_PLOT_FILENAMES):
         print("plot_training_subprocess: the plot child produced %d of %d figure(s) "
               "(rc=%d) -- plots incomplete; the records are intact."
@@ -8974,7 +9922,7 @@ def plot_training_subprocess(
         if proc.stderr:
             print("  child stderr (last line): %s"
                   % proc.stderr.strip().splitlines()[-1:])
-    return written
+    return written + optional
 
 
 # =============================================================================

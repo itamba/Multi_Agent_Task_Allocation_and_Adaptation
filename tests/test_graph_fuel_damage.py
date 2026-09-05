@@ -2977,7 +2977,12 @@ def test_vs_po3_the_summary_is_rebuilt_from_the_durable_files_alone(
     # And the figures render from those files alone, with no policy and no torch.
     if not _skip_plotting():
         written_paths = graph_train.plot_training_subprocess(tmp_path / "run")
-        assert [p.name for p in written_paths] == list(graph_train._PLOT_FILENAMES)
+        # The three REQUIRED figures, in order, plus -- because this run really
+        # records per-wake diagnostics (episode-outcome schema v3) -- the OPTIONAL
+        # `fd_policy_sensitivity.png`. A pre-v3 run produces the three alone.
+        names = [p.name for p in written_paths]
+        assert names[:3] == list(graph_train._PLOT_FILENAMES)
+        assert set(names[3:]) <= set(graph_train._PLOT_OPTIONAL_FILENAMES)
         for p in written_paths:
             assert p.exists() and p.stat().st_size > 1000, p
 

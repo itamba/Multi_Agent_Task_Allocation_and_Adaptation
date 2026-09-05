@@ -49,8 +49,9 @@ Framework: PyTorch.
 
 from __future__ import annotations
 
+import math
 from enum import IntEnum
-from typing import Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -370,6 +371,180 @@ def sample_action(
     node_index = flat_idx // NUM_META_ACTIONS
     meta_action = flat_idx % NUM_META_ACTIONS
     return meta_action, node_index, log_prob, entropy
+
+
+def summarize_decision(
+    logits: torch.Tensor,
+    mask_np: np.ndarray,
+    meta_action: int,
+    node_v: int,
+) -> Dict[str, Any]:
+    """REPORTING-ONLY summary of ONE decision, from the SAME logits and mask.
+
+    MEASUREMENT HARDENING, NOT AN ALGORITHM CHANGE. This function is a pure function of
+    the arguments :func:`sample_action` was already called with, so it needs no second
+    encoder/head forward pass and cannot describe a distribution the actor did not act
+    on. Its output feeds artifacts and plots ONLY: nothing here reaches action selection,
+    PPO, the reward, the optimizer, early stopping, evaluation scheduling or checkpoint
+    control.
+
+    FOUR PROPERTIES ARE LOAD-BEARING, and all four are structural rather than
+    conventional:
+
+    * **THE ACTOR'S OWN DISTRIBUTION, NEVER A RECONSTRUCTION.** Every probability,
+      entropy and argmax below comes from :func:`_masked_dist` -- the SAME single
+      construction site :func:`sample_action` and :func:`evaluate_action` route through
+      -- evaluated on a DETACHED copy of the same logits, in their ORIGINAL dtype. It
+      is deliberately NOT recomputed by an independent masked softmax: a second
+      implementation (in another dtype, or with another tie rule) could report a
+      distribution the actor never acted on, which is exactly the failure this record
+      exists to remove. A report that disagrees with the decision it describes is worse
+      than no report.
+    * **NO RANDOMNESS.** Nothing here samples: no ``dist.sample()``, and no generator of
+      any kind. Calling it therefore cannot shift the torch RNG state and cannot move a
+      later stochastic ``sample_action`` by one draw. A diagnostic that perturbed the
+      training stream would silently change the run it is meant to describe.
+    * **NO GRADIENT.** ``logits.detach()`` is taken BEFORE the distribution is built, so
+      no autograd node is created and the PPO graph is untouched.
+    * **THE SAME FLATTENING AND THE SAME ARGMAX AS THE ACTOR.** Row-major
+      ``flat = node*3 + meta``, exactly :func:`_masked_dist`'s convention; and the joint
+      argmax is literally ``torch.argmax(flat)`` -- the expression
+      ``sample_action(..., deterministic=True)`` evaluates -- so an exact tie resolves to
+      the cell the deterministic actor would really take.
+
+    JSON conversion happens ONLY after every quantity has been computed -- including the
+    top-two margin, which is differenced in torch on the exact probabilities rather than
+    between two already-converted python floats -- so no reported number is the product
+    of a round trip through an intermediate representation.
+
+    WHY BOTH A JOINT AND AN AGGREGATE VIEW. The action surface is ``k x 3``, so ONE
+    meta-action owns ``k`` cells and its total probability mass is spread across them.
+    The deterministic evaluator picks the single highest JOINT CELL, which is not
+    generally the argmax of the per-meta-action SUM: a meta-action can hold the largest
+    total mass while every one of its cells sits below a rival's single best cell. Both
+    are reported, under names that cannot be confused, together with an explicit
+    ``joint_vs_aggregate_disagree`` flag -- because reporting only the aggregate would
+    describe a choice the actor never makes, and reporting only the joint cell would
+    hide how concentrated that choice was.
+
+    Args:
+        logits: ``[k, 3]`` raw logits from :class:`ActionHead` -- the SAME tensor passed
+            to :func:`sample_action`.
+        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`.
+        meta_action: the meta-action the actor actually selected.
+        node_v: the task node the actor actually selected.
+
+    Returns:
+        A JSON-ready dict of plain builtins (no tensor, no numpy scalar, no NaN), safe
+        to write straight into a durable artifact.
+
+    Raises:
+        ValueError: if the mask leaves no valid cell (the same condition
+            :func:`_masked_dist` refuses).
+    """
+    # THE ACTOR'S OWN CONSTRUCTION SITE, on a detached copy of the same logits. `flat`,
+    # `dist` and `entropy_t` below are what `sample_action` acted on, in the same dtype,
+    # so nothing here can describe a distribution the actor did not use.
+    flat, dist, entropy_t = _masked_dist(logits.detach(), mask_np)
+    probs_t = dist.probs.reshape(-1)                # the exact Categorical probabilities
+    k = int(logits.shape[0])
+    pm_t = probs_t.reshape(k, NUM_META_ACTIONS)     # row-major: flat = node*3 + meta
+    valid_t = torch.isfinite(flat)
+    # `_masked_dist` already raised on an all -inf mask, so this is >= 1 by the time
+    # control reaches here. The explicit guard documents that and fails loud if a future
+    # edit ever weakens the shared site.
+    n_valid = int(valid_t.sum().item())
+    if n_valid == 0:                                                # pragma: no cover
+        raise ValueError(
+            "summarize_decision received an all -inf mask (no valid action); "
+            "the Plan-Compliance invariant should make this impossible"
+        )
+
+    # JOINT ARGMAX with the ACTOR'S semantics: `torch.argmax(flat)` is exactly the
+    # expression the deterministic branch of `sample_action` evaluates, so an exact tie
+    # is broken identically rather than by a second, independently written rule.
+    i1 = int(torch.argmax(flat).item())
+    i2: Optional[int] = None
+    if n_valid > 1:
+        # The runner-up is the SAME argmax over the SAME masked logits with the winner
+        # removed -- one ordering basis, not two. `n_valid > 1` guarantees a finite cell
+        # remains, so this can never select a masked one.
+        rest = flat.clone()
+        rest[i1] = float("-inf")
+        i2 = int(torch.argmax(rest).item())
+    # The margin is DIFFERENCED IN TORCH, on the exact probabilities, before anything is
+    # converted: subtracting two already-converted python floats would make the reported
+    # margin a product of the conversion rather than of the distribution.
+    margin_t = None if i2 is None else (probs_t[i1] - probs_t[i2])
+
+    # AGGREGATE mass per meta-action column, SUMMED FROM THOSE EXACT PROBABILITIES.
+    agg_t = pm_t.sum(dim=0)
+    agg_argmax = int(torch.argmax(agg_t).item())
+    per_meta_valid_t = valid_t.reshape(k, NUM_META_ACTIONS).sum(dim=0)
+
+    # RAW entropy is the SHARED masked-safe entropy `_masked_dist` returns -- the same
+    # scalar `sample_action` hands the PPO entropy bonus -- never a second sum.
+    joint_entropy = float(entropy_t.item())
+    # `log(1) == 0` would divide by zero, and a single valid cell has no spread to
+    # normalize: report `None` rather than NaN or an invented 0.0/1.0 (an invented
+    # number would read as a measurement).
+    joint_entropy_norm: Optional[float] = (
+        float(joint_entropy / math.log(n_valid)) if n_valid > 1 else None
+    )
+    anz = agg_t[agg_t > 0]
+    agg_entropy = (
+        float(-(anz * torch.log(anz)).sum().item()) if int(anz.numel()) else 0.0
+    )
+
+    # ---- JSON conversion ONLY from here down: every value above is already final ----
+    probs = [float(v) for v in probs_t.detach().cpu().tolist()]
+    pm = [[float(v) for v in row] for row in pm_t.detach().cpu().tolist()]
+    agg = [float(v) for v in agg_t.detach().cpu().tolist()]
+    per_meta_valid = [int(v) for v in per_meta_valid_t.detach().cpu().tolist()]
+    valid_rows = [[int(v) for v in row]
+                  for row in valid_t.reshape(k, NUM_META_ACTIONS)
+                  .to(torch.int64).detach().cpu().tolist()]
+    raw_logits = [[float(v) for v in row] for row in logits.detach().cpu().tolist()]
+
+    joint_meta = i1 % NUM_META_ACTIONS
+
+    def _cell(idx: int) -> Dict[str, Any]:
+        return {
+            "node": int(idx // NUM_META_ACTIONS),
+            "meta_action": int(idx % NUM_META_ACTIONS),
+            "meta_action_name": MetaAction(idx % NUM_META_ACTIONS).name,
+            "probability": probs[idx],
+        }
+
+    sel_meta, sel_node = int(meta_action), int(node_v)
+    return {
+        "n_task_nodes": k,
+        "n_meta_actions": int(NUM_META_ACTIONS),
+        "raw_logits": raw_logits,
+        "valid_action_mask": valid_rows,
+        "masked_probabilities": pm,
+        "n_valid_cells": n_valid,
+        "valid_cells_per_meta_action": {
+            MetaAction(m).name: per_meta_valid[m] for m in range(NUM_META_ACTIONS)},
+        "selected_node": sel_node,
+        "selected_meta_action": sel_meta,
+        "selected_meta_action_name": MetaAction(sel_meta).name,
+        "selected_cell_probability": pm[sel_node][sel_meta],
+        "top_two_valid_cells": [_cell(i1)] + ([_cell(i2)] if i2 is not None else []),
+        "top_two_probability_margin": (
+            None if margin_t is None else float(margin_t.item())),
+        "aggregate_probability_per_meta_action": {
+            MetaAction(m).name: agg[m] for m in range(NUM_META_ACTIONS)},
+        "joint_argmax_cell": _cell(i1),
+        "joint_argmax_meta_action": int(joint_meta),
+        "joint_argmax_meta_action_name": MetaAction(joint_meta).name,
+        "aggregate_argmax_meta_action": agg_argmax,
+        "aggregate_argmax_meta_action_name": MetaAction(agg_argmax).name,
+        "joint_vs_aggregate_disagree": bool(joint_meta != agg_argmax),
+        "joint_entropy_raw": joint_entropy,
+        "joint_entropy_normalized": joint_entropy_norm,
+        "aggregate_meta_action_entropy": agg_entropy,
+    }
 
 
 def evaluate_action(
