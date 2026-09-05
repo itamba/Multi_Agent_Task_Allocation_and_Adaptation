@@ -2828,6 +2828,184 @@ window mean, stale count, check record or termination reason enters `GraphObserv
 MAY BE PRE-CLAIMED FOR IT** — §8 owns the phase state, and the dispatched actor-only R1 is
 governed by its own FIXED-BUDGET contract with NO early stopping.
 
+**GENERALIZED-V1 DURABLE PER-WAKE FD POLICY DIAGNOSTICS (MEASUREMENT HARDENING) —
+`rl/action/graph_action.py` + `rl/training/graph_tick_loop.py` +
+`rl/training/graph_train.py` (`81a148f8`, integrated `28eb8dad`, PR #52 — §7).**
+
+A REPORTING layer, and nothing else. It adds NO episode mechanism: the bounded-backoff
+geometry, the FD certification physics, the post-FD boundary semantics, the
+continuation-reference arithmetic, the Task-4 selector / sampler / manifest / persistence,
+the Task-5 quota, budget and preflight, and the opt-in early-stopping rule are exactly the
+contracts above. What it changes is WHAT A COMPLETED RUN CAN BE ASKED AFTERWARDS.
+
+**WHY IT EXISTS.** The R1 diagnostic replay had to reconstruct, OFFLINE from checkpoints,
+what the actor saw and what its masked distribution looked like at each fuel-damage wake —
+which is only possible while the checkpoints, the frozen manifest and the exact measured
+code SHA still exist together. Recording it AT THE DECISION removes that dependency, and it
+removes a worse hazard with it: an offline reconstruction can disagree with the decision it
+claims to describe, and a report that disagrees with the run it describes is worse than no
+report at all.
+
+**TWO VERSIONED SCHEMAS, AND BOTH ARE ADDITIVE.**
+`_EPISODE_OUTCOME_VERSION` moves `2 → 3`, and version 3's ONE addition is the per-wake block
+`wake_decisions`, itself versioned by `_WAKE_DIAGNOSTICS_VERSION = 1` and counted by
+`n_wake_decisions`. **EVERY OTHER v2 FIELD IS UNCHANGED IN NAME, MEANING AND VALUE.** A
+successful ZERO-WAKE episode records `[]` — a real, legitimate outcome of the
+event-triggered design, and deliberately NOT `null`, which would read as "not recorded".
+
+**`wake_decisions` IS DURABLE AND REPORTING-ONLY, AND THE SECOND HALF IS STRUCTURAL.**
+It reaches `episode_outcomes.jsonl`, `run_summary.json` and the plots, and it stops there.
+**NOTHING READS IT BACK**: no action selection, no mask, no belief edit, no executor
+command, no PPO or CTDE input, no advantage, no reward, no optimizer step, no early-stopping
+decision, no evaluation schedule, no checkpoint control and no failure classification
+consults it. It is built AFTER `sample_action` has already drawn, from the SAME `logits` and
+`mask` that call acted on.
+
+**THE THREE PROPERTIES THAT MAKE IT SAFE TO COMPUTE INSIDE A TRAINING RUN.**
+
+- **NO RNG DRAW.** `graph_action.summarize_decision` samples nothing — no `dist.sample()`
+  and no generator of any kind — so the torch RNG state is byte-identical either way and no
+  later stochastic `sample_action` can be displaced by one draw. A diagnostic that perturbed
+  the training stream would silently change the run it exists to describe.
+- **NO GRADIENT.** `logits.detach()` is taken BEFORE the distribution is rebuilt, so no
+  autograd node is created and the PPO graph is untouched.
+- **NO CONTROL PATH.** The record is attached to `Transition.decision` and read only by
+  `graph_train._wake_decision_records`, which RECOMPUTES NOTHING and SKIPS a transition that
+  carries no such field rather than inventing one.
+
+**THE PROBABILITIES ARE THE ACTOR'S OWN, FROM THE SHARED CONSTRUCTION SITE.** Every
+probability, entropy and argmax comes from `graph_action._masked_dist` — the SAME single
+site `sample_action` and `evaluate_action` already route through — evaluated on a DETACHED
+copy of the same logits in their ORIGINAL dtype. It is deliberately NOT a second masked
+softmax: an independent implementation, in another dtype or with another tie rule, could
+report a distribution the actor never acted on. The joint argmax is literally
+`torch.argmax(flat)` — the expression the deterministic branch of `sample_action` evaluates
+— so an exact tie breaks identically, the row-major `flat = node*3 + meta` convention is the
+shared one, the raw entropy is the same scalar the PPO entropy bonus receives, and the
+top-two margin is differenced IN TORCH on the exact probabilities before any JSON conversion.
+Conversion to plain builtins happens only after every quantity is final.
+
+**TWO VIEWS OF ONE `k × 3` SURFACE, NAMED SO THEY CANNOT BE CONFUSED.** One meta-action owns
+`k` cells, so its total mass is spread across them and the highest JOINT CELL is not
+generally the argmax of the per-column SUM: a meta-action can hold the largest total mass
+while every one of its cells sits below a rival's single best cell. Both are therefore
+reported, with an explicit `joint_vs_aggregate_disagree` flag —
+`selected_joint_cell_abort_fraction` is what deterministic evaluation ACTUALLY DOES, and
+`aggregate_p_abort_mean` is the total MASS on the abort column and is **NEVER** the
+probability of the selected action. Normalized joint entropy is `raw / log(valid cells)` and
+is `None` — never `0.0` or `1.0` — when fewer than two cells are valid, because a single
+valid cell has no spread to normalize. The record also carries the actor-INPUT summary only
+the tick loop can see: graph shape, the ego's own `fuel_norm`, the `reachable_by_ego` vector,
+the `dist_to_ego_norm` column, and how much of that column is SATURATED at the fixed
+normalizer (`n_task_distance_clipped` / `fraction_task_distance_clipped`) — a property of the
+NORMALIZER, not of the policy, unobservable in any aggregate, recorded per wake and left for
+a reader to judge. **The normalizer and the feature are UNCHANGED.**
+
+**THE THREE WAKE KINDS ARE DISJOINT, TAGGED AT THE TRIGGER, AND NEVER INFERRED FROM THE
+ACTION.** `WAKE_KINDS` = (`ordinary`, `immediate_fuel_damage`, `post_fd_boundary`).
+`Transition.wake_kind` is stamped in `run_episode` from the SAME `ego_fuel_damage` /
+`ego_post_fd` flags that decide what `decide_triggers` is told — "the actor aborted" is not
+evidence about why it was ASKED, so reconstructing the kind from the selected action is
+exactly what this field exists to prevent. The separation is load-bearing rather than tidy:
+an approved measurement is reported over the IMMEDIATE-FD population alone
+(`FuelDamageOutcome.wake_occurred` / `wake_meta_action`), and a later completion-boundary
+decision of the same ego has its OWN denominator (`PostFdAdaptationOutcome.boundary_wakes`),
+so folding one into the other would silently change what an approved measurement means.
+**THE ORDINARY CALL IS BYTE-UNCHANGED**: the `wake_kind` keyword is OMITTED entirely for an
+ordinary wake, the same keyword-omission discipline `_artifact_kwargs` / `_ctde_kwargs` /
+`_cardinality_kwargs` already use.
+
+**THREE PHASE POPULATIONS, KEPT APART, AND POOLING IS NAMED WHERE IT HAPPENS.**
+`_fd_policy_sensitivity_from_outcomes` gives `train`, `pre_update` and `post_update` their
+OWN blocks under `by_phase` and NEVER averages them: training is a stochastic actor on a
+sampled population and held-out evaluation is a deterministic actor on a frozen one, so a
+rate whose denominator mixes them describes neither. A pooled view exists only under
+`all_phases_pooled`, whose own name and note say what it did, and every scientific severity
+quantity is taken over `_EVAL_PHASES` and never over `_ARTIFACT_PHASES`. Every rate carries
+its explicit denominator, and an EMPTY population reports `None` — never `0.0`, which on a
+rate is a measured value that would read as "the actor never aborted" when the truth is "no
+wake of this kind occurred".
+
+**MATCHED DELTAS USE THE FULL ROUND IDENTITY PLUS THE BENCHMARK GROUP IDENTITY.** A
+`benchmark_group_key` alone is NOT an identity: the SAME frozen world group is re-measured in
+EVERY evaluation round, so keying a matched table on it collapses a whole run into one bucket
+and turns repeated measures of one world into what reads like independent worlds.
+`_round_identity` is therefore `(evaluation_stage, updates_completed, eval_round_ordinal,
+benchmark_manifest_id)`, and the group key identifies the WORLD *within* that round: a group
+contributes a severe-minus-mild delta only when BOTH members are present IN THE SAME ROUND,
+deltas are reported PER ROUND, and the cross-round pool is explicitly flagged
+`totals_across_rounds_are_repeated_measures: true`. Target uuids are used nowhere — they are
+not seed-stable labels (§8).
+
+**THE FINAL EVALUATION ROUND IS SELECTED SEMANTICALLY, NEVER `eval_records[-1]`.**
+`_select_final_eval_record` orders by the run's own monotone `eval_round_ordinal` and
+CROSS-CHECKS it against `updates_completed`; `_final_eval_identity` is the SINGLE validator
+of a complete round identity (`_FINAL_EVAL_IDENTITY_FIELDS`), strict on type as well as
+presence (stage must be in `_EVAL_PHASES`; a `bool` is refused where an `int` is required,
+since `True` would otherwise pass as update count 1). It REFUSES rather than guessing, with a
+stated reason PERSISTED as `run_summary.json:/final_eval_selection`:
+`no_evaluation_records`, `incomplete_evaluation_identity`,
+`ambiguous_identity_duplicate_rounds`, `ambiguous_highest_round_ordinal` or
+`contradictory_ordering_ordinal_vs_updates_completed`. **THE SUBSET IS THE DANGEROUS CASE,
+WHICH IS WHY IT IS REFUSED RATHER THAN TOLERATED**: a digest missing its ordinal still
+carries a stage and an update count, those two very often single out exactly one round, and
+such a match would SUCCEED and produce a "final round" nobody validated — indistinguishable
+from a correct selection in the artifact. `_select_final_matched_round` compares ALL THREE
+fields through that SAME validator, so the two selectors cannot come to disagree about what a
+valid identity is, and the ONE selected record drives `final_eval`, every `final_eval_*`
+scalar and the sensitivity table's own final round — so the three cannot name different
+rounds. `eval_group_kind` is a RUN-INVARIANT label and is read from the selected round when
+one exists, with the positional expression surviving only as the fallback for a record set
+the selector refused, and the config as the last resort.
+
+**LEGACY v2 ARTIFACTS REMAIN TRUTHFUL AND READABLE.** `build_run_summary` runs on ANY run
+directory, so `_observed_artifact_schema` reports the schema the RECORDS ACTUALLY CARRY —
+`no_records` / `uniform` / `mixed`, never collapsed — and the writer's own constants appear
+only under `_writer` names that cannot be mistaken for an observation. Stamping the current
+constants on a legacy directory would tell a reader that a v2 artifact is v3 and that it
+carries wake diagnostics it does not. `_fd_policy_sensitivity_from_outcomes` returns
+`{"recorded": false, …}` with a note when no record carries the field — a truthful "not
+recorded", never a table of fabricated zeros — and every reader treats an absent key as "not
+recorded" rather than as zero.
+
+**`fd_policy_sensitivity.png` IS OPTIONAL AND EVALUATION-ONLY, AND `_PLOT_FILENAMES` STILL
+NAMES EXACTLY THE THREE REQUIRED FIGURES.** `_PLOT_FILENAMES` remains
+(`training_performance.png`, `policy_diagnostics.png`, `measurement_health.png`) — the
+REQUIRED set a shortfall against which is reported as "plots incomplete" — and the new figure
+lives in the SEPARATE `_PLOT_OPTIONAL_FILENAMES`, so a run directory written before schema v3
+legitimately has three figures and is NOT reported as broken. `_fd_sensitivity_plot_data` is
+PURE (no matplotlib) so the scientific content is testable without rendering, and it admits
+**EVALUATION records only** and **IMMEDIATE-FD wakes only**: a training row can enter no value
+and no denominator on this figure, and ordinary and post-FD-boundary wakes appear on no panel
+of it. `_plot_fd_policy_sensitivity` returns `None` on exactly that condition, and
+`run_summary.json:/optional_plot_paths` is keyed off the FIGURE'S OWN predicate rather than
+off the digest's broader `recorded` flag — which is true as soon as ANY record, a training one
+included, carries diagnostics — so a train-only or evaluation-disabled run declares nothing
+and never promises a file it will not write. The per-cell argmax-disagreement series is
+emitted for EVERY cell that has immediate-FD wakes, never for "whichever cell sorts first"
+(normally `clean`, which normally has none, so the series would silently be empty).
+`policy_diagnostics.png`'s entropy panel changed its LABEL ONLY — the plotted series is
+byte-unchanged — to say that it is the RAW joint entropy and therefore cardinality-dependent.
+
+**WHAT IS EXPLICITLY NOT IN THIS TASK.** Target destruction stays DETERMINISTIC at
+`probability = 1` — **`p(destroy) < 1` was NOT implemented here and remains a separate future
+Grade-A research task**. The frozen solver / BONMIN and the vendored BLADE engine are
+untouched. No actor, encoder, `ActionHead`, PPO, GAE or critic architecture change; **no new
+`MetaAction`**; no change to the action surface, the mask, `sample_action`'s or
+`evaluate_action`'s semantics, terminal-on-last credit placement, `graph_reward`'s
+`static_t0_v1` formula, or the no-communication boundary; no scenario, world-construction,
+reward, solver, fuel-damage, seed-formula, episode-design, cardinality-sampler, manifest,
+preflight, attempt-policy, early-stopping or evaluation-schedule change; no peer behaviour
+change and no communication channel of any kind. `evaluate`, `evaluate_benchmark` and
+`save_checkpoint`'s payload are untouched, and checkpoint RESUME remains out of scope.
+**NOTHING FROM THIS LAYER REACHES THE ACTING PATH:** no wake kind, probability, entropy,
+clipping count, ownership label, schema version, selection reason or plot field enters
+`GraphObservation` or `CentralGraphObservation`. **PR #52 PRODUCED NO SCIENTIFIC MEASUREMENT
+AND DID NOT MODIFY THE R1 RUN, ITS ARTIFACTS OR ITS VERDICT** — R1 was measured at code SHA
+`4af6c5aa5dd28072692bfda63282964b55010aae`, which PREDATES this layer, so **R1's own
+artifacts are episode-outcome schema v2 and carry NO `wake_decisions`**; §7 owns the R1
+record and §8 the phase state.
+
 **PHASE-B CTDE — the TRAINING-ONLY centralized critic —
 `rl/observation/central_graph_builder.py` + `rl/training/graph_ppo.py` (its §7 block)
 + `rl/training/graph_tick_loop.py` + `rl/training/graph_train.py`.**
@@ -3059,6 +3237,9 @@ a stub, because normal production does not currently generate it.
 | Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_mild_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched groups, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
 | Change the matched CLEAN/MILD/SEVERE TRIAD evaluation, or a within-seed DELTA | `rl/training/graph_train.py` (`_EVAL_TRIAD_MEMBERS`, `_EVAL_TRIAD_DELTAS` beside the unchanged `_EVAL_PAIR_MEMBERS` / `_EVAL_PAIR_DELTAS`, `_EVAL_GROUP_KIND_PAIR` / `_EVAL_GROUP_KIND_TRIAD`, `TrainConfig.variable_severity` / `eval_group_members` / `eval_group_size` / `eval_group_kind` / `eval_group_deltas` / `reported_cells`, `_scheduled_cell_probabilities`, `_difficulty_factor_name`, and `evaluate`'s complete-group test). A legacy run keeps its PAIR; only a `seeded_variable` run evaluates triads. **Every delta is over COMPLETE groups only** — see §5. |
 | Read what an episode ACTUALLY did, per successful attempt (not an aggregate) | `rl/training/graph_train.py` (`_EPISODE_OUTCOMES_FILENAME` = `episode_outcomes.jsonl`, `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes` and the `severity_response` / `severity_response_source` / `episode_outcomes_recorded` keys of `run_summary.json`). SUCCESSFUL attempts only — failures stay in `episode_failures.jsonl` and the two streams are disjoint by construction. The severity-response table is DERIVED from this file, never from a parallel in-memory aggregate. |
+| Record or read PER-WAKE ACTOR DIAGNOSTICS (why a wake happened, what the actor saw, what its masked distribution looked like) | `rl/action/graph_action.py` (`summarize_decision`, built on the SHARED `_masked_dist`) + `rl/training/graph_tick_loop.py` (`WAKE_KINDS` = `WAKE_KIND_ORDINARY` / `WAKE_KIND_IMMEDIATE_FD` / `WAKE_KIND_POST_FD_BOUNDARY`, `OWNERSHIP_EGO` / `OWNERSHIP_PEER` / `OWNERSHIP_UNASSIGNED`, `_node_ownership`, `_decision_record`, `Transition.wake_kind` / `.decision`, and `_wake_decision(..., wake_kind=...)` — OMITTED for an ordinary wake) + `rl/training/graph_train.py` (`_EPISODE_OUTCOME_VERSION = 3`, `_WAKE_DIAGNOSTICS_VERSION = 1`, `_wake_decision_records`, `_wake_diag_digest`, `_wake_population_block`, `_EVAL_PHASES`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema`, and the `fd_policy_sensitivity` / `observed_artifact_schema` / `wake_kinds` / `wake_diagnostics_source` keys of `run_summary.json`). **RESEARCH-VALIDITY / GRADE A**: it is DURABLE and REPORTING-ONLY and nothing reads it back — no action, mask, belief, command, PPO/CTDE input, reward, optimizer step, early-stopping decision, evaluation schedule or checkpoint control; the probabilities come from the actor's OWN `_masked_dist` on a DETACHED copy of the same logits, so no second implementation can describe a distribution the actor never used; **no RNG draw, no gradient and no control path is added**; the three wake kinds are DISJOINT and tagged at the TRIGGER, never inferred from the selected action, because an approved measurement is reported over the immediate-FD population alone; `train` / `pre_update` / `post_update` are SEPARATE populations and pooling is named where it happens; and an empty population is `None`, never `0.0` (§5) |
+| Ask "which evaluation round was FINAL?" (never `eval_records[-1]`) | `rl/training/graph_train.py` (`_FINAL_EVAL_IDENTITY_FIELDS` = `evaluation_stage` / `updates_completed` / `eval_round_ordinal`, `_final_eval_identity` — the ONE validator — `_select_final_eval_record`, `_select_final_matched_round`, `_INCOMPLETE_FINAL_EVAL_IDENTITY`, `_round_identity`, `_matched_rounds`, `_immediate_fd_abort_mass`, and `run_summary.json:/final_eval_selection`). **RESEARCH-VALIDITY / GRADE A**: the last row a file happens to hold is a fact about the WRITER, not about the run, so the round is chosen by the monotone `eval_round_ordinal` CROSS-CHECKED against `updates_completed` and the selector REFUSES with a stated, persisted reason rather than guessing; a PARTIAL identity is refused even when the remaining fields would have been unique, because such a match succeeds silently and is indistinguishable from a correct one; ALL THREE fields are always compared, never a subset; and matched severe-minus-mild deltas pair through the FULL round identity PLUS `benchmark_group_key`, so re-measuring one frozen world in every round yields independent per-round deltas and a cross-round pool explicitly flagged as REPEATED MEASURES (§5) |
+| Change or read the OPTIONAL FD-policy-sensitivity figure | `rl/training/graph_train.py` (`_PLOT_FD_SENSITIVITY` = `fd_policy_sensitivity.png`, `_PLOT_OPTIONAL_FILENAMES`, `_FD_SENSITIVITY_SERIES_KEYS`, `_FD_DISAGREEMENT_KEY`, `_FD_CELL_ORDER`, the PURE `_fd_sensitivity_plot_data`, `_plot_fd_policy_sensitivity`, the `None`-filtering in `plot_training`, the optional-existence pass in `plot_training_subprocess`, and `run_summary.json:/optional_plot_paths`). **RESEARCH-VALIDITY / GRADE A**: `_PLOT_FILENAMES` still names EXACTLY the three REQUIRED figures and completeness is judged against that set alone, so a pre-v3 run directory keeps three figures and is NOT reported as broken; the figure is **HELD-OUT EVALUATION ONLY** and **IMMEDIATE-FD WAKES ONLY**, so no training row and no ordinary or post-FD-boundary wake enters a value or a denominator on it; SELECTED-joint-cell action and AGGREGATE column MASS are separate panels under names that cannot be confused (the mass is NEVER P(selected action)); raw and normalized joint entropy are distinguished; the argmax-disagreement series is emitted PER CELL rather than for whichever cell sorts first; and `optional_plot_paths` is keyed off the figure's OWN predicate so a run never declares a file it will not write (§5) |
 | Keep the DIAGNOSTIC harness at configuration parity with training | `rl/training/graph_rollout.py` (`RolloutConfig` mirrors the FD knobs field-for-field + `fuel_damage_parameters()` / `reward_config()`; `run_rollout` builds the controller and passes the same explicit `RewardConfig`; `fuel_damage_mild_probability` mirrors the training knob and `seeded_variable` is selectable here too). Rollouts run a SEEDED design only — `seeded_mixture` or `seeded_variable` — because matched pairs and triads are an evaluation construct and live in `graph_train.evaluate`. |
 | Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `sync_recordings` / `finalize` (which reconciles expected vs observed world counts before it will say `complete`) / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
 | SELECT the EPISODE POPULATION — `fixed_cell_v1` (DEFAULT, historical) vs `generalized_v1` (the complete approved bundle) | `rl/training/graph_generalized.py` (`EPISODE_DESIGNS`, `EPISODE_DESIGN_FIXED_CELL_V1` / `EPISODE_DESIGN_GENERALIZED_V1`, `EpisodeDesign`, `FIXED_CELL_V1` / `GENERALIZED_V1`, `resolve_episode_design`) + `rl/training/graph_train.py` (`TrainConfig.episode_design` / `.design` / `.generalized`, `--episode-design`, the `validate()` generalized rules, `_generalized_setup_kwargs`, `_cardinality_kwargs`) + `rl/training/graph_rollout.py` (`RolloutConfig.episode_design` / `.design` / `.generalized`, `--episode-design`). **RESEARCH-VALIDITY / GRADE A**: the bundle is ALL-OR-NOTHING and there is deliberately NO per-policy harness field — `hidden_policy`, `eligibility_policy`, `post_fd_wake_policy` and `reference_policy` are resolved from this ONE selector, an unknown id RAISES, and `fixed_cell_v1` is the DEFAULT the approved measurements (`737b4bf`, `bf1e045f`) were taken on. `training_mode` is ORTHOGONAL and unaffected (§5) |
@@ -5189,9 +5370,211 @@ a stub, because normal production does not currently generate it.
   preserved fixed-budget path. This entry certifies the IMPLEMENTATION; §8 owns the phase
   state.
 
+- **GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN — EXECUTED / INDEPENDENTLY REVIEWED /
+  `APPROVE — VALID MEASUREMENT`. THE FIRST SCIENTIFICALLY VALID GENERALIZED-V1 MEASUREMENT,
+  AND ITS PRIMARY FD FINDING IS NEGATIVE.** The measurement is attributable to exact code
+  SHA `4af6c5aa5dd28072692bfda63282964b55010aae` — the approved PR-#43 candidate, a durable
+  MEASUREMENT identity and **never a claim about live `main`**. Per §7's hash convention this
+  entry is keyed to the MEASURED CODE SHA; the documentation commit that creates it, and the
+  merge that integrates it, cannot name their own SHAs and are deliberately not invented
+  here. **No tracked file changed for the measurement** — it is a run of already-reviewed
+  merged code, not a candidate.
+  **THE RUN SHAPE IS THE FROZEN PLAN, UNCHANGED.** `training_mode = actor_only`, a FIXED
+  budget of 375 iterations × 8 SUCCESSFUL episodes per iteration, `episode_design =
+  generalized_v1`, `fuel_damage_mode = seeded_variable`, **NO early stopping**, **NO CTDE
+  arm**, `worlds_per_cell = 3`, evaluation and checkpointing every 25 iterations.
+  **VALIDITY VERDICT — `APPROVE — VALID MEASUREMENT`, judged VALIDITY BEFORE PERFORMANCE.**
+  - **375 / 375 scheduled iterations completed, and 375 / 375 PPO updates**, so the fixed
+    budget was consumed in full and no iteration was lost.
+  - **3000 successful training episodes from 3045 attempted** — exactly the quota the
+    `successful_quota_with_deterministic_replacement_v1` policy requires, with **45 ordinary
+    accounted `setup` failures, every one of them DETERMINISTICALLY REPLACED** by the next
+    run-wide attempt ordinal. `3000 + 45 = 3045` reconciles by construction, each failure was
+    recorded ONCE in `episode_failures.jsonl`, no seed was retried, no seed was substituted
+    and no band shifted. The attempt count sits well inside the MAXIMUM POSSIBLE band of
+    `375 × 12 = 4500` (§5).
+  - **ZERO integrity aborts.** No `MeasurementIntegrityError`, no `EpisodeRosterError`, no
+    `TrainingQuotaError`, no `FuelDamageIntegrityError`, no `BenchmarkIdentityError`, no
+    aborting `ReferenceIntegrityError` and no `_VisualArtifactError` — so no episode was
+    removed from a scientific population by an instrument fault, which is precisely the
+    failure that made the first long baseline INCONCLUSIVE (§7, §8).
+  - **16 evaluation rounds** — the initial `pre_update` plus one every 25 iterations across
+    375 — with **864 / 864 benchmark members successful** and **18 / 18 COMPLETE matched
+    clean/mild/severe groups in EVERY round**. `16 × 18 × 3 = 864` reconciles, so the
+    comparator was measured in full, no member failed, no group was incomplete and no delta
+    was taken over a repaired group.
+  - **`accounting_reconciled = true`.**
+  **THE FROZEN COMPARATOR, BY CONTENT-ADDRESSED IDENTITY.** The R1 benchmark manifest was
+  built by the deterministic preflight BEFORE training and evaluated unchanged in every round:
+  `manifest_id = 0e15f007ef176bf977f8b93bb91289f48c16f25ee9eee282ffd1a89477f6fc0d`;
+  manifest file `SHA-256 = 76768cfd311686a51fc79b82e4bb5142dd4931fa5bb7f151a32b11106195e11d`;
+  ordered world-seed digest
+  `seed_list_sha256 = c417683520bd89f4074d53652df719e6cf556808c29f0335b7fc728ce153fbb1`;
+  preflight report
+  `SHA-256 = f2041b97bc34c8a1750daa2135468b6ed5d2329d9089bd377517a5ebda43f903`.
+  **`manifest_id` IS THE HASH OF THE CANONICAL PAYLOAD AND IS NOT THE HASH OF THE FILE**
+  (§5) — the two values above are therefore DIFFERENT quantities and neither substitutes for
+  the other. **NO BENCHMARK MANIFEST IS COMMITTED OR TRACKED IN THE REPOSITORY**, and this
+  entry records the comparator's IDENTITY rather than adding its bytes to the repository.
+  **NO REVIEW-BUNDLE ZIP HASH IS RECORDED HERE.** It is deliberately omitted rather than
+  quoted: no preserved review-bundle artifact exists in this workspace to derive it from,
+  and a hash may never be expanded from chat or memory. Its absence is a statement about
+  THIS record, not about the review, which was performed on evidence the reviewer held.
+  **THE PRIMARY BEHAVIOURAL RESULT IS NEGATIVE, AND IT IS A RESULT.** The run **did NOT
+  learn severity-conditioned mild-vs-severe behaviour.** The policy moved GLOBALLY from
+  `SELF_PRESERVATION_ABORT` toward `PLAN_COMPLIANCE` across checkpoints, and it treated
+  MATCHED mild and severe worlds **almost identically** — a global shift, not a
+  severity-conditioned one. **THIS IS A VALID NEGATIVE RESULT, NOT A VALIDITY DEFECT**, and
+  it is **not** a technical failure, **not** evidence that training or PPO failed, **not**
+  evidence that the actor ignores fuel entirely, and **not** grounds to re-tune, re-seed,
+  repair, resume, extend or re-run. **NO RERUN, REPAIR, RESUME, EXTENSION OR RETUNING IS
+  AUTHORIZED**, and each would be a separate research decision requiring its own explicit
+  authorization.
+  **SCOPE OF THE CLAIM, STATED AS NARROWLY AS THE EVIDENCE ALLOWS.** This is **ONE R1
+  MEASUREMENT**. It is **NOT** a five-run population result, and it is **NOT** an
+  actor-only-vs-CTDE comparison — **no CTDE arm was run, and no CTDE benefit or deficit is
+  established, supported or pre-claimed by it.** The unchanged interpretation rules apply: a
+  mean is never read without its denominator, an all-failed batch is `null` and never `0.0`,
+  within-world claims come only from COMPLETE matched groups, and FD-wake rates are reported
+  over FD WAKES.
+  **THE DIAGNOSTIC REPLAY — ENGINEERING / ANALYSIS EVIDENCE, NOT A SECOND MEASUREMENT.** A
+  bounded offline replay was performed against R1's own checkpoints, manifest and measured
+  code SHA to ask WHY the response was flat. It is labelled engineering/analysis evidence
+  because that is its designated purpose: it schedules no population, defines no comparator
+  and produces no scientific verdict, and **no reward, learning or performance claim may be
+  drawn from it.** What it established:
+  - **REPLAY EQUIVALENT TO R1** — **108 / 108 action matches**, with the event ticks and ego
+    ids matching as well, so the replay reproduces the run it analyses rather than describing
+    a neighbouring one;
+  - the ego's own **`fuel_norm` differed MATERIALLY in ALL 54 matched pairs**, so the one
+    input the decision is supposed to be read off really did change;
+  - **`reachable_by_ego` FLIPPED in ALL 54 pairs**, so a second, structural input changed too;
+  - and the **selected meta-action changed in 0 / 54 pairs**;
+  - **mean absolute matched delta in aggregate P(ABORT) = 0.0001177037203753436** — a
+    difference in probability MASS that is numerically negligible, and which is the aggregate
+    column mass, **never** the probability of the selected action (§5);
+  - **joint-cell vs aggregate-meta-action argmax disagreement: 54 / 108**, so the two views of
+    the `k × 3` surface disagreed on half the decisions and must not be read as one quantity;
+  - **mean task-distance clipping 98.15 %** — almost the entire `dist_to_ego_norm` column
+    saturated at the fixed normalizer, which is a property of the NORMALIZER rather than of
+    the policy;
+  - **normalized joint entropy remained HIGH**, so the distribution did not collapse.
+  **ACTION ALIASING AND WEAK ROUTE-RELATIVE OBSERVATION CONTEXT ARE SUSPECTS, NOT CAUSALLY
+  PROVEN EXPLANATIONS.** Nothing in the replay establishes a cause; it narrows where to look.
+  Diagnostic bundle `SHA-256 =
+  812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792`.
+  **PRESERVATION.** The R1 run tree and the diagnostic bundle are preserved and must not be
+  modified, moved, copied, repackaged, deleted or regenerated, and neither may any earlier
+  preserved run. The approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`)
+  measurements are untouched by this entry and remain measurements of the `fixed_cell_v1`
+  bundle. **§8 owns the phase state.**
+
+- `81a148f8` — **GENERALIZED-V1 DURABLE PER-WAKE FD POLICY DIAGNOSTICS (MEASUREMENT
+  HARDENING) — CLOSED / APPROVED / MERGED.** FINAL approved candidate SHA
+  `81a148f80317499d8897db44bd713976962db832`, integrated by merge commit
+  `28eb8dad2643fc79d516b47ec95119a395e76257` (PR #52), from base
+  `44530abb1cc3f99d01ac867c6621047ac9343661` — the `main` head produced by the final
+  early-stopping handoff-stabilization merge (PR #51). The candidate was merged with a normal
+  MERGE COMMIT and preserved as its SECOND PARENT (ordered parents:
+  `44530abb1cc3f99d01ac867c6621047ac9343661`, then
+  `81a148f80317499d8897db44bd713976962db832`); candidate and integration share the IDENTICAL
+  tree `86c3b04d104d38c6d6fc5c1e2bdda3bb5c1ab9b7` (verified locally), so the integrated tree
+  is exactly the reviewed tree, and no rebase, squash, cherry-pick, force-push or history
+  rewrite occurred. Grade A under `GPT_GITHUB`. The technical contract is in §5 (the
+  GENERALIZED-V1 per-wake FD policy diagnostics block) and the routing in §6; this entry
+  records the LOCK, not the mechanism.
+  **APPEND-ONLY REVIEW CHAIN — FOUR COMMITS ON ONE BRANCH AND ONE PR**, never amend, rebase,
+  squash, force-push or history rewrite. The original implementation candidate
+  `b51515c1c78faa3354bfca71293897b910873c64` carried the layer, and three review-fix commits
+  landed as DIRECT CHILDREN on the same branch — `039a3b6d99136eb47c32eee3af535dc4c4d9d872`,
+  then `e1adb8e9078ec2a39bce880d01113d7e8ef6cfeb` (semantic final-eval selection,
+  figure-consistent optional-plot declaration, and the exact top-two margin), then the
+  APPROVED head `81a148f8…` (the FD digest's final round requiring the COMPLETE identity).
+  **CUMULATIVE REVIEWED SCOPE: EXACTLY SEVEN FILES**, verified as the complete
+  `44530abb…...28eb8dad…` comparison — `src/match_aou/rl/action/graph_action.py`,
+  `src/match_aou/rl/training/graph_tick_loop.py`,
+  `src/match_aou/rl/training/graph_train.py`, `tests/test_graph_ctde.py`,
+  `tests/test_graph_fuel_damage.py`, `tests/test_graph_train.py` and
+  `tests/test_graph_wake_diagnostics.py` (NEW). **No config, preset or benchmark manifest was
+  added or changed** — `configs/graph_train/final_cell_probe.json` remains the ONLY repository
+  preset, is untouched and is still `fixed_cell_v1` — and **no documentation file was part of
+  the code integration**, which is what this documentation task closes. No vendored BLADE,
+  solver, `graph_reward`, `graph_generalized`, `graph_benchmark_preflight`,
+  `graph_episode_setup`, `graph_fuel_damage`, `graph_ppo`, `graph_encoder`, `graph_effect`,
+  `graph_trigger`, executor, generator or rollout file was touched.
+  **HISTORICAL CC-REPORTED ENGINEERING EVIDENCE ONLY.** As reported at review time: the final
+  solver-free suite **602 passed, 6 skipped**, and the focused wake-diagnostics suite
+  **57 passed**; and the `graph_tick_loop` BONMIN selftest was **NOT run in the final fix
+  chain**. **This DOCUMENTATION task ran no test suite, no solver, no BLADE episode and no
+  smoke, and makes no pass/fail claim of its own** — it confirmed only, read-only, that
+  `tests/test_graph_wake_diagnostics.py` COLLECTS 57 tests at the integrated tree, which
+  corroborates that count without asserting a result.
+  **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS EXECUTED FOR PR #52**, and none may be inferred
+  from it: **PR #52 produced no scientific measurement and did not modify the R1 run, its
+  artifacts or its verdict.** R1 was measured at code SHA `4af6c5aa…`, which PREDATES this
+  layer, so R1's artifacts are episode-outcome schema v2 and carry no `wake_decisions`; the
+  layer's benefit is to FUTURE runs. The approved Phase-A (`737b4bf`) and
+  FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements are untouched. This entry certifies the
+  IMPLEMENTATION; §8 owns the phase state.
+
 ---
 
 ## 8. OPEN (not built)
+
+- **PHASE-STATE CORRECTION — THE ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING: IT IS
+  COMPLETED, INDEPENDENTLY REVIEWED AND `APPROVE — VALID MEASUREMENT`, AND THE PER-WAKE FD
+  DIAGNOSTICS LAYER (PR #52) IS INTEGRATED.** This bullet is stated FIRST because it
+  supersedes, as CURRENT state only, every "R1 is `AUTHORIZED / DISPATCHED — RESULT PENDING`"
+  and every "NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS" statement below it and in
+  `graph_rl_project_handoff.md`. Each of those remains accurate as the record it was.
+  - **R1 IS A VALID GENERALIZED-V1 MEASUREMENT.** Measured code SHA
+    `4af6c5aa5dd28072692bfda63282964b55010aae`, verdict **`APPROVE — VALID MEASUREMENT`**:
+    375/375 iterations and PPO updates, 3000 successful training episodes from 3045 attempts
+    with 45 ordinary accounted `setup` failures all deterministically replaced, **ZERO
+    integrity aborts**, 16 evaluation rounds, **864/864 benchmark members successful**,
+    **18/18 complete matched groups in every round**, and `accounting_reconciled = true`. It
+    was a FIXED-BUDGET **actor-only** run with **NO early stopping** and **NO CTDE arm**. §7
+    owns the full record, the comparator's content-addressed identity and the explicit
+    non-claims.
+  - **ITS PRIMARY FD FINDING IS NEGATIVE, AND THAT IS A RESULT.** The run did not learn
+    severity-conditioned mild-vs-severe behaviour: the policy moved GLOBALLY from
+    `SELF_PRESERVATION_ABORT` toward `PLAN_COMPLIANCE` across checkpoints while treating
+    matched mild and severe worlds almost identically. **A valid negative result, not a
+    validity defect**, and **NOT grounds to re-tune, re-seed, repair, resume, extend or
+    re-run.** **NO RERUN, REPAIR, RESUME, EXTENSION OR RETUNING IS AUTHORIZED.**
+  - **IT IS ONE R1 MEASUREMENT.** It is **NOT** a five-run population result and **NOT** an
+    actor-only-vs-CTDE comparison. **NO actor-only-vs-CTDE generalized result exists, no CTDE
+    generalized run exists, is scheduled or is authorized, and no CTDE benefit or deficit is
+    established or may be pre-claimed.**
+  - **PR #52 IS CODE, AND IT MEASURED NOTHING.** The durable per-wake FD policy diagnostics
+    layer (`81a148f8` / `28eb8dad` — §5, §7) is implemented, reviewed, approved and
+    integrated. It **produced no scientific measurement and did not modify R1, its artifacts
+    or its verdict**; because R1 was measured at a code SHA that predates it, **R1's own
+    artifacts are episode-outcome schema v2 and carry no `wake_decisions`**, and the layer's
+    benefit is to FUTURE runs.
+  - **THE DIAGNOSTIC REPLAY IS ENGINEERING / ANALYSIS EVIDENCE, NEVER A SECOND
+    MEASUREMENT** (§7). Its findings — a replay equivalent to R1 on 108/108 actions, a
+    materially different `fuel_norm` and a flipped `reachable_by_ego` in all 54 matched pairs
+    against 0/54 changed meta-actions, a negligible mean absolute matched aggregate-P(ABORT)
+    delta, 54/108 joint-vs-aggregate argmax disagreement, 98.15 % mean task-distance clipping
+    and a persistently high normalized joint entropy — **narrow where to look and prove no
+    cause.** **Action aliasing and weak route-relative observation context are SUSPECTS, not
+    causally proven explanations**, and no fix, redesign or retuning follows from them
+    automatically.
+  - **WHAT IS STILL NOT AUTHORIZED, AND IS NOT MADE SO BY THIS RECORD:** any R1 rerun,
+    repair, resume or extension; the five-run cluster campaign; a CTDE arm; a benchmark
+    replacement; and `p(destroy) < 1`, which remains a separate deferred Grade-A research
+    task with `p(destroy)` still `1.0`. **No repository preset selects `generalized_v1`**,
+    `configs/graph_train/final_cell_probe.json` remains the ONLY repository preset and is
+    still `fixed_cell_v1`, **no repository preset enables early stopping**, and **no
+    benchmark manifest is committed or tracked in the repository** — recording R1's
+    comparator IDENTITY in §7 adds no bytes to it. The volatile phase state — ownership, the
+    live next step, and what is and is not authorized — lives in
+    `graph_rl_project_handoff.md`, which is the authority for it.
+  - **THE HISTORICAL MEASUREMENTS ARE UNTOUCHED.** The approved Phase-A (`737b4bf`) and
+    FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) baselines remain preserved, valid and measurements
+    of the `fixed_cell_v1` bundle; R1 is a measurement of the `generalized_v1` bundle and is
+    **not** a rerun, replacement, extension or comparator of either.
 
 - **GENERALIZED-V1 — THE ACTIVE PHASE. TASKS 1, 2, 3 AND 4 ARE ALL IMPLEMENTED, REVIEWED AND
   MERGED** (`5b55ca3` / `9b305e4`, PR #35; `185d39f` / `ca0dc40`, PR #36; `24a8b1e` /
@@ -5212,7 +5595,15 @@ a stub, because normal production does not currently generate it.
   convergence or optimality claim. *(SUPERSEDED, and corrected here: this document and the
   handoff previously stated that NO REVIEWED EARLY-STOPPING MECHANISM EXISTS. That was
   accurate through PR #47 and is not now — what survives is that no scientific run has used
-  it.)* **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS, AND NO GENERALIZED RESULT
+  it.)* *(SUPERSEDED as CURRENT state by the PHASE-STATE CORRECTION bullet at the head of
+  this section, and preserved here as the record it was: the two sentences that follow said
+  that **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS** and that R1 was
+  **`AUTHORIZED / DISPATCHED — RESULT PENDING`**. Both were accurate through PR #51. **R1 is
+  now COMPLETED, INDEPENDENTLY REVIEWED and `APPROVE — VALID MEASUREMENT` at measured code
+  SHA `4af6c5aa…`, with a NEGATIVE primary FD finding** (§7). What SURVIVES unchanged: it is
+  ONE R1 measurement, **no actor-only-vs-CTDE generalized result exists**, and no generalized
+  result beyond §7's record may be pre-claimed.)* **NO GENERALIZED SCIENTIFIC MEASUREMENT
+  RESULT EXISTS, AND NO GENERALIZED RESULT
   MAY BE PRE-CLAIMED.** **A first full GENERALIZED-V1 ACTOR-ONLY long run (R1) has been
   AUTHORIZED and DISPATCHED and its RESULT IS PENDING** — it is unreviewed, it has produced
   no verdict, and nothing about its reward, convergence, attrition, benchmark outcome or
@@ -5279,16 +5670,29 @@ a stub, because normal production does not currently generate it.
     2. **THE R1 BENCHMARK CONSTRUCTION IS AUTHORIZED AND DISPATCHED** — candidate base seed
        `840000`, `max_candidates_per_cell = 12`, to be built by the deterministic preflight
        before training.
-    3. **NO CONCRETE R1 MANIFEST HAS BEEN INDEPENDENTLY REVIEWED OR APPROVED AS THE
-       COMPARATOR.** R1 is `RESULT PENDING`; **do not claim that an R1 manifest exists**
-       unless execution evidence later establishes it. **No benchmark manifest is committed
-       or tracked in the repository**, `configs/graph_train/final_cell_probe.json` remains
-       the ONLY repository preset and it is `fixed_cell_v1` (**no repository preset selects
-       `generalized_v1`**), and `build_benchmark_manifest` still REFUSES to invent a world
-       count — its production caller `graph_benchmark_preflight.run_benchmark_preflight`
-       refuses just as firmly, so a CALLER existing is not a REVIEWED POPULATION existing.
-    4. **NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS** — no reward, convergence or
-       validity result, and **no actor-only-vs-CTDE generalized result.**
+    3. **A CONCRETE R1 BENCHMARK MANIFEST EXISTS AND WAS THE COMPARATOR OF THE REVIEWED,
+       APPROVED R1 MEASUREMENT** — `manifest_id
+       0e15f007ef176bf977f8b93bb91289f48c16f25ee9eee282ffd1a89477f6fc0d`, built by the
+       deterministic preflight before training and evaluated unchanged in all 16 rounds (§7
+       records its file hash, its ordered seed digest and its preflight report hash).
+       **WHAT SURVIVES UNCHANGED: no benchmark manifest is committed or tracked in the
+       repository** — recording an IDENTITY adds no bytes to it —
+       `configs/graph_train/final_cell_probe.json` remains the ONLY repository preset and it
+       is `fixed_cell_v1` (**no repository preset selects `generalized_v1`**), and
+       `build_benchmark_manifest` still REFUSES to invent a world count, as does its
+       production caller `graph_benchmark_preflight.run_benchmark_preflight`. *(SUPERSEDED,
+       and corrected here: this fact previously read "**NO CONCRETE R1 MANIFEST HAS BEEN
+       INDEPENDENTLY REVIEWED OR APPROVED AS THE COMPARATOR** … R1 is `RESULT PENDING`".
+       Accurate through PR #51; the execution evidence it deferred to now exists.)*
+    4. **ONE GENERALIZED SCIENTIFIC MEASUREMENT RESULT NOW EXISTS — THE R1 ACTOR-ONLY RUN,
+       `APPROVE — VALID MEASUREMENT`, WITH A NEGATIVE PRIMARY FD FINDING** (§7, and the
+       PHASE-STATE CORRECTION bullet at the head of this section). **WHAT SURVIVES
+       UNCHANGED:** it is ONE measurement and **NOT** a five-run population result;
+       **no actor-only-vs-CTDE generalized result exists**, no CTDE generalized run exists,
+       is scheduled or is authorized, and **no CTDE benefit or deficit is established or may
+       be pre-claimed**; and nothing beyond §7's recorded result may be claimed for R1
+       itself. *(SUPERSEDED, and corrected here: this fact previously read "**NO GENERALIZED
+       SCIENTIFIC MEASUREMENT RESULT EXISTS**". Accurate through PR #51.)*
     *(SUPERSEDED, and corrected here: this bullet previously asserted in the present tense
     that no FINAL SCIENTIFIC worlds-per-cell SCALE had been SELECTED and that no benchmark
     population had been scheduled or authorized. Both were accurate through Task 4 and are
