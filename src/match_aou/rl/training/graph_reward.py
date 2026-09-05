@@ -108,6 +108,14 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tupl
 # solver's own optimum. This is the (1 - p + EPSILON)**m guard from the MINLP objective;
 # it is NOT the reward's division guard (that is cfg.regret_epsilon) — keep them separate.
 from ...solvers.match_aou_MINLP_solver import EPSILON
+# WHICH approved MATCH-AOU objective a reference value is measured under. Ids and
+# validation only -- this import reaches neither the P1 solver nor SciPy's MILP stack.
+from ...solvers.match_aou_backend import (
+    DEFAULT_MATCH_AOU_BACKEND,
+    MATCH_AOU_BACKEND_P1_MILP_V1,
+    MatchAouBackendError,
+    resolve_match_aou_backend,
+)
 # The DOMAIN enum only (pure dataclasses + stdlib): the reward has to answer "which
 # target does this task attack" for the event-conditioned reference's accounting, and
 # guessing it from `steps[0]` alone would be a second, weaker rule beside the one
@@ -284,8 +292,81 @@ def reference_fault_aborts(exc: BaseException) -> bool:
 # 1. Plan value — the MINLP objective, reproduced EXACTLY (no re-solve)
 # =============================================================================
 
-def plan_value(solution: Solution, tasks: Sequence["Task"]) -> float:
-    """Scalar value of a plan under the MATCH-AOU objective — bit-faithful to the solver.
+def _assigned_agents_by_step(solution: Solution) -> Dict[Tuple[int, int], Set[str]]:
+    """DISTINCT agent ids per ``(task_idx, step_idx)``.
+
+    A set keyed by agent_id dedups a single agent that lists the same ``(j, k)`` more
+    than once. Shared by both backend valuations so "how many agents are on this step"
+    is answered in exactly one place.
+    """
+    assigned: Dict[Tuple[int, int], Set[str]] = {}
+    for agent_id, tuples in (solution or {}).items():
+        for t in tuples:
+            jk = (int(t[0]), int(t[1]))
+            assigned.setdefault(jk, set()).add(str(agent_id))
+    return assigned
+
+
+def _p1_plan_value(solution: Solution, tasks: Sequence["Task"]) -> float:
+    """Plan value under the DETERMINISTIC ``p = 1`` MILP objective — no ``EPSILON``.
+
+    The exact objective ``MatchAouP1MILP`` maximizes, ``sum_j utility[j] * y[j]`` with
+    ``y[j] = 1`` iff at least one agent is assigned to task ``j``:
+
+      * unassigned task           -> exactly ``0``
+      * covered task              -> exactly ``task.utility``
+      * redundant agent 2, 3, ... -> exactly ``0`` additional utility
+
+    THE CONTRACT IS ENFORCED, NOT ASSUMED. This formulation models exactly one step per
+    task at ``probability == 1.0``, so a multi-step task or a ``p != 1`` step reaching
+    here means the P1 backend was selected for a domain it does not describe. That raises
+    :class:`~match_aou.solvers.match_aou_backend.MatchAouBackendError` -- the same
+    integrity fault ``solve_and_normalize_audited`` raises for the same inputs -- rather
+    than returning full utility for a task whose success was never certain, which would be
+    a confidently wrong reward denominator.
+    """
+    assigned = _assigned_agents_by_step(solution)
+    total = 0.0
+    for j, task in enumerate(tasks):
+        steps = task.steps
+        if len(steps) != 1:
+            raise MatchAouBackendError(
+                "MATCH-AOU backend %r values exactly one step per task, but task %d has "
+                "%d. The deterministic P1 objective has no step dimension, so scoring "
+                "this plan under it would be a confidently wrong reference value."
+                % (MATCH_AOU_BACKEND_P1_MILP_V1, j, len(steps))
+            )
+        probability = steps[0].probability
+        if float(probability) != 1.0:
+            raise MatchAouBackendError(
+                "MATCH-AOU backend %r values deterministic p = 1 only, but task %d has "
+                "step probability %r. Paying full utility for an uncertain task would "
+                "overstate the reference the episode is scored against."
+                % (MATCH_AOU_BACKEND_P1_MILP_V1, j, probability)
+            )
+        # Coverage is read off the single step the formulation's `x[i, j]` refers to.
+        if assigned.get((j, 0)):
+            total += float(task.utility)
+    return total
+
+
+def plan_value(
+    solution: Solution,
+    tasks: Sequence["Task"],
+    *,
+    backend: str = DEFAULT_MATCH_AOU_BACKEND,
+) -> float:
+    """Scalar value of a plan under the SELECTED MATCH-AOU objective.
+
+    **THE OBJECTIVE THIS SCORES MUST BE THE ONE THAT WAS SOLVED.** A reference value is
+    only a reference if it is measured under the objective that produced the allocation:
+    scoring a P1 allocation with the legacy EPSILON arithmetic (or the reverse) would
+    normalize the episode's reward by a number no solver ever optimized. ``backend`` is
+    therefore the episode's own stored backend, passed down by the reference builders and
+    by :func:`compute_episode_reward`, never guessed from the inputs.
+
+    ``legacy_minlp_v1`` (the DEFAULT) is the HISTORICAL arithmetic, unchanged and
+    described below; ``p1_milp_v1`` is exact covered utility (see :func:`_p1_plan_value`).
 
     Reproduces ``match_aou_MINLP_solver.MatchAou._add_objective`` exactly:
 
@@ -310,17 +391,21 @@ def plan_value(solution: Solution, tasks: Sequence["Task"]) -> float:
         solution: ``{agent_id: [(task_idx, step_idx[, level]), ...]}``. Keys are agent
             ids; tuples may be 2- or 3-element (only ``[0]`` / ``[1]`` are read).
         tasks: the task list ``task_idx`` indexes into.
+        backend: which approved MATCH-AOU objective to value the plan under. DEFAULTS to
+            the historical ``legacy_minlp_v1``, so every pre-integration caller gets the
+            unchanged EPSILON arithmetic.
 
     Returns:
         The objective value as a float. Pure: NO torch, NO BLADE, NO re-solve.
+
+    Raises:
+        MatchAouBackendError: unknown backend, or a P1 valuation handed an input outside
+            the deterministic single-step ``p = 1`` contract.
     """
-    # Distinct agents per (task_idx, step_idx). A set keyed by agent_id dedups a
-    # single agent that lists the same (j, k) more than once.
-    assigned: Dict[Tuple[int, int], Set[str]] = {}
-    for agent_id, tuples in (solution or {}).items():
-        for t in tuples:
-            jk = (int(t[0]), int(t[1]))
-            assigned.setdefault(jk, set()).add(str(agent_id))
+    if resolve_match_aou_backend(backend) == MATCH_AOU_BACKEND_P1_MILP_V1:
+        return _p1_plan_value(solution, tasks)
+
+    assigned = _assigned_agents_by_step(solution)
 
     total = 0.0
     for j, task in enumerate(tasks):
@@ -590,6 +675,24 @@ def uses_event_conditioned_reference(ctx: Any) -> bool:
     )
 
 
+def episode_match_aou_backend(ctx: Any) -> str:
+    """THE ONE READER behind "which MATCH-AOU objective is this episode solved under?".
+
+    Reads ``EpisodeContext.match_aou_backend`` -- the single stored source of truth,
+    resolved by ``setup_episode`` before any BLADE object exists -- and validates it here,
+    so the question cannot be spelled two ways and a corrupted value cannot travel.
+
+    Duck-typed for exactly the reason :func:`uses_event_conditioned_reference` is: this
+    pipeline is driven by lightweight stub contexts in the test suite and in the module
+    self-tests. An object that declares no backend IS a historical ``legacy_minlp_v1``
+    episode, which is the default -- so an absent field can only ever resolve to the
+    PRESERVED objective, never to the opt-in one.
+    """
+    return resolve_match_aou_backend(
+        getattr(ctx, "match_aou_backend", DEFAULT_MATCH_AOU_BACKEND)
+    )
+
+
 # =============================================================================
 # 3. Config + result breakdown
 # =============================================================================
@@ -737,10 +840,19 @@ def _static_t0_breakdown(ctx: "EpisodeContext", cfg: RewardConfig) -> EpisodeRew
     operand order, the same single ``denom``, the same folding of the penalty. Nothing
     here consults a reference policy, a checkpoint or a reference record -- this is the
     path every approved measurement was taken on and it must stay recognisable as such.
+
+    THE ONE ADDITION is that ``U_oracle`` is measured under the episode's OWN allocation
+    objective. On ``legacy_minlp_v1`` -- the default, and what every approved measurement
+    ran -- that resolves to exactly the historical EPSILON arithmetic, so the reward is
+    unchanged operand for operand. On ``p1_milp_v1`` it is exact covered utility, because
+    that is the objective the oracle allocation was actually solved under; normalizing a
+    P1 allocation by the legacy value would divide by a number no solver optimized.
     """
     oracle_tasks = list(ctx.oracle_tasks)
 
-    u_oracle = plan_value(ctx.oracle_solution, oracle_tasks)
+    u_oracle = plan_value(
+        ctx.oracle_solution, oracle_tasks, backend=episode_match_aou_backend(ctx)
+    )
     u_achieved = realized_utility(oracle_tasks, ctx.executor.done)
     u_aircraft = max((float(t.utility) for t in oracle_tasks), default=0.0)
     n_lost = len(ctx.executor.dead)

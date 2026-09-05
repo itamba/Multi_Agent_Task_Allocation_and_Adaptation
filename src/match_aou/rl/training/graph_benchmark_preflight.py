@@ -135,6 +135,12 @@ from .graph_generalized import (
     identity_differences,
     write_benchmark_manifest,
 )
+from ...solvers.match_aou_backend import (
+    MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+    MATCH_AOU_BACKENDS,
+    MatchAouBackendError,
+    resolve_match_aou_backend,
+)
 from .graph_reward import ReferenceIntegrityError, reference_fault_aborts
 from .graph_train import (
     _REPO_ROOT,
@@ -143,6 +149,7 @@ from .graph_train import (
     TrainConfig,
     _build_generator,
     _episode_target_roster,
+    _backend_setup_kwargs,
     _generalized_setup_kwargs,
     _git_provenance,
     _observe_world_identity,
@@ -454,7 +461,21 @@ def probe_world(
                 n_hidden=int(card.hidden_requested),
                 placement_rng=random.Random(int(seed)),
                 **_generalized_setup_kwargs(cfg),
+                # THE SAME MATCH-AOU objective the later training / evaluation run will
+                # use, and NOT a separately chosen one. The backend decides `A_init`, and
+                # `A_init` is what route-relative hidden placement predicts routes from,
+                # so a population selected under one objective and evaluated under
+                # another would fail `require_world_matches_manifest` on its own frozen
+                # geometry. Omitted entirely on the historical backend, exactly as in
+                # `_run_one_episode`.
+                **_backend_setup_kwargs(cfg),
             )
+        except MatchAouBackendError:
+            # BACKEND / CONFIGURATION fault: never a replacement-eligible rejection, for
+            # the same reason an integrity fault is not one. Re-raised ahead of the broad
+            # wrap so it propagates out of `_scan_cell` and stops the preflight instead of
+            # quietly discarding a candidate the instrument could not evaluate.
+            raise
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
 
@@ -541,6 +562,11 @@ def _require_preflight_config(cfg: TrainConfig) -> None:
             "design only."
             % (EPISODE_DESIGN_GENERALIZED_V1, cfg.episode_design)
         )
+    # WHICH MATCH-AOU objective the candidate worlds will be built under. Refused here,
+    # before any compute, for the same reason the design is: a population selected under
+    # an objective nobody named is a population nobody chose. It is NOT constrained to a
+    # particular backend -- either is legal -- only to a KNOWN one.
+    resolve_match_aou_backend(cfg.match_aou_backend)
     if bool(cfg.include_sams):
         raise BenchmarkPreflightError(
             "include_sams=True is not supported on the construction path: hidden "
@@ -621,7 +647,7 @@ def _scan_cell(
                 load_bucket=str(window.load_bucket),
             )
         except (MeasurementIntegrityError, FuelDamageIntegrityError,
-                BenchmarkIdentityError):
+                BenchmarkIdentityError, MatchAouBackendError):
             # INSTRUMENT faults. Never replacement-eligible, for the same reason they
             # abort a training run: a world that contradicts its own certificate, or a
             # roster that misreads the world, implicates every world this preflight
@@ -1033,6 +1059,13 @@ def _build_report(
         # WHAT THE WORLDS WERE BUILT WITH -- so a report can be checked against the
         # manifest it produced without re-deriving the construction inputs.
         "episode_design": cfg.design.to_record(),
+        # WHICH allocation objective SELECTED these worlds. Recorded on the REPORT rather
+        # than inside the manifest, deliberately: the manifest already carries each
+        # world's id-free frozen identity, and `require_world_matches_manifest` REFUSES a
+        # member whose reconstructed geometry disagrees -- so a manifest frozen under one
+        # backend cannot be silently reused under the other, without a schema change.
+        # This key is what lets a reader see WHY, instead of only that it happened.
+        "match_aou_backend": resolve_match_aou_backend(cfg.match_aou_backend),
         "fuel_damage": cfg.fuel_damage_parameters().to_record(),
         "geometry": {
             "min_target_distance_km": float(cfg.min_target_distance_km),
@@ -1136,6 +1169,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", type=str, required=True,
                    help="output directory for the manifest, the build report and the "
                         "generated candidate scenarios")
+    p.add_argument("--match-aou-backend", type=str, choices=list(MATCH_AOU_BACKENDS),
+                   default=None,
+                   help="which MATCH-AOU allocation objective SELECTS these worlds. It "
+                        "MUST be the one the later training / evaluation run uses: the "
+                        "backend decides A_init, and A_init decides the route-relative "
+                        "hidden geometry the manifest freezes. Omitted -> whatever the "
+                        "--config preset says, else the historical %s"
+                        % MATCH_AOU_BACKEND_LEGACY_MINLP_V1)
     p.add_argument("--manifest-name", type=str, default=_MANIFEST_FILENAME)
     p.add_argument("--report-name", type=str, default=_REPORT_FILENAME)
     p.add_argument("--label", type=str, default=None)
@@ -1165,6 +1206,11 @@ def _config_from_args(args: argparse.Namespace) -> TrainConfig:
     fields.pop("ctde", None)
     fields["episode_design"] = EPISODE_DESIGN_GENERALIZED_V1
     fields["fuel_damage_mode"] = FuelDamageMode.SEEDED_VARIABLE
+    # The backend is an operator choice, not a preflight constant: whichever objective the
+    # later run will train and evaluate under must be the one that selects these worlds.
+    # A preset may set it; the flag overrides it; the default stays historical.
+    if args.match_aou_backend is not None:
+        fields["match_aou_backend"] = str(args.match_aou_backend)
     fields.setdefault("n_iterations", 1)
     fields["eval_every"] = 0
     fields["eval_episodes"] = 0
@@ -1178,8 +1224,8 @@ def main(argv: Optional[List[str]] = None) -> None:
     args = _build_arg_parser().parse_args(argv)
     cfg = _config_from_args(args)
     print("=" * 78)
-    print("benchmark preflight: policy=%s design=%s"
-          % (PREFLIGHT_POLICY, cfg.episode_design))
+    print("benchmark preflight: policy=%s design=%s backend=%s"
+          % (PREFLIGHT_POLICY, cfg.episode_design, cfg.match_aou_backend))
     print("worlds_per_cell=%d benchmark_base_seed=%d max_candidates_per_cell=%d"
           % (args.worlds_per_cell, args.benchmark_base_seed,
              args.max_candidates_per_cell))

@@ -606,11 +606,48 @@ def test_po1_model_has_no_step_dimension_and_no_stacking_bound() -> None:
 
 TASK_BASE_SHA = "fd0d668d5031adef1f3b6af612e584f9ab56454b"
 FROZEN_SOLVER_RELPATH = "src/match_aou/solvers/match_aou_MINLP_solver.py"
-ALLOWED_CHANGED_FILES = {
+#: The approved P1 FORMULATION, pinned like the frozen legacy solver: the integration
+#: commit consumes it and must not re-tune it. `P1_APPROVED_SHA` is the GPT-approved
+#: isolated-solver candidate this branch's integration commit was built on top of.
+P1_SOLVER_RELPATH = "src/match_aou/solvers/match_aou_p1_milp_solver.py"
+P1_APPROVED_SHA = "1462163277322a3ef29eec28c782766edb8ea73b"
+
+#: Files this branch is allowed to differ from `main` in.
+#:
+#: THE BRANCH IS TWO STAGES, and the guard tracks both rather than being deleted when the
+#: second arrives. Stage 1 added the ISOLATED solver, its tests and its benchmark tool --
+#: at that point the guard's whole content was "no active runtime file was touched", which
+#: was the correct claim for an opt-in module nothing imported. Stage 2 is the reviewed
+#: INTEGRATION, which necessarily touches the runtime: a backend cannot be selectable
+#: without a selector, a solve seam, a reward valuation and a harness field.
+#:
+#: So the claim it now enforces is the one that is still checkable and still worth
+#: enforcing: EXACTLY the declared integration surface changed, and nothing else did. The
+#: two solver formulations are pinned separately and byte-for-byte by the two tests below,
+#: which is the guarantee that actually matters -- neither approved objective was edited
+#: to make the integration fit.
+_STAGE1_ISOLATED_SOLVER_FILES = {
     "src/match_aou/solvers/match_aou_p1_milp_solver.py",
     "tests/test_match_aou_p1_milp_solver.py",
     "tools/benchmark_match_aou_p1_milp.py",
 }
+_STAGE2_INTEGRATION_FILES = {
+    # the backend contract: ids, validation, the lazy P1 loader
+    "src/match_aou/solvers/match_aou_backend.py",
+    # the ONE solve seam + the stored per-episode backend
+    "src/match_aou/rl/training/graph_episode_setup.py",
+    # backend-aware reference valuation (`plan_value`)
+    "src/match_aou/rl/training/graph_reward.py",
+    # harness field, CLI/preset surface, provenance, abort routing
+    "src/match_aou/rl/training/graph_train.py",
+    "src/match_aou/rl/training/graph_rollout.py",
+    # the population selector must use the SAME backend the run will evaluate under
+    "src/match_aou/rl/training/graph_benchmark_preflight.py",
+    # tests
+    "tests/test_graph_setup_seam.py",
+    "tests/test_match_aou_backend_integration.py",
+}
+ALLOWED_CHANGED_FILES = _STAGE1_ISOLATED_SOLVER_FILES | _STAGE2_INTEGRATION_FILES
 
 
 def _git(*args: str) -> Optional[str]:
@@ -643,8 +680,27 @@ def test_po2_frozen_legacy_solver_is_byte_for_byte_unchanged() -> None:
     )
 
 
-def test_po2_no_active_runtime_file_was_modified() -> None:
-    """Only the three allowed new files may differ from the task base."""
+def test_po2_approved_p1_formulation_is_byte_for_byte_unchanged() -> None:
+    """The APPROVED P1 solver must hash identically to its reviewed blob.
+
+    The integration CONSUMES this formulation; it does not get to adjust it. Changing the
+    objective to make an integration fit would silently re-open a reviewed decision, so it
+    is pinned exactly as the frozen legacy solver is -- and a genuine defect found here is
+    a STOP, not an edit.
+    """
+    approved_blob = _git("rev-parse", f"{P1_APPROVED_SHA}:{P1_SOLVER_RELPATH}")
+    if approved_blob is None:
+        pytest.skip("git unavailable or approved commit not present in this checkout")
+
+    working_blob = _git("hash-object", P1_SOLVER_RELPATH)
+    assert working_blob == approved_blob, (
+        "the approved P1 MILP formulation was modified "
+        f"(approved blob {approved_blob}, working blob {working_blob})"
+    )
+
+
+def test_po2_only_the_declared_surface_was_modified() -> None:
+    """Only the declared stage-1 + stage-2 files may differ from the task base."""
     changed = _git("diff", "--name-only", TASK_BASE_SHA)
     if changed is None:
         pytest.skip("git unavailable or base commit not present in this checkout")

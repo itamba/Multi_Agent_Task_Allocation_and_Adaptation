@@ -300,6 +300,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 
+from ...solvers.match_aou_backend import (
+    DEFAULT_MATCH_AOU_BACKEND,
+    MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+    MATCH_AOU_BACKEND_P1_MILP_V1,
+    MATCH_AOU_BACKENDS,
+    MatchAouBackendError,
+    resolve_match_aou_backend,
+)
 from .graph_episode_setup import (
     setup_episode,
     DETECTION_KM,
@@ -762,6 +770,7 @@ _CLI_FIELD_BY_DEST = {
     "visual_artifacts": "visual_artifacts",
     "training_mode": "training_mode",
     "episode_design": "episode_design",
+    "match_aou_backend": "match_aou_backend",
     "benchmark_manifest": "benchmark_manifest",
     "generalized_max_attempts_per_iteration":
         "generalized_max_attempts_per_iteration",
@@ -952,6 +961,21 @@ class TrainConfig:
     # fixed-cell fields below are then NOT read for a training episode (`validate`
     # refuses a run that looks as though they were meant to be).
     episode_design: str = EPISODE_DESIGN_FIXED_CELL_V1
+
+    # --- WHICH MATCH-AOU ALLOCATION OBJECTIVE THIS RUN SOLVES ---------------------
+    # An INDEPENDENT explicit selector, deliberately NOT part of `episode_design` and
+    # never inferred from it, from the task probabilities, from which solver happens to be
+    # installed, or from anything else. `legacy_minlp_v1` is the DEFAULT -- the frozen
+    # MINLP through BONMIN, the objective every approved measurement was taken on.
+    #
+    # `p1_milp_v1` selects the deterministic p = 1 MILP instead. IT IS NOT A TRANSPARENT
+    # PERFORMANCE SWAP: it removes the legacy EPSILON stacking incentive, so it changes
+    # which allocations are optimal, and because `A_init` is what route-relative hidden
+    # placement predicts routes from, it can change the hidden geometry, episode
+    # feasibility and what the policy learns. No equivalence is claimed, and there is no
+    # `auto` and no fallback in either direction: one run uses one backend for every
+    # MATCH-AOU solve of every episode, and an unknown id is REFUSED before any compute.
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND
 
     # The FROZEN 18-stratum benchmark this run EVALUATES on -- a path to a manifest
     # written by `graph_generalized.write_benchmark_manifest`. Required for a
@@ -1406,6 +1430,13 @@ class TrainConfig:
                 "episode_design must be one of %s, got %r"
                 % (list(EPISODE_DESIGNS), self.episode_design)
             )
+        # --- WHICH MATCH-AOU objective, checked before anything solves anything -----
+        # An INDEPENDENT selector: it is NOT resolved from `episode_design` and does not
+        # constrain it. An unknown id raises here (as `MatchAouBackendError`, the stable
+        # backend-integrity type) rather than falling back on the historical objective,
+        # for the same reason an unknown design does: a run that quietly solved a
+        # different objective than its record claims is a mislabelled measurement.
+        resolve_match_aou_backend(self.match_aou_backend)
         design = self.design
         if design.generalized:
             # The approved generalized TRAINING mixture is 0.50 clean / 0.25 mild /
@@ -3379,7 +3410,16 @@ def collect_provenance(
             "node": platform.node(),
         },
         "packages": {name: _module_provenance(name) for name in _PROVENANCE_MODULES},
-        "solver": {"bonmin": _bonmin_provenance()},
+        # WHICH allocation objective this run solved, beside where BONMIN resolved from.
+        # The backend is part of a result's identity in exactly the way the solver
+        # executable is: `A_init` and every reference come out of it, and the two
+        # objectives do NOT generally share an optimal allocation. BONMIN's own probe is
+        # still recorded on both backends -- a P1 run does not invoke it, and its absence
+        # or presence remains a fact about the environment worth keeping.
+        "solver": {
+            "bonmin": _bonmin_provenance(),
+            "match_aou_backend": resolve_match_aou_backend(cfg.match_aou_backend),
+        },
         # `benchmark` omitted (every fixed-cell run) leaves this block byte-unchanged;
         # supplied, the evaluation half states the MANIFEST as its actual seed source
         # instead of a band this run never evaluates.
@@ -3714,6 +3754,25 @@ def _generalized_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
         "hidden_policy": design.hidden_policy,
         "reference_policy": design.reference_policy,
     }
+
+
+def _backend_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
+    """``setup_episode``'s MATCH-AOU backend keyword -- or NOTHING, on the default.
+
+    The same keyword-OMISSION discipline as ``_artifact_kwargs`` / ``_ctde_kwargs`` /
+    ``_cardinality_kwargs`` / :func:`_generalized_setup_kwargs`: on ``legacy_minlp_v1``
+    ``setup_episode`` is called with EXACTLY its pre-integration argument list and
+    resolves its own historical default, which is the stronger invariance claim.
+
+    It is a SEPARATE helper from :func:`_generalized_setup_kwargs` on purpose. The backend
+    is orthogonal to ``episode_design`` -- either design may run under either backend --
+    so folding it into the generalized bundle would make it unreachable on the fixed-cell
+    path and would suggest a coupling that does not exist.
+    """
+    backend = resolve_match_aou_backend(cfg.match_aou_backend)
+    if backend == MATCH_AOU_BACKEND_LEGACY_MINLP_V1:
+        return {}
+    return {"match_aou_backend": backend}
 
 
 def build_variation_config(
@@ -5168,10 +5227,21 @@ def _run_one_episode(
                 # historical path, where setup resolves its own `exact_v1` /
                 # `static_t0_v1` defaults exactly as it always has.
                 **_generalized_setup_kwargs(cfg),
+                # WHICH MATCH-AOU objective every solve of THIS episode uses. Absent
+                # entirely on the historical backend, where setup resolves its own
+                # `legacy_minlp_v1` default exactly as it always has.
+                **_backend_setup_kwargs(cfg),
                 # Recording is ARMED here or nowhere; the tick loop drives it. Absent
                 # entirely when artifacts are off.
                 **_recording_kwargs(artifacts),
             )
+        except MatchAouBackendError:
+            # BACKEND / CONFIGURATION fault, not an episode outcome: the selected backend
+            # could not be reached, or was handed a problem outside its contract. Re-raised
+            # AHEAD of the broad handler so it is never wrapped as an accounted `setup`
+            # failure, never entered into `skip_and_account_v1`, never replaced by the next
+            # training seed -- and never answered by silently solving the other objective.
+            raise
         except Exception as exc:
             raise EpisodeAttemptError("setup", exc) from exc
 
@@ -5250,6 +5320,13 @@ def _run_one_episode(
             if reference_fault_aborts(exc):
                 raise
             raise EpisodeAttemptError("run", exc) from exc
+        except MatchAouBackendError:
+            # A DEFERRED reference solve (the clean t=0 build, or the fuel-damage
+            # continuation checkpoint) hit the same backend fault the setup solve can. It
+            # is routed identically and for the same reason: the instrument is configured
+            # against a domain the selected backend does not model, which implicates every
+            # episode it touched -- so it aborts instead of being spent as `run` attrition.
+            raise
         except FuelDamageIntegrityError:
             # GENERALIZED-V1 (handoff 3l.3): under the certified eligibility policy this
             # world was proven FD-capable BEFORE a tick was paid for, so a live event
@@ -5311,6 +5388,11 @@ def _run_one_episode(
             if reference_fault_aborts(exc):
                 raise
             raise EpisodeAttemptError("reward", exc) from exc
+        except MatchAouBackendError:
+            # `plan_value` refuses to score a plan under an objective that does not
+            # describe it (a multi-step task or p != 1 reaching a P1-selected run). Same
+            # routing as the setup and run stages: a configuration fault, never attrition.
+            raise
         except Exception as exc:
             raise EpisodeAttemptError("reward", exc) from exc
 
@@ -5539,7 +5621,8 @@ def evaluate(
                     **_artifact_kwargs(artifacts),
                 )
             except (_VisualArtifactError, MeasurementIntegrityError,
-                    FuelDamageIntegrityError, ReferenceIntegrityError):
+                    FuelDamageIntegrityError, ReferenceIntegrityError,
+                    MatchAouBackendError):
                 # INFRASTRUCTURE / DATA INTEGRITY, not science: none names a pipeline
                 # stage, none may enter the ledger or a condition tally, and none may be
                 # skipped. A `ReferenceIntegrityError` reaching here has ALREADY been
@@ -6034,7 +6117,7 @@ def evaluate_benchmark(
                 )
             except (_VisualArtifactError, MeasurementIntegrityError,
                     FuelDamageIntegrityError, BenchmarkIdentityError,
-                    ReferenceIntegrityError):
+                    ReferenceIntegrityError, MatchAouBackendError):
                 # INFRASTRUCTURE / DATA INTEGRITY, not science: none names a pipeline
                 # stage, none may enter the ledger or a tally, and none may be skipped.
                 # A `ReferenceIntegrityError` reaching HERE has already been classified
@@ -6755,6 +6838,18 @@ def train(
           "reference=%s]"
           % (design.design, design.hidden_policy, design.eligibility_policy,
              design.post_fd_wake_policy, design.reference_policy))
+    # WHICH allocation objective, echoed for the same reason and stated as INDEPENDENT of
+    # the design above, so an operator can never read one off the other. A P1 run says so
+    # outright, because it is not the objective the approved measurements were taken on.
+    backend = resolve_match_aou_backend(cfg.match_aou_backend)
+    if backend == MATCH_AOU_BACKEND_P1_MILP_V1:
+        print("match_aou_backend: %s  (deterministic p = 1 MILP, no EPSILON; INDEPENDENT "
+              "of episode_design. NOT the historical objective: it removes the legacy "
+              "stacking incentive, so allocations -- and therefore hidden geometry and "
+              "feasibility -- can differ. BONMIN is not invoked.)" % backend)
+    else:
+        print("match_aou_backend: %s  (frozen MINLP through BONMIN -- the historical "
+              "objective; INDEPENDENT of episode_design)" % backend)
     if cfg.generalized:
         print("scenario (GENERALIZED-V1): the cell is SAMPLED PER EPISODE -- "
               "A ~ U{%s}, K == A, H_requested ~ U{1..A}"
@@ -7061,7 +7156,7 @@ def train(
                     )
                 except (_VisualArtifactError, MeasurementIntegrityError,
                         FuelDamageIntegrityError, BenchmarkIdentityError,
-                        ReferenceIntegrityError):
+                        ReferenceIntegrityError, MatchAouBackendError):
                     # INFRASTRUCTURE / DATA INTEGRITY, not science. Re-raised ahead of the
                     # broad handler so none can be written to the ledger as a
                     # `generation` / `setup` / `run` / `reward` failure, enter
@@ -10333,6 +10428,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "cell per episode (default: %%(default)s)"
                         % (EPISODE_DESIGN_FIXED_CELL_V1,
                            EPISODE_DESIGN_GENERALIZED_V1))
+    p.add_argument("--match-aou-backend", type=str, choices=list(MATCH_AOU_BACKENDS),
+                   default=d_cfg.match_aou_backend,
+                   help="which MATCH-AOU allocation objective to solve. %s (the default) "
+                        "is the frozen MINLP through BONMIN -- the objective every "
+                        "approved measurement was taken on. %s is the deterministic p = 1 "
+                        "MILP, which removes the legacy EPSILON stacking incentive and "
+                        "therefore CHANGES which allocations are optimal (and so can "
+                        "change hidden geometry and feasibility); it is not a transparent "
+                        "performance swap. INDEPENDENT of --episode-design, with no auto "
+                        "and no fallback (default: %%(default)s)"
+                        % (MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+                           MATCH_AOU_BACKEND_P1_MILP_V1))
     p.add_argument("--benchmark-manifest", type=str,
                    default=d_cfg.benchmark_manifest,
                    help="path to a FROZEN 18-stratum benchmark manifest; REQUIRED for "
