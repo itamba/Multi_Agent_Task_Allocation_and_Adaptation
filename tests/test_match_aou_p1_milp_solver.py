@@ -236,6 +236,37 @@ def test_po1_no_epsilon_participates_in_the_new_objective() -> None:
     assert legacy_scored != 80.0, "sanity: the legacy expression really does carry a residue"
 
 
+def test_po1_module_does_not_overclaim_objective_equivalence() -> None:
+    """Pin the corrected claim so the retracted overclaim cannot silently return.
+
+    An earlier revision of this module asserted that the P1 and legacy objectives "agree
+    on which allocations are optimal in this domain". The benchmark contradicted that:
+    at p = 1 the legacy objective pays a strictly positive marginal reward for a
+    REDUNDANT agent, and the measured legacy solver stacks where the P1 MILP does not.
+    Prose is the only place that claim can live, so prose is what this test guards.
+    """
+    doc = p1_module.__doc__ or ""
+    lowered = doc.lower()
+
+    assert "agree on which allocations are optimal" not in lowered, (
+        "the retracted objective-equivalence overclaim is back in the module docstring"
+    )
+
+    # The narrower supported claim, and the explicit denial of the broader one.
+    assert "covered-task set" in lowered
+    assert "not** generally have the same optimal allocation set" in lowered or (
+        "same optimal allocation set" in lowered and "not" in lowered
+    ), "the docstring must deny a shared optimal ALLOCATION set"
+    assert "intentionally changes the allocation objective" in lowered, (
+        "the docstring must state that removing EPSILON changes the allocation objective"
+    )
+
+    # And the pre-existing statement must NOT have been weakened away.
+    assert "not a claim of identical arithmetic" in lowered, (
+        "the explicit 'not identical arithmetic' statement must be preserved"
+    )
+
+
 def test_po1_multiple_agents_on_one_task_remain_feasible() -> None:
     """Stacking is permitted. There must be no `sum_i x[i,j] <= 1` anywhere."""
     agents = [mk_agent("A"), mk_agent("B"), mk_agent("C")]
@@ -613,7 +644,7 @@ def test_po2_optimal_status_without_a_solution_vector_is_refused(
 
 
 def test_po2_zero_mip_gap_is_requested_by_default() -> None:
-    """Equivalence validation needs a proven optimum, so the default gap is exactly 0."""
+    """A covered-set comparison needs a proven optimum, so the default gap is exactly 0."""
     captured: Dict[str, Any] = {}
     model = MatchAouP1MILP([mk_agent("A")], [mk_task(80.0, lat=1.0)])
     assert model.mip_rel_gap == 0.0
@@ -696,7 +727,15 @@ def _covered_utility(
 def test_po3_same_inputs_reach_the_same_covered_utility(n_agents: int, n_tasks: int) -> None:
     """Legacy and P1 must agree on covered utility and on the covered task set.
 
-    Raw assignments may legitimately differ (alternate optima). Covered UTILITY may not.
+    Raw assignments may legitimately differ, and on these inputs the difference is
+    EXPECTED and SYSTEMATIC rather than incidental tie-breaking: at ``p = 1`` the legacy
+    objective still pays ``utility * (EPSILON - EPSILON**2)`` for a redundant agent, so
+    stacking is optimal for THAT objective and not for this one. What must NOT differ is
+    the covered task set and therefore the exact-P1 covered utility.
+
+    This asserts agreement on the covered set / covered utility ONLY. It deliberately
+    does not assert a shared optimal ALLOCATION set, because the two objectives do not
+    have one.
     """
     agents = [mk_agent(f"agent{i}", budget=500.0) for i in range(n_agents)]
     tasks = [mk_task(80.0 + 5 * j, lat=j + 1.0) for j in range(n_tasks)]

@@ -39,23 +39,63 @@ tasks, the total assignment count, the redundant assignment count
 ``sum_j max(0, assigned_j - 1)``, the exact-P1 covered utility, the legacy-EPSILON
 objective, and capability / fuel feasibility of every assignment.
 
-Differing raw assignments at equal covered utility are labelled ALTERNATE OPTIMUM.
-Differing covered utility, or a differing covered task SET, is labelled MISMATCH and is a
-finding to investigate -- never something to wave away as solver tie-breaking.
+Four verdicts, and only the first is a finding to investigate:
+
+  * ``MISMATCH``               -- covered utility or covered task SET differs. Never to
+                                  be waved away as solver tie-breaking.
+  * ``REDUNDANCY_DIFFERENCE``  -- same covered set and same exact-P1 utility, but legacy
+                                  used MORE agents. This is the EPSILON stacking
+                                  incentive, and it is EXPECTED: at ``p = 1`` the legacy
+                                  objective pays ``utility * (EPSILON - EPSILON**2)`` per
+                                  redundant agent, so each allocation is optimal FOR ITS
+                                  OWN objective. The two objectives do NOT share an
+                                  optimal allocation set.
+  * ``ALTERNATE_OPTIMUM``      -- same covered set, same utility, same redundancy, but a
+                                  different agent->task pairing.
+  * ``IDENTICAL``              -- byte-identical assignments.
+
+Agreement on the covered task set is the ONLY equivalence this tool can evidence.
+It is not evidence of a shared optimal allocation set, and must not be reported as one.
+
+WHICH ENVIRONMENT COUNTS AS EVIDENCE
+------------------------------------
+**Both arms must run in the SAME interpreter, in a VALIDATED environment** (``CLAUDE.md``
+section 1). That means either the LOCAL ``nlp_env``, or the BGU cluster's
+``graph_rl_cluster`` with ``PYTHONNOUSERSITE=1``:
+
+    # BGU cluster (validated: SciPy 1.17.1 / Pyomo 6.10.1 / coin-or-bonmin 1.8.9)
+    PYTHONNOUSERSITE=1 conda run -n graph_rl_cluster --no-capture-output \
+        python tools/benchmark_match_aou_p1_milp.py
+
+    # LOCAL, only if `nlp_env` can import BOTH scipy.optimize.milp AND run bonmin
+    conda run -n nlp_env --no-capture-output \
+        python tools/benchmark_match_aou_p1_milp.py
+
+**A run in one environment that reaches ANOTHER environment's bonmin executable via
+``--bonmin-executable`` is DIAGNOSTIC ONLY and does NOT satisfy the Grade-A same-input
+proof obligation.** That option exists for local exploration, and any result produced
+through it must be reported as diagnostic rather than as validation evidence.
+
+At the time of writing this matters in practice: the LOCAL ``nlp_env`` carries a BROKEN
+SciPy (cp39-ABI extension modules under a Python 3.12 interpreter), so
+``scipy.optimize.milp`` cannot be imported there and the LOCAL same-process comparison is
+not currently available. The cluster path above is the supported one.
 
 USAGE
 -----
     python tools/benchmark_match_aou_p1_milp.py --bonmin-executable <path-to-bonmin>
 
-``--bonmin-executable`` may be omitted when ``bonmin`` is on PATH. Scenario files are
-written to a temporary directory unless ``--output-dir`` is given; nothing is written
-into the repository.
+``--bonmin-executable`` may be omitted when ``bonmin`` is on PATH -- which is the correct
+way to invoke it inside a validated environment. Scenario files are written to a
+temporary directory unless ``--output-dir`` is given; nothing is written into the
+repository.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import statistics
 import sys
@@ -77,6 +117,16 @@ from match_aou.solvers.match_aou_p1_milp_solver import (  # noqa: E402
 )
 
 BASE_SCENARIO = REPO_ROOT / "data" / "scenarios" / "strike_training_4v5.json"
+
+
+def _pyomo_version() -> str:
+    """Pyomo's version, for the environment record. Never fatal to the run."""
+    try:
+        import pyomo
+
+        return str(pyomo.__version__)
+    except Exception:  # pragma: no cover - environment dependent
+        return "<unavailable>"
 
 #: (agent_count, known_target_count). Covers the current agent cardinalities A in
 #: {2, 3, 4} against representative target counts, including the A == T square case the
@@ -582,11 +632,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         import scipy
 
+        # EVIDENCE CLASS, decided by the code rather than left to prose. Inside a
+        # validated environment bonmin is on PATH and needs no override, so an explicit
+        # --bonmin-executable means this interpreter is reaching into some OTHER
+        # environment's solver. That is diagnostic, not Grade-A same-input evidence.
+        cross_environment = args.bonmin_executable is not None
+        evidence_class = (
+            "diagnostic_cross_environment" if cross_environment
+            else "validated_same_environment"
+        )
+
         print(f"python  : {sys.version.split()[0]}")
         print(f"scipy   : {scipy.__version__}")
+        print(f"pyomo   : {_pyomo_version()}")
         print(f"bonmin  : {bonmin}")
+        print(f"conda   : {os.environ.get('CONDA_DEFAULT_ENV', '<not a conda env>')}")
+        print(f"nousersite: {os.environ.get('PYTHONNOUSERSITE', '<unset>')}")
         print(f"seed    : {args.seed}   repeats: {args.repeats}   warmup: {args.warmup}")
         print(f"outdir  : {out_dir}")
+        print(f"evidence: {evidence_class}")
+        if cross_environment:
+            print(
+                "  !! DIAGNOSTIC ONLY: --bonmin-executable was supplied, so this "
+                "interpreter is\n"
+                "     reaching another environment's bonmin. This run does NOT satisfy "
+                "the Grade-A\n"
+                "     same-input proof obligation; run inside a validated environment "
+                "instead."
+            )
 
         results: List[Dict[str, Any]] = []
         for num_agents, n_known in matrix:
@@ -637,11 +710,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 {
                     "python": sys.version,
                     "scipy": scipy.__version__,
+                    "pyomo": _pyomo_version(),
                     "bonmin_executable": str(bonmin),
+                    "conda_default_env": os.environ.get("CONDA_DEFAULT_ENV"),
+                    "pythonnousersite": os.environ.get("PYTHONNOUSERSITE"),
                     "seed": args.seed,
                     "repeats": args.repeats,
                     "warmup": args.warmup,
                     "engineering_validation_only": True,
+                    # See the module docstring: only a run inside a validated environment
+                    # (both arms, one interpreter) is Grade-A same-input evidence.
+                    "evidence_class": evidence_class,
+                    "bonmin_executable_overridden": cross_environment,
                     "results": results,
                 },
                 indent=2,

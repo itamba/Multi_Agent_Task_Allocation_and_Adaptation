@@ -29,9 +29,27 @@ rather than carrying the workaround forward:
 
 **This is deliberately NOT a claim of identical arithmetic with the legacy MINLP.** The
 legacy objective evaluates a covered task at ``utility * (1 - EPSILON ** m)`` rather than
-at ``utility``; the two agree on which allocations are optimal in this domain but not on
-the objective's numeric value. The legacy formulation needs ``EPSILON``; this one has no
-variable exponent and therefore does not.
+at ``utility``. The legacy formulation needs ``EPSILON``; this one has no variable
+exponent and therefore does not.
+
+**NOR is it a claim that the two objectives share an optimal allocation set.** Stating
+exactly what is and is not supported:
+
+  * In the exercised domain the two objectives CAN agree on the optimal COVERED-TASK SET
+    and therefore on the exact-P1 covered utility. That is what the engineering
+    comparison in ``tools/benchmark_match_aou_p1_milp.py`` observed on the cells it ran.
+  * They do **NOT** generally have the same optimal ALLOCATION set, and the difference is
+    systematic rather than incidental. At ``p = 1`` the legacy objective still pays a
+    strictly positive ``utility * (EPSILON - EPSILON ** 2)`` for each REDUNDANT agent on
+    an already-covered task, so stacking is genuinely optimal FOR THAT objective. The
+    measured legacy solver stacks in exactly this way where the P1 MILP does not.
+  * This formulation therefore **INTENTIONALLY CHANGES THE ALLOCATION OBJECTIVE** by
+    removing that numerical stacking incentive. Removing ``EPSILON`` is not a
+    presentation detail: it changes which allocations are optimal.
+
+A consequence worth stating once, plainly: swapping this solver in would change
+allocations, not merely runtime. That makes any integration a separate reviewed
+decision rather than a drop-in performance change.
 
 THE FORMULATION
 ---------------
@@ -79,6 +97,11 @@ some optimal solutions may stack agents redundantly. This module adds **no**
 and **no** lexicographic second objective. Whether HiGHS stacks redundantly is something
 to OBSERVE first; inventing a tie-break here would silently change the allocation
 semantics that the rest of the pipeline was measured against.
+
+Observed so far, and recorded as an OBSERVATION rather than a guarantee: across the
+engineering matrix run to date HiGHS returned no redundant assignment at all, so no
+tie-breaker was needed. That was measured on LOCAL diagnostic evidence only (see the
+benchmark tool's environment caveat) and it is not a proof that HiGHS never stacks.
 
 SCOPE
 -----
@@ -242,8 +265,9 @@ class MatchAouP1MILP:
             risk_factor: conservative budget margin, applied exactly as the frozen
                 solver applies it.
             mip_rel_gap: relative MIP gap handed to HiGHS. Defaults to ``0.0`` so the
-                returned allocation is a proven optimum, which is what an equivalence
-                comparison against the legacy solver requires.
+                returned allocation is a proven optimum -- which is what a
+                covered-set / covered-utility comparison against the legacy solver
+                requires. It does not make the two objectives equivalent.
 
         Raises:
             P1MilpBackendUnavailableError: ``scipy.optimize.milp`` is not importable.
