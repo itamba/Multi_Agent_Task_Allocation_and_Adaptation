@@ -1127,5 +1127,122 @@ def test_fix8_tick_loop_comment_no_longer_claims_a_numpy_only_summarizer():
     assert "_masked_dist" in src and "SAMPLES NOTHING" in src
 
 
+# =============================================================================
+# FIX 9 -- THE FD DIGEST'S FINAL ROUND NEEDS THE *COMPLETE* IDENTITY, NEVER A SUBSET
+# =============================================================================
+# In `_two_rounds()` the two rounds differ in BOTH `updates_completed` (5 vs 10) and
+# `eval_round_ordinal` (0 vs 1), so ANY single one of the three fields already singles
+# out one round. A selector that dropped a missing field and matched on the remainder
+# would therefore SUCCEED on every case below and return a plausible-looking final
+# round. Each case must refuse instead.
+
+_COMPLETE_FINAL = {"evaluation_stage": "post_update", "updates_completed": 10,
+                   "eval_round_ordinal": 1}
+
+
+def _final_round(final_eval):
+    return GT._fd_policy_sensitivity_from_outcomes(
+        _two_rounds(), final_eval=final_eval)[
+        "matched_severe_minus_mild_aggregate_p_abort"]
+
+
+def test_fix9_a_complete_identity_still_selects_the_round():
+    """The positive control: nothing below is refusing because selection is broken."""
+    m = _final_round(dict(_COMPLETE_FINAL))
+    assert m["final_round_selection"]["selected"] is True
+    assert m["final_round_selection"]["matched_identity"] == _COMPLETE_FINAL
+    assert m["final_round"]["updates_completed"] == 10
+    assert m["final_round"]["eval_round_ordinal"] == 1
+
+
+@pytest.mark.parametrize("case,digest", [
+    # --- a field ABSENT from the digest --------------------------------------
+    ("missing_ordinal",
+     {"evaluation_stage": "post_update", "updates_completed": 10}),
+    ("missing_updates_completed",
+     {"evaluation_stage": "post_update", "eval_round_ordinal": 1}),
+    ("missing_stage",
+     {"updates_completed": 10, "eval_round_ordinal": 1}),
+    # --- a field present but NULL --------------------------------------------
+    ("null_ordinal",
+     {"evaluation_stage": "post_update", "updates_completed": 10,
+      "eval_round_ordinal": None}),
+    ("null_updates_completed",
+     {"evaluation_stage": "post_update", "updates_completed": None,
+      "eval_round_ordinal": 1}),
+    ("null_stage",
+     {"evaluation_stage": None, "updates_completed": 10,
+      "eval_round_ordinal": 1}),
+    # --- present, but not a valid EVALUATION identity -------------------------
+    ("non_evaluation_stage",
+     {"evaluation_stage": "train", "updates_completed": 10,
+      "eval_round_ordinal": 1}),
+    ("bool_updates_completed",
+     {"evaluation_stage": "post_update", "updates_completed": True,
+      "eval_round_ordinal": 1}),
+    ("bool_ordinal",
+     {"evaluation_stage": "post_update", "updates_completed": 10,
+      "eval_round_ordinal": True}),
+    ("non_int_ordinal",
+     {"evaluation_stage": "post_update", "updates_completed": 10,
+      "eval_round_ordinal": "1"}),
+])
+def test_fix9_a_partial_final_identity_is_refused_even_when_unique(case, digest):
+    """Refused even though the REMAINING fields uniquely identify exactly one round."""
+    # Guard the premise: the surviving fields really would have matched one round.
+    stated = {k: v for k, v in digest.items() if v is not None}
+    assert stated, case
+    subset_hits = [r for r in GT._matched_rounds(_eval_rows_of(_two_rounds()))
+                   if all(r.get(k) == v for k, v in stated.items())]
+    if case not in ("non_evaluation_stage", "bool_updates_completed", "bool_ordinal",
+                    "non_int_ordinal"):
+        assert len(subset_hits) == 1, (
+            "%s: the premise is gone -- a subset match would no longer be unique" % case)
+
+    m = _final_round(digest)
+    sel = m["final_round_selection"]
+    assert m["final_round"] is None, case
+    assert sel["selected"] is False, case
+    assert sel["reason"] == GT._INCOMPLETE_FINAL_EVAL_IDENTITY, case
+    assert sel["required_fields"] == list(GT._FINAL_EVAL_IDENTITY_FIELDS), case
+    # the refusal states what it was given, without inventing the missing part
+    assert set(sel["requested_identity"]) == set(GT._FINAL_EVAL_IDENTITY_FIELDS), case
+    assert "matched_identity" not in sel, case
+
+
+def _eval_rows_of(outcome_rows):
+    """The evaluation subset `_matched_rounds` is defined over."""
+    return [r for r in outcome_rows
+            if isinstance(r.get("wake_decisions"), list)
+            and str(r.get("phase")) in GT._EVAL_PHASES]
+
+
+def test_fix9_all_three_fields_are_compared_never_a_subset():
+    """A digest that is complete but WRONG in one field matches no round."""
+    for field, wrong in (("evaluation_stage", "pre_update"),
+                         ("updates_completed", 11),
+                         ("eval_round_ordinal", 0)):
+        digest = dict(_COMPLETE_FINAL)
+        digest[field] = wrong
+        sel = _final_round(digest)["final_round_selection"]
+        assert sel["selected"] is False, field
+        assert sel["reason"] == "no_matched_round_with_that_identity", field
+
+
+def test_fix9_the_two_selectors_share_one_validator_and_one_reason():
+    """`_final_eval_identity` is the single definition of a complete identity."""
+    for digest in ({"evaluation_stage": "post_update", "updates_completed": 10},
+                   {"evaluation_stage": "train", "updates_completed": 10,
+                    "eval_round_ordinal": 1}):
+        assert GT._final_eval_identity(digest) is None
+        assert _final_round(digest)["final_round_selection"]["reason"] == (
+            GT._INCOMPLETE_FINAL_EVAL_IDENTITY)
+    # the record-level selector refuses with the SAME named reason
+    _rec, sel = GT._select_final_eval_record(
+        [{"evaluation_stage": "post_update", "updates_completed": 10}])
+    assert sel["reason"] == GT._INCOMPLETE_FINAL_EVAL_IDENTITY
+    assert GT._final_eval_identity(dict(_COMPLETE_FINAL)) == _COMPLETE_FINAL
+
+
 if __name__ == "__main__":  # pragma: no cover - direct runner (nlp_env)
     raise SystemExit(pytest.main([__file__, "-v", "--no-header", "-x"]))

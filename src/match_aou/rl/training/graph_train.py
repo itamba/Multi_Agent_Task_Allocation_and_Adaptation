@@ -7486,6 +7486,12 @@ _FINAL_EVAL_IDENTITY_FIELDS = (
 )
 
 
+# The ONE refusal reason for a final-evaluation identity that is not complete. Shared by
+# `_select_final_eval_record` (over the eval RECORDS) and `_select_final_matched_round`
+# (over the digest), so "incomplete" cannot come to mean two different things.
+_INCOMPLETE_FINAL_EVAL_IDENTITY = "incomplete_evaluation_identity"
+
+
 def _final_eval_identity(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The complete round identity of ONE eval record, or ``None`` if incomplete.
 
@@ -7555,7 +7561,7 @@ def _select_final_eval_record(
     if n_missing:
         return None, {
             "selected": False,
-            "reason": "incomplete_evaluation_identity",
+            "reason": _INCOMPLETE_FINAL_EVAL_IDENTITY,
             "required_fields": list(_FINAL_EVAL_IDENTITY_FIELDS),
             "n_eval_records": len(rows),
             "n_records_missing_identity": n_missing,
@@ -7785,38 +7791,52 @@ def _select_final_matched_round(
     rounds: List[Dict[str, Any]],
     final_eval: Optional[Dict[str, Any]],
 ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
-    """Pick the round the FINAL evaluation digest names, BY VALIDATED IDENTITY.
+    """Pick the round the FINAL evaluation digest names, BY COMPLETE VALIDATED IDENTITY.
 
     Never by file order. ``eval_records[-1]`` is the last row a file happens to hold,
-    which is a statement about the writer, not about which round is final -- so the
-    selection here matches the digest's own ``evaluation_stage`` / ``updates_completed``
-    / ``eval_round_ordinal`` and REFUSES rather than guesses when that identity is
-    missing, absent from the rounds, or ambiguous. A wrong "final round" is worse than
-    none, because it looks exactly like a right one.
+    which is a statement about the writer, not about which round is final. So the round
+    is matched against the digest's own identity -- and against ALL THREE of
+    :data:`_FINAL_EVAL_IDENTITY_FIELDS`, never a subset of whichever ones happen to be
+    present.
+
+    THE SUBSET IS THE DANGEROUS CASE, which is why it is refused rather than tolerated.
+    A digest missing its ordinal still carries a stage and an update count, and those two
+    very often single out exactly one round -- so a subset match SUCCEEDS, returns a
+    round, and produces a "final round" that was selected on an identity nobody
+    validated. That is indistinguishable from a correct selection in the artifact. A
+    partial identity therefore refuses with :data:`_INCOMPLETE_FINAL_EVAL_IDENTITY`
+    even when the remaining fields would have been unique.
+
+    :func:`_final_eval_identity` is the SINGLE validator, shared with
+    :func:`_select_final_eval_record`: one definition of "a complete round identity",
+    one set of type rules (stage in :data:`_EVAL_PHASES`, ``int`` update count and
+    ordinal, ``bool`` rejected), so the two selectors cannot come to disagree about what
+    a valid identity is.
     """
     if not final_eval:
         return None, {"selected": False, "reason": "no_final_evaluation_digest_provided"}
-    wanted = {
-        "evaluation_stage": final_eval.get("evaluation_stage"),
-        "updates_completed": final_eval.get("updates_completed"),
-        "eval_round_ordinal": final_eval.get("eval_round_ordinal"),
-    }
-    stated = {k: v for k, v in wanted.items() if v is not None}
-    if not stated:
-        return None, {"selected": False,
-                      "reason": "final_evaluation_digest_states_no_identity",
-                      "requested_identity": wanted}
+    requested = {k: final_eval.get(k) for k in _FINAL_EVAL_IDENTITY_FIELDS}
+    identity = _final_eval_identity(final_eval)
+    if identity is None:
+        return None, {
+            "selected": False,
+            "reason": _INCOMPLETE_FINAL_EVAL_IDENTITY,
+            "required_fields": list(_FINAL_EVAL_IDENTITY_FIELDS),
+            "requested_identity": requested,
+        }
+    # ALL THREE fields, always. `identity` is already normalized by the validator, so
+    # this compares like for like without re-coercing anything here.
     hits = [r for r in rounds
-            if all(r.get(k) == (int(v) if k != "evaluation_stage" else str(v))
-                   for k, v in stated.items())]
+            if all(r.get(k) == identity[k] for k in _FINAL_EVAL_IDENTITY_FIELDS)]
     if len(hits) == 1:
         return hits[0], {"selected": True, "reason": "matched_by_validated_identity",
-                         "requested_identity": wanted, "n_candidates": 1}
+                         "requested_identity": requested,
+                         "matched_identity": identity, "n_candidates": 1}
     return None, {
         "selected": False,
         "reason": ("no_matched_round_with_that_identity" if not hits
                    else "ambiguous_identity_matched_several_rounds"),
-        "requested_identity": wanted,
+        "requested_identity": requested,
         "n_candidates": len(hits),
     }
 
