@@ -27,6 +27,7 @@ machine, and the tier skips rather than failing when neither is present.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -34,7 +35,148 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-import pytest
+
+try:  # pytest is optional: absent in nlp_env, so keep the __main__ runner usable.
+    import pytest
+except ImportError:  # pragma: no cover - standalone mode
+    pytest = None  # type: ignore[assignment]
+
+
+# =============================================================================
+# Minimal pytest compatibility surface (standalone mode ONLY)
+# =============================================================================
+# Built ONLY when real pytest is missing. With pytest installed this whole block
+# is skipped and `python -m pytest` behaviour and collection are untouched.
+#
+# Scope is deliberately this file's needs and nothing more -- `mark.parametrize`,
+# `mark.skipif`, `raises`, `approx` (scalars) and `skip`. This is NOT a pytest
+# clone, and anything it does not implement must fail loudly rather than quietly
+# passing.
+#
+# The mark objects expose `.name` / `.args` / `.kwargs` and attach through
+# `pytestmark`, which is exactly the surface real pytest's `MarkDecorator`
+# exposes and exactly what `_cases()` / `_skip_reason()` already read -- so the
+# standalone runner expands the SAME cases in both modes.
+
+if pytest is None:  # pragma: no cover - exercised only where pytest is absent
+
+    class Skipped(Exception):
+        """Raised by the shim's ``skip``. Named to match pytest's own outcome.
+
+        The runner classifies by ``type(exc).__name__ == "Skipped"``, so a skip
+        is counted as SKIP in both modes rather than being mistaken for a pass.
+        """
+
+    class _Mark:
+        """A pytest-compatible mark: ``.name`` / ``.args`` / ``.kwargs``."""
+
+        def __init__(self, name: str, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
+            self.name = name
+            self.args = args
+            self.kwargs = kwargs
+
+        def __call__(self, func: Any) -> Any:
+            # Append, mirroring pytest's accumulation of stacked decorators.
+            func.pytestmark = [*getattr(func, "pytestmark", []), self]
+            return func
+
+    class _MarkFactory:
+        """``pytest.mark.*`` -- only the two marks this file actually uses."""
+
+        @staticmethod
+        def parametrize(argnames: Any, argvalues: Any, **kwargs: Any) -> _Mark:
+            return _Mark("parametrize", (argnames, argvalues), kwargs)
+
+        @staticmethod
+        def skipif(condition: Any, *, reason: str = "skipif") -> _Mark:
+            return _Mark("skipif", (condition,), {"reason": reason})
+
+        def __getattr__(self, name: str) -> Any:
+            raise NotImplementedError(
+                f"standalone pytest shim does not implement pytest.mark.{name}; "
+                "run this file under real pytest, or extend the shim deliberately"
+            )
+
+    class _RaisesContext:
+        """``pytest.raises(Expected, match=...)`` with the same failure modes."""
+
+        def __init__(self, expected: Any, match: Optional[str]) -> None:
+            self.expected = expected
+            self.match = match
+            self.value: Optional[BaseException] = None
+
+        def __enter__(self) -> "_RaisesContext":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+            if exc_type is None:
+                raise AssertionError(f"DID NOT RAISE {self.expected!r}")
+            if not issubclass(exc_type, self.expected):
+                return False  # wrong exception type: let it propagate as a failure
+            if self.match is not None and re.search(self.match, str(exc)) is None:
+                raise AssertionError(
+                    f"pattern {self.match!r} not found in {str(exc)!r}"
+                )
+            self.value = exc
+            return True  # matched: suppress
+
+    class _Approx:
+        """Scalar-only ``pytest.approx``. Non-scalars fail loudly, never silently."""
+
+        # Stop numpy scalars from trying to handle the comparison themselves, so
+        # Python falls back to this object's reflected __eq__.
+        __array_ufunc__ = None
+
+        def __init__(self, expected: Any, rel: float = 1e-6, abs: float = 1e-12) -> None:
+            try:
+                self.expected = float(expected)
+            except (TypeError, ValueError) as exc:
+                raise NotImplementedError(
+                    "standalone pytest shim implements approx for SCALARS only; "
+                    f"got {expected!r}"
+                ) from exc
+            self.rel = rel
+            self.abs = abs
+
+        def __eq__(self, other: Any) -> bool:
+            try:
+                value = float(other)
+            except (TypeError, ValueError):
+                return NotImplemented
+            tolerance = max(self.abs, self.rel * max(abs(self.expected), abs(value)))
+            return abs(value - self.expected) <= tolerance
+
+        def __repr__(self) -> str:
+            return f"approx({self.expected!r} +- rel={self.rel} abs={self.abs})"
+
+    class _PytestShim:
+        """The tiny ``pytest`` stand-in this module binds when pytest is absent."""
+
+        mark = _MarkFactory()
+        # Only ever referenced inside postponed annotations, which are never
+        # evaluated; the standalone runner supplies its own `_MonkeyPatch`.
+        MonkeyPatch = object
+
+        @staticmethod
+        def raises(expected: Any, match: Optional[str] = None) -> _RaisesContext:
+            return _RaisesContext(expected, match)
+
+        @staticmethod
+        def approx(expected: Any, rel: float = 1e-6, abs: float = 1e-12) -> _Approx:
+            return _Approx(expected, rel=rel, abs=abs)
+
+        @staticmethod
+        def skip(reason: str = "") -> None:
+            raise Skipped(reason)
+
+        def __getattr__(self, name: str) -> Any:
+            raise NotImplementedError(
+                f"standalone pytest shim does not implement pytest.{name}; run "
+                "this file under real pytest, or extend the shim deliberately"
+            )
+
+    pytest = _PytestShim()  # type: ignore[assignment]
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC = REPO_ROOT / "src"
@@ -942,7 +1084,13 @@ if __name__ == "__main__":
             case_function(**call_kwargs)
             passed += 1
             print(f"OK   {case_name}")
-        except Exception as exc:  # noqa: BLE001
+        # BaseException, not Exception: real pytest's `Skipped` derives from
+        # BaseException, so `pytest.skip()` inside a test would otherwise escape this
+        # handler and abort the whole standalone run instead of counting as a SKIP.
+        # The shim's own `Skipped` is an ordinary Exception; both are handled here.
+        except BaseException as exc:  # noqa: BLE001
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise  # never swallow an interrupt or an explicit exit
             if type(exc).__name__ in {"Skipped", "OutcomeException"}:
                 skipped += 1
                 print(f"SKIP {case_name}: {exc}")
