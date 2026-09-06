@@ -82,6 +82,14 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 
+from ...solvers.match_aou_backend import (
+    DEFAULT_MATCH_AOU_BACKEND,
+    MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+    MATCH_AOU_BACKEND_P1_MILP_V1,
+    MATCH_AOU_BACKENDS,
+    MatchAouBackendError,
+    resolve_match_aou_backend,
+)
 from .graph_episode_setup import (
     setup_episode,
     DETECTION_KM,
@@ -161,6 +169,16 @@ class RolloutConfig:
     # `graph_train`. Selecting `generalized_v1` here samples the same TRAINING population
     # a generalized training batch is drawn from -- and makes no benchmark claim.
     episode_design: str = EPISODE_DESIGN_FIXED_CELL_V1
+
+    # --- WHICH MATCH-AOU ALLOCATION OBJECTIVE ------------------------------------
+    # Mirrors `graph_train.TrainConfig.match_aou_backend` field for field, and for the
+    # same reason the design and the FD knobs are mirrored: a diagnostic rollout must be
+    # able to build the SAME episode a training run does. It is INDEPENDENT of
+    # `episode_design` -- either design may run under either backend -- and it defaults to
+    # the historical frozen MINLP through BONMIN. Selecting `p1_milp_v1` changes which
+    # allocations are optimal and can therefore change the hidden geometry; it is not a
+    # transparent performance swap.
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND
 
     n_episodes: int = 20
     # Episode i uses VariationConfig(seed=base_seed+i) AND reseeds global `random`
@@ -272,6 +290,10 @@ class RolloutConfig:
                 "episode_design must be one of %s, got %r"
                 % (list(EPISODE_DESIGNS), self.episode_design)
             )
+        # WHICH MATCH-AOU objective, from the same resolution site the trainer uses, so
+        # an unknown backend is refused here exactly as it is there -- and never falls
+        # back on the historical objective.
+        resolve_match_aou_backend(self.match_aou_backend)
         if self.generalized:
             if str(self.fuel_damage_mode) != FuelDamageMode.SEEDED_VARIABLE:
                 raise ValueError(
@@ -450,10 +472,19 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
     )
     gen.recompute_time_feasible_cap(allowed_classes=None)
 
+    # WHICH MATCH-AOU objective every solve of every episode uses -- resolved ONCE, so
+    # the whole rollout is one backend and no episode can differ from its neighbour.
+    backend = resolve_match_aou_backend(cfg.match_aou_backend)
+
     print("=" * 72)
     print("graph_rollout: %d episode(s), base_seed=%d, deterministic=%s"
           % (cfg.n_episodes, cfg.base_seed, cfg.deterministic))
     print("output_dir=%s" % str(out_dir))
+    print("match_aou_backend=%s%s"
+          % (backend,
+             "  (deterministic p = 1 MILP; NOT the historical objective -- BONMIN is "
+             "not invoked)" if backend == MATCH_AOU_BACKEND_P1_MILP_V1
+             else "  (frozen MINLP through BONMIN -- the historical objective)"))
     print("=" * 72)
 
     records: List[Dict[str, Any]] = []
@@ -474,7 +505,8 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
             # constructed geometry of episode i is a pure function of `seed`.
             placement_rng = random.Random(seed)
             try:
-                # --- generate + setup (bonmin solves TWICE here) ---
+                # --- generate + setup (TWO MATCH-AOU solves happen here, on
+                # whichever backend `match_aou_backend` selected) ---
                 t_setup = time.perf_counter()
                 # The B1 construction request -- structurally identical to
                 # `graph_train.build_variation_config` (anti-drift test): a KNOWN-ONLY
@@ -525,6 +557,11 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                         "hidden_policy": cfg.design.hidden_policy,
                         "reference_policy": cfg.design.reference_policy,
                     }),
+                    # WHICH MATCH-AOU objective every solve of THIS episode uses.
+                    # OMITTED entirely on the historical backend, so setup resolves its
+                    # own `legacy_minlp_v1` default from the pre-integration call.
+                    **({} if backend == MATCH_AOU_BACKEND_LEGACY_MINLP_V1
+                       else {"match_aou_backend": backend}),
                     recording_export_path=rec_path,
                 )
                 setup_seconds = time.perf_counter() - t_setup
@@ -568,6 +605,10 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     # WHICH POPULATION, and the REQUESTED cell -- stated rather than
                     # inferred, on both designs.
                     **cfg.design.to_record(),
+                    # WHICH allocation objective produced this episode's A_init and
+                    # reference. Recorded beside the design it is INDEPENDENT of, so a
+                    # reader never infers one from the other.
+                    "match_aou_backend": backend,
                     "agent_count": int(cell.agent_count),
                     "known_requested": int(cell.known_count),
                     "hidden_requested": int(cell.hidden_requested),
@@ -641,6 +682,13 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                                                     fd_out.damage_factor or 0.0),
                          setup_seconds, episode_seconds))
 
+            except MatchAouBackendError:
+                # BACKEND / CONFIGURATION fault, not an episode outcome: the selected
+                # backend could not be reached, or was handed a problem outside its
+                # contract. Re-raised AHEAD of the broad handler so the rollout STOPS
+                # instead of counting it as ordinary episode attrition -- and so it is
+                # never answered by silently solving the other objective.
+                raise
             except Exception as exc:  # one failed episode must not abort the loop
                 n_failed += 1
                 print("[ep %2d] FAILED (seed=%d): %s: %s"
@@ -805,6 +853,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    choices=list(_ROLLOUT_FUEL_DAMAGE_MODES),
                    default=d.fuel_damage_mode,
                    help="the seeded fuel-damage mixture (default: %(default)s)")
+    p.add_argument("--match-aou-backend", type=str, choices=list(MATCH_AOU_BACKENDS),
+                   default=d.match_aou_backend,
+                   help="which MATCH-AOU allocation objective to solve. %s (the default) "
+                        "is the frozen MINLP through BONMIN; %s is the deterministic "
+                        "p = 1 MILP, which changes which allocations are optimal. "
+                        "INDEPENDENT of --episode-design (default: %%(default)s)"
+                        % (MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+                           MATCH_AOU_BACKEND_P1_MILP_V1))
     return p
 
 
@@ -818,6 +874,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         record_first_episode=args.record_first,
         episode_design=args.episode_design,
         fuel_damage_mode=args.fuel_damage_mode,
+        match_aou_backend=args.match_aou_backend,
     )
     run_rollout(cfg)
 

@@ -12,7 +12,8 @@ Pipeline position:
 
 This module is graph-native. It reuses only the independent domain helpers:
 ``create_agents_from_scenario`` / ``generate_all_enemy_tasks`` (scenario_factory),
-``MatchAou`` + ``post_solve_filter_and_level`` (solver + post-processing),
+the MATCH-AOU solver backends ``MatchAou`` / ``MatchAouP1MILP`` selected through
+``match_aou_backend`` + ``post_solve_filter_and_level`` (solve + post-processing),
 ``GraphPlanExecutor`` (the sole BLADE translation layer), ``Belief``, and — on the
 construction path — the locked PURE placement layer ``graph_hidden_placement``.
 
@@ -95,8 +96,10 @@ solve happens, and it DEFAULTS to the historical behaviour:
     ``oracle_tasks`` EMPTY, and retains ``EpisodeContext.t0_reference_tasks`` — the RAW
     t=0 task universe the deferred solve works from.
 
-The solve BUDGET is identical either way: exactly two bonmin calls per accepted episode.
-The policy moves solve #2; it never adds one. Section 5 of this module owns the
+The solve BUDGET is identical either way: AT MOST two MATCH-AOU solver invocations
+per accepted episode, and never three -- whichever backend ``match_aou_backend``
+selected, since the policy decides WHERE solve #2 happens and the backend decides WHICH
+solver answers it. The policy moves solve #2; it never adds one. Section 5 of this module owns the
 builders, and ``graph_reward`` owns the arithmetic they feed.
 
 WORLD INVENTORY vs ORACLE ALLOCATION (do not conflate them)
@@ -128,6 +131,18 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from ...models import Agent, Location, StepKind, Task
 from ...solvers import MatchAou
+# WHICH MATCH-AOU allocation objective this episode solves. Ids + validation + a LAZY
+# P1 loader and nothing else, so naming a backend costs nothing: the SciPy/HiGHS MILP is
+# reached only when `p1_milp_v1` was actually selected. The frozen MINLP above stays the
+# DEFAULT and is untouched.
+from ...solvers.match_aou_backend import (
+    DEFAULT_MATCH_AOU_BACKEND,
+    MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+    MATCH_AOU_BACKEND_P1_MILP_V1,
+    MatchAouBackendError,
+    load_p1_milp_solver,
+    resolve_match_aou_backend,
+)
 from ...utils.scheduling_utils import post_solve_filter_and_level
 from ...utils.blade_utils.scenario_factory import (
     create_agents_from_scenario,
@@ -154,6 +169,7 @@ from .graph_reward import (
     REFERENCE_POLICY_STATIC_T0_V1,
     EpisodeReference,
     ReferenceIntegrityError,
+    episode_match_aou_backend,
     plan_value,
     realized_task_indices,
     task_target_ids,
@@ -230,7 +246,7 @@ GENERALIZED_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4)
 class SolveAudit:
     """What one MATCH-AOU solve actually did — the fact ``solve_and_normalize`` drops.
 
-    ``MatchAou.solve`` already distinguishes two outcomes that the historical
+    BOTH MATCH-AOU backends already distinguish two outcomes that the historical
     ``solve_and_normalize`` return value CANNOT tell apart, because both collapse to the
     same empty triple:
 
@@ -257,7 +273,9 @@ class SolveAudit:
         termination_condition: the raw termination-condition name, recorded verbatim, or
             :data:`SOLVE_NOT_ATTEMPTED` when the solve was skipped.
         allocated_task_count: length of the allocated-only normalized task list.
-        seconds: wall-clock duration of the ``MatchAou.solve`` call (``0.0`` if skipped).
+        seconds: wall-clock duration of the SELECTED BACKEND's solve call (``0.0`` if
+            skipped). Each backend times only its own solve, never its model build, so
+            this field means the same thing under either one.
     """
 
     invoked: bool
@@ -272,7 +290,7 @@ class SolveAudit:
 SOLVE_NOT_ATTEMPTED: str = "not_attempted"
 #: Recorded when the results object carried no readable termination condition. This is a
 #: RECORD-COMPLETENESS fallback for the audit string only: it never affects `accepted`,
-#: which is decided by whether ``MatchAou.solve`` returned a solution at all.
+#: which is decided by whether the selected backend's solve returned a solution at all.
 SOLVE_TERMINATION_UNAVAILABLE: str = "unavailable"
 
 
@@ -284,15 +302,33 @@ def _termination_name(results: Any) -> str:
     return str(getattr(condition, "value", condition))
 
 
+def _backend_kwargs(backend: str) -> Dict[str, Any]:
+    """The ``backend`` keyword for a solve call — or NOTHING, on the historical default.
+
+    The same keyword-OMISSION discipline the harnesses already use for their optional
+    seams (``graph_train._artifact_kwargs`` / ``_ctde_kwargs`` / ``_cardinality_kwargs``),
+    and for the same reason: on ``legacy_minlp_v1`` the solve seam is called with EXACTLY
+    its pre-integration argument list, so "the historical path is unchanged" is a claim
+    about the call itself and not merely about what the callee would have derived. It is
+    also what keeps every existing ``solve_and_normalize`` stub — whose signature predates
+    this keyword — a working regression witness rather than a casualty of the integration.
+    """
+    return (
+        {} if backend == MATCH_AOU_BACKEND_LEGACY_MINLP_V1 else {"backend": backend}
+    )
+
+
 def solve_and_normalize(
     agents: Sequence[Agent],
     tasks: List[Task],
     precedence_relations: Optional[Sequence[Tuple[int, int]]] = None,
+    *,
+    backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> Tuple[Dict[str, List[Assignment]], List[Task], List[int]]:
     """Solve MATCH-AOU and return THE normalized (allocated-only) baseline.
 
-    Runs the MINLP (``risk_factor=0.0`` — the movement budget already charges an
-    explicit round-trip, so no reserve margin) then ``post_solve_filter_and_level``,
+    Runs the selected backend (``risk_factor=0.0`` — the movement budget already charges
+    an explicit round-trip, so no reserve margin) then ``post_solve_filter_and_level``,
     which drops unselected tasks, remaps ``task_idx`` to a dense ``[0..n-1]``, and
     stamps a topological ``level`` onto every 3-tuple.
 
@@ -312,29 +348,120 @@ def solve_and_normalize(
     :func:`solve_and_normalize_audited`, which additionally reports WHICH of those
     outcomes occurred. Historical callers are byte-for-byte unaffected; only a caller
     that must distinguish "answered zero" from "unanswered" reaches for the audit.
+
+    Args:
+        backend: WHICH approved MATCH-AOU objective to solve, defaulting to the
+            historical ``legacy_minlp_v1``. See :func:`solve_and_normalize_audited`.
     """
     solution, belief_tasks, unselected, _audit = solve_and_normalize_audited(
-        agents, tasks, precedence_relations
+        agents, tasks, precedence_relations, backend=backend
     )
     return solution, belief_tasks, unselected
+
+
+def _solve_legacy_minlp(
+    agents: Sequence[Agent],
+    tasks: List[Task],
+    precedence: List[Tuple[int, int]],
+) -> Tuple[Any, List[int], Any, float]:
+    """The HISTORICAL solve: the frozen MINLP through BONMIN. Byte-unchanged behaviour.
+
+    Times the ``MatchAou.solve`` call ALONE, exactly as this seam always has: Pyomo model
+    construction is deliberately outside the measurement, so ``SolveAudit.seconds`` keeps
+    meaning what every existing record says it means.
+    """
+    model = MatchAou(
+        agents=list(agents),
+        tasks=tasks,
+        precedence_relations=precedence,
+        risk_factor=0.0,
+    )
+    started = time.perf_counter()
+    raw_solution, results, unselected = model.solve(solver_name=SOLVER_NAME)
+    return raw_solution, unselected, results, time.perf_counter() - started
+
+
+def _solve_p1_milp(
+    agents: Sequence[Agent],
+    tasks: List[Task],
+    precedence: List[Tuple[int, int]],
+) -> Tuple[Any, List[int], Any, float]:
+    """The OPT-IN solve: the deterministic ``p = 1`` MILP through SciPy/HiGHS.
+
+    Same inputs and the same ``risk_factor=0.0`` as the legacy branch, and its NATIVE
+    ``solve()`` — the legacy ``solver_name`` keyword is deliberately not passed, because
+    this formulation has no Pyomo solver to name and BONMIN is never invoked on this path.
+
+    ``P1MilpUnsupportedInputError`` / ``P1MilpBackendUnavailableError`` are re-raised as
+    :class:`~match_aou.solvers.match_aou_backend.MatchAouBackendError`, the stable
+    backend-integrity type the harnesses ABORT on. That routing is deliberate: this domain
+    is expected to satisfy the P1 assumptions, so a multi-step task, ``p != 1``,
+    precedence, or a missing MILP stack means the instrument is configured against a
+    domain it does not model — never a world that merely turned out infeasible, and never
+    a reason to fall back on the legacy objective.
+
+    Times the ``solve()`` call ALONE, the same convention the legacy branch uses, so the
+    one recorded ``SolveAudit.seconds`` field means the same thing under both backends.
+    """
+    solver_cls = load_p1_milp_solver()
+    try:
+        model = solver_cls(
+            agents=list(agents),
+            tasks=tasks,
+            precedence_relations=precedence,
+            risk_factor=0.0,
+        )
+        started = time.perf_counter()
+        raw_solution, results, unselected = model.solve()
+        seconds = time.perf_counter() - started
+    except MatchAouBackendError:
+        raise
+    except Exception as exc:
+        raise MatchAouBackendError(
+            "MATCH-AOU backend %r refused this problem (%s: %s). It is a CONFIGURATION "
+            "fault, not an episode outcome: the P1 formulation models exactly one step "
+            "per task at p = 1 with no precedence, so an input outside that contract "
+            "means the runtime is solving a domain this backend does not describe. It is "
+            "never answered by falling back on the legacy MINLP."
+            % (MATCH_AOU_BACKEND_P1_MILP_V1, type(exc).__name__, exc)
+        ) from exc
+    return raw_solution, unselected, results, seconds
 
 
 def solve_and_normalize_audited(
     agents: Sequence[Agent],
     tasks: List[Task],
     precedence_relations: Optional[Sequence[Tuple[int, int]]] = None,
+    *,
+    backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> Tuple[Dict[str, List[Assignment]], List[Task], List[int], SolveAudit]:
     """:func:`solve_and_normalize` plus a :class:`SolveAudit` of what the solve did.
 
-    THE ONE MATCH-AOU normalization site. There is deliberately no second copy of the
-    ``MatchAou`` construction / ``post_solve_filter_and_level`` sequence: the frozen
-    solver module (``CLAUDE.md`` section 2) is untouched, and the historical entry point
-    above simply drops the fourth element.
+    THE ONE MATCH-AOU NORMALIZATION SITE, for BOTH backends. Only the SOLVE differs
+    between them: the degenerate short-circuit, the failure / answered-zero distinction,
+    the ``post_solve_filter_and_level`` normalization and the returned triple are ONE
+    implementation, so a backend can change which allocation is optimal but can never
+    change what "normalized" means. The frozen solver module (``CLAUDE.md`` section 2) is
+    untouched, and the historical entry point above simply drops the fourth element.
+
+    Args:
+        backend: one of
+            :data:`~match_aou.solvers.match_aou_backend.MATCH_AOU_BACKENDS`, DEFAULTING to
+            the historical ``legacy_minlp_v1`` (the frozen MINLP through BONMIN). It is an
+            EXPLICIT selector and is never inferred from the inputs: passing
+            ``p1_milp_v1`` selects the deterministic ``p = 1`` MILP and BONMIN is not
+            called at all. There is no ``auto`` and no fallback in either direction.
 
     Returns:
         ``(solution, belief_tasks, unselected, audit)``. The first three are EXACTLY what
         :func:`solve_and_normalize` returns in every branch, including the failure branch.
+
+    Raises:
+        MatchAouBackendError: the backend id is unknown, or the P1 backend was selected
+            and either could not be reached or was handed an input outside its contract.
+            This ABORTS its caller; it is never ordinary episode attrition.
     """
+    resolved_backend = resolve_match_aou_backend(backend)
     precedence = list(precedence_relations or [])
     if not tasks or not agents:
         # Nothing to ask, so nothing was asked. `accepted` is vacuously True: there is no
@@ -347,20 +474,23 @@ def solve_and_normalize_audited(
             seconds=0.0,
         )
 
-    model = MatchAou(
-        agents=list(agents),
-        tasks=tasks,
-        precedence_relations=precedence,
-        risk_factor=0.0,
+    # ONE branch, taken from the EXPLICIT selector and from nothing else. Both branches
+    # hand back the same `(raw_solution, unselected, results, seconds)` shape and time
+    # only their own solve call, so everything below this point is backend-independent.
+    solve_fn = (
+        _solve_p1_milp
+        if resolved_backend == MATCH_AOU_BACKEND_P1_MILP_V1
+        else _solve_legacy_minlp
     )
-    started = time.perf_counter()
-    raw_solution, results, unselected = model.solve(solver_name=SOLVER_NAME)
-    seconds = time.perf_counter() - started
+    raw_solution, unselected, results, seconds = solve_fn(agents, tasks, precedence)
     termination = _termination_name(results)
 
     if raw_solution is None:
-        # SOLVER FAILURE: `MatchAou.solve` returns None ONLY when the termination
-        # condition is outside its accepted set. The public triple is the historical one.
+        # SOLVER FAILURE: both backends return None ONLY when the termination condition
+        # is outside their accepted set. This is an ordinary "the solver was ASKED and
+        # did not ANSWER" outcome under EITHER backend, and it deliberately keeps the
+        # existing solve-failure semantics rather than becoming a backend fault.
+        # The public triple is the historical one.
         return {}, [], list(range(len(tasks))), SolveAudit(
             invoked=True,
             accepted=False,
@@ -1120,6 +1250,26 @@ class EpisodeContext:
     are not seed-derived (``CLAUDE.md`` section 8), so these ids are never a comparison
     key BETWEEN runs — that is still ``geometric_fingerprint(ctx.placements)``."""
 
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND
+    """WHICH approved MATCH-AOU allocation objective this episode's solves use — the ONE
+    STORED SOURCE OF TRUTH, resolved once in :func:`setup_episode` before any BLADE object
+    exists, and read from here by every DEFERRED solve the episode still owes.
+
+    ``legacy_minlp_v1`` (the DEFAULT) is the frozen MINLP through BONMIN — the objective
+    every approved measurement was taken on. ``p1_milp_v1`` is the deterministic ``p = 1``
+    MILP, which removes the legacy ``EPSILON`` stacking incentive and therefore CHANGES
+    WHICH ALLOCATIONS ARE OPTIMAL; no equivalence between the two is claimed anywhere.
+
+    ONE EPISODE USES ONE BACKEND FOR EVERY SOLVE IT PERFORMS. The known-world ``A_init``
+    solve happened before this context existed, and the reference solves that may still be
+    outstanding — the clean t=0 build, the damaged continuation checkpoint, the
+    unrealized-event compatibility build — all read THIS field rather than re-deciding.
+    That is what makes "no mixed backend inside one episode" a property of the plumbing
+    instead of a convention, and it is also why the field is a REQUIRED keyword of
+    :func:`_finish_context`: a context that silently claimed the historical backend while
+    its ``A_init`` had been solved under P1 would score the episode against a reference the
+    run never computed."""
+
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1
     """WHICH reward-bearing MATCH-AOU reference this episode is scored against — the ONE
     stored source of truth, validated against ``graph_reward.REFERENCE_POLICIES`` before
@@ -1248,6 +1398,7 @@ def setup_episode(
     placement_rng: Optional[random.Random] = None,
     hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> EpisodeContext:
     """Stand up one episode: BLADE env -> solve -> beliefs + executor.
 
@@ -1292,9 +1443,25 @@ def setup_episode(
             damaged one — so under it this function performs ONLY the known-world
             ``A_init`` solve, leaves ``oracle_solution`` / ``oracle_tasks`` EMPTY, and
             retains :attr:`EpisodeContext.t0_reference_tasks` for the deferred solve to
-            work from. The episode still costs exactly TWO BONMIN calls; the second one
-            simply happens later. Works on BOTH construction paths and on the legacy
-            split path.
+            work from. The episode still costs exactly TWO reference-solve calls; the
+            second one simply happens later. Works on BOTH construction paths and on the
+            legacy split path.
+        match_aou_backend: WHICH approved MATCH-AOU allocation objective every solve of
+            THIS episode uses, DEFAULTING to the historical ``legacy_minlp_v1`` (the
+            frozen MINLP through BONMIN) so every pre-integration caller keeps exactly the
+            solver the approved measurements were taken on. ``p1_milp_v1`` selects the
+            deterministic ``p = 1`` MILP instead — an EXPLICIT choice that is never
+            inferred from ``episode_design``, from the task probabilities or from which
+            solver happens to be installed, and that carries NO fallback in either
+            direction. It is resolved and validated HERE, before any BLADE object exists,
+            stored on :attr:`EpisodeContext.match_aou_backend`, and read back from there by
+            every deferred reference solve — so one episode can never mix backends.
+
+            IT IS NOT A TRANSPARENT PERFORMANCE SWAP. The P1 objective drops the legacy
+            ``EPSILON`` stacking incentive, so it can select a DIFFERENT optimal
+            allocation; on the construction path ``A_init`` is what the route-relative
+            hidden geometry is built from, so the hidden world can differ too. No
+            equivalence with the legacy objective is claimed.
 
     Returns:
         An :class:`EpisodeContext` handoff object.
@@ -1303,10 +1470,14 @@ def setup_episode(
         ValueError: on an unknown ``hidden_policy`` or ``reference_policy``, or an
             invalid / half-supplied construction pair — raised BEFORE any BLADE object
             is built.
+        MatchAouBackendError: on an unknown ``match_aou_backend`` — likewise raised
+            before any BLADE object is built. It is an integrity/configuration fault and
+            ABORTS its caller; it is never ordinary episode attrition.
         RuntimeError: if the scenario yields no blue agents or no enemy tasks, or (on the
             construction path) if any construction invariant fails.
     """
     resolved_reference_policy = _resolve_reference_policy(reference_policy)
+    resolved_backend = resolve_match_aou_backend(match_aou_backend)
     construction = _resolve_construction_mode(n_hidden, placement_rng, hidden_policy)
     if construction:
         return _setup_episode_construction(
@@ -1320,6 +1491,7 @@ def setup_episode(
             record_every_seconds=record_every_seconds,
             recording_export_path=recording_export_path,
             reference_policy=resolved_reference_policy,
+            match_aou_backend=resolved_backend,
         )
     return _setup_episode_legacy(
         scenario_json,
@@ -1330,6 +1502,7 @@ def setup_episode(
         record_every_seconds=record_every_seconds,
         recording_export_path=recording_export_path,
         reference_policy=resolved_reference_policy,
+        match_aou_backend=resolved_backend,
     )
 
 
@@ -1343,6 +1516,7 @@ def _setup_episode_legacy(
     record_every_seconds: Optional[int],
     recording_export_path: Optional[str],
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> EpisodeContext:
     """The split-based episode construction: ONE world, ``split_tasks`` masks the hidden half."""
     # --- 1-2. Build env exactly as the frozen integration does; select our side ---
@@ -1374,16 +1548,23 @@ def _setup_episode_legacy(
     executed_target_ids = _world_target_ids(full, "executed (full)")
 
     # --- 5. Solve the PARTIAL set -> A_init (the static plan egos start from) --
-    a_init, belief_tasks, _ = solve_and_normalize(agents, partial)
+    # `_backend_kwargs` OMITS the keyword entirely on the historical backend, so this is
+    # byte-for-byte the pre-integration call there.
+    a_init, belief_tasks, _ = solve_and_normalize(
+        agents, partial, **_backend_kwargs(match_aou_backend)
+    )
 
     # --- 6. Solve the FULL set -> the t=0 reference (the reward denominator) ---
     # A SEPARATE, independent solve: the reference must never be an alias of a_init,
     # even in the degenerate case where the split leaves partial == full.
+    # SAME backend as the solve above, by construction: one episode never mixes them.
     # DEFERRED under the event-conditioned policy: that policy's second solve belongs to
     # `run_episode` (t=0 for a clean episode, the FD checkpoint for a damaged one), and
-    # solving here as well would make an accepted episode cost THREE bonmin calls.
+    # solving here as well would make an accepted episode cost THREE solver calls.
     oracle_solution, oracle_tasks = _t0_reference_or_deferred(
-        agents, full, reference_policy=reference_policy
+        agents, full,
+        reference_policy=reference_policy,
+        match_aou_backend=match_aou_backend,
     )
 
     # --- 7-8. Beliefs + executor over the normalized (allocated-only) baseline ---
@@ -1404,6 +1585,7 @@ def _setup_episode_legacy(
         executed_target_ids=executed_target_ids,
         reference_policy=reference_policy,
         t0_reference_tasks=full,
+        match_aou_backend=match_aou_backend,
     )
 
 
@@ -1419,6 +1601,7 @@ def _setup_episode_construction(
     recording_export_path: Optional[str],
     hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> EpisodeContext:
     """The construction path: solve -> place -> patch -> reload -> reference.
 
@@ -1441,6 +1624,14 @@ def _setup_episode_construction(
     ALLOCATED-ONLY list), and the RAW known-world snapshot ``known_target_ids``. Those
     last two are different lists on purpose — the first says what the egos were planned
     against, the second says what exists — and only the second is a world inventory.
+
+    ``match_aou_backend`` selects WHICH approved MATCH-AOU objective BOTH solves use, and
+    it matters more here than anywhere else: ``A_init`` is the allocation the LOCKED B2
+    layer predicts routes from, so a backend that selects a different optimal allocation
+    produces different predicted routes and therefore a DIFFERENT HIDDEN WORLD. That is a
+    real, intended consequence of the choice, not a defect — and it is exactly why the
+    benchmark preflight must select worlds under the same backend the run will evaluate
+    under.
     """
     # ================= Environment 1 — TEMPORARY (never recorded) =================
     game1, env1, obs1 = _build_env(
@@ -1462,7 +1653,7 @@ def _setup_episode_construction(
         known_world_ids = list(known_target_ids)
 
         # GENERALIZED-V1 only: judge the requested cell against the RAW world BEFORE the
-        # solve, so an out-of-cell request costs no bonmin call and leaves no partial
+        # solve, so an out-of-cell request costs no solver call and leaves no partial
         # construction behind. `known_world_ids` is the raw world inventory, never an
         # allocation, which is the whole point of checking `K == A` against it.
         generalized = str(hidden_policy) == HIDDEN_POLICY_BOUNDED_BACKOFF_V1
@@ -1477,7 +1668,7 @@ def _setup_episode_construction(
 
         # --- Solve the KNOWN set -> A_init (the static plan egos start from) ------
         a_init, known_belief_tasks, _unselected = solve_and_normalize(
-            agents1, known_world_tasks
+            agents1, known_world_tasks, **_backend_kwargs(match_aou_backend)
         )
         if not a_init:
             raise RuntimeError(
@@ -1571,7 +1762,9 @@ def _setup_episode_construction(
         # never be an alias of a_init and every hidden target is in it.
         # DEFERRED under the event-conditioned policy — see `_t0_reference_or_deferred`.
         oracle_solution, oracle_tasks = _t0_reference_or_deferred(
-            agents, all_tasks, reference_policy=reference_policy
+            agents, all_tasks,
+            reference_policy=reference_policy,
+            match_aou_backend=match_aou_backend,
         )
 
         split_meta: Dict[str, Any] = {
@@ -1650,6 +1843,7 @@ def _setup_episode_construction(
             construction_audit=construction_audit,
             reference_policy=reference_policy,
             t0_reference_tasks=all_tasks,
+            match_aou_backend=match_aou_backend,
         )
     except BaseException:
         _close_quietly(env2)
@@ -1674,6 +1868,7 @@ def _finish_context(
     executed_target_ids: Tuple[str, ...],
     reference_policy: str,
     t0_reference_tasks: Sequence[Task],
+    match_aou_backend: str,
     construction_audit: Optional[ConstructionAudit] = None,
 ) -> EpisodeContext:
     """Mint the N independent beliefs + the ONE executor and package the context.
@@ -1695,6 +1890,13 @@ def _finish_context(
     The pairing is VERIFIED, not assumed — the retained universe must be non-empty under
     the event-conditioned policy and is dropped entirely under the historical one, which
     has nothing to defer.
+
+    ``match_aou_backend`` is a REQUIRED keyword for exactly the same reason, and it is
+    RESOLVED here rather than trusted: it states which allocation objective the solves
+    that produced ``a_init`` / ``oracle_solution`` really used, and every DEFERRED
+    reference solve reads it back off the context. A third path that omitted it could
+    reach a context claiming the historical backend while its plan had been solved under
+    P1 — and the episode would then be scored against a reference the run never computed.
     """
     known_snapshot = tuple(str(t) for t in known_target_ids)
     executed_snapshot = tuple(str(t) for t in executed_target_ids)
@@ -1710,6 +1912,7 @@ def _finish_context(
             "from the executed world snapshot; the t=0 roster would not cover what runs"
         )
     policy = _resolve_reference_policy(reference_policy)
+    resolved_backend = resolve_match_aou_backend(match_aou_backend)
     event_conditioned = policy == REFERENCE_POLICY_EVENT_CONDITIONED_V1
     if event_conditioned and not t0_reference_tasks:
         raise RuntimeError(
@@ -1759,6 +1962,7 @@ def _finish_context(
         construction_audit=construction_audit,
         reference_policy=policy,
         t0_reference_tasks=retained_reference_tasks,
+        match_aou_backend=resolved_backend,
     )
 
 
@@ -1767,7 +1971,9 @@ def _finish_context(
 # =============================================================================
 #
 # THE SOLVE BUDGET IS THE POINT, so state it once here and never re-derive it:
-# an ACCEPTED episode costs EXACTLY TWO bonmin calls under BOTH policies.
+# an ACCEPTED episode costs AT MOST TWO MATCH-AOU solver invocations under BOTH policies,
+# and never three. Which SOLVER answers them is `match_aou_backend`'s business and is
+# orthogonal to this budget: the count below is the same under either backend.
 #
 #   solve #1  the known-world A_init solve                     (setup, both policies)
 #   solve #2  static_t0_v1                 -> the full t=0 reference, in setup
@@ -1786,6 +1992,7 @@ def _t0_reference_or_deferred(
     world_tasks: List[Task],
     *,
     reference_policy: str,
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> Tuple[Dict[str, List[Assignment]], List[Task]]:
     """Setup's second solve — performed under the historical policy, DEFERRED otherwise.
 
@@ -1802,7 +2009,9 @@ def _t0_reference_or_deferred(
     """
     if reference_policy == REFERENCE_POLICY_EVENT_CONDITIONED_V1:
         return {}, []
-    oracle_solution, oracle_tasks, _ = solve_and_normalize(agents, world_tasks)
+    oracle_solution, oracle_tasks, _ = solve_and_normalize(
+        agents, world_tasks, **_backend_kwargs(match_aou_backend)
+    )
     return oracle_solution, oracle_tasks
 
 
@@ -1856,6 +2065,7 @@ def _solve_reference(
     open_tasks: List[Task],
     *,
     what: str,
+    match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> Tuple[Dict[str, List[Assignment]], List[Task], SolveAudit]:
     """Run ONE reference solve and REFUSE a solver failure — but accept a real zero.
 
@@ -1869,10 +2079,14 @@ def _solve_reference(
       * ``accepted`` with an empty allocation -> a LEGITIMATE reference whose value is
         ``0``. Returned as-is.
       * ``not invoked`` (no open task, or no continuation-capable ego) -> likewise a
-        legitimate zero reference, and it costs no bonmin call at all.
+        legitimate zero reference, and it costs no solver call at all.
+
+    ``match_aou_backend`` is the EPISODE's stored backend, passed in by the builders below
+    rather than re-decided here: a reference solved under a different objective from the
+    ``A_init`` it is scored against would be a within-episode backend mix.
     """
     solution, allocated, _unselected, audit = solve_and_normalize_audited(
-        agents, open_tasks
+        agents, open_tasks, **_backend_kwargs(match_aou_backend)
     )
     if audit.invoked and not audit.accepted:
         raise ReferenceIntegrityError(
@@ -1920,11 +2134,17 @@ def build_t0_reference(ctx: EpisodeContext, *, kind: str) -> EpisodeReference:
             "deferred reference cannot be solved",
             reason=REFERENCE_FAULT_NO_UNIVERSE,
         )
+    # The EPISODE's stored backend, read back rather than re-decided, so this deferred
+    # solve uses the same allocation objective `A_init` was solved under -- and so
+    # `plan_value` scores the result under THAT objective and not the other one.
+    backend = episode_match_aou_backend(ctx)
     agents = list(ctx.agents)
     solution, allocated, audit = _solve_reference(
-        agents, t0_tasks, what="t=0 reference (%s)" % kind
+        agents, t0_tasks,
+        what="t=0 reference (%s)" % kind,
+        match_aou_backend=backend,
     )
-    u_cont_ref = plan_value(solution, allocated)
+    u_cont_ref = plan_value(solution, allocated, backend=backend)
     return EpisodeReference(
         policy=REFERENCE_POLICY_EVENT_CONDITIONED_V1,
         kind=str(kind),
@@ -2086,12 +2306,18 @@ def build_continuation_reference(
     agents, included_ids, excluded = _continuation_agents(
         ctx, scenario, attacking_side_color=attacking_side_color
     )
+    # Same rule as the t=0 builder: the episode's OWN stored backend, for the solve and
+    # for the valuation alike. `U_prefix` above is exact covered utility under BOTH
+    # objectives (it is a sum of `task.utility` over realized tasks and carries no
+    # EPSILON), so `U_ref = U_prefix + U_cont_ref` stays on one scale either way.
+    backend = episode_match_aou_backend(ctx)
     solution, allocated, audit = _solve_reference(
         agents,
         open_tasks,
         what="continuation reference (ego %s, tick %d)" % (damaged_ego_id, int(tick)),
+        match_aou_backend=backend,
     )
-    u_cont_ref = plan_value(solution, allocated)
+    u_cont_ref = plan_value(solution, allocated, backend=backend)
     return EpisodeReference(
         policy=REFERENCE_POLICY_EVENT_CONDITIONED_V1,
         kind=REFERENCE_KIND_DAMAGED_EVENT,

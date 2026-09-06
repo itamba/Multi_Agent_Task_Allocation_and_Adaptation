@@ -94,6 +94,9 @@ SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))  # so match_aou.* imports resolve
 
 from match_aou.models import Location, Step, StepKind, Task  # noqa: E402
+from match_aou.solvers.match_aou_backend import (  # noqa: E402
+    MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+)
 from match_aou.rl.training import graph_episode_setup as _setup  # noqa: E402
 from match_aou.rl.training.graph_reward import (  # noqa: E402
     REFERENCE_POLICY_STATIC_T0_V1,
@@ -563,6 +566,10 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
     truth again. `reference_policy` / `t0_reference_tasks` are REQUIRED for the same
     reason (GENERALIZED-V1 task 3): a path that omitted them could silently claim the
     historical reference policy while having deferred its reference solve.
+    `match_aou_backend` is REQUIRED for the same reason again (P1 backend integration): a
+    path that omitted it could reach a context claiming the historical objective while its
+    `a_init` had been solved under P1, and the episode would then be scored against a
+    reference the run never computed.
     """
     agents = [_agent("ego_0")]
     tasks = [_task("k0")]
@@ -571,11 +578,23 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
         belief_tasks=tasks, oracle_solution={}, oracle_tasks=tasks, split_meta={},
         detection_km=DETECTION_KM, recording_export_path=None, placements=(),
         reference_policy=REFERENCE_POLICY_STATIC_T0_V1, t0_reference_tasks=tasks,
+        match_aou_backend=MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
     )
     ctx = _finish_context(known_target_ids=("k0",),
                           executed_target_ids=("k0", "h0"), **common)
     assert ctx.known_target_ids == ("k0",)
     assert ctx.executed_target_ids == ("k0", "h0")
+    # The RESOLVED backend is stored, so every deferred reference solve reads it back.
+    assert ctx.match_aou_backend == MATCH_AOU_BACKEND_LEGACY_MINLP_V1
+
+    # It is a REQUIRED keyword, not a defaulted one.
+    without_backend = {k: v for k, v in common.items() if k != "match_aou_backend"}
+    try:
+        _finish_context(known_target_ids=("k0",),
+                        executed_target_ids=("k0", "h0"), **without_backend)
+        raise AssertionError("_finish_context must require match_aou_backend")
+    except TypeError:
+        pass
 
     _expect_raises(RuntimeError, "empty executed-world snapshot", _finish_context,
                    known_target_ids=("k0",), executed_target_ids=(), **common)
