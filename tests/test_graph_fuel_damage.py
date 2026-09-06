@@ -3841,11 +3841,13 @@ def test_g1_11_a_contradicted_certificate_raises_the_integrity_error() -> None:
     assert controller.maybe_apply(ctx.scenario, cert.event_tick) == ego
     assert controller.outcome.fired
 
-    # (a) the WRONG TICK, beyond the one-quantum bracket.
+    # (a) A PHYSICALLY contradicted certificate aborts. The ABSOLUTE OUTER TICK is
+    # deliberately NOT in this loop any more: frozen BLADE can skip an airborne ego's
+    # whole update, so the outer tick is diagnostic only. Its own case is G1.11b, and
+    # the two physical invariants it replaced as the binding ones are unchanged here.
     for corrupt, needle in (
-        (replace(cert, event_tick=cert.event_tick + 5), "tick"),
-        (replace(cert, fuel_before=cert.fuel_before + 500.0), "fuel"),
-        (replace(cert, latitude=cert.latitude + 1.0), "km away"),
+        (replace(cert, fuel_before=cert.fuel_before + 500.0), "FUEL FAILED"),
+        (replace(cert, latitude=cert.latitude + 1.0), "POSITION FAILED"),
     ):
         _at_certified_state()
         fuel_snapshot = aircraft.current_fuel
@@ -3895,6 +3897,216 @@ def test_g1_11_a_contradicted_certificate_raises_the_integrity_error() -> None:
     except FuelDamageError:
         pass
 
+
+def test_g1_11b_the_absolute_outer_tick_is_diagnostic_never_binding() -> None:
+    """G1.11b. THE PROVEN FROZEN-BLADE SKIP IS ACCEPTED, on its PHYSICAL state alone.
+
+    `Game.update_all_aircraft_position` iterates `self.current_scenario.aircraft` while
+    its own `land_aicraft` -> `remove_aircraft` path calls `.remove()` on that SAME list.
+    Removing an element shifts the tail left under the live iterator, so the entry that
+    followed the departing aircraft is skipped ENTIRELY for that outer tick -- losing
+    BOTH its movement leg and its `fuel_rate / 3600` burn. An ego whose peers land is
+    therefore physically EARLIER than the outer tick count implies.
+
+    THE EXACT DIAGNOSED SIGNATURE is reproduced here: certified event tick 914 (movement
+    count 913, bracket 913..915), two lost engine visits, the crossing observed at outer
+    tick 916 -- with the ego AT the certified physical state. That is +2 ticks, strictly
+    outside `tick_tolerance`, so the retired check would have aborted; the physical
+    promise held exactly, so the repaired check must not.
+
+    WHAT IS PROVEN, and nothing weaker:
+      * `_require_certificate_holds` does not raise on the +2 signature;
+      * `maybe_apply` goes on to the ORDINARY live severity/window checks and mutates;
+      * NO tolerance was widened -- both are still exactly the certificate's own quanta.
+    """
+    ctx = _FuelDamageCtx()
+    plan = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    issued = plan.certificate
+    ego = plan.ego_id
+    aircraft = next(a for a in ctx.scenario.aircraft if str(a.id) == ego)
+
+    # The certificate the diagnosed run carried, in its own tick coordinates. Only the
+    # tick bookkeeping is restated; every PHYSICAL field is the one setup really issued.
+    cert = replace(issued, event_tick=914, movement_count=913,
+                   bracket_ticks=(913, 914, 915))
+    plan = replace(plan, certificate=cert)
+    observed_tick = 916
+
+    # The retired check's own condition, stated so this regression is falsifiable: the
+    # observed tick really is outside the bracket, so a tick-binding check WOULD abort.
+    assert abs(observed_tick - cert.event_tick) > cert.tick_tolerance
+    assert observed_tick not in cert.bracket_ticks
+
+    # The ego is at the certified PHYSICAL event state -- the state the diagnosed run
+    # matched to ~7e-11 km and ~6e-9 lbs.
+    aircraft.latitude, aircraft.longitude = cert.latitude, cert.longitude
+    aircraft.current_fuel = cert.fuel_before
+
+    controller = FuelDamageController(plan)
+    # (1) the live check itself is silent.
+    controller._require_certificate_holds(
+        aircraft=aircraft, tick=observed_tick, fuel_before=float(aircraft.current_fuel)
+    )
+    # (2) and the whole event proceeds: ordinary live physics, then the real mutation.
+    fuel_before = float(aircraft.current_fuel)
+    assert controller.maybe_apply(ctx.scenario, observed_tick) == ego
+    out = controller.outcome
+    assert out.fired and out.event_tick == observed_tick
+    assert aircraft.current_fuel < fuel_before, "the mutation is a real LOSS"
+    assert aircraft.current_fuel == _approx(out.fuel_after)
+    # The live severity/window checks really ran -- a severe event leaves continuation
+    # infeasible and a safe RTB affordable, which is what they exist to guarantee.
+    assert out.live_rtb_fuel_floor is not None
+    assert out.fuel_after >= out.live_rtb_fuel_floor
+
+    # (3) NOTHING WAS WIDENED. Both tolerances are still the certificate's own quanta,
+    # and a state just BEYOND either still aborts at this very tick.
+    assert cert.tick_tolerance == CERTIFICATE_TICK_TOLERANCE == 1
+    assert cert.fuel_tolerance > cert.fuel_per_tick
+    assert cert.fuel_tolerance < 2.0 * cert.fuel_per_tick
+    assert cert.position_tolerance_km > cert.leg_km_per_tick
+    assert cert.position_tolerance_km < 2.0 * cert.leg_km_per_tick
+    fresh = FuelDamageController(plan)
+    bad_fuel = cert.fuel_before + 2.0 * cert.fuel_tolerance
+    aircraft.latitude, aircraft.longitude = cert.latitude, cert.longitude
+    aircraft.current_fuel = bad_fuel
+    try:
+        fresh._require_certificate_holds(
+            aircraft=aircraft, tick=observed_tick, fuel_before=bad_fuel
+        )
+    except FuelDamageIntegrityError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("the fuel quantum must still be binding at any tick")
+
+
+def test_g1_11c_a_physical_contradiction_aborts_and_reports_all_three_deltas() -> None:
+    """G1.11c. The two PHYSICAL invariants are binding, and a failure reports everything.
+
+    Four cases, and the fourth is the point of the repair:
+      * position beyond its own quantum while fuel is exact          -> ABORT
+      * fuel beyond its own quantum while position is exact          -> ABORT
+      * BOTH beyond their quanta                                     -> ABORT
+      * the outer tick far outside the old bracket, BOTH physical
+        fields exact                                                 -> ACCEPTED
+
+    Every abort is raised BEFORE the mutation, and every abort message carries the
+    position offset, the fuel offset AND the tick discrepancy -- one contradicted
+    quantity must never hide the state of the other, because the message is what a
+    preserved failure is diagnosed from without a replay.
+    """
+    ctx = _FuelDamageCtx()
+    plan = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    cert = plan.certificate
+    ego = plan.ego_id
+    aircraft = next(a for a in ctx.scenario.aircraft if str(a.id) == ego)
+
+    # A position offset comfortably beyond one tick of travel, expressed as a real
+    # displacement from the certified point rather than as an invented number.
+    far = _point_at(cert.event_location, 5.0 * cert.position_tolerance_km, 90.0)
+    bad_fuel = cert.fuel_before + 5.0 * cert.fuel_tolerance
+
+    cases = (
+        ("position only", far.latitude, far.longitude, cert.fuel_before, True, False),
+        ("fuel only", cert.latitude, cert.longitude, bad_fuel, False, True),
+        ("both", far.latitude, far.longitude, bad_fuel, True, True),
+    )
+    for label, lat, lon, fuel, want_pos_fail, want_fuel_fail in cases:
+        aircraft.latitude, aircraft.longitude = lat, lon
+        aircraft.current_fuel = fuel
+        snapshot = float(aircraft.current_fuel)
+        controller = FuelDamageController(plan)
+        try:
+            controller._require_certificate_holds(
+                aircraft=aircraft, tick=cert.event_tick, fuel_before=fuel
+            )
+        except FuelDamageIntegrityError as exc:
+            msg = str(exc)
+            assert "CERTIFICATE CONTRADICTED" in msg, msg
+            # BOTH physical verdicts are always present, whichever one failed ...
+            assert ("POSITION FAILED" if want_pos_fail else "POSITION passed") in msg, msg
+            assert ("FUEL FAILED" if want_fuel_fail else "FUEL passed") in msg, msg
+            # ... and so is the tick discrepancy, labelled as the diagnostic it is.
+            assert "TICK (DIAGNOSTIC ONLY, never binding" in msg, msg
+            assert "certified %d, observed %d, delta +0" % (
+                cert.event_tick, cert.event_tick) in msg, msg
+            # Both offsets are reported against their own tolerance.
+            assert "km tolerance" in msg and "lbs/tick" in msg, msg
+        else:  # pragma: no cover
+            raise AssertionError("a physical contradiction must abort: %s" % label)
+        assert aircraft.current_fuel == snapshot, (
+            "%s: refused BEFORE the engine is touched" % label
+        )
+        assert not controller.outcome.fired
+
+    # THE FOURTH CASE. A wildly wrong outer tick, with BOTH physical fields exact, is
+    # accepted -- the whole content of this repair.
+    aircraft.latitude, aircraft.longitude = cert.latitude, cert.longitude
+    aircraft.current_fuel = cert.fuel_before
+    accepted = FuelDamageController(plan)
+    for wild in (cert.event_tick + 2, cert.event_tick + 40, cert.event_tick + 500):
+        accepted._require_certificate_holds(
+            aircraft=aircraft, tick=wild, fuel_before=float(cert.fuel_before)
+        )
+    assert accepted.maybe_apply(ctx.scenario, cert.event_tick + 500) == ego
+
+    # AND THE +/- ONE-QUANTUM PHYSICAL ACCEPTANCE IS UNCHANGED: a state INSIDE either
+    # tolerance is still accepted, at the certified tick exactly as before.
+    edge = FuelDamageController(plan)
+    near = _point_at(cert.event_location, 0.5 * cert.position_tolerance_km, 90.0)
+    aircraft.latitude, aircraft.longitude = near.latitude, near.longitude
+    edge._require_certificate_holds(
+        aircraft=aircraft, tick=cert.event_tick,
+        fuel_before=float(cert.fuel_before) - 0.5 * cert.fuel_tolerance,
+    )
+
+
+def test_g1_11d_the_certificate_construction_and_world_acceptance_are_unchanged() -> None:
+    """G1.11d. The repair touches LIVE VALIDATION ONLY -- never setup-time acceptance.
+
+    Certificate CONSTRUCTION, the tick arithmetic it rests on, the bracket it is issued
+    over and the quantum both physical tolerances are derived from are all exactly as
+    they were, and so is which worlds the certified walk accepts. A repair that quietly
+    moved world acceptance would change the POPULATION rather than repair a check on it.
+    """
+    ctx = _FuelDamageCtx()
+    plan = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    cert = plan.certificate
+
+    # The quantum, the bracket and the tick arithmetic: unchanged, and still derived.
+    assert CERTIFICATE_TICK_TOLERANCE == 1
+    assert cert.tick_tolerance == CERTIFICATE_TICK_TOLERANCE
+    assert cert.event_tick == cert.movement_count + 1
+    assert set(cert.bracket_ticks) == {
+        cert.event_tick - 1, cert.event_tick, cert.event_tick + 1
+    }
+    assert cert.fuel_before == _approx(12000.0 - cert.event_tick * 6700.0 / 3600.0)
+    # Both physical tolerances are still ONE quantum plus a documented float epsilon --
+    # the live check binds these two, and this is where they come from.
+    assert cert.fuel_tolerance > CERTIFICATE_TICK_TOLERANCE * cert.fuel_per_tick
+    assert cert.fuel_tolerance < 2.0 * cert.fuel_per_tick
+    assert cert.position_tolerance_km > CERTIFICATE_TICK_TOLERANCE * cert.leg_km_per_tick
+    assert cert.position_tolerance_km < 2.0 * cert.leg_km_per_tick
+
+    # Setup-time acceptance is unchanged: this world is still certified, the audit still
+    # names the same ordinal, and the certificate is still field-identical across builds.
+    again = build_fuel_damage_plan(ctx, episode_seed=3, params=_certified())
+    assert again.certificate.to_record() == cert.to_record()
+    assert (again.eligibility_audit.selected_ordinal
+            == plan.eligibility_audit.selected_ordinal)
+    assert plan.eligibility_audit.selected_ego_id == plan.ego_id
+
+    # And a world that is NOT FD-capable is still REFUSED at setup, as ordinary accounted
+    # attrition -- never as the integrity fault the live check raises.
+    starved = _FuelDamageCtx(fuel=1350.0)
+    try:
+        build_fuel_damage_plan(starved, episode_seed=3, params=_certified())
+    except FuelDamageIntegrityError:  # pragma: no cover
+        raise AssertionError("setup ineligibility is NOT an instrument fault")
+    except FuelDamageError as exc:
+        assert NO_FD_ELIGIBLE_EGO in str(exc) or REASON_INVALID_BAND in str(exc), str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("an FD-incapable world must still be refused at setup")
 
 def test_g1_12_the_legacy_defaults_are_pinned_at_every_construction_site() -> None:
     """G1.12. Every existing construction site obtains the merged behaviour, unasked.
