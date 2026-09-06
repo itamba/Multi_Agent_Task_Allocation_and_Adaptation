@@ -146,6 +146,24 @@ cleanup began) — **this document describes the graph model only.**
 - `Game.launch_aircraft_from_airbase(base, aircraft_id=None)`: targeted launch by `str(ac.id)` (absent → `return None`, never launch the wrong one). Omitting `aircraft_id` preserves FIFO `pop(0)`.
 - `game.current_scenario.name` must be set before `start_recording()` or recordings are named "New Scenario".
 
+**A PROVEN PRE-EXISTING FROZEN-ENGINE BEHAVIOUR, RECORDED NARROWLY BECAUSE CERTIFIED FD
+DEPENDS ON IT — NOT because it is desirable, and NOT as a licence to change it.**
+`Game.update_all_aircraft_position` iterates the LIVE `self.current_scenario.aircraft`
+list, while two paths reachable from inside that same pass remove entries from that very
+list: `land_aicraft` → `remove_aircraft`, whose body is
+`self.current_scenario.aircraft.remove(...)`, and the fuel-exhaustion branch
+`if aircraft.current_fuel <= 0: self.remove_aircraft(aircraft.id)`. Under Python list
+iteration, removing an element shifts the tail left under the live iterator, so the entry
+that FOLLOWED the departing aircraft can be skipped ENTIRELY for that engine update —
+losing BOTH its movement leg and its `fuel_rate / 3600` burn. **THE ONE CONSEQUENCE THAT
+MATTERS HERE, AND NOTHING WIDER IS CLAIMED:** an airborne ego is NOT guaranteed exactly one
+position/burn update per outer tick, so the outer tick count is not a physical promise the
+engine makes, and an ego whose peers land can be physically EARLIER than the tick count
+implies. **PR #55 DELIBERATELY DID NOT MODIFY BLADE** — it changed only which quantities
+the certified-FD LIVE integrity check binds (§5). Recording this authorizes no engine fix,
+no re-entrant-safe iteration, no copy-before-iterate and no other edit to the frozen files;
+the FROZEN contract above is unchanged.
+
 ### 🛑 MATCH-AOU solver — FROZEN (advisor-approved form)
 `match_aou_MINLP_solver.py`. Advisor directive: **address allocation pathologies through scenario design, not solver constraints.** Do NOT re-add: a `single_agent_per_step` constraint, an objective fuel penalty, or a probability patch (all tried and rolled back). The only approved change is the per-target **round-trip** movement charge (`round_trip_cost`, `risk_factor=0`). Objective: `Σ_j y[j]·u_j·Π_k[1 − (1 − p_jk + EPSILON)^(Σ_i x[i,j,k])]`, `EPSILON = 1e-6`. `y[j]==1 ⇔ every step of task j has ≥1 agent ⇔ task appears in ≥1 assignment tuple` (the y/x linking constraints guarantee this — relied on by normalization and reward).
 
@@ -1364,7 +1382,11 @@ no episode converted to clean.
   is invented.** The ONE derived allowance is `CERTIFICATE_TICK_TOLERANCE = 1` — the
   engine's own observation quantum, deliberately NOT a free parameter (raising it would
   certify states the engine cannot produce) — and the certificate is validated across that
-  whole `bracket_ticks` bracket, not at the nominal tick alone. `KILOMETERS_TO_NAUTICAL_MILES
+  whole `bracket_ticks` bracket, not at the nominal tick alone. **THAT QUANTUM IS ALSO WHAT
+  DERIVES THE TWO PHYSICAL TOLERANCES the LIVE check binds** — `position_tolerance_km` (one
+  tick of travel) and `fuel_tolerance` (one tick of burn) — **and the ABSOLUTE OUTER TICK is
+  deliberately NOT one of them at live-validation time**; see the certified-promise contract
+  below. `KILOMETERS_TO_NAUTICAL_MILES
   = 0.539957` is TRANSCRIBED here too, and is NOT the reciprocal of
   `NAUTICAL_MILES_TO_METERS/1000`: the engine uses 1852 for the FUEL question and 0.539957
   for the MOVEMENT question, and each transcription is used for the question the engine uses
@@ -1410,7 +1432,9 @@ no episode converted to clean.
   have raised is re-raised as `FuelDamageIntegrityError` instead. Everything else is
   unchanged: the check happens BEFORE the mutation, so a refused event leaves the engine
   untouched, and nothing is clamped, weakened, re-planned, downgraded to the other severity
-  or converted to a clean episode.
+  or converted to a clean episode. **WHAT THAT LIVE CHECK BINDS WAS CORRECTED BY THE
+  CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR (`d36e133`, integrated `edf9e84`, PR #55) —
+  the contract immediately below is authoritative.**
 - **FROM THE OUTSIDE — `FuelDamageController.require_certified_event_realized(*, scenario,
   ticks)`.** A CERTIFIED DAMAGED episode that ENDS with the event never having fired is the
   same instrument fault: accepting it would admit a world whose certificate did not hold
@@ -1430,6 +1454,69 @@ no episode converted to clean.
   `run_episode` returns, so exporting first and raising second would leave a real recording
   no manifest lists (the exact defect the roster-integrity correction closed). An episode
   that raises exports nothing.
+
+**THE LIVE CERTIFICATE CHECK BINDS THE EGO'S PHYSICAL STATE, AND ONLY THAT
+(`FuelDamageController._require_certificate_holds`, the certified-FD physical-state
+integrity repair `d36e133`, integrated `edf9e84`, PR #55 — §7).**
+
+**SETUP-TIME CERTIFICATION REMAINS TICK-AWARE AND IS BYTE-UNCHANGED.** `event_tick`,
+`movement_count`, `bracket_ticks`, `CERTIFICATE_TICK_TOLERANCE == 1` and the fuel and
+position tolerance derivations built from that quantum are exactly what they were, and the
+certificate is still validated across the whole bracket rather than at the nominal tick
+alone. **World acceptance, the bounded eligibility walk, `certify_fd_candidate`, the
+pre-event stability tests and certificate CONSTRUCTION are all untouched.**
+
+**WHAT A LIVE CONTRADICTION IS JUDGED ON — EXACTLY TWO QUANTITIES, EACH AGAINST ITS OWN
+EXISTING TOLERANCE:**
+
+1. **POSITION** — the live aircraft's great-circle offset from the certificate's
+   `event_location`, against the certificate's own **`position_tolerance_km`**;
+2. **PRE-DAMAGE FUEL** — `|fuel_before − cert.fuel_before|`, against the certificate's own
+   **`fuel_tolerance`**.
+
+**THE ABSOLUTE OUTER TICK IS DIAGNOSTIC ONLY AND CANNOT, BY ITSELF, ABORT A RUN.** It was
+binding once, on the premise that an airborne ego receives exactly one engine update per
+outer tick — and **that premise, not the certifier, is what was wrong**: frozen BLADE can
+skip an airborne ego's entire update when a preceding aircraft leaves
+`scenario.aircraft` mid-pass (§2), so an ego whose peers land is physically EARLIER than
+the tick count implies while its own state still matches the certificate exactly. **A TICK
+MISMATCH ALONE IS THEREFORE NOT A CERTIFICATE CONTRADICTION AND MUST NEVER BE DESCRIBED AS
+ONE.** `tick_delta` is still computed on every path — it is precisely what a skipped engine
+update looks like from outside — and it is reported, never enforced.
+
+**WHAT WAS DELIBERATELY NOT DONE, AND EACH ABSENCE IS PART OF THE CONTRACT.** **NEITHER
+PHYSICAL TOLERANCE WAS WIDENED**, none was scaled, and **no dynamic or state-dependent
+tolerance was introduced** — both are still exactly the certificate's own engine quanta
+plus their documented float epsilon, so a state one quantum beyond either still aborts at
+any tick. **No engine-update counter, no skip counter and no reconstructed tick coordinate
+was added**, in this layer or anywhere else: the repair removes a false invariant rather
+than modelling around it. **BLADE IS UNCHANGED** — this is not a physics fix and must never
+be read as one.
+
+**EVERY DELTA IS COMPUTED BEFORE ANY VERDICT IS TAKEN**, and a failure reports position,
+fuel AND tick together, each with its own pass/fail verdict, so one contradicted quantity
+can never hide the state of the other and a preserved message is diagnosable without a
+replay. **A GENUINE PHYSICAL CONTRADICTION STILL RAISES `FuelDamageIntegrityError`
+BEFORE THE FUEL MUTATION**, so a contradicted certificate still leaves the engine
+untouched, and it is still an INSTRUMENT ABORT rather than accounted attrition.
+**EVERYTHING ELSE IN THE TWO FAILURE ROUTINGS IS UNCHANGED:** the terminal
+`require_certified_event_realized` still treats a certified damaged episode whose event
+never fired as an integrity ABORT, and ordinary setup ineligibility
+(`NO_FD_ELIGIBLE_EGO`) is still ORDINARY ACCOUNTED ATTRITION inside `skip_and_account_v1`.
+
+**THE DIAGNOSED SIGNATURE THIS REPAIR ACCEPTS, recorded because it is the reason the
+repair exists:** certified event tick 914 (movement count 913, bracket 913..915), two
+preceding peers landed, the selected ego lost two engine visits, the threshold crossing
+observed at outer tick 916 — **and at that state its position matched the certified event
+position to ~7e-11 km and its pre-damage fuel to ~6e-9 lbs.** The certificate's PHYSICAL
+promise held exactly; only the bookkeeping coordinate differed, and the retired
+tick-binding check would have destroyed a scientifically sound episode over a quantity the
+engine never promised. It is pinned by
+`tests/test_graph_fuel_damage.py::test_g1_11b_the_absolute_outer_tick_is_diagnostic_never_binding`
+(which first ASSERTS the observed tick really is outside `tick_tolerance` and outside
+`bracket_ticks`, so the regression is falsifiable), beside
+`test_g1_11c_a_physical_contradiction_aborts_and_reports_all_three_deltas` and
+`test_g1_11d_the_certificate_construction_and_world_acceptance_are_unchanged`.
 
 **POST-FD COMPLETION-BOUNDARY ADAPTATION (`completion_boundary_v1`).** The IMMEDIATE
 `FUEL_DAMAGE` wake is UNCHANGED. Additionally, **and ONLY for the ego that REALLY LOST
@@ -3230,6 +3317,155 @@ as a roster fault does — never an accounted scientific episode failure. **This
 been observed in the real simulator**: the regression test INJECTS the divergence through
 a stub, because normal production does not currently generate it.
 
+**THE MATCH-AOU ALLOCATION BACKEND — AN EXPLICIT SELECTOR OVER TWO NON-INTERCHANGEABLE
+OBJECTIVES — `solvers/match_aou_backend.py` (NEW) + `solvers/match_aou_p1_milp_solver.py`
+(NEW) + `rl/training/graph_episode_setup.py` + `rl/training/graph_reward.py` +
+`rl/training/graph_train.py` + `rl/training/graph_rollout.py` +
+`rl/training/graph_benchmark_preflight.py` (`8f0d250`, integrated `9979910`, PR #54 — §7).**
+
+WHICH MATCH-AOU objective a run solves is now a first-class, INDEPENDENT, EXPLICIT
+selector. It adds no episode mechanism: the bounded-backoff geometry, the FD certification
+physics, the post-FD boundary semantics, the continuation-reference ARITHMETIC, the Task-4
+selector / sampler / manifest / persistence, the Task-5 quota / budget / preflight, the
+opt-in early-stopping rule and the per-wake diagnostics are exactly the contracts above.
+What changes is WHICH ALLOCATION is optimal, and therefore what the rest of the pipeline is
+built on top of.
+
+| id | what it solves |
+|---|---|
+| `legacy_minlp_v1` (**DEFAULT**) | the FROZEN general MINLP `match_aou_MINLP_solver.MatchAou` through BONMIN — the historical objective, `EPSILON = 1e-6` and all (§2) |
+| `p1_milp_v1` | the deterministic `p = 1` MILP `match_aou_p1_milp_solver.MatchAouP1MILP` through SciPy/HiGHS — exact covered utility, **no `EPSILON` anywhere in it** |
+
+`MATCH_AOU_BACKENDS` is the CLOSED set of exactly those two ids and
+`DEFAULT_MATCH_AOU_BACKEND` is `legacy_minlp_v1`; `resolve_match_aou_backend` is the ONE
+validation site and `uses_p1_milp` the ONE predicate.
+
+**`legacy_minlp_v1` REMAINS THE HISTORICAL DEFAULT AND IS THE PRESERVED PATH.** A caller
+that says nothing gets the frozen `MatchAou` through BONMIN — the objective **every
+approved measurement was taken on** (`737b4bf`, `bf1e045f`, and the R1 generalized
+measurement at `4af6c5aa…` — §7). The keyword-OMISSION discipline `_artifact_kwargs` /
+`_ctde_kwargs` / `_cardinality_kwargs` / `_generalized_setup_kwargs` already use is applied
+here too: `graph_train._backend_setup_kwargs` and `graph_episode_setup._backend_kwargs`
+return `{}` on the historical backend, so a legacy run makes EXACTLY its pre-integration
+calls rather than passing a keyword carrying a value the callee would have chosen itself —
+the stronger invariance claim.
+
+**THE SELECTION RULES, ALL OF THEM DELIBERATE.**
+
+- **SELECTION IS EXPLICIT AND INDEPENDENT.** The backend is NEVER inferred from
+  `episode_design`, from task probabilities, from whether BONMIN or SciPy happens to be
+  importable, or from any other state — a run that reached a different allocation objective
+  because of what was installed on the machine would be a measurement nobody chose. It is
+  ORTHOGONAL to `episode_design` and to `training_mode`: either design may run under either
+  backend, and `_backend_setup_kwargs` is a SEPARATE helper from `_generalized_setup_kwargs`
+  precisely so no coupling is suggested that does not exist.
+- **THERE IS NO `auto`, NO FALLBACK IN EITHER DIRECTION, AND NO PER-SOLVE SWITCHING.** A
+  refused P1 solve is never rescued by the legacy solver, and an unknown id RAISES rather
+  than resolving to the default — a run that quietly solved the legacy objective while its
+  config said `p1_milp_v1` is a mislabelled measurement, which is worse than a crash.
+- **ONE EPISODE STORES AND USES ONE BACKEND, COHERENTLY.**
+  `EpisodeContext.match_aou_backend` is the SINGLE STORED SOURCE, `_finish_context` takes it
+  as a **REQUIRED keyword** and RESOLVES rather than trusts it, and every DEFERRED reference
+  solve reads it back off the context through `graph_reward.episode_match_aou_backend`
+  instead of re-deciding. So the known-world `A_init`, the static t=0 reference, the clean
+  t=0 reference, the damaged continuation checkpoint and the unrealized-event compatibility
+  reference are ALL solved under the same objective. A third construction path that omitted
+  the keyword could reach a context claiming the historical backend while its plan had been
+  solved under P1 — which is exactly the shape the required keyword refuses.
+
+**A BACKEND / CONFIGURATION FAULT ABORTS — IT IS NEVER ORDINARY EPISODE ATTRITION.**
+`MatchAouBackendError` is a `RuntimeError` (deliberately NOT a `ValueError`), a sibling of
+the integrity-abort family this project already routes that way, and it lives beside the ids
+it classifies because the solver layer must not import the trainer. It is raised for an
+unknown id, for the P1 backend selected while its SciPy/HiGHS stack is not importable, and
+for an input outside the P1 contract reaching a P1-selected runtime (a multi-step task,
+`p != 1`, or precedence) — `graph_episode_setup` re-raises the solver's own
+`P1MilpUnsupportedInputError` / `P1MilpBackendUnavailableError` as this one stable type.
+Every one of those says the INSTRUMENT is configured against a domain it does not model,
+which implicates every episode it touched, so `graph_train`, `graph_rollout` and
+`graph_benchmark_preflight` re-raise it AHEAD of every broad handler: it names no pipeline
+stage, is NEVER written to `episode_failures.jsonl`, never counted against a condition or
+stratum tally, never entered into `skip_and_account_v1`, never replaced by the next training
+seed, never turned into a rejected benchmark candidate — **and NEVER answered by silently
+solving the other objective.** **A solve that simply did not reach acceptable optimality is
+NOT this exception** and keeps the existing solve-failure / `ReferenceIntegrityError`
+attrition semantics unchanged.
+
+**IMPORT WEIGHT — LAZY, AND NOT RE-EXPORTED.** `match_aou_backend` holds ids, validation and
+`load_p1_milp_solver` and nothing else; it imports neither the P1 module nor SciPy at module
+scope, so naming a backend costs a caller nothing. **The P1 solver is NOT re-exported
+through `match_aou.solvers.__init__`**, whose surface is still exactly `MatchAou` and
+`round_trip_cost`, so importing the package does not reach the MILP stack.
+
+**WHAT `p1_milp_v1` IS SPECIALIZED TO, AND WHAT IT REFUSES.** Deterministic `p = 1`,
+**one-step tasks**, **no precedence**. Its variables are `x[i,j]` binary plus a
+NON-integral `0 <= y[j] <= 1` pinned from both sides by `x[i,j] <= y[j]` and
+`y[j] <= sum_i x[i,j]`; the objective is exactly `sum_j utility_j * y_j`. **CAPABILITY and
+the MOVEMENT BUDGET are preserved exactly** — capability by pinning an incapable pair's
+upper bound to `0`, the budget by importing `round_trip_cost` from the FROZEN module rather
+than re-deriving its geometry, with the legacy missing-location handling reproduced. There
+is no step dimension, no nonlinear term, no exponent, no `EPSILON`, no precedence variable
+and no Big-M. **`optimal` is the ONLY accepted termination** (the legacy `locallyOptimal` is
+a nonlinear-solver concept), and a time/iteration-limited incumbent is deliberately mapped
+to a NON-accepted condition rather than reported as an optimal allocation. **An input
+outside that contract is REFUSED, never coerced**, and **DEGENERACY IS DELIBERATELY NOT
+BROKEN** — no one-agent-per-task bound, no fuel or assignment penalty, no epsilon
+tie-breaker and no lexicographic second objective, because inventing one would silently
+change allocation semantics the pipeline was measured against.
+
+**IT IS NOT A TRANSPARENT SPEED OR PERFORMANCE REPLACEMENT, AND NO EQUIVALENCE IS CLAIMED.**
+At `p = 1` the legacy objective still pays a strictly positive
+`utility * (EPSILON - EPSILON^2)` for each REDUNDANT agent on an already-covered task, so
+stacking is genuinely optimal FOR THAT OBJECTIVE; the P1 formulation removes that incentive
+outright. **Removing it changes WHICH ALLOCATIONS ARE OPTIMAL.** The two objectives can
+agree on the optimal COVERED-TASK SET in the exercised domain — that is an OBSERVATION from
+engineering comparison, not a guarantee — but they do **NOT** generally share an optimal
+ALLOCATION set, and the difference is systematic rather than incidental. **CONSEQUENCE,
+STATED PLAINLY: selecting `p1_milp_v1` can change `A_init`, and because route-relative
+hidden placement predicts routes FROM `A_init` (§5, B2 / bounded backoff), it can change the
+hidden geometry, episode feasibility, the certified FD event and therefore the POPULATION
+IDENTITY itself.** That is why it is a reviewed research decision and not a drop-in swap.
+
+**THE BENCHMARK PREFLIGHT USES THE SAME SELECTED BACKEND AS THE LATER RUN.**
+`graph_benchmark_preflight` passes `_backend_setup_kwargs(cfg)` into `setup_episode` and
+records `match_aou_backend` on its REPORT — deliberately on the report and not inside the
+manifest, because **THERE IS NO MANIFEST SCHEMA CHANGE FOR THE BACKEND**: the manifest
+already carries each world's id-free frozen identity, and `require_world_matches_manifest`
+REFUSES a member whose RECONSTRUCTED geometry disagrees, so **reconstructed frozen identity
+remains the enforcement boundary** and a manifest frozen under one backend cannot be
+silently reused under the other. The report key is what lets a reader see WHY, not merely
+that it happened.
+
+**REWARD AND REFERENCE VALUATION ARE OBJECTIVE-COHERENT — AND THE REWARD FORMULA IS
+UNCHANGED.** `graph_reward.plan_value(solution, tasks, *, backend=...)` DEFAULTS to the
+historical backend and, on it, is the **unchanged EPSILON arithmetic, operand for operand**;
+on `p1_milp_v1` it is exact covered utility (`_p1_plan_value`), which likewise REFUSES a
+multi-step task or `p != 1` as a `MatchAouBackendError`. The backend passed is the EPISODE's
+own stored one, so scoring a P1 allocation with legacy arithmetic — or the reverse — cannot
+happen; that would normalize an episode by a number no solver ever optimized.
+**UNCHANGED BY THIS INTEGRATION:** `U_prefix`, `U_post`, `realized_utility`, the aircraft
+penalty, the regret epsilon `eps_regret` (still a DIVISION GUARD, distinct from the solver
+`EPSILON`), terminal-on-last credit placement, and the fact that the reward is **NEVER
+CLAMPED**. PPO, GAE, the encoder, the critic, the action set, the trigger layer, the
+fuel-damage mechanism, `DETECTION_KM`, the B2 geometry, the seed formulas and the vendored
+BLADE engine are all untouched, the frozen `match_aou_MINLP_solver.py` is untouched, and the
+episode-outcome schema stays at version 3.
+
+**CONFIGURATION AND PROVENANCE.** `TrainConfig.match_aou_backend` and
+`RolloutConfig.match_aou_backend` (both defaulting to `legacy_minlp_v1`) are settable from a
+JSON preset and from `--match-aou-backend`, whose `choices` are the closed id set; both
+`validate()` methods resolve the id BEFORE any compute, and `graph_benchmark_preflight`
+exposes the same flag. `run_config.json:/provenance/solver` records `match_aou_backend`
+beside the unchanged BONMIN probe — the backend is part of a result's identity in exactly
+the way the solver executable is. **No repository preset selects `p1_milp_v1`**:
+`configs/graph_train/final_cell_probe.json` remains the ONLY repository preset and is
+untouched.
+
+**NOTHING FROM THIS LAYER REACHES THE ACTING PATH:** no backend id, solver audit field,
+termination string or objective value enters `GraphObservation` or
+`CentralGraphObservation`. **NO SCIENTIFIC MEASUREMENT WAS PRODUCED BY THIS INTEGRATION, AND
+NO P1 PERFORMANCE, BENEFIT, LEARNING OR COMPARISON CLAIM MAY BE PRE-CLAIMED** (§8).
+
 ---
 
 ## 6. File map — "I want to…"
@@ -3244,7 +3480,7 @@ a stub, because normal production does not currently generate it.
 | Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
 | Run a diagnostic rollout (no training) | `rl/training/graph_rollout.py` (`RolloutConfig`, `run_rollout`) |
 | Run PPO training / plot a run | `rl/training/graph_train.py` (`TrainConfig`, `train`, `plot_training`). A run writes `run_config.json` (+ `provenance` + `config_source`), `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`, `run_summary.json`, `scenarios/`, `checkpoints/` and the three figures under `plots/`. **`train` refuses to start unless Git provenance is COMPLETE** (full SHA + clean/dirty verdict) — see the §5 trainer contract; `collect_provenance` / `_git_provenance` / `_iteration_outcome` / `build_run_summary` / `eval_episode_tag` / `_format_episode_block` / `_unique_confirmed_target_ids` / `_episode_target_roster` |
-| Change how a run FAILS on a measurement/data-integrity fault (as opposed to an episode fault) | `rl/training/graph_train.py` (`MeasurementIntegrityError`, its subclass `EpisodeRosterError`, `_world_snapshot_ids`, `_episode_target_roster`, `_require_scheduled_cell`, and the `except (_VisualArtifactError, MeasurementIntegrityError, FuelDamageIntegrityError)` re-raises in the train and eval attempt handlers and in `_run_one_episode`'s setup and run blocks) — plus `_ConditionTally.attempt` and `_ConditionTally.success(out, *, expected_cell)`, whose scheduled-vs-executed CELL equality check is routed identically (§5). It ABORTS the run and is NEVER written to `episode_failures.jsonl`, counted against a condition, folded into a matched group, appended to `episode_outcomes.jsonl`, added to the PPO buffer, or entered into `skip_and_account_v1` — that routing is the §5 roster-integrity contract and deliberately reverses PR #7's. **`graph_fuel_damage.FuelDamageIntegrityError` is routed IDENTICALLY** (GENERALIZED-V1, §5): a world CERTIFIED FD-capable that then contradicts its own certificate — live, or by ending without the event ever firing — is an INSTRUMENT fault and ABORTS the run. It is deliberately NOT a subclass of `FuelDamageError`, and **setup ineligibility (`NO_FD_ELIGIBLE_EGO`) is emphatically NOT it** — that stays an ordinary accounted `setup` failure inside `skip_and_account_v1` |
+| Change how a run FAILS on a measurement/data-integrity fault (as opposed to an episode fault) | `rl/training/graph_train.py` (`MeasurementIntegrityError`, its subclass `EpisodeRosterError`, `_world_snapshot_ids`, `_episode_target_roster`, `_require_scheduled_cell`, and the `except (_VisualArtifactError, MeasurementIntegrityError, FuelDamageIntegrityError)` re-raises in the train and eval attempt handlers and in `_run_one_episode`'s setup and run blocks) — plus `_ConditionTally.attempt` and `_ConditionTally.success(out, *, expected_cell)`, whose scheduled-vs-executed CELL equality check is routed identically (§5). It ABORTS the run and is NEVER written to `episode_failures.jsonl`, counted against a condition, folded into a matched group, appended to `episode_outcomes.jsonl`, added to the PPO buffer, or entered into `skip_and_account_v1` — that routing is the §5 roster-integrity contract and deliberately reverses PR #7's. **`graph_fuel_damage.FuelDamageIntegrityError` is routed IDENTICALLY** (GENERALIZED-V1, §5): a world CERTIFIED FD-capable that then contradicts its own certificate — live, or by ending without the event ever firing — is an INSTRUMENT fault and ABORTS the run. It is deliberately NOT a subclass of `FuelDamageError`, and **setup ineligibility (`NO_FD_ELIGIBLE_EGO`) is emphatically NOT it** — that stays an ordinary accounted `setup` failure inside `skip_and_account_v1`. **Since PR #55 the LIVE certified-FD case means a PHYSICAL certificate contradiction — position beyond `position_tolerance_km`, or pre-damage fuel beyond `fuel_tolerance` — and a LATE ABSOLUTE OUTER TICK BY ITSELF IS NOT ONE** (it is DIAGNOSTIC, reported and never enforced, because frozen BLADE may skip an airborne ego's whole update; §2, §5). **`solvers.match_aou_backend.MatchAouBackendError` is routed IDENTICALLY** (PR #54, §5) — see its own row below |
 | Configure a run from a FILE, or add a preset | `configs/graph_train/final_cell_probe.json` (the ONLY repository preset: the bounded short probe) + `rl/training/graph_train.py` (`--config`, `load_config_file`, `resolve_train_config`, `_effective_argv`, `_explicit_cli_dests`, `_CLI_FIELD_BY_DEST` / `_CLI_PPO_FIELD_BY_DEST`). Presets name `TrainConfig` FIELDS; precedence is defaults < preset < explicitly typed flags. See the §5 harness contract |
 | Change what a run RECORDS about where its config came from | `rl/training/graph_train.py` (`config_source_record`, `_CONFIG_SOURCE_KINDS` = `config_file` / `cli_defaults` / `direct_config`, `write_run_config`). Always a structured object, never `null`; `resolved_from` is required, never inferred |
 | Change a FIGURE (or add one) | `rl/training/graph_train.py` (`plot_training`, `_plots_dir`, `_plot_training_performance`, `_plot_policy_diagnostics`, `_plot_measurement_health`, `_PLOT_FILENAMES`, `_PLOT_X_LABEL` / `_PLOT_X_SEMANTICS`, `_xy`, `plot_training_subprocess`). Figures go to `<run_dir>/plots/`; the two presentation invariants in §5 (condition means vs complete-pair delta, and the honest x-axis) are contractual |
@@ -3253,7 +3489,7 @@ a stub, because normal production does not currently generate it.
 | Change the SHARED intra-level nearest-neighbor ordering (route prediction + execution at once) | `utils/scheduling_utils.py` (`nearest_neighbor_order`). ONE implementation with TWO consumers — `blade_graph_executor.GraphPlanExecutor._eligible` and `graph_hidden_placement.predict_route`. Changing it changes BOTH; that shared identity is the route-fidelity invariant (`2a3f89c`). Pinned by `tests/test_graph_executor_nn_ordering.py`. |
 | Change the LEGACY FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) — the PRESERVED Phase-A semantics | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. **The approved Phase-A measurement lives on these modes — do not move them; the mild/severe extension has its own row below.** |
 | Change the FD-VARIABLE-SEVERITY-v1 MECHANISM (severity draw, the two live bands, the live-midpoint target) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode.VARIABLE` = `seeded_variable` / `forced_mild` / `forced_severe`, `SEVERITY_MILD` / `SEVERITY_SEVERE` / `SEVERITIES`, `FUEL_DAMAGE_SEVERITY_RNG_DOMAIN`, `derive_fuel_damage_severity_seed`, `resolve_severity`, `FuelDamageParameters.mild_probability` / `variable_severity` / `target_policy`, `TARGET_POLICY_LIVE_SEVERITY_MIDPOINT`, `severity_band` / `_SeverityBand` / `_require_valid_band`, and `FuelDamageController._live_variable_target` beside the untouched `_live_legacy_target`). The severity domain is SEPARATE from `fuel_damage_v1` on purpose (§5) — merging them would move the ego every damaged episode selects and invalidate the approved Phase-A baseline. Same PURITY rules as the row above. |
-| Choose or change CERTIFIED FD ELIGIBILITY (FD capability as a WORLD-ACCEPTANCE property) | `rl/training/graph_fuel_damage.py` (`FD_ELIGIBILITY_POLICIES` = `FD_ELIGIBILITY_LEGACY_V1` / `FD_ELIGIBILITY_CERTIFIED_V1`, `FuelDamageParameters.eligibility_policy` / `certified_eligibility`, `FUEL_DAMAGE_ELIGIBILITY_RNG_DOMAIN`, `derive_fuel_damage_eligibility_seed`, `eligibility_ordinal_permutation`, `certify_fd_candidate`, `_certified_eligibility_walk`, `_build_certified_plan`, `FdEventCertificate`, `FdEligibilityCandidate` / `FdEligibilityAudit`, `FD_ELIGIBILITY_REJECTION_REASONS`, `NO_FD_ELIGIBLE_EGO`, `CERTIFICATE_TICK_TOLERANCE`, `engine_leg_distance_km` / `predict_leg_states`, `FuelDamageController._require_certificate_holds` / `require_certified_event_realized`, `FuelDamageIntegrityError`) + the ONE terminal call site in `rl/training/graph_tick_loop.py` (`run_episode`'s episode-exit seam, BEFORE the recording export). **RESEARCH-VALIDITY / GRADE A**: the eligibility RNG domain is SEPARATE from `fuel_damage_v1` on purpose — merging them would move the ego every LEGACY damaged episode selects and invalidate the approved measurements. The LEGACY policy is the DEFAULT and its live-failure routing is unchanged (§5). **SELECTING the certified policy is now done through `episode_design`, never through a standalone `eligibility_policy` field.** Same PURITY rules as the FD rows above |
+| Choose or change CERTIFIED FD ELIGIBILITY (FD capability as a WORLD-ACCEPTANCE property) | `rl/training/graph_fuel_damage.py` (`FD_ELIGIBILITY_POLICIES` = `FD_ELIGIBILITY_LEGACY_V1` / `FD_ELIGIBILITY_CERTIFIED_V1`, `FuelDamageParameters.eligibility_policy` / `certified_eligibility`, `FUEL_DAMAGE_ELIGIBILITY_RNG_DOMAIN`, `derive_fuel_damage_eligibility_seed`, `eligibility_ordinal_permutation`, `certify_fd_candidate`, `_certified_eligibility_walk`, `_build_certified_plan`, `FdEventCertificate`, `FdEligibilityCandidate` / `FdEligibilityAudit`, `FD_ELIGIBILITY_REJECTION_REASONS`, `NO_FD_ELIGIBLE_EGO`, `CERTIFICATE_TICK_TOLERANCE`, `engine_leg_distance_km` / `predict_leg_states`, `FuelDamageController._require_certificate_holds` / `require_certified_event_realized`, `FuelDamageIntegrityError`) + the ONE terminal call site in `rl/training/graph_tick_loop.py` (`run_episode`'s episode-exit seam, BEFORE the recording export). **RESEARCH-VALIDITY / GRADE A**: the eligibility RNG domain is SEPARATE from `fuel_damage_v1` on purpose — merging them would move the ego every LEGACY damaged episode selects and invalidate the approved measurements. The LEGACY policy is the DEFAULT and its live-failure routing is unchanged (§5). **SELECTING the certified policy is now done through `episode_design`, never through a standalone `eligibility_policy` field.** Same PURITY rules as the FD rows above. **SETUP-TIME certification is TICK-AWARE and UNCHANGED** (`event_tick`, `movement_count`, `bracket_ticks`, `CERTIFICATE_TICK_TOLERANCE == 1` and the tolerance derivations built from that quantum), **but `_require_certificate_holds` binds ONLY the ego's PHYSICAL state at LIVE validation — position against `position_tolerance_km` and pre-damage fuel against `fuel_tolerance`, both the certificate's OWN existing quanta, NEITHER widened and NEITHER made dynamic — while the ABSOLUTE OUTER TICK is DIAGNOSTIC ONLY and can never abort on its own** (`d36e133`, PR #55; §2, §5). Every position/fuel/tick delta is computed BEFORE any verdict and all three are reported together; a genuine physical contradiction still raises `FuelDamageIntegrityError` BEFORE the fuel mutation |
 | Choose or change POST-FD COMPLETION-BOUNDARY WAKES (the damaged ego's later decision points) | `rl/training/graph_fuel_damage.py` (`POST_FD_WAKE_POLICIES` = `POST_FD_WAKE_SINGLE_V1` / `POST_FD_WAKE_COMPLETION_BOUNDARY_V1`, `FuelDamageParameters.post_fd_wake_policy` / `completion_boundary_wakes`, `FuelDamageController.boundary_wakes_enabled` / `post_fd_ego` / `deactivate_adaptation` / `note_boundary` / `note_boundary_wake` / `post_fd_outcome`, `PostFdBoundary`, `PostFdAdaptationOutcome`, `POST_FD_DEACTIVATED_RTB` / `POST_FD_DEACTIVATED_DEAD`) + `rl/training/graph_tick_loop.py` (`_post_fd_boundary`, `_drop_confirmed_assignments`, `_assignment_target_id`, and the top-of-tick call site) + `rl/action/graph_trigger.py` (`TriggerKind.POST_FD_COMPLETION`, `decide_triggers(..., post_fd_completion=False)`) + `utils/blade_utils/blade_graph_executor.py` (`reconcile_confirmed_for_ego`, `has_open_assignments`). **RESEARCH-VALIDITY / GRADE A**: only the ACTUALLY damaged ego may enter the state (`post_fd_ego` is the single enforcement site, armed only AFTER the real mutation), the boundary is an ego-LOCAL proximity-gated confirmation and never a peer's outcome, the belief edit touches only that ego's own slice, and the reconciliation runs BEFORE `central.capture` so CTDE samples stay 1:1 (§5). **SELECTING it is now done through `episode_design`, never through a standalone `post_fd_wake_policy` field, and `post_fd_outcome` IS now persisted per episode and aggregated per run** — see the episode-design and persistence rows below |
 | Change the FD training MIXTURE / matched EVALUATION / FD reporting | `rl/training/graph_train.py` (`TrainConfig.fuel_damage_mode` / `fuel_damage_probability` / `fuel_damage_mild_probability` / `fuel_damage_leg_progress` / `fuel_damage_rtb_margin` / `aircraft_penalty_coeff`, `fuel_damage_parameters()`, `reward_config()`, `_run_one_episode(..., fuel_damage_mode=...)`, `evaluate` matched groups, `eval_member_tag`, `_ConditionTally`, `_fuel_damage_lines`, `build_run_summary`). `RewardConfig(aircraft_penalty_coeff=2.25)` is passed explicitly here; `graph_reward` stays frozen. |
 | Change the matched CLEAN/MILD/SEVERE TRIAD evaluation, or a within-seed DELTA | `rl/training/graph_train.py` (`_EVAL_TRIAD_MEMBERS`, `_EVAL_TRIAD_DELTAS` beside the unchanged `_EVAL_PAIR_MEMBERS` / `_EVAL_PAIR_DELTAS`, `_EVAL_GROUP_KIND_PAIR` / `_EVAL_GROUP_KIND_TRIAD`, `TrainConfig.variable_severity` / `eval_group_members` / `eval_group_size` / `eval_group_kind` / `eval_group_deltas` / `reported_cells`, `_scheduled_cell_probabilities`, `_difficulty_factor_name`, and `evaluate`'s complete-group test). A legacy run keeps its PAIR; only a `seeded_variable` run evaluates triads. **Every delta is over COMPLETE groups only** — see §5. |
@@ -3279,6 +3515,8 @@ a stub, because normal production does not currently generate it.
 | Change the ACTOR / CRITIC BOUNDARY, or CTDE value / GAE semantics | `rl/training/graph_ppo.py` (`CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`) beside the UNTOUCHED actor-only `EpisodeRecord` / `PPOBuffer` / `compute_returns_and_advantages` / `PPOUpdater`. **RESEARCH-VALIDITY / GRADE A**: disjoint parameter sets, two separate backwards, detached advantages, GAE over the GLOBAL decision sequence with a zero terminal next value, and fixed pre-epoch `V_old` are all contract (§5). Proofs live in `tests/test_graph_ctde.py` and `tests/test_graph_ppo.py` |
 | Change WHEN the central state is CAPTURED | `rl/training/graph_tick_loop.py` — `run_episode`'s `central` parameter and the `capture(...)` call inside the `if wake` branch, IMMEDIATELY BEFORE `_wake_decision`. **RESEARCH-VALIDITY / GRADE A**: the capture point IS the 1:1 alignment `CTDEEpisodeRecord` validates, and moving it silently repairs the mispairing into a wrong value-to-decision match. `central=None` (the default) leaves the loop byte-unchanged |
 | Change ACTOR-ONLY PRESERVATION or CHECKPOINT compatibility | `rl/training/graph_train.py` (`_ctde_kwargs` / `_central_kwargs` — keyword OMISSION, never a `None` keyword; `save_checkpoint(..., critic=None)`'s exactly-five-key actor-only payload and the CTDE additions; the `ctde_enabled`-gated critic diagnostics on a training record; the `training` block of `run_config.json`). **RESEARCH-VALIDITY / GRADE A**: `actor_only` byte-invariance is what keeps the approved Phase-A baseline comparable, and it is pinned by the POISON test + its CONTROL in `tests/test_graph_ctde.py` |
+| SELECT the MATCH-AOU ALLOCATION OBJECTIVE — `legacy_minlp_v1` (DEFAULT, frozen MINLP through BONMIN) vs `p1_milp_v1` (deterministic `p = 1` MILP through SciPy/HiGHS) | `solvers/match_aou_backend.py` (`MATCH_AOU_BACKENDS`, `MATCH_AOU_BACKEND_LEGACY_MINLP_V1` / `MATCH_AOU_BACKEND_P1_MILP_V1`, `DEFAULT_MATCH_AOU_BACKEND`, `resolve_match_aou_backend`, `uses_p1_milp`, `load_p1_milp_solver`, `MatchAouBackendError`) + `solvers/match_aou_p1_milp_solver.py` (`MatchAouP1MILP`, `P1MilpResults`, `P1MilpSolverSection`, `P1MilpUnsupportedInputError`, `P1MilpBackendUnavailableError`, `TERMINATION_OPTIMAL`) + `rl/training/graph_episode_setup.py` (`_backend_kwargs`, `solve_and_normalize_audited(..., backend=...)`, `EpisodeContext.match_aou_backend`, `_finish_context`'s REQUIRED `match_aou_backend` keyword) + `rl/training/graph_reward.py` (`plan_value(..., backend=...)`, `_p1_plan_value`, `episode_match_aou_backend`) + `rl/training/graph_train.py` (`TrainConfig.match_aou_backend`, `_backend_setup_kwargs`, `--match-aou-backend`) + `rl/training/graph_rollout.py` and `rl/training/graph_benchmark_preflight.py` (the same field and flag). **RESEARCH-VALIDITY / GRADE A**: selection is EXPLICIT and INDEPENDENT — never inferred from `episode_design`, from task probabilities or from what is installed — there is **no `auto` and no fallback in either direction**, an unknown id RAISES, and ONE episode stores and uses ONE backend for every solve it performs. **`legacy_minlp_v1` is the DEFAULT and is the objective every approved measurement was taken on**, reached through keyword OMISSION so a legacy run makes exactly its pre-integration calls. **P1 is NOT a transparent speed/performance swap**: it removes the legacy EPSILON stacking incentive, so it changes which allocations are optimal and can change `A_init`, the hidden geometry, feasibility and population identity. The frozen `match_aou_MINLP_solver.py` is untouched, the P1 solver is LAZY-loaded and NOT re-exported through `match_aou.solvers`, and **no repository preset selects `p1_milp_v1`** (§5, §8) |
+| Route a BACKEND / CONFIGURATION fault — abort, never attrition and never a fallback | `solvers/match_aou_backend.py` (`MatchAouBackendError` — a `RuntimeError`, deliberately NOT a `ValueError`) + `rl/training/graph_episode_setup.py` (the re-raise of `P1MilpUnsupportedInputError` / `P1MilpBackendUnavailableError` as that one stable type) + the `except MatchAouBackendError: raise` guards in `rl/training/graph_train.py` (`_run_one_episode`'s setup, run and reward blocks and the train / legacy-eval / benchmark-eval attempt handlers), `rl/training/graph_rollout.py` and `rl/training/graph_benchmark_preflight.py`. **RESEARCH-VALIDITY / GRADE A**: an unknown id, an unreachable P1 stack, or an input outside the P1 contract (multi-step, `p != 1`, precedence) all say the INSTRUMENT is configured against a domain it does not model, so the run ABORTS — it names no pipeline stage, is NEVER written to `episode_failures.jsonl`, never counted against a condition or stratum tally, never entered into `skip_and_account_v1`, never replaced by the next training seed, never turned into a rejected benchmark candidate, **and NEVER answered by silently solving the other objective**. A solve that merely did not reach acceptable optimality is NOT this exception and keeps the existing attrition semantics (§5) |
 | Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
 | SELECT or change the REWARD-REFERENCE POLICY (`static_t0_v1` vs GENERALIZED-V1 `event_conditioned_continuation_v1`) | `rl/training/graph_reward.py` (`REFERENCE_POLICIES`, `REFERENCE_POLICY_STATIC_T0_V1`, `REFERENCE_POLICY_EVENT_CONDITIONED_V1`, `uses_event_conditioned_reference`) + `rl/training/graph_episode_setup.py` (`setup_episode(..., reference_policy=...)`, `_resolve_reference_policy`, `EpisodeContext.reference_policy` / `t0_reference_tasks`, `_t0_reference_or_deferred`). **RESEARCH-VALIDITY / GRADE A**: `static_t0_v1` is the DEFAULT and is the behaviour the approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements were taken on — moving it moves what those measurements mean. `EpisodeContext.reference_policy` is the ONE stored source and `uses_event_conditioned_reference` the canonical runtime predicate; an unknown id RAISES before any BLADE object exists. **SELECTING it is now done through `episode_design`, never through a standalone field** — see the episode-design row below (§5, §8) |
 | Change the CONTINUATION CHECKPOINT TIMING or the REFERENCE CONSTRUCTION | `rl/training/graph_tick_loop.py` (`run_episode`'s three reference sites — the pre-first-tick CLEAN t=0 build, the `build_continuation_reference` call at the TOP of the firing tick immediately after `maybe_apply`, and the episode-exit `damaged_event_unrealized_t0` build BEFORE the recording export — plus `EpisodeResult.reference`) + `rl/training/graph_episode_setup.py` (`build_t0_reference`, `build_continuation_reference`, `_continuation_agents`, `_reference_universe`, `_solve_reference`, `_reference_aircraft_utility`, `SolveAudit`, `solve_and_normalize_audited`, `SOLVE_NOT_ATTEMPTED` / `SOLVE_TERMINATION_UNAVAILABLE`). **RESEARCH-VALIDITY / GRADE A**: the ORDERING is the contract — real `current_fuel` mutation → continuation reference → post-FD boundary → trigger → `central.capture` → actor decision → Phase 2 — so the reference describes the world the actor is ABOUT to decide in; the checkpoint is READ-ONLY measurement that issues no `env.step`; the task universe is the retained RAW t=0 world minus the realized prefix and NEVER a private belief; continuation agents are rebuilt from the LIVE post-event world with dead / RTB-committed / non-airborne egos EXCLUDED by recorded reason; and an unanswered solve is REFUSED (`ReferenceIntegrityError`) rather than recorded as an answered zero (§5) |
@@ -3297,7 +3535,7 @@ a stub, because normal production does not currently generate it.
 | Change scenario content / zones / fleet / fuel tiers | `scenario_generator.py` (`VariationConfig` incl. `strict_geometry` (raise instead of silently weakening requested geometry) and `min_target_separation_km` (pairwise known-target floor, default 0.0 = off); `ScenarioGenerator`, `CLASS_RANGE_TIERS`) |
 | Change generation-time discovery connectivity (Layer 1, at `DETECTION_KM`) | `scenario_generator.py` → `_ensure_discovery_chain` / `_compute_zone_bounds` / `_connect_zone_targets`; switch the whole pass OFF with `VariationConfig.ensure_discovery_chain=False` |
 | Change split-time discovery masking (Layer 2, at `DETECTION_KM`) | `rl/training/graph_episode_setup.py` → `split_tasks` |
-| Change the solver objective/constraints | `match_aou_MINLP_solver.py` (extreme caution — §2) |
+| Change the solver objective/constraints | `match_aou_MINLP_solver.py` (extreme caution — §2). It is the `legacy_minlp_v1` backend and stays FROZEN; the SEPARATE `p1_milp_v1` objective lives in `match_aou_p1_milp_solver.py` and is selected, never substituted — see the backend row above |
 | Change post-solve scheduling / levels | `scheduling_utils.py`, `topology_utils.py` |
 | Change domain objects | `agent.py`, `task.py`, `step.py` (`StepKind`), `location.py`, `capability.py` |
 
@@ -5538,9 +5776,201 @@ a stub, because normal production does not currently generate it.
   FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements are untouched. This entry certifies the
   IMPLEMENTATION; §8 owns the phase state.
 
+- `8f0d250` — **MATCH-AOU DETERMINISTIC-`p=1` SOLVER + EXPLICIT BACKEND INTEGRATION —
+  CLOSED / APPROVED / MERGED.** FINAL approved candidate SHA
+  `8f0d250cd9f96e6b8bce635065701dc47a5ee87e`, integrated by merge commit
+  `9979910a0537e829f1d18483011e4d0fab42c257` (**PR #54**), from base
+  `fd0d668d5031adef1f3b6af612e584f9ab56454b` — the `main` head produced by the R1-review
+  documentation merge (PR #53). The candidate was merged with a NORMAL MERGE COMMIT and
+  preserved as its SECOND PARENT (ordered parents:
+  `fd0d668d5031adef1f3b6af612e584f9ab56454b`, then
+  `8f0d250cd9f96e6b8bce635065701dc47a5ee87e`); candidate and integration share the IDENTICAL
+  tree `9507dc0bc16aeeabf5616171e10f5a28480063ec` (verified locally), so the integrated tree
+  is exactly the reviewed tree, and no rebase, squash, cherry-pick, force-push or history
+  rewrite occurred. Grade A under `GPT_GITHUB`. The technical contract is in §5 (the
+  MATCH-AOU allocation-backend block) and the routing in §6; this entry records the LOCK,
+  not the mechanism.
+  **THE APPROVED ISOLATED-SOLVER ANCESTOR is `1462163277322a3ef29eec28c782766edb8ea73b`** —
+  the reviewed stage at which the deterministic P1 MILP existed as an ISOLATED module with
+  no runtime caller. The integration candidate above is what added the reviewed SEAM beside
+  it; the two stages are recorded separately because the approved P1 FORMULATION and its
+  INTEGRATION are different decisions.
+  **WHAT IT IMPLEMENTS.** ONE explicit, INDEPENDENT selector over exactly two
+  non-interchangeable objectives — `legacy_minlp_v1` (the historical DEFAULT: the frozen
+  MINLP through BONMIN) and `p1_milp_v1` (the deterministic `p = 1` MILP through
+  SciPy/HiGHS, with no `EPSILON`). No `auto`, no fallback in either direction, no per-solve
+  switching, one backend per episode stored on `EpisodeContext.match_aou_backend` and read
+  back by every deferred reference solve, objective-coherent reward valuation, and
+  `MatchAouBackendError` routed as a configuration/instrument ABORT. §5 states all of it.
+  **REVIEWED SCOPE: EXACTLY ELEVEN FILES**, verified as the complete
+  `fd0d668…...9979910…` comparison — `src/match_aou/solvers/match_aou_backend.py` (NEW),
+  `src/match_aou/solvers/match_aou_p1_milp_solver.py` (NEW),
+  `src/match_aou/rl/training/graph_episode_setup.py`,
+  `src/match_aou/rl/training/graph_reward.py`,
+  `src/match_aou/rl/training/graph_train.py`,
+  `src/match_aou/rl/training/graph_rollout.py`,
+  `src/match_aou/rl/training/graph_benchmark_preflight.py`,
+  `tools/benchmark_match_aou_p1_milp.py` (NEW),
+  `tests/test_match_aou_backend_integration.py` (NEW),
+  `tests/test_match_aou_p1_milp_solver.py` (NEW) and `tests/test_graph_setup_seam.py`.
+  **The FROZEN `match_aou_MINLP_solver.py` was NOT touched**, `match_aou.solvers.__init__`
+  was NOT touched (its surface is still exactly `MatchAou` and `round_trip_cost`), the
+  vendored BLADE engine was NOT touched, `graph_generalized.py` was NOT touched (**no
+  benchmark-manifest schema change**), and **no config, preset or benchmark manifest was
+  added or changed** — `configs/graph_train/final_cell_probe.json` remains the ONLY
+  repository preset, is untouched, is still `fixed_cell_v1` and does NOT select
+  `p1_milp_v1`. No documentation file was part of the code integration, which is what this
+  documentation task closes.
+  **WHAT IS DELIBERATELY NOT IN IT.** No claim of solver equivalence and no claim of literal
+  one-config-field experimental equivalence between a legacy arm and a P1 arm; no `p < 1`,
+  multi-step or precedence support in the P1 formulation (those are REFUSED, not answered);
+  no tie-breaking rule and no degeneracy-breaking bound; no change to `U_prefix`, `U_post`,
+  `realized_utility`, the aircraft penalty, `eps_regret`, terminal-on-last credit placement
+  or the no-clamping policy; no PPO, GAE, encoder, critic, action-space, trigger,
+  fuel-damage-mechanism, `DETECTION_KM`, B2-geometry or seed-formula change; and no
+  episode-outcome schema bump (it stays at version 3).
+  **NO SCIENTIFIC MEASUREMENT OF ANY KIND WAS PRODUCED BY THIS INTEGRATION**, and none may
+  be inferred from it: its tests and its `tools/benchmark_match_aou_p1_milp.py` comparison
+  are ENGINEERING evidence with no scientific contract, no seed schedule, no held-out band
+  and no denominator, and **no P1 performance, benefit, learning or comparison claim may be
+  pre-claimed** (§8). The approved Phase-A (`737b4bf`), FD-VARIABLE-SEVERITY-v1
+  (`bf1e045f`) and R1 (`4af6c5aa…`) measurements are untouched and remain measurements
+  taken under `legacy_minlp_v1`. This entry certifies the IMPLEMENTATION; §8 owns the phase
+  state.
+
+- `d36e133` — **CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR — CLOSED / APPROVED /
+  MERGED.** FINAL approved candidate SHA
+  `d36e1338aaac0d55dd081b788a3e8bbcaa310b53`, integrated by merge commit
+  `edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8` (**PR #55**), from base
+  `9979910a0537e829f1d18483011e4d0fab42c257` (the PR-#54 merge). The candidate was merged
+  with a NORMAL MERGE COMMIT and preserved as its SECOND PARENT (ordered parents:
+  `9979910a0537e829f1d18483011e4d0fab42c257`, then
+  `d36e1338aaac0d55dd081b788a3e8bbcaa310b53`); candidate and integration share the IDENTICAL
+  tree `0e3c0ff8bc41e5d1d96af9ec3d61a4b5cea59afa` (verified locally), so the integrated tree
+  is exactly the reviewed tree, and no rebase, squash, cherry-pick, force-push or history
+  rewrite occurred. Grade A under `GPT_GITHUB`. The technical contract is in §5 (the live
+  certificate-check block) and the routing in §6; this entry records the LOCK, not the
+  mechanism.
+  **APPEND-ONLY REVIEW CHAIN, two commits on one branch and one PR** — never amend, rebase,
+  squash, force-push or history rewrite. The original implementation candidate
+  `930987c7bdc19596383a4c4b825f064817812375` carried the FD repair; GPT returned
+  **REQUEST FIXES**, and the correction landed as the DIRECT CHILD COMMIT `d36e1338…`, which
+  is the APPROVED head. **THE REQUESTED FIX CONCERNED THE P1 HISTORICAL-SURFACE TEST, NOT FD
+  PRODUCTION SEMANTICS**: the FD runtime correction was accepted in the first candidate, and
+  what changed in the child commit is
+  `tests/test_match_aou_p1_milp_solver.py` plus the FD test file — no production FD
+  behaviour was re-decided by the fix.
+  **THE DEFECT.** `FuelDamageController._require_certificate_holds` bound the ABSOLUTE OUTER
+  TICK, on the premise that an airborne ego receives exactly one engine update per outer
+  tick. **THE PREMISE, NOT THE CERTIFIER, WAS WRONG**: frozen BLADE's
+  `Game.update_all_aircraft_position` iterates the live `scenario.aircraft` list while
+  `land_aicraft` → `remove_aircraft` and the fuel-exhaustion branch remove entries from that
+  same list, so the entry following a departing aircraft can be skipped entirely for that
+  update — losing BOTH its movement and its burn (§2). An ego whose peers land is therefore
+  physically EARLIER than the tick count implies.
+  **THE REPAIR.** Setup-time certification stays TICK-AWARE and byte-unchanged
+  (`event_tick`, `movement_count`, `bracket_ticks`, `CERTIFICATE_TICK_TOLERANCE == 1` and
+  the tolerance derivations built from that quantum), while LIVE validation binds ONLY the
+  ego's PHYSICAL state — position against the certificate's existing `position_tolerance_km`
+  and pre-damage fuel against its existing `fuel_tolerance`. **NEITHER TOLERANCE WAS
+  WIDENED, none was made dynamic, and NO engine-update counter was added**; all three deltas
+  are computed before any verdict and reported together; a genuine physical contradiction
+  still raises `FuelDamageIntegrityError` BEFORE the fuel mutation; and world acceptance,
+  certificate construction, the terminal certified-damaged-event-never-realized integrity
+  abort and the ordinary `NO_FD_ELIGIBLE_EGO` setup attrition are all unchanged. **BLADE WAS
+  DELIBERATELY NOT MODIFIED — this is NOT a physics fix and must never be read as one.**
+  **REVIEWED SCOPE: EXACTLY THREE FILES**, verified as the complete
+  `9979910…...edf9e840…` comparison — `src/match_aou/rl/training/graph_fuel_damage.py`,
+  `tests/test_graph_fuel_damage.py` and `tests/test_match_aou_p1_milp_solver.py`. No
+  vendored BLADE, solver, reward, PPO, encoder, action-space, tick-loop, executor,
+  episode-setup, hidden-placement, generator, trainer, rollout, preflight, config, preset,
+  manifest or documentation file was touched.
+  **THE DURABLE P1 HISTORICAL-SURFACE REGRESSION.**
+  `tests/test_match_aou_p1_milp_solver.py::test_po2_the_reviewed_p1_task_modified_only_its_declared_surface`
+  now compares the TWO PINNED HISTORICAL COMMITS — `TASK_BASE_SHA =
+  "fd0d668d5031adef1f3b6af612e584f9ab56454b"` against `P1_REVIEWED_SHA =
+  "8f0d250cd9f96e6b8bce635065701dc47a5ee87e"` — and **NOT the current `HEAD`**. That is what
+  preserves the PR-#54 surface proof as the finished historical fact it is WITHOUT
+  prohibiting future repository evolution: diffing the pinned base against the working tree
+  was a valid claim only while PR #54 was itself the current task, and afterwards any
+  legitimate later change by any task would have failed a test whose name promises something
+  about P1. It is NON-VACUOUS by construction (the change set must be non-empty and must
+  EQUAL the declared inventory in both directions) and remains FALSIFIABLE through
+  `test_po2_the_historical_surface_guard_still_rejects_an_undeclared_file`, while the LIVE
+  tree stays guarded by the byte-for-byte frozen-MINLP pin and the P1 AST guard.
+  **CC-REPORTED ENGINEERING EVIDENCE ONLY.** At the approved candidate the reported full
+  suite was **659 passed, 11 skipped, 0 failed**, and a bounded **seed-740322** reconstruction
+  / replay reproduced the diagnosed skipped-update signature. **BOTH ARE ENGINEERING
+  VALIDATION, NOT A SCIENTIFIC MEASUREMENT** — the replay schedules no population, defines
+  no comparator and produces no verdict, and no reward, learning or performance claim may be
+  drawn from it. **This DOCUMENTATION task ran no test suite, no solver, no BLADE episode
+  and no smoke, and makes no pass/fail claim of its own.**
+  **NO SCIENTIFIC P1 RUN WAS LAUNCHED OR RESUMED BY PR #55**, and no scientific measurement
+  of any kind was produced by it. The approved Phase-A (`737b4bf`),
+  FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) and R1 (`4af6c5aa…`) measurements are untouched.
+  This entry certifies the IMPLEMENTATION; §8 owns the phase state, including the ABORTED
+  P1 arm that must not be resumed.
+
 ---
 
 ## 8. OPEN (not built)
+
+- **PHASE-STATE CORRECTION (LATEST) — THE DETERMINISTIC-P1 MATCH-AOU BACKEND AND THE
+  CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR ARE BOTH INTEGRATED; ONE ATTEMPTED FULL P1
+  ARM WAS ABORTED AND IS NOT A MEASUREMENT AND NOT RESUMABLE; R1 IS UNTOUCHED AND REMAINS
+  THE ONLY APPROVED GENERALIZED MEASUREMENT.** This bullet is stated FIRST because it
+  supersedes, as CURRENT state only, every statement below it — in this document and in
+  `graph_rl_project_handoff.md` — that says the P1 backend does not exist, that the
+  absolute outer tick is binding at live certified-FD validation, or that PR #54 / PR #55
+  is open, active, unreviewed or writable. Each of those remains accurate as the record it
+  was.
+  1. **R1 IS UNCHANGED AND IS STILL THE APPROVED MEASUREMENT.** The approved actor-only
+     GENERALIZED-V1 R1 measurement remains exactly the existing approved measurement at
+     measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, verdict
+     **`APPROVE — VALID MEASUREMENT`**, with its NEGATIVE primary FD finding (§7, and the
+     bullet immediately below).
+  2. **NOTHING IN PR #54 OR PR #55 RERAN, ALTERED OR REPLACED R1** — not the run, not its
+     artifacts, not its comparator manifest and not its verdict. Neither PR produced a
+     scientific measurement of any kind.
+  3. **THE DETERMINISTIC-P1 BACKEND NOW EXISTS AND IS INTEGRATED** (`8f0d250` → `9979910`,
+     PR #54; contract in §5, routed in §6, locked in §7), **BUT IT HAS NOT YET PRODUCED AN
+     APPROVED FULL SCIENTIFIC MEASUREMENT.** `legacy_minlp_v1` remains the DEFAULT and is
+     the objective every approved measurement was taken on; **no repository preset selects
+     `p1_milp_v1`**.
+  4. **ONE ATTEMPTED FULL P1 ARM WAS ABORTED DURING TRAINING BY
+     `FuelDamageIntegrityError`.** **IT IS NOT A COMPLETED SCIENTIFIC MEASUREMENT**, it
+     carries no verdict, and **it MUST NOT be resumed, repaired, continued or extended and
+     then silently treated as one.** No reward, learning, attrition, convergence or
+     comparison number from it may be reported, and its incompleteness is a fact about the
+     attempt, not a negative result about P1.
+  5. **THE ROOT CAUSE IS CLOSED, AND IT WAS AN INSTRUMENT PREMISE RATHER THAN A WORLD
+     FAULT.** Pre-existing frozen-BLADE live-list mutation (§2) can skip the selected ego's
+     MOVEMENT and BURN entirely when a preceding aircraft is removed mid-pass; the failed
+     execution accumulated TWO such skipped updates before the certified event, so its
+     PHYSICAL certificate state was correct while its OUTER TICK was late — certified event
+     tick 914, crossing observed at outer tick 916, position matching to ~7e-11 km and
+     pre-damage fuel to ~6e-9 lbs (§5).
+  6. **THE REPAIR IS INTEGRATED THROUGH PR #55** (`d36e133` → `edf9e840`) **AND CHANGES
+     LIVE INTEGRITY SEMANTICS ONLY**: physical position and pre-damage fuel remain BINDING,
+     against the certificate's OWN existing tolerances — neither widened, neither made
+     dynamic — while the absolute tick becomes DIAGNOSTIC. Setup-time certification,
+     certificate construction and world acceptance are unchanged.
+  7. **DO NOT REINTERPRET THE REPAIR AS A BLADE PHYSICS FIX. FROZEN BLADE BEHAVIOUR IS
+     UNCHANGED**, no engine file was modified, and recording the engine's list-mutation
+     behaviour in §2 authorizes no edit to it.
+  8. **NO P1 PERFORMANCE, BENEFIT, LEARNING BEHAVIOUR OR COMPARISON AGAINST R1 MAY BE
+     PRE-CLAIMED.** No P1-vs-R1 scientific conclusion exists, and the two objectives are
+     not claimed equivalent (§5) — a P1 arm is a measurement of a DIFFERENT allocation
+     objective, not a faster way of taking the same one.
+  9. **THE ABORTED P1 RUN IS NOT AUTHORIZED FOR RESUME**, repair, continuation or
+     extension.
+  10. **A FUTURE FRESH P1 FULL RUN WOULD BE A NEW MEASUREMENT UNDER THE REPAIRED
+      INSTRUMENT, AND THIS RECORD DOES NOT LAUNCH IT.** Naming it as the next scientific
+      thread is not authorization to execute it: it must be EXPLICITLY opened and
+      authorized, with its own frozen contract, its own preflight-built benchmark and its
+      own independent review. **UNCHANGED AND STILL UNAUTHORIZED:** any R1 rerun, the
+      five-run cluster campaign, a CTDE arm, and `p(destroy) < 1`, which remains a separate
+      deferred Grade-A research task with `p(destroy)` still `1.0`.
 
 - **PHASE-STATE CORRECTION — THE ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING: IT IS
   COMPLETED, INDEPENDENTLY REVIEWED AND `APPROVE — VALID MEASUREMENT`, AND THE PER-WAKE FD
