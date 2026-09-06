@@ -420,7 +420,12 @@ WAYPOINT_SNAP_KM = 0.5
 # relative difference, i.e. under 0.3 m over a 200 km leg. That is far below one tick of
 # travel and can only move the crossing by ONE tick, and only when the predicted progress
 # sits within 1.4e-6 of the threshold. So the certificate is issued over a bracket of
-# +/- this many ticks and the live check accepts the same bracket. It is deliberately
+# +/- this many ticks, and this quantum is what DERIVES the two PHYSICAL tolerances the
+# live check binds -- position_tolerance_km and fuel_tolerance, one tick of travel and
+# one tick of burn. The ABSOLUTE outer tick is deliberately NOT one of them: frozen
+# BLADE can skip an airborne ego's whole update when a preceding aircraft leaves
+# scenario.aircraft mid-pass, so the outer tick count is not a physical promise the
+# engine makes (see FuelDamageController._require_certificate_holds). It is deliberately
 # NOT a free parameter: raising it would certify states the engine cannot produce.
 CERTIFICATE_TICK_TOLERANCE = 1
 
@@ -2792,23 +2797,61 @@ class FuelDamageController:
     def _require_certificate_holds(
         self, *, aircraft: Any, tick: int, fuel_before: float
     ) -> None:
-        """GENERALIZED-V1: the live event state must match the promise, or ABORT.
+        """GENERALIZED-V1: the live PHYSICAL event state must match the promise, or ABORT.
 
         Under :data:`FD_ELIGIBILITY_CERTIFIED_V1` the world was certified FD-capable
-        BEFORE a tick was paid for: a specific tick, a specific point on leg 1 and a
-        specific pre-damage fuel, with both severity bands validated across the tolerated
-        bracket. If the run then arrives somewhere else, the certifier does not describe
-        this simulator -- which makes every episode it touched suspect, not just this one
-        -- so this raises :class:`FuelDamageIntegrityError` and the run stops. It is
-        emphatically NOT ordinary attrition and is never accounted as an episode failure.
+        BEFORE a tick was paid for: a specific point on leg 1 and a specific pre-damage
+        fuel, with both severity bands validated across the tolerated bracket. If the run
+        then arrives at a physically DIFFERENT state, the certifier does not describe this
+        simulator -- which makes every episode it touched suspect, not just this one -- so
+        this raises :class:`FuelDamageIntegrityError` and the run stops. It is emphatically
+        NOT ordinary attrition and is never accounted as an episode failure.
 
-        THE THREE TOLERANCES ARE QUANTA, NOT SLACK. Each is
-        :data:`CERTIFICATE_TICK_TOLERANCE` engine quanta -- one tick of burn, one tick of
-        travel -- plus a documented float epsilon; see the certificate's own fields.
+        THE BINDING INVARIANTS ARE THE EGO'S OWN PHYSICAL STATE, AND ONLY THOSE TWO:
+        its POSITION relative to the certified event point, and its PRE-DAMAGE FUEL
+        relative to the certified pre-damage fuel. Both keep the EXACT tolerances the
+        certificate was issued with -- ``position_tolerance_km`` and ``fuel_tolerance``,
+        each one :data:`CERTIFICATE_TICK_TOLERANCE` engine quantum plus a documented float
+        epsilon (see the certificate's own fields). THEY ARE QUANTA, NOT SLACK, and
+        neither is widened, scaled or made dynamic here.
+
+        THE ABSOLUTE OUTER TICK IS DIAGNOSTIC ONLY AND CANNOT, BY ITSELF, ABORT A RUN.
+        It was binding once, on the premise that an airborne ego receives exactly one
+        engine update per outer tick. FROZEN BLADE DOES NOT GUARANTEE THAT, and the
+        premise is what was wrong. ``Game.update_all_aircraft_position`` iterates
+        ``self.current_scenario.aircraft`` directly, while its own ``land_aicraft`` ->
+        ``remove_aircraft`` path calls ``.remove()`` on that SAME list mid-pass; removing
+        an element shifts the tail left under the live iterator, so the entry that
+        followed the departing aircraft is skipped ENTIRELY for that outer tick --
+        losing BOTH its movement leg and its ``fuel_rate / 3600`` burn. An ego whose
+        peers land is therefore physically EARLIER than the outer tick count implies:
+        its own state still matches the certificate exactly while the wall-clock
+        coordinate no longer does.
+
+        THAT IS NOT A HYPOTHETICAL. A preserved run was diagnosed in exactly this shape:
+        certified event tick 914, two preceding peers landed, the selected ego lost two
+        engine visits, the threshold crossing was observed at outer tick 916 -- and at
+        that state its position matched the certified event position to ~7e-11 km and its
+        pre-damage fuel matched to ~6e-9 lbs. The certificate's PHYSICAL promise held
+        exactly; only the bookkeeping coordinate differed. Aborting on the tick alone
+        would have destroyed a scientifically sound episode over a quantity the engine
+        never promised, which is the opposite of what an integrity check is for.
+
+        NOTHING ABOUT THE CERTIFICATE'S CONSTRUCTION CHANGES. Its tick arithmetic,
+        ``event_tick``, ``bracket_ticks``, ``tick_tolerance`` and
+        :data:`CERTIFICATE_TICK_TOLERANCE` are untouched, and that quantum still DERIVES
+        the two physical tolerances this method binds. What changed is only which of the
+        three quantities a LIVE contradiction is judged on.
+
+        EVERY DELTA IS COMPUTED BEFORE ANY VERDICT IS TAKEN, and a failure reports all
+        three together with its own pass/fail verdict: one contradicted quantity must
+        never hide the state of the other, and a preserved message has to be diagnosable
+        without a replay.
 
         Raises:
-            FuelDamageIntegrityError: on any of the three mismatches. Raised BEFORE the
-                mutation, so a contradicted certificate leaves the engine untouched.
+            FuelDamageIntegrityError: iff the POSITION or the FUEL leaves its own
+                tolerance. Raised BEFORE the mutation, so a contradicted certificate
+                leaves the engine untouched.
         """
         cert = self.plan.certificate
         if cert is None:
@@ -2819,39 +2862,48 @@ class FuelDamageController:
             )
         ego_id = str(self.plan.ego_id)
 
+        # ---- EVERY diagnostic first; no verdict is taken until all three exist -------
+        # A physical failure must not stop the other physical delta being measured, and
+        # the tick discrepancy is measured on EVERY path because it is exactly what a
+        # skipped engine update looks like from outside.
         observed_tick = int(tick)
-        if abs(observed_tick - int(cert.event_tick)) > int(cert.tick_tolerance):
-            raise FuelDamageIntegrityError(
-                "ego %s: CERTIFICATE CONTRADICTED -- the event was certified for tick %d "
-                "(+/- %d, the engine's own observation quantum) and was observed at tick "
-                "%d. The tick-aware prediction does not describe this run."
-                % (ego_id, int(cert.event_tick), int(cert.tick_tolerance), observed_tick)
-            )
+        tick_delta = observed_tick - int(cert.event_tick)
 
         here = Location(
             float(getattr(aircraft, "latitude", 0.0)),
             float(getattr(aircraft, "longitude", 0.0)),
         )
         offset_km = float(here.distance_to(cert.event_location))
-        if offset_km > float(cert.position_tolerance_km):
-            raise FuelDamageIntegrityError(
-                "ego %s: CERTIFICATE CONTRADICTED -- the event was certified at "
-                "(%.6f, %.6f) and fired %.4f km away, beyond the %.4f km tolerance "
-                "(%d tick(s) of travel plus float noise)."
-                % (ego_id, float(cert.latitude), float(cert.longitude), offset_km,
-                   float(cert.position_tolerance_km), int(cert.tick_tolerance))
-            )
+        position_ok = offset_km <= float(cert.position_tolerance_km)
 
-        fuel_offset = abs(float(fuel_before) - float(cert.fuel_before))
-        if fuel_offset > float(cert.fuel_tolerance):
-            raise FuelDamageIntegrityError(
-                "ego %s: CERTIFICATE CONTRADICTED -- the pre-damage fuel was certified at "
-                "%.6f and measured %.6f, a difference of %.6f beyond the %.6f tolerance "
-                "(%d tick(s) of burn at %.6f lbs/tick plus float noise)."
-                % (ego_id, float(cert.fuel_before), float(fuel_before), fuel_offset,
-                   float(cert.fuel_tolerance), int(cert.tick_tolerance),
-                   float(cert.fuel_per_tick))
-            )
+        observed_fuel = float(fuel_before)
+        fuel_offset = abs(observed_fuel - float(cert.fuel_before))
+        fuel_ok = fuel_offset <= float(cert.fuel_tolerance)
+
+        if position_ok and fuel_ok:
+            return
+
+        raise FuelDamageIntegrityError(
+            "ego %s: CERTIFICATE CONTRADICTED -- the live PHYSICAL event state does not "
+            "match the promise. "
+            "POSITION %s: certified (%.6f, %.6f), observed (%.6f, %.6f), offset %.6f km "
+            "against a %.6f km tolerance (%d tick(s) of travel plus float noise). "
+            "FUEL %s: certified %.6f, observed %.6f, offset %.6f against a %.6f "
+            "tolerance (%d tick(s) of burn at %.6f lbs/tick plus float noise). "
+            "TICK (DIAGNOSTIC ONLY, never binding -- frozen BLADE may skip an airborne "
+            "ego's entire update when a preceding aircraft leaves scenario.aircraft "
+            "mid-pass): certified %d, observed %d, delta %+d."
+            % (ego_id,
+               "passed" if position_ok else "FAILED",
+               float(cert.latitude), float(cert.longitude),
+               float(here.latitude), float(here.longitude),
+               offset_km, float(cert.position_tolerance_km), int(cert.tick_tolerance),
+               "passed" if fuel_ok else "FAILED",
+               float(cert.fuel_before), observed_fuel, fuel_offset,
+               float(cert.fuel_tolerance), int(cert.tick_tolerance),
+               float(cert.fuel_per_tick),
+               int(cert.event_tick), observed_tick, tick_delta)
+        )
 
     # ---- persistent post-FD adaptation (GENERALIZED-V1 step 2) ----------------
 
