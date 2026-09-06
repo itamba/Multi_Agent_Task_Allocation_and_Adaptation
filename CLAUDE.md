@@ -5856,10 +5856,14 @@ NO P1 PERFORMANCE, BENEFIT, LEARNING OR COMPARISON CLAIM MAY BE PRE-CLAIMED** (�
   `930987c7bdc19596383a4c4b825f064817812375` carried the FD repair; GPT returned
   **REQUEST FIXES**, and the correction landed as the DIRECT CHILD COMMIT `d36e1338…`, which
   is the APPROVED head. **THE REQUESTED FIX CONCERNED THE P1 HISTORICAL-SURFACE TEST, NOT FD
-  PRODUCTION SEMANTICS**: the FD runtime correction was accepted in the first candidate, and
-  what changed in the child commit is
-  `tests/test_match_aou_p1_milp_solver.py` plus the FD test file — no production FD
-  behaviour was re-decided by the fix.
+  PRODUCTION SEMANTICS**: the FD runtime correction was accepted in the first candidate.
+  **THE REVIEW-FIX CHILD DELTA AND THE CUMULATIVE PR SURFACE ARE DIFFERENT QUANTITIES AND
+  MUST NOT BE CONFLATED.** The CHILD DELTA `930987c7…` → `d36e1338…` changed **EXACTLY ONE
+  FILE — `tests/test_match_aou_p1_milp_solver.py`** — and both
+  `src/match_aou/rl/training/graph_fuel_damage.py` and `tests/test_graph_fuel_damage.py`
+  were **BYTE-IDENTICAL** across that child commit, so no production FD behaviour and no FD
+  regression was re-decided by the fix. The CUMULATIVE PR #55 / integrated surface is the
+  THREE files recorded below.
   **THE DEFECT.** `FuelDamageController._require_certificate_holds` bound the ABSOLUTE OUTER
   TICK, on the premise that an airborne ego receives exactly one engine update per outer
   tick. **THE PREMISE, NOT THE CERTIFIER, WAS WRONG**: frozen BLADE's
@@ -5967,8 +5971,16 @@ NO P1 PERFORMANCE, BENEFIT, LEARNING OR COMPARISON CLAIM MAY BE PRE-CLAIMED** (�
   10. **A FUTURE FRESH P1 FULL RUN WOULD BE A NEW MEASUREMENT UNDER THE REPAIRED
       INSTRUMENT, AND THIS RECORD DOES NOT LAUNCH IT.** Naming it as the next scientific
       thread is not authorization to execute it: it must be EXPLICITLY opened and
-      authorized, with its own frozen contract, its own preflight-built benchmark and its
-      own independent review. **UNCHANGED AND STILL UNAUTHORIZED:** any R1 rerun, the
+      authorized, with its own frozen contract, **an EXPLICITLY RESOLVED AND FROZEN
+      P1-SPECIFIC BENCHMARK CONTRACT**, and its own independent review.
+      **THE BENCHMARK DECISION IS NOT TAKEN HERE.** Benchmark / manifest identity MUST be
+      resolved EXPLICITLY before any execution; **whether the already-existing P1-specific
+      benchmark is REUSED, INDEPENDENTLY REVALIDATED, or DETERMINISTICALLY REBUILT is a
+      SEPARATE pre-run orchestration / research-validity decision, and this documentation
+      task does NOT decide it, pre-authorize it or schedule it.** **NO SILENT POPULATION
+      REPLACEMENT OR REGENERATION IS ALLOWED**, and nothing here may be read as committing a
+      future orchestration to building a new benchmark population.
+      **UNCHANGED AND STILL UNAUTHORIZED:** any R1 rerun, the
       five-run cluster campaign, a CTDE arm, and `p(destroy) < 1`, which remains a separate
       deferred Grade-A research task with `p(destroy)` still `1.0`.
 

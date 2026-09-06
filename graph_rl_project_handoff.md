@@ -222,10 +222,14 @@ PROTECTED and are NEVER cleanup-eligible — **no newer snapshot supersedes any 
 
 **THE NEXT SCIENTIFIC THREAD, AND THIS RECORD LAUNCHES NOTHING.** After repository closure
 the next scientific thread is a **FRESH P1 FULL-ARM ORCHESTRATION IN A NEW CHAT, UNDER THE
-REPAIRED INSTRUMENT** — a NEW measurement with its own frozen contract, its own
-preflight-built benchmark and its own independent review. **NAMING IT IS NOT AUTHORIZATION
-TO EXECUTE IT**: it must be EXPLICITLY opened and authorized, and **THIS DOCUMENTATION TASK
-MUST NOT AND DOES NOT LAUNCH IT.** The DESIGN / RESEARCH subjects recorded on 2026-09-05 —
+REPAIRED INSTRUMENT** — a NEW measurement with its own frozen contract, **an EXPLICITLY
+RESOLVED AND FROZEN P1-SPECIFIC BENCHMARK CONTRACT**, and its own independent review.
+**NAMING IT IS NOT AUTHORIZATION TO EXECUTE IT**: it must be EXPLICITLY opened and
+authorized, and **THIS DOCUMENTATION TASK MUST NOT AND DOES NOT LAUNCH IT.** **THE BENCHMARK
+DECISION IS NOT TAKEN HERE EITHER** — whether the already-existing P1-specific benchmark is
+REUSED, INDEPENDENTLY REVALIDATED or DETERMINISTICALLY REBUILT is a SEPARATE pre-run
+decision (§3o.4), and **no silent population replacement or regeneration is allowed.**
+The DESIGN / RESEARCH subjects recorded on 2026-09-05 —
 global-action representation, route-relative observation context and bounded cluster
 validation (§8) — remain open, unauthorized and un-decided; **action aliasing and weak
 route-relative context stay SUSPECTS, not causally proven explanations.** **STILL
@@ -3512,9 +3516,19 @@ engine edit, no re-entrant-safe iteration and no copy-before-iterate.
   and it is not a finding about P1.
 - **THE FIX IS INTEGRATED THROUGH PR #55** and changes LIVE integrity semantics only (§3o.2).
 - **A FUTURE FRESH P1 FULL RUN IS A NEW MEASUREMENT UNDER THE REPAIRED INSTRUMENT**, with
-  its own frozen contract, its own preflight-built benchmark and its own independent review.
-  **NAMING IT HERE IS NOT AUTHORIZATION TO EXECUTE IT**, and **this documentation record
-  neither launches it nor schedules it.**
+  its own frozen contract, **an EXPLICITLY RESOLVED AND FROZEN P1-SPECIFIC BENCHMARK
+  CONTRACT**, and its own independent review. **NAMING IT HERE IS NOT AUTHORIZATION TO
+  EXECUTE IT**, and **this documentation record neither launches it nor schedules it.**
+- **THE BENCHMARK DECISION IS DELIBERATELY NOT TAKEN IN THIS DOCUMENTATION LOCK.**
+  **Benchmark / manifest identity MUST be resolved EXPLICITLY before any execution.**
+  **Whether the already-existing P1-specific benchmark is REUSED, INDEPENDENTLY REVALIDATED,
+  or DETERMINISTICALLY REBUILT is a SEPARATE pre-run orchestration / research-validity
+  decision** — this record does **NOT** decide it, does **NOT** pre-authorize any of the
+  three, and does **NOT** schedule one. **NO SILENT POPULATION REPLACEMENT OR REGENERATION IS
+  ALLOWED**, and no wording here may be read as committing the next orchestration to building
+  a new benchmark population. **This record neither rebuilt, inspected by execution,
+  regenerated nor altered any benchmark or manifest**, and it records no benchmark hash or
+  artifact claim of its own.
 
 ### 3o.5 R1 is untouched
 
@@ -4383,9 +4397,15 @@ and are **not superseded by any newer snapshot**.
 
 **THE IMMEDIATE NEXT STEP IS REPOSITORY CLEANUP / HANDOFF, AND THEN A FRESH P1 FULL-ARM
 THREAD IN A NEW CHAT.** That fresh P1 full run would be a **NEW measurement under the
-repaired instrument**, with its own frozen contract, its own preflight-built benchmark under
-the SAME selected backend, and its own independent review. **NAMING IT HERE IS NOT
-AUTHORIZATION TO EXECUTE IT, AND THIS RECORD LAUNCHES NOTHING.** The DESIGN / RESEARCH
+repaired instrument**, with its own frozen contract, **an EXPLICITLY RESOLVED AND FROZEN
+P1-SPECIFIC BENCHMARK CONTRACT under the SAME selected backend**, and its own independent
+review. **NAMING IT HERE IS NOT AUTHORIZATION TO EXECUTE IT, AND THIS RECORD LAUNCHES
+NOTHING.** **THE BENCHMARK DECISION IS NOT TAKEN HERE:** benchmark / manifest identity MUST
+be resolved EXPLICITLY before execution, and **whether the already-existing P1-specific
+benchmark is REUSED, INDEPENDENTLY REVALIDATED or DETERMINISTICALLY REBUILT is a SEPARATE
+pre-run orchestration / research-validity decision** this record does not make, pre-authorize
+or schedule (§3o.4). **NO SILENT POPULATION REPLACEMENT OR REGENERATION IS ALLOWED.**
+The DESIGN / RESEARCH
 subjects recorded on 2026-09-05 — global-action representation, route-relative observation
 context and bounded cluster validation — remain open, unauthorized and un-decided beside it,
 and **action aliasing and weak route-relative context stay SUSPECTS, not causally proven
