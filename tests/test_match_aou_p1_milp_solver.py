@@ -617,6 +617,14 @@ def test_po1_model_has_no_step_dimension_and_no_stacking_bound() -> None:
 # =============================================================================
 
 TASK_BASE_SHA = "fd0d668d5031adef1f3b6af612e584f9ab56454b"
+#: The exact reviewed HEAD of the P1 task (PR #54), pinned as a HISTORICAL FACT.
+#:
+#: IT IS DELIBERATELY A COMMIT SHA AND NEVER A BRANCH NAME. The declared-surface proof
+#: below asks a question about a finished piece of work -- "did the reviewed P1 task
+#: modify only what it declared?" -- and that question has one immutable answer. Reading
+#: it off a branch, or off whatever HEAD happens to be, would silently re-point the proof
+#: at a moving tree and turn a historical claim into a prohibition on all future work.
+P1_REVIEWED_SHA = "8f0d250cd9f96e6b8bce635065701dc47a5ee87e"
 FROZEN_SOLVER_RELPATH = "src/match_aou/solvers/match_aou_MINLP_solver.py"
 #: The approved P1 FORMULATION, pinned like the frozen legacy solver: the integration
 #: commit consumes it and must not re-tune it. `P1_APPROVED_SHA` is the GPT-approved
@@ -624,7 +632,8 @@ FROZEN_SOLVER_RELPATH = "src/match_aou/solvers/match_aou_MINLP_solver.py"
 P1_SOLVER_RELPATH = "src/match_aou/solvers/match_aou_p1_milp_solver.py"
 P1_APPROVED_SHA = "1462163277322a3ef29eec28c782766edb8ea73b"
 
-#: Files this branch is allowed to differ from `main` in.
+#: The EXACT set of files the reviewed P1 task changed between `TASK_BASE_SHA`
+#: and `P1_REVIEWED_SHA`. A closed historical inventory, not a standing permission.
 #:
 #: THE BRANCH IS TWO STAGES, and the guard tracks both rather than being deleted when the
 #: second arrives. Stage 1 added the ISOLATED solver, its tests and its benchmark tool --
@@ -799,15 +808,103 @@ def test_po2_the_executable_guard_would_catch_a_behavioural_edit() -> None:
         )
 
 
-def test_po2_only_the_declared_surface_was_modified() -> None:
-    """Only the declared stage-1 + stage-2 files may differ from the task base."""
-    changed = _git("diff", "--name-only", TASK_BASE_SHA)
+def _undeclared_surface(changed_names, allowed=ALLOWED_CHANGED_FILES) -> set:
+    """Files a change set touched that the P1 task never declared. PURE."""
+    return set(changed_names) - set(allowed)
+
+
+def _undelivered_surface(changed_names, allowed=ALLOWED_CHANGED_FILES) -> set:
+    """Declared files a change set did NOT touch. PURE.
+
+    Checked in the same breath as `_undeclared_surface` so the historical proof is an
+    EQUALITY rather than a containment: an inventory that silently lost an entry would
+    otherwise keep passing while describing a smaller task than the one reviewed.
+    """
+    return set(allowed) - set(changed_names)
+
+
+def test_po2_the_reviewed_p1_task_modified_only_its_declared_surface() -> None:
+    """HISTORICAL AND IMMUTABLE: the REVIEWED P1 task touched exactly its declared surface.
+
+    THE TWO TREES ARE BOTH PINNED, AND NEITHER IS `HEAD`. The comparison is
+    `TASK_BASE_SHA -> P1_REVIEWED_SHA`, commit to commit, so this preserves the PR-#54
+    surface proof as the finished historical fact it is and is DELIBERATELY INDEPENDENT
+    of every later change to the repository.
+
+    THAT INDEPENDENCE IS THE POINT, and it is what this test previously got wrong. It
+    used to diff `TASK_BASE_SHA` against the CURRENT working tree, which was a valid
+    claim only while PR #54 was itself the current task: once the P1 branch is integrated,
+    every legitimate later change outside the P1 surface -- in any file, by any task --
+    would fail a test whose name promises something about P1. The proof obligation is
+    "did the reviewed P1 implementation modify only what it declared?", NOT "may the
+    repository ever change outside the P1 surface again?".
+
+    THE CURRENT TREE IS STILL GUARDED, by the tests that own that job: the frozen legacy
+    MINLP solver is pinned byte-for-byte against its base blob, and the approved P1
+    formulation is pinned by the AST guard -- both against the LIVE working file, which is
+    where an unauthorized re-tuning of either objective would actually show up.
+
+    NON-VACUOUS BY CONSTRUCTION: the change set must be non-empty and must EQUAL the
+    declared inventory in both directions, so neither a git call that returned nothing nor
+    an inventory that quietly grew or shrank can satisfy it.
+    """
+    changed = _git("diff", "--name-only", TASK_BASE_SHA, P1_REVIEWED_SHA)
     if changed is None:
-        pytest.skip("git unavailable or base commit not present in this checkout")
+        pytest.skip("git unavailable, or one of the two pinned commits is not present")
 
     names = {line.strip() for line in changed.splitlines() if line.strip()}
-    unexpected = names - ALLOWED_CHANGED_FILES
-    assert not unexpected, f"files outside the allowed set were modified: {sorted(unexpected)}"
+    assert names, (
+        "the pinned historical comparison returned NO files; a vacuous change set would "
+        "satisfy any surface claim, so it is refused rather than passed"
+    )
+    undeclared = _undeclared_surface(names)
+    assert not undeclared, (
+        "the reviewed P1 task modified files outside its declared surface: "
+        f"{sorted(undeclared)}"
+    )
+    undelivered = _undelivered_surface(names)
+    assert not undelivered, (
+        "the declared surface names files the reviewed P1 task did not actually change: "
+        f"{sorted(undelivered)}"
+    )
+    assert names == ALLOWED_CHANGED_FILES
+
+
+def test_po2_the_historical_surface_guard_still_rejects_an_undeclared_file() -> None:
+    """The guard above is FALSIFIABLE: it still catches a P1-task file nobody declared.
+
+    Pinning the comparison to two immutable commits removes the failure mode where any
+    later task trips the guard -- it must not also remove the guard's teeth. So the two
+    pure predicates are exercised directly here, against the real declared inventory,
+    with no git call and no dependence on the current tree:
+
+      * an UNDECLARED file injected into the change set is reported;
+      * a DECLARED file missing from the change set is reported;
+      * an EMPTY change set does not vacuously satisfy the inventory.
+    """
+    real = set(ALLOWED_CHANGED_FILES)
+    assert real, "the declared inventory must not be empty"
+
+    # (1) the historical change set is clean against its own inventory.
+    assert _undeclared_surface(real) == set()
+    assert _undelivered_surface(real) == set()
+
+    # (2) an undeclared P1-task file is CAUGHT -- both a plausible one a P1 task could
+    #     really have touched, and an unrelated one.
+    for intruder in (
+        "src/match_aou/solvers/match_aou_MINLP_solver.py",
+        "src/match_aou/integrations/panopticon-main/gym/blade/Game.py",
+        "src/match_aou/rl/training/graph_fuel_damage.py",
+    ):
+        assert intruder not in real, "the fixture must inject a file that is NOT declared"
+        assert _undeclared_surface(real | {intruder}) == {intruder}
+
+    # (3) a declared file MISSING from the change set is caught by the other direction.
+    dropped = sorted(real)[0]
+    assert _undelivered_surface(real - {dropped}) == {dropped}
+
+    # (4) and an empty change set satisfies neither direction vacuously.
+    assert _undelivered_surface(set()) == real
 
 
 def test_po2_the_new_solver_is_not_exported_from_the_package() -> None:
