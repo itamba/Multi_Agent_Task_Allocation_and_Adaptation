@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — GENERALIZED-V1: THE FIRST FULL ACTOR-ONLY R1 LONG RUN IS COMPLETED, INDEPENDENTLY REVIEWED AND `APPROVE — VALID MEASUREMENT` AT MEASURED CODE SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, WITH A NEGATIVE PRIMARY FD FINDING — A VALID NEGATIVE RESULT, ONE MEASUREMENT, NOT A FIVE-RUN POPULATION RESULT AND NOT AN ACTOR-ONLY-vs-CTDE COMPARISON, AND NO RERUN / REPAIR / RESUME / EXTENSION / RETUNING IS AUTHORIZED; THE DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS MERGED (PR #52), IS CODE ONLY, MEASURED NOTHING AND DID NOT MODIFY R1; TASKS 1–5 ALL INTEGRATED (PR #42 + PR #43 + PR #44) WITH THEIR POST-INTEGRATION CLOSURE (PR #45), THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK (PR #46) AND ITS CLOSURE (PR #47), AND OPT-IN TRAINING-REWARD EARLY STOPPING BUILT / DOCUMENTED / CLOSED / STABILIZED (PR #48 + PR #49 + PR #50 + PR #51), OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; THIS R1-REVIEW DOCUMENTATION LOCK IS THE SOLE WRITABLE REPOSITORY TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, SO EVERY RECEIVING ORCHESTRATOR RESOLVES LIVE `main` FROM GITHUB RATHER THAN FROM ANY SHA IN THIS DOCUMENT; THE ONE NEXT THREAD IS DESIGN / RESEARCH ON GLOBAL-ACTION REPRESENTATION, ROUTE-RELATIVE OBSERVATION CONTEXT AND BOUNDED CLUSTER VALIDATION, WHILE FIVE FULL CLUSTER RUNS, A CTDE ARM, RESUME / REPAIR AND ANY R1 RERUN REMAIN UNAUTHORIZED; GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
+# Multi-Agent Graph RL — GENERALIZED-V1: THE DETERMINISTIC-P1 MATCH-AOU BACKEND IS INTEGRATED (PR #54) AND THE CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR IS INTEGRATED (PR #55) — BOTH ARE CODE AND NEITHER PRODUCED A SCIENTIFIC MEASUREMENT; ONE ATTEMPTED FULL P1 ARM WAS ABORTED DURING TRAINING BY `FuelDamageIntegrityError`, IS NOT A COMPLETED MEASUREMENT AND IS `DO NOT RESUME`; ITS ROOT CAUSE IS CLOSED — PRE-EXISTING FROZEN-BLADE LIVE-LIST MUTATION CAN SKIP AN EGO'S MOVEMENT AND BURN, SO LIVE CERTIFIED-FD VALIDATION NOW BINDS PHYSICAL POSITION AND FUEL WHILE THE ABSOLUTE TICK IS DIAGNOSTIC, AND FROZEN BLADE IS UNCHANGED; THE ACTOR-ONLY R1 MEASUREMENT AT `4af6c5aa…` REMAINS `APPROVE — VALID MEASUREMENT` WITH ITS NEGATIVE PRIMARY FD FINDING, IS UNTOUCHED BY BOTH PRs AND IS NOT RERUN; NO P1 PERFORMANCE, BENEFIT OR P1-vs-R1 COMPARISON MAY BE PRE-CLAIMED; THIS POST-INTEGRATION DOCUMENTATION LOCK IS THE SOLE WRITABLE REPOSITORY TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK, NO ACTIVE CANDIDATE AND NO ACTIVE SCIENTIFIC RUN REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, SO EVERY RECEIVING ORCHESTRATOR RESOLVES LIVE `main` FROM GITHUB RATHER THAN FROM ANY SHA IN THIS DOCUMENT; TASKS 1–5 ALL INTEGRATED, PER-WAKE FD DIAGNOSTICS MERGED (PR #52), OPT-IN EARLY STOPPING BUILT AND OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; A FRESH P1 FULL-ARM ORCHESTRATION IS THE NEXT SCIENTIFIC THREAD AND IS NOT LAUNCHED HERE, WHILE FIVE FULL CLUSTER RUNS, A CTDE ARM, RESUME / REPAIR AND ANY R1 RERUN REMAIN UNAUTHORIZED; GENERALIZED-V1 STAYS AN ACTIVE PHASE / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -133,7 +133,115 @@ orchestrator MUST resolve from GitHub — **this final-stabilization branch is t
 writable task only while its own draft PR is open, and once it is integrated NO writable
 repository task remains**, **R1 stays UNTOUCHED, fixed-budget, with NO early stopping and
 `AUTHORIZED / DISPATCHED — RESULT PENDING`**, and **no scientific result was produced by
-PR #48, PR #49, PR #50 or this record** (§1, §3m, §4, §8, §9) — *(that record's "R1 stays `AUTHORIZED / DISPATCHED — RESULT PENDING`" framing was accurate when written and is SUPERSEDED by the entry below)* — and **2026-09-05, in THIS GENERALIZED-V1 R1 REVIEW + FD MEASUREMENT-HARDENING DOCUMENTATION LOCK, to record that the FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING — it is `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT` at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, with a NEGATIVE primary FD finding that is a VALID NEGATIVE RESULT rather than a validity defect, is ONE measurement rather than a five-run population result, and is NOT an actor-only-vs-CTDE comparison — to record the DIAGNOSTIC REPLAY as ENGINEERING / ANALYSIS EVIDENCE whose findings NAME SUSPECTS AND PROVE NO CAUSE, to record that the DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS MERGED (PR #52, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`) as CODE that MEASURED NOTHING and DID NOT MODIFY R1, and to record that the ONE next thread is DESIGN / RESEARCH on global-action representation, route-relative observation context and bounded cluster validation while five full cluster runs, a CTDE arm, resume / repair and ANY R1 rerun REMAIN UNAUTHORIZED** (§1, §3n, §4, §8, §9).
+PR #48, PR #49, PR #50 or this record** (§1, §3m, §4, §8, §9) — *(that record's "R1 stays `AUTHORIZED / DISPATCHED — RESULT PENDING`" framing was accurate when written and is SUPERSEDED by the entry below)* — and **2026-09-05, in THIS GENERALIZED-V1 R1 REVIEW + FD MEASUREMENT-HARDENING DOCUMENTATION LOCK, to record that the FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING — it is `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT` at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, with a NEGATIVE primary FD finding that is a VALID NEGATIVE RESULT rather than a validity defect, is ONE measurement rather than a five-run population result, and is NOT an actor-only-vs-CTDE comparison — to record the DIAGNOSTIC REPLAY as ENGINEERING / ANALYSIS EVIDENCE whose findings NAME SUSPECTS AND PROVE NO CAUSE, to record that the DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS MERGED (PR #52, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`) as CODE that MEASURED NOTHING and DID NOT MODIFY R1, and to record that the ONE next thread is DESIGN / RESEARCH on global-action representation, route-relative observation context and bounded cluster validation while five full cluster runs, a CTDE arm, resume / repair and ANY R1 rerun REMAIN UNAUTHORIZED** (§1, §3n, §4, §8, §9). *(that record's "the ONE next thread is DESIGN / RESEARCH" framing was accurate when written and is SUPERSEDED, as CURRENT state only, by the entry below)*, and **2026-09-06, in THIS P1-BACKEND + CERTIFIED-FD POST-INTEGRATION DOCUMENTATION LOCK, to record that the MATCH-AOU DETERMINISTIC-`p=1` SOLVER AND ITS EXPLICIT BACKEND SEAM ARE INTEGRATED (PR #54, approved candidate `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` → merge `9979910a0537e829f1d18483011e4d0fab42c257`) with `legacy_minlp_v1` still the DEFAULT and NO equivalence claimed, that the CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR IS INTEGRATED (PR #55, approved candidate `d36e1338aaac0d55dd081b788a3e8bbcaa310b53` → merge `edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8`) so that LIVE validation binds PHYSICAL position and fuel while the ABSOLUTE TICK is DIAGNOSTIC, to record the PRE-EXISTING FROZEN-BLADE live-list mutation as the closed ROOT CAUSE with BLADE ITSELF UNCHANGED, to record that ONE ATTEMPTED FULL P1 ARM WAS ABORTED DURING TRAINING, is NOT a completed scientific measurement and is NOT authorized for resume, and to record that R1 is UNTOUCHED by both PRs, that neither PR produced a scientific measurement, and that no P1 performance, benefit, learning or P1-vs-R1 comparison may be pre-claimed** (§1, §3o, §4, §8, §9).
+
+**THE LIVE STATE (2026-09-06, P1-BACKEND + CERTIFIED-FD POST-INTEGRATION DOCUMENTATION
+LOCK), STATED FIRST BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH BELOW IT, INCLUDING
+THE 2026-09-05, 2026-09-02, 2026-09-01, 2026-08-31, 2026-08-30 AND 2026-08-26 ONES.** The
+ACTIVE phase is still **GENERALIZED-V1**.
+
+**TWO IMPLEMENTATION PRs ARE MERGED, RETIRED AND READ-ONLY, AND BOTH ARE CODE.**
+
+- **PR #54 — MATCH-AOU DETERMINISTIC-`p=1` SOLVER + EXPLICIT BACKEND INTEGRATION.**
+  Approved candidate `8f0d250cd9f96e6b8bce635065701dc47a5ee87e`, integrated by the NORMAL
+  merge `9979910a0537e829f1d18483011e4d0fab42c257` whose ordered parents are
+  `fd0d668d5031adef1f3b6af612e584f9ab56454b` (the PR-#53 merge) then `8f0d250c…`, and whose
+  integration tree `9507dc0bc16aeeabf5616171e10f5a28480063ec` is IDENTICAL to the reviewed
+  candidate's. The approved ISOLATED-SOLVER ancestor is
+  `1462163277322a3ef29eec28c782766edb8ea73b`. Grade A under `GPT_GITHUB`. Its branch
+  `task/match-aou-p1-milp-solver` is **RETIRED, READ-ONLY historical provenance and NOT
+  writable**.
+- **PR #55 — CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR.** Approved candidate
+  `d36e1338aaac0d55dd081b788a3e8bbcaa310b53`, integrated by the NORMAL merge
+  `edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8` whose ordered parents are `9979910a…` then
+  `d36e1338…`, and whose integration tree `0e3c0ff8bc41e5d1d96af9ec3d61a4b5cea59afa` is
+  IDENTICAL to the reviewed candidate's. **APPEND-ONLY review chain:** first candidate
+  `930987c7bdc19596383a4c4b825f064817812375` → **REQUEST FIXES** → `d36e1338…`, with the
+  requested fix concerning the **P1 HISTORICAL-SURFACE TEST, not FD production semantics**.
+  Grade A under `GPT_GITHUB`. Its branch `task/fd-certificate-physical-state-integrity` is
+  **RETIRED, READ-ONLY historical provenance and NOT writable**. No rebase, squash,
+  cherry-pick, force-push or history rewrite occurred in either PR.
+
+**NEITHER PR PRODUCED A SCIENTIFIC MEASUREMENT.** Their tests, the
+`tools/benchmark_match_aou_p1_milp.py` engineering comparison and the bounded **seed-740322**
+reconstruction / replay are ENGINEERING VALIDATION with no scientific contract, no seed
+schedule, no held-out band and no denominator. **NO SCIENTIFIC P1 RUN WAS LAUNCHED OR
+RESUMED BY PR #55.** The authoritative technical contracts are `CLAUDE.md` §5 (the MATCH-AOU
+allocation-backend block and the live certificate-check block), routed in §6 and locked in
+§7; `CLAUDE.md` §8 owns the phase state.
+
+**THE DETERMINISTIC-P1 BACKEND EXISTS BUT HAS PRODUCED NO APPROVED MEASUREMENT.**
+`legacy_minlp_v1` remains the DEFAULT and is the objective **every approved measurement was
+taken on**; **no repository preset selects `p1_milp_v1`**. Selecting P1 is **NOT a
+transparent speed or performance swap** — it removes the legacy EPSILON stacking incentive,
+so it changes which allocations are optimal and can change `A_init`, the hidden geometry,
+episode feasibility and the POPULATION IDENTITY itself. **NO SOLVER EQUIVALENCE AND NO
+LITERAL ONE-CONFIG-FIELD EXPERIMENTAL EQUIVALENCE BETWEEN A LEGACY ARM AND A P1 ARM IS
+CLAIMED.**
+
+**ONE ATTEMPTED FULL P1 ARM WAS ABORTED DURING TRAINING BY `FuelDamageIntegrityError`. IT IS
+`ABORTED / DO NOT RESUME`.** It is **NOT a completed scientific measurement**, it carries no
+verdict, and it **MUST NOT be resumed, repaired, continued or extended and then silently
+treated as one**; no reward, learning, attrition or comparison number from it may be
+reported. **ITS ROOT CAUSE IS CLOSED**: pre-existing frozen-BLADE live-list mutation can
+skip the selected ego's MOVEMENT **and** BURN when a preceding aircraft is removed mid-pass,
+and that execution accumulated **two** such skipped updates before the certified event, so
+its PHYSICAL certificate state was correct while its OUTER TICK was late. **THE REPAIR
+CHANGES LIVE INTEGRITY SEMANTICS ONLY** — physical position and pre-damage fuel stay binding
+against the certificate's OWN existing tolerances, neither widened nor made dynamic, while
+the absolute tick becomes DIAGNOSTIC. **DO NOT REINTERPRET IT AS A BLADE PHYSICS FIX: FROZEN
+BLADE BEHAVIOUR IS UNCHANGED** and no engine file was modified.
+
+**R1 IS UNTOUCHED AND REMAINS THE APPROVED BASELINE / COMPARATOR MEASUREMENT.** The
+actor-only GENERALIZED-V1 R1 measurement at measured code SHA
+`4af6c5aa5dd28072692bfda63282964b55010aae` is still `COMPLETED / REVIEWED /
+APPROVE — VALID MEASUREMENT` with its NEGATIVE primary FD finding (§3n). **Nothing in PR #54
+or PR #55 reran, altered or replaced it** — not the run, not its artifacts, not its
+comparator manifest, not its verdict — and **it is NOT rerun.** **NO P1-vs-R1 SCIENTIFIC
+CONCLUSION EXISTS**, and none may be pre-claimed.
+
+**WRITABLE OWNERSHIP, STATED SO THAT IT STAYS TRUE AFTER THIS RECORD IS INTEGRATED.** While
+THIS POST-INTEGRATION DOCUMENTATION LOCK is OPEN, its branch
+`task/p1-fd-post-integration-doc-lock` is the SOLE WRITABLE REPOSITORY TASK. **ONCE IT IS
+INTEGRATED: NO WRITABLE REPOSITORY TASK REMAINS, NO ACTIVE IMPLEMENTATION CANDIDATE REMAINS,
+AND NO ACTIVE SCIENTIFIC RUN REMAINS** — its own branch then joins PR #54's and PR #55's as a
+RETIRED, cleanup-only reference (cleanup-eligible only from that integration and NOT before),
+and **NO NEW TASK BECOMES IMPLICITLY AUTHORIZED** until a future task is EXPLICITLY opened.
+**DO NOT OPEN ANOTHER CLOSURE PR MERELY BECAUSE THIS ONE MERGED.**
+**`edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8` IS THE PR-#55 INTEGRATION AND THIS RECORD'S
+AUTHORING BASE — IT IS NOT, AND MUST NOT BE READ AS, THE PERMANENT LIVE `main`**; integrating
+this record necessarily advances `main` past it, and the `CLAUDE.md` §7 hash convention
+forbids this record from naming its own future merge SHA. **EVERY RECEIVING ORCHESTRATOR
+RESOLVES THE EXACT LIVE `main` SHA FROM GITHUB AND RE-READS BOTH DOCUMENTS AT THAT SHA**
+(§9.1). **NO REF IS MOVED OR DELETED BY THIS RECORD**, and `phase-a-baseline`
+(`4f0068847b017795717c5f0e331f647bcfc30547`), `pre-ctde-actor-only`
+(`d437084c5fb1a22c21596a48c58e03f7e15a0115`), `flat-final`
+(`4d44c3454a5561a6cb9d7aed593d59a40068d6d7`) and `pre-cleanup` (peeled
+`561b7cb7f2d873e584a8c0dabe71df8050f1b4ed`) keep their EXISTING roles unchanged, remain
+PROTECTED and are NEVER cleanup-eligible — **no newer snapshot supersedes any of them.**
+
+**THE NEXT SCIENTIFIC THREAD, AND THIS RECORD LAUNCHES NOTHING.** After repository closure
+the next scientific thread is a **FRESH P1 FULL-ARM ORCHESTRATION IN A NEW CHAT, UNDER THE
+REPAIRED INSTRUMENT** — a NEW measurement with its own frozen contract, **an EXPLICITLY
+RESOLVED AND FROZEN P1-SPECIFIC BENCHMARK CONTRACT**, and its own independent review.
+**NAMING IT IS NOT AUTHORIZATION TO EXECUTE IT**: it must be EXPLICITLY opened and
+authorized, and **THIS DOCUMENTATION TASK MUST NOT AND DOES NOT LAUNCH IT.** **THE BENCHMARK
+DECISION IS NOT TAKEN HERE EITHER** — whether the already-existing P1-specific benchmark is
+REUSED, INDEPENDENTLY REVALIDATED or DETERMINISTICALLY REBUILT is a SEPARATE pre-run
+decision (§3o.4), and **no silent population replacement or regeneration is allowed.**
+The DESIGN / RESEARCH subjects recorded on 2026-09-05 —
+global-action representation, route-relative observation context and bounded cluster
+validation (§8) — remain open, unauthorized and un-decided; **action aliasing and weak
+route-relative context stay SUSPECTS, not causally proven explanations.** **STILL
+UNAUTHORIZED until separately reviewed and explicitly authorized:** resuming, repairing or
+extending the aborted P1 arm; **ANY R1 rerun, repair, resume or extension**; the five full
+cluster runs; a CTDE arm; rebuilding or altering R1's benchmark or manifest; a new control
+arm; retuning; and any observation/action-representation, BLADE, solver or reward change.
+**`p(destroy)` remains `1.0` with `p(destroy) < 1` DEFERRED**, **checkpoint RESUME remains
+OUT OF SCOPE**, **no repository preset selects `generalized_v1` or `p1_milp_v1`**, **no
+repository preset enables early stopping**, and **no benchmark manifest is committed or
+tracked in the repository.** **GENERALIZED-V1 REMAINS AN ACTIVE PROJECT PHASE even once no
+writable task remains.**
 
 **THE LIVE STATE (2026-09-05, GENERALIZED-V1 R1 REVIEW + FD MEASUREMENT-HARDENING
 DOCUMENTATION LOCK), STATED FIRST BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH BELOW IT,
@@ -625,6 +733,7 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
+- ***(OWNERSHIP AND CURRENT-STATE SUPERSESSION, 2026-09-06: this bullet's writable-ownership and run-state clauses are SUPERSEDED as CURRENT state by the 2026-09-06 live-state block in the preamble above and by §3o. The sole writable repository task is now THIS P1-BACKEND + CERTIFIED-FD POST-INTEGRATION DOCUMENTATION LOCK, and only while its own draft PR is open; R1 is no longer dispatched-and-pending but `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT` (§3n); PR #52, PR #53, PR #54 and PR #55 have all since been merged; and one attempted full P1 arm is `ABORTED / DO NOT RESUME` and is NOT a measurement (§3o.4). Everything else in this bullet stands as the record it was.)***
 - **LIVE PHASE (2026-09-02) — GENERALIZED-V1: TASKS 1 THROUGH 5 ARE ALL IMPLEMENTED,
   REVIEWED, APPROVED AND INTEGRATED (PR #42 → `5dfcd8b6…`, PR #43 → `b3c2e01f…`, PR #44 →
   `9b9e9b85…`), THE POST-INTEGRATION CLOSURE TASK IS MERGED TOO (PR #45,
@@ -3291,7 +3400,150 @@ passed**; and the `graph_tick_loop` BONMIN selftest **NOT run in the final fix c
 schema v2 and carry no `wake_decisions`.
 
 
+## 3o. The DETERMINISTIC-P1 MATCH-AOU BACKEND (PR #54), the CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR (PR #55), and the ABORTED P1 ARM
+
+**BOTH PRs ARE CODE. NEITHER PRODUCED A SCIENTIFIC MEASUREMENT.** The authoritative
+technical contracts are `CLAUDE.md` §5 (the MATCH-AOU allocation-backend block, and the live
+certificate-check block), routed in §6 and locked in §7; `CLAUDE.md` §8 owns the phase state.
+This section is the PROJECT-SIDE record and does not restate the mechanisms.
+
+### 3o.1 PR #54 — the MATCH-AOU deterministic-`p=1` solver and its EXPLICIT backend seam
+
+**MERGED / RETIRED / READ-ONLY.** Approved candidate
+`8f0d250cd9f96e6b8bce635065701dc47a5ee87e`, integrated by the NORMAL merge
+`9979910a0537e829f1d18483011e4d0fab42c257`, ordered parents
+`fd0d668d5031adef1f3b6af612e584f9ab56454b` (the PR-#53 merge) then `8f0d250c…`, integration
+tree `9507dc0bc16aeeabf5616171e10f5a28480063ec` IDENTICAL to the reviewed candidate's. The
+approved ISOLATED-SOLVER ancestor — the reviewed stage at which the P1 MILP existed as a
+module with no runtime caller — is `1462163277322a3ef29eec28c782766edb8ea73b`. Grade A under
+`GPT_GITHUB`. No rebase, squash, cherry-pick, force-push or history rewrite. Its branch
+`task/match-aou-p1-milp-solver` is RETIRED, READ-ONLY historical provenance and is **NOT
+writable**.
+
+**WHAT IT MEANS FOR THE PROJECT, and the boundaries are the point.**
+
+- **`legacy_minlp_v1` REMAINS THE DEFAULT** and is the objective **every approved
+  measurement was taken on** — Phase-A (`737b4bf`), FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) and
+  R1 (`4af6c5aa…`). **No repository preset selects `p1_milp_v1`.**
+- **SELECTION IS EXPLICIT AND INDEPENDENT, WITH NO `auto` AND NO FALLBACK**, and ONE episode
+  uses ONE backend for every solve it performs.
+- **IT IS NOT A TRANSPARENT SPEED OR PERFORMANCE REPLACEMENT.** P1 removes the legacy
+  EPSILON stacking incentive, so it changes **which allocations are optimal**; because
+  route-relative hidden placement predicts routes from `A_init`, selecting it can change the
+  hidden geometry, episode feasibility, the certified FD event and therefore the **POPULATION
+  IDENTITY**. **NO SOLVER EQUIVALENCE IS CLAIMED**, and **no literal one-config-field
+  experimental equivalence between a legacy arm and a P1 arm may be claimed either.**
+- **A BACKEND / CONFIGURATION FAULT ABORTS** (`MatchAouBackendError`) — never ordinary
+  attrition, never a silent fallback to the other objective.
+- **THE BENCHMARK PREFLIGHT USES THE SAME SELECTED BACKEND AS THE LATER RUN**, and there is
+  **NO manifest schema change for the backend**: reconstructed frozen identity remains the
+  enforcement boundary.
+- **THE REWARD FORMULA IS UNCHANGED.** Valuation is objective-coherent (legacy keeps its
+  EPSILON arithmetic operand for operand; P1 uses exact covered utility), and `U_prefix`,
+  `U_post`, realized utility, the aircraft penalty, `eps_regret`, terminal credit placement
+  and the no-clamping policy are untouched.
+- **NO SCIENTIFIC MEASUREMENT WAS PRODUCED**, and **no P1 performance, benefit, learning or
+  comparison claim may be pre-claimed.** Its tests and its
+  `tools/benchmark_match_aou_p1_milp.py` comparison are ENGINEERING evidence with no
+  scientific contract, no seed schedule, no held-out band and no denominator.
+
+### 3o.2 PR #55 — the certified-FD physical-state integrity repair
+
+**MERGED / RETIRED / READ-ONLY.** FINAL approved candidate
+`d36e1338aaac0d55dd081b788a3e8bbcaa310b53`, integrated by the NORMAL merge
+`edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8`, ordered parents `9979910a…` then `d36e1338…`,
+integration tree `0e3c0ff8bc41e5d1d96af9ec3d61a4b5cea59afa` IDENTICAL to the reviewed
+candidate's. **APPEND-ONLY review chain:** first candidate
+`930987c7bdc19596383a4c4b825f064817812375` → **REQUEST FIXES** → `d36e1338…`. **THE
+REQUESTED FIX CONCERNED THE P1 HISTORICAL-SURFACE TEST, NOT FD PRODUCTION SEMANTICS** — the
+FD runtime correction was accepted in the first candidate. Grade A under `GPT_GITHUB`. No
+rebase, squash, cherry-pick, force-push or history rewrite. Its branch
+`task/fd-certificate-physical-state-integrity` is RETIRED, READ-ONLY historical provenance
+and is **NOT writable**.
+
+**WHAT IT CHANGES, AND WHAT IT DELIBERATELY DOES NOT.** Setup-time certification stays
+TICK-AWARE and byte-unchanged (`event_tick`, `movement_count`, `bracket_ticks`,
+`CERTIFICATE_TICK_TOLERANCE == 1` and the tolerance derivations built from that quantum),
+while LIVE validation binds **only** the ego's PHYSICAL state — position against the
+certificate's existing `position_tolerance_km`, pre-damage fuel against its existing
+`fuel_tolerance`. **THE ABSOLUTE OUTER TICK IS DIAGNOSTIC ONLY and a tick mismatch alone is
+NOT a certificate contradiction.** **NEITHER TOLERANCE WAS WIDENED, none was made dynamic,
+and NO engine-update counter was added**; every delta is computed before any verdict and all
+three are reported together; a genuine physical contradiction still raises
+`FuelDamageIntegrityError` BEFORE the fuel mutation; and world acceptance, certificate
+construction, the terminal certified-damaged-event-never-realized integrity abort and the
+ordinary `NO_FD_ELIGIBLE_EGO` setup attrition are all unchanged.
+
+**THE DURABLE P1 HISTORICAL-SURFACE REGRESSION.**
+`test_po2_the_reviewed_p1_task_modified_only_its_declared_surface` now compares the TWO
+PINNED HISTORICAL COMMITS — `fd0d668d…` against `8f0d250c…` — and **NOT current `HEAD`**, so
+it preserves the PR-#54 surface proof as the finished historical fact it is **without
+prohibiting future repository evolution**. It stays non-vacuous and falsifiable, and the
+LIVE tree remains guarded by the byte-for-byte frozen-MINLP pin and the P1 AST guard.
+
+**ENGINEERING EVIDENCE ONLY.** At the approved candidate the reported full suite was
+**659 passed, 11 skipped, 0 failed**, and a bounded **seed-740322** reconstruction / replay
+reproduced the diagnosed skipped-update signature. **BOTH ARE ENGINEERING VALIDATION, NOT A
+SCIENTIFIC MEASUREMENT.** **NO SCIENTIFIC P1 RUN WAS LAUNCHED OR RESUMED BY PR #55.**
+
+### 3o.3 The pre-existing frozen-BLADE behaviour — the closed ROOT CAUSE
+
+`Game.update_all_aircraft_position` iterates the LIVE `scenario.aircraft` list while
+`land_aicraft` → `remove_aircraft` and the fuel-exhaustion branch remove entries from that
+same list, so the entry FOLLOWING a departing aircraft can be skipped entirely for that
+engine update — losing **both** its movement leg and its `fuel_rate / 3600` burn. **An
+airborne ego is therefore NOT guaranteed exactly one position/burn update per outer tick**,
+and an ego whose peers land is physically EARLIER than the tick count implies. **THIS IS
+PRE-EXISTING FROZEN-ENGINE BEHAVIOUR. PR #55 DELIBERATELY DID NOT MODIFY BLADE, AND THE
+REPAIR IS NOT A PHYSICS FIX** — recording the behaviour in `CLAUDE.md` §2 authorizes no
+engine edit, no re-entrant-safe iteration and no copy-before-iterate.
+
+### 3o.4 The ABORTED P1 arm — `ABORTED / DO NOT RESUME`
+
+**ONE ATTEMPTED FULL P1 ARM WAS ABORTED DURING TRAINING BY `FuelDamageIntegrityError`.**
+
+- **IT IS NOT A COMPLETED SCIENTIFIC MEASUREMENT.** It carries no verdict, it was never
+  submitted for independent review as a measurement, and **no reward, learning, attrition,
+  convergence or comparison number from it may be reported.**
+- **IT MUST NOT BE RESUMED, REPAIRED, CONTINUED OR EXTENDED AND THEN SILENTLY TREATED AS
+  ONE.** **RESUME IS NOT AUTHORIZED**, and checkpoint RESUME remains out of scope in any case
+  (`graph_train` is still SAVE-only).
+- **ITS ROOT CAUSE IS CLOSED** (§3o.3): the execution accumulated **two** skipped engine
+  updates before the certified event, so its **PHYSICAL certificate state was correct while
+  its OUTER TICK was late** — certified event tick 914, crossing observed at outer tick 916,
+  position matching to ~7e-11 km and pre-damage fuel to ~6e-9 lbs. **THE INSTRUMENT PREMISE
+  WAS WRONG, NOT THE WORLD** — so the abort was correct behaviour under the old contract,
+  and it is not a finding about P1.
+- **THE FIX IS INTEGRATED THROUGH PR #55** and changes LIVE integrity semantics only (§3o.2).
+- **A FUTURE FRESH P1 FULL RUN IS A NEW MEASUREMENT UNDER THE REPAIRED INSTRUMENT**, with
+  its own frozen contract, **an EXPLICITLY RESOLVED AND FROZEN P1-SPECIFIC BENCHMARK
+  CONTRACT**, and its own independent review. **NAMING IT HERE IS NOT AUTHORIZATION TO
+  EXECUTE IT**, and **this documentation record neither launches it nor schedules it.**
+- **THE BENCHMARK DECISION IS DELIBERATELY NOT TAKEN IN THIS DOCUMENTATION LOCK.**
+  **Benchmark / manifest identity MUST be resolved EXPLICITLY before any execution.**
+  **Whether the already-existing P1-specific benchmark is REUSED, INDEPENDENTLY REVALIDATED,
+  or DETERMINISTICALLY REBUILT is a SEPARATE pre-run orchestration / research-validity
+  decision** — this record does **NOT** decide it, does **NOT** pre-authorize any of the
+  three, and does **NOT** schedule one. **NO SILENT POPULATION REPLACEMENT OR REGENERATION IS
+  ALLOWED**, and no wording here may be read as committing the next orchestration to building
+  a new benchmark population. **This record neither rebuilt, inspected by execution,
+  regenerated nor altered any benchmark or manifest**, and it records no benchmark hash or
+  artifact claim of its own.
+
+### 3o.5 R1 is untouched
+
+**R1 REMAINS THE APPROVED BASELINE / COMPARATOR MEASUREMENT** at measured code SHA
+`4af6c5aa5dd28072692bfda63282964b55010aae`, `APPROVE — VALID MEASUREMENT`, with its NEGATIVE
+primary FD finding (§3n). **NOTHING IN PR #54 OR PR #55 RERAN, ALTERED OR REPLACED IT** —
+not the run, not its artifacts, not its comparator manifest, not its verdict — and **it is
+NOT rerun.** **NO P1-vs-R1 SCIENTIFIC CONCLUSION EXISTS**, and none may be pre-claimed:
+the two backends solve DIFFERENT allocation objectives, so a future P1 arm would be a
+measurement of a different objective rather than a faster way of taking the same one.
+
+
 ## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED; THE POST-INTEGRATION CLOSURE TASK MERGED AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46 AND ITS POST-MERGE CLOSURE AS PR #47; OPT-IN TRAINING-REWARD EARLY STOPPING MERGED AS PR #48, ITS DOCUMENTATION / LOCK AS PR #49 AND ITS POST-MERGE CLOSURE AS PR #50, OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; THIS FINAL HANDOFF-STABILIZATION CANDIDATE IS THE SOLE WRITABLE TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING, ON ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY STOPPING — *SUPERSEDED 2026-09-05: R1 IS NOW `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`, AND THE PER-WAKE FD DIAGNOSTICS LAYER IS MERGED AS PR #52, §3n*); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
+
+*(**FURTHER HEADING AND CURRENT-STATE SUPERSESSION, 2026-09-06.** Since the 2026-09-05 note below, **PR #54 and PR #55 have BOTH been merged** — the deterministic-P1 MATCH-AOU backend and the certified-FD physical-state integrity repair — and the **sole writable repository task is now THIS POST-INTEGRATION DOCUMENTATION LOCK, and only while its own draft PR is open**. Both merged PRs are CODE and neither produced a scientific measurement; **one attempted full P1 arm was ABORTED and is NOT a measurement and NOT resumable**; **R1 is untouched**. §3o owns the new record and §8 the new next action; everything else in this section stands unchanged.)*
 
 *(**HEADING AND CURRENT-STATE SUPERSESSION, 2026-09-05.** This section's heading and every present-tense claim in it were accurate as the record they were, through PR #51. **TWO of them are now SUPERSEDED as CURRENT state:** the actor-only **R1 is no longer `DISPATCHED / RESULT PENDING` — it is `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`** at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae` with a NEGATIVE primary FD finding, and the **sole writable repository task is no longer the final handoff-stabilization candidate but THIS R1-REVIEW DOCUMENTATION LOCK, and only while its own draft PR is open**. **PR #52 has additionally been merged** and is CODE that measured nothing. §3n owns the new record and §8 the new next action; everything else in this section stands unchanged.)*
 
@@ -4109,8 +4361,67 @@ obligations and bounded implementation/lock task.
 | The FROZEN GENERALIZED BENCHMARK POPULATION is built — **DONE for R1: the deterministic preflight built it BEFORE training at `worlds_per_cell = 3`, and it was evaluated unchanged in all 16 rounds — `manifest_id 0e15f007ef176bf977f8b93bb91289f48c16f25ee9eee282ffd1a89477f6fc0d` (§3n.1); NO benchmark manifest is committed or tracked in the repository, and recording an IDENTITY adds no bytes to it** *(this row previously read "**NOT STARTED; the MECHANISM exists since PR #40, the POPULATION and its SCALE do NOT**", accurate through PR #51; a SECOND frozen population, for any five-run campaign or CTDE arm, is still NOT STARTED and NOT AUTHORIZED)* | Record the 18 requested strata (`A` ∈ {2,3,4} × hidden load LOW=1 / HIGH=`A` × CLEAN/MILD/SEVERE), the matched-world construction (same world, hidden geometry, initial allocation, eligible damaged ego and event point; only the damage condition differs), the world manifests and their identities, and the REQUESTED-vs-REALIZED hidden-count distributions. **Inspect those distributions and REJECT or REDESIGN the benchmark if the HIGH load systematically degenerates — BEFORE any scientific measurement.** Future actor-only and CTDE generalized measurements must use the EXACT SAME frozen manifests; **historical fixed-cell measurements are NOT this benchmark and are not its comparator**. **Task 4 delivered the schema, builder, canonical serialization, content hash, verifying loader, consumer and identity checks; it deliberately did NOT choose the worlds-per-cell scale and did NOT generate, commit or freeze a population, and its builder REFUSES to invent a world count. Choosing the scale comes AFTER §3l.8 step 5's bounded runtime / solver validation.** |
 | The FIRST GENERALIZED scientific measurement completes — **DONE: it is the R1 run in the row above, `APPROVE — VALID MEASUREMENT`, recorded in §3n and in `CLAUDE.md` §7** *(this row previously read "**NOT RUN, NOT AUTHORIZED**", accurate through PR #51; a SECOND generalized measurement, and any five-run campaign or CTDE arm, remain NOT RUN and NOT AUTHORIZED)* | Record run identity, exact measured code SHA, resolved configuration, complete provenance, every denominator per stratum, realized-cardinality accounting, the within-world matched deltas over COMPLETE matched groups only, FD-wake meta-action responses over FD-WAKE denominators, artifact completeness and the evidence hashes in `CLAUDE.md` §7, with the phase state in §8. **Validity is judged BEFORE performance; a null or negative generalized result is a valid observation, not a technical failure** |
 | PER-WAKE FD POLICY DIAGNOSTICS (measurement hardening) lands — **DONE for PR #52, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`, and LOCKED by this record** | Contract in `CLAUDE.md` §5, routing in §6, implementation lock and append-only four-commit review chain in §7, phase-state correction in §8, and the project-side statement in §3n.3. **It is CODE: it produced no scientific measurement and did not modify R1, whose artifacts are episode-outcome schema v2 and carry no `wake_decisions`** |
+| The MATCH-AOU DETERMINISTIC-`p=1` SOLVER + EXPLICIT BACKEND lands — **DONE for PR #54, approved candidate `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` → merge `9979910a0537e829f1d18483011e4d0fab42c257`, approved isolated-solver ancestor `1462163277322a3ef29eec28c782766edb8ea73b`, and LOCKED by this record** | Contract in `CLAUDE.md` §5 (the MATCH-AOU allocation-backend block), routing in §6 (the backend row and the backend-fault row), implementation lock in §7, phase-state correction in §8, and the project-side statement in §3o.1. **Record the two ids, `legacy_minlp_v1` as the preserved DEFAULT, the absence of `auto` and of any fallback, one backend per episode, the lazy non-re-exported P1 loader, the P1 contract (`p = 1`, one-step, no precedence) and its REFUSALS, the abort routing for `MatchAouBackendError`, the preflight sharing the run's backend with NO manifest schema change, and objective-coherent valuation with the reward formula UNCHANGED.** **It is CODE: it produced no scientific measurement, and NO solver equivalence, no one-config-field experimental equivalence and no P1 performance / benefit / comparison claim may be stated** |
+| The CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR lands — **DONE for PR #55, first candidate `930987c7bdc19596383a4c4b825f064817812375` → REQUEST FIXES → approved candidate `d36e1338aaac0d55dd081b788a3e8bbcaa310b53` → merge `edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8`, and LOCKED by this record** | Contract in `CLAUDE.md` §5 (the live certificate-check block), the pre-existing frozen-engine behaviour recorded NARROWLY in §2, routing in §6, implementation lock and append-only review chain in §7, phase-state correction in §8, and the project-side statement in §3o.2–§3o.4. **Record that setup-time certification stays TICK-AWARE and unchanged, that LIVE validation binds ONLY physical position and pre-damage fuel against the certificate's OWN existing tolerances — neither widened, neither dynamic — that the absolute outer tick is DIAGNOSTIC ONLY, that a genuine physical contradiction still aborts BEFORE the mutation, and that BLADE is UNCHANGED and this is NOT a physics fix.** **Record the ABORTED P1 arm as `ABORTED / DO NOT RESUME` and NOT a completed measurement, and record that R1 is untouched and not rerun** |
 
 ## 8. Next action
+
+**THE IMPLEMENTATION STACK IS MERGED AND THE NEXT ACTION HAS CHANGED AGAIN. THIS BLOCK IS
+STATED FIRST BECAUSE IT SUPERSEDES, AS CURRENT STATE ONLY, EVERY PARAGRAPH BELOW IT IN THIS
+SECTION** — each of which remains accurate as the record it was, the block immediately below
+through PR #53 and the ones under it through PR #51.
+
+**PR #54 AND PR #55 ARE BOTH MERGED** (§3o): the deterministic-P1 MATCH-AOU backend
+(`8f0d250c…` → `9979910a…`) and the certified-FD physical-state integrity repair
+(`d36e1338…` → `edf9e840…`). **BOTH ARE CODE. NEITHER PRODUCED A SCIENTIFIC MEASUREMENT, AND
+NO SCIENTIFIC P1 RUN WAS LAUNCHED OR RESUMED BY EITHER.**
+
+**THERE IS NO ACTIVE IMPLEMENTATION CANDIDATE AND NO ACTIVE SCIENTIFIC RUN.** The one
+attempted full P1 arm is **`ABORTED / DO NOT RESUME`** — **not a completed measurement**, and
+**not authorized for resume, repair, continuation or extension** (§3o.4). **R1 is UNTOUCHED**
+and remains the approved baseline / comparator measurement at `4af6c5aa…` with its NEGATIVE
+primary FD finding (§3n, §3o.5); **it is NOT rerun**, and **no P1-vs-R1 conclusion exists.**
+
+**ONCE THIS DOCUMENTATION RECORD IS INTEGRATED, NO WRITABLE REPOSITORY TASK REMAINS, NO
+ACTIVE CANDIDATE REMAINS AND NO SCIENTIFIC RUN IS RUNNING**, and **NO NEW TASK BECOMES
+IMPLICITLY AUTHORIZED** — none may be opened until a future task is EXPLICITLY opened and
+authorized. While this record's draft PR is open, its branch
+`task/p1-fd-post-integration-doc-lock` is the SOLE WRITABLE REPOSITORY TASK; on its
+integration it joins `task/match-aou-p1-milp-solver` and
+`task/fd-certificate-physical-state-integrity` as a RETIRED, cleanup-only reference (this one
+cleanup-eligible only from its own integration and NOT before). **DO NOT OPEN ANOTHER
+CLOSURE PR MERELY BECAUSE THIS ONE MERGED.** **NO REF IS MOVED OR DELETED BY THIS RECORD**,
+and `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final`, `pre-cleanup` and every other
+preserved snapshot keep their EXISTING roles, remain **PROTECTED and NEVER CLEANUP-ELIGIBLE**,
+and are **not superseded by any newer snapshot**.
+
+**THE IMMEDIATE NEXT STEP IS REPOSITORY CLEANUP / HANDOFF, AND THEN A FRESH P1 FULL-ARM
+THREAD IN A NEW CHAT.** That fresh P1 full run would be a **NEW measurement under the
+repaired instrument**, with its own frozen contract, **an EXPLICITLY RESOLVED AND FROZEN
+P1-SPECIFIC BENCHMARK CONTRACT under the SAME selected backend**, and its own independent
+review. **NAMING IT HERE IS NOT AUTHORIZATION TO EXECUTE IT, AND THIS RECORD LAUNCHES
+NOTHING.** **THE BENCHMARK DECISION IS NOT TAKEN HERE:** benchmark / manifest identity MUST
+be resolved EXPLICITLY before execution, and **whether the already-existing P1-specific
+benchmark is REUSED, INDEPENDENTLY REVALIDATED or DETERMINISTICALLY REBUILT is a SEPARATE
+pre-run orchestration / research-validity decision** this record does not make, pre-authorize
+or schedule (§3o.4). **NO SILENT POPULATION REPLACEMENT OR REGENERATION IS ALLOWED.**
+The DESIGN / RESEARCH
+subjects recorded on 2026-09-05 — global-action representation, route-relative observation
+context and bounded cluster validation — remain open, unauthorized and un-decided beside it,
+and **action aliasing and weak route-relative context stay SUSPECTS, not causally proven
+explanations** (§3n.2).
+
+**WHAT REMAINS UNAUTHORIZED UNTIL SEPARATELY REVIEWED AND EXPLICITLY AUTHORIZED:** resuming,
+repairing, continuing or extending the aborted P1 arm; **ANY R1 rerun, repair, resume or
+extension**; rebuilding or altering R1's benchmark or manifest; a new control arm; the **five
+full cluster runs**; a **CTDE arm**; retuning; and any change to the observation/action
+representation, to BLADE, to solver code or to reward code. **`p(destroy)` remains `1.0` with
+`p(destroy) < 1` DEFERRED**, **checkpoint RESUME remains OUT OF SCOPE**, **no benchmark
+manifest is committed or tracked in the repository**, **no repository preset selects
+`generalized_v1` or `p1_milp_v1`**, and **no repository preset enables early stopping.** The
+approved historical baselines are REUSED as what they are and are **never rerun, repaired,
+resumed or re-tuned** (§6).
+
 
 **THE R1 REVIEW THREAD IS DISCHARGED, AND THE NEXT ACTION HAS CHANGED. THIS BLOCK IS STATED
 FIRST BECAUSE IT SUPERSEDES, AS CURRENT STATE ONLY, EVERY PARAGRAPH BELOW IT IN THIS
@@ -4581,3 +4892,7 @@ so.
 | 2026-09-05 | **THE DIAGNOSTIC REPLAY IS RECORDED AS ENGINEERING / ANALYSIS EVIDENCE** (§3n.2), bundle `SHA-256 812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792`: REPLAY EQUIVALENT TO R1 on 108/108 actions, event ticks and ego ids; `fuel_norm` materially different in ALL 54 matched pairs; `reachable_by_ego` flipped in ALL 54; selected meta-action changed in **0/54**; mean absolute matched aggregate P(ABORT) delta `0.0001177037203753436`; joint-vs-aggregate argmax disagreement 54/108; mean task-distance clipping 98.15 %; normalized joint entropy still HIGH | **ENGINEERING / ANALYSIS EVIDENCE, NEVER A SECOND MEASUREMENT** — it schedules no population, defines no comparator and produces no verdict, and **no reward, learning or performance claim may be drawn from it.** **ACTION ALIASING AND WEAK ROUTE-RELATIVE OBSERVATION CONTEXT ARE SUSPECTS, NOT CAUSALLY PROVEN EXPLANATIONS**: it narrows where to look and authorizes no representation change, observation-feature change, normalizer change, new `MetaAction` or retuning |
 | 2026-09-05 | **THE DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS IMPLEMENTED, REVIEWED `APPROVE` (Grade A, `GPT_GITHUB`) AND INTEGRATED — PR #52**, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`, ordered parents `44530abb1cc3f99d01ac867c6621047ac9343661` then `81a148f8…`, integrated tree `86c3b04d104d38c6d6fc5c1e2bdda3bb5c1ab9b7` IDENTICAL to the reviewed candidate's; a cumulative FOUR-COMMIT append-only review chain over SEVEN files (§3n.3; contract in `CLAUDE.md` §5, routed §6, locked §7) | Future runs record per-wake actor diagnostics AT THE DECISION (episode-outcome schema v3 + wake-diagnostics schema v1), so the questions the R1 replay had to answer offline are answerable from durable artifacts — RAW per-wake records PERSISTED in `episode_outcomes.jsonl`, DERIVED summaries in `run_summary.json` and DERIVED plotting input for the figures. **REPORTING-ONLY: reporting consumers read it to persist and summarize it, but no acting, mask, belief, command, PPO/CTDE input, advantage, reward, optimizer, early-stopping, evaluation-scheduling or checkpoint-control path reads it back**; probabilities come from the actor's OWN shared `_masked_dist`; **no RNG draw, no gradient, no control path**; the three wake kinds are DISJOINT and tagged at the TRIGGER; train / pre_update / post_update stay SEPARATE populations; legacy v2 artifacts stay truthful; `fd_policy_sensitivity.png` is OPTIONAL and evaluation-only and `_PLOT_FILENAMES` still names exactly the three REQUIRED figures. **PR #52 produced NO scientific measurement and did NOT modify R1, its artifacts or its verdict** — R1's artifacts are schema v2 and carry no `wake_decisions` |
 | 2026-09-05 | **THIS R1-REVIEW + FD MEASUREMENT-HARDENING DOCUMENTATION LOCK IS OPENED**, because merging PR #52 and completing the R1 review made both documents' present-tense claims stale: they still said R1 was `AUTHORIZED / DISPATCHED — RESULT PENDING`, that NO generalized scientific measurement result existed, that no concrete R1 manifest had been reviewed as the comparator, and that the ONE next action was independent GPT artifact review of R1 — and they carried no contract, routing or lock for the merged PR-#52 layer | Documentation only, exactly two files, **no source, test, config, preset, manifest, artifact or workflow change, and no training, benchmark generation, replay, resume, repair, BONMIN run, CTDE work or scientific execution.** **THE NEXT ACTION CHANGES**: R1's review is DISCHARGED, and the ONE next thread is DESIGN / RESEARCH on **global-action representation, route-relative observation context and bounded cluster validation** — which must be EXPLICITLY opened and authorized and which this record neither opens nor schedules. **Once this record is integrated NO writable repository task remains and NO new task becomes implicitly authorized**; **five full cluster runs, a CTDE arm, resume / repair and ANY R1 rerun remain UNAUTHORIZED**; `p(destroy)` stays `1.0`; and `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and `pre-cleanup` remain PROTECTED and NEVER cleanup-eligible |
+| 2026-09-06 | **THE MATCH-AOU DETERMINISTIC-`p=1` SOLVER AND ITS EXPLICIT BACKEND SEAM ARE IMPLEMENTED, REVIEWED (Grade A, `GPT_GITHUB`) AND INTEGRATED — PR #54**, approved candidate `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` → merge `9979910a0537e829f1d18483011e4d0fab42c257`, ordered parents `fd0d668d5031adef1f3b6af612e584f9ab56454b` then `8f0d250c…`, integrated tree `9507dc0bc16aeeabf5616171e10f5a28480063ec` IDENTICAL to the reviewed candidate's; the approved ISOLATED-SOLVER ancestor is `1462163277322a3ef29eec28c782766edb8ea73b` (§3o.1; contract in `CLAUDE.md` §5, routed §6, locked §7) | WHICH MATCH-AOU objective a run solves becomes an EXPLICIT, INDEPENDENT selector over exactly two ids — `legacy_minlp_v1` (the historical DEFAULT, frozen MINLP through BONMIN) and `p1_milp_v1` (deterministic `p = 1` MILP through SciPy/HiGHS, no EPSILON). **No `auto`, no fallback in either direction, one backend per episode, unknown id RAISES**; the P1 solver is LAZY-loaded and NOT re-exported through `match_aou.solvers`; `MatchAouBackendError` ABORTS rather than becoming attrition; the preflight uses the SAME backend as the later run and there is **no manifest schema change** — reconstructed frozen identity stays the enforcement boundary; valuation is objective-coherent while **the reward formula, `U_prefix`, `U_post`, realized utility, the aircraft penalty, `eps_regret`, terminal credit placement and the no-clamping policy are UNCHANGED**. **P1 IS NOT A TRANSPARENT SPEED/PERFORMANCE SWAP**: it removes the legacy EPSILON stacking incentive, so it can change `A_init`, the hidden geometry, feasibility and POPULATION IDENTITY. **NO SOLVER EQUIVALENCE AND NO ONE-CONFIG-FIELD EXPERIMENTAL EQUIVALENCE IS CLAIMED, NO SCIENTIFIC MEASUREMENT WAS PRODUCED, AND NO P1 PERFORMANCE OR BENEFIT MAY BE PRE-CLAIMED** |
+| 2026-09-06 | **THE CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR IS IMPLEMENTED, REVIEWED (Grade A, `GPT_GITHUB`) AND INTEGRATED — PR #55**, first candidate `930987c7bdc19596383a4c4b825f064817812375` → **REQUEST FIXES** → FINAL approved candidate `d36e1338aaac0d55dd081b788a3e8bbcaa310b53` → merge `edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8`, ordered parents `9979910a…` then `d36e1338…`, integrated tree `0e3c0ff8bc41e5d1d96af9ec3d61a4b5cea59afa` IDENTICAL to the reviewed candidate's; **the requested fix concerned the P1 HISTORICAL-SURFACE TEST, not FD production semantics** (§3o.2; contract in `CLAUDE.md` §5, routed §6, locked §7) | Setup-time certification stays TICK-AWARE and byte-unchanged, while LIVE validation binds **only** the ego's PHYSICAL state — position against the certificate's existing `position_tolerance_km` and pre-damage fuel against its existing `fuel_tolerance`, **NEITHER widened and NEITHER made dynamic** — and **the ABSOLUTE OUTER TICK becomes DIAGNOSTIC ONLY**, because pre-existing frozen-BLADE live-list mutation can skip an airborne ego's whole update. Every delta is computed before any verdict and all three are reported; a genuine physical contradiction still raises `FuelDamageIntegrityError` BEFORE the fuel mutation; world acceptance, certificate construction, the terminal certified-damaged-event-never-realized abort and ordinary `NO_FD_ELIGIBLE_EGO` attrition are unchanged. **BLADE IS UNCHANGED — this is NOT a physics fix.** The P1 surface proof is now pinned between TWO HISTORICAL COMMITS rather than against `HEAD`, so it preserves the PR-#54 scope without prohibiting future evolution. **ENGINEERING EVIDENCE ONLY (reported 659 passed / 11 skipped / 0 failed, plus a bounded seed-740322 reconstruction / replay); NO scientific P1 run was launched or resumed** |
+| 2026-09-06 | **ONE ATTEMPTED FULL P1 ARM IS RECORDED AS `ABORTED / DO NOT RESUME`** — aborted during training by `FuelDamageIntegrityError` (§3o.4) | **IT IS NOT A COMPLETED SCIENTIFIC MEASUREMENT**, carries no verdict, and **MUST NOT be resumed, repaired, continued or extended and then silently treated as one**; no reward, learning, attrition or comparison number from it may be reported. **ITS ROOT CAUSE IS CLOSED**: two skipped engine updates before the certified event left its PHYSICAL state correct (position ~7e-11 km, fuel ~6e-9 lbs from the certificate) while its OUTER TICK was late (certified 914, observed 916) — **an instrument premise, not a world fault**. A future fresh P1 full run is a **NEW measurement under the repaired instrument** and is **NOT launched by this record** |
+| 2026-09-06 | **THIS P1-BACKEND + CERTIFIED-FD POST-INTEGRATION DOCUMENTATION LOCK IS OPENED**, because merging PR #54 and PR #55 made both documents' present-tense claims stale: they carried no contract, routing or lock for the MATCH-AOU backend, they still described the ABSOLUTE OUTER TICK as binding at live certified-FD validation, and they recorded no aborted P1 arm | Documentation only, exactly two files, **no source, test, config, preset, manifest, artifact, ref or workflow change, and no training, benchmark generation, preflight, replay, resume, repair, BONMIN run, CTDE work or scientific execution.** **THE NEXT ACTION CHANGES**: the immediate step is repository cleanup / handoff, and the next SCIENTIFIC thread is a **FRESH P1 FULL-ARM orchestration in a NEW chat under the repaired instrument**, which must be EXPLICITLY opened and authorized and which **this record does not launch**. **Once this record is integrated NO writable repository task, NO active candidate and NO active scientific run remains, and NO new task becomes implicitly authorized**; **R1 is UNTOUCHED, is not rerun, and no P1-vs-R1 conclusion exists**; resume / repair of the aborted P1 arm, ANY R1 rerun, five full cluster runs and a CTDE arm remain UNAUTHORIZED; `p(destroy)` stays `1.0`; and `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and `pre-cleanup` keep their EXISTING roles, remain PROTECTED and are NEVER cleanup-eligible |
