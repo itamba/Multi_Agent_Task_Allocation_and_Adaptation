@@ -103,12 +103,19 @@ from .graph_fuel_damage import (
 from .graph_generalized import (
     EPISODE_DESIGN_FIXED_CELL_V1,
     EPISODE_DESIGN_GENERALIZED_V1,
+    EPISODE_DESIGN_GENERALIZED_V2,
     EPISODE_DESIGNS,
     GENERALIZED_AGENT_COUNTS,
+    GENERALIZED_V2_AGENT_COUNTS,
+    GENERALIZED_V2_KNOWN_OFFSETS,
+    GENERALIZED_V2_REQUIRED_BACKEND,
+    HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
     EpisodeDesign,
     fixed_cell_cardinality,
     resolve_episode_design,
+    resolved_v2_cardinality,
     sample_generalized_cardinality,
+    sample_generalized_v2_pre_solve_cardinality,
 )
 from .graph_tick_loop import build_policy, run_episode
 from .graph_reward import RewardConfig, compute_episode_reward
@@ -250,8 +257,16 @@ class RolloutConfig:
 
     @property
     def generalized(self) -> bool:
-        """True iff this rollout draws from the GENERALIZED-V1 population."""
+        """True iff this rollout draws from a GENERALIZED population (V1 or V2)."""
         return self.design.generalized
+
+    @property
+    def route_relative_population(self) -> bool:
+        """True iff this rollout draws its worlds from the GENERALIZED-V2 population.
+
+        Mirrors ``graph_train.TrainConfig.route_relative_population`` and resolves from the
+        same site, so a design that is two-stage for a training run is two-stage here."""
+        return self.design.route_relative_population
 
     def reward_config(self) -> RewardConfig:
         """The ONE site that turns this config into a :class:`RewardConfig`.
@@ -294,6 +309,17 @@ class RolloutConfig:
         # an unknown backend is refused here exactly as it is there -- and never falls
         # back on the historical objective.
         resolve_match_aou_backend(self.match_aou_backend)
+        if self.route_relative_population:
+            # The SAME verdict the trainer reaches, from the same constant: V2 resolves its
+            # hidden load from the route count the known-only allocation produces, so the
+            # design and the objective that produces it cannot be chosen independently.
+            if str(self.match_aou_backend) != GENERALIZED_V2_REQUIRED_BACKEND:
+                raise ValueError(
+                    "episode_design=%r requires match_aou_backend=%r; got %r. Refused "
+                    "rather than silently overridden."
+                    % (EPISODE_DESIGN_GENERALIZED_V2, GENERALIZED_V2_REQUIRED_BACKEND,
+                       self.match_aou_backend)
+                )
         if self.generalized:
             if str(self.fuel_damage_mode) != FuelDamageMode.SEEDED_VARIABLE:
                 raise ValueError(
@@ -302,11 +328,20 @@ class RolloutConfig:
                     % (EPISODE_DESIGN_GENERALIZED_V1, FuelDamageMode.SEEDED_VARIABLE,
                        self.fuel_damage_mode)
                 )
-            print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
-                  "read. Each episode's cell is SAMPLED from its seed "
-                  "(A ~ U{%s}, K == A, H ~ U{1..A}). Proceeding."
-                  % (EPISODE_DESIGN_GENERALIZED_V1,
-                     ",".join(str(a) for a in GENERALIZED_AGENT_COUNTS)))
+            if self.route_relative_population:
+                print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
+                      "read. Each episode's cell is SAMPLED from its seed in TWO STAGES "
+                      "(A ~ U{%s} and K | A ~ U{A+%s} before the known-only solve, then "
+                      "H_requested ~ U{1..R} after it). Proceeding."
+                      % (EPISODE_DESIGN_GENERALIZED_V2,
+                         ",".join(str(a) for a in GENERALIZED_V2_AGENT_COUNTS),
+                         ", A+".join(str(o) for o in GENERALIZED_V2_KNOWN_OFFSETS)))
+            else:
+                print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
+                      "read. Each episode's cell is SAMPLED from its seed "
+                      "(A ~ U{%s}, K == A, H ~ U{1..A}). Proceeding."
+                      % (EPISODE_DESIGN_GENERALIZED_V1,
+                         ",".join(str(a) for a in GENERALIZED_AGENT_COUNTS)))
         if int(self.num_agents) < 1:
             raise ValueError(f"num_agents must be >= 1, got {self.num_agents}")
         if int(self.n_known) < 1:
@@ -517,8 +552,17 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                 # the generalized design (its own rng domain, so it cannot move the
                 # fuel-damage or placement streams), and the configured fixed cell
                 # otherwise -- in which case every value below is the pre-Task-4 one.
+                # GENERALIZED-V2 resolves this in TWO stages, so only the pre-solve
+                # half (`A`, `K`) exists here; the hidden load is drawn inside
+                # `setup_episode` against the route count the known-only solve produces,
+                # and the resolved cell is assembled from both stages afterwards.
+                pre_solve = (
+                    sample_generalized_v2_pre_solve_cardinality(episode_seed=seed)
+                    if cfg.route_relative_population else None
+                )
                 cell = (
-                    sample_generalized_cardinality(episode_seed=seed)
+                    pre_solve if pre_solve is not None
+                    else sample_generalized_cardinality(episode_seed=seed)
                     if cfg.generalized else fixed_cell_cardinality(
                         agent_count=int(cfg.num_agents),
                         known_count=int(cfg.n_known),
@@ -548,8 +592,21 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     # builds the hidden half from the solved routes (solve -> place ->
                     # patch -> reload). `partial_ratio` is the legacy split surface and
                     # is deliberately NOT passed -- `split_tasks` never runs here.
-                    n_hidden=int(cell.hidden_requested),
+                    # OMITTED under GENERALIZED-V2, whose hidden-load policy resolves
+                    # the count inside setup once the known-only solve has produced a
+                    # route count.
+                    **({} if pre_solve is not None
+                       else {"n_hidden": int(cell.hidden_requested)}),
                     placement_rng=placement_rng,
+                    # GENERALIZED-V2: the route-relative hidden-load policy, its episode
+                    # seed and the scheduled known count -- all three together, because
+                    # setup refuses a half-supplied route-relative request. Absent
+                    # entirely on every other design.
+                    **({} if pre_solve is None else {
+                        "hidden_load_policy": HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+                        "hidden_load_seed": int(seed),
+                        "known_requested": int(pre_solve.known_count),
+                    }),
                     # GENERALIZED-V1 policy seams, resolved from the ONE design
                     # selector. Absent entirely on the historical path, where setup
                     # resolves its own `exact_v1` / `static_t0_v1` defaults as always.
@@ -565,6 +622,19 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     recording_export_path=rec_path,
                 )
                 setup_seconds = time.perf_counter() - t_setup
+
+                # GENERALIZED-V2 STAGE 2 is now a fact about the context, so the
+                # requested cell can finally be stated -- as a NEW object built from both
+                # stage records, never by writing a hidden count into the stage-1 one.
+                route_load = getattr(ctx, "route_relative_load", None)
+                if pre_solve is not None:
+                    if route_load is None:
+                        raise RuntimeError(
+                            "the route-relative hidden-load policy was selected but the "
+                            "episode context carries no record of the route count its "
+                            "hidden load was drawn against"
+                        )
+                    cell = resolved_v2_cardinality(pre_solve, route_load)
 
                 # Snapshot the split identity NOW, at t=0. This MUST happen before
                 # run_episode: the triggers append pop-ups and the effect layer edits
@@ -613,6 +683,18 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                     "known_requested": int(cell.known_count),
                     "hidden_requested": int(cell.hidden_requested),
                     "cardinality_source": str(cell.source),
+                    # GENERALIZED-V2-only, under the same discipline the trainer uses: a
+                    # record from any other design grows NO new key, so the ABSENCE of
+                    # these is how a reader tells the hidden count was stated up front
+                    # rather than drawn against a realized route count.
+                    **({} if route_load is None else {
+                        "hidden_load_policy": str(route_load.policy),
+                        "route_count_at_hidden_resolution": int(route_load.route_count),
+                        "hidden_load": route_load.to_record(),
+                        "pre_solve_cardinality": (
+                            None if pre_solve is None else pre_solve.to_record()
+                        ),
+                    }),
                     "hidden_realized": (
                         None if audit is None else int(audit.hidden_realized)
                     ),

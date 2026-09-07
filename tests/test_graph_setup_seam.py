@@ -101,6 +101,11 @@ from match_aou.rl.training import graph_episode_setup as _setup  # noqa: E402
 from match_aou.rl.training.graph_reward import (  # noqa: E402
     REFERENCE_POLICY_STATIC_T0_V1,
 )
+from match_aou.rl.training.graph_generalized import (  # noqa: E402
+    HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+    HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+    RouteRelativeHiddenLoad,
+)
 from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     ATTACKING_SIDE_COLOR,
     CONSTRUCTION_TARGET_CLASS,
@@ -579,6 +584,11 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
         detection_km=DETECTION_KM, recording_export_path=None, placements=(),
         reference_policy=REFERENCE_POLICY_STATIC_T0_V1, t0_reference_tasks=tasks,
         match_aou_backend=MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+        # REQUIRED for the same reason again (GENERALIZED-V2): a path that omitted them
+        # could reach a context silently claiming the historical explicit hidden-load
+        # request while its count had been drawn against a realized route count.
+        hidden_load_policy=HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+        route_relative_load=None,
     )
     ctx = _finish_context(known_target_ids=("k0",),
                           executed_target_ids=("k0", "h0"), **common)
@@ -601,6 +611,32 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
     _expect_raises(RuntimeError, "known target outside the executed world",
                    _finish_context, known_target_ids=("k0", "ghost"),
                    executed_target_ids=("k0",), **common)
+
+    # GENERALIZED-V2: the hidden-load POLICY and its RECORD are verified as a PAIR, in
+    # both directions. Either half alone would let a context describe a population it was
+    # not drawn from -- a route-relative policy with no record of the `R` it drew against,
+    # or an explicit request carrying a route-relative draw it never made.
+    declared = dict(common)
+    declared["hidden_load_policy"] = HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2
+    _expect_raises(RuntimeError, "a declared route-relative policy with no record",
+                   _finish_context, known_target_ids=("k0",),
+                   executed_target_ids=("k0", "h0"), **declared)
+    stray = dict(common)
+    stray["route_relative_load"] = RouteRelativeHiddenLoad(
+        route_count=2, hidden_requested=1)
+    _expect_raises(RuntimeError, "a route-relative record under the explicit policy",
+                   _finish_context, known_target_ids=("k0",),
+                   executed_target_ids=("k0", "h0"), **stray)
+
+    # ... and BOTH are REQUIRED keywords, exactly like `match_aou_backend` above.
+    for name in ("hidden_load_policy", "route_relative_load"):
+        missing = {k: v for k, v in common.items() if k != name}
+        try:
+            _finish_context(known_target_ids=("k0",),
+                            executed_target_ids=("k0", "h0"), **missing)
+            raise AssertionError("_finish_context must require %s" % name)
+        except TypeError:
+            pass
 
 
 def _dropping_solver(drop: str):

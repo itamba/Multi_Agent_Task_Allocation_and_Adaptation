@@ -355,6 +355,16 @@ from .graph_generalized import (
     TARGET_DESTRUCTION_PROBABILITY,
     BenchmarkIdentityError,
     BenchmarkManifest,
+    EPISODE_DESIGN_GENERALIZED_V2,
+    GENERALIZED_V2_AGENT_COUNTS,
+    GENERALIZED_V2_KNOWN_OFFSETS,
+    GENERALIZED_V2_REQUIRED_BACKEND,
+    HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+    PRE_SOLVE_CARDINALITY_POLICY_V2,
+    V2_CARDINALITY_RNG_DOMAIN,
+    V2_HIDDEN_LOAD_RNG_DOMAIN,
+    PreSolveCardinality,
+    RouteRelativeHiddenLoad,
     EpisodeCardinality,
     EpisodeDesign,
     WorldIdentity,
@@ -366,7 +376,10 @@ from .graph_generalized import (
     require_matched_group_identity,
     require_world_matches_manifest,
     resolve_episode_design,
+    generalized_v2_cardinality_sampler_record,
+    resolved_v2_cardinality,
     sample_generalized_cardinality,
+    sample_generalized_v2_pre_solve_cardinality,
 )
 from .graph_reward import (
     ReferenceIntegrityError,
@@ -1274,6 +1287,17 @@ class TrainConfig:
         return resolve_episode_design(self.episode_design)
 
     @property
+    def route_relative_population(self) -> bool:
+        """True iff this run draws its worlds from the GENERALIZED-V2 population.
+
+        The ONE predicate behind every two-stage branch, resolved from ``episode_design``
+        and from nothing else -- so the pre-solve ``(A, K)`` draw, the post-solve ``H | R``
+        draw, the required P1 backend and the route-relative provenance can never be
+        reached one without the others.
+        """
+        return self.design.route_relative_population
+
+    @property
     def generalized(self) -> bool:
         """True iff this run draws from the GENERALIZED-V1 population."""
         return self.design.generalized
@@ -1438,6 +1462,54 @@ class TrainConfig:
         # different objective than its record claims is a mislabelled measurement.
         resolve_match_aou_backend(self.match_aou_backend)
         design = self.design
+        if design.route_relative_population:
+            # --- GENERALIZED-V2: the design is only defined with the P1 objective ------
+            # NOT an override and NOT a fallback: refused before any episode executes,
+            # because V2 resolves its hidden load from the number of NON-EMPTY ROUTES the
+            # known-only allocation produced. Letting two different objectives define that
+            # route count would make one design id mean two different population
+            # selectors -- and the legacy objective's EPSILON stacking incentive in
+            # particular changes which allocations are optimal, hence which egos are routed.
+            if str(self.match_aou_backend) != GENERALIZED_V2_REQUIRED_BACKEND:
+                raise ValueError(
+                    "episode_design=%r requires match_aou_backend=%r; got %r. The "
+                    "route-relative hidden load is defined against the route count the "
+                    "known-only allocation produces, so the design and the objective that "
+                    "produces it cannot be chosen independently. Refused rather than "
+                    "silently overridden."
+                    % (EPISODE_DESIGN_GENERALIZED_V2, GENERALIZED_V2_REQUIRED_BACKEND,
+                       self.match_aou_backend)
+                )
+            # --- the 18-stratum benchmark is a GENERALIZED-V1 construct ---------------
+            # Its strata are built from `A in {2,3,4}` and a `low`/`high` hidden load
+            # defined against `A`; V2 draws `A in {2,...,6}` and a hidden load defined
+            # against `R`, so a V1 manifest evaluated under V2 would report V1 stratum
+            # labels over a population that never varied them. Designing a V2 benchmark is
+            # a separate research decision and is deliberately not taken here.
+            if str(self.benchmark_manifest or ""):
+                raise ValueError(
+                    "benchmark_manifest is set but episode_design=%r: the 18-stratum "
+                    "manifest is a %r construct (A in %s, hidden load defined against A), "
+                    "and no %r benchmark has been designed. Evaluating one under this "
+                    "design would report strata the population never varied."
+                    % (EPISODE_DESIGN_GENERALIZED_V2, EPISODE_DESIGN_GENERALIZED_V1,
+                       list(GENERALIZED_AGENT_COUNTS), EPISODE_DESIGN_GENERALIZED_V2)
+                )
+            # ... and with no benchmark there is no approved V2 evaluation construct at
+            # all. The fixed held-out band carries no stratum, so evaluating on it would
+            # measure an unstratified population under a generalized label -- exactly the
+            # substitution the V1 rule below refuses. Evaluation must therefore be
+            # explicitly disabled, which is a statement about what this run measures rather
+            # than a silent omission.
+            if self.eval_enabled:
+                raise ValueError(
+                    "episode_design=%r does not define an evaluation construct: the "
+                    "18-stratum benchmark is %r-only and the fixed held-out seed band "
+                    "carries no stratum, so evaluating on it would measure an "
+                    "UNSTRATIFIED population under a generalized label. Disable "
+                    "evaluation explicitly (eval_every=0 / eval_episodes=0)."
+                    % (EPISODE_DESIGN_GENERALIZED_V2, EPISODE_DESIGN_GENERALIZED_V1)
+                )
         if design.generalized:
             # The approved generalized TRAINING mixture is 0.50 clean / 0.25 mild /
             # 0.25 severe, which is `seeded_variable` and nothing else. A generalized run
@@ -1451,14 +1523,17 @@ class TrainConfig:
                     "0.50 clean / 0.25 mild / 0.25 severe training mixture); got %r. "
                     "The certified eligibility policy certifies BOTH severities on one "
                     "ego, and the matched benchmark evaluates clean/mild/severe triads."
-                    % (EPISODE_DESIGN_GENERALIZED_V1, FuelDamageMode.SEEDED_VARIABLE,
+                    % (self.episode_design, FuelDamageMode.SEEDED_VARIABLE,
                        self.fuel_damage_mode)
                 )
             # Evaluation MUST be the frozen stratified benchmark. The held-out seed band
             # is a FIXED-CELL construct: its seeds carry no stratum, so evaluating a
             # generalized run on it would measure an unstratified population and report
             # it under a stratified design. Refused rather than silently substituted.
-            if self.eval_enabled and not str(self.benchmark_manifest or ""):
+            # V2 has already been refused above (it has no benchmark at all), so this is
+            # the V1 rule and reaches only V1 runs.
+            if (design.generalized_v1_design and self.eval_enabled
+                    and not str(self.benchmark_manifest or "")):
                 raise ValueError(
                     "episode_design=%r with evaluation enabled requires "
                     "benchmark_manifest: the fixed held-out seed band carries no "
@@ -1472,10 +1547,20 @@ class TrainConfig:
             # cardinality is drawn per seed and a benchmark member's comes from its
             # stratum. Said out loud, because a config that carries `n_hidden = 3` and
             # produces worlds with 1..A hidden targets is otherwise confusing to read.
-            print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
-                  "read. A training episode's cardinality is SAMPLED per seed "
-                  "(A ~ U{2,3,4}, K == A, H ~ U{1..A}); a benchmark member's comes from "
-                  "its stratum. Proceeding." % EPISODE_DESIGN_GENERALIZED_V1)
+            if design.route_relative_population:
+                print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
+                      "read. A training episode's cardinality is SAMPLED in TWO STAGES: "
+                      "A ~ U%s and K | A ~ U{A + o : o in %s} BEFORE the known-only solve, "
+                      "then H_requested ~ U{1..R} AFTER it, where R is the number of egos "
+                      "that solve routed. Proceeding."
+                      % (EPISODE_DESIGN_GENERALIZED_V2,
+                         list(GENERALIZED_V2_AGENT_COUNTS),
+                         list(GENERALIZED_V2_KNOWN_OFFSETS)))
+            else:
+                print("[WARN] episode_design=%s: num_agents / n_known / n_hidden are NOT "
+                      "read. A training episode's cardinality is SAMPLED per seed "
+                      "(A ~ U{2,3,4}, K == A, H ~ U{1..A}); a benchmark member's comes "
+                      "from its stratum. Proceeding." % EPISODE_DESIGN_GENERALIZED_V1)
             # THE BOUNDED ATTEMPT BUDGET (Task 5C). Under this design
             # `episodes_per_iteration` is a SUCCESSFUL-episode quota, so the loop must be
             # told how many attempts it may spend obtaining it. Required and never
@@ -1492,7 +1577,7 @@ class TrainConfig:
                     "default -- the value decides how much world attrition the run "
                     "tolerates, and it also sets the maximum training seed band the "
                     "benchmark is held out against."
-                    % (EPISODE_DESIGN_GENERALIZED_V1, int(self.episodes_per_iteration))
+                    % (self.episode_design, int(self.episodes_per_iteration))
                 )
             if isinstance(budget, bool) or not isinstance(budget, int):
                 raise ValueError(
@@ -1534,12 +1619,18 @@ class TrainConfig:
         # though it were. The parameters are checked ONLY when the feature is enabled:
         # an unused block may hold any value, exactly as the unused `ctde` block may.
         if self.early_stopping_enabled:
-            if not design.generalized:
+            # EXACTLY `generalized_v1`, not "any generalized design". The approved plateau
+            # contract was reviewed against the V1 population and its training-reward
+            # trajectory; extending it to the V2 population is a research decision nobody
+            # has taken, and a V2 run that stopped early would carry an approved policy id
+            # over a contract that was never approved for it.
+            if not design.generalized_v1_design:
                 raise ValueError(
                     "early_stopping is enabled but episode_design=%r: the "
                     "%r stopping policy is approved for %r only. A fixed-cell run must "
                     "stay fixed-budget -- that is the path every approved measurement "
-                    "was taken on, and a run that stopped early would silently be a "
+                    "was taken on -- and no stopping rule has been approved for any other "
+                    "population; either way a run that stopped early would silently be a "
                     "different training contract under the same record schema."
                     % (self.episode_design,
                        EARLY_STOPPING_POLICY_TRAIN_REWARD_PLATEAU,
@@ -2273,7 +2364,7 @@ def _failure_record(
     condition: str,
     exc: BaseException,
     cell: Optional[str] = None,
-    cardinality: Optional[EpisodeCardinality] = None,
+    cardinality: Optional[Union[EpisodeCardinality, PreSolveCardinality]] = None,
     benchmark: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build ONE ledger record for a failed attempt (see :func:`_append_failure_record`).
@@ -2329,11 +2420,20 @@ def _failure_record(
         "reference_fault_reason": getattr(original, "reason", None) if isinstance(
             original, ReferenceIntegrityError) else None,
         # The SCHEDULED world shape (never a realized one -- nothing was realized).
+        #
+        # Under GENERALIZED-V2 a failed attempt may only ever have reached STAGE 1, whose
+        # object carries `A` and `K` and no hidden load at all. `hidden_requested` is then
+        # `null` -- which is the truth: the hidden load is drawn against a route count this
+        # attempt never produced, so there was no request to record. `cardinality_source`
+        # says which stage the record came from, so a `null` here is never mistaken for a
+        # writer that forgot the field.
         "agent_count": None if cardinality is None else int(cardinality.agent_count),
         "known_requested": None if cardinality is None else int(
             cardinality.known_count),
-        "hidden_requested": None if cardinality is None else int(
-            cardinality.hidden_requested),
+        "hidden_requested": (
+            None if cardinality is None
+            else getattr(cardinality, "hidden_requested", None)
+        ),
         "cardinality_source": None if cardinality is None else str(cardinality.source),
         **(benchmark or _EMPTY_BENCHMARK_KEYS),
         "traceback": "".join(
@@ -2528,6 +2628,40 @@ def _episode_outcome_record(
             None if card is None or out.hidden_realized is None
             else bool(int(out.hidden_realized) < int(card.hidden_requested))
         ),
+        # --- GENERALIZED-V2: the TWO-STAGE population, present only under that design -
+        # A nested block added ONLY on the route-relative path, under the same discipline
+        # every other design-specific structure follows: a `fixed_cell_v1` or
+        # `generalized_v1` record grows NO new key, so the ABSENCE of this block is how a
+        # reader tells the hidden count was stated up front rather than drawn against a
+        # realized route count. Every number in it is copied VERBATIM from the stage
+        # records the population layer and the construction path produced -- nothing is
+        # recomputed here, so this stream cannot disagree with them.
+        **({} if out.route_relative_load is None else {
+            "generalized_v2_population": {
+                "hidden_load_policy": str(out.route_relative_load.policy),
+                "pre_solve_cardinality_policy": (
+                    None if out.pre_solve_cardinality is None
+                    else str(out.pre_solve_cardinality.policy)
+                ),
+                "pre_solve_rng_domain": (
+                    None if out.pre_solve_cardinality is None
+                    else str(out.pre_solve_cardinality.rng_domain)
+                ),
+                "pre_solve_derived_seed": (
+                    None if out.pre_solve_cardinality is None
+                    else out.pre_solve_cardinality.derived_seed
+                ),
+                "hidden_load_rng_domain": str(out.route_relative_load.rng_domain),
+                "hidden_load_derived_seed": out.route_relative_load.derived_seed,
+                "route_count_at_hidden_resolution": int(
+                    out.route_relative_load.route_count),
+                "pre_solve": (
+                    None if out.pre_solve_cardinality is None
+                    else out.pre_solve_cardinality.to_record()
+                ),
+                "hidden_load": out.route_relative_load.to_record(),
+            },
+        }),
         "construction_audit": out.construction_audit,
         "construction_backoff_candidate_order": (
             (out.construction_audit or {}).get("backoff", {}).get("candidate_order")
@@ -3488,20 +3622,48 @@ def _construction_record(cfg: TrainConfig) -> Dict[str, Any]:
             **geometry,
         }
     return {
-        "cardinality_source": "per_episode_sampler_and_benchmark_manifest",
+        "cardinality_source": (
+            # GENERALIZED-V2 evaluates nothing (`validate` refuses both a manifest and
+            # evaluation itself), so naming a manifest here would describe a population
+            # half of which this run never builds.
+            "per_episode_two_stage_sampler" if cfg.route_relative_population
+            else "per_episode_sampler_and_benchmark_manifest"
+        ),
         "fixed_cell_config_used": False,
-        "training_cardinality": {
-            "source": "per_episode_sampler",
-            "policy": CARDINALITY_SAMPLER_POLICY,
-            "rng_domain": CARDINALITY_RNG_DOMAIN,
-            "agent_counts": [int(a) for a in GENERALIZED_AGENT_COUNTS],
-            "rule": "A ~ Uniform(agent_counts); K == A; H_requested ~ Uniform({1..A})",
-        },
-        "evaluation_cardinality": {
-            "source": "benchmark_manifest",
-            "note": ("a benchmark member's cell is its frozen stratum's, never a "
-                     "function of its seed"),
-        },
+        "training_cardinality": (
+            {
+                "source": "per_episode_two_stage_sampler",
+                "policy": PRE_SOLVE_CARDINALITY_POLICY_V2,
+                "rng_domain": V2_CARDINALITY_RNG_DOMAIN,
+                "hidden_load_policy": HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+                "hidden_load_rng_domain": V2_HIDDEN_LOAD_RNG_DOMAIN,
+                "agent_counts": [int(a) for a in GENERALIZED_V2_AGENT_COUNTS],
+                "known_offsets": [int(o) for o in GENERALIZED_V2_KNOWN_OFFSETS],
+                "rule": (
+                    "A ~ Uniform(agent_counts); K | A ~ Uniform({A + o}); THEN, after the "
+                    "known-only solve, H_requested ~ Uniform({1..R}) where R is the number "
+                    "of egos that solve routed"
+                ),
+            } if cfg.route_relative_population else {
+                "source": "per_episode_sampler",
+                "policy": CARDINALITY_SAMPLER_POLICY,
+                "rng_domain": CARDINALITY_RNG_DOMAIN,
+                "agent_counts": [int(a) for a in GENERALIZED_AGENT_COUNTS],
+                "rule":
+                    "A ~ Uniform(agent_counts); K == A; H_requested ~ Uniform({1..A})",
+            }
+        ),
+        "evaluation_cardinality": (
+            {
+                "source": None,
+                "note": ("this design defines no evaluation construct; `validate` "
+                         "refuses a benchmark manifest and refuses evaluation outright"),
+            } if cfg.route_relative_population else {
+                "source": "benchmark_manifest",
+                "note": ("a benchmark member's cell is its frozen stratum's, never a "
+                         "function of its seed"),
+            }
+        ),
         # The counts are REALIZED per episode and may fall short of the request under
         # bounded backoff, so no single number here could describe the run.
         "n_targets_emitted": None,
@@ -3657,7 +3819,10 @@ def write_run_config(
             # under `fixed_cell_v1` it is `null`, which is the truthful statement that
             # the cell was configured rather than sampled.
             "cardinality_sampler": (
-                cardinality_sampler_record() if cfg.generalized else None
+                None if not cfg.generalized
+                else (generalized_v2_cardinality_sampler_record()
+                      if cfg.route_relative_population
+                      else cardinality_sampler_record())
             ),
             "fixed_cell": (
                 None if cfg.generalized else {
@@ -3713,9 +3878,28 @@ def episode_cardinality(
     touched there, and the benchmark cardinality always wins where it is supplied -- a
     manifest member whose shape was re-derived from its seed would silently leave the
     stratum it was frozen into.
+
+    ``generalized_v2`` HAS NO FOURTH SOURCE HERE, and that is the point: its hidden load is
+    a function of the route count the known-only solve produces, so there is nothing
+    honest to return before ``setup_episode`` has run. It is REFUSED rather than answered
+    with a placeholder, because a placeholder would become the "requested" cardinality
+    every downstream record reports. Its callers use
+    :func:`v2_pre_solve_cardinality` before the solve and
+    ``graph_generalized.resolved_v2_cardinality`` after it.
     """
     if benchmark_cardinality is not None:
         return benchmark_cardinality
+    if cfg.route_relative_population:
+        # GENERALIZED-V2 has NO single-stage answer: its hidden load is a function of the
+        # route count the known-only solve produces, which does not exist yet. Refused
+        # rather than answered with a placeholder, because a placeholder here would become
+        # the "requested" cardinality every downstream record reports.
+        raise ValueError(
+            "episode_cardinality: episode_design=%r resolves its cardinality in TWO "
+            "STAGES -- use sample_generalized_v2_pre_solve_cardinality() before the "
+            "known-only solve and resolved_v2_cardinality() after it. There is no "
+            "up-front hidden count to return." % (cfg.episode_design,)
+        )
     if cfg.generalized:
         return sample_generalized_cardinality(episode_seed=int(seed))
     return fixed_cell_cardinality(
@@ -3740,6 +3924,39 @@ def _cardinality_kwargs(
     return {"cardinality": cardinality}
 
 
+def v2_pre_solve_cardinality(
+    cfg: TrainConfig, seed: int
+) -> Optional[PreSolveCardinality]:
+    """THE ONE site that answers "what is this attempt's GENERALIZED-V2 stage-1 cell?".
+
+    Sampled from the population layer's own rng domain and from the episode seed alone, so
+    it cannot move -- and cannot be moved by -- the fuel-damage draws, the hidden-placement
+    stream, the V1 cardinality sampler or torch's action sampling.
+
+    ``None`` on every other design, which is what makes :func:`_pre_solve_kwargs` able to
+    omit the keyword entirely there. Called ONCE per attempt by the caller, which then
+    reuses the object for both the episode and (if the attempt fails) its ledger entry --
+    so the ledger can never describe a different stage-1 draw than the one that ran.
+    """
+    if not cfg.route_relative_population:
+        return None
+    return sample_generalized_v2_pre_solve_cardinality(episode_seed=int(seed))
+
+
+def _pre_solve_kwargs(
+    pre_solve: Optional[PreSolveCardinality],
+) -> Dict[str, Any]:
+    """``_run_one_episode``'s GENERALIZED-V2 stage-1 keyword -- or NOTHING.
+
+    The SAME keyword-omission rule as :func:`_artifact_kwargs`, :func:`_ctde_kwargs` and
+    :func:`_cardinality_kwargs`, for the same reason: every non-V2 run must call
+    ``_run_one_episode`` with exactly the arguments it did before this design existed.
+    """
+    if pre_solve is None:
+        return {}
+    return {"pre_solve_cardinality": pre_solve}
+
+
 def _generalized_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
     """``setup_episode``'s two GENERALIZED-V1 policy keywords -- or NOTHING.
 
@@ -3753,6 +3970,29 @@ def _generalized_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
     return {
         "hidden_policy": design.hidden_policy,
         "reference_policy": design.reference_policy,
+    }
+
+
+def _v2_hidden_load_kwargs(
+    cfg: TrainConfig, seed: int, pre_solve: Optional[PreSolveCardinality]
+) -> Dict[str, Any]:
+    """``setup_episode``'s GENERALIZED-V2 hidden-load keywords -- or NOTHING.
+
+    Same rule again, one level down: a non-V2 run calls ``setup_episode`` with exactly its
+    pre-V2 argument list, so the historical ``explicit_request_v1`` hidden-load policy is
+    resolved inside setup as it always has been.
+
+    All THREE keywords travel together and are produced at one site, because
+    ``setup_episode`` refuses a half-supplied route-relative request: the policy without
+    the seed cannot draw, and the seed without ``known_requested`` cannot refuse a world
+    whose known cardinality disagrees with the schedule.
+    """
+    if pre_solve is None or not cfg.route_relative_population:
+        return {}
+    return {
+        "hidden_load_policy": HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+        "hidden_load_seed": int(seed),
+        "known_requested": int(pre_solve.known_count),
     }
 
 
@@ -3779,7 +4019,7 @@ def build_variation_config(
     cfg: TrainConfig,
     seed: int,
     *,
-    cardinality: Optional[EpisodeCardinality] = None,
+    cardinality: Optional[Union[EpisodeCardinality, PreSolveCardinality]] = None,
 ) -> VariationConfig:
     """The ONE site that turns a :class:`TrainConfig` into the generator's input.
 
@@ -3788,6 +4028,11 @@ def build_variation_config(
     switch, the strictness and the detection radius stay exactly as configured. Omitted
     (the historical call), the configured fixed cell is used and this function is
     byte-unchanged.
+
+    It accepts a GENERALIZED-V2 :class:`PreSolveCardinality` as well as a resolved
+    :class:`EpisodeCardinality`, and reads exactly the two fields both carry. That is not a
+    convenience: the generator emits the KNOWN-ONLY world, so ``A`` and ``K`` are all it
+    ever needed, and a V2 episode genuinely has no hidden count at this point.
 
     This is the B1 construction request, and every part of it is deliberate:
 
@@ -5079,6 +5324,19 @@ class _EpisodeOutcome:
     cardinality: Optional[EpisodeCardinality] = None
     """The REQUESTED cardinality this attempt was scheduled with (never rewritten)."""
 
+    pre_solve_cardinality: Optional[PreSolveCardinality] = None
+    """GENERALIZED-V2 STAGE 1: the ``(A, K)`` draw made BEFORE the known-only solve.
+
+    Kept beside the resolved cardinality rather than folded into it, so "what was requested
+    before anything was solved" stays separately readable from "what the route count turned
+    that into". ``None`` on every other design, where the cell was complete up front."""
+
+    route_relative_load: Optional[RouteRelativeHiddenLoad] = None
+    """GENERALIZED-V2 STAGE 2: the route count ``R`` and the ``H | R`` it produced.
+
+    ``None`` on every other design -- that ABSENCE is how a reader tells the hidden count
+    was stated by the caller rather than drawn against a realized route count."""
+
     hidden_realized: Optional[int] = None
     """How many hidden targets the construction really built (<= requested)."""
 
@@ -5110,6 +5368,7 @@ def _run_one_episode(
     artifacts: Optional[_AttemptArtifacts] = None,
     central_recorder: Optional[CentralStateRecorder] = None,
     cardinality: Optional[EpisodeCardinality] = None,
+    pre_solve_cardinality: Optional[PreSolveCardinality] = None,
 ) -> _EpisodeOutcome:
     """Generate -> setup -> run -> reward for ONE episode; always closes its env.
 
@@ -5190,11 +5449,23 @@ def _run_one_episode(
     random.seed(seed)
     torch.manual_seed(seed)
     fd_params = cfg.fuel_damage_parameters(fuel_damage_mode)
-    # The cell this attempt was SCHEDULED with. Supplied by a generalized caller (sampled
-    # for training, taken from the frozen stratum for a benchmark member) and omitted on
-    # the historical path, where it resolves to the configured fixed cell and every call
-    # below is exactly the pre-Task-4 one.
-    cell = episode_cardinality(cfg, seed, benchmark_cardinality=cardinality)
+    # The cell this attempt was SCHEDULED with.
+    #
+    # ONE STAGE on every historical path: supplied by a generalized-V1 caller (sampled for
+    # training, taken from the frozen stratum for a benchmark member) and omitted on the
+    # fixed-cell path, where it resolves to the configured cell and every call below is
+    # exactly the pre-Task-4 one.
+    #
+    # TWO STAGES under GENERALIZED-V2, and `cell` is deliberately `None` until the second
+    # one completes. Its hidden load is drawn against the number of egos the known-only
+    # solve routes, so no honest requested cardinality exists before `setup_episode`
+    # returns -- and a placeholder would be indistinguishable from a request in every
+    # record it reached. `pre_solve_cardinality` carries the half that DOES exist (`A` and
+    # `K`), which is exactly what the generator needs.
+    cell: Optional[EpisodeCardinality] = (
+        None if pre_solve_cardinality is not None
+        else episode_cardinality(cfg, seed, benchmark_cardinality=cardinality)
+    )
 
     # Claimed BEFORE generation: the known-only scenario is the first artifact, and a
     # directory collision must be discovered before an episode is paid for.
@@ -5203,7 +5474,13 @@ def _run_one_episode(
 
     t0 = time.perf_counter()
     try:
-        var = build_variation_config(cfg, seed, **_cardinality_kwargs(cardinality))
+        var = build_variation_config(
+            cfg, seed,
+            # The V2 pre-solve cell where there is one; otherwise the historical call.
+            **({"cardinality": pre_solve_cardinality}
+               if pre_solve_cardinality is not None
+               else _cardinality_kwargs(cardinality)),
+        )
         scenario_path = gen.generate(episode=int(episode_tag), config=var)
     except Exception as exc:
         raise EpisodeAttemptError("generation", exc) from exc
@@ -5220,8 +5497,14 @@ def _run_one_episode(
                 # the hidden half from the solved routes (solve -> place -> patch ->
                 # reload). `cfg.partial_ratio` is the legacy split surface and is
                 # deliberately NOT passed -- `split_tasks` never runs here.
-                n_hidden=int(cell.hidden_requested),
+                # OMITTED under GENERALIZED-V2, whose hidden-load policy resolves the
+                # count inside setup once the known-only solve has produced a route count.
+                **({} if pre_solve_cardinality is not None
+                   else {"n_hidden": int(cell.hidden_requested)}),   # type: ignore[union-attr]
                 placement_rng=random.Random(seed),
+                # GENERALIZED-V2: the route-relative hidden-load policy, its episode seed
+                # and the scheduled known count. Absent entirely on every other design.
+                **_v2_hidden_load_kwargs(cfg, seed, pre_solve_cardinality),
                 # GENERALIZED-V1: the hidden-cardinality and reward-reference policies,
                 # resolved from the ONE design selector. Absent entirely on the
                 # historical path, where setup resolves its own `exact_v1` /
@@ -5264,6 +5547,24 @@ def _run_one_episode(
         # loud path, with its cause preserved -- an unforeseen internal error is still a
         # roster that could not be established, and must not fall through to the broad
         # episode handler below.
+        # GENERALIZED-V2 STAGE 2 IS NOW A FACT ABOUT THE CONTEXT, so the requested cell
+        # can finally be stated. Built as a NEW object from the two stage records -- the
+        # pre-solve draw and the route-relative load setup performed -- rather than by
+        # writing a hidden count into the stage-1 object, so neither stage's record is ever
+        # revised. A context that declared the policy without producing the record is a
+        # measurement-integrity fault, not an episode outcome: the population this episode
+        # belongs to would be unstateable.
+        if pre_solve_cardinality is not None:
+            load = getattr(ctx, "route_relative_load", None)
+            if load is None:
+                raise MeasurementIntegrityError(
+                    "the route-relative hidden-load policy was selected but the episode "
+                    "context carries no record of the route count its hidden load was "
+                    "drawn against, so this episode's requested cardinality cannot be "
+                    "stated"
+                )
+            cell = resolved_v2_cardinality(pre_solve_cardinality, load)
+
         try:
             roster = _episode_target_roster(ctx)
             # DUCK-TYPED, like every other optional context field this module reads
@@ -5271,7 +5572,7 @@ def _run_one_episode(
             # audit resolves to the historical exact-cardinality expectation, which is
             # the only direction an unknown context may ever be read in.
             scheduled = _scheduled_cell(
-                cell, getattr(ctx, "construction_audit", None))
+                cell, getattr(ctx, "construction_audit", None))   # type: ignore[arg-type]
             _require_scheduled_cell(roster, scheduled)
         except MeasurementIntegrityError:
             raise
@@ -5461,6 +5762,11 @@ def _run_one_episode(
             fuel_damage_outcome=fd_outcome.to_record(),
             selected_ego_rtb_issued=selected_ego_rtb,
             cardinality=cell,
+            route_relative_load=(
+                None if pre_solve_cardinality is None
+                else getattr(ctx, "route_relative_load", None)
+            ),
+            pre_solve_cardinality=pre_solve_cardinality,
             hidden_realized=int(scheduled.n_hidden),
             construction_audit=(
                 None if construction_audit is None else construction_audit.as_dict()
@@ -5500,6 +5806,12 @@ def evaluate(
     Touches NO optimizer, NO buffer and no weights -- ``run_episode`` is inference-only
     under its own ``torch.no_grad``. The same seeds are used on every round, so
     round-to-round differences in the returned mean are attributable to the policy.
+
+    REFUSED under GENERALIZED-V2. ``TrainConfig.validate`` already refuses to build such
+    a run with evaluation enabled, so this is a second lock on a door that is already
+    bolted -- and it is here because ``evaluate`` is a public entry point: the fixed
+    held-out band carries no stratum and its seeds are not drawn from the V2 population, so
+    a round taken on it would report an unstratified measurement under a generalized label.
 
     ``stage`` is ``pre_update`` for the ONE round measured on the initial policy before
     any training episode or optimizer step, and ``post_update`` for every later round;
@@ -5564,6 +5876,14 @@ def evaluate(
     wakes: List[float] = []
     meta_counts = _empty_meta_counts()
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
+    if cfg.route_relative_population:
+        raise ValueError(
+            "evaluate() is not defined for episode_design=%r: the fixed held-out seed "
+            "band is a fixed-cell construct whose seeds carry no stratum and are not "
+            "drawn from this design's population, so a round taken on it would measure "
+            "something other than what its label says. No evaluation construct exists "
+            "for this design." % (cfg.episode_design,)
+        )
     members = cfg.eval_group_members
     group_size = cfg.eval_group_size
     tally = _ConditionTally(cfg.reported_cells)
@@ -6033,6 +6353,12 @@ def evaluate_benchmark(
 ) -> Dict[str, Any]:
     """ONE deterministic round over the FROZEN 18-stratum benchmark.
 
+    REFUSED under GENERALIZED-V2 for the same reason ``evaluate`` is, and for one more:
+    the 18-stratum manifest is a GENERALIZED-V1 construct whose strata are built from
+    ``A in {2,3,4}`` and a hidden load defined against ``A``, while V2 draws ``A`` from a
+    wider set and defines its hidden load against a realized route count. A V1 manifest
+    evaluated under V2 would report strata the population never varied.
+
     THE STRUCTURE IS THE SAME AS :func:`evaluate`'S -- matched groups on one world, one
     attempt per member, skip-and-account on failure, deltas over COMPLETE groups only --
     and the two differences are exactly the two the stratified design needs:
@@ -6066,6 +6392,16 @@ def evaluate_benchmark(
     wakes: List[float] = []
     meta_counts = _empty_meta_counts()
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
+    if cfg.route_relative_population:
+        raise ValueError(
+            "evaluate_benchmark() is not defined for episode_design=%r: the 18-stratum "
+            "manifest is a %r construct (A in %s, hidden load defined against A), and "
+            "this design draws A from a wider set and defines its hidden load against a "
+            "realized route count. Evaluating a %r manifest here would report strata the "
+            "population never varied."
+            % (cfg.episode_design, EPISODE_DESIGN_GENERALIZED_V1,
+               list(GENERALIZED_AGENT_COUNTS), EPISODE_DESIGN_GENERALIZED_V1)
+        )
     tally = _ConditionTally(BENCHMARK_CELLS)
     bench = _BenchmarkTally()
     n_failed = 0
@@ -6850,7 +7186,24 @@ def train(
     else:
         print("match_aou_backend: %s  (frozen MINLP through BONMIN -- the historical "
               "objective; INDEPENDENT of episode_design)" % backend)
-    if cfg.generalized:
+    if cfg.route_relative_population:
+        print("scenario (GENERALIZED-V2): the cell is SAMPLED PER EPISODE in TWO STAGES")
+        print("          stage 1 (before the known-only solve): A ~ U{%s}, "
+              "K | A ~ U{A+%s}"
+              % (",".join(str(a) for a in GENERALIZED_V2_AGENT_COUNTS),
+                 ", A+".join(str(o) for o in GENERALIZED_V2_KNOWN_OFFSETS)))
+        print("          stage 2 (after it): H_requested ~ U{1..R}, R = the number of "
+              "egos that solve routed")
+        print("          policies=%s / %s  rng_domains=%s / %s (two OWN seed domains: "
+              "neither can move, or be moved by, the fuel-damage or placement streams)"
+              % (PRE_SOLVE_CARDINALITY_POLICY_V2, HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+                 V2_CARDINALITY_RNG_DOMAIN, V2_HIDDEN_LOAD_RNG_DOMAIN))
+        print("          num_agents / n_known / n_hidden are NOT read on this path")
+        print("          bounded backoff may realize FEWER hidden targets than "
+              "requested; that is a RECORDED outcome, never a retry")
+        print("          this design defines NO evaluation construct: no benchmark, and "
+              "evaluation must be explicitly disabled")
+    elif cfg.generalized:
         print("scenario (GENERALIZED-V1): the cell is SAMPLED PER EPISODE -- "
               "A ~ U{%s}, K == A, H_requested ~ U{1..A}"
               % ",".join(str(a) for a in GENERALIZED_AGENT_COUNTS))
@@ -7116,8 +7469,14 @@ def train(
                 # all and resolves the configured fixed cell exactly as it always did.
                 card = (
                     sample_generalized_cardinality(episode_seed=seed)
-                    if cfg.generalized else None
+                    if cfg.generalized and not cfg.route_relative_population
+                    else None
                 )
+                # GENERALIZED-V2: the STAGE-1 half of the same question. Drawn once, here,
+                # and reused for the episode AND for the ledger entry if the attempt fails,
+                # so the two can never describe different draws. `None` on every other
+                # design, where `_pre_solve_kwargs` passes no keyword at all.
+                pre_card = v2_pre_solve_cardinality(cfg, seed)
                 artifacts = None
                 if artifacts_root is not None:
                     artifacts = _AttemptArtifacts(
@@ -7153,6 +7512,8 @@ def train(
                         **_ctde_kwargs(central_recorder),
                         # Absent entirely on the fixed-cell path (`_cardinality_kwargs`).
                         **_cardinality_kwargs(card),
+                        # Absent entirely except on GENERALIZED-V2 (`_pre_solve_kwargs`).
+                        **_pre_solve_kwargs(pre_card),
                     )
                 except (_VisualArtifactError, MeasurementIntegrityError,
                         FuelDamageIntegrityError, BenchmarkIdentityError,
@@ -7189,7 +7550,11 @@ def train(
                         # per-cell and a per-cardinality denominator stay complete.
                         condition=condition,
                         cell=cell,
-                        cardinality=card,
+                        # The SCHEDULED population identity. Under GENERALIZED-V2 that
+                        # is the stage-1 draw: a failed attempt may never have reached
+                        # stage 2, and the ledger states what really existed rather than a
+                        # hidden count nothing drew.
+                        cardinality=(card if card is not None else pre_card),
                         exc=exc,
                     ))
                     print("  [iter %d ep %d] FAILED (seed=%d, cell=%s, stage=%s): %s: %s"

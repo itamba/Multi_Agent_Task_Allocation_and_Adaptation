@@ -883,10 +883,12 @@ def test_both_harnesses_call_setup_in_construction_mode() -> None:
         source = Path(inspect.getsourcefile(module)).read_text(encoding="utf-8")
         # GENERALIZED-V1 Task 4 moved the hidden count from the config to the RESOLVED
         # per-episode cell (`episode_cardinality` / `sample_generalized_cardinality`),
-        # which under `fixed_cell_v1` is `cfg.n_hidden` verbatim. The claim being locked
-        # is unchanged -- setup is handed a hidden COUNT and an explicit per-episode rng
-        # -- so the literal it is read off moves with it.
-        assert "n_hidden=int(cell.hidden_requested)" in source, module.__name__
+        # which under `fixed_cell_v1` is `cfg.n_hidden` verbatim, and GENERALIZED-V2 then
+        # made the keyword conditional (that design resolves the count inside setup). The
+        # claim being locked is unchanged -- on every non-V2 path setup is handed a hidden
+        # COUNT and an explicit per-episode rng -- so the literal it is read off moves with
+        # it once more.
+        assert '"n_hidden": int(cell.hidden_requested)' in source, module.__name__
         assert "random.Random(seed)" in source, module.__name__
         # The pre-B3 constant is gone from both harnesses.
         assert "_ALL_KNOWN_PARTIAL_RATIO" not in source, module.__name__
@@ -5089,6 +5091,7 @@ from match_aou.rl.training.graph_generalized import (  # noqa: E402
     BENCHMARK_STRATUM_KEYS,
     EPISODE_DESIGN_FIXED_CELL_V1,
     EPISODE_DESIGN_GENERALIZED_V1,
+    EPISODE_DESIGN_GENERALIZED_V2,
     LOAD_HIGH,
     LOAD_LOW,
     WorldIdentity,
@@ -6177,8 +6180,13 @@ def test_gen_cli_and_rollout_expose_the_selector_without_drift() -> None:
     # The selector is a real choice on both, and both DEFAULT to the historical design.
     for parser in (graph_train._build_arg_parser(), gr._build_arg_parser()):
         actions = {a.dest: a for a in parser._actions}
+        # Exhaustive on purpose: a design reachable from the CLI without a test naming
+        # it is a population an operator can select and nobody declared. Updated -- never
+        # relaxed -- when GENERALIZED-V2 was added.
         assert set(actions["episode_design"].choices) == {
-            EPISODE_DESIGN_FIXED_CELL_V1, EPISODE_DESIGN_GENERALIZED_V1
+            EPISODE_DESIGN_FIXED_CELL_V1,
+            EPISODE_DESIGN_GENERALIZED_V1,
+            EPISODE_DESIGN_GENERALIZED_V2,
         }
         assert actions["episode_design"].default == EPISODE_DESIGN_FIXED_CELL_V1
 

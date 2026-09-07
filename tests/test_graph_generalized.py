@@ -57,6 +57,7 @@ from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     derive_fuel_damage_severity_seed,
 )
 from match_aou.rl.training.graph_generalized import (  # noqa: E402
+    EPISODE_DESIGN_GENERALIZED_V2,
     BENCHMARK_BASE_CELLS,
     BENCHMARK_CELLS,
     BENCHMARK_DELTAS,
@@ -201,8 +202,13 @@ def test_po1_an_unknown_design_raises_and_never_falls_back() -> None:
         except ValueError:
             continue
         raise AssertionError("resolve_episode_design(%r) must raise" % (bad,))
+    # The registry is a STATED CLOSED SET, and this list is exhaustive on purpose: a
+    # design added without a test naming it is a population nobody declared. Updated —
+    # never relaxed — when GENERALIZED-V2 was added; the strictness above is unchanged.
     assert set(EPISODE_DESIGNS) == {
-        EPISODE_DESIGN_FIXED_CELL_V1, EPISODE_DESIGN_GENERALIZED_V1
+        EPISODE_DESIGN_FIXED_CELL_V1,
+        EPISODE_DESIGN_GENERALIZED_V1,
+        EPISODE_DESIGN_GENERALIZED_V2,
     }
 
 
