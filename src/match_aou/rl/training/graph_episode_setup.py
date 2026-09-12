@@ -188,6 +188,20 @@ from .graph_hidden_placement import (
     geometric_fingerprint,
     place_hidden_targets,
     place_hidden_targets_bounded,
+    routed_ordinals,
+)
+# The POPULATION layer. The import direction is one-way and stays that way:
+# `graph_generalized` must never import THIS module (it mirrors the construction cell
+# constants instead, precisely so it needs no BLADE-adjacent import), and this module
+# imports only the hidden-LOAD policy ids and the deterministic stage-2 draw from it --
+# the same pattern by which the hidden-CARDINALITY policy ids come from
+# `graph_hidden_placement` and the reference policy ids come from `graph_reward`.
+from .graph_generalized import (
+    HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+    HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+    RouteRelativeHiddenLoad,
+    resolve_hidden_load_policy,
+    resolve_route_relative_hidden_load,
 )
 
 logger = logging.getLogger(__name__)
@@ -236,6 +250,92 @@ _REQUIRED_AIRBASE_KEYS: Tuple[str, ...] = (
 # These bounds are enforced ONLY under HIDDEN_POLICY_BOUNDED_BACKOFF_V1. The historical
 # exact path carries no such cell restriction and is untouched by them.
 GENERALIZED_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4)
+
+# --- the GENERALIZED-V2 construction cell -------------------------------------------
+# `A in {2, 3, 4, 5, 6}` and `K in {A, A + 2}`. MIRRORED in `graph_generalized` (which
+# samples against it) and test-enforced there, exactly as the V1 tuple above is.
+#
+# A=8 and A=10 are DELIBERATELY ABSENT: they exist only as engineering scaling evidence,
+# the executor / training path has not been validated at those sizes, and construction
+# that accepted one would let an unvalidated size into a scientific population.
+#
+# Unlike V1's `K == A`, V2's known load is a CHOICE between two values, so construction
+# cannot infer which one was scheduled -- it is told (`known_requested`) and REFUSES a
+# disagreement rather than adopting whatever the world happened to contain.
+GENERALIZED_V2_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4, 5, 6)
+GENERALIZED_V2_KNOWN_OFFSETS: Tuple[int, ...] = (0, 2)
+
+
+class RouteRelativePopulationRecorder:
+    """A WRITE-ONCE carrier for the GENERALIZED-V2 stage-2 draw, owned by the CALLER.
+
+    WHY IT EXISTS. V2 resolves ``H_requested ~ Uniform({1..R})`` INSIDE the construction
+    path, once the known-only solve has produced a route count -- and construction can
+    still fail AFTER that point: the bounded-backoff walk can realize nothing, the patch
+    or the env-2 reload can fail, a world-cardinality check can refuse, the deferred
+    reference solve can be unacceptable. In every one of those cases the attempt REALLY
+    RECEIVED a population identity (``R``, ``H_requested``, the hidden-load policy, its
+    rng domain and its derived seed) before it failed, and a failure ledger that could
+    only report stage 1 would describe an attempt that never existed.
+
+    A failed attempt stays part of the ATTEMPTED population, so its record has to state
+    the identity it actually got. This carrier is how that identity survives an exception:
+    the caller constructs it, hands it in, and reads it afterwards -- whether
+    ``setup_episode`` returned or raised.
+
+    WHY NOT ATTACH IT TO THE EXCEPTION. Wrapping would change the recorded ``error_type``
+    and therefore the failure's classification, and setting an attribute on whatever
+    exception happens to be in flight is not something a foreign exception type is obliged
+    to permit. A caller-owned object needs neither.
+
+    WRITE-ONCE, AND THAT IS THE POINT. A second write RAISES, so this can never quietly
+    become a channel through which a second hidden-load draw is recorded over the first:
+    one attempt resolves one stage-2 record, or the contract is broken loudly. It carries
+    no default and fabricates nothing -- an attempt that failed BEFORE stage 2 leaves
+    :attr:`load` at ``None``, which is the truthful statement that no hidden load was ever
+    drawn.
+
+    It holds a FROZEN :class:`RouteRelativeHiddenLoad`, so what a caller reads back is the
+    component's own record rather than a copy that could drift from it.
+    """
+
+    __slots__ = ("_load",)
+
+    def __init__(self) -> None:
+        self._load: Optional[RouteRelativeHiddenLoad] = None
+
+    @property
+    def load(self) -> Optional[RouteRelativeHiddenLoad]:
+        """The stage-2 draw this attempt really resolved, or ``None`` if it never did."""
+        return self._load
+
+    @property
+    def resolved(self) -> bool:
+        """True iff stage 2 completed for this attempt."""
+        return self._load is not None
+
+    def record(self, load: RouteRelativeHiddenLoad) -> None:
+        """Store the stage-2 draw. RAISES on a second write.
+
+        Raises:
+            TypeError: ``load`` is not a :class:`RouteRelativeHiddenLoad`.
+            RuntimeError: this recorder already holds a draw -- one attempt resolves one
+                stage-2 record, so a second one means two populations are being claimed
+                for a single episode.
+        """
+        if not isinstance(load, RouteRelativeHiddenLoad):
+            raise TypeError(
+                "RouteRelativePopulationRecorder.record expects a "
+                "RouteRelativeHiddenLoad, got %s" % type(load).__name__
+            )
+        if self._load is not None:
+            raise RuntimeError(
+                "RouteRelativePopulationRecorder already holds a stage-2 draw "
+                "(R=%d, H=%d); one attempt resolves exactly one hidden load, so a second "
+                "record would claim two populations for one episode"
+                % (self._load.route_count, self._load.hidden_requested)
+            )
+        self._load = load
 
 
 # =============================================================================
@@ -676,6 +776,10 @@ def _resolve_construction_mode(
     n_hidden: Optional[int],
     placement_rng: Optional[random.Random],
     hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
+    hidden_load_policy: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+    hidden_load_seed: Optional[int] = None,
+    known_requested: Optional[int] = None,
+    population_recorder: Optional["RouteRelativePopulationRecorder"] = None,
 ) -> bool:
     """Decide which episode construction ``setup_episode`` runs, and validate its request.
 
@@ -695,6 +799,19 @@ def _resolve_construction_mode(
     ``GENERALIZED_AGENT_COUNTS``, ``K == A``, ``H_requested <= A`` -- are checked in
     :func:`_require_generalized_cardinality` once env-1 has been extracted.
 
+    ``hidden_load_policy`` selects WHO decides the hidden COUNT, and it is a different
+    question from ``hidden_policy``, which selects how that count is PLACED. It defaults to
+    the historical ``explicit_request_v1`` -- the caller states ``n_hidden`` -- so every
+    pre-GENERALIZED-V2 call resolves exactly the behaviour it always did. The
+    GENERALIZED-V2 ``route_relative_uniform_v2`` policy instead defers the count to the
+    construction path, which can only resolve it once the known-only solve has produced a
+    route count, and therefore requires the OPPOSITE argument shape: ``n_hidden`` MUST be
+    absent (a stated count and a deferred one are contradictory requests), and
+    ``hidden_load_seed`` and ``known_requested`` MUST be present. Those two -- and the
+    optional ``population_recorder`` -- are REFUSED under the historical policy rather than
+    ignored: an accepted-but-unused knob is how a caller ends up believing it selected V2,
+    and a recorder that silently stayed empty would read as "stage 2 never happened".
+
     Returns:
         True for the construction path, False for the legacy split path.
 
@@ -703,8 +820,9 @@ def _resolve_construction_mode(
             construction pair, a bounded-backoff ``n_hidden < 1``, exactly one of the pair
             supplied, an ``n_hidden`` that is not a non-negative integer (``bool``
             rejected despite subclassing ``int``, matching the locked B2 layer's
-            ``_as_assignment``), or a ``placement_rng`` that is not an explicit
-            :class:`random.Random`. Raised BEFORE any BLADE object is built.
+            ``_as_assignment``), a ``placement_rng`` that is not an explicit
+            :class:`random.Random`, or any malformed / half-supplied route-relative
+            request. Raised BEFORE any BLADE object is built.
     """
     policy = str(hidden_policy)
     if policy not in HIDDEN_CARDINALITY_POLICIES:
@@ -712,6 +830,30 @@ def _resolve_construction_mode(
             f"setup_episode: unknown hidden_policy {hidden_policy!r}; expected one of "
             f"{list(HIDDEN_CARDINALITY_POLICIES)}"
         )
+    load_policy = resolve_hidden_load_policy(hidden_load_policy)
+    if load_policy == HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2:
+        return _resolve_route_relative_request(
+            n_hidden=n_hidden,
+            placement_rng=placement_rng,
+            hidden_policy=policy,
+            hidden_load_seed=hidden_load_seed,
+            known_requested=known_requested,
+            population_recorder=population_recorder,
+        )
+    # --- the HISTORICAL explicit-request policy, byte-unchanged below ----------------
+    # The two V2-only arguments are refused here rather than ignored: a caller that set
+    # `hidden_load_seed` and got a world built from its own `n_hidden` would have no way
+    # to tell that its V2 selection never took effect.
+    for name, value in (("hidden_load_seed", hidden_load_seed),
+                        ("known_requested", known_requested),
+                        ("population_recorder", population_recorder)):
+        if value is not None:
+            raise ValueError(
+                f"setup_episode: {name}={value!r} is a "
+                f"{HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2!r} argument, but "
+                f"hidden_load_policy={load_policy!r} states the hidden count explicitly. "
+                "Refusing rather than ignoring it."
+            )
     if n_hidden is None and placement_rng is None:
         if policy != HIDDEN_POLICY_EXACT_V1:
             raise ValueError(
@@ -745,6 +887,103 @@ def _resolve_construction_mode(
             f"generalized world needs a hidden half), got {n_hidden!r}. n_hidden=0 is a "
             f"probe of the {HIDDEN_POLICY_EXACT_V1!r} path only."
         )
+    return True
+
+
+def _resolve_route_relative_request(
+    *,
+    n_hidden: Optional[int],
+    placement_rng: Optional[random.Random],
+    hidden_policy: str,
+    hidden_load_seed: Optional[int],
+    known_requested: Optional[int],
+    population_recorder: Optional["RouteRelativePopulationRecorder"] = None,
+) -> bool:
+    """Validate a GENERALIZED-V2 route-relative construction request, before BLADE exists.
+
+    Split out of :func:`_resolve_construction_mode` so the historical explicit-request
+    branch below it is left EXACTLY as it was -- same order, same conditions, same
+    messages -- and a reader can see at a glance that V2 added a branch rather than
+    editing one.
+
+    Every refusal here is a refusal to guess:
+
+      * the route-relative load is only defined against the LOCKED bounded-backoff
+        placement policy, whose one-target-per-route rule is what makes ``H <= R`` the
+        right bound; under any other placement policy the bound would be meaningless;
+      * ``n_hidden`` must be ABSENT, because a caller who states a count and also asks for
+        it to be drawn has made two contradictory requests and only one of them can be
+        honoured silently;
+      * ``hidden_load_seed`` must be an explicit non-negative integer, so the draw is
+        reproducible from the artifact rather than from whatever the process happened to
+        be doing (``bool`` is rejected despite subclassing ``int``, matching the locked B2
+        layer's ``_as_assignment``);
+      * ``known_requested`` must be an explicit positive integer, because V2's ``K`` is a
+        CHOICE between ``A`` and ``A + 2`` and construction cannot infer which one the
+        schedule drew -- so it is told, and it refuses a world that disagrees rather than
+        adopting whatever it received.
+    """
+    if hidden_policy != HIDDEN_POLICY_BOUNDED_BACKOFF_V1:
+        raise ValueError(
+            f"setup_episode: hidden_load_policy="
+            f"{HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2!r} requires hidden_policy="
+            f"{HIDDEN_POLICY_BOUNDED_BACKOFF_V1!r} (the route-relative bound H <= R is "
+            f"defined by that policy's one-hidden-target-per-route rule), got "
+            f"{hidden_policy!r}"
+        )
+    if n_hidden is not None:
+        raise ValueError(
+            f"setup_episode: hidden_load_policy="
+            f"{HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2!r} RESOLVES the hidden count from the "
+            f"known-only solve's route count, so n_hidden must be omitted; got "
+            f"{n_hidden!r}"
+        )
+    if not isinstance(placement_rng, random.Random):
+        raise ValueError(
+            "setup_episode: placement_rng must be an explicit random.Random (module-global "
+            f"randomness is not reproducible per episode), got {type(placement_rng).__name__}"
+        )
+    if isinstance(hidden_load_seed, bool) or not isinstance(hidden_load_seed, Integral):
+        raise ValueError(
+            f"setup_episode: hidden_load_policy="
+            f"{HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2!r} requires an explicit integer "
+            f"hidden_load_seed (the hidden-load draw must be reproducible from the "
+            f"episode seed alone), got {hidden_load_seed!r} of type "
+            f"{type(hidden_load_seed).__name__}"
+        )
+    if int(hidden_load_seed) < 0:
+        raise ValueError(
+            f"setup_episode: hidden_load_seed must be >= 0, got {hidden_load_seed!r}"
+        )
+    if isinstance(known_requested, bool) or not isinstance(known_requested, Integral):
+        raise ValueError(
+            f"setup_episode: hidden_load_policy="
+            f"{HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2!r} requires an explicit integer "
+            f"known_requested (K is drawn from {{A, A + 2}}, so construction cannot infer "
+            f"which value was scheduled), got {known_requested!r} of type "
+            f"{type(known_requested).__name__}"
+        )
+    if int(known_requested) < 1:
+        raise ValueError(
+            f"setup_episode: known_requested must be >= 1, got {known_requested!r}"
+        )
+    # OPTIONAL, because a caller that keeps no failure ledger (the diagnostic rollout) has
+    # nothing to preserve the snapshot FOR. Typed when supplied, and required to be EMPTY:
+    # a recorder carrying another attempt's draw would attribute that attempt's population
+    # to this one.
+    if population_recorder is not None:
+        if not isinstance(population_recorder, RouteRelativePopulationRecorder):
+            raise ValueError(
+                "setup_episode: population_recorder must be a "
+                "RouteRelativePopulationRecorder, got "
+                f"{type(population_recorder).__name__}"
+            )
+        if population_recorder.resolved:
+            raise ValueError(
+                "setup_episode: population_recorder already holds a stage-2 draw; it "
+                "must be FRESH for each attempt, or this episode's ledger entry would "
+                "carry another attempt's population identity"
+            )
     return True
 
 
@@ -784,6 +1023,54 @@ def _require_generalized_cardinality(
         raise RuntimeError(
             f"setup_episode: generalized construction needs 1 <= H_requested <= A, got "
             f"H_requested={int(hidden_requested)} for A={int(agent_count)}"
+        )
+
+
+def _require_generalized_v2_cardinality(
+    *, agent_count: int, known_count: int, known_requested: int
+) -> None:
+    """Enforce the approved GENERALIZED-V2 PRE-SOLVE cell, BEFORE anything is solved.
+
+    The approved shape is ``A`` agents in :data:`GENERALIZED_V2_AGENT_COUNTS` and ``K``
+    RAW KNOWN-world targets with ``K in {A, A + 2}``. ``known_count`` therefore has to come
+    from the RAW world inventory (``_world_target_ids``), never from an allocated-only
+    solver output -- the same reason the V1 check reads it there.
+
+    THE HIDDEN HALF IS DELIBERATELY NOT JUDGED HERE. Under V2 it does not exist yet: it is
+    drawn against the route count the known-only solve is about to produce, so the only
+    honest thing to check before that solve is the world the generator was asked for.
+
+    THE REQUESTED-vs-EXTRACTED KNOWN COUNT IS REFUSED, NEVER REPAIRED. V1 could infer the
+    request (``K == A``); V2 cannot, because ``K`` is a draw between two values. A world
+    whose extracted known cardinality disagrees with the scheduled one is not a world that
+    came out differently -- it is the generator and the schedule describing different
+    episodes, and adopting the extracted count would silently move the population every
+    per-load statistic is reported over.
+
+    Called ONLY under the route-relative hidden-load policy.
+
+    Raises:
+        RuntimeError: on any violation of the cell.
+    """
+    if int(agent_count) not in GENERALIZED_V2_AGENT_COUNTS:
+        raise RuntimeError(
+            f"setup_episode: generalized-v2 construction needs A in "
+            f"{list(GENERALIZED_V2_AGENT_COUNTS)} agents, got A={int(agent_count)}"
+        )
+    if int(known_count) != int(known_requested):
+        raise RuntimeError(
+            f"setup_episode: generalized-v2 construction extracted K={int(known_count)} "
+            f"raw known target(s) but the schedule requested "
+            f"K_requested={int(known_requested)}; refusing rather than adopting the "
+            "extracted count, which would move the population this episode is reported "
+            "under"
+        )
+    allowed = tuple(int(agent_count) + int(o) for o in GENERALIZED_V2_KNOWN_OFFSETS)
+    if int(known_requested) not in allowed:
+        raise RuntimeError(
+            f"setup_episode: generalized-v2 construction needs K in {list(allowed)} "
+            f"(K in {{A + o : o in {list(GENERALIZED_V2_KNOWN_OFFSETS)}}}), got "
+            f"K={int(known_requested)} for A={int(agent_count)}"
         )
 
 
@@ -1215,9 +1502,34 @@ class EpisodeContext:
     construction_audit: Optional[ConstructionAudit] = None
     """Requested-vs-realized construction accounting — see :class:`ConstructionAudit`.
 
-    Set ONLY on the GENERALIZED-V1 ``bounded_backoff_v1`` construction path. ``None`` on
-    the legacy split path AND on the historical ``exact_v1`` construction path, whose
-    cardinality is exact by contract and therefore has nothing to reconcile."""
+    Set on the GENERALIZED ``bounded_backoff_v1`` construction path (V1 and V2 alike).
+    ``None`` on the legacy split path AND on the historical ``exact_v1`` construction path,
+    whose cardinality is exact by contract and therefore has nothing to reconcile."""
+
+    hidden_load_policy: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1
+    """WHO decided this episode's hidden COUNT — the ONE stored source of truth.
+
+    ``explicit_request_v1`` (the DEFAULT) means the caller stated ``n_hidden`` before
+    ``setup_episode`` was entered: the historical behaviour, and the one every approved
+    measurement was taken on. ``route_relative_uniform_v2`` means the GENERALIZED-V2
+    population contract resolved it HERE, after the known-only solve, against the number of
+    egos that solve routed.
+
+    A different question from ``EpisodeContext.construction_audit``'s policy, which says
+    how the resulting count was PLACED — V2 reuses the reviewed ``bounded_backoff_v1``
+    placement exactly, and changes only which number it was asked for."""
+
+    route_relative_load: Optional[RouteRelativeHiddenLoad] = None
+    """The GENERALIZED-V2 stage-2 record: the realized route count ``R`` and the
+    ``H_requested ~ Uniform({1, ..., R})`` it produced, with the rng domain and derived
+    seed that produced it.
+
+    ``None`` under the historical explicit-request policy — that ABSENCE is how a reader
+    tells which hidden-load policy ran, exactly as a ``None`` ``construction_audit``
+    identifies the historical hidden-cardinality policy. It is a REQUEST record and never a
+    realization: how many hidden targets the world really holds is
+    ``construction_audit.hidden_realized``, and the LOCKED geometry may legitimately
+    realize fewer."""
 
     placements: Tuple[HiddenPlacement, ...] = ()
     """The locked B2 placement records behind this episode's hidden targets — the
@@ -1397,6 +1709,10 @@ def setup_episode(
     n_hidden: Optional[int] = None,
     placement_rng: Optional[random.Random] = None,
     hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
+    hidden_load_policy: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+    hidden_load_seed: Optional[int] = None,
+    known_requested: Optional[int] = None,
+    population_recorder: Optional[RouteRelativePopulationRecorder] = None,
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
     match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> EpisodeContext:
@@ -1423,7 +1739,8 @@ def setup_episode(
             temporary environment 1 never records.
         n_hidden: hidden targets REQUESTED. Non-negative; ``0`` is a legal probe that
             places nothing and patches nothing (``exact_v1`` only). Must be paired with
-            ``placement_rng``.
+            ``placement_rng``. Under the GENERALIZED-V2 route-relative hidden-load policy
+            it must be OMITTED — that policy resolves the count here instead.
         placement_rng: an explicit :class:`random.Random` driving B2's leg / fraction /
             offset draws. Must be paired with ``n_hidden``.
         hidden_policy: the hidden-CARDINALITY policy, DEFAULTING to the historical
@@ -1434,6 +1751,32 @@ def setup_episode(
             ``1 <= n_hidden <= A``), MAY realize fewer hidden targets than requested, and
             fills :attr:`EpisodeContext.construction_audit`. It is REFUSED — never
             ignored — without the construction pair.
+        hidden_load_policy: WHO decides the hidden COUNT — a different question from
+            ``hidden_policy``, which decides how that count is PLACED. DEFAULTS to the
+            historical ``explicit_request_v1``: the caller states ``n_hidden``, so every
+            pre-GENERALIZED-V2 call is unchanged. ``route_relative_uniform_v2`` (the
+            GENERALIZED-V2 population contract) instead resolves the count HERE, after the
+            known-only solve, as ``H_requested ~ Uniform({1, ..., R})`` where ``R`` is the
+            number of egos that solve actually routed. It requires ``hidden_policy=
+            bounded_backoff_v1`` (whose one-target-per-route rule is what makes ``H <= R``
+            the right bound), an omitted ``n_hidden``, and both arguments below.
+        hidden_load_seed: the EPISODE SEED the route-relative hidden-load draw runs on,
+            through the population layer's own SHA-256 domain. REQUIRED under
+            ``route_relative_uniform_v2`` and REFUSED (never ignored) otherwise.
+        known_requested: the SCHEDULED known-target count. REQUIRED under
+            ``route_relative_uniform_v2`` and REFUSED otherwise. It exists because V2 draws
+            ``K`` from ``{A, A + 2}``, so construction cannot infer which value the
+            schedule chose; it refuses a world whose extracted known cardinality disagrees
+            rather than adopting it.
+        population_recorder: an OPTIONAL, FRESH
+            :class:`RouteRelativePopulationRecorder` the caller owns. Under
+            ``route_relative_uniform_v2`` the stage-2 draw is written into it the INSTANT
+            it resolves -- before the placement walk, the patch, the reload or any deferred
+            solve can fail -- so a caller that keeps a failure ledger can state the
+            population an attempt really received even when this function RAISES. REFUSED
+            under the historical hidden-load policy, where there is no stage 2 to record.
+            Omitting it changes nothing about the episode: it is pure provenance, read by
+            the caller and by nothing in this module.
         reference_policy: the REWARD-REFERENCE policy, DEFAULTING to the historical
             ``static_t0_v1`` so every pre-GENERALIZED-V1 caller keeps the behaviour the
             approved measurements were taken on: the full t=0 reference is solved HERE
@@ -1478,13 +1821,30 @@ def setup_episode(
     """
     resolved_reference_policy = _resolve_reference_policy(reference_policy)
     resolved_backend = resolve_match_aou_backend(match_aou_backend)
-    construction = _resolve_construction_mode(n_hidden, placement_rng, hidden_policy)
+    resolved_load_policy = resolve_hidden_load_policy(hidden_load_policy)
+    construction = _resolve_construction_mode(
+        n_hidden, placement_rng, hidden_policy,
+        hidden_load_policy=resolved_load_policy,
+        hidden_load_seed=hidden_load_seed,
+        known_requested=known_requested,
+        population_recorder=population_recorder,
+    )
     if construction:
         return _setup_episode_construction(
             scenario_json,
-            n_hidden=int(n_hidden),                      # type: ignore[arg-type]
+            # `None` under the route-relative policy, which resolves the count itself once
+            # the known-only solve has produced a route count.
+            n_hidden=(None if n_hidden is None else int(n_hidden)),
             placement_rng=placement_rng,                 # type: ignore[arg-type]
             hidden_policy=str(hidden_policy),
+            hidden_load_policy=resolved_load_policy,
+            hidden_load_seed=(
+                None if hidden_load_seed is None else int(hidden_load_seed)
+            ),
+            known_requested=(
+                None if known_requested is None else int(known_requested)
+            ),
+            population_recorder=population_recorder,
             max_episode_steps=max_episode_steps,
             attacking_side_color=attacking_side_color,
             detection_km=detection_km,
@@ -1493,6 +1853,9 @@ def setup_episode(
             reference_policy=resolved_reference_policy,
             match_aou_backend=resolved_backend,
         )
+    # The legacy split path has no constructed hidden half at all, so the hidden-load
+    # policy question does not arise there; `_resolve_construction_mode` has already
+    # refused any route-relative selection that would have reached it.
     return _setup_episode_legacy(
         scenario_json,
         partial_ratio=partial_ratio,
@@ -1586,13 +1949,17 @@ def _setup_episode_legacy(
         reference_policy=reference_policy,
         t0_reference_tasks=full,
         match_aou_backend=match_aou_backend,
+        # The legacy split path constructs no hidden half at all, so its hidden count was
+        # never a policy question: `split_tasks` masks part of an already-generated world.
+        hidden_load_policy=HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+        route_relative_load=None,
     )
 
 
 def _setup_episode_construction(
     scenario_json: str,
     *,
-    n_hidden: int,
+    n_hidden: Optional[int],
     placement_rng: random.Random,
     max_episode_steps: int,
     attacking_side_color: str,
@@ -1600,6 +1967,10 @@ def _setup_episode_construction(
     record_every_seconds: Optional[int],
     recording_export_path: Optional[str],
     hidden_policy: str = HIDDEN_POLICY_EXACT_V1,
+    hidden_load_policy: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+    hidden_load_seed: Optional[int] = None,
+    known_requested: Optional[int] = None,
+    population_recorder: Optional[RouteRelativePopulationRecorder] = None,
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
     match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> EpisodeContext:
@@ -1624,6 +1995,17 @@ def _setup_episode_construction(
     ALLOCATED-ONLY list), and the RAW known-world snapshot ``known_target_ids``. Those
     last two are different lists on purpose — the first says what the egos were planned
     against, the second says what exists — and only the second is a world inventory.
+
+    TWO hidden-LOAD policies also share this seam, and they differ in exactly ONE place:
+    WHEN the requested hidden count exists. ``explicit_request_v1`` (the default) has it
+    from the caller before the function is entered, so the flow below is unchanged.
+    ``route_relative_uniform_v2`` (GENERALIZED-V2) resolves it AFTER the known-only solve,
+    from ``R`` — the number of egos that allocation actually routed, counted through
+    ``graph_hidden_placement.routed_ordinals``, the same predicate the bounded walk's own
+    ``no_route`` outcome uses. Everything before that point (env-1, the extraction, the
+    airbase-only and shared-launch-point checks, the solve) and everything after it (the
+    walk, the patch, the reload, env-2's authority, the snapshots, the oracle solve) is the
+    SAME code for both, because by then both have a plain integer request.
 
     ``match_aou_backend`` selects WHICH approved MATCH-AOU objective BOTH solves use, and
     it matters more here than anywhere else: ``A_init`` is the allocation the LOCKED B2
@@ -1657,11 +2039,23 @@ def _setup_episode_construction(
         # construction behind. `known_world_ids` is the raw world inventory, never an
         # allocation, which is the whole point of checking `K == A` against it.
         generalized = str(hidden_policy) == HIDDEN_POLICY_BOUNDED_BACKOFF_V1
-        if generalized:
+        route_relative = (
+            str(hidden_load_policy) == HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2
+        )
+        if generalized and route_relative:
+            # GENERALIZED-V2: only the PRE-SOLVE half of the cell exists yet. The hidden
+            # half is judged by the population layer's own `1 <= H <= R` invariant once the
+            # solve below has produced R.
+            _require_generalized_v2_cardinality(
+                agent_count=len(agents1),
+                known_count=len(known_world_ids),
+                known_requested=int(known_requested),    # type: ignore[arg-type]
+            )
+        elif generalized:
             _require_generalized_cardinality(
                 agent_count=len(agents1),
                 known_count=len(known_world_ids),
-                hidden_requested=int(n_hidden),
+                hidden_requested=int(n_hidden),          # type: ignore[arg-type]
             )
 
         launch_point = _shared_launch_point(agents1)
@@ -1679,6 +2073,45 @@ def _setup_episode_construction(
         # no env-1 Task object can survive this block.
         known_target_order = [_task_target_id(t) for t in known_belief_tasks]
 
+        # --- GENERALIZED-V2: resolve the hidden LOAD against the realized routes ---
+        # This is the whole two-stage point, and it can only happen HERE: `R` is a property
+        # of the allocation that has just been produced, and the request has to be bounded
+        # by it because the LOCKED bounded-backoff policy places at most one hidden target
+        # per ego route. Nothing about the geometry is predicted or pre-approved -- `R` is
+        # an upper bound on what a walk may ATTEMPT, never a promise about what it realizes.
+        hidden_load: Optional[RouteRelativeHiddenLoad] = None
+        if route_relative:
+            routed = routed_ordinals(a_init, env1_agent_ids)
+            if not routed:
+                # A structural construction failure, and refused loudly: a world whose
+                # known-only allocation routed nobody has no route-relative hidden load,
+                # and there is no honest count to fall back on. Never repaired into a
+                # zero-hidden world, which would be a different population wearing this
+                # design's label.
+                raise RuntimeError(
+                    "setup_episode: the known-only allocation routed none of the "
+                    f"{len(env1_agent_ids)} scheduled ego(s), so there is no route count "
+                    "to resolve a route-relative hidden load against"
+                )
+            hidden_load = resolve_route_relative_hidden_load(
+                episode_seed=int(hidden_load_seed),      # type: ignore[arg-type]
+                route_count=len(routed),
+            )
+            hidden_requested = int(hidden_load.hidden_requested)
+            # RECORDED HERE, AND THE POSITION IS THE WHOLE POINT: the instant the draw
+            # exists and BEFORE anything that can fail consumes it -- the bounded-backoff
+            # walk, the patch, the env-2 reload, the world-cardinality checks, the
+            # deferred reference solve. From this line on, an attempt that fails has
+            # still RECEIVED this population identity, and its ledger entry can say so
+            # instead of reporting a stage-1 half-cell the episode never ran under.
+            #
+            # Writing it is pure provenance: nothing in this module reads the recorder
+            # back, so the episode behaves identically whether one was supplied or not.
+            if population_recorder is not None:
+                population_recorder.record(hidden_load)
+        else:
+            hidden_requested = int(n_hidden)             # type: ignore[arg-type]
+
         # --- B2 route-relative placement (consumed exactly as published) ----------
         placements: Tuple[HiddenPlacement, ...] = ()
         backoff: Optional[BoundedBackoffAudit] = None
@@ -1695,9 +2128,9 @@ def _setup_episode_construction(
                 PlacementParameters(detection_km=float(detection_km)),
                 placement_rng,
                 agent_ordinals=env1_agent_ids,
-                hidden_requested=int(n_hidden),
+                hidden_requested=hidden_requested,
             )
-        elif n_hidden > 0:
+        elif hidden_requested > 0:
             placements = place_hidden_targets(
                 a_init,
                 known_belief_tasks,
@@ -1705,14 +2138,14 @@ def _setup_episode_construction(
                 PlacementParameters(detection_km=float(detection_km)),
                 placement_rng,
             )
-            if len(placements) != n_hidden:
+            if len(placements) != hidden_requested:
                 raise RuntimeError(
                     f"setup_episode: B2 produced {len(placements)} placement(s) for "
-                    f"n_hidden={n_hidden}. Its locked contract is exactly ONE placement "
-                    f"per non-empty ego route, so the solved allocation left "
-                    f"{n_hidden - len(placements)} of the {len(agents1)} ego(s) without a "
-                    "route. Distributing a different n_hidden across routes is a separate "
-                    "design task — refusing to truncate, pad or duplicate."
+                    f"n_hidden={hidden_requested}. Its locked contract is exactly ONE "
+                    f"placement per non-empty ego route, so the solved allocation left "
+                    f"{hidden_requested - len(placements)} of the {len(agents1)} ego(s) "
+                    "without a route. Distributing a different n_hidden across routes is a "
+                    "separate design task — refusing to truncate, pad or duplicate."
                 )
 
         # --- Patch ONCE; never regenerate after solving ---------------------------
@@ -1777,7 +2210,7 @@ def _setup_episode_construction(
             "hidden": len(placements),
             "partial": len(known_world_ids),
             "full": len(all_tasks),
-            "n_hidden_requested": int(n_hidden),
+            "n_hidden_requested": hidden_requested,
             "allocated_known": len(known_target_order),
             # Id-free reproducibility identity (CLAUDE.md section 8: uuids are not
             # seed-derived, so they can never be the comparison key).
@@ -1806,16 +2239,23 @@ def _setup_episode_construction(
                     f"setup_episode: backoff audit claims {backoff.hidden_realized} "
                     f"realized hidden target(s) but {hidden_realized} were placed"
                 )
+            # THE REQUESTED KNOWN COUNT. Under V1 `K == A` is the approved rule and was
+            # already enforced against the raw known world before the solve, so the request
+            # IS the agent count. Under V2 `K` is a draw between `A` and `A + 2`, so the
+            # request is the one the schedule supplied and `_require_generalized_v2_
+            # cardinality` has already refused a world that disagreed with it.
+            known_requested_effective = (
+                int(known_requested) if route_relative      # type: ignore[arg-type]
+                else len(agents)
+            )
             construction_audit = ConstructionAudit(
                 policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
                 agent_count=len(agents),
-                # K == A is the approved rule, already enforced against the raw known
-                # world before the solve, so the requested known count IS the agent count.
-                known_requested=len(agents),
+                known_requested=known_requested_effective,
                 known_realized=len(known_target_ids),
-                hidden_requested=int(n_hidden),
+                hidden_requested=hidden_requested,
                 hidden_realized=hidden_realized,
-                total_requested=len(agents) + int(n_hidden),
+                total_requested=known_requested_effective + hidden_requested,
                 total_realized=len(executed_target_ids),
                 backoff=backoff,
             )
@@ -1824,6 +2264,13 @@ def _setup_episode_construction(
             split_meta["hidden_policy"] = HIDDEN_POLICY_BOUNDED_BACKOFF_V1
             split_meta["hidden_realized"] = hidden_realized
             split_meta["construction_audit"] = construction_audit.as_dict()
+        if hidden_load is not None:
+            # GENERALIZED-V2-only keys, added under the same discipline: a V1 record grows
+            # no new field, so the ABSENCE of these is how a reader tells that the hidden
+            # count was stated by the caller rather than resolved against a route count.
+            split_meta["hidden_load_policy"] = HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2
+            split_meta["route_count_at_hidden_resolution"] = int(hidden_load.route_count)
+            split_meta["hidden_load"] = hidden_load.to_record()
 
         return _finish_context(
             game=game2,
@@ -1844,6 +2291,8 @@ def _setup_episode_construction(
             reference_policy=reference_policy,
             t0_reference_tasks=all_tasks,
             match_aou_backend=match_aou_backend,
+            hidden_load_policy=str(hidden_load_policy),
+            route_relative_load=hidden_load,
         )
     except BaseException:
         _close_quietly(env2)
@@ -1869,6 +2318,8 @@ def _finish_context(
     reference_policy: str,
     t0_reference_tasks: Sequence[Task],
     match_aou_backend: str,
+    hidden_load_policy: str,
+    route_relative_load: Optional[RouteRelativeHiddenLoad],
     construction_audit: Optional[ConstructionAudit] = None,
 ) -> EpisodeContext:
     """Mint the N independent beliefs + the ONE executor and package the context.
@@ -1897,6 +2348,13 @@ def _finish_context(
     reference solve reads it back off the context. A third path that omitted it could
     reach a context claiming the historical backend while its plan had been solved under
     P1 — and the episode would then be scored against a reference the run never computed.
+
+    ``hidden_load_policy`` and ``route_relative_load`` are REQUIRED keywords for the same
+    reason once more, and their PAIRING is VERIFIED rather than assumed: a context that
+    silently claimed the historical explicit request while its hidden count had been drawn
+    against a route count — or one that declared the route-relative policy with no record
+    of the ``R`` it drew against — would make "which population is this episode from?"
+    unanswerable from the artifact it produced.
     """
     known_snapshot = tuple(str(t) for t in known_target_ids)
     executed_snapshot = tuple(str(t) for t in executed_target_ids)
@@ -1913,6 +2371,19 @@ def _finish_context(
         )
     policy = _resolve_reference_policy(reference_policy)
     resolved_backend = resolve_match_aou_backend(match_aou_backend)
+    load_policy = resolve_hidden_load_policy(hidden_load_policy)
+    route_relative = load_policy == HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2
+    if route_relative and route_relative_load is None:
+        raise RuntimeError(
+            "setup_episode: the route-relative hidden-load policy resolved this episode's "
+            "hidden count, but no record of the route count it was drawn against reached "
+            "the context"
+        )
+    if not route_relative and route_relative_load is not None:
+        raise RuntimeError(
+            f"setup_episode: a route-relative hidden-load record reached a context whose "
+            f"policy is {load_policy!r}; the two would describe different populations"
+        )
     event_conditioned = policy == REFERENCE_POLICY_EVENT_CONDITIONED_V1
     if event_conditioned and not t0_reference_tasks:
         raise RuntimeError(
@@ -1963,6 +2434,8 @@ def _finish_context(
         reference_policy=policy,
         t0_reference_tasks=retained_reference_tasks,
         match_aou_backend=resolved_backend,
+        hidden_load_policy=load_policy,
+        route_relative_load=route_relative_load,
     )
 
 

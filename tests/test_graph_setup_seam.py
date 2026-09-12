@@ -101,6 +101,12 @@ from match_aou.rl.training import graph_episode_setup as _setup  # noqa: E402
 from match_aou.rl.training.graph_reward import (  # noqa: E402
     REFERENCE_POLICY_STATIC_T0_V1,
 )
+from match_aou.rl.training.graph_generalized import (  # noqa: E402
+    HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+    HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+    RouteRelativeHiddenLoad,
+    resolve_route_relative_hidden_load,
+)
 from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     ATTACKING_SIDE_COLOR,
     CONSTRUCTION_TARGET_CLASS,
@@ -110,6 +116,7 @@ from match_aou.rl.training.graph_episode_setup import (  # noqa: E402
     MAX_SIM_TICKS,
     ConstructionAudit,
     EpisodeContext,
+    RouteRelativePopulationRecorder,
     _require_generalized_cardinality,
     _finish_context,
     _rematerialize_known_tasks,
@@ -131,6 +138,7 @@ from match_aou.rl.training.graph_hidden_placement import (  # noqa: E402
     BackoffCandidate,
     BoundedBackoffAudit,
     HiddenPlacement,
+    HiddenPlacementError,
     geometric_fingerprint,
 )
 
@@ -579,6 +587,11 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
         detection_km=DETECTION_KM, recording_export_path=None, placements=(),
         reference_policy=REFERENCE_POLICY_STATIC_T0_V1, t0_reference_tasks=tasks,
         match_aou_backend=MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+        # REQUIRED for the same reason again (GENERALIZED-V2): a path that omitted them
+        # could reach a context silently claiming the historical explicit hidden-load
+        # request while its count had been drawn against a realized route count.
+        hidden_load_policy=HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+        route_relative_load=None,
     )
     ctx = _finish_context(known_target_ids=("k0",),
                           executed_target_ids=("k0", "h0"), **common)
@@ -601,6 +614,32 @@ def test_finish_context_requires_a_coherent_world_snapshot() -> None:
     _expect_raises(RuntimeError, "known target outside the executed world",
                    _finish_context, known_target_ids=("k0", "ghost"),
                    executed_target_ids=("k0",), **common)
+
+    # GENERALIZED-V2: the hidden-load POLICY and its RECORD are verified as a PAIR, in
+    # both directions. Either half alone would let a context describe a population it was
+    # not drawn from -- a route-relative policy with no record of the `R` it drew against,
+    # or an explicit request carrying a route-relative draw it never made.
+    declared = dict(common)
+    declared["hidden_load_policy"] = HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2
+    _expect_raises(RuntimeError, "a declared route-relative policy with no record",
+                   _finish_context, known_target_ids=("k0",),
+                   executed_target_ids=("k0", "h0"), **declared)
+    stray = dict(common)
+    stray["route_relative_load"] = RouteRelativeHiddenLoad(
+        route_count=2, hidden_requested=1)
+    _expect_raises(RuntimeError, "a route-relative record under the explicit policy",
+                   _finish_context, known_target_ids=("k0",),
+                   executed_target_ids=("k0", "h0"), **stray)
+
+    # ... and BOTH are REQUIRED keywords, exactly like `match_aou_backend` above.
+    for name in ("hidden_load_policy", "route_relative_load"):
+        missing = {k: v for k, v in common.items() if k != name}
+        try:
+            _finish_context(known_target_ids=("k0",),
+                            executed_target_ids=("k0", "h0"), **missing)
+            raise AssertionError("_finish_context must require %s" % name)
+        except TypeError:
+            pass
 
 
 def _dropping_solver(drop: str):
@@ -2928,6 +2967,220 @@ def _run_all() -> None:
             "%d test(s) skipped -- run under nlp_env for the full proof" % skipped
         )
     print("All assertions passed.")
+
+
+
+# =============================================================================
+# GENERALIZED-V2 REVIEW FIX -- the stage-2 provenance carrier
+# =============================================================================
+#
+# V2 resolves `H_requested ~ Uniform({1..R})` INSIDE this seam, and construction can still
+# fail AFTER that point: the bounded walk can realize nothing, the patch or the env-2
+# reload can fail, a cardinality check can refuse, the deferred reference solve can be
+# unacceptable. In every one of those the attempt REALLY RECEIVED a population identity
+# before it died, and a failure ledger that could only report stage 1 would describe an
+# attempt that never existed.
+#
+# `RouteRelativePopulationRecorder` is how that identity survives the exception: the caller
+# owns it, this seam writes it the instant stage 2 resolves, and the caller reads it back
+# whether `setup_episode` RETURNED or RAISED.
+
+
+def _route_relative_stub(
+    *, num_agents: int, known_count: int, seed: int, recorder=None,
+    bounded=None, realized: int = 1,
+):
+    """Drive the REAL route-relative construction seam with stubbed env / solver / geometry.
+
+    Only the pieces that need BLADE or bonmin are replaced. The V2 cell guard, the route
+    count, the stage-2 draw, the recorder write and the accounting assembly are all
+    production code.
+
+    ``bounded`` overrides the placement step, which is what lets a test put a POST-STAGE-2
+    failure exactly where a real one happens.
+    """
+    agents = [_agent(f"ego_{i}") for i in range(num_agents)]
+    known_tasks = [_task(f"k{i}") for i in range(known_count)]
+    env2_tasks = known_tasks + [_task(f"h{i}") for i in range(realized)]
+    env1, env2 = _StubEnv("env1"), _StubEnv("env2")
+    built: List[Any] = []
+
+    def _build_env(scenario_json, **kwargs):
+        env = env1 if not built else env2
+        built.append(env)
+        return None, env, "obs%d" % len(built)
+
+    def _extract_world(obs, color):
+        return (agents, known_tasks if obs == "obs1" else env2_tasks)
+
+    def _solve(agents_, tasks_, precedence_relations=None):
+        # EVERY ego routed, so the route count is the agent count and a test can state
+        # `R` without predicting the solver.
+        solution = {str(a.id): [(i % len(tasks_), 0, 0)] for i, a in enumerate(agents_)}
+        return solution, list(tasks_), []
+
+    def _default_bounded(*args, **kwargs):
+        return (
+            tuple(f"<placement {i}>" for i in range(realized)),
+            _backoff_audit(requested=kwargs["hidden_requested"], realized=realized,
+                           candidate_count=len(kwargs["agent_ordinals"])),
+        )
+
+    with _patched(
+        _setup,
+        _build_env=_build_env,
+        _extract_world=_extract_world,
+        _require_airbase_only_targets=lambda obs, color: None,
+        _shared_launch_point=lambda agents_: Location(32.0, 35.0),
+        _require_agent_ids_preserved=lambda before, after: None,
+        place_hidden_targets_bounded=(bounded or _default_bounded),
+        build_patched_scenario=lambda scenario_json, placements, **k: "{}",
+        geometric_fingerprint=lambda placements: (),
+        solve_and_normalize=_solve,
+    ):
+        return setup_episode(
+            "{}", placement_rng=random.Random(0),
+            hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+            hidden_load_policy=HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+            hidden_load_seed=int(seed),
+            known_requested=int(known_count),
+            population_recorder=recorder,
+        )
+
+
+def test_v2fix_the_recorder_holds_the_draw_the_episode_really_used() -> None:
+    """On SUCCESS the recorder and the context agree, so the carrier is not a second draw.
+
+    If these could disagree the ledger would be able to report a population the episode did
+    not run under, which is the whole failure mode the carrier exists to prevent.
+    """
+    recorder = RouteRelativePopulationRecorder()
+    ctx = _route_relative_stub(num_agents=3, known_count=3, seed=11, recorder=recorder)
+
+    assert recorder.resolved and recorder.load is ctx.route_relative_load
+    # ... and it IS the production draw for this seed against this route count (3 egos,
+    # all routed by the stub solver), not some independently reachable value.
+    assert recorder.load == resolve_route_relative_hidden_load(
+        episode_seed=11, route_count=3)
+    assert ctx.hidden_load_policy == HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2
+
+
+def test_v2fix_a_post_stage_two_construction_failure_preserves_the_draw() -> None:
+    """THE DEFECT THIS FIX CLOSES. Stage 2 resolved, construction then failed, and the
+    caller can still state the population the attempt received.
+
+    The failure is placed at the placement walk -- a real, reachable, ORDINARY construction
+    refusal that happens strictly AFTER the hidden load is drawn. `setup_episode` never
+    returns, so without the carrier the caller would have nothing but the stage-1
+    half-cell.
+    """
+    recorder = RouteRelativePopulationRecorder()
+
+    def _raises(*_a, **_k):
+        raise HiddenPlacementError("stubbed post-stage-2 construction refusal")
+
+    _expect_raises(
+        HiddenPlacementError, "a post-stage-2 construction failure",
+        _route_relative_stub,
+        num_agents=4, known_count=4, seed=7, recorder=recorder, bounded=_raises,
+    )
+    # THE POINT: the identity survived the exception, exactly as drawn.
+    assert recorder.resolved, "the stage-2 draw was lost with the exception"
+    assert recorder.load == resolve_route_relative_hidden_load(
+        episode_seed=7, route_count=4)
+
+
+def test_v2fix_a_pre_stage_two_failure_records_nothing() -> None:
+    """Nothing is fabricated when the attempt died before a route count existed.
+
+    The known-only solve allocating nothing is refused BEFORE the hidden load is drawn, so
+    the recorder stays empty -- which is the truthful statement that no hidden load was
+    ever drawn, and is what lets a ledger entry say `pre_solve` rather than invent an `R`.
+    """
+    recorder = RouteRelativePopulationRecorder()
+    agents = [_agent("ego_0"), _agent("ego_1")]
+    known_tasks = [_task("k0"), _task("k1")]
+
+    def _empty_solve(agents_, tasks_, precedence_relations=None):
+        return {}, list(tasks_), []
+
+    def _forbidden(*_a, **_k):
+        raise AssertionError("placement ran after an empty known-only solve")
+
+    with _patched(
+        _setup,
+        _build_env=lambda *a, **k: (None, _StubEnv("env1"), "obs1"),
+        _extract_world=lambda obs, color: (agents, known_tasks),
+        _require_airbase_only_targets=lambda obs, color: None,
+        _shared_launch_point=lambda agents_: Location(32.0, 35.0),
+        place_hidden_targets_bounded=_forbidden,
+        solve_and_normalize=_empty_solve,
+    ):
+        _expect_raises(
+            RuntimeError, "an empty known-only allocation", setup_episode,
+            "{}", placement_rng=random.Random(0),
+            hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+            hidden_load_policy=HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+            hidden_load_seed=3, known_requested=2, population_recorder=recorder,
+        )
+    assert not recorder.resolved and recorder.load is None
+
+
+def test_v2fix_the_recorder_is_refused_where_it_could_only_mislead() -> None:
+    """A carrier is REFUSED under the historical policy, and a REUSED one is refused too.
+
+    An accepted-but-unwritten recorder would read as "stage 2 never happened", and a
+    recorder still holding another attempt's draw would attribute that attempt's population
+    to this one. Both are refused before any BLADE object exists.
+    """
+    fresh = RouteRelativePopulationRecorder()
+    _expect_raises(
+        ValueError, "a recorder under the explicit hidden-load policy",
+        _setup._resolve_construction_mode,
+        2, random.Random(0), HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+        population_recorder=fresh,
+    )
+
+    used = RouteRelativePopulationRecorder()
+    used.record(resolve_route_relative_hidden_load(episode_seed=1, route_count=2))
+    _expect_raises(
+        ValueError, "a recorder that already holds a draw",
+        _setup._resolve_construction_mode,
+        None, random.Random(0), HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+        hidden_load_policy=HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+        hidden_load_seed=1, known_requested=2, population_recorder=used,
+    )
+    _expect_raises(
+        ValueError, "a non-recorder object",
+        _setup._resolve_construction_mode,
+        None, random.Random(0), HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+        hidden_load_policy=HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+        hidden_load_seed=1, known_requested=2, population_recorder=object(),
+    )
+    # WRITE-ONCE: a second write raises rather than silently replacing the first, so the
+    # carrier can never become a channel for a second hidden-load draw.
+    _expect_raises(
+        RuntimeError, "a second write to one recorder",
+        used.record, resolve_route_relative_hidden_load(episode_seed=2, route_count=2),
+    )
+
+
+def test_v2fix_omitting_the_recorder_changes_nothing_about_the_episode() -> None:
+    """It is PURE PROVENANCE: the same seed builds the same world with or without one.
+
+    Nothing in the construction path reads the recorder back, so a caller that keeps no
+    failure ledger (the diagnostic rollout) loses nothing by omitting it -- and, crucially,
+    supplying one cannot perturb the episode it is meant to describe.
+    """
+    with_rec = RouteRelativePopulationRecorder()
+    a = _route_relative_stub(num_agents=3, known_count=5, seed=23, recorder=with_rec)
+    b = _route_relative_stub(num_agents=3, known_count=5, seed=23, recorder=None)
+
+    assert b.route_relative_load == a.route_relative_load == with_rec.load
+    assert b.split_meta["n_hidden_requested"] == a.split_meta["n_hidden_requested"]
+    assert b.split_meta["route_count_at_hidden_resolution"] == \
+        a.split_meta["route_count_at_hidden_resolution"]
+    assert b.construction_audit.as_dict() == a.construction_audit.as_dict()
 
 
 if __name__ == "__main__":

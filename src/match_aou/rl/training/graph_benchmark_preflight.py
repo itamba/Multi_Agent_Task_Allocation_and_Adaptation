@@ -555,7 +555,14 @@ def _require_preflight_config(cfg: TrainConfig) -> None:
 
     What IS checked is everything the probe actually uses.
     """
-    if not cfg.generalized:
+    # EXACTLY `generalized_v1`, not "any generalized design". The 18-stratum benchmark is
+    # built from `A in {2,3,4}` with a `low`/`high` hidden load defined against `A`, and it
+    # is the only benchmark that has been designed. A design that draws `A` from a wider
+    # set, or defines its hidden load against a realized route count, would be frozen into
+    # strata its population never varied -- so it is refused here rather than accepted and
+    # mislabelled. Designing a benchmark for another population is a separate research
+    # decision.
+    if not cfg.design.generalized_v1_design:
         raise BenchmarkPreflightError(
             "benchmark preflight requires episode_design=%r, got %r: the 18-stratum "
             "benchmark and the certified eligibility contract are defined for that "

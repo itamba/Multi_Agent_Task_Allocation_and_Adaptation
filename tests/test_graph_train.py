@@ -883,10 +883,12 @@ def test_both_harnesses_call_setup_in_construction_mode() -> None:
         source = Path(inspect.getsourcefile(module)).read_text(encoding="utf-8")
         # GENERALIZED-V1 Task 4 moved the hidden count from the config to the RESOLVED
         # per-episode cell (`episode_cardinality` / `sample_generalized_cardinality`),
-        # which under `fixed_cell_v1` is `cfg.n_hidden` verbatim. The claim being locked
-        # is unchanged -- setup is handed a hidden COUNT and an explicit per-episode rng
-        # -- so the literal it is read off moves with it.
-        assert "n_hidden=int(cell.hidden_requested)" in source, module.__name__
+        # which under `fixed_cell_v1` is `cfg.n_hidden` verbatim, and GENERALIZED-V2 then
+        # made the keyword conditional (that design resolves the count inside setup). The
+        # claim being locked is unchanged -- on every non-V2 path setup is handed a hidden
+        # COUNT and an explicit per-episode rng -- so the literal it is read off moves with
+        # it once more.
+        assert '"n_hidden": int(cell.hidden_requested)' in source, module.__name__
         assert "random.Random(seed)" in source, module.__name__
         # The pre-B3 constant is gone from both harnesses.
         assert "_ALL_KNOWN_PARTIAL_RATIO" not in source, module.__name__
@@ -1483,6 +1485,7 @@ def _run_stub_training(
     roster_variant: str = "default",
     capture_stdout: bool = False,
     reward_for_seed=None,
+    v2_route_count_for_seed=None,
 ):
     """Drive the REAL `train()` with the BLADE+solver episode body replaced by a stub.
 
@@ -1507,6 +1510,14 @@ def _run_stub_training(
     is what lets a test drive a DETERMINISTIC per-iteration `train_reward_mean`
     trajectory (a plateau, or a steadily improving run) without touching the trainer.
     Omitted, the historical `-0.5 + 0.01 * (seed % 7)` is unchanged.
+
+    `v2_route_count_for_seed` maps ``seed -> Optional[route_count]`` and models the
+    GENERALIZED-V2 STAGE-2 resolution the real `setup_episode` performs. When it returns a
+    route count, the stub resolves the hidden load through the SAME production function
+    and writes it into the caller's recorder -- BEFORE deciding whether this seed fails --
+    which is exactly the ordering the real construction path has. Returning ``None`` models
+    an attempt that died before the known-only solve produced a route count. Omitted, no
+    stage 2 is ever resolved and every existing caller is unaffected.
 
     `git` replaces `_git_provenance`'s verdict; it defaults to `_FAKE_GIT_OK` so these
     tests neither depend on the developer checkout's live state nor trip the
@@ -1602,17 +1613,45 @@ def _run_stub_training(
             raise graph_train.EpisodeRosterError(
                 "stubbed measurement-integrity fault at seed %d" % int(seed)
             )
+        # GENERALIZED-V2 STAGE 2, resolved where the real construction path resolves
+        # it: inside the episode body, BEFORE anything that can fail consumes it. The
+        # recorder is the caller's, so what it holds afterwards is what the ledger will
+        # report -- which is the whole point of the seam under test.
+        v2_pre = extra.get("pre_solve_cardinality")
+        v2_recorder = extra.get("population_recorder")
+        v2_load = None
+        if v2_route_count_for_seed is not None:
+            route_count = v2_route_count_for_seed(int(seed))
+            if route_count is not None and v2_pre is not None:
+                from match_aou.rl.training.graph_generalized import (
+                    resolve_route_relative_hidden_load as _resolve_v2_load,
+                )
+                v2_load = _resolve_v2_load(
+                    episode_seed=int(seed), route_count=int(route_count))
+                if v2_recorder is not None:
+                    v2_recorder.record(v2_load)
         if seed in failures:
             stage, message = failures[seed]
-            raise EpisodeAttemptError(stage, ValueError(message))
+            # An exception INSTANCE models a specific ordinary failure (a real
+            # `FuelDamageError` at the FD-controller boundary, say); a string keeps the
+            # historical `ValueError` shape every existing caller relies on.
+            raise EpisodeAttemptError(
+                stage,
+                message if isinstance(message, BaseException) else ValueError(message))
         # GENERALIZED-V1: the real `_run_one_episode` resolves the scheduled cell and
         # reports what the world REALIZED, so the stub models both. On the fixed-cell
         # path no keyword arrives and the cardinality is the configured cell, which is
         # exactly what the real body resolves there too.
-        stub_card = extra.get("cardinality") or graph_train.fixed_cell_cardinality(
-            agent_count=int(cfg_.num_agents), known_count=int(cfg_.n_known),
-            hidden_requested=int(cfg_.n_hidden),
-        )
+        stub_card = extra.get("cardinality")
+        if stub_card is None and v2_pre is not None and v2_load is not None:
+            # The RESOLVED V2 cell, assembled from both stage records exactly as the real
+            # body assembles it once `setup_episode` has returned.
+            stub_card = graph_train.resolved_v2_cardinality(v2_pre, v2_load)
+        if stub_card is None:
+            stub_card = graph_train.fixed_cell_cardinality(
+                agent_count=int(cfg_.num_agents), known_count=int(cfg_.n_known),
+                hidden_requested=int(cfg_.n_hidden),
+            )
         return _EpisodeOutcome(
             trajectory=[_StubTransition("ego_%d" % (k % 2), k % 3)
                         for k in range(n_wakes)],
@@ -1624,6 +1663,8 @@ def _run_stub_training(
             **roster_fields,
             **_stub_fuel_damage_fields(cfg_, seed, fuel_damage_mode),
             cardinality=stub_card,
+            pre_solve_cardinality=v2_pre,
+            route_relative_load=v2_load,
             hidden_realized=int(stub_card.hidden_requested),
             reward_breakdown={"u_ref": -1.0, "u_achieved": -1.0,
                               "reference_policy": cfg_.design.reference_policy},
@@ -5081,20 +5122,30 @@ def test_probe_preset_claims_scheduled_iterations_not_productive_updates() -> No
 from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     SEVERITY_MILD,
     SEVERITY_SEVERE,
+    FuelDamageError,
+)
+from match_aou.solvers.match_aou_backend import (  # noqa: E402
+    MATCH_AOU_BACKEND_P1_MILP_V1,
 )
 from match_aou.rl.training.graph_generalized import (  # noqa: E402
     BenchmarkIdentityError,
     BenchmarkManifestError,
     BENCHMARK_GROUP_SIZE,
     BENCHMARK_STRATUM_KEYS,
+    CARDINALITY_SOURCE_V2_PRE_SOLVE,
+    CARDINALITY_SOURCE_V2_ROUTE_RELATIVE,
     EPISODE_DESIGN_FIXED_CELL_V1,
     EPISODE_DESIGN_GENERALIZED_V1,
+    EPISODE_DESIGN_GENERALIZED_V2,
     LOAD_HIGH,
     LOAD_LOW,
     WorldIdentity,
     build_benchmark_manifest,
     load_benchmark_manifest,
+    resolve_route_relative_hidden_load,
+    resolved_v2_cardinality,
     sample_generalized_cardinality,
+    sample_generalized_v2_pre_solve_cardinality,
     write_benchmark_manifest,
 )
 from match_aou.rl.training.graph_reward import (  # noqa: E402
@@ -6177,8 +6228,13 @@ def test_gen_cli_and_rollout_expose_the_selector_without_drift() -> None:
     # The selector is a real choice on both, and both DEFAULT to the historical design.
     for parser in (graph_train._build_arg_parser(), gr._build_arg_parser()):
         actions = {a.dest: a for a in parser._actions}
+        # Exhaustive on purpose: a design reachable from the CLI without a test naming
+        # it is a population an operator can select and nobody declared. Updated -- never
+        # relaxed -- when GENERALIZED-V2 was added.
         assert set(actions["episode_design"].choices) == {
-            EPISODE_DESIGN_FIXED_CELL_V1, EPISODE_DESIGN_GENERALIZED_V1
+            EPISODE_DESIGN_FIXED_CELL_V1,
+            EPISODE_DESIGN_GENERALIZED_V1,
+            EPISODE_DESIGN_GENERALIZED_V2,
         }
         assert actions["episode_design"].default == EPISODE_DESIGN_FIXED_CELL_V1
 
@@ -7284,6 +7340,204 @@ def test_es_the_cli_and_preset_expose_the_policy_without_drift(tmp_path: Path) -
 
 
 
+
+# =============================================================================
+# GENERALIZED-V2 REVIEW FIX -- STAGE-AWARE FAILURE PROVENANCE
+# =============================================================================
+#
+# A FAILED ATTEMPT IS STILL PART OF THE ATTEMPTED POPULATION. V2 resolves that population
+# in TWO stages, and an attempt can die in either, so its ledger entry has to say WHICH
+# identity it actually received:
+#
+#   * died BEFORE the known-only solve produced a route count -> stage 1 only. There was
+#     no hidden load, and inventing one would put a number in the ledger nothing drew.
+#   * died AFTER stage 2 -> the EXACT `R`, `H_requested` and hidden-load provenance the
+#     construction path produced, carried through verbatim. Never re-derived: `H` is
+#     reproducible from the seed and `R`, and a ledger that leaned on that reproducibility
+#     would be reporting a replay rather than the attempt.
+#
+# The seam that makes the second case possible is `RouteRelativePopulationRecorder`: the
+# loop owns one per attempt, `setup_episode` writes it the instant stage 2 resolves, and
+# the loop reads it back whether setup returned or RAISED.
+
+
+def _v2_stub_cfg(tmp_path, **kw):
+    """A MINIMAL VALID GENERALIZED-V2 training config for the stub harness.
+
+    Evaluation is off because this design defines no evaluation construct, and the attempt
+    budget is explicit because the quota policy has no default -- both are `validate()`
+    verdicts, so the helper states them rather than hiding them.
+    """
+    base = dict(
+        n_iterations=1,
+        episodes_per_iteration=1,
+        generalized_max_attempts_per_iteration=4,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V2,
+        match_aou_backend=MATCH_AOU_BACKEND_P1_MILP_V1,
+        fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE,
+        eval_every=0,
+        eval_episodes=0,
+        base_seed=0,
+        output_dir=tmp_path,
+    )
+    base.update(kw)
+    return TrainConfig(**base)
+
+
+def _failure_records(summary):
+    """Every durable ledger entry a completed stub run left behind."""
+    path = Path(summary["run_dir"]) / "episode_failures.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in
+            path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_v2fix_a_failure_before_stage_two_fabricates_no_hidden_load(tmp_path) -> None:
+    """PO1 (case A). No route count existed, so the ledger claims none.
+
+    `hidden_requested` is `null` and every hidden-load field is `null` -- which is the
+    truth, not a writer that forgot them. `cardinality_source` names the STAGE-1 sampler,
+    so a reader is never left inferring how far the attempt got from which fields happen
+    to be absent.
+    """
+    cfg = _v2_stub_cfg(tmp_path)
+    summary, _events, _state = _run_stub_training(
+        cfg,
+        failures={0: ("setup", "no route-relative load was ever drawn")},
+        # Seed 0 dies before stage 2; seed 1 resolves one and succeeds, so the quota fills
+        # and the run completes normally rather than exhausting its budget.
+        v2_route_count_for_seed=lambda seed: None if seed == 0 else 3,
+    )
+    records = _failure_records(summary)
+    assert len(records) == 1, records
+    rec = records[0]
+    pre = sample_generalized_v2_pre_solve_cardinality(episode_seed=0)
+
+    assert rec["pipeline_stage"] == "setup"
+    assert rec["agent_count"] == pre.agent_count
+    assert rec["known_requested"] == pre.known_count
+    assert rec["hidden_requested"] is None
+    assert rec["cardinality_source"] == CARDINALITY_SOURCE_V2_PRE_SOLVE
+
+    block = rec["generalized_v2_population"]
+    assert block["stage_resolved"] == "pre_solve"
+    assert block["agent_count"] == pre.agent_count
+    assert block["known_requested"] == pre.known_count
+    assert block["pre_solve_derived_seed"] == pre.derived_seed
+    for absent in ("hidden_load_policy", "hidden_load_rng_domain",
+                   "hidden_load_derived_seed", "route_count_at_hidden_resolution",
+                   "hidden_load"):
+        assert block[absent] is None, absent
+
+
+def test_v2fix_an_ordinary_setup_failure_after_stage_two_preserves_it(tmp_path) -> None:
+    """PO1 (case B), at the FD-controller boundary -- the defect this fix closes.
+
+    The attempt resolved `R` and `H_requested` inside `setup_episode`, then failed in the
+    ORDINARY way a certified-FD preparation fails (`FuelDamageError`, an accounted `setup`
+    attrition, never an integrity abort). Its ledger entry must carry the EXACT population
+    it ran under, not the stage-1 half-cell the loop happened to hold.
+
+    Every stage-2 number is compared against the production draw for this seed and route
+    count, so a record that merely looked plausible would fail here.
+    """
+    cfg = _v2_stub_cfg(tmp_path)
+    route_count = 4
+    summary, _events, _state = _run_stub_training(
+        cfg,
+        failures={0: ("setup", FuelDamageError(
+            "stubbed ordinary certified-FD preparation failure"))},
+        v2_route_count_for_seed=lambda seed: route_count if seed == 0 else 3,
+    )
+    records = _failure_records(summary)
+    assert len(records) == 1, records
+    rec = records[0]
+
+    pre = sample_generalized_v2_pre_solve_cardinality(episode_seed=0)
+    load = resolve_route_relative_hidden_load(episode_seed=0, route_count=route_count)
+    resolved = resolved_v2_cardinality(pre, load)
+
+    # The failure is still ORDINARY, accounted attrition at the stage it really died in.
+    assert rec["pipeline_stage"] == "setup"
+    assert rec["error_type"] == "FuelDamageError"
+
+    # ... and the population it ran under is the RESOLVED one, exactly.
+    assert rec["agent_count"] == resolved.agent_count
+    assert rec["known_requested"] == resolved.known_count
+    assert rec["hidden_requested"] == resolved.hidden_requested
+    assert rec["cardinality_source"] == CARDINALITY_SOURCE_V2_ROUTE_RELATIVE
+
+    block = rec["generalized_v2_population"]
+    assert block["stage_resolved"] == "route_relative"
+    assert block["route_count_at_hidden_resolution"] == route_count
+    assert block["hidden_load_policy"] == load.policy
+    assert block["hidden_load_rng_domain"] == load.rng_domain
+    assert block["hidden_load_derived_seed"] == load.derived_seed
+    assert block["hidden_load"] == load.to_record()
+    # Both halves of the two-stage identity travel with the record.
+    assert block["pre_solve_derived_seed"] == pre.derived_seed
+
+
+def test_v2fix_a_later_stage_failure_preserves_stage_two_too(tmp_path) -> None:
+    """PO1 (case B), at a LATER stage -- one representative is sufficient, and why.
+
+    `run` and `reward` attrition reach the ledger through the SAME seam this fix changed:
+    the loop reads its own recorder and calls `_failure_cardinality` once, with no
+    dependence on which stage the `EpisodeAttemptError` names. So a `run`-stage
+    representative mechanically covers the `reward`-stage path as well; what is
+    stage-specific is only the `pipeline_stage` string, which this asserts.
+    """
+    cfg = _v2_stub_cfg(tmp_path)
+    route_count = 5
+    summary, _events, _state = _run_stub_training(
+        cfg,
+        failures={0: ("run", "stubbed ordinary run-stage attrition")},
+        v2_route_count_for_seed=lambda seed: route_count if seed == 0 else 2,
+    )
+    rec = _failure_records(summary)[0]
+    load = resolve_route_relative_hidden_load(episode_seed=0, route_count=route_count)
+
+    assert rec["pipeline_stage"] == "run"
+    assert rec["hidden_requested"] == load.hidden_requested
+    assert rec["cardinality_source"] == CARDINALITY_SOURCE_V2_ROUTE_RELATIVE
+    assert rec["generalized_v2_population"]["route_count_at_hidden_resolution"] == \
+        route_count
+    assert rec["generalized_v2_population"]["hidden_load"] == load.to_record()
+
+
+def test_v2fix_historical_failure_records_grow_no_v2_field(tmp_path) -> None:
+    """PO3. A `fixed_cell_v1` or `generalized_v1` ledger entry is untouched.
+
+    V2-only provenance is added ONLY on the V2 path, so every preserved artifact and every
+    existing reader keeps the shape it already has -- no nullable V2 columns appear on a
+    design that has no two-stage identity to report.
+    """
+    fixed = TrainConfig(n_iterations=1, episodes_per_iteration=2,
+                        eval_every=0, eval_episodes=0, output_dir=tmp_path / "fixed")
+    summary, _e, _s = _run_stub_training(
+        fixed, failures={0: ("setup", "ordinary fixed-cell attrition")})
+    rec = _failure_records(summary)[0]
+    assert "generalized_v2_population" not in rec
+    assert rec["cardinality_source"] is None or rec["cardinality_source"] == "fixed_cell"
+
+    v1 = TrainConfig(
+        n_iterations=1, episodes_per_iteration=1,
+        generalized_max_attempts_per_iteration=4,
+        episode_design=EPISODE_DESIGN_GENERALIZED_V1,
+        fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE,
+        eval_every=0, eval_episodes=0, output_dir=tmp_path / "v1")
+    summary, _e, _s = _run_stub_training(
+        v1, failures={0: ("setup", "ordinary generalized-v1 attrition")})
+    rec = _failure_records(summary)[0]
+    assert "generalized_v2_population" not in rec
+    # The V1 record keeps stating its complete, single-stage cell.
+    card = sample_generalized_cardinality(episode_seed=0)
+    assert rec["agent_count"] == card.agent_count
+    assert rec["known_requested"] == card.known_count
+    assert rec["hidden_requested"] == card.hidden_requested
+    assert rec["cardinality_source"] == card.source
+
 if __name__ == "__main__":
     import tempfile
 
@@ -7643,6 +7897,15 @@ if __name__ == "__main__":
          test_es_validate_refuses_a_misconfigured_or_non_generalized_policy, True),
         ("es_the_cli_and_preset_expose_the_policy_without_drift",
          test_es_the_cli_and_preset_expose_the_policy_without_drift, True),
+        # GENERALIZED-V2 review fix: STAGE-AWARE failure provenance.
+        ("v2fix_a_failure_before_stage_two_fabricates_no_hidden_load",
+         test_v2fix_a_failure_before_stage_two_fabricates_no_hidden_load, True),
+        ("v2fix_an_ordinary_setup_failure_after_stage_two_preserves_it",
+         test_v2fix_an_ordinary_setup_failure_after_stage_two_preserves_it, True),
+        ("v2fix_a_later_stage_failure_preserves_stage_two_too",
+         test_v2fix_a_later_stage_failure_preserves_stage_two_too, True),
+        ("v2fix_historical_failure_records_grow_no_v2_field",
+         test_v2fix_historical_failure_records_grow_no_v2_field, True),
     ]
     for name, fn, needs_tmp in tests:
         try:

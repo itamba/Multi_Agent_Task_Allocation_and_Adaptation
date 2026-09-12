@@ -1,5 +1,5 @@
-"""GENERALIZED-V1 POPULATION: the episode-design selector, the deterministic training
-cardinality sampler, and the FROZEN STRATIFIED BENCHMARK MANIFEST.
+"""GENERALIZED POPULATION: the episode-design selector, the deterministic training
+cardinality samplers, and the FROZEN STRATIFIED BENCHMARK MANIFEST.
 
 WHAT THIS MODULE OWNS, AND WHAT IT DELIBERATELY DOES NOT
 ========================================================
@@ -7,13 +7,20 @@ It owns three questions that are about the POPULATION an episode is drawn from, 
 nothing about how an episode RUNS:
 
   1. **Which design is this run?** ``fixed_cell_v1`` (the DEFAULT and the historical
-     behaviour) or ``generalized_v1`` (the complete approved GENERALIZED-V1 bundle of the
-     already-reviewed Task-1/2/3 policy seams). ONE selector, resolved in ONE place, so a
-     harness never has to coordinate four independent low-level policy knobs and can
-     never resolve half a bundle.
-  2. **What cardinality does a scheduled TRAINING episode have?** ``A ~ Uniform({2,3,4})``
-     and ``H_requested | A ~ Uniform({1..A})`` with ``K == A``, drawn from an ISOLATED
-     deterministic seed domain of this layer's own.
+     behaviour), ``generalized_v1`` (the complete approved GENERALIZED-V1 bundle of the
+     already-reviewed Task-1/2/3 policy seams), or ``generalized_v2`` (the SAME four
+     policy ids under a route-relative POPULATION contract). ONE selector, resolved in ONE
+     place, so a harness never has to coordinate four independent low-level policy knobs
+     and can never resolve half a bundle.
+  2. **What cardinality does a scheduled TRAINING episode have?** Under
+     ``generalized_v1``, ``A ~ Uniform({2,3,4})`` and ``H_requested | A ~ Uniform({1..A})``
+     with ``K == A``, all resolved up front. Under ``generalized_v2`` the question is
+     answered in TWO STAGES, because its hidden load is defined against a quantity that
+     does not exist until the known-only solve has run: ``A ~ Uniform({2,3,4,5,6})`` and
+     ``K | A ~ Uniform({A, A+2})`` BEFORE that solve, then
+     ``H_requested ~ Uniform({1..R})`` AFTER it, where ``R`` is the number of egos the
+     allocation actually routed. Every draw runs on an ISOLATED deterministic seed domain
+     of this layer's own -- three of them, one per sampler stage.
   3. **Which worlds does the frozen benchmark hold?** The 18-stratum matched
      CLEAN / MILD / SEVERE evaluation manifest, its canonical serialization, its content
      hash, and the identity checks that make a member refusable instead of silently
@@ -32,9 +39,11 @@ a caller names explicitly, and NO module-global randomness: every draw runs on a
 
 RNG ISOLATION IS THE LOAD-BEARING PROPERTY
 ==========================================
-The cardinality sampler has its OWN SHA-256 seed domain,
-:data:`CARDINALITY_RNG_DOMAIN`, constructed exactly like the three fuel-damage domains
-and disjoint from all of them. That separation is not tidiness:
+Each cardinality sampler stage has its OWN SHA-256 seed domain --
+:data:`CARDINALITY_RNG_DOMAIN` for the V1 sampler, and
+:data:`V2_CARDINALITY_RNG_DOMAIN` / :data:`V2_HIDDEN_LOAD_RNG_DOMAIN` for the two V2
+stages -- each constructed exactly like the three fuel-damage domains and disjoint from
+them and from each other. That separation is not tidiness:
 
   * taking the cardinality draw from ``fuel_damage_v1`` would insert draws between that
     stream's mixture bit and its ego selection and CHANGE WHICH EGO every damaged episode
@@ -60,10 +69,11 @@ scalars with the ego uuid REMOVED.
 
 NOTHING HERE REACHES THE ACTING PATH
 ====================================
-No design id, no cardinality, no stratum label, no load bucket and no manifest field
-enters ``GraphObservation`` or the central critic's ``CentralGraphObservation``. A count of
-what is hidden, and a label saying how hard the world is, are exactly the privileged
-quantities an ego cannot sense (``CLAUDE.md`` section 3).
+No design id, no cardinality, no route count, no stratum label, no load bucket and no
+manifest field enters ``GraphObservation`` or the central critic's
+``CentralGraphObservation``. A count of what is hidden, a count of how many egos were
+routed, and a label saying how hard the world is are exactly the privileged quantities an
+ego cannot sense (``CLAUDE.md`` section 3).
 """
 
 from __future__ import annotations
@@ -75,6 +85,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
+from ...solvers.match_aou_backend import MATCH_AOU_BACKEND_P1_MILP_V1
 from .graph_fuel_damage import (
     CONDITION_CLEAN,
     FD_ELIGIBILITY_CERTIFIED_V1,
@@ -122,6 +133,38 @@ TARGET_DESTRUCTION_PROBABILITY: float = 1.0
 # rather than the sampler silently producing worlds that cannot be built.
 GENERALIZED_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4)
 
+# The approved GENERALIZED-V2 team sizes: `A in {2, 3, 4, 5, 6}`.
+#
+# A MIRROR of `graph_episode_setup.GENERALIZED_V2_AGENT_COUNTS`, test-enforced against it
+# for exactly the reason the V1 mirror above is: the sampler must never draw a team size
+# the construction path would refuse, and importing the setup layer here would drag the
+# BLADE translation layer (and torch) into a module whose whole value is that it is
+# deterministic arithmetic over seeds and records.
+#
+# A=8 and A=10 are DELIBERATELY ABSENT. They exist only as engineering scaling evidence;
+# the executor / training path has not been validated at those sizes, and a sampler that
+# could draw one would quietly make an unvalidated size part of a scientific population.
+GENERALIZED_V2_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4, 5, 6)
+
+# The approved GENERALIZED-V2 known-load offsets: `K in {A, A + 2}`, drawn uniformly and
+# CONDITIONAL on `A`. `K == A` reproduces the V1 known load exactly; `K == A + 2` raises
+# the per-route task load and/or the number of egos the allocation activates, which is the
+# construction property V2 exists to vary. Stated as OFFSETS rather than as a set of
+# absolute counts so the rule is `A`-relative by construction and cannot drift into a
+# fixed cell for some `A`.
+GENERALIZED_V2_KNOWN_OFFSETS: Tuple[int, ...] = (0, 2)
+
+# The ONLY MATCH-AOU allocation objective GENERALIZED-V2 is valid with.
+#
+# NOT a fallback and NOT an override: a `generalized_v2` configuration naming the legacy
+# objective is REFUSED before any episode executes. The reason is structural rather than
+# preferential -- V2 resolves its hidden load from the number of NON-EMPTY ROUTES the
+# known-only allocation produced, so letting two different objectives define that route
+# count would make one design id mean two different population selectors. The legacy
+# objective's `EPSILON` stacking incentive in particular changes which allocations are
+# optimal, hence which egos are routed at all.
+GENERALIZED_V2_REQUIRED_BACKEND: str = MATCH_AOU_BACKEND_P1_MILP_V1
+
 
 # =============================================================================
 # 1. THE EPISODE-DESIGN SELECTOR -- one knob, one resolution site
@@ -140,9 +183,25 @@ EPISODE_DESIGN_FIXED_CELL_V1: str = "fixed_cell_v1"
 # design nobody approved while still recording itself as generalized.
 EPISODE_DESIGN_GENERALIZED_V1: str = "generalized_v1"
 
+# `generalized_v2` selects the SAME four low-level policy ids as `generalized_v1` -- the
+# reviewed bounded-backoff placement, the certified FD eligibility, the completion-boundary
+# post-FD wake and the event-conditioned reward reference are all reused UNCHANGED. What
+# differs is the POPULATION CONTRACT, which `EpisodeDesign` has never owned (the V1
+# cardinality sampler is not one of its ids either):
+#
+#   * `A in {2, 3, 4, 5, 6}` and `K in {A, A + 2}`, drawn BEFORE the known-only solve;
+#   * `H_requested ~ Uniform({1, ..., R})`, drawn AFTER it, where `R` is the number of egos
+#     that allocation actually gave a route to;
+#   * `p1_milp_v1` is the only valid allocation objective.
+#
+# It is a SEPARATE design id rather than a mode of `generalized_v1` because a run must
+# never be able to record itself as V1 while having been drawn from the V2 population.
+EPISODE_DESIGN_GENERALIZED_V2: str = "generalized_v2"
+
 EPISODE_DESIGNS: Tuple[str, ...] = (
     EPISODE_DESIGN_FIXED_CELL_V1,
     EPISODE_DESIGN_GENERALIZED_V1,
+    EPISODE_DESIGN_GENERALIZED_V2,
 )
 
 
@@ -163,8 +222,38 @@ class EpisodeDesign:
 
     @property
     def generalized(self) -> bool:
-        """True iff this is the GENERALIZED-V1 bundle."""
+        """True iff this is a GENERALIZED bundle -- ``generalized_v1`` OR ``generalized_v2``.
+
+        The two designs share all four low-level policy ids and every generalized HARNESS
+        behaviour that keys off this predicate (the seeded-variable fuel-damage mixture,
+        the successful-episode training quota and its bounded attempt budget, the dynamic
+        construction provenance). What separates them is the POPULATION they draw from,
+        which is :attr:`route_relative_population`'s question, not this one.
+        """
+        return self.design in (
+            EPISODE_DESIGN_GENERALIZED_V1, EPISODE_DESIGN_GENERALIZED_V2
+        )
+
+    @property
+    def generalized_v1_design(self) -> bool:
+        """True iff this is EXACTLY the reviewed ``generalized_v1`` bundle.
+
+        Distinct from :attr:`generalized` on purpose: the 18-stratum benchmark, the frozen
+        manifest and the approved training-reward plateau stopping rule are all defined for
+        ``generalized_v1`` and for nothing else, so a check that means "V1" must be able to
+        say so rather than accepting any generalized design.
+        """
         return self.design == EPISODE_DESIGN_GENERALIZED_V1
+
+    @property
+    def route_relative_population(self) -> bool:
+        """True iff this design resolves its hidden load AFTER the known-only solve.
+
+        The ONE predicate behind "is this a two-stage V2 population?", so the pre-solve
+        `(A, K)` draw, the post-solve `H | R` draw and the P1-backend requirement can never
+        be reached one without the others.
+        """
+        return self.design == EPISODE_DESIGN_GENERALIZED_V2
 
     def to_record(self) -> Dict[str, Any]:
         """A JSON-ready view (plain builtins only)."""
@@ -197,9 +286,21 @@ GENERALIZED_V1: EpisodeDesign = EpisodeDesign(
     reference_policy=REFERENCE_POLICY_EVENT_CONDITIONED_V1,
 )
 
+# The GENERALIZED-V2 bundle. The four low-level policy ids are IDENTICAL to
+# `GENERALIZED_V1`'s, and that identity is the point: V2 changes the POPULATION an episode
+# is drawn from, and reuses the reviewed episode MECHANISMS exactly as they were locked.
+GENERALIZED_V2: EpisodeDesign = EpisodeDesign(
+    design=EPISODE_DESIGN_GENERALIZED_V2,
+    hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1,
+    eligibility_policy=FD_ELIGIBILITY_CERTIFIED_V1,
+    post_fd_wake_policy=POST_FD_WAKE_COMPLETION_BOUNDARY_V1,
+    reference_policy=REFERENCE_POLICY_EVENT_CONDITIONED_V1,
+)
+
 _DESIGNS: Dict[str, EpisodeDesign] = {
     EPISODE_DESIGN_FIXED_CELL_V1: FIXED_CELL_V1,
     EPISODE_DESIGN_GENERALIZED_V1: GENERALIZED_V1,
+    EPISODE_DESIGN_GENERALIZED_V2: GENERALIZED_V2,
 }
 
 
@@ -241,10 +342,22 @@ CARDINALITY_RNG_DOMAIN: str = "generalized_cardinality_v1"
 CARDINALITY_SOURCE_FIXED_CELL: str = "fixed_cell"
 CARDINALITY_SOURCE_SAMPLER: str = "generalized_sampler"
 CARDINALITY_SOURCE_BENCHMARK: str = "benchmark_manifest"
+# GENERALIZED-V2: a cardinality that was resolved in TWO stages -- `(A, K)` before the
+# known-only solve and `H | R` after it. A separate source id, not a variant of
+# `generalized_sampler`, because the two populations are drawn by different rules from
+# different rng domains and a record must never be readable as the other one.
+CARDINALITY_SOURCE_V2_ROUTE_RELATIVE: str = "generalized_v2_route_relative"
+# The STAGE-1 label, for a V2 attempt whose hidden load was never resolved -- an attempt
+# that failed before or during the known-only solve. DELIBERATELY NOT a member of
+# `CARDINALITY_SOURCES` below: it is not a source an `EpisodeCardinality` may ever carry,
+# because an `EpisodeCardinality` states a COMPLETE requested cell and a pre-solve draw is
+# by definition half of one.
+CARDINALITY_SOURCE_V2_PRE_SOLVE: str = "generalized_v2_pre_solve"
 CARDINALITY_SOURCES: Tuple[str, ...] = (
     CARDINALITY_SOURCE_FIXED_CELL,
     CARDINALITY_SOURCE_SAMPLER,
     CARDINALITY_SOURCE_BENCHMARK,
+    CARDINALITY_SOURCE_V2_ROUTE_RELATIVE,
 )
 
 
@@ -374,6 +487,349 @@ def cardinality_sampler_record() -> Dict[str, Any]:
         "agent_count_rule": "A ~ Uniform(agent_counts)",
         "known_rule": "K == A",
         "hidden_requested_rule": "H_requested | A ~ Uniform({1, ..., A})",
+        "realized_hidden_may_be_short": True,
+        "retry_on_short_realization": False,
+    }
+
+
+# =============================================================================
+# 2b. GENERALIZED-V2: the TWO-STAGE, ROUTE-RELATIVE population contract
+# =============================================================================
+#
+# WHY IT CANNOT BE ONE STAGE, AND WHY THAT IS NOT A DETAIL
+# -------------------------------------------------------
+# The V1 sampler resolves `(A, K, H)` up front because `H` is defined against `A`. V2
+# defines the hidden load against `R` -- the number of egos the KNOWN-ONLY allocation
+# actually gave a route to -- and `R` is not known until that solve has happened. Faking an
+# up-front `EpisodeCardinality` with a placeholder `H` and correcting it afterwards would
+# put a number in a record that was never the request, which is precisely the class of
+# defect the "the REQUEST is never rewritten" rule exists to prevent.
+#
+# So the two stages are two OBJECTS, produced by two functions, on two disjoint rng
+# domains, and the resolved cardinality is a THIRD object built from both. Nothing is
+# mutated in place; a stage's record is written once and never revised.
+#
+#   PRE-SOLVE   `PreSolveCardinality`        A ~ U{2,3,4,5,6};  K | A ~ U{A, A+2}
+#      |                                     (drives the GENERATOR: the known-only world)
+#      v
+#   [ the known-only MATCH-AOU solve, on `p1_milp_v1`, inside `setup_episode` ]
+#      |
+#      v
+#   POST-SOLVE  `RouteRelativeHiddenLoad`    R = |routed egos|;  H ~ U{1, ..., R}
+#      |                                     (drives the LOCKED bounded-backoff placement)
+#      v
+#   RESOLVED    `EpisodeCardinality`         (A, K, H) with source
+#                                            `generalized_v2_route_relative`
+#
+# WHY `H <= R` RATHER THAN `H <= A`
+# ---------------------------------
+# The reviewed `bounded_backoff_v1` placement policy realizes AT MOST ONE hidden target per
+# ego route, so a request above `R` is unsatisfiable BY CONSTRUCTION and its shortfall
+# would say nothing about the world -- it would only re-measure the allocation. Bounding
+# the request by `R` makes a recorded shortfall mean what it is supposed to mean: the
+# LOCKED geometry refused a route it was offered. It is deliberately NOT a promise that
+# `H_realized == H_requested`; geometry stays authoritative, and a genuine geometric
+# refusal is still recorded, never repaired.
+#
+# RNG ISOLATION, AGAIN, AND FOR BOTH STAGES
+# -----------------------------------------
+# Each stage has its OWN SHA-256 domain, disjoint from each other and from
+# `generalized_cardinality_v1`, the three fuel-damage domains, the per-episode
+# hidden-placement rng, global `random` and torch. Both draws run on a `random.Random`
+# constructed here from a derived seed, so neither can move -- nor be moved by -- the
+# fuel-damage condition, the severity, the eligibility walk, the placement geometry or the
+# actor's action sampling.
+
+# --- stage 1: the PRE-SOLVE draw -----------------------------------------------------
+PRE_SOLVE_CARDINALITY_POLICY_V2: str = "generalized_v2_pre_solve_uniform_v1"
+V2_CARDINALITY_RNG_DOMAIN: str = "generalized_v2_cardinality_v1"
+
+# --- stage 2: the POST-SOLVE, ROUTE-RELATIVE draw -------------------------------------
+# The hidden-LOAD policy is a different question from the hidden-PLACEMENT policy, and the
+# two are kept as separate ids on purpose: V2 changes only WHICH NUMBER is requested, and
+# reuses `bounded_backoff_v1` placement completely unchanged.
+HIDDEN_LOAD_POLICY_EXPLICIT_V1: str = "explicit_request_v1"
+"""The HISTORICAL hidden-load policy: the caller states ``n_hidden`` outright.
+
+Every pre-V2 construction call resolves this, so ``fixed_cell_v1`` and ``generalized_v1``
+are unchanged by V2's existence -- their hidden load is still a number their caller
+computed before ``setup_episode`` was entered."""
+
+HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2: str = "route_relative_uniform_v2"
+"""GENERALIZED-V2: ``H_requested ~ Uniform({1, ..., R})``, resolved inside the
+construction path once the known-only solve has produced ``R``."""
+
+HIDDEN_LOAD_POLICIES: Tuple[str, ...] = (
+    HIDDEN_LOAD_POLICY_EXPLICIT_V1,
+    HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+)
+DEFAULT_HIDDEN_LOAD_POLICY: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1
+
+V2_HIDDEN_LOAD_RNG_DOMAIN: str = "generalized_v2_hidden_load_v1"
+
+
+def resolve_hidden_load_policy(policy: Any) -> str:
+    """The ONE site that validates a hidden-LOAD policy id.
+
+    An unknown id RAISES rather than falling back on the historical explicit request, for
+    the same reason an unknown design does: a run whose record claims a route-relative
+    population while a caller's fixed number produced its worlds is mislabelled, which is
+    worse than a crash.
+
+    Raises:
+        ValueError: the id is not one of :data:`HIDDEN_LOAD_POLICIES`.
+    """
+    key = str(policy)
+    if key not in HIDDEN_LOAD_POLICIES:
+        raise ValueError(
+            "unknown hidden_load_policy %r; expected one of %r"
+            % (policy, list(HIDDEN_LOAD_POLICIES))
+        )
+    return key
+
+
+def derive_v2_cardinality_seed(episode_seed: int) -> int:
+    """A 64-bit seed for the V2 PRE-SOLVE ``(A, K)`` draw, from the EPISODE SEED alone.
+
+    ``SHA-256("generalized_v2_cardinality_v1:<episode_seed>")`` truncated to 64 bits -- the
+    same construction as :func:`derive_cardinality_seed` and the three fuel-damage domains,
+    over a DISJOINT domain string, and deliberately not ``hash()`` (salted per process).
+    """
+    payload = "%s:%d" % (V2_CARDINALITY_RNG_DOMAIN, int(episode_seed))
+    digest = hashlib.sha256(payload.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def derive_hidden_load_seed(episode_seed: int) -> int:
+    """A 64-bit seed for the V2 POST-SOLVE ``H | R`` draw, from the EPISODE SEED alone.
+
+    Its OWN domain, disjoint from :data:`V2_CARDINALITY_RNG_DOMAIN`, so the hidden load and
+    the team/known shape are independent decisions in both directions.
+
+    ``R`` is deliberately NOT part of the seed payload: it enters the draw as the SUPPORT
+    (``randrange(R)``), which is where it belongs. The draw is therefore reproducible from
+    exactly the three things it is contracted to depend on -- the episode seed, this stable
+    domain id, and ``R`` -- and from nothing else.
+    """
+    payload = "%s:%d" % (V2_HIDDEN_LOAD_RNG_DOMAIN, int(episode_seed))
+    digest = hashlib.sha256(payload.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+@dataclass(frozen=True)
+class PreSolveCardinality:
+    """GENERALIZED-V2 STAGE 1: the world shape that must exist BEFORE the known-only solve.
+
+    It carries ``A`` and ``K`` and DELIBERATELY NOT a hidden count: at this point in the
+    episode there is no honest number to put there, and a placeholder would be read by
+    every downstream consumer as a request.
+
+    Frozen, like every population record in this module: the resolved cardinality is a NEW
+    object built from this one and the post-solve load (:func:`resolved_v2_cardinality`),
+    never this one with a field written into it.
+    """
+
+    agent_count: int
+    known_count: int
+    policy: str = PRE_SOLVE_CARDINALITY_POLICY_V2
+    rng_domain: str = V2_CARDINALITY_RNG_DOMAIN
+    derived_seed: Optional[int] = None
+    source: str = CARDINALITY_SOURCE_V2_PRE_SOLVE
+    """Where this half-cell came from, so a FAILURE ledger entry for an attempt that never
+    reached stage 2 still states its population truthfully -- and states it as a PRE-SOLVE
+    draw rather than as a completed route-relative cardinality it never became."""
+
+    def __post_init__(self) -> None:
+        if int(self.agent_count) < 1:
+            raise ValueError("agent_count must be >= 1, got %r" % (self.agent_count,))
+        if int(self.known_count) < 1:
+            raise ValueError("known_count must be >= 1, got %r" % (self.known_count,))
+
+    def to_record(self) -> Dict[str, Any]:
+        """A JSON-ready view (plain builtins only)."""
+        return {
+            "policy": str(self.policy),
+            "rng_domain": str(self.rng_domain),
+            "derived_seed": (
+                None if self.derived_seed is None else int(self.derived_seed)
+            ),
+            "agent_count": int(self.agent_count),
+            "known_requested": int(self.known_count),
+            "source": str(self.source),
+        }
+
+
+@dataclass(frozen=True)
+class RouteRelativeHiddenLoad:
+    """GENERALIZED-V2 STAGE 2: the hidden load, resolved against the REALIZED route count.
+
+    ``route_count`` is recorded beside ``hidden_requested`` rather than left implicit,
+    because a request of ``1`` means something entirely different at ``R = 1`` (the only
+    possible request) than at ``R = 6``, and a distribution of requests cannot be read
+    without the supports they were drawn from.
+    """
+
+    route_count: int
+    hidden_requested: int
+    policy: str = HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2
+    rng_domain: str = V2_HIDDEN_LOAD_RNG_DOMAIN
+    derived_seed: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if int(self.route_count) < 1:
+            raise ValueError(
+                "route_count must be >= 1: a world in which the known-only allocation "
+                "routed no ego has no route-relative hidden load to draw, got %r"
+                % (self.route_count,)
+            )
+        if not (1 <= int(self.hidden_requested) <= int(self.route_count)):
+            raise ValueError(
+                "hidden_requested must satisfy 1 <= H <= R, got H=%r for R=%r"
+                % (self.hidden_requested, self.route_count)
+            )
+
+    def to_record(self) -> Dict[str, Any]:
+        """A JSON-ready view (plain builtins only)."""
+        return {
+            "policy": str(self.policy),
+            "rng_domain": str(self.rng_domain),
+            "derived_seed": (
+                None if self.derived_seed is None else int(self.derived_seed)
+            ),
+            "route_count_at_hidden_resolution": int(self.route_count),
+            "hidden_requested": int(self.hidden_requested),
+        }
+
+
+def sample_generalized_v2_pre_solve_cardinality(
+    *, episode_seed: int
+) -> PreSolveCardinality:
+    """The approved GENERALIZED-V2 STAGE-1 draw: ``A``, then ``K | A``.
+
+    Exactly, and in this order:
+
+      1. ``A ~ Uniform(GENERALIZED_V2_AGENT_COUNTS)`` -- ``{2, 3, 4, 5, 6}``, MIRRORED from
+         the construction constraint so the sampler cannot draw a team size construction
+         would refuse;
+      2. ``K = A + Uniform(GENERALIZED_V2_KNOWN_OFFSETS)`` -- ``{A, A + 2}``, drawn
+         CONDITIONAL on ``A``.
+
+    No hidden count is drawn here, and none can be: it is a function of the known-only
+    allocation this cardinality has not produced yet.
+
+    Both index draws run on a ``random.Random`` constructed HERE from
+    :func:`derive_v2_cardinality_seed`, so this function consumes nothing from global
+    ``random``, from torch, or from any fuel-damage, placement or V1-cardinality stream.
+    They are written as explicit ``randrange`` calls so the exact number and order of draws
+    is a stated contract a test can pin.
+    """
+    derived = derive_v2_cardinality_seed(int(episode_seed))
+    rng = random.Random(derived)
+    counts = tuple(int(a) for a in GENERALIZED_V2_AGENT_COUNTS)
+    offsets = tuple(int(o) for o in GENERALIZED_V2_KNOWN_OFFSETS)
+    agent_count = counts[rng.randrange(len(counts))]
+    known_count = agent_count + offsets[rng.randrange(len(offsets))]
+    return PreSolveCardinality(
+        agent_count=int(agent_count),
+        known_count=int(known_count),
+        derived_seed=int(derived),
+    )
+
+
+def resolve_route_relative_hidden_load(
+    *, episode_seed: int, route_count: int
+) -> RouteRelativeHiddenLoad:
+    """The approved GENERALIZED-V2 STAGE-2 draw: ``H_requested ~ Uniform({1, ..., R})``.
+
+    ``route_count`` is the number of egos the known-only allocation really routed, counted
+    by ``graph_hidden_placement.routed_ordinals`` -- the same predicate the bounded-backoff
+    walk uses for its own ``no_route`` outcome, so the request can never exceed what the
+    walk is able to attempt.
+
+    ``R == 0`` RAISES rather than resolving to a zero request: a world whose known-only
+    allocation routed nobody has no route-relative hidden load, and a zero would be both an
+    invalid bounded-backoff request and a silent redefinition of the population.
+
+    The single index draw runs on a ``random.Random`` constructed HERE from
+    :func:`derive_hidden_load_seed`, on its own domain, so it perturbs no other stream and
+    no other stream can perturb it.
+
+    Raises:
+        ValueError: ``route_count`` is not a positive integer.
+    """
+    if isinstance(route_count, bool) or not isinstance(route_count, int):
+        raise ValueError(
+            "route_count must be an int, got %r of type %s"
+            % (route_count, type(route_count).__name__)
+        )
+    if int(route_count) < 1:
+        raise ValueError(
+            "route_count must be >= 1: the known-only allocation routed no ego, so this "
+            "world has no route-relative hidden load to draw (got %r)" % (route_count,)
+        )
+    derived = derive_hidden_load_seed(int(episode_seed))
+    rng = random.Random(derived)
+    hidden_requested = 1 + rng.randrange(int(route_count))
+    return RouteRelativeHiddenLoad(
+        route_count=int(route_count),
+        hidden_requested=int(hidden_requested),
+        derived_seed=int(derived),
+    )
+
+
+def resolved_v2_cardinality(
+    pre_solve: PreSolveCardinality, hidden_load: RouteRelativeHiddenLoad
+) -> EpisodeCardinality:
+    """Combine the two V2 stages into ONE resolved requested cardinality.
+
+    A NEW object built from both stages -- neither stage record is mutated, and both remain
+    available beside it, so "what was requested before the solve" and "what the route count
+    turned that into" stay separately readable.
+
+    The result is an ordinary :class:`EpisodeCardinality` carrying the
+    ``generalized_v2_route_relative`` source, so every downstream consumer that already
+    knows how to read a requested cell -- the scheduled-cell check, the construction audit
+    reconciliation, the per-episode record -- reads a V2 episode with no special case.
+    """
+    return EpisodeCardinality(
+        agent_count=int(pre_solve.agent_count),
+        known_count=int(pre_solve.known_count),
+        hidden_requested=int(hidden_load.hidden_requested),
+        source=CARDINALITY_SOURCE_V2_ROUTE_RELATIVE,
+    )
+
+
+def generalized_v2_cardinality_sampler_record() -> Dict[str, Any]:
+    """The V2 two-stage sampler's identity as a JSON-ready block for ``run_config.json``.
+
+    States both RULES and both rng domains, so a reader can check the distribution a run
+    sampled -- and the fact that the hidden load was resolved AFTER the solve -- without
+    reading this module.
+    """
+    return {
+        "policy": PRE_SOLVE_CARDINALITY_POLICY_V2,
+        "stages": 2,
+        "pre_solve": {
+            "policy": PRE_SOLVE_CARDINALITY_POLICY_V2,
+            "rng_domain": V2_CARDINALITY_RNG_DOMAIN,
+            "seed_construction":
+                "sha256('%s:<episode_seed>')[:8]" % V2_CARDINALITY_RNG_DOMAIN,
+            "agent_counts": [int(a) for a in GENERALIZED_V2_AGENT_COUNTS],
+            "agent_count_rule": "A ~ Uniform(agent_counts)",
+            "known_offsets": [int(o) for o in GENERALIZED_V2_KNOWN_OFFSETS],
+            "known_rule": "K | A ~ Uniform({A + o : o in known_offsets})",
+        },
+        "post_solve": {
+            "policy": HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
+            "rng_domain": V2_HIDDEN_LOAD_RNG_DOMAIN,
+            "seed_construction":
+                "sha256('%s:<episode_seed>')[:8]" % V2_HIDDEN_LOAD_RNG_DOMAIN,
+            "route_count_rule":
+                "R = |egos with a non-empty route in the known-only allocation|",
+            "hidden_requested_rule": "H_requested | R ~ Uniform({1, ..., R})",
+            "resolved_after_known_only_solve": True,
+        },
+        "required_match_aou_backend": GENERALIZED_V2_REQUIRED_BACKEND,
         "realized_hidden_may_be_short": True,
         "retry_on_short_realization": False,
     }

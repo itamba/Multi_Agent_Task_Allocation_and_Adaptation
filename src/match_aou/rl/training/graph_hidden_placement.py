@@ -167,6 +167,7 @@ __all__ = [
     "place_hidden_targets",
     "place_hidden_targets_bounded",
     "predict_route",
+    "routed_ordinals",
     "validate_placement",
 ]
 
@@ -1122,6 +1123,103 @@ def _candidate_substream_seeds(count: int, rng: random.Random) -> Tuple[int, ...
     return tuple(rng.getrandbits(64) for _ in range(int(count)))
 
 
+def _has_route(raw: Optional[Sequence[Assignment]]) -> bool:
+    """Does this ego carry a NON-EMPTY route in a known-only allocation?
+
+    THE ONE definition of "routed", extracted verbatim from the bounded-backoff walk's own
+    ``no_route`` branch so that the count a caller may resolve a hidden load against and
+    the count the walk can actually place against are the SAME predicate rather than two
+    that agree today. ``A_init`` is ALLOCATED-ONLY, so an ego the solver omitted entirely
+    is absent from the mapping (``None``) and an ego present with an empty list carries no
+    route either -- both are unroutable, and neither is an error.
+    """
+    return raw is not None and len(raw) > 0
+
+
+def _ordinal_roster(agent_ordinals: Sequence[str]) -> List[str]:
+    """Validate and normalize the authoritative pre-solve agent-id sequence.
+
+    Shared by the bounded walk and by :func:`routed_ordinals` so both refuse exactly the
+    same malformed rosters, with the same messages. Ordering NEVER derives from these
+    strings -- they are the episode-local identity attached to an ORDINAL, nothing more
+    (generated ids are not seed-derived, ``CLAUDE.md`` section 8).
+    """
+    ordinal_ids = [str(a) for a in agent_ordinals]
+    if not ordinal_ids:
+        raise HiddenPlacementError(
+            "agent_ordinals is empty: there is no candidate population to back off over"
+        )
+    if len(set(ordinal_ids)) != len(ordinal_ids):
+        raise HiddenPlacementError(
+            f"agent_ordinals holds duplicate ids {ordinal_ids}; an ordinal would not "
+            "address exactly one ego"
+        )
+    return ordinal_ids
+
+
+def _solution_by_ego(
+    solution: Mapping[str, Sequence[Assignment]], ordinal_ids: Sequence[str]
+) -> Dict[str, Sequence[Assignment]]:
+    """Key an allocated-only solution by ego id, refusing a roster it does not fit.
+
+    Shared by the bounded walk and by :func:`routed_ordinals`, for the same reason
+    :func:`_ordinal_roster` is: a route count taken against a roster the walk would have
+    refused would be a number about a population that cannot be walked.
+    """
+    by_ego: Dict[str, Sequence[Assignment]] = {}
+    for key, value in solution.items():
+        ego_id = str(key)
+        if ego_id in by_ego:
+            raise HiddenPlacementError(f"solution has duplicate ego id {ego_id!r} after str()")
+        by_ego[ego_id] = value
+    stray = sorted(set(by_ego) - set(ordinal_ids))
+    if stray:
+        raise HiddenPlacementError(
+            f"solution names ego(s) {stray} absent from agent_ordinals; the ordinal roster "
+            "is not authoritative for this solution"
+        )
+    return by_ego
+
+
+def routed_ordinals(
+    solution: Mapping[str, Sequence[Assignment]],
+    agent_ordinals: Sequence[str],
+) -> Tuple[int, ...]:
+    """The ORDINALS of the egos a known-only allocation actually gave a route to.
+
+    ``R = len(routed_ordinals(...))`` is the quantity a ROUTE-RELATIVE hidden-load policy
+    resolves its request against, and it is deliberately defined HERE, beside the walk
+    that has to honour it, through the same :func:`_has_route` predicate the walk's own
+    ``no_route`` branch uses. Two definitions that agree today are exactly how a request
+    silently becomes unsatisfiable later.
+
+    PURE and READ-ONLY: it consumes no randomness, mutates nothing, and predicts no
+    geometry -- an ego with a route may still be rejected by the LOCKED geometry, which is
+    why this is an upper bound on what a walk can realize and never a promise about it.
+
+    Ordinals, never id text: a candidate's identity is its INDEX in the authoritative
+    pre-solve agent sequence, because generated agent ids are not seed-derived
+    (``CLAUDE.md`` section 8).
+
+    Args:
+        solution: the known-only ``A_init``. ALLOCATED-ONLY, so it may omit egos entirely.
+        agent_ordinals: the authoritative pre-solve agent-id sequence, in world order.
+
+    Returns:
+        The routed ordinals in ASCENDING ordinal order.
+
+    Raises:
+        HiddenPlacementError: an empty or duplicated ordinal roster, or a solution naming
+            an ego outside it -- the same refusals the bounded walk makes.
+    """
+    ordinal_ids = _ordinal_roster(agent_ordinals)
+    by_ego = _solution_by_ego(solution, ordinal_ids)
+    return tuple(
+        ordinal for ordinal, ego_id in enumerate(ordinal_ids)
+        if _has_route(by_ego.get(ego_id))
+    )
+
+
 def place_hidden_targets_bounded(
     solution: Mapping[str, Sequence[Assignment]],
     belief_tasks: Sequence[Task],
@@ -1201,29 +1299,11 @@ def place_hidden_targets_bounded(
             f"{hidden_requested}"
         )
 
-    ordinal_ids = [str(a) for a in agent_ordinals]
-    if not ordinal_ids:
-        raise HiddenPlacementError(
-            "agent_ordinals is empty: there is no candidate population to back off over"
-        )
-    if len(set(ordinal_ids)) != len(ordinal_ids):
-        raise HiddenPlacementError(
-            f"agent_ordinals holds duplicate ids {ordinal_ids}; an ordinal would not "
-            "address exactly one ego"
-        )
-
-    by_ego: Dict[str, Sequence[Assignment]] = {}
-    for key, value in solution.items():
-        ego_id = str(key)
-        if ego_id in by_ego:
-            raise HiddenPlacementError(f"solution has duplicate ego id {ego_id!r} after str()")
-        by_ego[ego_id] = value
-    stray = sorted(set(by_ego) - set(ordinal_ids))
-    if stray:
-        raise HiddenPlacementError(
-            f"solution names ego(s) {stray} absent from agent_ordinals; the ordinal roster "
-            "is not authoritative for this solution"
-        )
+    # The SAME roster / solution validation `routed_ordinals` performs, through the same
+    # two helpers, so a route count taken outside this walk can never disagree with what
+    # the walk itself would accept.
+    ordinal_ids = _ordinal_roster(agent_ordinals)
+    by_ego = _solution_by_ego(solution, ordinal_ids)
 
     # (1) and (2) BOTH happen before any candidate is attempted, so no attempt outcome can
     # move another candidate's geometry stream or the episode rng's end position.
@@ -1241,7 +1321,7 @@ def place_hidden_targets_bounded(
         considered.append(ordinal)
         ego_id = ordinal_ids[ordinal]
         raw = by_ego.get(ego_id)
-        if raw is None or len(raw) == 0:
+        if not _has_route(raw):
             candidates.append(
                 BackoffCandidate(
                     ordinal=ordinal, ego_id=ego_id, accepted=False,
