@@ -3183,5 +3183,86 @@ def test_v2fix_omitting_the_recorder_changes_nothing_about_the_episode() -> None
     assert b.construction_audit.as_dict() == a.construction_audit.as_dict()
 
 
+# =============================================================================
+# GENERALIZED-V2 BENCHMARK -- the typed R == 0 classification
+# =============================================================================
+#
+# The V2 benchmark preflight replaces an `R == 0` candidate, and it must be able to tell
+# that refusal apart from every other `RuntimeError` WITHOUT reading message prose. Both
+# semantically equivalent V2 sources therefore raise `RouteRelativeNoRoutesError` with a
+# stable `reason`; every historical path keeps its plain `RuntimeError`.
+
+
+def _zero_route_setup(solution, *, route_relative: bool, recorder=None):
+    """Drive the REAL construction seam to its known-only solve with `solution` returned."""
+    agents = [_agent("ego_0"), _agent("ego_1")]
+    known_tasks = [_task("k0"), _task("k1")]
+
+    def _solve(agents_, tasks_, precedence_relations=None):
+        return solution, list(tasks_), []
+
+    def _forbidden(*_a, **_k):
+        raise AssertionError("placement ran after a zero-route known-only solve")
+
+    policy_kwargs = (
+        dict(hidden_load_policy=HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2, hidden_load_seed=3,
+             known_requested=2, population_recorder=recorder)
+        if route_relative else dict(n_hidden=2)
+    )
+    with _patched(
+        _setup,
+        _build_env=lambda *a, **k: (None, _StubEnv("env1"), "obs1"),
+        _extract_world=lambda obs, color: (agents, known_tasks),
+        _require_airbase_only_targets=lambda obs, color: None,
+        _shared_launch_point=lambda agents_: Location(32.0, 35.0),
+        place_hidden_targets_bounded=_forbidden,
+        place_hidden_targets=_forbidden,
+        solve_and_normalize=_solve,
+    ):
+        return setup_episode(
+            "{}", placement_rng=random.Random(0),
+            hidden_policy=HIDDEN_POLICY_BOUNDED_BACKOFF_V1, **policy_kwargs)
+
+
+def _caught(fn, *args, **kwargs):
+    try:
+        fn(*args, **kwargs)
+    except BaseException as exc:          # noqa: BLE001 -- the TYPE is what is asserted
+        return exc
+    raise AssertionError("no exception was raised")
+
+
+def test_v2typed_an_empty_known_only_allocation_is_the_typed_no_routes_refusal() -> None:
+    """Source (1): the known-only solve allocated nothing, under the V2 contract."""
+    recorder = RouteRelativePopulationRecorder()
+    exc = _caught(_zero_route_setup, {}, route_relative=True, recorder=recorder)
+    assert type(exc) is _setup.RouteRelativeNoRoutesError, type(exc)
+    assert exc.reason == _setup.ROUTE_RELATIVE_NO_ROUTES == "route_relative_no_routes"
+    # Classification only: the SAME message text, the SAME rejection point, and still a
+    # RuntimeError for every existing handler.
+    assert isinstance(exc, RuntimeError)
+    assert "the known-only solve allocated nothing" in str(exc)
+    assert not recorder.resolved, "no hidden load may be drawn for R == 0"
+
+
+def test_v2typed_an_allocation_that_routes_nobody_is_the_same_typed_refusal() -> None:
+    """Source (2): a non-empty allocation in which no scheduled ego carries a route."""
+    recorder = RouteRelativePopulationRecorder()
+    exc = _caught(_zero_route_setup, {"ego_0": [], "ego_1": []}, route_relative=True,
+                  recorder=recorder)
+    assert type(exc) is _setup.RouteRelativeNoRoutesError, type(exc)
+    assert exc.reason == _setup.ROUTE_RELATIVE_NO_ROUTES
+    assert "routed none of the 2 scheduled ego(s)" in str(exc)
+    assert not recorder.resolved
+
+
+def test_v2typed_the_historical_empty_allocation_keeps_its_plain_runtime_error() -> None:
+    """The explicit-request (V1) path is UNCHANGED: a plain RuntimeError, same text."""
+    exc = _caught(_zero_route_setup, {}, route_relative=False)
+    assert type(exc) is RuntimeError, type(exc)
+    assert not isinstance(exc, _setup.RouteRelativeNoRoutesError)
+    assert "the known-only solve allocated nothing" in str(exc)
+
+
 if __name__ == "__main__":
     _run_all()

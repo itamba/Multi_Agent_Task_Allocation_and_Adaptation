@@ -109,14 +109,19 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 
-from .graph_episode_setup import setup_episode
+from .graph_episode_setup import (
+    RouteRelativeNoRoutesError,
+    RouteRelativePopulationRecorder,
+    setup_episode,
+)
 from .graph_fuel_damage import (
     FD_ELIGIBILITY_REJECTION_REASONS,
     NO_FD_ELIGIBLE_EGO,
+    FuelDamageError,
     FuelDamageIntegrityError,
     build_fuel_damage_controller,
 )
@@ -125,22 +130,37 @@ from .graph_generalized import (
     BENCHMARK_MEMBERS,
     CARDINALITY_SOURCE_BENCHMARK,
     EPISODE_DESIGN_GENERALIZED_V1,
+    EPISODE_DESIGN_GENERALIZED_V2,
+    GENERALIZED_V2_REQUIRED_BACKEND,
+    V2_BENCHMARK_BASE_CELLS,
+    V2_BENCHMARK_WORLDS_PER_CELL,
     BenchmarkIdentityError,
     BenchmarkManifest,
     EpisodeCardinality,
+    V2BenchmarkManifest,
+    V2WorldIdentity,
+    V2WorldPreflight,
     WorldPreflight,
     base_cell_key,
     build_benchmark_manifest,
+    build_v2_benchmark_manifest,
     hidden_requested_for,
     identity_differences,
+    resolved_v2_cardinality,
+    v2_base_cell_key,
+    v2_benchmark_pre_solve_cardinality,
+    v2_identity_differences,
+    v2_profile_for_ordinal,
     write_benchmark_manifest,
 )
+from .graph_hidden_placement import HiddenPlacementError
 from ...solvers.match_aou_backend import (
     MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
     MATCH_AOU_BACKENDS,
     MatchAouBackendError,
     resolve_match_aou_backend,
 )
+from ...utils.blade_utils.scenario_generator import TargetPlacementError
 from .graph_reward import ReferenceIntegrityError, reference_fault_aborts
 from .graph_train import (
     _REPO_ROOT,
@@ -152,9 +172,12 @@ from .graph_train import (
     _backend_setup_kwargs,
     _generalized_setup_kwargs,
     _git_provenance,
+    _observe_v2_world_identity,
     _observe_world_identity,
     _require_scheduled_cell,
     _scheduled_cell,
+    _v2_allocation_fingerprint,
+    _v2_hidden_load_kwargs,
     build_variation_config,
 )
 
@@ -347,7 +370,7 @@ class CellWindow:
 class PreflightResult:
     """Everything one preflight produced: the frozen population and its audit trail."""
 
-    manifest: BenchmarkManifest
+    manifest: Union[BenchmarkManifest, V2BenchmarkManifest]
     manifest_path: Optional[Path]
     report: Dict[str, Any]
     report_path: Optional[Path]
@@ -739,7 +762,22 @@ def run_benchmark_preflight(
             and leave both attributes ``None``.
         MeasurementIntegrityError / FuelDamageIntegrityError / BenchmarkIdentityError:
             an instrument fault -- never replaced, never recorded as a rejection.
+
+    DESIGN-AWARE. A ``generalized_v2`` config is delegated, before anything else, to the
+    SEPARATE ten-cell V2 selection (:func:`_run_v2_benchmark_preflight`), whose probe and
+    rejection routing differ (see :func:`probe_v2_world`). The body below is the V1
+    selection and is unchanged.
     """
+    if cfg.design.route_relative_population:
+        return _run_v2_benchmark_preflight(
+            cfg,
+            worlds_per_cell=worlds_per_cell,
+            benchmark_base_seed=benchmark_base_seed,
+            max_candidates_per_cell=max_candidates_per_cell,
+            output_dir=output_dir, manifest_name=manifest_name, report_name=report_name,
+            probe=probe, generator=generator, label=label, notes=notes,
+            provenance=provenance,
+        )
     _require_preflight_config(cfg)
     if int(worlds_per_cell) < 1:
         raise BenchmarkPreflightError(
@@ -1132,6 +1170,619 @@ def _build_report(
     }
 
 
+# =============================================================================
+# 4b. GENERALIZED-V2: the ten-cell selection, with FAIL-CLOSED replacement
+# =============================================================================
+#
+# The same deterministic per-cell window discipline as V1 -- ten independent windows, one
+# per exogenous `(A, K-A)` base cell, candidates in ascending seed order, each attempted
+# EXACTLY ONCE, the walk stopping at the quota -- with THREE differences the V2 design
+# requires:
+#
+#   * THE QUOTA IS THE DESIGN: exactly twelve worlds per cell (both profiles complete).
+#   * ACCEPTANCE IS POPULATION-BLIND ON `R`, `H` AND `H/R`: a world is accepted because it
+#     is ELIGIBLE, never because of what route count or hidden request it turned out to
+#     have. The actual stage-2 record is FROZEN, never redrawn.
+#   * REPLACEMENT IS FAIL-CLOSED: only the explicitly recognized world-level construction /
+#     certification refusals below spend a seed and advance. Every other exception --
+#     integrity, backend / configuration, identity, reconstruction, or simply UNKNOWN --
+#     propagates and aborts. No message text is parsed except the published
+#     `NO_FD_ELIGIBLE_EGO` marker constant, exactly as the V1 routing reads it.
+
+PREFLIGHT_V2_SCHEMA: str = "generalized_v2_benchmark_preflight_report"
+PREFLIGHT_V2_SCHEMA_VERSION: int = 1
+PREFLIGHT_V2_POLICY: str = "deterministic_per_cell_window_fail_closed_v2"
+
+# The CLOSED set of V2 replacement-eligible rejection reasons (stable slugs).
+V2_REJECTION_GENERATOR_PLACEMENT: str = "generator_target_placement_refused"
+V2_REJECTION_NO_ROUTES: str = RouteRelativeNoRoutesError.reason
+V2_REJECTION_HIDDEN_PLACEMENT: str = "hidden_placement_refused"
+V2_REJECTION_NO_FD_ELIGIBLE_EGO: str = NO_FD_ELIGIBLE_EGO
+V2_REJECTION_REASONS: Tuple[str, ...] = (
+    V2_REJECTION_GENERATOR_PLACEMENT,
+    V2_REJECTION_NO_ROUTES,
+    V2_REJECTION_HIDDEN_PLACEMENT,
+    V2_REJECTION_NO_FD_ELIGIBLE_EGO,
+)
+
+
+def v2_rejection_reason(
+    exc: BaseException,
+) -> Optional[Tuple[str, str, Tuple[str, ...]]]:
+    """``(pipeline_stage, reason, detail_reasons)`` for a RECOGNIZED V2 rejection, else ``None``.
+
+    FAIL-CLOSED: ``None`` means "not replacement-eligible", and the caller re-raises. Only
+    four shapes are recognized, each by TYPE and pipeline stage:
+
+      * ``generation`` + :class:`TargetPlacementError` -- the strict generator could not
+        place this cell's known targets for this seed;
+      * ``setup`` + :class:`RouteRelativeNoRoutesError` -- ``R == 0``, the route-relative
+        hidden load is undefined (its own stable ``reason``);
+      * ``setup`` + :class:`HiddenPlacementError` -- bounded backoff realized nothing;
+      * ``setup`` + :class:`FuelDamageError` carrying the published
+        :data:`NO_FD_ELIGIBLE_EGO` marker -- no ego certifies both severities.
+
+    A bare exception that is not an :class:`EpisodeAttemptError` (the probe wraps every
+    ordinary pipeline failure in one) is never recognized.
+    """
+    if not isinstance(exc, EpisodeAttemptError):
+        return None
+    stage = str(exc.stage)
+    original = exc.original
+    if stage == "generation" and isinstance(original, TargetPlacementError):
+        return stage, V2_REJECTION_GENERATOR_PLACEMENT, ()
+    if stage != "setup":
+        return None
+    if isinstance(original, RouteRelativeNoRoutesError):
+        return stage, str(original.reason), ()
+    if isinstance(original, HiddenPlacementError):
+        return stage, V2_REJECTION_HIDDEN_PLACEMENT, ()
+    if (isinstance(original, FuelDamageError)
+            and not isinstance(original, FuelDamageIntegrityError)
+            and NO_FD_ELIGIBLE_EGO in str(original)):
+        details = tuple(s for s in FD_ELIGIBILITY_REJECTION_REASONS if s in str(original))
+        return stage, V2_REJECTION_NO_FD_ELIGIBLE_EGO, details
+    return None
+
+
+@dataclass(frozen=True)
+class V2CellWindow:
+    """One V2 base cell's INDEPENDENT half-open candidate-seed window."""
+
+    ordinal: int
+    agent_count: int
+    known_offset: int
+    start: int
+    stop: int
+
+    @property
+    def key(self) -> str:
+        return v2_base_cell_key(self.agent_count, self.known_offset)
+
+    @property
+    def known_count(self) -> int:
+        return int(self.agent_count) + int(self.known_offset)
+
+    def seeds(self) -> Tuple[int, ...]:
+        return tuple(range(int(self.start), int(self.stop)))
+
+    def to_record(self) -> Dict[str, Any]:
+        return {
+            "base_cell": self.key,
+            "base_cell_ordinal": int(self.ordinal),
+            "agent_count": int(self.agent_count),
+            "known_offset": int(self.known_offset),
+            "known_requested": self.known_count,
+            "candidate_window": {
+                "start": int(self.start), "stop": int(self.stop), "half_open": True,
+                "size": int(self.stop) - int(self.start),
+            },
+        }
+
+
+def v2_cell_windows(
+    *, benchmark_base_seed: int, max_candidates_per_cell: int
+) -> Tuple[V2CellWindow, ...]:
+    """The TEN independent V2 windows: cell ``c`` owns ``[base + c*M, base + (c+1)*M)``."""
+    base = int(benchmark_base_seed)
+    width = int(max_candidates_per_cell)
+    if base < 0:
+        raise BenchmarkPreflightError(
+            "benchmark_base_seed must be >= 0, got %r" % (benchmark_base_seed,))
+    if width < 1:
+        raise BenchmarkPreflightError(
+            "max_candidates_per_cell must be >= 1, got %r" % (max_candidates_per_cell,))
+    return tuple(
+        V2CellWindow(ordinal=c, agent_count=int(a), known_offset=int(d),
+                     start=base + c * width, stop=base + (c + 1) * width)
+        for c, (a, d) in enumerate(V2_BENCHMARK_BASE_CELLS)
+    )
+
+
+@dataclass(frozen=True)
+class V2CandidateOutcome:
+    """The durable record of ONE attempted V2 candidate world (accepted or rejected)."""
+
+    base_cell_key: str
+    agent_count: int
+    known_offset: int
+    candidate_ordinal: int
+    seed: int
+    outcome: str
+    seconds: float
+    world_ordinal: Optional[int] = None
+    route_count: Optional[int] = None
+    hidden_requested: Optional[int] = None
+    hidden_realized: Optional[int] = None
+    known_realized: Optional[int] = None
+    allocation_fingerprint: Optional[str] = None
+    fd_selected_ordinal: Optional[int] = None
+    fd_certificate_fingerprint: Optional[str] = None
+    construction_audit: Optional[Dict[str, Any]] = None
+    pipeline_stage: Optional[str] = None
+    error_type: Optional[str] = None
+    reason: Optional[str] = None
+    detail_reasons: Tuple[str, ...] = ()
+    message: Optional[str] = None
+
+    @property
+    def accepted(self) -> bool:
+        return self.outcome == CANDIDATE_ACCEPTED
+
+    def to_record(self) -> Dict[str, Any]:
+        return {
+            "base_cell": self.base_cell_key,
+            "agent_count": int(self.agent_count),
+            "known_offset": int(self.known_offset),
+            "candidate_ordinal": int(self.candidate_ordinal),
+            "seed": int(self.seed),
+            "outcome": str(self.outcome),
+            "world_ordinal": self.world_ordinal,
+            "profile": (None if self.world_ordinal is None
+                        else v2_profile_for_ordinal(int(self.world_ordinal))),
+            # The stage-2 facts where they exist -- a rejected candidate that died after
+            # stage 2 still states the R and H it really received.
+            "route_count": self.route_count,
+            "hidden_requested": self.hidden_requested,
+            "hidden_realized": self.hidden_realized,
+            "hidden_short_realized": (
+                None if self.hidden_realized is None or self.hidden_requested is None
+                else bool(int(self.hidden_realized) < int(self.hidden_requested))),
+            "known_realized": self.known_realized,
+            "allocation_fingerprint": self.allocation_fingerprint,
+            "fd_selected_ordinal": self.fd_selected_ordinal,
+            "fd_certificate_fingerprint": self.fd_certificate_fingerprint,
+            "construction_audit": self.construction_audit,
+            "pipeline_stage": self.pipeline_stage,
+            "error_type": self.error_type,
+            "reason": self.reason,
+            "detail_reasons": list(self.detail_reasons),
+            "message": self.message,
+            "seconds": float(self.seconds),
+        }
+
+
+def probe_v2_world(
+    cfg: TrainConfig,
+    gen: Any,
+    *,
+    seed: int,
+    agent_count: int,
+    known_offset: int,
+    population_recorder: RouteRelativePopulationRecorder,
+) -> V2WorldPreflight:
+    """CONSTRUCT one V2 candidate world through the PRODUCTION route-relative path, or RAISE.
+
+    The same pipeline prefix a V2 evaluation member runs: the same reseed, the base cell's
+    fixed ``(A, K)`` handed to the generator, ``setup_episode`` with NO predeclared hidden
+    count and the route-relative policy seeded by the SAME episode seed, the design's
+    generalized policies and ``p1_milp_v1``. The ACTUAL ``ctx.route_relative_load`` is
+    read and frozen -- never redrawn -- and must be the very object the caller's recorder
+    holds. All three FD plans are then built and the three members' V2 identities must
+    agree (a disagreement is a :class:`BenchmarkIdentityError`, never a rejection).
+
+    NO POLICY IS BUILT AND NO EPISODE IS RUN; no reward, return or behaviour exists here.
+    ``population_recorder`` is caller-owned so a rejected candidate that failed after
+    stage 2 still reports the ``R`` and ``H`` it received.
+    """
+    pre = v2_benchmark_pre_solve_cardinality(
+        agent_count=int(agent_count), known_offset=int(known_offset))
+    random.seed(int(seed))
+    torch.manual_seed(int(seed))
+    try:
+        var = build_variation_config(cfg, int(seed), cardinality=pre)
+        scenario_path = gen.generate(episode=int(seed), config=var)
+    except Exception as exc:
+        raise EpisodeAttemptError("generation", exc) from exc
+
+    ctx = None
+    try:
+        try:
+            ctx = setup_episode(
+                Path(scenario_path).read_text(encoding="utf-8"),
+                placement_rng=random.Random(int(seed)),
+                **_v2_hidden_load_kwargs(cfg, int(seed), pre,
+                                         recorder=population_recorder),
+                **_generalized_setup_kwargs(cfg),
+                **_backend_setup_kwargs(cfg),
+            )
+        except MatchAouBackendError:
+            raise
+        except Exception as exc:
+            raise EpisodeAttemptError("setup", exc) from exc
+
+        load = getattr(ctx, "route_relative_load", None)
+        if load is None or population_recorder.load is not load:
+            raise MeasurementIntegrityError(
+                "candidate seed %d: the context's route-relative hidden-load record and "
+                "the caller's recorder disagree, so the frozen stage-2 draw cannot be "
+                "stated" % int(seed))
+        cell = resolved_v2_cardinality(pre, load)
+        roster = _episode_target_roster(ctx)
+        scheduled = _scheduled_cell(cell, getattr(ctx, "construction_audit", None))
+        _require_scheduled_cell(roster, scheduled)
+        allocation_fingerprint = _v2_allocation_fingerprint(ctx)
+
+        identities: Dict[str, V2WorldIdentity] = {}
+        for member_cell, mode in BENCHMARK_MEMBERS:
+            try:
+                controller = build_fuel_damage_controller(
+                    ctx, episode_seed=int(seed), params=cfg.fuel_damage_parameters(mode))
+            except FuelDamageIntegrityError:
+                raise
+            except Exception as exc:
+                raise EpisodeAttemptError("setup", exc) from exc
+            identities[member_cell] = _observe_v2_world_identity(
+                seed=int(seed), pre_solve=pre, route_relative_load=load,
+                match_aou_backend=cfg.match_aou_backend,
+                allocation_fingerprint=allocation_fingerprint,
+                world_identity=_observe_world_identity(
+                    ctx, roster=roster, fd_plan_record=controller.plan.to_record()),
+            )
+        cells = list(identities)
+        for member_cell in cells[1:]:
+            wrong = v2_identity_differences(identities[cells[0]], identities[member_cell])
+            if wrong:
+                raise BenchmarkIdentityError(
+                    "candidate seed %d: V2 benchmark members %r and %r did not describe "
+                    "the same world (%s)." % (int(seed), cells[0], member_cell,
+                                              "; ".join(wrong)))
+        audit = getattr(ctx, "construction_audit", None)
+        return V2WorldPreflight(
+            identity=identities[cells[0]],
+            hidden_load=load.to_record(),
+            construction_audit=None if audit is None else audit.as_dict(),
+        )
+    finally:
+        if ctx is not None:
+            try:
+                ctx.env.close()
+            except Exception:
+                pass
+
+
+def _require_v2_preflight_config(cfg: TrainConfig) -> None:
+    """The config must describe EXACTLY ``generalized_v2`` on ``p1_milp_v1``, or refuse."""
+    if not cfg.design.route_relative_population:
+        raise BenchmarkPreflightError(
+            "the V2 benchmark preflight requires episode_design=%r, got %r"
+            % (EPISODE_DESIGN_GENERALIZED_V2, cfg.episode_design))
+    if resolve_match_aou_backend(cfg.match_aou_backend) != GENERALIZED_V2_REQUIRED_BACKEND:
+        raise BenchmarkPreflightError(
+            "episode_design=%r requires match_aou_backend=%r, got %r: the route count the "
+            "benchmark freezes is defined against that objective. Refused, never "
+            "overridden." % (EPISODE_DESIGN_GENERALIZED_V2,
+                             GENERALIZED_V2_REQUIRED_BACKEND, cfg.match_aou_backend))
+    if bool(cfg.include_sams):
+        raise BenchmarkPreflightError(
+            "include_sams=True is not supported on the construction path")
+    if float(cfg.min_target_distance_km) <= 0.0:
+        raise BenchmarkPreflightError(
+            "min_target_distance_km must be > 0, got %r" % (cfg.min_target_distance_km,))
+    if float(cfg.min_known_separation_km) < 0.0:
+        raise BenchmarkPreflightError(
+            "min_known_separation_km must be >= 0, got %r" % (cfg.min_known_separation_km,))
+    cfg.fuel_damage_parameters().validate()
+
+
+V2ProbeFn = Callable[..., V2WorldPreflight]
+
+
+def _scan_v2_cell(
+    cfg: TrainConfig, gen: Any, window: V2CellWindow, *, probe: V2ProbeFn,
+) -> Tuple[List[Tuple[int, V2WorldPreflight]], List[V2CandidateOutcome]]:
+    """Scan ONE V2 window; accept the first twelve ELIGIBLE worlds. Decides nothing else.
+
+    Acceptance never reads ``R``, ``H`` or ``H/R``. A RECOGNIZED rejection
+    (:func:`v2_rejection_reason`) is recorded once, its seed is spent, and the next seed
+    replaces it; ANY other exception propagates -- fail closed.
+    """
+    quota = V2_BENCHMARK_WORLDS_PER_CELL
+    accepted: List[Tuple[int, V2WorldPreflight]] = []
+    outcomes: List[V2CandidateOutcome] = []
+    for candidate_ordinal, seed in enumerate(window.seeds()):
+        if len(accepted) >= quota:
+            break
+        t0 = time.perf_counter()
+        recorder = RouteRelativePopulationRecorder()
+        try:
+            preflight = probe(
+                cfg, gen, seed=int(seed), agent_count=int(window.agent_count),
+                known_offset=int(window.known_offset), population_recorder=recorder)
+        except Exception as exc:
+            recognized = v2_rejection_reason(exc)
+            if recognized is None:
+                raise
+            stage, reason, details = recognized
+            load = recorder.load
+            original = getattr(exc, "original", exc)
+            outcomes.append(V2CandidateOutcome(
+                base_cell_key=window.key, agent_count=int(window.agent_count),
+                known_offset=int(window.known_offset),
+                candidate_ordinal=int(candidate_ordinal), seed=int(seed),
+                outcome=CANDIDATE_REJECTED, seconds=time.perf_counter() - t0,
+                route_count=None if load is None else int(load.route_count),
+                hidden_requested=None if load is None else int(load.hidden_requested),
+                pipeline_stage=stage, error_type=type(original).__name__,
+                reason=reason, detail_reasons=details, message=str(original),
+            ))
+            continue
+        ident = preflight.identity
+        world_ordinal = len(accepted)
+        accepted.append((int(seed), preflight))
+        outcomes.append(V2CandidateOutcome(
+            base_cell_key=window.key, agent_count=int(window.agent_count),
+            known_offset=int(window.known_offset),
+            candidate_ordinal=int(candidate_ordinal), seed=int(seed),
+            outcome=CANDIDATE_ACCEPTED, seconds=time.perf_counter() - t0,
+            world_ordinal=int(world_ordinal), route_count=int(ident.route_count),
+            hidden_requested=int(ident.hidden_requested),
+            hidden_realized=int(ident.hidden_realized),
+            known_realized=int(ident.known_realized),
+            allocation_fingerprint=str(ident.allocation_fingerprint),
+            fd_selected_ordinal=ident.fd_selected_ordinal,
+            fd_certificate_fingerprint=ident.fd_certificate_fingerprint,
+            construction_audit=preflight.construction_audit,
+        ))
+    return accepted, outcomes
+
+
+def _v2_cell_block(
+    window: V2CellWindow, accepted: Sequence[Tuple[int, V2WorldPreflight]],
+    outcomes: Sequence[V2CandidateOutcome],
+) -> Dict[str, Any]:
+    block = window.to_record()
+    n_accepted = sum(1 for o in outcomes if o.accepted)
+    rejected = [o for o in outcomes if not o.accepted]
+    block.update({
+        "worlds_requested": V2_BENCHMARK_WORLDS_PER_CELL,
+        "n_candidates_attempted": len(outcomes),
+        "n_accepted": n_accepted,
+        "n_rejected": len(rejected),
+        "worlds_missing": max(V2_BENCHMARK_WORLDS_PER_CELL - n_accepted, 0),
+        "window_exhausted": bool(n_accepted < V2_BENCHMARK_WORLDS_PER_CELL),
+        "accepted_seeds": [int(seed) for seed, _p in accepted],
+        "attempted_seeds": [int(o.seed) for o in outcomes],
+        "rejection_reasons": _tally([str(o.reason) for o in rejected]),
+        "rejection_detail_reasons": _tally(
+            [slug for o in rejected for slug in o.detail_reasons]),
+        # REPORTED descriptors of the ACCEPTED worlds -- never quotas, never judged.
+        "route_count_histogram": _tally(
+            [str(o.route_count) for o in outcomes if o.accepted]),
+        "hidden_requested_given_route_count": _tally(
+            ["R%d:H%d" % (o.route_count, o.hidden_requested)
+             for o in outcomes if o.accepted]),
+        "hidden_requested_vs_realized": _tally(
+            ["%d->%d" % (o.hidden_requested, o.hidden_realized)
+             for o in outcomes if o.accepted]),
+        "candidates": [o.to_record() for o in outcomes],
+    })
+    return block
+
+
+def _build_v2_report(
+    cfg: TrainConfig, *, status: str, git_info: Dict[str, Any],
+    windows: Sequence[V2CellWindow], benchmark_base_seed: int,
+    max_candidates_per_cell: int, cell_blocks: List[Dict[str, Any]],
+    all_candidates: List[V2CandidateOutcome],
+    manifest: Optional[V2BenchmarkManifest], manifest_path: Optional[Path],
+    stale_manifest_path: Optional[str], failure: Optional[Dict[str, Any]],
+    seconds: float,
+) -> Dict[str, Any]:
+    """ONE V2 build-report site for both outcomes; ``status`` is the one deciding field."""
+    if str(status) not in PREFLIGHT_STATUSES:
+        raise BenchmarkPreflightError("unknown preflight status %r" % (status,))
+    complete = str(status) == PREFLIGHT_STATUS_COMPLETE
+    accepted = [o for o in all_candidates if o.accepted]
+    rejected = [o for o in all_candidates if not o.accepted]
+    return {
+        "schema": PREFLIGHT_V2_SCHEMA,
+        "schema_version": PREFLIGHT_V2_SCHEMA_VERSION,
+        "policy": PREFLIGHT_V2_POLICY,
+        "design": EPISODE_DESIGN_GENERALIZED_V2,
+        "status": str(status),
+        "complete": bool(complete),
+        "manifest_written": bool(complete and manifest_path is not None),
+        "generated_utc": datetime.now(timezone.utc).isoformat(),
+        "provenance": {"git": git_info},
+        "request": {
+            "worlds_per_cell": V2_BENCHMARK_WORLDS_PER_CELL,
+            "benchmark_base_seed": int(benchmark_base_seed),
+            "max_candidates_per_cell": int(max_candidates_per_cell),
+            "n_base_cells": len(windows),
+            "candidate_seed_span": {
+                "start": int(benchmark_base_seed),
+                "stop": int(benchmark_base_seed) + len(windows) * int(max_candidates_per_cell),
+                "half_open": True,
+            },
+        },
+        "replacement_policy": {
+            "recognized_rejection_reasons": list(V2_REJECTION_REASONS),
+            "unrecognized_exceptions": "propagate_and_abort",
+            "acceptance_reads_route_count_or_hidden_load": False,
+        },
+        "episode_design": cfg.design.to_record(),
+        "match_aou_backend": resolve_match_aou_backend(cfg.match_aou_backend),
+        "fuel_damage": cfg.fuel_damage_parameters().to_record(),
+        "geometry": {
+            "min_target_distance_km": float(cfg.min_target_distance_km),
+            "min_known_separation_km": float(cfg.min_known_separation_km),
+            "stretch_target_ratio": float(cfg.stretch_target_ratio),
+            "include_sams": bool(cfg.include_sams),
+            "randomize_red_airbase_positions": bool(cfg.randomize_red_airbase_positions),
+        },
+        "cells": cell_blocks,
+        "totals": {
+            "n_candidates_attempted": len(all_candidates),
+            "n_accepted": len(accepted),
+            "n_rejected": len(rejected),
+            "rejection_reasons": _tally([str(o.reason) for o in rejected]),
+            "route_count_histogram": _tally([str(o.route_count) for o in accepted]),
+            "hidden_requested_vs_realized": _tally(
+                ["%d->%d" % (o.hidden_requested, o.hidden_realized) for o in accepted]),
+        },
+        "manifest": (
+            None if manifest is None else {
+                "manifest_id": manifest.manifest_id,
+                "n_worlds": manifest.n_worlds,
+                "n_members": manifest.n_members,
+                "seed_list_sha256": manifest.seed_digest(),
+                "path": None if manifest_path is None else str(manifest_path),
+                "file_sha256": (
+                    None if manifest_path is None else _file_sha256(manifest_path)),
+            }
+        ),
+        "stale_manifest_path": stale_manifest_path,
+        "failure": failure,
+        "seconds": float(seconds),
+    }
+
+
+def _run_v2_benchmark_preflight(
+    cfg: TrainConfig,
+    *,
+    worlds_per_cell: int,
+    benchmark_base_seed: int,
+    max_candidates_per_cell: int,
+    output_dir: Optional[Path],
+    manifest_name: str,
+    report_name: str,
+    probe: Optional[V2ProbeFn],
+    generator: Optional[Any],
+    label: Optional[str],
+    notes: Optional[str],
+    provenance: Optional[Dict[str, Any]],
+) -> PreflightResult:
+    """Select the COMPLETE ten-cell V2 population deterministically, then freeze it."""
+    _require_v2_preflight_config(cfg)
+    if int(worlds_per_cell) != V2_BENCHMARK_WORLDS_PER_CELL:
+        raise BenchmarkPreflightError(
+            "the generalized_v2 benchmark holds exactly %d worlds per base cell (development "
+            "0..1 + confirmatory 2..11), got worlds_per_cell=%r"
+            % (V2_BENCHMARK_WORLDS_PER_CELL, worlds_per_cell))
+    windows = v2_cell_windows(benchmark_base_seed=int(benchmark_base_seed),
+                              max_candidates_per_cell=int(max_candidates_per_cell))
+    if int(max_candidates_per_cell) < V2_BENCHMARK_WORLDS_PER_CELL:
+        raise BenchmarkPreflightError(
+            "max_candidates_per_cell (%d) must be >= %d"
+            % (int(max_candidates_per_cell), V2_BENCHMARK_WORLDS_PER_CELL))
+
+    t_run = time.perf_counter()
+    out_dir = None if output_dir is None else Path(output_dir)
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    git_info = dict(provenance if provenance is not None
+                    else _git_provenance(_REPO_ROOT))
+    if not git_info.get("available"):
+        raise BenchmarkPreflightError(
+            "provenance: complete Git provenance is UNAVAILABLE (%s). Nothing was built."
+            % git_info.get("reason"))
+    if git_info.get("dirty"):
+        print("[WARN] provenance: the working tree is DIRTY at %s" % git_info.get("commit"))
+
+    gen = generator
+    if gen is None:
+        scen_dir = (Path(out_dir) if out_dir is not None else Path(".")) / "scenarios"
+        scen_dir.mkdir(parents=True, exist_ok=True)
+        gen = _build_generator(scen_dir)
+    probe_fn: V2ProbeFn = probe_v2_world if probe is None else probe
+
+    all_candidates: List[V2CandidateOutcome] = []
+    cell_blocks: List[Dict[str, Any]] = []
+    world_entries: List[Dict[str, Any]] = []
+    for window in windows:
+        print("[preflight-v2] %s: window [%d, %d), need %d world(s)"
+              % (window.key, window.start, window.stop, V2_BENCHMARK_WORLDS_PER_CELL))
+        accepted, outcomes = _scan_v2_cell(cfg, gen, window, probe=probe_fn)
+        all_candidates.extend(outcomes)
+        for world_ordinal, (seed, preflight) in enumerate(accepted):
+            world_entries.append({
+                "agent_count": int(window.agent_count),
+                "known_offset": int(window.known_offset),
+                "world_ordinal": int(world_ordinal),
+                "seed": int(seed),
+                "preflight": preflight,
+            })
+        block = _v2_cell_block(window, accepted, outcomes)
+        cell_blocks.append(block)
+        if len(accepted) < V2_BENCHMARK_WORLDS_PER_CELL:
+            failure = {
+                "reason": PREFLIGHT_FAILURE_WINDOW_EXHAUSTED,
+                "base_cell": window.key,
+                "base_cell_ordinal": int(window.ordinal),
+                "candidate_window": window.to_record()["candidate_window"],
+                "worlds_requested": V2_BENCHMARK_WORLDS_PER_CELL,
+                "worlds_accepted": len(accepted),
+                "worlds_missing": V2_BENCHMARK_WORLDS_PER_CELL - len(accepted),
+                "n_candidates_attempted": len(outcomes),
+                "attempted_seeds": [int(o.seed) for o in outcomes],
+                "accepted_seeds": [int(s) for s, _p in accepted],
+                "rejection_reasons": block["rejection_reasons"],
+                "cells_completed": [w.key for w in windows if w.ordinal < window.ordinal],
+                "cells_not_attempted": [w.key for w in windows
+                                        if w.ordinal > window.ordinal],
+                "manifest_written": False,
+            }
+            report = _build_v2_report(
+                cfg, status=PREFLIGHT_STATUS_FAILED, git_info=git_info, windows=windows,
+                benchmark_base_seed=int(benchmark_base_seed),
+                max_candidates_per_cell=int(max_candidates_per_cell),
+                cell_blocks=cell_blocks, all_candidates=all_candidates,
+                manifest=None, manifest_path=None,
+                stale_manifest_path=_existing_manifest(out_dir, manifest_name),
+                failure=failure, seconds=time.perf_counter() - t_run,
+            )
+            report_path = _write_report(out_dir, report_name, report)
+            raise BenchmarkPreflightError(
+                "generalized_v2 base cell %s exhausted its candidate window [%d, %d): only "
+                "%d of %d world(s) accepted. NO manifest is written and NO later cell is "
+                "scanned; the candidate audit is preserved %s."
+                % (window.key, window.start, window.stop, len(accepted),
+                   V2_BENCHMARK_WORLDS_PER_CELL,
+                   ("in %s" % report_path) if report_path is not None
+                   else "on this exception's `report` attribute"),
+                report=report, report_path=report_path,
+            )
+
+    manifest = build_v2_benchmark_manifest(worlds=world_entries, label=label, notes=notes)
+    manifest_path = None
+    if out_dir is not None:
+        manifest_path = write_benchmark_manifest(manifest, out_dir / manifest_name)  # type: ignore[arg-type]
+    report = _build_v2_report(
+        cfg, status=PREFLIGHT_STATUS_COMPLETE, git_info=git_info, windows=windows,
+        benchmark_base_seed=int(benchmark_base_seed),
+        max_candidates_per_cell=int(max_candidates_per_cell),
+        cell_blocks=cell_blocks, all_candidates=all_candidates,
+        manifest=manifest, manifest_path=manifest_path,
+        stale_manifest_path=None, failure=None, seconds=time.perf_counter() - t_run,
+    )
+    report_path = _write_report(out_dir, report_name, report)
+    return PreflightResult(
+        manifest=manifest, manifest_path=manifest_path, report=report,
+        report_path=report_path, candidates=all_candidates,  # type: ignore[arg-type]
+    )
+
+
 def _tally(values: Sequence[str]) -> Dict[str, int]:
     """A sorted count of stable slugs -- ``{}`` when there is nothing to count."""
     counts: Dict[str, int] = {}
@@ -1185,6 +1836,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "hidden geometry the manifest freezes. Omitted -> whatever the "
                         "--config preset says, else the historical %s"
                         % MATCH_AOU_BACKEND_LEGACY_MINLP_V1)
+    p.add_argument("--episode-design", type=str,
+                   choices=[EPISODE_DESIGN_GENERALIZED_V1, EPISODE_DESIGN_GENERALIZED_V2],
+                   default=EPISODE_DESIGN_GENERALIZED_V1,
+                   help="which benchmark to select: the 18-stratum %s benchmark (default) "
+                        "or the ten-cell %s benchmark, which must be selected EXPLICITLY, "
+                        "requires --worlds-per-cell %d and --match-aou-backend %s"
+                        % (EPISODE_DESIGN_GENERALIZED_V1, EPISODE_DESIGN_GENERALIZED_V2,
+                           V2_BENCHMARK_WORLDS_PER_CELL, GENERALIZED_V2_REQUIRED_BACKEND))
     p.add_argument("--manifest-name", type=str, default=_MANIFEST_FILENAME)
     p.add_argument("--report-name", type=str, default=_REPORT_FILENAME)
     p.add_argument("--label", type=str, default=None)
@@ -1212,7 +1871,12 @@ def _config_from_args(args: argparse.Namespace) -> TrainConfig:
         fields.update(load_config_file(args.config))
     fields.pop("ppo", None)
     fields.pop("ctde", None)
-    fields["episode_design"] = EPISODE_DESIGN_GENERALIZED_V1
+    # PINNED to the design the operator selected with --episode-design (default: V1, the
+    # historical behaviour). V2 is never inferred from a preset; the backend is NOT pinned
+    # for V2 -- `_require_v2_preflight_config` REFUSES a V2 config that did not state
+    # `p1_milp_v1`.
+    fields["episode_design"] = str(getattr(args, "episode_design",
+                                           EPISODE_DESIGN_GENERALIZED_V1))
     fields["fuel_damage_mode"] = FuelDamageMode.SEEDED_VARIABLE
     # The backend is an operator choice, not a preflight constant: whichever objective the
     # later run will train and evaluate under must be the one that selects these worlds.
