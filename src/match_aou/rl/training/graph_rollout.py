@@ -165,26 +165,30 @@ class RolloutConfig:
     an import: the trainer is a torch/PPO leaf and this harness must not depend on it).
     """
 
-    # --- GENERALIZED-V1: WHICH POPULATION this rollout draws from -----------------
+    # --- WHICH POPULATION this rollout draws from --------------------------------
     # Mirrors `graph_train.TrainConfig.episode_design` field for field, and for the same
     # reason the FD knobs are mirrored: a diagnostic rollout must be able to build the
     # SAME episode a training run does, or it stops being a diagnostic of it.
     #
-    # A ROLLOUT STAYS DIAGNOSTIC UNDER BOTH DESIGNS. It runs the seeded MIXTURE only, it
+    # A ROLLOUT STAYS DIAGNOSTIC UNDER EVERY DESIGN. It runs the seeded MIXTURE only, it
     # trains nothing, and it evaluates no matched group: matched clean/mild/severe worlds
     # and the frozen 18-stratum benchmark are an EVALUATION construct and live in
-    # `graph_train`. Selecting `generalized_v1` here samples the same TRAINING population
-    # a generalized training batch is drawn from -- and makes no benchmark claim.
+    # `graph_train`. Selecting `generalized_v1` or `generalized_v2` here samples the same
+    # TRAINING population that design's training batch is drawn from -- and makes no
+    # benchmark claim.
     episode_design: str = EPISODE_DESIGN_FIXED_CELL_V1
 
     # --- WHICH MATCH-AOU ALLOCATION OBJECTIVE ------------------------------------
     # Mirrors `graph_train.TrainConfig.match_aou_backend` field for field, and for the
     # same reason the design and the FD knobs are mirrored: a diagnostic rollout must be
-    # able to build the SAME episode a training run does. It is INDEPENDENT of
-    # `episode_design` -- either design may run under either backend -- and it defaults to
-    # the historical frozen MINLP through BONMIN. Selecting `p1_milp_v1` changes which
-    # allocations are optimal and can therefore change the hidden geometry; it is not a
-    # transparent performance swap.
+    # able to build the SAME episode a training run does. It is an INDEPENDENT selector --
+    # `fixed_cell_v1` and `generalized_v1` may each run under EITHER backend -- and it
+    # defaults to the historical frozen MINLP through BONMIN. The ONE exception is
+    # `generalized_v2`, which is valid only with `p1_milp_v1`: that design defines its
+    # hidden load against the route count the known-only allocation produces, so the
+    # objective that produces it cannot be chosen separately. Selecting `p1_milp_v1`
+    # changes which allocations are optimal and can therefore change the hidden geometry;
+    # it is not a transparent performance swap.
     match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND
 
     n_episodes: int = 20
@@ -297,7 +301,7 @@ class RolloutConfig:
         """
         if int(self.n_episodes) < 1:
             raise ValueError(f"n_episodes must be >= 1, got {self.n_episodes}")
-        # GENERALIZED-V1: the design selector, checked before anything reads it. Same
+        # The design selector, checked before anything reads it. Same
         # verdicts as the trainer, from the same resolution site, so a design that is
         # invalid for a training run is invalid for a diagnostic rollout too.
         if str(self.episode_design) not in EPISODE_DESIGNS:
@@ -325,7 +329,10 @@ class RolloutConfig:
                 raise ValueError(
                     "episode_design=%r requires fuel_damage_mode=%r (the approved "
                     "0.50 clean / 0.25 mild / 0.25 severe mixture); got %r."
-                    % (EPISODE_DESIGN_GENERALIZED_V1, FuelDamageMode.SEEDED_VARIABLE,
+                    # The ACTUAL selected design, not a hard-coded one: both generalized
+                    # designs reach this verdict, and a message naming the wrong one sends
+                    # an operator to the wrong config field.
+                    % (self.episode_design, FuelDamageMode.SEEDED_VARIABLE,
                        self.fuel_damage_mode)
                 )
             if self.route_relative_population:
@@ -607,9 +614,10 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                         "hidden_load_seed": int(seed),
                         "known_requested": int(pre_solve.known_count),
                     }),
-                    # GENERALIZED-V1 policy seams, resolved from the ONE design
-                    # selector. Absent entirely on the historical path, where setup
-                    # resolves its own `exact_v1` / `static_t0_v1` defaults as always.
+                    # The GENERALIZED policy seams (identical under V1 and V2),
+                    # resolved from the ONE design selector. Absent entirely on the
+                    # historical path, where setup resolves its own `exact_v1` /
+                    # `static_t0_v1` defaults as always.
                     **({} if not cfg.generalized else {
                         "hidden_policy": cfg.design.hidden_policy,
                         "reference_policy": cfg.design.reference_policy,
@@ -920,17 +928,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="argmax instead of sampling (default: stochastic)")
     p.add_argument("--record-first", action="store_true",
                    help="record episode 0 with the BLADE PlaybackRecorder")
-    # GENERALIZED-V1: the population selector, mirroring the trainer's flag. The
-    # fuel-damage mode is exposed alongside it because `generalized_v1` REQUIRES
-    # `seeded_variable`, and a flag that could only ever be rejected would be a trap.
+    # The population selector, mirroring the trainer's flag. The fuel-damage mode is
+    # exposed alongside it because BOTH generalized designs REQUIRE `seeded_variable`, and
+    # a flag that could only ever be rejected would be a trap.
     p.add_argument("--episode-design", type=str, choices=list(EPISODE_DESIGNS),
                    default=d.episode_design,
                    help="which episode POPULATION to draw from: %s preserves the "
-                        "historical fixed cell; %s samples the cell per episode and "
-                        "selects the GENERALIZED-V1 policy bundle "
-                        "(default: %%(default)s)"
+                        "historical fixed cell; %s samples the cell per episode; %s "
+                        "samples it in TWO STAGES (A and K before the known-only solve, "
+                        "the hidden load against the resulting route count after it) and "
+                        "requires the p1_milp_v1 backend. Both generalized designs select "
+                        "the SAME four policy ids (default: %%(default)s)"
                         % (EPISODE_DESIGN_FIXED_CELL_V1,
-                           EPISODE_DESIGN_GENERALIZED_V1))
+                           EPISODE_DESIGN_GENERALIZED_V1,
+                           EPISODE_DESIGN_GENERALIZED_V2))
     p.add_argument("--fuel-damage-mode", type=str,
                    choices=list(_ROLLOUT_FUEL_DAMAGE_MODES),
                    default=d.fuel_damage_mode,

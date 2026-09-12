@@ -309,6 +309,7 @@ from ...solvers.match_aou_backend import (
     resolve_match_aou_backend,
 )
 from .graph_episode_setup import (
+    RouteRelativePopulationRecorder,
     setup_episode,
     DETECTION_KM,
     MAX_SIM_TICKS,
@@ -376,6 +377,7 @@ from .graph_generalized import (
     require_matched_group_identity,
     require_world_matches_manifest,
     resolve_episode_design,
+    CARDINALITY_SOURCE_V2_PRE_SOLVE,
     generalized_v2_cardinality_sampler_record,
     resolved_v2_cardinality,
     sample_generalized_cardinality,
@@ -1299,7 +1301,13 @@ class TrainConfig:
 
     @property
     def generalized(self) -> bool:
-        """True iff this run draws from the GENERALIZED-V1 population."""
+        """True iff this run draws from a GENERALIZED population -- V1 OR V2.
+
+        The two designs share every harness behaviour that keys off this predicate: the
+        seeded-variable fuel-damage mixture, the successful-episode training quota and its
+        bounded attempt budget, and the dynamic construction provenance. What separates
+        them is WHICH population, which is :attr:`route_relative_population`'s question.
+        """
         return self.design.generalized
 
     # ------------------------------------------------------------------
@@ -2351,6 +2359,66 @@ class EpisodeAttemptError(RuntimeError):
         self.original = original
 
 
+def _v2_failure_population(
+    pre_solve: Optional[PreSolveCardinality],
+    route_relative_load: Optional[RouteRelativeHiddenLoad],
+) -> Dict[str, Any]:
+    """The GENERALIZED-V2 population block of a FAILED attempt -- or ``{}`` elsewhere.
+
+    A FAILED ATTEMPT IS STILL PART OF THE ATTEMPTED POPULATION, so its record has to state
+    the identity it ACTUALLY RECEIVED. V2 resolves that identity in two stages, and an
+    attempt can die in either, so the block is STAGE-AWARE rather than uniform:
+
+      * ``pre_solve`` -- the attempt failed before the known-only solve produced a route
+        count, so there was no hidden load to draw. ``route_count_at_hidden_resolution``
+        and every hidden-load field are ``null``: NOT a writer that forgot them, and NOT a
+        stage-2 record to be reconstructed later from the seed. Nothing is fabricated.
+      * ``route_relative`` -- the attempt HAD resolved ``R`` and ``H_requested`` before it
+        failed, so the exact draw it received is carried through VERBATIM from the frozen
+        :class:`RouteRelativeHiddenLoad` the construction path produced.
+
+    It is deliberately never re-derived. ``H`` is reproducible from the seed and ``R``, so
+    a post-hoc redraw would usually agree -- and "usually" is exactly the property a ledger
+    must not rest on. The ledger says what the attempt resolved, not what a replay would.
+
+    KEYED OFF THE STAGE-1 RECORD, which only the V2 path ever produces, so the block is
+    added ONLY there: a ``fixed_cell_v1`` or ``generalized_v1`` failure record grows no key
+    at all and keeps the shape every existing reader and preserved artifact already has.
+    Both halves of the two-stage identity are carried, so a Case-B record still names the
+    stage-1 draw that produced its ``A`` and ``K``.
+    """
+    if pre_solve is None:
+        return {}
+    if str(pre_solve.source) != CARDINALITY_SOURCE_V2_PRE_SOLVE:  # pragma: no cover
+        # Defensive: only the V2 stage-1 sampler mints this record, so a foreign source
+        # here would mean the block was about to describe a population it did not come
+        # from. Refusing to emit is the truthful response.
+        return {}
+    load = route_relative_load
+    return {
+        "generalized_v2_population": {
+            # WHICH STAGE this attempt reached before it failed. Stated outright so a
+            # reader never has to infer it from which fields happen to be null.
+            "stage_resolved": (
+                "route_relative" if load is not None else "pre_solve"
+            ),
+            "pre_solve_cardinality_policy": PRE_SOLVE_CARDINALITY_POLICY_V2,
+            "pre_solve_rng_domain": V2_CARDINALITY_RNG_DOMAIN,
+            "pre_solve_derived_seed": pre_solve.derived_seed,
+            "agent_count": int(pre_solve.agent_count),
+            "known_requested": int(pre_solve.known_count),
+            # The EXACT stage-2 facts, or `null` because stage 2 never happened.
+            "hidden_load_policy": None if load is None else str(load.policy),
+            "hidden_load_rng_domain": None if load is None else str(load.rng_domain),
+            "hidden_load_derived_seed": None if load is None else load.derived_seed,
+            "route_count_at_hidden_resolution": (
+                None if load is None else int(load.route_count)
+            ),
+            "hidden_load": None if load is None else load.to_record(),
+        },
+    }
+
+
 def _failure_record(
     *,
     phase: str,
@@ -2365,6 +2433,8 @@ def _failure_record(
     exc: BaseException,
     cell: Optional[str] = None,
     cardinality: Optional[Union[EpisodeCardinality, PreSolveCardinality]] = None,
+    pre_solve_cardinality: Optional[PreSolveCardinality] = None,
+    route_relative_load: Optional[RouteRelativeHiddenLoad] = None,
     benchmark: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build ONE ledger record for a failed attempt (see :func:`_append_failure_record`).
@@ -2421,12 +2491,14 @@ def _failure_record(
             original, ReferenceIntegrityError) else None,
         # The SCHEDULED world shape (never a realized one -- nothing was realized).
         #
-        # Under GENERALIZED-V2 a failed attempt may only ever have reached STAGE 1, whose
-        # object carries `A` and `K` and no hidden load at all. `hidden_requested` is then
-        # `null` -- which is the truth: the hidden load is drawn against a route count this
-        # attempt never produced, so there was no request to record. `cardinality_source`
-        # says which stage the record came from, so a `null` here is never mistaken for a
-        # writer that forgot the field.
+        # Under GENERALIZED-V2 this is STAGE-AWARE, because the population identity itself
+        # is resolved in two stages and an attempt can fail in either. `cardinality` is
+        # whichever object the attempt REALLY got: the stage-1 half-cell when it died
+        # before the known-only solve produced a route count, and the RESOLVED cell --
+        # built from the actual stage-2 draw -- when it died after. `cardinality_source`
+        # says which, so `hidden_requested = null` is read as "no hidden load was ever
+        # drawn" rather than as a writer that forgot the field, and a resolved record is
+        # never a post-hoc reconstruction of one.
         "agent_count": None if cardinality is None else int(cardinality.agent_count),
         "known_requested": None if cardinality is None else int(
             cardinality.known_count),
@@ -2435,6 +2507,8 @@ def _failure_record(
             else getattr(cardinality, "hidden_requested", None)
         ),
         "cardinality_source": None if cardinality is None else str(cardinality.source),
+        # V2-ONLY, and absent entirely on every other design (`_v2_failure_population`).
+        **_v2_failure_population(pre_solve_cardinality, route_relative_load),
         **(benchmark or _EMPTY_BENCHMARK_KEYS),
         "traceback": "".join(
             traceback.format_exception(type(exc), exc, exc.__traceback__)
@@ -3943,6 +4017,47 @@ def v2_pre_solve_cardinality(
     return sample_generalized_v2_pre_solve_cardinality(episode_seed=int(seed))
 
 
+def _population_recorder_kwargs(
+    recorder: Optional[RouteRelativePopulationRecorder],
+) -> Dict[str, Any]:
+    """``_run_one_episode``'s GENERALIZED-V2 provenance-carrier keyword -- or NOTHING.
+
+    The SAME keyword-omission rule as every other optional seam here, so a non-V2 attempt
+    is called exactly as it was before this carrier existed.
+    """
+    if recorder is None:
+        return {}
+    return {"population_recorder": recorder}
+
+
+def _failure_cardinality(
+    card: Optional[EpisodeCardinality],
+    pre_solve: Optional[PreSolveCardinality],
+    route_relative_load: Optional[RouteRelativeHiddenLoad],
+) -> Optional[Union[EpisodeCardinality, PreSolveCardinality]]:
+    """The population identity a FAILED attempt actually received.
+
+    Three cases, and the third is the one this exists for:
+
+      * a non-V2 attempt reports the cell its schedule resolved up front (``card``, or
+        ``None`` on the fixed-cell path where the configured cell is already in the run
+        config);
+      * a V2 attempt that died BEFORE the known-only solve produced a route count reports
+        its stage-1 half-cell -- there is no hidden load, and inventing one would put a
+        number in the ledger that nothing ever drew;
+      * a V2 attempt that died AFTER stage 2 reports the RESOLVED cell, assembled from the
+        stage-1 draw and the ACTUAL :class:`RouteRelativeHiddenLoad` the construction path
+        produced. That is an assembly of two recorded facts, never a redraw: ``H`` is
+        reproducible from the seed and ``R``, and a ledger that leaned on that
+        reproducibility would be reporting a replay rather than the attempt.
+    """
+    if card is not None:
+        return card
+    if pre_solve is not None and route_relative_load is not None:
+        return resolved_v2_cardinality(pre_solve, route_relative_load)
+    return pre_solve
+
+
 def _pre_solve_kwargs(
     pre_solve: Optional[PreSolveCardinality],
 ) -> Dict[str, Any]:
@@ -3974,7 +4089,11 @@ def _generalized_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
 
 
 def _v2_hidden_load_kwargs(
-    cfg: TrainConfig, seed: int, pre_solve: Optional[PreSolveCardinality]
+    cfg: TrainConfig,
+    seed: int,
+    pre_solve: Optional[PreSolveCardinality],
+    *,
+    recorder: Optional[RouteRelativePopulationRecorder] = None,
 ) -> Dict[str, Any]:
     """``setup_episode``'s GENERALIZED-V2 hidden-load keywords -- or NOTHING.
 
@@ -3982,18 +4101,27 @@ def _v2_hidden_load_kwargs(
     pre-V2 argument list, so the historical ``explicit_request_v1`` hidden-load policy is
     resolved inside setup as it always has been.
 
-    All THREE keywords travel together and are produced at one site, because
+    The three POLICY keywords travel together and are produced at one site, because
     ``setup_episode`` refuses a half-supplied route-relative request: the policy without
     the seed cannot draw, and the seed without ``known_requested`` cannot refuse a world
     whose known cardinality disagrees with the schedule.
+
+    ``recorder`` is the caller's write-once carrier for the stage-2 draw and is added only
+    when one was supplied. It is PURE PROVENANCE -- setup writes it and reads nothing back
+    -- and it exists so a caller that keeps a failure ledger can state the population an
+    attempt really received even when ``setup_episode`` RAISES after resolving it. A
+    caller with no ledger (the diagnostic rollout) simply passes none.
     """
     if pre_solve is None or not cfg.route_relative_population:
         return {}
-    return {
+    kwargs: Dict[str, Any] = {
         "hidden_load_policy": HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2,
         "hidden_load_seed": int(seed),
         "known_requested": int(pre_solve.known_count),
     }
+    if recorder is not None:
+        kwargs["population_recorder"] = recorder
+    return kwargs
 
 
 def _backend_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
@@ -5369,6 +5497,7 @@ def _run_one_episode(
     central_recorder: Optional[CentralStateRecorder] = None,
     cardinality: Optional[EpisodeCardinality] = None,
     pre_solve_cardinality: Optional[PreSolveCardinality] = None,
+    population_recorder: Optional[RouteRelativePopulationRecorder] = None,
 ) -> _EpisodeOutcome:
     """Generate -> setup -> run -> reward for ONE episode; always closes its env.
 
@@ -5504,7 +5633,8 @@ def _run_one_episode(
                 placement_rng=random.Random(seed),
                 # GENERALIZED-V2: the route-relative hidden-load policy, its episode seed
                 # and the scheduled known count. Absent entirely on every other design.
-                **_v2_hidden_load_kwargs(cfg, seed, pre_solve_cardinality),
+                **_v2_hidden_load_kwargs(cfg, seed, pre_solve_cardinality,
+                                         recorder=population_recorder),
                 # GENERALIZED-V1: the hidden-cardinality and reward-reference policies,
                 # resolved from the ONE design selector. Absent entirely on the
                 # historical path, where setup resolves its own `exact_v1` /
@@ -7477,6 +7607,16 @@ def train(
                 # so the two can never describe different draws. `None` on every other
                 # design, where `_pre_solve_kwargs` passes no keyword at all.
                 pre_card = v2_pre_solve_cardinality(cfg, seed)
+                # GENERALIZED-V2: a FRESH write-once carrier per attempt. Setup fills it
+                # the instant stage 2 resolves, so this loop can state the population the
+                # attempt really received even when `setup_episode` RAISES afterwards --
+                # and "fresh per attempt" is what stops one attempt's identity being
+                # attributed to the next. `None` on every other design, where
+                # `_population_recorder_kwargs` passes no keyword at all.
+                population_recorder = (
+                    RouteRelativePopulationRecorder()
+                    if cfg.route_relative_population else None
+                )
                 artifacts = None
                 if artifacts_root is not None:
                     artifacts = _AttemptArtifacts(
@@ -7514,6 +7654,9 @@ def train(
                         **_cardinality_kwargs(card),
                         # Absent entirely except on GENERALIZED-V2 (`_pre_solve_kwargs`).
                         **_pre_solve_kwargs(pre_card),
+                        # Likewise absent except on GENERALIZED-V2: the write-once carrier
+                        # that keeps this attempt's stage-2 draw readable after a failure.
+                        **_population_recorder_kwargs(population_recorder),
                     )
                 except (_VisualArtifactError, MeasurementIntegrityError,
                         FuelDamageIntegrityError, BenchmarkIdentityError,
@@ -7550,11 +7693,24 @@ def train(
                         # per-cell and a per-cardinality denominator stay complete.
                         condition=condition,
                         cell=cell,
-                        # The SCHEDULED population identity. Under GENERALIZED-V2 that
-                        # is the stage-1 draw: a failed attempt may never have reached
-                        # stage 2, and the ledger states what really existed rather than a
-                        # hidden count nothing drew.
-                        cardinality=(card if card is not None else pre_card),
+                        # The population identity this attempt ACTUALLY RECEIVED, which
+                        # under GENERALIZED-V2 depends on how far it got: the stage-1
+                        # half-cell if it died before the known-only solve produced a route
+                        # count, and the RESOLVED cell -- built from the stage-2 draw the
+                        # construction path really made -- if it died after. A failed
+                        # attempt stays part of the attempted population, so its record
+                        # must state the identity it ran under rather than the last one
+                        # this loop happened to hold.
+                        cardinality=_failure_cardinality(
+                            card, pre_card,
+                            None if population_recorder is None
+                            else population_recorder.load),
+                        # BOTH halves of the V2 identity travel with the record, so a
+                        # Case-B entry still names the stage-1 draw behind its A and K.
+                        pre_solve_cardinality=pre_card,
+                        route_relative_load=(
+                            None if population_recorder is None
+                            else population_recorder.load),
                         exc=exc,
                     ))
                     print("  [iter %d ep %d] FAILED (seed=%d, cell=%s, stage=%s): %s: %s"

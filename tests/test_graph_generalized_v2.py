@@ -845,6 +845,72 @@ def test_po2_the_population_layer_never_imports_a_harness() -> None:
         assert engine not in text, engine
 
 
+def test_po1_the_failure_population_block_is_v2_only_and_stage_aware() -> None:
+    """A FAILED attempt reports the identity it RECEIVED -- and only on the V2 path.
+
+    Two facts in one place, because they are the two halves of the same rule: a
+    ``fixed_cell_v1`` or ``generalized_v1`` ledger entry grows NO key (its single-stage
+    cell is already complete), and a V2 entry states WHICH stage it reached rather than
+    leaving a reader to infer it from which fields happen to be null.
+    """
+    pre = sample_generalized_v2_pre_solve_cardinality(episode_seed=5)
+    load = resolve_route_relative_hidden_load(episode_seed=5, route_count=4)
+
+    # Historical designs: nothing at all.
+    assert gt._v2_failure_population(None, None) == {}
+    assert gt._v2_failure_population(None, load) == {}
+
+    # V2, stage 1 only: the hidden half is `null`, never fabricated.
+    block = gt._v2_failure_population(pre, None)["generalized_v2_population"]
+    assert block["stage_resolved"] == "pre_solve"
+    assert block["agent_count"] == pre.agent_count
+    assert block["known_requested"] == pre.known_count
+    assert block["pre_solve_derived_seed"] == pre.derived_seed
+    assert block["route_count_at_hidden_resolution"] is None
+    assert block["hidden_load"] is None
+
+    # V2, stage 2 reached: the EXACT draw, carried whole from the frozen record.
+    block = gt._v2_failure_population(pre, load)["generalized_v2_population"]
+    assert block["stage_resolved"] == "route_relative"
+    assert block["route_count_at_hidden_resolution"] == load.route_count
+    assert block["hidden_load_derived_seed"] == load.derived_seed
+    assert block["hidden_load"] == load.to_record()
+    # Both halves of the identity survive, and the whole block is JSON-ready.
+    assert block["pre_solve_derived_seed"] == pre.derived_seed
+    assert json.loads(json.dumps(block)) == block
+
+
+def test_po1_the_failure_cardinality_assembles_and_never_redraws() -> None:
+    """The cell a failed attempt reports is ASSEMBLED from two recorded facts.
+
+    ``H`` is reproducible from the seed and ``R``, so a post-hoc redraw would usually
+    agree -- and "usually" is exactly the property a ledger must not rest on. The resolved
+    cell is built from the stage-1 draw and the ACTUAL stage-2 record; with no stage-2
+    record it stays the stage-1 half-cell, and a non-V2 attempt reports its own cell
+    untouched.
+    """
+    pre = sample_generalized_v2_pre_solve_cardinality(episode_seed=9)
+    load = resolve_route_relative_hidden_load(episode_seed=9, route_count=3)
+
+    # Case A -- no stage 2: the half-cell itself, with no hidden count attached.
+    assert gt._failure_cardinality(None, pre, None) is pre
+    assert getattr(gt._failure_cardinality(None, pre, None),
+                   "hidden_requested", None) is None
+
+    # Case B -- stage 2 reached: the RESOLVED cell, equal to the production assembly.
+    resolved = gt._failure_cardinality(None, pre, load)
+    assert resolved == resolved_v2_cardinality(pre, load)
+    assert resolved.source == CARDINALITY_SOURCE_V2_ROUTE_RELATIVE
+    assert resolved.hidden_requested == load.hidden_requested
+
+    # Non-V2 -- the schedule's own cell wins and is returned untouched.
+    v1 = sample_generalized_cardinality(episode_seed=9)
+    assert gt._failure_cardinality(v1, None, None) is v1
+    assert gt._failure_cardinality(v1, pre, load) is v1
+    # Fixed cell: nothing is invented when the run config already states the cell.
+    assert gt._failure_cardinality(None, None, None) is None
+
+
 if __name__ == "__main__":
     _tests = [
         (name, fn) for name, fn in sorted(globals().items())

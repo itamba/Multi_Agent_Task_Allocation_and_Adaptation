@@ -1,5 +1,5 @@
-"""GENERALIZED-V1 POPULATION: the episode-design selector, the deterministic training
-cardinality sampler, and the FROZEN STRATIFIED BENCHMARK MANIFEST.
+"""GENERALIZED POPULATION: the episode-design selector, the deterministic training
+cardinality samplers, and the FROZEN STRATIFIED BENCHMARK MANIFEST.
 
 WHAT THIS MODULE OWNS, AND WHAT IT DELIBERATELY DOES NOT
 ========================================================
@@ -7,13 +7,20 @@ It owns three questions that are about the POPULATION an episode is drawn from, 
 nothing about how an episode RUNS:
 
   1. **Which design is this run?** ``fixed_cell_v1`` (the DEFAULT and the historical
-     behaviour) or ``generalized_v1`` (the complete approved GENERALIZED-V1 bundle of the
-     already-reviewed Task-1/2/3 policy seams). ONE selector, resolved in ONE place, so a
-     harness never has to coordinate four independent low-level policy knobs and can
-     never resolve half a bundle.
-  2. **What cardinality does a scheduled TRAINING episode have?** ``A ~ Uniform({2,3,4})``
-     and ``H_requested | A ~ Uniform({1..A})`` with ``K == A``, drawn from an ISOLATED
-     deterministic seed domain of this layer's own.
+     behaviour), ``generalized_v1`` (the complete approved GENERALIZED-V1 bundle of the
+     already-reviewed Task-1/2/3 policy seams), or ``generalized_v2`` (the SAME four
+     policy ids under a route-relative POPULATION contract). ONE selector, resolved in ONE
+     place, so a harness never has to coordinate four independent low-level policy knobs
+     and can never resolve half a bundle.
+  2. **What cardinality does a scheduled TRAINING episode have?** Under
+     ``generalized_v1``, ``A ~ Uniform({2,3,4})`` and ``H_requested | A ~ Uniform({1..A})``
+     with ``K == A``, all resolved up front. Under ``generalized_v2`` the question is
+     answered in TWO STAGES, because its hidden load is defined against a quantity that
+     does not exist until the known-only solve has run: ``A ~ Uniform({2,3,4,5,6})`` and
+     ``K | A ~ Uniform({A, A+2})`` BEFORE that solve, then
+     ``H_requested ~ Uniform({1..R})`` AFTER it, where ``R`` is the number of egos the
+     allocation actually routed. Every draw runs on an ISOLATED deterministic seed domain
+     of this layer's own -- three of them, one per sampler stage.
   3. **Which worlds does the frozen benchmark hold?** The 18-stratum matched
      CLEAN / MILD / SEVERE evaluation manifest, its canonical serialization, its content
      hash, and the identity checks that make a member refusable instead of silently
@@ -32,9 +39,11 @@ a caller names explicitly, and NO module-global randomness: every draw runs on a
 
 RNG ISOLATION IS THE LOAD-BEARING PROPERTY
 ==========================================
-The cardinality sampler has its OWN SHA-256 seed domain,
-:data:`CARDINALITY_RNG_DOMAIN`, constructed exactly like the three fuel-damage domains
-and disjoint from all of them. That separation is not tidiness:
+Each cardinality sampler stage has its OWN SHA-256 seed domain --
+:data:`CARDINALITY_RNG_DOMAIN` for the V1 sampler, and
+:data:`V2_CARDINALITY_RNG_DOMAIN` / :data:`V2_HIDDEN_LOAD_RNG_DOMAIN` for the two V2
+stages -- each constructed exactly like the three fuel-damage domains and disjoint from
+them and from each other. That separation is not tidiness:
 
   * taking the cardinality draw from ``fuel_damage_v1`` would insert draws between that
     stream's mixture bit and its ego selection and CHANGE WHICH EGO every damaged episode
@@ -60,10 +69,11 @@ scalars with the ego uuid REMOVED.
 
 NOTHING HERE REACHES THE ACTING PATH
 ====================================
-No design id, no cardinality, no stratum label, no load bucket and no manifest field
-enters ``GraphObservation`` or the central critic's ``CentralGraphObservation``. A count of
-what is hidden, and a label saying how hard the world is, are exactly the privileged
-quantities an ego cannot sense (``CLAUDE.md`` section 3).
+No design id, no cardinality, no route count, no stratum label, no load bucket and no
+manifest field enters ``GraphObservation`` or the central critic's
+``CentralGraphObservation``. A count of what is hidden, a count of how many egos were
+routed, and a label saying how hard the world is are exactly the privileged quantities an
+ego cannot sense (``CLAUDE.md`` section 3).
 """
 
 from __future__ import annotations

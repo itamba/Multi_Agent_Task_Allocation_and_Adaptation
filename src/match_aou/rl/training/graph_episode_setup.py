@@ -266,6 +266,78 @@ GENERALIZED_V2_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4, 5, 6)
 GENERALIZED_V2_KNOWN_OFFSETS: Tuple[int, ...] = (0, 2)
 
 
+class RouteRelativePopulationRecorder:
+    """A WRITE-ONCE carrier for the GENERALIZED-V2 stage-2 draw, owned by the CALLER.
+
+    WHY IT EXISTS. V2 resolves ``H_requested ~ Uniform({1..R})`` INSIDE the construction
+    path, once the known-only solve has produced a route count -- and construction can
+    still fail AFTER that point: the bounded-backoff walk can realize nothing, the patch
+    or the env-2 reload can fail, a world-cardinality check can refuse, the deferred
+    reference solve can be unacceptable. In every one of those cases the attempt REALLY
+    RECEIVED a population identity (``R``, ``H_requested``, the hidden-load policy, its
+    rng domain and its derived seed) before it failed, and a failure ledger that could
+    only report stage 1 would describe an attempt that never existed.
+
+    A failed attempt stays part of the ATTEMPTED population, so its record has to state
+    the identity it actually got. This carrier is how that identity survives an exception:
+    the caller constructs it, hands it in, and reads it afterwards -- whether
+    ``setup_episode`` returned or raised.
+
+    WHY NOT ATTACH IT TO THE EXCEPTION. Wrapping would change the recorded ``error_type``
+    and therefore the failure's classification, and setting an attribute on whatever
+    exception happens to be in flight is not something a foreign exception type is obliged
+    to permit. A caller-owned object needs neither.
+
+    WRITE-ONCE, AND THAT IS THE POINT. A second write RAISES, so this can never quietly
+    become a channel through which a second hidden-load draw is recorded over the first:
+    one attempt resolves one stage-2 record, or the contract is broken loudly. It carries
+    no default and fabricates nothing -- an attempt that failed BEFORE stage 2 leaves
+    :attr:`load` at ``None``, which is the truthful statement that no hidden load was ever
+    drawn.
+
+    It holds a FROZEN :class:`RouteRelativeHiddenLoad`, so what a caller reads back is the
+    component's own record rather than a copy that could drift from it.
+    """
+
+    __slots__ = ("_load",)
+
+    def __init__(self) -> None:
+        self._load: Optional[RouteRelativeHiddenLoad] = None
+
+    @property
+    def load(self) -> Optional[RouteRelativeHiddenLoad]:
+        """The stage-2 draw this attempt really resolved, or ``None`` if it never did."""
+        return self._load
+
+    @property
+    def resolved(self) -> bool:
+        """True iff stage 2 completed for this attempt."""
+        return self._load is not None
+
+    def record(self, load: RouteRelativeHiddenLoad) -> None:
+        """Store the stage-2 draw. RAISES on a second write.
+
+        Raises:
+            TypeError: ``load`` is not a :class:`RouteRelativeHiddenLoad`.
+            RuntimeError: this recorder already holds a draw -- one attempt resolves one
+                stage-2 record, so a second one means two populations are being claimed
+                for a single episode.
+        """
+        if not isinstance(load, RouteRelativeHiddenLoad):
+            raise TypeError(
+                "RouteRelativePopulationRecorder.record expects a "
+                "RouteRelativeHiddenLoad, got %s" % type(load).__name__
+            )
+        if self._load is not None:
+            raise RuntimeError(
+                "RouteRelativePopulationRecorder already holds a stage-2 draw "
+                "(R=%d, H=%d); one attempt resolves exactly one hidden load, so a second "
+                "record would claim two populations for one episode"
+                % (self._load.route_count, self._load.hidden_requested)
+            )
+        self._load = load
+
+
 # =============================================================================
 # 1. Solve + normalize (clean rewrite of the old solve wrapper)
 # =============================================================================
@@ -707,6 +779,7 @@ def _resolve_construction_mode(
     hidden_load_policy: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1,
     hidden_load_seed: Optional[int] = None,
     known_requested: Optional[int] = None,
+    population_recorder: Optional["RouteRelativePopulationRecorder"] = None,
 ) -> bool:
     """Decide which episode construction ``setup_episode`` runs, and validate its request.
 
@@ -734,9 +807,10 @@ def _resolve_construction_mode(
     construction path, which can only resolve it once the known-only solve has produced a
     route count, and therefore requires the OPPOSITE argument shape: ``n_hidden`` MUST be
     absent (a stated count and a deferred one are contradictory requests), and
-    ``hidden_load_seed`` and ``known_requested`` MUST be present. Those two are REFUSED
-    under the historical policy rather than ignored -- an accepted-but-unused knob is how a
-    caller ends up believing it selected V2.
+    ``hidden_load_seed`` and ``known_requested`` MUST be present. Those two -- and the
+    optional ``population_recorder`` -- are REFUSED under the historical policy rather than
+    ignored: an accepted-but-unused knob is how a caller ends up believing it selected V2,
+    and a recorder that silently stayed empty would read as "stage 2 never happened".
 
     Returns:
         True for the construction path, False for the legacy split path.
@@ -764,13 +838,15 @@ def _resolve_construction_mode(
             hidden_policy=policy,
             hidden_load_seed=hidden_load_seed,
             known_requested=known_requested,
+            population_recorder=population_recorder,
         )
     # --- the HISTORICAL explicit-request policy, byte-unchanged below ----------------
     # The two V2-only arguments are refused here rather than ignored: a caller that set
     # `hidden_load_seed` and got a world built from its own `n_hidden` would have no way
     # to tell that its V2 selection never took effect.
     for name, value in (("hidden_load_seed", hidden_load_seed),
-                        ("known_requested", known_requested)):
+                        ("known_requested", known_requested),
+                        ("population_recorder", population_recorder)):
         if value is not None:
             raise ValueError(
                 f"setup_episode: {name}={value!r} is a "
@@ -821,6 +897,7 @@ def _resolve_route_relative_request(
     hidden_policy: str,
     hidden_load_seed: Optional[int],
     known_requested: Optional[int],
+    population_recorder: Optional["RouteRelativePopulationRecorder"] = None,
 ) -> bool:
     """Validate a GENERALIZED-V2 route-relative construction request, before BLADE exists.
 
@@ -890,6 +967,23 @@ def _resolve_route_relative_request(
         raise ValueError(
             f"setup_episode: known_requested must be >= 1, got {known_requested!r}"
         )
+    # OPTIONAL, because a caller that keeps no failure ledger (the diagnostic rollout) has
+    # nothing to preserve the snapshot FOR. Typed when supplied, and required to be EMPTY:
+    # a recorder carrying another attempt's draw would attribute that attempt's population
+    # to this one.
+    if population_recorder is not None:
+        if not isinstance(population_recorder, RouteRelativePopulationRecorder):
+            raise ValueError(
+                "setup_episode: population_recorder must be a "
+                "RouteRelativePopulationRecorder, got "
+                f"{type(population_recorder).__name__}"
+            )
+        if population_recorder.resolved:
+            raise ValueError(
+                "setup_episode: population_recorder already holds a stage-2 draw; it "
+                "must be FRESH for each attempt, or this episode's ledger entry would "
+                "carry another attempt's population identity"
+            )
     return True
 
 
@@ -1618,6 +1712,7 @@ def setup_episode(
     hidden_load_policy: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1,
     hidden_load_seed: Optional[int] = None,
     known_requested: Optional[int] = None,
+    population_recorder: Optional[RouteRelativePopulationRecorder] = None,
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
     match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> EpisodeContext:
@@ -1673,6 +1768,15 @@ def setup_episode(
             ``K`` from ``{A, A + 2}``, so construction cannot infer which value the
             schedule chose; it refuses a world whose extracted known cardinality disagrees
             rather than adopting it.
+        population_recorder: an OPTIONAL, FRESH
+            :class:`RouteRelativePopulationRecorder` the caller owns. Under
+            ``route_relative_uniform_v2`` the stage-2 draw is written into it the INSTANT
+            it resolves -- before the placement walk, the patch, the reload or any deferred
+            solve can fail -- so a caller that keeps a failure ledger can state the
+            population an attempt really received even when this function RAISES. REFUSED
+            under the historical hidden-load policy, where there is no stage 2 to record.
+            Omitting it changes nothing about the episode: it is pure provenance, read by
+            the caller and by nothing in this module.
         reference_policy: the REWARD-REFERENCE policy, DEFAULTING to the historical
             ``static_t0_v1`` so every pre-GENERALIZED-V1 caller keeps the behaviour the
             approved measurements were taken on: the full t=0 reference is solved HERE
@@ -1723,6 +1827,7 @@ def setup_episode(
         hidden_load_policy=resolved_load_policy,
         hidden_load_seed=hidden_load_seed,
         known_requested=known_requested,
+        population_recorder=population_recorder,
     )
     if construction:
         return _setup_episode_construction(
@@ -1739,6 +1844,7 @@ def setup_episode(
             known_requested=(
                 None if known_requested is None else int(known_requested)
             ),
+            population_recorder=population_recorder,
             max_episode_steps=max_episode_steps,
             attacking_side_color=attacking_side_color,
             detection_km=detection_km,
@@ -1864,6 +1970,7 @@ def _setup_episode_construction(
     hidden_load_policy: str = HIDDEN_LOAD_POLICY_EXPLICIT_V1,
     hidden_load_seed: Optional[int] = None,
     known_requested: Optional[int] = None,
+    population_recorder: Optional[RouteRelativePopulationRecorder] = None,
     reference_policy: str = REFERENCE_POLICY_STATIC_T0_V1,
     match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND,
 ) -> EpisodeContext:
@@ -1991,6 +2098,17 @@ def _setup_episode_construction(
                 route_count=len(routed),
             )
             hidden_requested = int(hidden_load.hidden_requested)
+            # RECORDED HERE, AND THE POSITION IS THE WHOLE POINT: the instant the draw
+            # exists and BEFORE anything that can fail consumes it -- the bounded-backoff
+            # walk, the patch, the env-2 reload, the world-cardinality checks, the
+            # deferred reference solve. From this line on, an attempt that fails has
+            # still RECEIVED this population identity, and its ledger entry can say so
+            # instead of reporting a stage-1 half-cell the episode never ran under.
+            #
+            # Writing it is pure provenance: nothing in this module reads the recorder
+            # back, so the episode behaves identically whether one was supplied or not.
+            if population_recorder is not None:
+                population_recorder.record(hidden_load)
         else:
             hidden_requested = int(n_hidden)             # type: ignore[arg-type]
 
