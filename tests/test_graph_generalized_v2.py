@@ -774,6 +774,115 @@ def test_po2_the_backend_contract_is_stated_as_design_constrained_not_independen
     assert "generalized_v2 requires p1_milp_v1 and REFUSES this" in source  # legacy branch
 
 
+def test_po2_the_operator_surfaces_describe_all_three_selectable_designs() -> None:
+    """The CURRENT population / budget / benchmark contract, as an operator meets it.
+
+    A selector whose ``choices`` offer three designs while its help explains two leaves an
+    operator to discover the third from a traceback. And the generalized attempt budget
+    was described as a ``generalized_v1`` requirement "refused otherwise" -- which reads,
+    to someone configuring a V2 run, as though the flag did not apply to them, when
+    ``validate`` in fact REQUIRES it there too.
+
+    Behaviour is asserted FIRST, so this can never pass while the verdicts drifted; the
+    operator text is then held to the same contract. The one benchmark nuance matters on
+    its own: the budget really does fix the maximum training-attempt seed band on BOTH
+    generalized designs, but only ``generalized_v1`` has a frozen benchmark to hold out
+    from -- so the help must not imply that V2 has one.
+    """
+    # --- the BEHAVIOURAL contract ------------------------------------------------
+    # The attempt budget: required on both generalized designs, refused on the fixed cell.
+    _v1_cfg().validate()
+    _v2_cfg().validate()
+    for cfg_fn, label in ((_v1_cfg, EPISODE_DESIGN_GENERALIZED_V1),
+                          (_v2_cfg, EPISODE_DESIGN_GENERALIZED_V2)):
+        msg = _refuses(
+            lambda f=cfg_fn: f(generalized_max_attempts_per_iteration=None).validate(),
+            what="%s with no attempt budget" % label)
+        assert "requires an explicit" in msg
+        assert "generalized_max_attempts_per_iteration" in msg
+        # The message names the design that really failed, not a hard-coded one.
+        assert label in msg
+    msg = _refuses(
+        lambda: gt.TrainConfig(n_iterations=2,
+                               generalized_max_attempts_per_iteration=12).validate(),
+        what="the fixed cell carrying a generalized attempt budget")
+    assert "must not silently acquire replacement" in msg
+    # ... and the same property is reachable directly, on both generalized designs.
+    for cfg in (_v1_cfg(), _v2_cfg()):
+        assert cfg.training_attempt_policy == gt.TRAINING_ATTEMPT_POLICY_QUOTA
+        assert cfg.max_attempts_per_iteration == 12
+    # `max_attempts_per_iteration` carries its OWN refusal for a generalized config that
+    # never went through `validate` (which would have caught the missing budget first), so
+    # it is pinned here directly -- otherwise the only message a test ever sees is
+    # validate's, and this one could quietly go on naming a design it was not reached from.
+    for cfg_fn, label in ((_v1_cfg, EPISODE_DESIGN_GENERALIZED_V1),
+                          (_v2_cfg, EPISODE_DESIGN_GENERALIZED_V2)):
+        bare = cfg_fn(generalized_max_attempts_per_iteration=None)
+        msg = _refuses(lambda c=bare: c.max_attempts_per_iteration,
+                       what="max_attempts_per_iteration with no budget on %s" % label)
+        assert label in msg, msg
+    assert (gt.TrainConfig(n_iterations=2).training_attempt_policy
+            == gt.TRAINING_ATTEMPT_POLICY_SCHEDULED)
+
+    # The benchmark manifest: a V1 construct, refused by the other two designs.
+    _v1_cfg(eval_every=5, eval_episodes=8,
+            benchmark_manifest="frozen.json").validate()
+    for cfg_fn, label in ((_v2_cfg, EPISODE_DESIGN_GENERALIZED_V2),
+                          (lambda **k: gt.TrainConfig(n_iterations=2, **k),
+                           EPISODE_DESIGN_FIXED_CELL_V1)):
+        msg = _refuses(lambda f=cfg_fn: f(benchmark_manifest="frozen.json").validate(),
+                       what="a manifest under %s" % label)
+        assert "benchmark" in msg
+
+    # --- the OPERATOR-FACING text ------------------------------------------------
+    help_text = {a.dest: a.help for a in gt._build_arg_parser()._actions}
+
+    design_help = help_text["episode_design"]
+    for design in EPISODE_DESIGNS:
+        assert design in design_help, (
+            "--episode-design offers %r but its help never names it" % design)
+    # V2's two distinguishing facts, stated without any efficacy or benchmark claim.
+    assert "TWO-STAGE" in design_help
+    assert MATCH_AOU_BACKEND_P1_MILP_V1 in design_help
+    for forbidden in ("benchmark", "better", "improve"):
+        assert forbidden not in design_help.lower(), forbidden
+
+    budget_help = help_text["generalized_max_attempts_per_iteration"]
+    assert EPISODE_DESIGN_GENERALIZED_V1 in budget_help
+    assert EPISODE_DESIGN_GENERALIZED_V2 in budget_help
+    assert EPISODE_DESIGN_FIXED_CELL_V1 in budget_help
+    # The stale claim: required for V1 and "refused otherwise", which is false for V2.
+    assert "refused otherwise" not in budget_help
+    # ... and the benchmark nuance is scoped rather than implied.
+    assert "sets the maximum training seed band the benchmark is held out against"         not in budget_help
+    assert "%s defines no evaluation benchmark" % EPISODE_DESIGN_GENERALIZED_V2         in budget_help
+
+    # The same stale claims must not survive anywhere in the module's CURRENT prose. The
+    # comment is scanned in RAW source (comments exist nowhere else); the two message
+    # claims are scanned over FOLDED string constants, because both were written across an
+    # implicit concatenation and a raw scan would silently pass on either.
+    source = (SRC / "match_aou" / "rl" / "training" / "graph_train.py").read_text(
+        encoding="utf-8")
+    assert "REQUIRED under `generalized_v1`, where" not in source, (
+        "the V1-only attempt-budget comment returned")
+    assert "REQUIRED under BOTH generalized designs" in source
+
+    constants = [
+        n.value for n in ast.walk(ast.parse(source))
+        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    ]
+    for stale in (
+        # Implied that V2 has a benchmark for its seed band to be held out from.
+        "sets the maximum training seed band the benchmark is held out against",
+        # Implied the budget is a V1 requirement and "refused otherwise".
+        "REQUIRED for a %s run (where episodes_per_iteration is a quota",
+    ):
+        for text in constants:
+            assert stale not in text, (
+                "a V1-only attempt-budget claim returned in an operator message: %r"
+                % (text[:120],))
+
+
 def test_po2_a_route_relative_request_is_refused_unless_it_is_complete() -> None:
     """Every half-supplied V2 construction request is refused BEFORE any BLADE object.
 

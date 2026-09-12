@@ -39,9 +39,9 @@ SEEDING SCHEDULE (this module owns it -- the two bands are DISJOINT BY VALIDATIO
   * TRAINING: global episode index ``g = iteration * episodes_per_iteration + j``;
     episode seed ``base_seed + g``. This continues the rollout convention -- given the
     policy weights at that point, an episode is a pure function of its seed.
-    GENERALIZED-V1 Task 5C GENERALIZES ``g`` WITHOUT CHANGING IT: under
-    ``episode_design = generalized_v1`` an ordinary failure is REPLACED rather than
-    losing its slot, so ``g`` becomes the run-wide ATTEMPT ordinal -- monotone over the
+    GENERALIZED-V1 Task 5C GENERALIZES ``g`` WITHOUT CHANGING IT: under EITHER
+    generalized design an ordinary failure is REPLACED rather than losing its slot, so
+    ``g`` becomes the run-wide ATTEMPT ordinal -- monotone over the
     whole run, advanced by every attempt, successful or failed
     (:func:`train_attempt_seed`). When every slot is attempted exactly once, which is
     the whole of the fixed-cell policy, the two expressions are IDENTICAL and the
@@ -962,19 +962,30 @@ class TrainConfig:
 
     max_ticks: Optional[int] = None
 
-    # --- GENERALIZED-V1: WHICH EPISODE POPULATION THIS RUN DRAWS FROM --------------
-    # ONE explicit selector, never inferred from the values of `num_agents` / `n_hidden`
-    # (a run that reached the generalized bundle because someone typed `--n-hidden 2`
-    # would be a design nobody chose). `fixed_cell_v1` is the DEFAULT and preserves the
-    # historical behaviour in full: the exact cell below, `exact_v1` hidden cardinality,
-    # the legacy FD eligibility and single post-FD wake, and the `static_t0_v1` reward
-    # reference -- the path every approved measurement was taken on.
+    # --- WHICH EPISODE POPULATION THIS RUN DRAWS FROM ------------------------------
+    # ONE explicit selector over a CLOSED set of THREE designs, never inferred from the
+    # values of `num_agents` / `n_hidden` (a run that reached a generalized bundle because
+    # someone typed `--n-hidden 2` would be a design nobody chose).
+    #
+    # `fixed_cell_v1` is the DEFAULT and preserves the historical behaviour in full: the
+    # exact cell below, `exact_v1` hidden cardinality, the legacy FD eligibility and
+    # single post-FD wake, and the `static_t0_v1` reward reference -- the path every
+    # approved measurement was taken on.
     #
     # `generalized_v1` selects the COMPLETE approved Task-1/2/3 bundle in one word, and
     # makes the construction cell PER-EPISODE: A is sampled from {2,3,4}, K == A, and
-    # H_requested ~ Uniform({1..A}), from the sampler's own rng domain. The three
-    # fixed-cell fields below are then NOT read for a training episode (`validate`
-    # refuses a run that looks as though they were meant to be).
+    # H_requested ~ Uniform({1..A}), from the sampler's own rng domain.
+    #
+    # `generalized_v2` selects the SAME four low-level policy ids and changes only the
+    # POPULATION, in TWO STAGES: A from {2,3,4,5,6} and K from {A, A+2} BEFORE the
+    # known-only solve, then H_requested against R -- the number of egos that allocation
+    # actually routed -- AFTER it, which is why it cannot be drawn up front. It is valid
+    # ONLY with `match_aou_backend = p1_milp_v1`: the objective that produces that route
+    # count cannot be chosen separately from the design defined against it, so `validate`
+    # REFUSES the legacy objective here rather than overriding it.
+    #
+    # Under EITHER generalized design the three fixed-cell fields below are NOT read for a
+    # training episode, and `validate` says so loudly rather than ignoring them silently.
     episode_design: str = EPISODE_DESIGN_FIXED_CELL_V1
 
     # --- WHICH MATCH-AOU ALLOCATION OBJECTIVE THIS RUN SOLVES ---------------------
@@ -1003,18 +1014,28 @@ class TrainConfig:
     match_aou_backend: str = DEFAULT_MATCH_AOU_BACKEND
 
     # The FROZEN 18-stratum benchmark this run EVALUATES on -- a path to a manifest
-    # written by `graph_generalized.write_benchmark_manifest`. Required for a
-    # `generalized_v1` run WITH evaluation enabled, and refused for a `fixed_cell_v1`
-    # run: the held-out seed band is a fixed-cell construct, and letting a generalized
-    # run fall back on it would evaluate an UNSTRATIFIED population under a stratified
-    # label. To train generalized without a benchmark, disable evaluation explicitly.
+    # written by `graph_generalized.write_benchmark_manifest`. REQUIRED for a
+    # `generalized_v1` run WITH evaluation enabled: the held-out seed band is a fixed-cell
+    # construct, and letting that run fall back on it would evaluate an UNSTRATIFIED
+    # population under a stratified label. To train `generalized_v1` without a benchmark,
+    # disable evaluation explicitly.
+    #
+    # REFUSED on both other designs, for two different reasons. A `fixed_cell_v1` run
+    # would build every world from the fixed cell while reporting stratum labels it never
+    # varied. A `generalized_v2` run has NO evaluation construct at all -- the 18-stratum
+    # manifest is a `generalized_v1` artifact (its strata are built from A in {2,3,4} and
+    # a hidden load defined against A), and no V2 benchmark has been designed -- so
+    # `validate` refuses the manifest AND refuses evaluation itself on that design.
     benchmark_manifest: Optional[str] = None
 
     # The GENERALIZED-only bounded ATTEMPT BUDGET per iteration. `None` on the
     # historical path, where it is REFUSED if set (a fixed-cell run must not silently
-    # acquire replacement behaviour), and REQUIRED under `generalized_v1`, where
-    # `episodes_per_iteration` stops meaning "attempts" and starts meaning "SUCCESSFUL
-    # episodes the PPO/CTDE batch must hold" (:data:`TRAINING_ATTEMPT_POLICY_QUOTA`).
+    # acquire replacement behaviour), and REQUIRED under BOTH generalized designs --
+    # `generalized_v1` and `generalized_v2` alike -- where `episodes_per_iteration` stops
+    # meaning "attempts" and starts meaning "SUCCESSFUL episodes the PPO/CTDE batch must
+    # hold" (:data:`TRAINING_ATTEMPT_POLICY_QUOTA`). The quota is selected by
+    # `TrainConfig.training_attempt_policy`, which reads `cfg.generalized` and nothing
+    # else, so the two designs share it exactly.
     #
     # It has NO DEFAULT ON PURPOSE. How many attempts a generalized iteration needs
     # depends on the world-attrition rate of a population whose bounded runtime / solver
@@ -1022,6 +1043,12 @@ class TrainConfig:
     # scientific decision -- exactly as `build_benchmark_manifest` refuses to invent
     # `worlds_per_cell`. It must be >= `episodes_per_iteration`, and reaching it before
     # the quota is full ABORTS the run rather than updating on a partial batch.
+    #
+    # It also fixes the run's MAXIMUM POSSIBLE training-attempt seed band
+    # (`max_training_attempts`), which is what every seed-band claim is made against on
+    # BOTH generalized designs. Under `generalized_v1` that same bound is additionally
+    # what the frozen benchmark is verified to be held out from; `generalized_v2` defines
+    # no evaluation benchmark, so there is nothing there for it to be held out from.
     generalized_max_attempts_per_iteration: Optional[int] = None
 
     # --- GENERALIZED-V1 EARLY STOPPING: opt-in, OFF by default --------------------
@@ -1186,7 +1213,7 @@ class TrainConfig:
             raise ValueError(
                 "episode_design=%r requires an explicit "
                 "generalized_max_attempts_per_iteration; validate() refuses a run "
-                "without one." % EPISODE_DESIGN_GENERALIZED_V1
+                "without one." % self.episode_design
             )
         return int(budget)
 
@@ -1463,7 +1490,7 @@ class TrainConfig:
                     % (self.ctde.value_coeff,)
                 )
 
-        # --- GENERALIZED-V1: the design selector, checked before anything reads it ---
+        # --- THE DESIGN SELECTOR, checked before anything reads it -----------------
         # An UNRECOGNIZED design raises rather than falling back on the historical
         # bundle: a run that quietly measured the fixed cell while its config said
         # `generalized_v1` is a mislabelled measurement, which is worse than a crash.
@@ -1588,8 +1615,10 @@ class TrainConfig:
             # `episodes_per_iteration` is a SUCCESSFUL-episode quota, so the loop must be
             # told how many attempts it may spend obtaining it. Required and never
             # defaulted: a number invented here would silently decide how much world
-            # attrition the campaign tolerates, and it is also the bound every held-out
-            # seed claim is made against (`max_training_attempts`).
+            # attrition the campaign tolerates, and it is also the bound every seed-band
+            # claim is made against (`max_training_attempts`) -- which under
+            # `generalized_v1` is additionally what the frozen benchmark is verified to be
+            # held out from, while `generalized_v2` has no benchmark to hold out from.
             budget = self.generalized_max_attempts_per_iteration
             if budget is None:
                 raise ValueError(
@@ -1598,8 +1627,8 @@ class TrainConfig:
                     "episodes_per_iteration (%d) is a quota of SUCCESSFUL episodes, and "
                     "the loop needs a bounded attempt budget to obtain it. There is no "
                     "default -- the value decides how much world attrition the run "
-                    "tolerates, and it also sets the maximum training seed band the "
-                    "benchmark is held out against."
+                    "tolerates, and it sets the run's MAXIMUM POSSIBLE training-attempt "
+                    "seed band, which every seed-band claim is made against."
                     % (self.episode_design, int(self.episodes_per_iteration))
                 )
             if isinstance(budget, bool) or not isinstance(budget, int):
@@ -1619,11 +1648,12 @@ class TrainConfig:
             raise ValueError(
                 "generalized_max_attempts_per_iteration is set but episode_design=%r: "
                 "the successful-episode quota and its deterministic replacement are a "
-                "%r behaviour. A fixed-cell run makes exactly episodes_per_iteration "
-                "attempts per iteration and must not silently acquire replacement, "
-                "which would change the population every approved measurement was taken "
-                "over."
-                % (self.episode_design, EPISODE_DESIGN_GENERALIZED_V1)
+                "GENERALIZED behaviour (%r and %r). A fixed-cell run makes exactly "
+                "episodes_per_iteration attempts per iteration and must not silently "
+                "acquire replacement, which would change the population every approved "
+                "measurement was taken over."
+                % (self.episode_design, EPISODE_DESIGN_GENERALIZED_V1,
+                   EPISODE_DESIGN_GENERALIZED_V2)
             )
         if not design.generalized and str(self.benchmark_manifest or ""):
             raise ValueError(
@@ -3686,8 +3716,8 @@ def _construction_record(cfg: TrainConfig) -> Dict[str, Any]:
     ``fixed_cell_v1`` returns exactly the historical block: the configured cell IS the
     executed one there, and every existing reader keeps resolving.
 
-    ``generalized_v1`` returns a block that cannot be misread as a fixed cell. The
-    geometry half is unchanged (it really is configured and really is applied to every
+    EITHER generalized design returns a block that cannot be misread as a fixed cell.
+    The geometry half is unchanged (it really is configured and really is applied to every
     generated world); the CARDINALITY half says it is dynamic, names the two sources it
     comes from, and carries the configured-but-unused counts under
     ``unused_fixed_cell_config`` so a reader can see what was configured AND that it was
@@ -3819,8 +3849,8 @@ def write_run_config(
             else provenance
         ),
         # THE CONSTRUCTION CELL. Under `fixed_cell_v1` this is the resolved, executed
-        # cell and the block is byte-unchanged. Under `generalized_v1` the three count
-        # fields are NOT read by anything -- training cardinality is sampled per episode
+        # cell and the block is byte-unchanged. Under EITHER generalized design the three
+        # count fields are NOT read by anything -- training cardinality is sampled per episode
         # and benchmark cardinality comes from the manifest -- so writing them in the
         # same shape would let the artifact be read as "this run executed 3/3/3", which
         # is a plausible-looking false statement about the population. The generalized
@@ -3896,8 +3926,7 @@ def write_run_config(
                 "formula_changed": False,
             },
         },
-        # GENERALIZED-V1: WHICH POPULATION this run draws from, stated rather than
-        # inferred. The four low-level policy ids are RESOLVED here from the one design
+        # WHICH POPULATION this run draws from, stated rather than inferred. The four low-level policy ids are RESOLVED here from the one design
         # selector, so a reader never has to know the bundle to check what ran, and
         # `p(destroy)` is recorded explicitly to state -- rather than imply -- that the
         # redesign did not touch it.
@@ -4088,7 +4117,10 @@ def _pre_solve_kwargs(
 
 
 def _generalized_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
-    """``setup_episode``'s two GENERALIZED-V1 policy keywords -- or NOTHING.
+    """``setup_episode``'s two GENERALIZED policy keywords -- or NOTHING.
+
+    The same two keywords under BOTH generalized designs, because they resolve to the same
+    four low-level policy ids; only the POPULATION differs between V1 and V2.
 
     Same rule again, one level down: on the historical path ``setup_episode`` is called
     with exactly its pre-Task-4 argument list, so the default ``exact_v1`` /
@@ -7439,7 +7471,9 @@ def train(
         (pre-update, periodic and final) cannot drift into evaluating different
         populations. A ``generalized_v1`` run measures the FROZEN 18-stratum benchmark; a
         ``fixed_cell_v1`` run measures the historical held-out band, through exactly the
-        call it always made."""
+        call it always made. A ``generalized_v2`` run never reaches here at all --
+        ``validate`` refuses evaluation on that design, which defines no evaluation
+        construct."""
         common = dict(
             iteration=iteration, stage=stage, updates_completed=updates,
             round_ordinal=ordinal, failures_path=failures_path,
@@ -10969,15 +11003,21 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "FORMULA is unchanged); 0 makes losing an aircraft free "
                         "(default: %(default)s)")
     # --- PHASE B: which TRAINING algorithm runs. Execution is decentralized in both. ---
-    # --- GENERALIZED-V1: the population selector, and the frozen benchmark ---
+    # --- the population selector, and the frozen benchmark ---
     p.add_argument("--episode-design", type=str, choices=list(EPISODE_DESIGNS),
                    default=d_cfg.episode_design,
                    help="which episode POPULATION to draw from: %s preserves the "
                         "historical fixed cell and its four historical policies; %s "
-                        "selects the complete GENERALIZED-V1 bundle and samples the "
-                        "cell per episode (default: %%(default)s)"
+                        "selects the complete GENERALIZED-V1 bundle and samples A, K and "
+                        "the hidden load per episode before the solve; %s selects the "
+                        "SAME four policies with a TWO-STAGE route-relative population -- "
+                        "A and K before the known-only solve, the hidden load after it "
+                        "against the routed-ego count -- and requires --match-aou-backend "
+                        "%s (default: %%(default)s)"
                         % (EPISODE_DESIGN_FIXED_CELL_V1,
-                           EPISODE_DESIGN_GENERALIZED_V1))
+                           EPISODE_DESIGN_GENERALIZED_V1,
+                           EPISODE_DESIGN_GENERALIZED_V2,
+                           MATCH_AOU_BACKEND_P1_MILP_V1))
     p.add_argument("--match-aou-backend", type=str, choices=list(MATCH_AOU_BACKENDS),
                    default=d_cfg.match_aou_backend,
                    help="which MATCH-AOU allocation objective to solve. %s (the default) "
@@ -11005,13 +11045,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    type=_bounded_type(int, 1, inclusive=True,
                                       what="generalized_max_attempts_per_iteration"),
                    default=d_cfg.generalized_max_attempts_per_iteration,
-                   help="bounded attempt budget per iteration; REQUIRED for a %s run "
-                        "(where episodes_per_iteration is a quota of SUCCESSFUL "
-                        "episodes) and refused otherwise. Must be >= "
+                   help="bounded attempt budget per iteration; REQUIRED for a %s OR "
+                        "%s run (where episodes_per_iteration is a quota of SUCCESSFUL "
+                        "episodes) and refused for %s. Must be >= "
                         "episodes_per_iteration. NO DEFAULT: it decides how much world "
-                        "attrition the run tolerates and sets the maximum training seed "
-                        "band the benchmark is held out against."
-                        % EPISODE_DESIGN_GENERALIZED_V1)
+                        "attrition the run tolerates and sets the run's MAXIMUM POSSIBLE "
+                        "training-attempt seed band -- which under %s is additionally "
+                        "what the frozen benchmark is verified to be held out from, while "
+                        "%s defines no evaluation benchmark."
+                        % (EPISODE_DESIGN_GENERALIZED_V1, EPISODE_DESIGN_GENERALIZED_V2,
+                           EPISODE_DESIGN_FIXED_CELL_V1, EPISODE_DESIGN_GENERALIZED_V1,
+                           EPISODE_DESIGN_GENERALIZED_V2))
     # --- GENERALIZED-V1 early stopping: opt-in, and the flag's absence IS the default
     p.add_argument("--early-stopping", action="store_true",
                    default=d_cfg.early_stopping,
