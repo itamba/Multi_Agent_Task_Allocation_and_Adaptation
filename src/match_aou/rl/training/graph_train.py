@@ -978,10 +978,20 @@ class TrainConfig:
     episode_design: str = EPISODE_DESIGN_FIXED_CELL_V1
 
     # --- WHICH MATCH-AOU ALLOCATION OBJECTIVE THIS RUN SOLVES ---------------------
-    # An INDEPENDENT explicit selector, deliberately NOT part of `episode_design` and
-    # never inferred from it, from the task probabilities, from which solver happens to be
-    # installed, or from anything else. `legacy_minlp_v1` is the DEFAULT -- the frozen
-    # MINLP through BONMIN, the objective every approved measurement was taken on.
+    # An EXPLICIT selector, deliberately NOT part of the `episode_design` bundle and NEVER
+    # inferred -- not from the design, not from the task probabilities, not from which
+    # solver happens to be installed, and not from anything else. `legacy_minlp_v1` is the
+    # DEFAULT -- the frozen MINLP through BONMIN, the objective every approved measurement
+    # was taken on.
+    #
+    # ITS VALID VALUE SET IS DESIGN-CONSTRAINED, WHICH IS NOT THE SAME AS BEING INFERRED.
+    # `fixed_cell_v1` and `generalized_v1` accept EITHER approved objective.
+    # `generalized_v2` is defined only against `p1_milp_v1`: it resolves its hidden load
+    # from the number of non-empty routes the known-only allocation produced, so the
+    # objective that produces that route count cannot be chosen separately from the design
+    # that is defined against it. A `generalized_v2` run naming `legacy_minlp_v1` is
+    # REFUSED by `validate()` before any compute -- refused, never silently overridden.
+    # The run still has to STATE the objective it wants; nothing selects one on its behalf.
     #
     # `p1_milp_v1` selects the deterministic p = 1 MILP instead. IT IS NOT A TRANSPARENT
     # PERFORMANCE SWAP: it removes the legacy EPSILON stacking incentive, so it changes
@@ -1463,11 +1473,16 @@ class TrainConfig:
                 % (list(EPISODE_DESIGNS), self.episode_design)
             )
         # --- WHICH MATCH-AOU objective, checked before anything solves anything -----
-        # An INDEPENDENT selector: it is NOT resolved from `episode_design` and does not
-        # constrain it. An unknown id raises here (as `MatchAouBackendError`, the stable
-        # backend-integrity type) rather than falling back on the historical objective,
-        # for the same reason an unknown design does: a run that quietly solved a
-        # different objective than its record claims is a mislabelled measurement.
+        # An EXPLICIT selector: it is never RESOLVED FROM `episode_design`, and an unknown
+        # id raises here (as `MatchAouBackendError`, the stable backend-integrity type)
+        # rather than falling back on the historical objective -- for the same reason an
+        # unknown design does: a run that quietly solved a different objective than its
+        # record claims is a mislabelled measurement.
+        #
+        # What the design DOES constrain is the valid VALUE SET. `fixed_cell_v1` and
+        # `generalized_v1` accept either approved objective; the `generalized_v2` check
+        # immediately below refuses a run that named the legacy one. That is a REFUSAL of
+        # a contradictory request, not a selection made on the run's behalf.
         resolve_match_aou_backend(self.match_aou_backend)
         design = self.design
         if design.route_relative_population:
@@ -4132,10 +4147,16 @@ def _backend_setup_kwargs(cfg: TrainConfig) -> Dict[str, Any]:
     ``setup_episode`` is called with EXACTLY its pre-integration argument list and
     resolves its own historical default, which is the stronger invariance claim.
 
-    It is a SEPARATE helper from :func:`_generalized_setup_kwargs` on purpose. The backend
-    is orthogonal to ``episode_design`` -- either design may run under either backend --
-    so folding it into the generalized bundle would make it unreachable on the fixed-cell
-    path and would suggest a coupling that does not exist.
+    It is a SEPARATE helper from :func:`_generalized_setup_kwargs` on purpose: the backend
+    is its own EXPLICIT selector and not a member of the generalized policy bundle.
+    ``fixed_cell_v1`` and ``generalized_v1`` may each run under EITHER approved objective,
+    so folding the backend into the bundle would make it unreachable on the fixed-cell path.
+
+    ``generalized_v2`` narrows the valid VALUE SET to ``p1_milp_v1`` and
+    ``TrainConfig.validate`` REFUSES anything else on that design -- but the run still
+    STATES the objective, and this helper simply resolves whatever was stated. It selects
+    nothing on the run's behalf, and there is no ``auto`` and no fallback in either
+    direction.
     """
     backend = resolve_match_aou_backend(cfg.match_aou_backend)
     if backend == MATCH_AOU_BACKEND_LEGACY_MINLP_V1:
@@ -7304,18 +7325,25 @@ def train(
           "reference=%s]"
           % (design.design, design.hidden_policy, design.eligibility_policy,
              design.post_fd_wake_policy, design.reference_policy))
-    # WHICH allocation objective, echoed for the same reason and stated as INDEPENDENT of
-    # the design above, so an operator can never read one off the other. A P1 run says so
-    # outright, because it is not the objective the approved measurements were taken on.
+    # WHICH allocation objective, echoed for the same reason as the design above, and
+    # stated as a SEPARATE EXPLICIT selector whose valid VALUE SET the design constrains --
+    # so an operator can neither read one off the other nor believe one was chosen for
+    # them. Both branches say the same rule, because a P1 run may be any design and a
+    # legacy run may be either historical one. A P1 run additionally says outright that it
+    # is not the objective the approved measurements were taken on.
     backend = resolve_match_aou_backend(cfg.match_aou_backend)
     if backend == MATCH_AOU_BACKEND_P1_MILP_V1:
-        print("match_aou_backend: %s  (deterministic p = 1 MILP, no EPSILON; INDEPENDENT "
-              "of episode_design. NOT the historical objective: it removes the legacy "
-              "stacking incentive, so allocations -- and therefore hidden geometry and "
-              "feasibility -- can differ. BONMIN is not invoked.)" % backend)
+        print("match_aou_backend: %s  (deterministic p = 1 MILP, no EPSILON; STATED by "
+              "this run, never inferred -- fixed_cell_v1 and generalized_v1 accept either "
+              "approved objective, and generalized_v2 is defined ONLY against this one. "
+              "NOT the historical objective: it removes the legacy stacking incentive, so "
+              "allocations -- and therefore hidden geometry and feasibility -- can differ. "
+              "BONMIN is not invoked.)" % backend)
     else:
         print("match_aou_backend: %s  (frozen MINLP through BONMIN -- the historical "
-              "objective; INDEPENDENT of episode_design)" % backend)
+              "objective; STATED by this run, never inferred. Accepted by fixed_cell_v1 "
+              "and generalized_v1; generalized_v2 requires p1_milp_v1 and REFUSES this "
+              "one.)" % backend)
     if cfg.route_relative_population:
         print("scenario (GENERALIZED-V2): the cell is SAMPLED PER EPISODE in TWO STAGES")
         print("          stage 1 (before the known-only solve): A ~ U{%s}, "
@@ -10958,9 +10986,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "MILP, which removes the legacy EPSILON stacking incentive and "
                         "therefore CHANGES which allocations are optimal (and so can "
                         "change hidden geometry and feasibility); it is not a transparent "
-                        "performance swap. INDEPENDENT of --episode-design, with no auto "
-                        "and no fallback (default: %%(default)s)"
+                        "performance swap. A SEPARATE EXPLICIT selector from "
+                        "--episode-design, with no auto and no fallback -- but the design "
+                        "constrains which values are valid: %s and %s accept either, while "
+                        "%s requires %s and refuses the other (default: %%(default)s)"
                         % (MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
+                           MATCH_AOU_BACKEND_P1_MILP_V1,
+                           EPISODE_DESIGN_FIXED_CELL_V1,
+                           EPISODE_DESIGN_GENERALIZED_V1,
+                           EPISODE_DESIGN_GENERALIZED_V2,
                            MATCH_AOU_BACKEND_P1_MILP_V1))
     p.add_argument("--benchmark-manifest", type=str,
                    default=d_cfg.benchmark_manifest,

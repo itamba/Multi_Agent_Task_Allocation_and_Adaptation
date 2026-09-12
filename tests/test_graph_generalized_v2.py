@@ -31,6 +31,7 @@ Run: python -m pytest tests/test_graph_generalized_v2.py -v
 
 from __future__ import annotations
 
+import ast
 import json
 import random
 import sys
@@ -672,6 +673,105 @@ def test_po2_the_design_requires_the_p1_objective_on_both_harnesses() -> None:
             fuel_damage_mode=FuelDamageMode.SEEDED_VARIABLE).validate(),
         what="a V2 rollout with the legacy objective")
     assert "requires match_aou_backend" in msg
+
+
+def test_po2_the_backend_contract_is_stated_as_design_constrained_not_independent() -> None:
+    """The CURRENT contract, pinned in BOTH directions: behaviour and the prose about it.
+
+    Before V2 the MATCH-AOU backend really was unconstrained by ``episode_design``, and
+    ``graph_train`` said so in its field comment, its ``validate`` comment, a helper
+    docstring, both startup-header branches and the CLI help. V2 made that FALSE -- and a
+    valid V2 run reaches the P1 header branch, so the console itself was misstating the
+    contract to the operator at the moment it mattered.
+
+    THE TRUE CONTRACT IS NARROW, and both halves have to survive:
+
+      * SELECTION IS STILL EXPLICIT. Nothing is inferred from the design, the task
+        probabilities or what is installed; there is no ``auto`` and no fallback; a
+        contradictory request is REFUSED rather than overridden. V2 must never read as
+        though the backend were chosen on the operator's behalf.
+      * THE VALID VALUE SET IS DESIGN-CONSTRAINED. ``fixed_cell_v1`` and
+        ``generalized_v1`` accept EITHER approved objective; ``generalized_v2`` accepts
+        only ``p1_milp_v1``.
+
+    The behavioural half is asserted first -- a prose test that passed while the verdicts
+    had drifted would be worse than no test. The source half then refuses the specific
+    stale phrasings, by exact phrase rather than by the word "independent", so the many
+    legitimate uses elsewhere in the module (FD pair members failing independently,
+    repeated-measures rounds not being independent worlds, the solve budget being the same
+    under either backend) are untouched.
+    """
+    # --- the BEHAVIOURAL contract, in one place ---------------------------------
+    for design, backend, valid in (
+        (EPISODE_DESIGN_GENERALIZED_V2, MATCH_AOU_BACKEND_P1_MILP_V1, True),
+        (EPISODE_DESIGN_GENERALIZED_V2, MATCH_AOU_BACKEND_LEGACY_MINLP_V1, False),
+        (EPISODE_DESIGN_GENERALIZED_V1, MATCH_AOU_BACKEND_LEGACY_MINLP_V1, True),
+        (EPISODE_DESIGN_GENERALIZED_V1, MATCH_AOU_BACKEND_P1_MILP_V1, True),
+        (EPISODE_DESIGN_FIXED_CELL_V1, MATCH_AOU_BACKEND_LEGACY_MINLP_V1, True),
+        (EPISODE_DESIGN_FIXED_CELL_V1, MATCH_AOU_BACKEND_P1_MILP_V1, True),
+    ):
+        cfg = (_v2_cfg() if design == EPISODE_DESIGN_GENERALIZED_V2
+               else _v1_cfg() if design == EPISODE_DESIGN_GENERALIZED_V1
+               else gt.TrainConfig(n_iterations=2))
+        cfg = type(cfg)(**{**{f: getattr(cfg, f) for f in cfg.__dataclass_fields__},
+                           "episode_design": design, "match_aou_backend": backend})
+        if valid:
+            cfg.validate()
+        else:
+            msg = _refuses(cfg.validate, what="%s + %s" % (design, backend))
+            # REFUSED, not overridden -- the distinction the prose must also keep.
+            assert "requires match_aou_backend" in msg and "Refused" in msg
+
+    # --- the SOURCE / OPERATOR-TEXT contract ------------------------------------
+    source = (SRC / "match_aou" / "rl" / "training" / "graph_train.py").read_text(
+        encoding="utf-8")
+    # Exact phrasings that claimed UNRESTRICTED independence. Each was present before V2
+    # was added and is false now; none of them can return without failing here.
+    for stale in (
+        "INDEPENDENT of episode_design",
+        "INDEPENDENT of --episode-design",
+        "orthogonal to ``episode_design``",
+        "either design may run under either backend",
+        "An INDEPENDENT explicit selector",
+        "An INDEPENDENT selector: it is NOT resolved from",
+    ):
+        assert stale not in source, "the unconditional independence claim returned: %r" % (
+            stale,)
+
+    # A SECOND PASS OVER THE FOLDED STRING CONSTANTS, because the raw-source scan above
+    # cannot see a claim split across an implicit concatenation -- which is exactly how
+    # the P1 startup branch used to carry "INDEPENDENT " / "of episode_design". Parsing
+    # folds those, so an operator-facing message is checked as the operator reads it.
+    constants = [
+        n.value for n in ast.walk(ast.parse(source))
+        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    ]
+    for text in constants:
+        for stale in ("INDEPENDENT of episode_design",
+                      "INDEPENDENT of --episode-design",
+                      "orthogonal to ``episode_design``",
+                      "either design may run under either backend"):
+            assert stale not in text, (
+                "an operator-facing message still claims unrestricted independence: %r"
+                % (text[:120],))
+
+    # ... and the true contract is actually STATED, so this test cannot pass merely because
+    # the subject was deleted.
+    assert "ITS VALID VALUE SET IS DESIGN-CONSTRAINED" in source
+    assert source.count("never inferred") >= 3, "the explicitness half must survive too"
+    assert "no auto and no fallback" in source
+
+    # The OPERATOR-facing surfaces specifically -- the CLI help and both startup branches,
+    # because a valid V2 run reaches the P1 branch and a legacy run must be told why it
+    # cannot be a V2 one.
+    help_text = {a.dest: a.help for a in gt._build_arg_parser()._actions}
+    backend_help = help_text["match_aou_backend"]
+    assert "SEPARATE EXPLICIT selector" in backend_help
+    assert EPISODE_DESIGN_GENERALIZED_V2 in backend_help
+    assert "no auto and no fallback" in backend_help
+    assert "INDEPENDENT of --episode-design" not in backend_help
+    assert "generalized_v2 is defined ONLY against this one" in source     # P1 branch
+    assert "generalized_v2 requires p1_milp_v1 and REFUSES this" in source  # legacy branch
 
 
 def test_po2_a_route_relative_request_is_refused_unless_it_is_complete() -> None:
