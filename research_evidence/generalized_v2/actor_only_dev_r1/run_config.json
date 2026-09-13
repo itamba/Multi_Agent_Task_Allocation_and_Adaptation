@@ -1,0 +1,663 @@
+{
+  "train_config": {
+    "n_iterations": 375,
+    "episodes_per_iteration": 8,
+    "base_seed": 3000000,
+    "output_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0",
+    "ppo": {
+      "clip_ratio": 0.2,
+      "entropy_coeff": 0.01,
+      "lr": 0.0003,
+      "n_epochs": 4,
+      "gamma": 1.0,
+      "max_grad_norm": 0.5,
+      "adv_norm_eps": 1e-08
+    },
+    "training_mode": "actor_only",
+    "ctde": {
+      "critic_lr": 0.0003,
+      "value_coeff": 0.5,
+      "gae_lambda": 0.95
+    },
+    "checkpoint_every": 25,
+    "eval_every": 25,
+    "eval_episodes": 8,
+    "eval_base_seed": 1000000,
+    "max_ticks": null,
+    "episode_design": "generalized_v2",
+    "match_aou_backend": "p1_milp_v1",
+    "benchmark_manifest": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+    "benchmark_profile": "development",
+    "generalized_max_attempts_per_iteration": 12,
+    "early_stopping": false,
+    "early_stopping_min_iterations": 100,
+    "early_stopping_window_iterations": 25,
+    "early_stopping_patience_windows": 3,
+    "early_stopping_min_delta": 0.01,
+    "num_agents": 3,
+    "n_known": 3,
+    "n_hidden": 3,
+    "min_target_distance_km": 200.0,
+    "min_known_separation_km": 100.0,
+    "include_sams": false,
+    "randomize_red_airbase_positions": true,
+    "stretch_target_ratio": 0.5,
+    "fuel_damage_mode": "seeded_variable",
+    "fuel_damage_probability": 0.5,
+    "fuel_damage_leg_progress": 0.3,
+    "fuel_damage_rtb_margin": 1.1,
+    "fuel_damage_mild_probability": 0.5,
+    "aircraft_penalty_coeff": 2.25,
+    "visual_artifacts": false,
+    "num_red_airbases": [
+      6,
+      6
+    ],
+    "partial_ratio": 0.5
+  },
+  "provenance": {
+    "provenance_version": 1,
+    "collected_at": "2026-09-13T15:49:56",
+    "exact_cardinality_policy": "skip_and_account_v1",
+    "git": {
+      "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+      "available": true,
+      "commit": "ae42cb01677f94868b2873008d87be677e31f0c8",
+      "branch": "main",
+      "dirty": false,
+      "dirty_path_count": 0,
+      "reason": null
+    },
+    "invocation": {
+      "argv": [
+        "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\rl\\training\\graph_train.py",
+        "--iterations",
+        "375",
+        "--episodes",
+        "8",
+        "--seed",
+        "3000000",
+        "--out",
+        "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0",
+        "--checkpoint-every",
+        "25",
+        "--eval-every",
+        "25",
+        "--eval-episodes",
+        "8",
+        "--training-mode",
+        "actor_only",
+        "--episode-design",
+        "generalized_v2",
+        "--match-aou-backend",
+        "p1_milp_v1",
+        "--fuel-damage-mode",
+        "seeded_variable",
+        "--generalized-max-attempts-per-iteration",
+        "12",
+        "--benchmark-manifest",
+        "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+        "--benchmark-profile",
+        "development"
+      ],
+      "cwd": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+      "python_executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe"
+    },
+    "python": {
+      "version": "3.12.3 | packaged by conda-forge | (main, Apr 15 2024, 18:20:11) [MSC v.1938 64 bit (AMD64)]",
+      "version_info": [
+        3,
+        12,
+        3
+      ],
+      "implementation": "CPython"
+    },
+    "platform": {
+      "system": "Windows",
+      "release": "10",
+      "version": "10.0.19045",
+      "machine": "AMD64",
+      "node": "Itamars-Lenovo-Yoga"
+    },
+    "packages": {
+      "torch": {
+        "available": true,
+        "version": "2.7.1+cpu",
+        "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\torch\\__init__.py",
+        "error": null
+      },
+      "gymnasium": {
+        "available": true,
+        "version": "1.0.0",
+        "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\gymnasium\\__init__.py",
+        "error": null
+      },
+      "blade": {
+        "available": true,
+        "version": "1.0.0",
+        "path": "c:\\users\\itama\\pycharmprojects\\multi_agent_task_allocation_and_adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py",
+        "error": null
+      },
+      "match_aou": {
+        "available": true,
+        "version": null,
+        "path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\__init__.py",
+        "error": null
+      }
+    },
+    "solver": {
+      "bonmin": {
+        "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Library\\bin\\bonmin.EXE",
+        "available": true,
+        "probe": "ok",
+        "probe_output": "bonmin (Microsoft cl 15.00.21022.08 f\ufffdr 80x86), ASL(20100130)"
+      },
+      "match_aou_backend": "p1_milp_v1"
+    },
+    "seeds": {
+      "train_band": {
+        "start": 3000000,
+        "stop": 3004500,
+        "half_open": true,
+        "count": 4500
+      },
+      "train_seed_formula": "train_seed = base_seed + global_attempt_ordinal (monotone over the whole run; every attempt spends one, successful or not)",
+      "eval_enabled": true,
+      "eval_band": null,
+      "eval_seed_formula": null,
+      "eval_band_is_fixed_across_rounds": true,
+      "train_attempt_policy": {
+        "policy": "successful_quota_with_deterministic_replacement_v1",
+        "successful_episodes_required_per_iteration": 8,
+        "max_attempts_per_iteration": 12,
+        "n_iterations": 375,
+        "successful_episode_quota_total": 3000,
+        "max_possible_training_attempts": 4500,
+        "train_band_counts": "maximum_possible_attempts",
+        "note": "episodes_per_iteration is a quota of SUCCESSFUL episodes; ordinary attrition is replaced by the next deterministic attempt seed, so the run may consume up to max_possible_training_attempts seeds"
+      },
+      "eval_seed_source": "benchmark_manifest",
+      "benchmark_evaluation": {
+        "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+        "n_world_seeds": 120,
+        "n_member_episodes_per_round": 60,
+        "seed_list_sha256": "6d65318a5d44046b58bf44882d435c87172145d3cb4d3d21f1f31fe93fe88518",
+        "seeds": [
+          2000000,
+          2000001,
+          2000002,
+          2000003,
+          2000004,
+          2000005,
+          2000006,
+          2000007,
+          2000008,
+          2000009,
+          2000010,
+          2000011,
+          2000064,
+          2000065,
+          2000066,
+          2000067,
+          2000068,
+          2000069,
+          2000070,
+          2000071,
+          2000072,
+          2000073,
+          2000074,
+          2000075,
+          2000128,
+          2000129,
+          2000130,
+          2000131,
+          2000132,
+          2000133,
+          2000134,
+          2000135,
+          2000136,
+          2000137,
+          2000138,
+          2000139,
+          2000192,
+          2000193,
+          2000194,
+          2000195,
+          2000196,
+          2000197,
+          2000198,
+          2000199,
+          2000200,
+          2000201,
+          2000202,
+          2000203,
+          2000256,
+          2000257,
+          2000258,
+          2000259,
+          2000260,
+          2000261,
+          2000262,
+          2000263,
+          2000264,
+          2000265,
+          2000266,
+          2000267,
+          2000320,
+          2000321,
+          2000322,
+          2000323,
+          2000324,
+          2000325,
+          2000326,
+          2000327,
+          2000328,
+          2000329,
+          2000330,
+          2000331,
+          2000384,
+          2000385,
+          2000386,
+          2000387,
+          2000388,
+          2000389,
+          2000390,
+          2000391,
+          2000392,
+          2000393,
+          2000394,
+          2000395,
+          2000448,
+          2000449,
+          2000450,
+          2000451,
+          2000452,
+          2000453,
+          2000454,
+          2000455,
+          2000456,
+          2000457,
+          2000458,
+          2000459,
+          2000512,
+          2000513,
+          2000514,
+          2000515,
+          2000516,
+          2000517,
+          2000518,
+          2000519,
+          2000520,
+          2000521,
+          2000522,
+          2000523,
+          2000576,
+          2000577,
+          2000578,
+          2000579,
+          2000580,
+          2000581,
+          2000582,
+          2000583,
+          2000584,
+          2000585,
+          2000586,
+          2000587
+        ],
+        "held_out_against_train_band": {
+          "start": 3000000,
+          "stop": 3004500,
+          "half_open": true
+        },
+        "held_out_overlap_count": 0,
+        "held_out_verified": true,
+        "held_out_checked_over": "entire_manifest_all_profiles",
+        "evaluation_profile": {
+          "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "profile": "development",
+          "world_ordinals": [
+            0,
+            1
+          ],
+          "n_worlds": 20,
+          "n_members": 60,
+          "group_keys": [
+            "A2-D0-w000",
+            "A2-D0-w001",
+            "A2-D2-w000",
+            "A2-D2-w001",
+            "A3-D0-w000",
+            "A3-D0-w001",
+            "A3-D2-w000",
+            "A3-D2-w001",
+            "A4-D0-w000",
+            "A4-D0-w001",
+            "A4-D2-w000",
+            "A4-D2-w001",
+            "A5-D0-w000",
+            "A5-D0-w001",
+            "A5-D2-w000",
+            "A5-D2-w001",
+            "A6-D0-w000",
+            "A6-D0-w001",
+            "A6-D2-w000",
+            "A6-D2-w001"
+          ],
+          "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+          "seeds": [
+            2000000,
+            2000001,
+            2000064,
+            2000065,
+            2000128,
+            2000129,
+            2000192,
+            2000193,
+            2000256,
+            2000257,
+            2000320,
+            2000321,
+            2000384,
+            2000385,
+            2000448,
+            2000449,
+            2000512,
+            2000513,
+            2000576,
+            2000577
+          ],
+          "seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184"
+        }
+      },
+      "unused_legacy_eval_band": {
+        "start": 1000000,
+        "stop": 1000008,
+        "half_open": true,
+        "count": 8,
+        "executed": false,
+        "note": "configured but NOT executed: this run's evaluation seeds come from the frozen benchmark manifest"
+      }
+    },
+    "train_config_location": "run_config.json:/train_config"
+  },
+  "construction": {
+    "cardinality_source": "per_episode_two_stage_sampler",
+    "fixed_cell_config_used": false,
+    "training_cardinality": {
+      "source": "per_episode_two_stage_sampler",
+      "policy": "generalized_v2_pre_solve_uniform_v1",
+      "rng_domain": "generalized_v2_cardinality_v1",
+      "hidden_load_policy": "route_relative_uniform_v2",
+      "hidden_load_rng_domain": "generalized_v2_hidden_load_v1",
+      "agent_counts": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "known_offsets": [
+        0,
+        2
+      ],
+      "rule": "A ~ Uniform(agent_counts); K | A ~ Uniform({A + o}); THEN, after the known-only solve, H_requested ~ Uniform({1..R}) where R is the number of egos that solve routed"
+    },
+    "evaluation_cardinality": {
+      "source": null,
+      "note": "this design defines no evaluation construct; `validate` refuses a benchmark manifest and refuses evaluation outright"
+    },
+    "n_targets_emitted": null,
+    "realized_cardinality_recorded_in": "episode_outcomes.jsonl",
+    "unused_fixed_cell_config": {
+      "num_agents": 3,
+      "n_known": 3,
+      "n_hidden": 3,
+      "executed": false,
+      "note": "configured but NOT read on this path: the cell is sampled per episode and taken from the manifest for benchmark members"
+    },
+    "min_target_distance_km": 200.0,
+    "min_known_separation_km": 100.0,
+    "detection_km": 50.0,
+    "ensure_discovery_chain": false,
+    "strict_geometry": true,
+    "setup_mode": "construction"
+  },
+  "training": {
+    "mode": "actor_only",
+    "ctde_enabled": false,
+    "ctde": null,
+    "execution": "decentralized_actor_only",
+    "attempt_policy": {
+      "policy": "successful_quota_with_deterministic_replacement_v1",
+      "episodes_per_iteration_counts": "successful_episodes",
+      "successful_episodes_required_per_iteration": 8,
+      "max_attempts_per_iteration": 12,
+      "generalized_max_attempts_per_iteration": 12,
+      "successful_episode_quota_total": 3000,
+      "max_possible_training_attempts": 4500,
+      "replacement": true
+    }
+  },
+  "difficulty": {
+    "factor": "fuel_damage_variable_severity_v1",
+    "fuel_damage": {
+      "mode": "seeded_variable",
+      "probability": 0.5,
+      "leg_progress_threshold": 0.3,
+      "rtb_safety_margin": 1.1,
+      "rng_domain": "fuel_damage_v1",
+      "event_leg_index": 1,
+      "variable_severity": true,
+      "mild_probability": 0.5,
+      "severity_rng_domain": "fuel_damage_severity_v1",
+      "severities": [
+        "mild",
+        "severe"
+      ],
+      "target_policy": "live_severity_midpoint_v1",
+      "eligibility_policy": "certified_both_severities_v1",
+      "certified_eligibility": true,
+      "eligibility_rng_domain": "fuel_damage_eligibility_v1",
+      "post_fd_wake_policy": "completion_boundary_v1",
+      "completion_boundary_wakes": true
+    },
+    "eval_group_kind": "triad",
+    "eval_group_cells": [
+      "clean",
+      "mild",
+      "severe"
+    ],
+    "eval_group_modes": [
+      "forced_clean",
+      "forced_mild",
+      "forced_severe"
+    ],
+    "eval_group_members_per_seed": 3,
+    "eval_group_deltas": [
+      "eval_delta_mild_minus_clean",
+      "eval_delta_severe_minus_clean",
+      "eval_delta_severe_minus_mild"
+    ],
+    "scheduled_cell_probabilities": {
+      "clean": 0.5,
+      "mild": 0.25,
+      "severe": 0.25
+    },
+    "eval_pair_conditions": [
+      "clean",
+      "mild",
+      "severe"
+    ],
+    "eval_pair_members_per_seed": 3,
+    "reward": {
+      "aircraft_penalty_coeff": 2.25,
+      "regret_epsilon": 1e-05,
+      "formula_changed": false
+    }
+  },
+  "episode_design": {
+    "design": "generalized_v2",
+    "generalized": true,
+    "hidden_policy": "bounded_backoff_v1",
+    "eligibility_policy": "certified_both_severities_v1",
+    "post_fd_wake_policy": "completion_boundary_v1",
+    "reference_policy": "event_conditioned_continuation_v1",
+    "target_destruction_probability": 1.0,
+    "cardinality_sampler": {
+      "policy": "generalized_v2_pre_solve_uniform_v1",
+      "stages": 2,
+      "pre_solve": {
+        "policy": "generalized_v2_pre_solve_uniform_v1",
+        "rng_domain": "generalized_v2_cardinality_v1",
+        "seed_construction": "sha256('generalized_v2_cardinality_v1:<episode_seed>')[:8]",
+        "agent_counts": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "agent_count_rule": "A ~ Uniform(agent_counts)",
+        "known_offsets": [
+          0,
+          2
+        ],
+        "known_rule": "K | A ~ Uniform({A + o : o in known_offsets})"
+      },
+      "post_solve": {
+        "policy": "route_relative_uniform_v2",
+        "rng_domain": "generalized_v2_hidden_load_v1",
+        "seed_construction": "sha256('generalized_v2_hidden_load_v1:<episode_seed>')[:8]",
+        "route_count_rule": "R = |egos with a non-empty route in the known-only allocation|",
+        "hidden_requested_rule": "H_requested | R ~ Uniform({1, ..., R})",
+        "resolved_after_known_only_solve": true
+      },
+      "required_match_aou_backend": "p1_milp_v1",
+      "realized_hidden_may_be_short": true,
+      "retry_on_short_realization": false
+    },
+    "fixed_cell": null,
+    "benchmark_manifest": {
+      "path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+      "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+      "schema": "generalized_v2_benchmark_manifest",
+      "schema_version": 1,
+      "design": "generalized_v2",
+      "label": "generalized_v2_scientific_benchmark_v1",
+      "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+      "n_worlds": 120,
+      "n_members": 360,
+      "n_base_cells": 10,
+      "worlds_per_cell": 12,
+      "group_size": 3,
+      "group_cells": [
+        "clean",
+        "mild",
+        "severe"
+      ],
+      "worlds_per_base_cell": {
+        "A2-D0": 12,
+        "A2-D2": 12,
+        "A3-D0": 12,
+        "A3-D2": 12,
+        "A4-D0": 12,
+        "A4-D2": 12,
+        "A5-D0": 12,
+        "A5-D2": 12,
+        "A6-D0": 12,
+        "A6-D2": 12
+      },
+      "profiles": {
+        "development": [
+          0,
+          1
+        ],
+        "confirmatory": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      },
+      "seed_list_sha256": "6d65318a5d44046b58bf44882d435c87172145d3cb4d3d21f1f31fe93fe88518",
+      "evaluation_profile": {
+        "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+        "profile": "development",
+        "world_ordinals": [
+          0,
+          1
+        ],
+        "n_worlds": 20,
+        "n_members": 60,
+        "group_keys": [
+          "A2-D0-w000",
+          "A2-D0-w001",
+          "A2-D2-w000",
+          "A2-D2-w001",
+          "A3-D0-w000",
+          "A3-D0-w001",
+          "A3-D2-w000",
+          "A3-D2-w001",
+          "A4-D0-w000",
+          "A4-D0-w001",
+          "A4-D2-w000",
+          "A4-D2-w001",
+          "A5-D0-w000",
+          "A5-D0-w001",
+          "A5-D2-w000",
+          "A5-D2-w001",
+          "A6-D0-w000",
+          "A6-D0-w001",
+          "A6-D2-w000",
+          "A6-D2-w001"
+        ],
+        "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+        "seeds": [
+          2000000,
+          2000001,
+          2000064,
+          2000065,
+          2000128,
+          2000129,
+          2000192,
+          2000193,
+          2000256,
+          2000257,
+          2000320,
+          2000321,
+          2000384,
+          2000385,
+          2000448,
+          2000449,
+          2000512,
+          2000513,
+          2000576,
+          2000577
+        ],
+        "seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184"
+      }
+    }
+  },
+  "derived_split": [
+    {
+      "n": 6,
+      "known": 3,
+      "hidden": 3
+    }
+  ],
+  "config_source": {
+    "path": null,
+    "absolute_path": null,
+    "format": null,
+    "config_fields": [],
+    "cli_overrides": [],
+    "resolved_from": "cli_defaults"
+  },
+  "base_scenario": "strike_training_4v5.json"
+}

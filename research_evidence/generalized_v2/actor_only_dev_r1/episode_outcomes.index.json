@@ -1,0 +1,78 @@
+{
+  "source_filename": "episode_outcomes.jsonl",
+  "source_byte_size": 73894321,
+  "source_sha256": "b1bcc0647c45932e1ad6c939d0c740100291dc60a6a83371efb6485d8ebb9da3",
+  "total_record_count": 3960,
+  "records_per_shard": 500,
+  "record_terminator": "CRLF (0x0D 0x0A), preserved verbatim; records not decoded or re-encoded",
+  "record_boundary": "existing LF (0x0A) bytes",
+  "reconstruction": "raw byte concatenation of shards in listed order",
+  "reconstructed_byte_size": 73894321,
+  "reconstructed_sha256": "b1bcc0647c45932e1ad6c939d0c740100291dc60a6a83371efb6485d8ebb9da3",
+  "shards": [
+    {
+      "filename": "episode_outcomes.part000.jsonl",
+      "first_record_ordinal": 1,
+      "last_record_ordinal": 500,
+      "record_count": 500,
+      "byte_size": 9099829,
+      "sha256": "676752da0681e0dca1afb4953c36d1bb0bd24ef93eaebec2b78809e82dca62ad"
+    },
+    {
+      "filename": "episode_outcomes.part001.jsonl",
+      "first_record_ordinal": 501,
+      "last_record_ordinal": 1000,
+      "record_count": 500,
+      "byte_size": 9398408,
+      "sha256": "d5b2c451bf5080a0a78998818b9df9b283f180175fb10fc9971a3a9fe2446b65"
+    },
+    {
+      "filename": "episode_outcomes.part002.jsonl",
+      "first_record_ordinal": 1001,
+      "last_record_ordinal": 1500,
+      "record_count": 500,
+      "byte_size": 9254798,
+      "sha256": "341b131a1fc42bb61f83e54dcbfff20829ab1c949a99ae66fe5e43b7b36738b8"
+    },
+    {
+      "filename": "episode_outcomes.part003.jsonl",
+      "first_record_ordinal": 1501,
+      "last_record_ordinal": 2000,
+      "record_count": 500,
+      "byte_size": 9241813,
+      "sha256": "5534d6c0fd6b8eda3f7079cc08123c1df3a4dcc84bfbcdfb9f3d39c814c2f07b"
+    },
+    {
+      "filename": "episode_outcomes.part004.jsonl",
+      "first_record_ordinal": 2001,
+      "last_record_ordinal": 2500,
+      "record_count": 500,
+      "byte_size": 9349237,
+      "sha256": "d83f2687fe5750b72a798fcc74f8c5fa9f7562e3087d1b7cbc186f145e9b69be"
+    },
+    {
+      "filename": "episode_outcomes.part005.jsonl",
+      "first_record_ordinal": 2501,
+      "last_record_ordinal": 3000,
+      "record_count": 500,
+      "byte_size": 9483534,
+      "sha256": "0ad0e246a1d00bfad544602ffbdd70c0191744a3e237b8bd623f21952439272d"
+    },
+    {
+      "filename": "episode_outcomes.part006.jsonl",
+      "first_record_ordinal": 3001,
+      "last_record_ordinal": 3500,
+      "record_count": 500,
+      "byte_size": 9349128,
+      "sha256": "a586c837d99e10ddc9c6d21fdd402236ad6622c2b676539e8b33927c62b8950b"
+    },
+    {
+      "filename": "episode_outcomes.part007.jsonl",
+      "first_record_ordinal": 3501,
+      "last_record_ordinal": 3960,
+      "record_count": 460,
+      "byte_size": 8717574,
+      "sha256": "43f59415ca2553d964ac07ff0f99c067d3de5df579cfbb4e531f1d6ff4a90831"
+    }
+  ]
+}

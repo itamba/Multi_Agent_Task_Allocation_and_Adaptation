@@ -1,0 +1,30 @@
+# SHA-256 evidence manifest: GENERALIZED-V2 actor-only development R1
+# measured code SHA: ae42cb01677f94868b2873008d87be677e31f0c8
+# source run directory: graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0
+# (this manifest file itself is not listed)
+
+## committed evidence files (sha256  bytes  path)
+294ab3abcddf8c5831c28b513560cc85c1fc753b1d99c564786ad4da08dc75c8  33865  episode_failures.jsonl
+c2c9967fc1cdae79f870e151c24db76b10696e257b224b9ddd7f6fd3e6cef7f1  2784  episode_outcomes.index.json
+676752da0681e0dca1afb4953c36d1bb0bd24ef93eaebec2b78809e82dca62ad  9099829  episode_outcomes.part000.jsonl
+d5b2c451bf5080a0a78998818b9df9b283f180175fb10fc9971a3a9fe2446b65  9398408  episode_outcomes.part001.jsonl
+341b131a1fc42bb61f83e54dcbfff20829ab1c949a99ae66fe5e43b7b36738b8  9254798  episode_outcomes.part002.jsonl
+5534d6c0fd6b8eda3f7079cc08123c1df3a4dcc84bfbcdfb9f3d39c814c2f07b  9241813  episode_outcomes.part003.jsonl
+d83f2687fe5750b72a798fcc74f8c5fa9f7562e3087d1b7cbc186f145e9b69be  9349237  episode_outcomes.part004.jsonl
+0ad0e246a1d00bfad544602ffbdd70c0191744a3e237b8bd623f21952439272d  9483534  episode_outcomes.part005.jsonl
+a586c837d99e10ddc9c6d21fdd402236ad6622c2b676539e8b33927c62b8950b  9349128  episode_outcomes.part006.jsonl
+43f59415ca2553d964ac07ff0f99c067d3de5df579cfbb4e531f1d6ff4a90831  8717574  episode_outcomes.part007.jsonl
+2987bf78539eddfbf1acc054ce12717d737bfc965e09c970af38aed61960d03c  405802  eval_records.jsonl
+8e104fc012eb1b69543b2d9145ceaf40d3bbe722d74404389b3028f7c2935801  19816  run_config.json
+db97794b3fec4875afb870ea84d8d2fa2338e497891fbafc68def12649faebc9  99632  run_summary.json
+e7c5fc8c0d8aa94219adbc2b309e07d068921976389aa33ea4e0ed351243d960  1025891  train_records.jsonl
+d6a87aba7bdedd7d3636cb51cbf82455bd8df417a12c68daaa2f95e5798ed762  6345225  training_console.log
+
+## original episode_outcomes.jsonl (not committed as one blob; see episode_outcomes.index.json)
+b1bcc0647c45932e1ad6c939d0c740100291dc60a6a83371efb6485d8ebb9da3  73894321  episode_outcomes.jsonl  records=3960
+
+## reconstruction proof: sha256(concat(part000..part007))
+b1bcc0647c45932e1ad6c939d0c740100291dc60a6a83371efb6485d8ebb9da3  73894321  concat(episode_outcomes.part000.jsonl episode_outcomes.part001.jsonl episode_outcomes.part002.jsonl episode_outcomes.part003.jsonl episode_outcomes.part004.jsonl episode_outcomes.part005.jsonl episode_outcomes.part006.jsonl episode_outcomes.part007.jsonl)
+
+## final checkpoint (hash only, not committed)
+ae4111e089f4e5f23910997b0c10c420dc71788067a1ccfb56fac42fd10ae3f1  1368011  checkpoints/ckpt_iter0374.pt
