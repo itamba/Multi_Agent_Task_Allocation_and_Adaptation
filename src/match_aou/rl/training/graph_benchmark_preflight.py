@@ -153,7 +153,7 @@ from .graph_generalized import (
     v2_profile_for_ordinal,
     write_benchmark_manifest,
 )
-from .graph_hidden_placement import HiddenPlacementError
+from .graph_hidden_placement import BoundedBackoffExhaustedError
 from ...solvers.match_aou_backend import (
     MATCH_AOU_BACKEND_LEGACY_MINLP_V1,
     MATCH_AOU_BACKENDS,
@@ -1196,7 +1196,7 @@ PREFLIGHT_V2_POLICY: str = "deterministic_per_cell_window_fail_closed_v2"
 # The CLOSED set of V2 replacement-eligible rejection reasons (stable slugs).
 V2_REJECTION_GENERATOR_PLACEMENT: str = "generator_target_placement_refused"
 V2_REJECTION_NO_ROUTES: str = RouteRelativeNoRoutesError.reason
-V2_REJECTION_HIDDEN_PLACEMENT: str = "hidden_placement_refused"
+V2_REJECTION_HIDDEN_PLACEMENT: str = BoundedBackoffExhaustedError.reason
 V2_REJECTION_NO_FD_ELIGIBLE_EGO: str = NO_FD_ELIGIBLE_EGO
 V2_REJECTION_REASONS: Tuple[str, ...] = (
     V2_REJECTION_GENERATOR_PLACEMENT,
@@ -1218,7 +1218,9 @@ def v2_rejection_reason(
         place this cell's known targets for this seed;
       * ``setup`` + :class:`RouteRelativeNoRoutesError` -- ``R == 0``, the route-relative
         hidden load is undefined (its own stable ``reason``);
-      * ``setup`` + :class:`HiddenPlacementError` -- bounded backoff realized nothing;
+      * ``setup`` + :class:`BoundedBackoffExhaustedError` -- the bounded walk completed and
+        realized nothing. A plain ``HiddenPlacementError`` (malformed input, an internal
+        contradiction, a re-measurement failure) is NOT recognized and aborts;
       * ``setup`` + :class:`FuelDamageError` carrying the published
         :data:`NO_FD_ELIGIBLE_EGO` marker -- no ego certifies both severities.
 
@@ -1235,8 +1237,8 @@ def v2_rejection_reason(
         return None
     if isinstance(original, RouteRelativeNoRoutesError):
         return stage, str(original.reason), ()
-    if isinstance(original, HiddenPlacementError):
-        return stage, V2_REJECTION_HIDDEN_PLACEMENT, ()
+    if isinstance(original, BoundedBackoffExhaustedError):
+        return stage, str(original.reason), ()
     if (isinstance(original, FuelDamageError)
             and not isinstance(original, FuelDamageIntegrityError)
             and NO_FD_ELIGIBLE_EGO in str(original)):

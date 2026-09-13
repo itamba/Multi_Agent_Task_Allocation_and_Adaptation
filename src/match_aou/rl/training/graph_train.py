@@ -6207,11 +6207,11 @@ def evaluate(
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
     if cfg.route_relative_population:
         raise ValueError(
-            "evaluate() is not defined for episode_design=%r: the fixed held-out seed "
-            "band is a fixed-cell construct whose seeds carry no stratum and are not "
-            "drawn from this design's population, so a round taken on it would measure "
-            "something other than what its label says. No evaluation construct exists "
-            "for this design." % (cfg.episode_design,)
+            "evaluate() is not defined for episode_design=%r: the fixed held-out seed-band "
+            "evaluator is a fixed-cell construct whose seeds carry no stratum and are not "
+            "drawn from this design's population. Evaluate this design through "
+            "evaluate_benchmark() with its frozen generalized_v2 benchmark manifest and a "
+            "declared benchmark_profile." % (cfg.episode_design,)
         )
     members = cfg.eval_group_members
     group_size = cfg.eval_group_size

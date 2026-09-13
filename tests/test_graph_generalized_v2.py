@@ -393,6 +393,10 @@ def test_po1_the_v1_benchmark_stays_v1_and_v2_evaluates_only_its_own_construct()
                             iteration=None),
         what="evaluate() under V2")
     assert "not defined for episode_design" in msg
+    # ... and the refusal no longer claims V2 has no evaluation construct: it points at
+    # the frozen-benchmark path that now exists.
+    assert "no evaluation construct" not in msg.lower()
+    assert "evaluate_benchmark" in msg and "benchmark_profile" in msg
     # `evaluate_benchmark()` dispatches V2 to its own round, which refuses anything that is
     # not a frozen V2 manifest.
     msg = _refuses(

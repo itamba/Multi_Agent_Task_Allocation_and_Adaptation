@@ -150,7 +150,9 @@ BACKOFF_REJECTION_REASONS: Tuple[str, ...] = (
 __all__ = [
     "Assignment",
     "BACKOFF_REJECTION_REASONS",
+    "BOUNDED_BACKOFF_ZERO_REALIZED",
     "BackoffCandidate",
+    "BoundedBackoffExhaustedError",
     "BoundedBackoffAudit",
     "EARTH_RADIUS_KM",
     "HIDDEN_CARDINALITY_POLICIES",
@@ -180,6 +182,23 @@ class HiddenPlacementError(ValueError):
     placement that fails its own independent re-measurement. The layer never degrades
     silently: it either returns geometry that satisfies the request or it raises.
     """
+
+
+BOUNDED_BACKOFF_ZERO_REALIZED: str = "bounded_backoff_zero_realized"
+"""The stable reason of :class:`BoundedBackoffExhaustedError`."""
+
+
+class BoundedBackoffExhaustedError(HiddenPlacementError):
+    """The bounded-backoff walk completed over its candidates and realized ZERO targets.
+
+    A CLASSIFICATION of the one existing terminal refusal of
+    :func:`place_hidden_targets_bounded` -- the world-level outcome, as opposed to the
+    malformed-input / internal-contradiction / re-measurement failures that stay plain
+    :class:`HiddenPlacementError`. It subclasses that type, so every caller that already
+    catches :class:`HiddenPlacementError` is unaffected.
+    """
+
+    reason: str = BOUNDED_BACKOFF_ZERO_REALIZED
 
 
 # ---------------------------------------------------------------------------
@@ -1386,7 +1405,7 @@ def place_hidden_targets_bounded(
         reasons = "; ".join(
             f"ordinal {c.ordinal} ({c.ego_id}): {c.reason}" for c in candidates
         ) or "no candidate was even considered"
-        raise HiddenPlacementError(
+        raise BoundedBackoffExhaustedError(
             f"bounded backoff realized 0 hidden targets from {len(considered)} candidate(s) "
             f"for hidden_requested={hidden_requested}; a generalized world needs at least "
             f"one. Candidate outcomes: {reasons}"

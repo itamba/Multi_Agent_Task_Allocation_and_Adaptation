@@ -1157,6 +1157,16 @@ def test_g2_zero_realizable_hidden_targets_is_refused() -> None:
         agent_ordinals=labels, hidden_requested=2,
     )
     _assert("realized 0 hidden targets" in str(exc), str(exc))
+    # CLASSIFIED as the narrow terminal subtype -- still a HiddenPlacementError, so every
+    # historical catcher is unaffected, but distinguishable without reading its message.
+    from match_aou.rl.training.graph_hidden_placement import (
+        BOUNDED_BACKOFF_ZERO_REALIZED,
+        BoundedBackoffExhaustedError,
+    )
+    _assert(type(exc) is BoundedBackoffExhaustedError, type(exc))
+    _assert(isinstance(exc, HiddenPlacementError), type(exc))
+    _assert(exc.reason == BOUNDED_BACKOFF_ZERO_REALIZED == "bounded_backoff_zero_realized",
+            exc.reason)
 
     # Also when the solve allocated nothing at all: every candidate is `no_route`.
     exc = _raises(
@@ -1165,6 +1175,7 @@ def test_g2_zero_realizable_hidden_targets_is_refused() -> None:
         agent_ordinals=labels, hidden_requested=1,
     )
     _assert(REASON_NO_ROUTE in str(exc), str(exc))
+    _assert(type(exc) is BoundedBackoffExhaustedError, type(exc))
 
 
 def test_g2_solver_omitted_egos_are_still_candidates() -> None:
@@ -1243,6 +1254,23 @@ def test_g2_input_validation_is_loud() -> None:
     # it raises instead of being recorded as a rejected candidate.
     _raises(HiddenPlacementError, place_hidden_targets_bounded,
             {"e0": [(0.9, 0, 0)]}, tasks, LAUNCH, PARAMS, random.Random(0), **ok)
+
+    # NONE of these contract violations is the world-level exhaustion subtype: only the
+    # completed zero-realized walk is. A malformed request stays a plain
+    # HiddenPlacementError, which is what keeps it from ever being replacement-eligible.
+    from match_aou.rl.training.graph_hidden_placement import BoundedBackoffExhaustedError
+    for args, kwargs in (
+        ((solution, tasks, LAUNCH, PARAMS, 0), ok),
+        ((solution, tasks, LAUNCH, PARAMS, random.Random(0)),
+         dict(agent_ordinals=labels, hidden_requested=0)),
+        ((solution, tasks, LAUNCH, PARAMS, random.Random(0)),
+         dict(agent_ordinals=["e0", "e0"], hidden_requested=1)),
+        (({"ghost": _plan(0)}, tasks, LAUNCH, PARAMS, random.Random(0)), ok),
+        (({"e0": [(0.9, 0, 0)]}, tasks, LAUNCH, PARAMS, random.Random(0)), ok),
+    ):
+        exc = _raises(HiddenPlacementError, place_hidden_targets_bounded, *args, **kwargs)
+        _assert(type(exc) is HiddenPlacementError, type(exc))
+        _assert(not isinstance(exc, BoundedBackoffExhaustedError), type(exc))
 
 
 # ---------------------------------------------------------------------------

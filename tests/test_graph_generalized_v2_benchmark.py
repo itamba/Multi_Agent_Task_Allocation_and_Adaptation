@@ -114,6 +114,8 @@ from match_aou.rl.training.graph_generalized import (  # noqa: E402
     write_benchmark_manifest,
 )
 from match_aou.rl.training.graph_hidden_placement import (  # noqa: E402
+    BOUNDED_BACKOFF_ZERO_REALIZED,
+    BoundedBackoffExhaustedError,
     HiddenPlacementError,
 )
 from match_aou.rl.training.graph_tick_loop import (  # noqa: E402
@@ -155,18 +157,23 @@ def _identity_for(seed: int, agent_count: int, known_offset: int, **override):
         hidden_requested=1 + (seed % route_count),
         hidden_realized=1 + (seed % route_count),
         known_realized=int(agent_count) + int(known_offset),
-        geometric_fingerprint=((float(seed % 90), float(seed % 180)),),
         fd_selected_ordinal=0,
         fd_certificate_fingerprint="cert-%d" % seed,
     )
     fields.update(override)
+    if "geometric_fingerprint" not in override:
+        # ONE placement per realized hidden target, as production geometry records it.
+        fields["geometric_fingerprint"] = tuple(
+            (float((seed + i) % 90), float(seed % 180))
+            for i in range(int(fields["hidden_realized"])))
     return V2WorldIdentity(**fields)
 
 
 def _load_record(identity: V2WorldIdentity) -> dict:
+    """The PRODUCTION stage-2 record for this identity (its real derived seed)."""
     return RouteRelativeHiddenLoad(
         route_count=identity.route_count, hidden_requested=identity.hidden_requested,
-        derived_seed=7,
+        derived_seed=gg.derive_hidden_load_seed(identity.seed),
     ).to_record()
 
 
@@ -455,6 +462,84 @@ def test_po1_a_v2_manifest_is_content_addressed_and_tampering_is_refused() -> No
     _raises(BenchmarkManifestError, v2_manifest_from_record, forged)
 
 
+def _forged(mutate) -> dict:
+    """A V2 manifest record whose first world's preflight is MUTATED and whose id is then
+    RECOMPUTED -- stored bytes fully self-consistent with their own manifest_id."""
+    rec = _manifest().to_record()
+    world = rec["worlds"][0]
+    assert (world["seed"], world["agent_count"], world["known_offset"]) == (4_000_000, 2, 0)
+    mutate(world["preflight"]["identity"], world["preflight"]["hidden_load"])
+    payload = {k: v for k, v in rec.items() if k != "manifest_id"}
+    rec["manifest_id"] = manifest_identity(payload)
+    return rec
+
+
+def _both(field_identity, field_load, value):
+    def mutate(ident, load):
+        ident[field_identity] = value
+        load[field_load] = value
+    return mutate
+
+
+def test_pof2_an_impossible_but_rehashed_manifest_is_refused() -> None:
+    """PO-F2. Authenticated bytes are not enough: the frozen POPULATION must be possible."""
+    # Control: re-hashing an UNMUTATED record still loads.
+    ok = _forged(lambda ident, load: None)
+    assert v2_manifest_from_record(ok).manifest_id == ok["manifest_id"]
+
+    def h_above_r(ident, load):
+        for d in (ident, load):
+            d["route_count" if d is ident else "route_count_at_hidden_resolution"] = 1
+            d["hidden_requested"] = 2
+        ident["hidden_realized"] = 1
+        ident["geometric_fingerprint"] = [[1.0, 2.0]]
+
+    def realized_zero(ident, load):
+        ident["hidden_realized"] = 0
+        ident["geometric_fingerprint"] = []
+
+    def realized_above_requested(ident, load):
+        ident["hidden_realized"] = int(ident["hidden_requested"]) + 1
+        ident["geometric_fingerprint"] = [
+            [float(i), 1.0] for i in range(int(ident["hidden_realized"]))]
+
+    cases = {
+        "R = 0": _both("route_count", "route_count_at_hidden_resolution", 0),
+        "H_requested = 0": _both("hidden_requested", "hidden_requested", 0),
+        "H_requested > R": h_above_r,
+        "H_realized = 0": realized_zero,
+        "H_realized > H_requested": realized_above_requested,
+        "known_realized != K": lambda ident, load: ident.update(known_realized=3),
+        "wrong rng domain": lambda ident, load: load.update(rng_domain="other_domain"),
+        "wrong derived seed": lambda ident, load: load.update(
+            derived_seed=int(load["derived_seed"]) + 1),
+        "fingerprint cardinality": lambda ident, load: ident.update(
+            geometric_fingerprint=list(ident["geometric_fingerprint"]) + [[0.5, 0.5]]),
+        "wrong policy": lambda ident, load: load.update(policy="explicit_request_v1"),
+    }
+    for name, mutate in cases.items():
+        forged = _forged(mutate)
+        exc = _raises(BenchmarkManifestError, v2_manifest_from_record, forged)
+        # Refused at SEMANTIC validation, not by the byte-identity check.
+        assert "identity MISMATCH" not in str(exc), (name, str(exc))
+
+
+def test_pof3_the_evaluate_refusal_no_longer_claims_v2_has_no_construct() -> None:
+    """Fix 3. `evaluate()` still refuses V2, and points at the benchmark path instead."""
+    exc = _raises(ValueError, gt.evaluate, None, None, _v2_cfg(), iteration=None)
+    text = str(exc)
+    assert "not defined for episode_design" in text
+    assert "no evaluation construct" not in text.lower()
+    assert "evaluate_benchmark" in text and "benchmark_profile" in text
+    import ast
+    source = (SRC / "match_aou" / "rl" / "training" / "graph_train.py").read_text(
+        encoding="utf-8")
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            assert "no evaluation construct exists" not in node.value.lower(), \
+                node.value[:120]
+
+
 def test_po1_profiles_are_refused_outside_generalized_v2() -> None:
     _raises(ValueError, gt.TrainConfig(n_iterations=1,
                                        benchmark_profile="development").validate)
@@ -553,13 +638,15 @@ def test_po2_a_mismatch_on_any_frozen_component_aborts() -> None:
 
 def test_po2_a_world_whose_frozen_identity_contradicts_it_is_refused() -> None:
     import dataclasses
-    for override in ({"seed": 1}, {"agent_count": 3}, {"known_count": 3},
+    # Each override is an internally POSSIBLE frozen state (so the preflight itself is
+    # valid), which isolates the refusal to the world-vs-identity disagreement.
+    for override in ({"seed": 4_000_001}, {"agent_count": 3},
+                     {"known_count": 3, "known_realized": 3},
                      {"match_aou_backend": MATCH_AOU_BACKEND_LEGACY_MINLP_V1}):
         ident = dataclasses.replace(_identity_for(4_000_000, 2, 0), **override)
+        preflight = V2WorldPreflight(identity=ident, hidden_load=_load_record(ident))
         _raises(BenchmarkManifestError, gg.V2BenchmarkWorld, agent_count=2,
-                known_offset=0, world_ordinal=0, seed=4_000_000,
-                preflight=V2WorldPreflight(identity=ident,
-                                           hidden_load=_load_record(ident)))
+                known_offset=0, world_ordinal=0, seed=4_000_000, preflight=preflight)
 
 
 # =============================================================================
@@ -626,7 +713,8 @@ def test_po3_every_recognized_world_level_reason_is_replacement_eligible() -> No
     cases = {
         900_000: pf.EpisodeAttemptError("generation", TargetPlacementError("geom")),
         900_001: pf.EpisodeAttemptError("setup", RouteRelativeNoRoutesError("R=0")),
-        900_002: pf.EpisodeAttemptError("setup", HiddenPlacementError("none placed")),
+        900_002: pf.EpisodeAttemptError("setup", BoundedBackoffExhaustedError(
+            "bounded backoff realized 0 hidden targets")),
         900_003: pf.EpisodeAttemptError("setup", FuelDamageError(
             "%s: reasons: pre_event_popup_risk" % NO_FD_ELIGIBLE_EGO)),
     }
@@ -634,8 +722,41 @@ def test_po3_every_recognized_world_level_reason_is_replacement_eligible() -> No
     reasons = {c.seed: c.reason for c in result.candidates if not c.accepted}
     assert reasons == {900_000: pf.V2_REJECTION_GENERATOR_PLACEMENT,
                        900_001: ROUTE_RELATIVE_NO_ROUTES,
-                       900_002: pf.V2_REJECTION_HIDDEN_PLACEMENT,
+                       900_002: BOUNDED_BACKOFF_ZERO_REALIZED,
                        900_003: NO_FD_ELIGIBLE_EGO}
+    assert pf.V2_REJECTION_HIDDEN_PLACEMENT == BOUNDED_BACKOFF_ZERO_REALIZED
+    assert BOUNDED_BACKOFF_ZERO_REALIZED in pf.V2_REJECTION_REASONS
+    assert "hidden_placement_refused" not in pf.V2_REJECTION_REASONS
+
+
+def test_pof1_bounded_exhaustion_replaces_once_but_a_malformed_placement_aborts() -> None:
+    """PO-F1. Only the completed zero-realized walk is replacement-eligible.
+
+    A plain HiddenPlacementError is malformed input / an internal contradiction / a
+    re-measurement failure: it must ABORT, and no later seed may be attempted.
+    """
+    exhausted = pf.EpisodeAttemptError(
+        "setup", BoundedBackoffExhaustedError("bounded backoff realized 0 hidden targets"))
+    assert isinstance(exhausted.original, HiddenPlacementError)
+    probe, seen = _stub_probe(reject={900_004: exhausted})
+    result = _run_v2_preflight(probe=probe)
+    assert seen.count(900_004) == 1 and len(seen) == len(set(seen))
+    rejected = [c for c in result.candidates if not c.accepted]
+    assert [(c.seed, c.reason) for c in rejected] == [(900_004,
+                                                      BOUNDED_BACKOFF_ZERO_REALIZED)]
+    assert 900_004 not in [w.seed for w in result.manifest.worlds]
+
+    malformed = pf.EpisodeAttemptError(
+        "setup", HiddenPlacementError("malformed assignment ('x', 0, 0)"))
+    assert pf.v2_rejection_reason(malformed) is None
+    probe, seen = _stub_probe(reject={900_004: malformed})
+    try:
+        _run_v2_preflight(probe=probe)
+    except BaseException as exc:          # noqa: BLE001
+        assert exc is malformed
+    else:
+        raise AssertionError("a malformed HiddenPlacementError was replaced")
+    assert max(seen) == 900_004 and 900_005 not in seen
 
 
 def test_po3_an_unknown_or_unclassified_exception_aborts_the_preflight() -> None:
@@ -644,6 +765,7 @@ def test_po3_an_unknown_or_unclassified_exception_aborts_the_preflight() -> None
         pf.EpisodeAttemptError("setup", RuntimeError("an unrelated setup failure")),
         pf.EpisodeAttemptError("setup", ValueError("unknown")),
         pf.EpisodeAttemptError("setup", FuelDamageError("a window fault, no marker")),
+        pf.EpisodeAttemptError("setup", HiddenPlacementError("placement re-measurement")),
         pf.EpisodeAttemptError("run", RouteRelativeNoRoutesError("wrong stage")),
         pf.EpisodeAttemptError("generation", RuntimeError("not a placement refusal")),
         RuntimeError("bare"),
@@ -678,7 +800,7 @@ def test_po3_acceptance_never_reads_route_count_or_hidden_load() -> None:
 def test_po3_window_exhaustion_writes_no_manifest_but_a_failed_report() -> None:
     import tempfile
     rejects = {900_000 + i: pf.EpisodeAttemptError(
-        "setup", HiddenPlacementError("x")) for i in range(3)}
+        "setup", BoundedBackoffExhaustedError("x")) for i in range(3)}
     with tempfile.TemporaryDirectory() as tmp:
         exc = _raises(pf.BenchmarkPreflightError, _run_v2_preflight,
                       probe=_stub_probe(reject=rejects)[0], max_candidates=14,
@@ -717,7 +839,8 @@ def test_po3_the_probe_freezes_the_actual_stage_two_record_never_a_redraw() -> N
     seed = 910_000
     production = gg.resolve_route_relative_hidden_load(episode_seed=seed, route_count=4)
     actual = RouteRelativeHiddenLoad(
-        route_count=4, hidden_requested=1 + (production.hidden_requested % 4))
+        route_count=4, hidden_requested=1 + (production.hidden_requested % 4),
+        derived_seed=gg.derive_hidden_load_seed(seed))
     assert actual.hidden_requested != production.hidden_requested
     seen_kwargs = {}
 
@@ -743,7 +866,7 @@ def test_po3_the_probe_freezes_the_actual_stage_two_record_never_a_redraw() -> N
         pf.build_fuel_damage_controller = lambda ctx, episode_seed, params: type(
             "C", (), {"plan": _Plan()})()
         pf._observe_world_identity = lambda ctx, roster, fd_plan_record: WorldIdentity(
-            hidden_realized=2, known_realized=6, geometric_fingerprint=((1.0, 2.0),),
+            hidden_realized=1, known_realized=6, geometric_fingerprint=((1.0, 2.0),),
             fd_selected_ordinal=1, fd_certificate_fingerprint="cert")
         try:
             recorder = RouteRelativePopulationRecorder()

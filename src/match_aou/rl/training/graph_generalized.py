@@ -2080,17 +2080,61 @@ class V2WorldPreflight:
     construction_audit: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
+        """Refuse a frozen state production V2 could never have produced.
+
+        The manifest hash authenticates BYTES; this authenticates the POPULATION. The
+        stored hidden-load record is rebuilt as a real :class:`RouteRelativeHiddenLoad`
+        (whose own invariants are ``R >= 1`` and ``1 <= H <= R``), its rng domain and
+        derived seed must be the production ones for the world seed, and the frozen
+        identity must agree with it and be internally possible. Nothing is repaired.
+        """
+        ident = self.identity
         load = dict(self.hidden_load or {})
-        if (load.get("route_count_at_hidden_resolution") != self.identity.route_count
-                or load.get("hidden_requested") != self.identity.hidden_requested):
+        wrong: List[str] = []
+        try:
+            rebuilt = RouteRelativeHiddenLoad(
+                route_count=int(load.get("route_count_at_hidden_resolution")),
+                hidden_requested=int(load.get("hidden_requested")),
+                policy=str(load.get("policy")),
+                rng_domain=str(load.get("rng_domain")),
+                derived_seed=load.get("derived_seed"),
+            )
+        except (TypeError, ValueError) as exc:
             raise BenchmarkManifestError(
-                "generalized_v2 preflight hidden-load record %r disagrees with its frozen "
-                "identity (R=%d, H_requested=%d)"
-                % (load, self.identity.route_count, self.identity.hidden_requested))
-        if load.get("policy") != HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2:
+                "generalized_v2 preflight hidden-load record %r is not a state the "
+                "route-relative rule can produce (%s)" % (load, exc)) from exc
+        if rebuilt.to_record() != load:
+            wrong.append("hidden-load record is not in canonical form")
+        if rebuilt.policy != HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2:
+            wrong.append("hidden-load policy %r != %r"
+                         % (rebuilt.policy, HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2))
+        if rebuilt.rng_domain != V2_HIDDEN_LOAD_RNG_DOMAIN:
+            wrong.append("hidden-load rng_domain %r != %r"
+                         % (rebuilt.rng_domain, V2_HIDDEN_LOAD_RNG_DOMAIN))
+        expected_seed = derive_hidden_load_seed(int(ident.seed))
+        if rebuilt.derived_seed != expected_seed:
+            wrong.append("hidden-load derived_seed %r != %r (derived from seed %d)"
+                         % (rebuilt.derived_seed, expected_seed, int(ident.seed)))
+        if rebuilt.route_count != int(ident.route_count):
+            wrong.append("hidden-load R %d != identity R %d"
+                         % (rebuilt.route_count, int(ident.route_count)))
+        if rebuilt.hidden_requested != int(ident.hidden_requested):
+            wrong.append("hidden-load H_requested %d != identity H_requested %d"
+                         % (rebuilt.hidden_requested, int(ident.hidden_requested)))
+        if not (1 <= int(ident.hidden_realized) <= int(ident.hidden_requested)):
+            wrong.append("H_realized %d outside 1..H_requested=%d"
+                         % (int(ident.hidden_realized), int(ident.hidden_requested)))
+        if int(ident.known_realized) != int(ident.known_count):
+            wrong.append("known_realized %d != K %d"
+                         % (int(ident.known_realized), int(ident.known_count)))
+        if len(ident.geometric_fingerprint) != int(ident.hidden_realized):
+            wrong.append("hidden geometric fingerprint holds %d placement(s) but "
+                         "H_realized=%d" % (len(ident.geometric_fingerprint),
+                                            int(ident.hidden_realized)))
+        if wrong:
             raise BenchmarkManifestError(
-                "generalized_v2 preflight hidden-load policy %r is not %r"
-                % (load.get("policy"), HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2))
+                "generalized_v2 frozen world (seed %d) is not a population state "
+                "production V2 could produce: %s" % (int(ident.seed), "; ".join(wrong)))
 
     def to_record(self) -> Dict[str, Any]:
         return {
