@@ -1,0 +1,57 @@
+# SHA-256 evidence manifest: GENERALIZED-V2 CTDE development R1
+# measured code SHA: ae42cb01677f94868b2873008d87be677e31f0c8
+# measurement verdict (GPT review of the completed run): APPROVE — VALID DEVELOPMENT MEASUREMENT
+# source run directory: graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0
+# (this manifest file itself is not listed)
+
+## committed evidence files (sha256  bytes  path)
+bbca4ae43af22872fdb6b1aaaa9d03f78482d348f7060fb5859d92f94f9622d7  33865  episode_failures.jsonl
+65bb104f583e606937af80611340080822995713f4201c8d7ca5184895cc0a30  2784  episode_outcomes.index.json
+f2a023bea8c1c4069d6009aeb88de0b857dd8b9d923d2b78560c04c7300b9b7d  9098182  episode_outcomes.part000.jsonl
+3fd134268ddf7b7eb5b829710ad7d5e80107638c522f51883233cd684cf65dab  9367288  episode_outcomes.part001.jsonl
+0be2cc3d4aa0f0536f97b4dc1604ab41a46efe4d4386376e265e61d454ba54b1  9281401  episode_outcomes.part002.jsonl
+03e1e3b68e758fc8803bf3ff2b54e3c0e5b6489fbb90f9bb6296eb4985316e7d  9276263  episode_outcomes.part003.jsonl
+453a8bb7c0ab126370f6a633740cfad319f0de23ab8e9a389b4afa67f8ad2047  9405662  episode_outcomes.part004.jsonl
+994b9a6a252b89a9fd66bedad45319ac1c96b2f18a3de5e74d7c87e7cc3d1187  9493609  episode_outcomes.part005.jsonl
+29e5d114ead03f240100d73eb701e096224ef06ae9a4b2cf2599d2b90b4342d0  9346382  episode_outcomes.part006.jsonl
+93e8b90eb05d29da4bdcd65d671cb111d87d6f2c4ffb3ac527e5dfcbcf7511bd  8700355  episode_outcomes.part007.jsonl
+76951246c1a7be7942ab4216421840a6add2dd499f238c276a0bd5728690f1b0  406084  eval_records.jsonl
+e0da5117aa2875a40bb97b6a3804b84ecd6ee6014d1a181f52b8a48b8f3ba2ee  936  failed_launch_console.log
+106af22121153014a299ea2263d6ae6832cfbc9ac953399f0d449d294c55cac1  394  failed_launch_timing.txt
+187b7432176f04b7e65c563107c1c2a90a27a089e75f91a7b634f357541aaf4c  394  official_timing.txt
+beac06d463639b25ebe4e00b42b7f1a370ea9fe2500c2cfb4d65137e11030b27  19870  run_config.json
+714fe0cc10189380cce553af8eacd898e28a745bc610842008b013f4b4cfebaf  100037  run_summary.json
+9de5d2567eed9acde5a1baa3f7c15faf18222ef37c7e5976b5e9e8eb6a632760  1083686  train_records.jsonl
+b40ff27083b2dde0e9e91aa2fc0470f5e622cc1ce83891e5f3b48906ab672aa4  6346522  training_console.log
+
+## committed name <- source name (byte-identical copies; sha256  bytes  committed <- source)
+beac06d463639b25ebe4e00b42b7f1a370ea9fe2500c2cfb4d65137e11030b27  19870  run_config.json <- run_config.json
+714fe0cc10189380cce553af8eacd898e28a745bc610842008b013f4b4cfebaf  100037  run_summary.json <- run_summary.json
+9de5d2567eed9acde5a1baa3f7c15faf18222ef37c7e5976b5e9e8eb6a632760  1083686  train_records.jsonl <- train_records.jsonl
+bbca4ae43af22872fdb6b1aaaa9d03f78482d348f7060fb5859d92f94f9622d7  33865  episode_failures.jsonl <- episode_failures.jsonl
+76951246c1a7be7942ab4216421840a6add2dd499f238c276a0bd5728690f1b0  406084  eval_records.jsonl <- eval_records.jsonl
+b40ff27083b2dde0e9e91aa2fc0470f5e622cc1ce83891e5f3b48906ab672aa4  6346522  training_console.log <- graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0.official.console.log
+187b7432176f04b7e65c563107c1c2a90a27a089e75f91a7b634f357541aaf4c  394  official_timing.txt <- graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0.official.timing.txt
+e0da5117aa2875a40bb97b6a3804b84ecd6ee6014d1a181f52b8a48b8f3ba2ee  936  failed_launch_console.log <- graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0.console.log
+106af22121153014a299ea2263d6ae6832cfbc9ac953399f0d449d294c55cac1  394  failed_launch_timing.txt <- graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0.timing.txt
+
+## original episode_outcomes.jsonl (not committed as one blob; see episode_outcomes.index.json)
+fbb18848eef09f187f9335eaed1aa97d686b1ae4494484e06d333afc27d6327b  73969142  episode_outcomes.jsonl  records=3960
+
+## reconstruction proof: sha256(concat(part000..part007))
+fbb18848eef09f187f9335eaed1aa97d686b1ae4494484e06d333afc27d6327b  73969142  concat(episode_outcomes.part000.jsonl episode_outcomes.part001.jsonl episode_outcomes.part002.jsonl episode_outcomes.part003.jsonl episode_outcomes.part004.jsonl episode_outcomes.part005.jsonl episode_outcomes.part006.jsonl episode_outcomes.part007.jsonl)  records=3960
+
+## final checkpoint (HASH ONLY / NOT COMMITTED)
+6555e0c7bf0546ece0efee4ec0e12fcea99591a6a49fd177856d7bf85fb10cc6  2732555  checkpoints/ckpt_iter0374.pt
+
+## frozen benchmark manifest (EXTERNAL / NOT COMMITTED)
+dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103  204244  C:/Users/Itama/PycharmProjects/graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0/benchmark_manifest.json  manifest_id=ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8
+
+## launch records
+# official_timing.txt       <- graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0.official.timing.txt  (the one completed CTDE scientific execution, EXIT_CODE=0)
+# failed_launch_console.log <- graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0.console.log
+# failed_launch_timing.txt  <- graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0.timing.txt
+# failed launch: PRE-EXECUTION LAUNCH FAILURE — NOT A SCIENTIFIC RUN (ImportError: attempted relative import with no known parent package; EXIT_CODE=1; ended before the official run directory existed)
+
+## known non-behavioural summary defect, preserved byte-identically and NOT normalized
+# run_summary.json -> generalized.cardinality_sampler may describe the V1 sampler.
