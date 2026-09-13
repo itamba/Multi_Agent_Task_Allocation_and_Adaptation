@@ -266,6 +266,31 @@ GENERALIZED_V2_AGENT_COUNTS: Tuple[int, ...] = (2, 3, 4, 5, 6)
 GENERALIZED_V2_KNOWN_OFFSETS: Tuple[int, ...] = (0, 2)
 
 
+ROUTE_RELATIVE_NO_ROUTES: str = "route_relative_no_routes"
+"""The stable machine-readable reason of :class:`RouteRelativeNoRoutesError`."""
+
+
+class RouteRelativeNoRoutesError(RuntimeError):
+    """GENERALIZED-V2: the known-only allocation routed NO scheduled ego, so ``R == 0``.
+
+    A CLASSIFICATION of a refusal that already existed, not a new one: the world is
+    rejected at exactly the same two points, with the same message text, as before this
+    type existed -- (1) the known-only solve allocated nothing, (2) it allocated something
+    but no scheduled ego carries a non-empty route. Both mean the route-relative hidden
+    load ``H ~ Uniform({1..R})`` is undefined for this world.
+
+    Raised ONLY on the route-relative construction path. The explicit-request paths
+    (``fixed_cell_v1`` and ``generalized_v1``) keep raising a plain ``RuntimeError`` for an
+    empty allocation, byte-for-byte as before.
+
+    It subclasses ``RuntimeError`` so every existing handler routes it exactly as it routed
+    the plain error; what it adds is :attr:`reason`, a stable slug a caller can route on
+    without reading message prose (the V2 benchmark preflight does).
+    """
+
+    reason: str = ROUTE_RELATIVE_NO_ROUTES
+
+
 class RouteRelativePopulationRecorder:
     """A WRITE-ONCE carrier for the GENERALIZED-V2 stage-2 draw, owned by the CALLER.
 
@@ -2065,7 +2090,13 @@ def _setup_episode_construction(
             agents1, known_world_tasks, **_backend_kwargs(match_aou_backend)
         )
         if not a_init:
-            raise RuntimeError(
+            # Under the route-relative V2 contract an empty allocation IS `R == 0`, and it
+            # is refused under that typed classification. Every other path keeps the plain
+            # `RuntimeError` it always raised.
+            _empty_allocation = (
+                RouteRelativeNoRoutesError if route_relative else RuntimeError
+            )
+            raise _empty_allocation(
                 "setup_episode: the known-only solve allocated nothing, so there is no "
                 "predicted route to place hidden targets against"
             )
@@ -2088,7 +2119,7 @@ def _setup_episode_construction(
                 # and there is no honest count to fall back on. Never repaired into a
                 # zero-hidden world, which would be a different population wearing this
                 # design's label.
-                raise RuntimeError(
+                raise RouteRelativeNoRoutesError(
                     "setup_episode: the known-only allocation routed none of the "
                     f"{len(env1_agent_ids)} scheduled ego(s), so there is no route count "
                     "to resolve a route-relative hidden load against"

@@ -359,38 +359,50 @@ def test_po1_episode_cardinality_is_unchanged_for_every_historical_path() -> Non
     assert "TWO" in msg and "STAGES" in msg
 
 
-def test_po1_the_benchmark_stays_a_v1_construct_that_v2_cannot_reach() -> None:
-    """The 18-stratum manifest, its preflight and both eval rounds refuse V2.
+def test_po1_the_v1_benchmark_stays_v1_and_v2_evaluates_only_its_own_construct() -> None:
+    """The 18-stratum V1 construct is unreachable from V2; V2 evaluates its OWN benchmark.
 
-    Its strata are built from `A in {2,3,4}` and a hidden load defined against `A`. V2
-    draws `A` from a wider set and defines its hidden load against a realized route count,
-    so a V1 manifest evaluated under V2 would report strata the population never varied.
-    Designing a V2 benchmark is a separate research decision and is deliberately not taken.
+    The V1 strata are built from `A in {2,3,4}` and a LOW/HIGH hidden load defined against
+    `A`, so a V1 manifest evaluated under V2 would report strata the population never
+    varied. V2 therefore evaluates only a frozen ten-cell V2 manifest under one declared
+    profile -- never the fixed held-out band, and never a V1 manifest (refused by schema at
+    load time; see `tests/test_graph_generalized_v2_benchmark.py`).
     """
-    msg = _refuses(lambda: _v2_cfg(benchmark_manifest="frozen.json").validate(),
-                   what="a manifest under V2")
-    assert "18-stratum" in msg
-
+    # Evaluation still requires a frozen manifest -- the held-out band is never a fallback.
     msg = _refuses(lambda: _v2_cfg(eval_every=5, eval_episodes=8).validate(),
-                   what="evaluation under V2")
-    assert "no evaluation construct" in msg or "does not define an evaluation" in msg
+                   what="evaluation under V2 with no manifest")
+    assert "requires benchmark_manifest" in msg and "held-out" in msg
+    # ... and exactly one declared profile.
+    msg = _refuses(
+        lambda: _v2_cfg(eval_every=5, eval_episodes=8,
+                        benchmark_manifest="frozen.json").validate(),
+        what="evaluation under V2 with no profile")
+    assert "benchmark_profile" in msg
+    _v2_cfg(eval_every=5, eval_episodes=8, benchmark_manifest="frozen.json",
+            benchmark_profile="development").validate()
 
+    # The V1 preflight CONFIG check is still V1-only; V2 selection is a separate path.
     from match_aou.rl.training import graph_benchmark_preflight as pf
     msg = _refuses(lambda: pf._require_preflight_config(_v2_cfg()),
-                   what="a preflight under V2")
+                   what="the V1 preflight config check under V2")
     assert EPISODE_DESIGN_GENERALIZED_V1 in msg
 
-    # The two public evaluation entry points refuse it too -- a second lock on a door
-    # `validate` already bolts, because both are importable and callable directly.
+    # `evaluate()` -- the fixed held-out band -- is still refused under V2.
     msg = _refuses(
         lambda: gt.evaluate(None, None, _v2_cfg(eval_every=0, eval_episodes=0),
                             iteration=None),
         what="evaluate() under V2")
     assert "not defined for episode_design" in msg
+    # ... and the refusal no longer claims V2 has no evaluation construct: it points at
+    # the frozen-benchmark path that now exists.
+    assert "no evaluation construct" not in msg.lower()
+    assert "evaluate_benchmark" in msg and "benchmark_profile" in msg
+    # `evaluate_benchmark()` dispatches V2 to its own round, which refuses anything that is
+    # not a frozen V2 manifest.
     msg = _refuses(
         lambda: gt.evaluate_benchmark(None, None, _v2_cfg(), None, iteration=None),
-        what="evaluate_benchmark() under V2")
-    assert "not defined for episode_design" in msg
+        what="evaluate_benchmark() under V2 without a V2 manifest")
+    assert "generalized_v2 benchmark manifest" in msg
 
 
 def test_po1_the_v1_generalized_verdicts_are_unchanged() -> None:
@@ -824,15 +836,23 @@ def test_po2_the_operator_surfaces_describe_all_three_selectable_designs() -> No
     assert (gt.TrainConfig(n_iterations=2).training_attempt_policy
             == gt.TRAINING_ATTEMPT_POLICY_SCHEDULED)
 
-    # The benchmark manifest: a V1 construct, refused by the other two designs.
+    # The benchmark manifest: each generalized design evaluates its OWN manifest (V2 under a
+    # declared profile); the fixed cell refuses any manifest.
     _v1_cfg(eval_every=5, eval_episodes=8,
             benchmark_manifest="frozen.json").validate()
-    for cfg_fn, label in ((_v2_cfg, EPISODE_DESIGN_GENERALIZED_V2),
+    _v2_cfg(eval_every=5, eval_episodes=8, benchmark_manifest="frozen.json",
+            benchmark_profile="confirmatory").validate()
+    msg = _refuses(
+        lambda: gt.TrainConfig(n_iterations=2,
+                               benchmark_manifest="frozen.json").validate(),
+        what="a manifest under %s" % EPISODE_DESIGN_FIXED_CELL_V1)
+    assert "benchmark" in msg
+    for cfg_fn, label in ((_v1_cfg, EPISODE_DESIGN_GENERALIZED_V1),
                           (lambda **k: gt.TrainConfig(n_iterations=2, **k),
                            EPISODE_DESIGN_FIXED_CELL_V1)):
-        msg = _refuses(lambda f=cfg_fn: f(benchmark_manifest="frozen.json").validate(),
-                       what="a manifest under %s" % label)
-        assert "benchmark" in msg
+        msg = _refuses(lambda f=cfg_fn: f(benchmark_profile="development").validate(),
+                       what="a benchmark profile under %s" % label)
+        assert "benchmark_profile" in msg
 
     # --- the OPERATOR-FACING text ------------------------------------------------
     help_text = {a.dest: a.help for a in gt._build_arg_parser()._actions}
@@ -855,7 +875,10 @@ def test_po2_the_operator_surfaces_describe_all_three_selectable_designs() -> No
     assert "refused otherwise" not in budget_help
     # ... and the benchmark nuance is scoped rather than implied.
     assert "sets the maximum training seed band the benchmark is held out against"         not in budget_help
-    assert "%s defines no evaluation benchmark" % EPISODE_DESIGN_GENERALIZED_V2         in budget_help
+    # Both generalized designs now have a frozen benchmark, and the held-out claim is over
+    # every manifest seed whichever profile is evaluated.
+    assert "defines no evaluation benchmark" not in budget_help
+    assert "held out from" in budget_help and "profile" in budget_help
 
     # The same stale claims must not survive anywhere in the module's CURRENT prose. The
     # comment is scanned in RAW source (comments exist nowhere else); the two message

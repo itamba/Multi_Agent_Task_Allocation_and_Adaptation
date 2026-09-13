@@ -353,11 +353,18 @@ CARDINALITY_SOURCE_V2_ROUTE_RELATIVE: str = "generalized_v2_route_relative"
 # because an `EpisodeCardinality` states a COMPLETE requested cell and a pre-solve draw is
 # by definition half of one.
 CARDINALITY_SOURCE_V2_PRE_SOLVE: str = "generalized_v2_pre_solve"
+# GENERALIZED-V2 BENCHMARK: a member of the frozen V2 manifest. Its `(A, K)` is FIXED by
+# its base cell (never drawn), and its `H | R` is resolved by the SAME production stage-2
+# rule a training episode uses. Two labels, for the same stage-correctness reason as the
+# two sampler labels above: the pre-solve half is never an `EpisodeCardinality` source.
+CARDINALITY_SOURCE_V2_BENCHMARK_PRE_SOLVE: str = "generalized_v2_benchmark_pre_solve"
+CARDINALITY_SOURCE_V2_BENCHMARK: str = "generalized_v2_benchmark_manifest"
 CARDINALITY_SOURCES: Tuple[str, ...] = (
     CARDINALITY_SOURCE_FIXED_CELL,
     CARDINALITY_SOURCE_SAMPLER,
     CARDINALITY_SOURCE_BENCHMARK,
     CARDINALITY_SOURCE_V2_ROUTE_RELATIVE,
+    CARDINALITY_SOURCE_V2_BENCHMARK,
 )
 
 
@@ -632,7 +639,9 @@ class PreSolveCardinality:
     agent_count: int
     known_count: int
     policy: str = PRE_SOLVE_CARDINALITY_POLICY_V2
-    rng_domain: str = V2_CARDINALITY_RNG_DOMAIN
+    rng_domain: Optional[str] = V2_CARDINALITY_RNG_DOMAIN
+    """``None`` only for a V2 BENCHMARK member, whose ``(A, K)`` is fixed by its manifest
+    base cell and therefore was drawn from no rng domain at all."""
     derived_seed: Optional[int] = None
     source: str = CARDINALITY_SOURCE_V2_PRE_SOLVE
     """Where this half-cell came from, so a FAILURE ledger entry for an attempt that never
@@ -649,7 +658,7 @@ class PreSolveCardinality:
         """A JSON-ready view (plain builtins only)."""
         return {
             "policy": str(self.policy),
-            "rng_domain": str(self.rng_domain),
+            "rng_domain": None if self.rng_domain is None else str(self.rng_domain),
             "derived_seed": (
                 None if self.derived_seed is None else int(self.derived_seed)
             ),
@@ -790,12 +799,22 @@ def resolved_v2_cardinality(
     ``generalized_v2_route_relative`` source, so every downstream consumer that already
     knows how to read a requested cell -- the scheduled-cell check, the construction audit
     reconciliation, the per-episode record -- reads a V2 episode with no special case.
+
+    The SOURCE follows the stage-1 record: a V2 BENCHMARK member's pre-solve half resolves
+    to :data:`CARDINALITY_SOURCE_V2_BENCHMARK`, every other one to the historical
+    :data:`CARDINALITY_SOURCE_V2_ROUTE_RELATIVE` -- so a training cell is unchanged and a
+    benchmark cell is never readable as a sampled one.
     """
+    source = (
+        CARDINALITY_SOURCE_V2_BENCHMARK
+        if str(pre_solve.source) == CARDINALITY_SOURCE_V2_BENCHMARK_PRE_SOLVE
+        else CARDINALITY_SOURCE_V2_ROUTE_RELATIVE
+    )
     return EpisodeCardinality(
         agent_count=int(pre_solve.agent_count),
         known_count=int(pre_solve.known_count),
         hidden_requested=int(hidden_load.hidden_requested),
-        source=CARDINALITY_SOURCE_V2_ROUTE_RELATIVE,
+        source=source,
     )
 
 
@@ -1755,6 +1774,808 @@ def identity_differences(
     if expected.fd_certificate_fingerprint != observed.fd_certificate_fingerprint:
         wrong.append("fd certificate fingerprint differs")
     return wrong
+
+
+def canonical_digest(payload: Any) -> str:
+    """The public content address of a JSON-ready payload (SHA-256 of canonical JSON).
+
+    The same construction a manifest id uses, exposed so a harness can digest a list of
+    group keys or seeds WITHOUT inventing a second serialization that could disagree.
+    """
+    return _content_hash(payload)
+
+
+# =============================================================================
+# 3d. GENERALIZED-V2: the frozen matched benchmark over TEN EXOGENOUS base cells
+# =============================================================================
+#
+# A SEPARATE construct from the V1 18-stratum benchmark above, which is untouched: its
+# constants, its schema, its canonical bytes and its loader are exactly what they were,
+# and a V2 manifest can never be read as a V1 one (distinct schema string, distinct
+# design, and each loader refuses the other's schema before anything else).
+#
+# WHAT IS STRATIFIED, AND WHAT IS DELIBERATELY NOT
+# -----------------------------------------------
+# The strata are the two EXOGENOUS PRE-SOLVE factors only: `A in {2,...,6}` and
+# `D = K - A in {0, 2}` -- ten base cells. `R`, `H_requested`, `H/R` and hidden
+# realization are properties of the known-only allocation and of the locked geometry, so
+# they are NEVER strata and NEVER acceptance quotas: a manifest is frozen from whichever
+# worlds in a cell's candidate window are eligible, in seed order, whatever `R` and `H`
+# they turn out to have. Selecting on them would build the comparator out of the solver's
+# own output. There are no V2 LOW/HIGH buckets.
+#
+# For every V2 world: `K = A + D` is fixed by the base cell BEFORE the solve; the P1
+# objective produces the real `R`; the existing stage-2 rule draws `H ~ U{1..R}` from the
+# world seed and `R`; bounded backoff remains authoritative. All of that is RECORDED in the
+# frozen identity and VERIFIED on every later reconstruction -- never re-selected.
+#
+# PROFILES
+# --------
+# One manifest holds exactly twelve worlds per base cell. Ordinals 0..1 are the
+# DEVELOPMENT profile and 2..11 the CONFIRMATORY profile: disjoint, exhaustive, balanced
+# per cell. A profile selects which frozen groups a run evaluates; it never changes the
+# manifest identity, and held-outness is always checked against the WHOLE manifest.
+
+V2_BENCHMARK_SCHEMA: str = "generalized_v2_benchmark_manifest"
+V2_BENCHMARK_SCHEMA_VERSION: int = 1
+V2_BENCHMARK_PRE_SOLVE_POLICY: str = "generalized_v2_benchmark_base_cell_v1"
+V2_ALLOCATION_FINGERPRINT_SCHEMA: str = "generalized_v2_allocation_fingerprint_v1"
+V2_BENCHMARK_WORLDS_PER_CELL: int = 12
+
+V2_PROFILE_DEVELOPMENT: str = "development"
+V2_PROFILE_CONFIRMATORY: str = "confirmatory"
+V2_BENCHMARK_PROFILES: Tuple[str, ...] = (V2_PROFILE_DEVELOPMENT, V2_PROFILE_CONFIRMATORY)
+_V2_PROFILE_WORLD_ORDINALS: Dict[str, Tuple[int, ...]] = {
+    V2_PROFILE_DEVELOPMENT: (0, 1),
+    V2_PROFILE_CONFIRMATORY: tuple(range(2, V2_BENCHMARK_WORLDS_PER_CELL)),
+}
+
+V2_BENCHMARK_STRATIFICATION_FACTORS: Tuple[str, ...] = ("agent_count", "known_offset")
+V2_BENCHMARK_NON_STRATA: Tuple[str, ...] = (
+    "route_count", "hidden_requested", "hidden_requested_over_route_count",
+    "hidden_realized",
+)
+
+# THE TEN BASE CELLS, in canonical order: agent count, then known offset. Built from the
+# product of the MIRRORED V2 constants, so the count cannot drift from the population.
+V2_BENCHMARK_BASE_CELLS: Tuple[Tuple[int, int], ...] = tuple(
+    (int(a), int(d))
+    for a in GENERALIZED_V2_AGENT_COUNTS
+    for d in GENERALIZED_V2_KNOWN_OFFSETS
+)
+
+
+def v2_profile_world_ordinals(profile: Any) -> Tuple[int, ...]:
+    """The world ordinals a V2 profile selects. An unknown profile RAISES."""
+    key = str(profile)
+    if key not in _V2_PROFILE_WORLD_ORDINALS:
+        raise BenchmarkManifestError(
+            "unknown generalized_v2 benchmark profile %r; expected one of %r"
+            % (profile, list(V2_BENCHMARK_PROFILES))
+        )
+    return _V2_PROFILE_WORLD_ORDINALS[key]
+
+
+def v2_profile_for_ordinal(world_ordinal: int) -> str:
+    """The ONE profile a world ordinal belongs to (profiles are disjoint and exhaustive)."""
+    hits = [p for p in V2_BENCHMARK_PROFILES
+            if int(world_ordinal) in _V2_PROFILE_WORLD_ORDINALS[p]]
+    if len(hits) != 1:
+        raise BenchmarkManifestError(
+            "world ordinal %r belongs to %d generalized_v2 profiles; the profiles must "
+            "partition 0..%d exactly" % (world_ordinal, len(hits),
+                                         V2_BENCHMARK_WORLDS_PER_CELL - 1)
+        )
+    return hits[0]
+
+
+def _require_v2_base_cell(agent_count: Any, known_offset: Any) -> Tuple[int, int]:
+    for name, value in (("agent_count", agent_count), ("known_offset", known_offset)):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise BenchmarkManifestError(
+                "generalized_v2 benchmark %s must be an int, got %r" % (name, value))
+    if int(agent_count) not in tuple(int(a) for a in GENERALIZED_V2_AGENT_COUNTS):
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark A=%r is outside the supported cell %r"
+            % (agent_count, list(GENERALIZED_V2_AGENT_COUNTS)))
+    if int(known_offset) not in tuple(int(o) for o in GENERALIZED_V2_KNOWN_OFFSETS):
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark D=K-A=%r is outside %r"
+            % (known_offset, list(GENERALIZED_V2_KNOWN_OFFSETS)))
+    return int(agent_count), int(known_offset)
+
+
+def v2_base_cell_key(agent_count: int, known_offset: int) -> str:
+    """``A<A>-D<K-A>``: the flat key of a V2 base cell, stating BOTH exogenous factors."""
+    a, d = _require_v2_base_cell(agent_count, known_offset)
+    return "A%d-D%d" % (a, d)
+
+
+def v2_group_key(agent_count: int, known_offset: int, world_ordinal: int) -> str:
+    """``A<A>-D<K-A>-w<ordinal>``: the stable identity of one V2 matched world GROUP."""
+    return "%s-w%03d" % (v2_base_cell_key(agent_count, known_offset), int(world_ordinal))
+
+
+V2_BENCHMARK_BASE_CELL_KEYS: Tuple[str, ...] = tuple(
+    v2_base_cell_key(a, d) for (a, d) in V2_BENCHMARK_BASE_CELLS
+)
+
+
+def v2_benchmark_pre_solve_cardinality(
+    *, agent_count: int, known_offset: int
+) -> PreSolveCardinality:
+    """The STAGE-1 half-cell of a V2 benchmark world: ``(A, K = A + D)``, drawn from nothing.
+
+    It is an ordinary :class:`PreSolveCardinality` so the construction path consumes it
+    exactly as it consumes a training draw, but it carries its OWN policy and source and
+    NO rng domain or derived seed -- a base cell is a manifest fact, not a sample, and
+    recording the sampler's domain here would describe a draw that never happened.
+    """
+    a, d = _require_v2_base_cell(agent_count, known_offset)
+    return PreSolveCardinality(
+        agent_count=a,
+        known_count=a + d,
+        policy=V2_BENCHMARK_PRE_SOLVE_POLICY,
+        rng_domain=None,
+        derived_seed=None,
+        source=CARDINALITY_SOURCE_V2_BENCHMARK_PRE_SOLVE,
+    )
+
+
+def v2_allocation_structure(
+    a_init: Mapping[str, Sequence[Any]],
+    *,
+    agent_ids: Sequence[str],
+    belief_target_ids: Sequence[str],
+    known_target_ids: Sequence[str],
+) -> List[List[List[int]]]:
+    """The known-only allocation in a canonical, UUID-FREE form.
+
+    One entry per scheduled ego, in the AUTHORITATIVE agent ORDER (an ego the
+    allocated-only ``A_init`` omitted is an empty entry, not a missing one). Each entry is
+    the sorted list of ``[known_world_ordinal, step_idx, level]`` rows, where
+    ``known_world_ordinal`` is the target's position in the RAW known-world inventory --
+    reproducible from the seed, unlike the target uuid. It therefore changes when a
+    different ego is routed, when an ego receives a different target, or when a
+    step / level structure differs.
+
+    Raises:
+        ValueError: ``A_init`` names an unscheduled ego, a malformed assignment, a task
+            index outside the allocated task list, or a target outside the known world --
+            each an internal contradiction, never an episode outcome.
+    """
+    order = [str(a) for a in agent_ids]
+    unknown = sorted(set(str(k) for k in a_init) - set(order))
+    if unknown:
+        raise ValueError(
+            "A_init names ego(s) %r that are not in the scheduled agent order" % unknown)
+    world_index: Dict[str, int] = {}
+    for i, tid in enumerate(known_target_ids):
+        world_index.setdefault(str(tid), i)
+    agents: List[List[List[int]]] = []
+    for aid in order:
+        rows: List[List[int]] = []
+        for raw in a_init.get(aid) or ():
+            parts = tuple(raw)
+            if len(parts) != 3 or any(
+                    isinstance(v, bool) or not isinstance(v, int) for v in parts):
+                raise ValueError("ego %s: malformed assignment %r" % (aid, raw))
+            task_idx, step_idx, level = (int(v) for v in parts)
+            if not (0 <= task_idx < len(belief_target_ids)):
+                raise ValueError(
+                    "ego %s: task_idx %d outside the %d allocated task(s)"
+                    % (aid, task_idx, len(belief_target_ids)))
+            target = str(belief_target_ids[task_idx])
+            if target not in world_index:
+                raise ValueError(
+                    "ego %s: allocated target is not in the known-world inventory" % aid)
+            rows.append([world_index[target], step_idx, level])
+        agents.append(sorted(rows))
+    return agents
+
+
+def v2_allocation_fingerprint(
+    a_init: Mapping[str, Sequence[Any]],
+    *,
+    agent_ids: Sequence[str],
+    belief_target_ids: Sequence[str],
+    known_target_ids: Sequence[str],
+) -> str:
+    """The content hash of :func:`v2_allocation_structure` -- one comparable scalar."""
+    return _content_hash({
+        "schema": V2_ALLOCATION_FINGERPRINT_SCHEMA,
+        "agents": v2_allocation_structure(
+            a_init, agent_ids=agent_ids, belief_target_ids=belief_target_ids,
+            known_target_ids=known_target_ids),
+    })
+
+
+@dataclass(frozen=True)
+class V2WorldIdentity:
+    """What a V2 benchmark world REALLY is, in UUID-free terms.
+
+    Frozen by the preflight and re-observed on every evaluation member. Every field is a
+    count, an ordinal, a coordinate, a backend id or a hash of UUID-free content, so the
+    comparison never rests on a generated uuid.
+    """
+
+    seed: int
+    agent_count: int
+    known_count: int
+    match_aou_backend: str
+    route_count: int
+    allocation_fingerprint: str
+    hidden_requested: int
+    hidden_realized: int
+    known_realized: int
+    geometric_fingerprint: Tuple[Tuple[float, float], ...]
+    fd_selected_ordinal: Optional[int]
+    fd_certificate_fingerprint: Optional[str]
+
+    @property
+    def known_offset(self) -> int:
+        return int(self.known_count) - int(self.agent_count)
+
+    def to_record(self) -> Dict[str, Any]:
+        return {
+            "seed": int(self.seed),
+            "agent_count": int(self.agent_count),
+            "known_count": int(self.known_count),
+            "known_offset": int(self.known_offset),
+            "match_aou_backend": str(self.match_aou_backend),
+            "route_count": int(self.route_count),
+            "allocation_fingerprint": str(self.allocation_fingerprint),
+            "hidden_requested": int(self.hidden_requested),
+            "hidden_realized": int(self.hidden_realized),
+            "known_realized": int(self.known_realized),
+            "geometric_fingerprint": [list(p) for p in self.geometric_fingerprint],
+            "fd_selected_ordinal": self.fd_selected_ordinal,
+            "fd_certificate_fingerprint": self.fd_certificate_fingerprint,
+        }
+
+    @staticmethod
+    def from_record(record: Mapping[str, Any]) -> "V2WorldIdentity":
+        return V2WorldIdentity(
+            seed=int(record["seed"]),
+            agent_count=int(record["agent_count"]),
+            known_count=int(record["known_count"]),
+            match_aou_backend=str(record["match_aou_backend"]),
+            route_count=int(record["route_count"]),
+            allocation_fingerprint=str(record["allocation_fingerprint"]),
+            hidden_requested=int(record["hidden_requested"]),
+            hidden_realized=int(record["hidden_realized"]),
+            known_realized=int(record["known_realized"]),
+            geometric_fingerprint=_as_fingerprint(record.get("geometric_fingerprint")),
+            fd_selected_ordinal=(
+                None if record.get("fd_selected_ordinal") is None
+                else int(record["fd_selected_ordinal"])),
+            fd_certificate_fingerprint=record.get("fd_certificate_fingerprint"),
+        )
+
+
+_V2_IDENTITY_FIELDS: Tuple[str, ...] = (
+    "seed", "agent_count", "known_count", "match_aou_backend", "route_count",
+    "allocation_fingerprint", "hidden_requested", "hidden_realized", "known_realized",
+    "geometric_fingerprint", "fd_selected_ordinal", "fd_certificate_fingerprint",
+)
+
+
+def v2_identity_differences(
+    expected: V2WorldIdentity, observed: V2WorldIdentity
+) -> List[str]:
+    """Every field on which two V2 world identities disagree (empty when equal)."""
+    return [
+        "%s %r != %r" % (name, getattr(expected, name), getattr(observed, name))
+        for name in _V2_IDENTITY_FIELDS
+        if getattr(expected, name) != getattr(observed, name)
+    ]
+
+
+@dataclass(frozen=True)
+class V2WorldPreflight:
+    """A V2 world's frozen identity plus the stage-2 record and audit it was built with."""
+
+    identity: V2WorldIdentity
+    hidden_load: Dict[str, Any]
+    construction_audit: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self) -> None:
+        """Refuse a frozen state production V2 could never have produced.
+
+        The manifest hash authenticates BYTES; this authenticates the POPULATION. The
+        stored hidden-load record is rebuilt as a real :class:`RouteRelativeHiddenLoad`
+        (whose own invariants are ``R >= 1`` and ``1 <= H <= R``), its rng domain and
+        derived seed must be the production ones for the world seed, and the frozen
+        identity must agree with it and be internally possible. Nothing is repaired.
+        """
+        ident = self.identity
+        load = dict(self.hidden_load or {})
+        wrong: List[str] = []
+        try:
+            rebuilt = RouteRelativeHiddenLoad(
+                route_count=int(load.get("route_count_at_hidden_resolution")),
+                hidden_requested=int(load.get("hidden_requested")),
+                policy=str(load.get("policy")),
+                rng_domain=str(load.get("rng_domain")),
+                derived_seed=load.get("derived_seed"),
+            )
+        except (TypeError, ValueError) as exc:
+            raise BenchmarkManifestError(
+                "generalized_v2 preflight hidden-load record %r is not a state the "
+                "route-relative rule can produce (%s)" % (load, exc)) from exc
+        if rebuilt.to_record() != load:
+            wrong.append("hidden-load record is not in canonical form")
+        if rebuilt.policy != HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2:
+            wrong.append("hidden-load policy %r != %r"
+                         % (rebuilt.policy, HIDDEN_LOAD_POLICY_ROUTE_RELATIVE_V2))
+        if rebuilt.rng_domain != V2_HIDDEN_LOAD_RNG_DOMAIN:
+            wrong.append("hidden-load rng_domain %r != %r"
+                         % (rebuilt.rng_domain, V2_HIDDEN_LOAD_RNG_DOMAIN))
+        expected_seed = derive_hidden_load_seed(int(ident.seed))
+        if rebuilt.derived_seed != expected_seed:
+            wrong.append("hidden-load derived_seed %r != %r (derived from seed %d)"
+                         % (rebuilt.derived_seed, expected_seed, int(ident.seed)))
+        if rebuilt.route_count != int(ident.route_count):
+            wrong.append("hidden-load R %d != identity R %d"
+                         % (rebuilt.route_count, int(ident.route_count)))
+        if rebuilt.hidden_requested != int(ident.hidden_requested):
+            wrong.append("hidden-load H_requested %d != identity H_requested %d"
+                         % (rebuilt.hidden_requested, int(ident.hidden_requested)))
+        if not (1 <= int(ident.hidden_realized) <= int(ident.hidden_requested)):
+            wrong.append("H_realized %d outside 1..H_requested=%d"
+                         % (int(ident.hidden_realized), int(ident.hidden_requested)))
+        if int(ident.known_realized) != int(ident.known_count):
+            wrong.append("known_realized %d != K %d"
+                         % (int(ident.known_realized), int(ident.known_count)))
+        if len(ident.geometric_fingerprint) != int(ident.hidden_realized):
+            wrong.append("hidden geometric fingerprint holds %d placement(s) but "
+                         "H_realized=%d" % (len(ident.geometric_fingerprint),
+                                            int(ident.hidden_realized)))
+        if wrong:
+            raise BenchmarkManifestError(
+                "generalized_v2 frozen world (seed %d) is not a population state "
+                "production V2 could produce: %s" % (int(ident.seed), "; ".join(wrong)))
+
+    def to_record(self) -> Dict[str, Any]:
+        return {
+            "identity": self.identity.to_record(),
+            "hidden_load": dict(self.hidden_load),
+            "construction_audit": self.construction_audit,
+        }
+
+    @staticmethod
+    def from_record(record: Mapping[str, Any]) -> "V2WorldPreflight":
+        return V2WorldPreflight(
+            identity=V2WorldIdentity.from_record(record["identity"]),
+            hidden_load=dict(record["hidden_load"]),
+            construction_audit=record.get("construction_audit"),
+        )
+
+
+@dataclass(frozen=True)
+class V2BenchmarkWorld:
+    """ONE matched V2 WORLD GROUP: three members (CLEAN / MILD / SEVERE), one frozen world.
+
+    The preflight is REQUIRED, unlike V1: the V2 identity includes ``R``, the allocation
+    fingerprint and the actual ``H_requested``, which exist only once the world has been
+    constructed, and a V2 world whose identity was never frozen could not be verified.
+    """
+
+    agent_count: int
+    known_offset: int
+    world_ordinal: int
+    seed: int
+    preflight: V2WorldPreflight
+
+    def __post_init__(self) -> None:
+        _require_v2_base_cell(self.agent_count, self.known_offset)
+        if not (0 <= int(self.world_ordinal) < V2_BENCHMARK_WORLDS_PER_CELL):
+            raise BenchmarkManifestError(
+                "generalized_v2 world_ordinal must be in 0..%d, got %r"
+                % (V2_BENCHMARK_WORLDS_PER_CELL - 1, self.world_ordinal))
+        if int(self.seed) < 0:
+            raise BenchmarkManifestError("seed must be >= 0, got %r" % (self.seed,))
+        if not isinstance(self.preflight, V2WorldPreflight):
+            raise BenchmarkManifestError(
+                "generalized_v2 world %s carries no frozen preflight identity" % self.key)
+        ident = self.preflight.identity
+        wrong = []
+        if int(ident.seed) != int(self.seed):
+            wrong.append("seed %r != %r" % (ident.seed, self.seed))
+        if int(ident.agent_count) != int(self.agent_count):
+            wrong.append("A %r != %r" % (ident.agent_count, self.agent_count))
+        if int(ident.known_count) != self.known_count:
+            wrong.append("K %r != %r" % (ident.known_count, self.known_count))
+        if str(ident.match_aou_backend) != GENERALIZED_V2_REQUIRED_BACKEND:
+            wrong.append("backend %r != %r" % (ident.match_aou_backend,
+                                               GENERALIZED_V2_REQUIRED_BACKEND))
+        if wrong:
+            raise BenchmarkManifestError(
+                "generalized_v2 world %s: frozen identity disagrees with the world (%s)"
+                % (self.key, "; ".join(wrong)))
+
+    @property
+    def known_count(self) -> int:
+        return int(self.agent_count) + int(self.known_offset)
+
+    @property
+    def key(self) -> str:
+        return v2_group_key(self.agent_count, self.known_offset, self.world_ordinal)
+
+    @property
+    def base_cell(self) -> Tuple[int, int]:
+        return (int(self.agent_count), int(self.known_offset))
+
+    @property
+    def base_cell_key(self) -> str:
+        return v2_base_cell_key(self.agent_count, self.known_offset)
+
+    @property
+    def profile(self) -> str:
+        return v2_profile_for_ordinal(self.world_ordinal)
+
+    def members(self) -> Tuple[Tuple[str, str], ...]:
+        return BENCHMARK_MEMBERS
+
+    def pre_solve_cardinality(self) -> PreSolveCardinality:
+        return v2_benchmark_pre_solve_cardinality(
+            agent_count=int(self.agent_count), known_offset=int(self.known_offset))
+
+    def cell_key(self, cell: str) -> str:
+        """``<base cell>-<condition cell>``, a per-member reporting label (not a stratum
+        quota -- the V2 strata are the base cells)."""
+        return "%s-%s" % (self.base_cell_key, str(cell))
+
+    def to_record(self) -> Dict[str, Any]:
+        return {
+            "group_key": self.key,
+            "base_cell": self.base_cell_key,
+            "profile": self.profile,
+            "agent_count": int(self.agent_count),
+            "known_offset": int(self.known_offset),
+            "known_requested": self.known_count,
+            "world_ordinal": int(self.world_ordinal),
+            "seed": int(self.seed),
+            "preflight": self.preflight.to_record(),
+        }
+
+    @staticmethod
+    def from_record(record: Mapping[str, Any]) -> "V2BenchmarkWorld":
+        if record.get("preflight") is None:
+            raise BenchmarkManifestError(
+                "generalized_v2 world %r carries no frozen preflight identity"
+                % (record.get("group_key"),))
+        return V2BenchmarkWorld(
+            agent_count=record["agent_count"],
+            known_offset=record["known_offset"],
+            world_ordinal=int(record["world_ordinal"]),
+            seed=int(record["seed"]),
+            preflight=V2WorldPreflight.from_record(record["preflight"]),
+        )
+
+
+@dataclass(frozen=True)
+class V2BenchmarkManifest:
+    """The FROZEN, ordered, content-addressed GENERALIZED-V2 benchmark population."""
+
+    schema: str
+    schema_version: int
+    design: str
+    worlds: Tuple[V2BenchmarkWorld, ...]
+    manifest_id: str
+    label: Optional[str] = None
+    notes: Optional[str] = None
+
+    @property
+    def n_worlds(self) -> int:
+        return len(self.worlds)
+
+    @property
+    def n_members(self) -> int:
+        return len(self.worlds) * BENCHMARK_GROUP_SIZE
+
+    @property
+    def base_cells(self) -> Tuple[Tuple[int, int], ...]:
+        return V2_BENCHMARK_BASE_CELLS
+
+    def worlds_per_base_cell(self) -> Dict[str, int]:
+        counts = {key: 0 for key in V2_BENCHMARK_BASE_CELL_KEYS}
+        for world in self.worlds:
+            counts[world.base_cell_key] = counts.get(world.base_cell_key, 0) + 1
+        return counts
+
+    def payload(self) -> Dict[str, Any]:
+        """The CANONICAL content -- everything except the hash of itself."""
+        return {
+            "schema": str(self.schema),
+            "schema_version": int(self.schema_version),
+            "design": str(self.design),
+            "label": self.label,
+            "notes": self.notes,
+            "required_match_aou_backend": GENERALIZED_V2_REQUIRED_BACKEND,
+            "stratification_factors": list(V2_BENCHMARK_STRATIFICATION_FACTORS),
+            "not_strata": list(V2_BENCHMARK_NON_STRATA),
+            "n_base_cells": len(V2_BENCHMARK_BASE_CELLS),
+            "base_cells": [
+                {"key": v2_base_cell_key(a, d), "agent_count": a, "known_offset": d,
+                 "known_requested": a + d}
+                for (a, d) in V2_BENCHMARK_BASE_CELLS
+            ],
+            "worlds_per_cell": V2_BENCHMARK_WORLDS_PER_CELL,
+            "profiles": {
+                p: list(_V2_PROFILE_WORLD_ORDINALS[p]) for p in V2_BENCHMARK_PROFILES
+            },
+            "group_size": BENCHMARK_GROUP_SIZE,
+            "group_cells": list(BENCHMARK_CELLS),
+            "group_modes": [mode for _cell, mode in BENCHMARK_MEMBERS],
+            "n_worlds": self.n_worlds,
+            "n_members": self.n_members,
+            "worlds": [w.to_record() for w in self.worlds],
+        }
+
+    def to_record(self) -> Dict[str, Any]:
+        record = self.payload()
+        record["manifest_id"] = str(self.manifest_id)
+        return record
+
+    def canonical_json(self) -> str:
+        return _canonical_json(self.payload())
+
+    def seeds(self) -> Tuple[int, ...]:
+        """EVERY world seed of the manifest, BOTH profiles -- the held-out check's input."""
+        return tuple(int(w.seed) for w in self.worlds)
+
+    def seed_digest(self) -> str:
+        return _content_hash({"seeds": [int(s) for s in self.seeds()]})
+
+    def profile_worlds(self, profile: str) -> Tuple[V2BenchmarkWorld, ...]:
+        """The frozen worlds one profile evaluates, in canonical manifest order."""
+        ordinals = set(v2_profile_world_ordinals(profile))
+        return tuple(w for w in self.worlds if int(w.world_ordinal) in ordinals)
+
+    def profile_identity_record(self, profile: str) -> Dict[str, Any]:
+        """Which frozen groups a profile names -- enough for two runs to prove they chose
+        the same population from the same manifest."""
+        worlds = self.profile_worlds(profile)
+        keys = [w.key for w in worlds]
+        seeds = [int(w.seed) for w in worlds]
+        return {
+            "manifest_id": str(self.manifest_id),
+            "profile": str(profile),
+            "world_ordinals": list(v2_profile_world_ordinals(profile)),
+            "n_worlds": len(worlds),
+            "n_members": len(worlds) * BENCHMARK_GROUP_SIZE,
+            "group_keys": keys,
+            "group_keys_sha256": _content_hash({"group_keys": keys}),
+            "seeds": seeds,
+            "seed_list_sha256": _content_hash({"seeds": seeds}),
+        }
+
+    def identity_record(self) -> Dict[str, Any]:
+        return {
+            "schema": str(self.schema),
+            "schema_version": int(self.schema_version),
+            "design": str(self.design),
+            "label": self.label,
+            "manifest_id": str(self.manifest_id),
+            "n_worlds": self.n_worlds,
+            "n_members": self.n_members,
+            "n_base_cells": len(V2_BENCHMARK_BASE_CELLS),
+            "worlds_per_cell": V2_BENCHMARK_WORLDS_PER_CELL,
+            "group_size": BENCHMARK_GROUP_SIZE,
+            "group_cells": list(BENCHMARK_CELLS),
+            "worlds_per_base_cell": self.worlds_per_base_cell(),
+            "profiles": {
+                p: list(_V2_PROFILE_WORLD_ORDINALS[p]) for p in V2_BENCHMARK_PROFILES
+            },
+            "seed_list_sha256": self.seed_digest(),
+        }
+
+
+def _canonical_v2_world_order(
+    worlds: Sequence[V2BenchmarkWorld],
+) -> Tuple[V2BenchmarkWorld, ...]:
+    rank = {cell: i for i, cell in enumerate(V2_BENCHMARK_BASE_CELLS)}
+    return tuple(sorted(
+        worlds, key=lambda w: (rank[w.base_cell], int(w.world_ordinal), int(w.seed))))
+
+
+def _require_v2_profiles_partition() -> None:
+    """The two profiles must be disjoint, exhaustive over 0..11, and non-empty."""
+    seen: List[int] = []
+    for p in V2_BENCHMARK_PROFILES:
+        ordinals = _V2_PROFILE_WORLD_ORDINALS[p]
+        if not ordinals:
+            raise BenchmarkManifestError("generalized_v2 profile %r is empty" % p)
+        seen.extend(int(o) for o in ordinals)
+    if sorted(seen) != list(range(V2_BENCHMARK_WORLDS_PER_CELL)):
+        raise BenchmarkManifestError(
+            "generalized_v2 profiles do not partition 0..%d exactly: %r"
+            % (V2_BENCHMARK_WORLDS_PER_CELL - 1, sorted(seen)))
+
+
+def _require_well_formed_v2_worlds(worlds: Sequence[V2BenchmarkWorld]) -> None:
+    """Exactly twelve worlds per base cell, ordinals 0..11, unique seeds and group keys."""
+    _require_v2_profiles_partition()
+    seen_seeds: Dict[int, str] = {}
+    per_cell: Dict[Tuple[int, int], List[int]] = {c: [] for c in V2_BENCHMARK_BASE_CELLS}
+    for world in worlds:
+        if int(world.seed) in seen_seeds:
+            raise BenchmarkManifestError(
+                "generalized_v2 benchmark seed %d appears twice (%s and %s)"
+                % (world.seed, seen_seeds[int(world.seed)], world.key))
+        seen_seeds[int(world.seed)] = world.key
+        per_cell[world.base_cell].append(int(world.world_ordinal))
+    for cell, ordinals in per_cell.items():
+        if sorted(ordinals) != list(range(V2_BENCHMARK_WORLDS_PER_CELL)):
+            raise BenchmarkManifestError(
+                "generalized_v2 base cell %s holds world ordinals %r; exactly %d worlds "
+                "with ordinals 0..%d are required per cell (both profiles complete)"
+                % (v2_base_cell_key(*cell), sorted(ordinals),
+                   V2_BENCHMARK_WORLDS_PER_CELL, V2_BENCHMARK_WORLDS_PER_CELL - 1))
+
+
+def build_v2_benchmark_manifest(
+    *,
+    worlds: Sequence[Mapping[str, Any]],
+    label: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> V2BenchmarkManifest:
+    """Freeze a GENERALIZED-V2 benchmark population from an EXPLICIT, preflighted world list.
+
+    Each entry is ``{"agent_count", "known_offset", "world_ordinal", "seed",
+    "preflight"}``, with ``preflight`` a :class:`V2WorldPreflight` or its record. There is
+    no scale knob: twelve worlds per base cell is the design, and anything else is REFUSED.
+
+    Raises:
+        BenchmarkManifestError: an out-of-cell world, a missing preflight, a duplicate seed
+            or group, or a base cell without exactly ordinals 0..11.
+    """
+    built: List[V2BenchmarkWorld] = []
+    for entry in worlds:
+        preflight = entry.get("preflight")
+        if isinstance(preflight, Mapping):
+            preflight = V2WorldPreflight.from_record(preflight)
+        built.append(V2BenchmarkWorld(
+            agent_count=entry["agent_count"],
+            known_offset=entry["known_offset"],
+            world_ordinal=int(entry["world_ordinal"]),
+            seed=int(entry["seed"]),
+            preflight=preflight,     # type: ignore[arg-type]
+        ))
+    ordered = _canonical_v2_world_order(built)
+    _require_well_formed_v2_worlds(ordered)
+    draft = V2BenchmarkManifest(
+        schema=V2_BENCHMARK_SCHEMA,
+        schema_version=V2_BENCHMARK_SCHEMA_VERSION,
+        design=EPISODE_DESIGN_GENERALIZED_V2,
+        worlds=ordered,
+        manifest_id="",
+        label=label,
+        notes=notes,
+    )
+    return V2BenchmarkManifest(
+        schema=draft.schema, schema_version=draft.schema_version, design=draft.design,
+        worlds=draft.worlds, manifest_id=manifest_identity(draft.payload()),
+        label=draft.label, notes=draft.notes,
+    )
+
+
+def v2_manifest_from_record(record: Mapping[str, Any]) -> V2BenchmarkManifest:
+    """Rebuild and VERIFY a V2 manifest -- the same four steps as the V1 loader.
+
+    (1) id present, V2 schema / version / design; (2) the STORED payload hashes to the id;
+    (3) semantic parse and validation, canonical order never re-sorted; (4) the stored
+    payload EQUALS the canonical payload. Nothing is ever repaired.
+    """
+    if "manifest_id" not in record:
+        raise BenchmarkManifestError("generalized_v2 benchmark manifest carries no manifest_id")
+    stored_id = record.get("manifest_id")
+    if not isinstance(stored_id, str) or not stored_id:
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark manifest_id must be a non-empty string, got %r"
+            % (stored_id,))
+    schema = str(record.get("schema"))
+    if schema != V2_BENCHMARK_SCHEMA:
+        raise BenchmarkManifestError(
+            "not a generalized_v2 benchmark manifest: schema=%r, expected %r%s"
+            % (record.get("schema"), V2_BENCHMARK_SCHEMA,
+               " (this is the generalized_v1 18-stratum manifest, which is never read "
+               "under generalized_v2)" if schema == BENCHMARK_SCHEMA else ""))
+    version = int(record.get("schema_version", -1))
+    if version != V2_BENCHMARK_SCHEMA_VERSION:
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark manifest schema_version=%r, this code reads %r"
+            % (record.get("schema_version"), V2_BENCHMARK_SCHEMA_VERSION))
+    design = str(record.get("design"))
+    if design != EPISODE_DESIGN_GENERALIZED_V2:
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark manifest design=%r, expected %r"
+            % (record.get("design"), EPISODE_DESIGN_GENERALIZED_V2))
+
+    stored_payload = {k: v for k, v in dict(record).items() if k != "manifest_id"}
+    recomputed = manifest_identity(stored_payload)
+    if stored_id != recomputed:
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark manifest identity MISMATCH: the file states "
+            "manifest_id=%r but its STORED content hashes to %r. Refused, not re-hashed."
+            % (stored_id, recomputed))
+
+    worlds = tuple(V2BenchmarkWorld.from_record(w) for w in (record.get("worlds") or ()))
+    if worlds != _canonical_v2_world_order(worlds):
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark manifest worlds are not in canonical order; the "
+            "stored order is part of the identity and is never re-sorted on load.")
+    _require_well_formed_v2_worlds(worlds)
+    manifest = V2BenchmarkManifest(
+        schema=schema, schema_version=version, design=design, worlds=worlds,
+        manifest_id=stored_id, label=record.get("label"), notes=record.get("notes"),
+    )
+    divergent = _payload_differences(stored_payload, manifest.payload())
+    if divergent:
+        raise BenchmarkManifestError(
+            "generalized_v2 benchmark manifest is not this schema's canonical payload "
+            "(%s); refused rather than normalized." % "; ".join(divergent))
+    return manifest
+
+
+def load_v2_benchmark_manifest(path: Union[str, Path]) -> V2BenchmarkManifest:
+    """Read and verify a frozen GENERALIZED-V2 manifest from disk."""
+    text = Path(path).read_text(encoding="utf-8")
+    try:
+        record = json.loads(text)
+    except ValueError as exc:
+        raise BenchmarkManifestError(
+            "benchmark manifest %s is not valid JSON: %s" % (str(path), exc)) from exc
+    if not isinstance(record, dict):
+        raise BenchmarkManifestError("benchmark manifest %s must be a JSON object" % path)
+    return v2_manifest_from_record(record)
+
+
+def load_benchmark_manifest_for_design(
+    path: Union[str, Path], design: EpisodeDesign
+) -> Union[BenchmarkManifest, V2BenchmarkManifest]:
+    """The DESIGN-AWARE loader: V1 reads the 18-stratum schema, V2 the ten-cell schema.
+
+    Each reader refuses the other's schema, so a V1 manifest can never be evaluated under
+    V2 or the reverse. ``generalized_v1`` takes exactly the historical
+    :func:`load_benchmark_manifest` call.
+    """
+    if design.route_relative_population:
+        return load_v2_benchmark_manifest(path)
+    if design.generalized_v1_design:
+        return load_benchmark_manifest(path)
+    raise BenchmarkManifestError(
+        "episode_design=%r defines no benchmark manifest" % (design.design,))
+
+
+def require_v2_world_matches_manifest(
+    world: V2BenchmarkWorld, observed: V2WorldIdentity
+) -> None:
+    """A reconstructed V2 member must BE its frozen world, or the run ABORTS."""
+    wrong = v2_identity_differences(world.preflight.identity, observed)
+    if wrong:
+        raise BenchmarkIdentityError(
+            "generalized_v2 benchmark world %s (seed %d) does not match the frozen "
+            "manifest: %s. The member is REFUSED rather than regenerated or substituted."
+            % (world.key, world.seed, "; ".join(wrong)))
+
+
+def require_v2_matched_group_identity(
+    world: V2BenchmarkWorld, identities: Mapping[str, V2WorldIdentity]
+) -> None:
+    """The completed members of one V2 group must describe the SAME world."""
+    completed = list(identities.items())
+    if len(completed) < 2:
+        return
+    reference_cell, reference = completed[0]
+    for cell, ident in completed[1:]:
+        wrong = v2_identity_differences(reference, ident)
+        if wrong:
+            raise BenchmarkIdentityError(
+                "generalized_v2 benchmark world %s (seed %d): matched members %r and %r "
+                "did not produce the same world (%s)."
+                % (world.key, world.seed, reference_cell, cell, "; ".join(wrong)))
 
 
 # =============================================================================

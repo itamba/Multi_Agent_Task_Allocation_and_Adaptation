@@ -296,7 +296,7 @@ import traceback
 from dataclasses import asdict, dataclass, field, fields as dataclass_fields
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import torch
 
@@ -378,10 +378,22 @@ from .graph_generalized import (
     require_world_matches_manifest,
     resolve_episode_design,
     CARDINALITY_SOURCE_V2_PRE_SOLVE,
+    CARDINALITY_SOURCE_V2_BENCHMARK_PRE_SOLVE,
+    V2_BENCHMARK_BASE_CELL_KEYS,
+    V2_BENCHMARK_PROFILES,
+    BenchmarkManifestError,
+    V2BenchmarkManifest,
+    V2BenchmarkWorld,
+    V2WorldIdentity,
+    canonical_digest,
     generalized_v2_cardinality_sampler_record,
+    load_v2_benchmark_manifest,
+    require_v2_matched_group_identity,
+    require_v2_world_matches_manifest,
     resolved_v2_cardinality,
     sample_generalized_cardinality,
     sample_generalized_v2_pre_solve_cardinality,
+    v2_allocation_fingerprint,
 )
 from .graph_reward import (
     ReferenceIntegrityError,
@@ -787,6 +799,7 @@ _CLI_FIELD_BY_DEST = {
     "episode_design": "episode_design",
     "match_aou_backend": "match_aou_backend",
     "benchmark_manifest": "benchmark_manifest",
+    "benchmark_profile": "benchmark_profile",
     "generalized_max_attempts_per_iteration":
         "generalized_max_attempts_per_iteration",
     "early_stopping": "early_stopping",
@@ -1020,13 +1033,19 @@ class TrainConfig:
     # population under a stratified label. To train `generalized_v1` without a benchmark,
     # disable evaluation explicitly.
     #
-    # REFUSED on both other designs, for two different reasons. A `fixed_cell_v1` run
-    # would build every world from the fixed cell while reporting stratum labels it never
-    # varied. A `generalized_v2` run has NO evaluation construct at all -- the 18-stratum
-    # manifest is a `generalized_v1` artifact (its strata are built from A in {2,3,4} and
-    # a hidden load defined against A), and no V2 benchmark has been designed -- so
-    # `validate` refuses the manifest AND refuses evaluation itself on that design.
+    # A `generalized_v2` run with evaluation enabled REQUIRES a manifest too, but a
+    # DIFFERENT one: the frozen ten-cell `generalized_v2` benchmark. The loader is
+    # design-aware and each schema refuses the other, so a V1 manifest can never be
+    # evaluated under V2 (or the reverse). A `fixed_cell_v1` run refuses any manifest: it
+    # would build every world from the fixed cell while reporting labels it never varied.
     benchmark_manifest: Optional[str] = None
+
+    # Which frozen `generalized_v2` benchmark PROFILE this run evaluates: `development`
+    # (world ordinals 0..1) or `confirmatory` (2..11). REQUIRED for an evaluating V2 run
+    # and REFUSED on every other design, which has no profiles. It selects which frozen
+    # groups are measured and nothing else -- the manifest identity, the training
+    # population and the held-out check (always over the WHOLE manifest) do not move.
+    benchmark_profile: Optional[str] = None
 
     # The GENERALIZED-only bounded ATTEMPT BUDGET per iteration. `None` on the
     # historical path, where it is REFUSED if set (a fixed-cell run must not silently
@@ -1046,9 +1065,9 @@ class TrainConfig:
     #
     # It also fixes the run's MAXIMUM POSSIBLE training-attempt seed band
     # (`max_training_attempts`), which is what every seed-band claim is made against on
-    # BOTH generalized designs. Under `generalized_v1` that same bound is additionally
-    # what the frozen benchmark is verified to be held out from; `generalized_v2` defines
-    # no evaluation benchmark, so there is nothing there for it to be held out from.
+    # BOTH generalized designs. On both it is additionally what a frozen benchmark
+    # manifest of that design is verified to be held out from -- under `generalized_v2`
+    # over EVERY manifest seed, whichever profile the run evaluates.
     generalized_max_attempts_per_iteration: Optional[int] = None
 
     # --- GENERALIZED-V1 EARLY STOPPING: opt-in, OFF by default --------------------
@@ -1530,35 +1549,46 @@ class TrainConfig:
                     % (EPISODE_DESIGN_GENERALIZED_V2, GENERALIZED_V2_REQUIRED_BACKEND,
                        self.match_aou_backend)
                 )
-            # --- the 18-stratum benchmark is a GENERALIZED-V1 construct ---------------
-            # Its strata are built from `A in {2,3,4}` and a `low`/`high` hidden load
-            # defined against `A`; V2 draws `A in {2,...,6}` and a hidden load defined
-            # against `R`, so a V1 manifest evaluated under V2 would report V1 stratum
-            # labels over a population that never varied them. Designing a V2 benchmark is
-            # a separate research decision and is deliberately not taken here.
-            if str(self.benchmark_manifest or ""):
-                raise ValueError(
-                    "benchmark_manifest is set but episode_design=%r: the 18-stratum "
-                    "manifest is a %r construct (A in %s, hidden load defined against A), "
-                    "and no %r benchmark has been designed. Evaluating one under this "
-                    "design would report strata the population never varied."
-                    % (EPISODE_DESIGN_GENERALIZED_V2, EPISODE_DESIGN_GENERALIZED_V1,
-                       list(GENERALIZED_AGENT_COUNTS), EPISODE_DESIGN_GENERALIZED_V2)
-                )
-            # ... and with no benchmark there is no approved V2 evaluation construct at
-            # all. The fixed held-out band carries no stratum, so evaluating on it would
-            # measure an unstratified population under a generalized label -- exactly the
-            # substitution the V1 rule below refuses. Evaluation must therefore be
-            # explicitly disabled, which is a statement about what this run measures rather
-            # than a silent omission.
+            # --- the GENERALIZED-V2 benchmark: its OWN ten-cell construct -------------
+            # An evaluating V2 run must name a frozen V2 manifest AND exactly one declared
+            # profile. It never falls back on the fixed held-out band, which carries no
+            # stratum, and never reads the V1 18-stratum manifest -- that refusal happens
+            # at LOAD time, where the schema is known (`load_v2_benchmark_manifest`).
             if self.eval_enabled:
+                if not str(self.benchmark_manifest or ""):
+                    raise ValueError(
+                        "episode_design=%r with evaluation enabled requires "
+                        "benchmark_manifest: a frozen %r benchmark manifest. The fixed "
+                        "held-out seed band carries no stratum, so evaluating on it would "
+                        "measure an UNSTRATIFIED population under a generalized label. "
+                        "Point benchmark_manifest at a frozen V2 manifest, or disable "
+                        "evaluation explicitly (eval_every=0 / eval_episodes=0)."
+                        % (EPISODE_DESIGN_GENERALIZED_V2, EPISODE_DESIGN_GENERALIZED_V2)
+                    )
+                if str(self.benchmark_profile or "") not in V2_BENCHMARK_PROFILES:
+                    raise ValueError(
+                        "episode_design=%r with evaluation enabled requires "
+                        "benchmark_profile to be one of %r, got %r: a run must declare "
+                        "which frozen profile it measures."
+                        % (EPISODE_DESIGN_GENERALIZED_V2, list(V2_BENCHMARK_PROFILES),
+                           self.benchmark_profile)
+                    )
+        if self.benchmark_profile is not None:
+            if not design.route_relative_population:
                 raise ValueError(
-                    "episode_design=%r does not define an evaluation construct: the "
-                    "18-stratum benchmark is %r-only and the fixed held-out seed band "
-                    "carries no stratum, so evaluating on it would measure an "
-                    "UNSTRATIFIED population under a generalized label. Disable "
-                    "evaluation explicitly (eval_every=0 / eval_episodes=0)."
-                    % (EPISODE_DESIGN_GENERALIZED_V2, EPISODE_DESIGN_GENERALIZED_V1)
+                    "benchmark_profile is set but episode_design=%r: benchmark profiles "
+                    "are a %r construct only." % (self.episode_design,
+                                                  EPISODE_DESIGN_GENERALIZED_V2)
+                )
+            if str(self.benchmark_profile) not in V2_BENCHMARK_PROFILES:
+                raise ValueError(
+                    "benchmark_profile must be one of %r, got %r"
+                    % (list(V2_BENCHMARK_PROFILES), self.benchmark_profile)
+                )
+            if not str(self.benchmark_manifest or ""):
+                raise ValueError(
+                    "benchmark_profile=%r is set but benchmark_manifest is not: a profile "
+                    "selects groups FROM a frozen manifest." % (self.benchmark_profile,)
                 )
         if design.generalized:
             # The approved generalized TRAINING mixture is 0.50 clean / 0.25 mild /
@@ -2434,10 +2464,12 @@ def _v2_failure_population(
     """
     if pre_solve is None:
         return {}
-    if str(pre_solve.source) != CARDINALITY_SOURCE_V2_PRE_SOLVE:  # pragma: no cover
-        # Defensive: only the V2 stage-1 sampler mints this record, so a foreign source
-        # here would mean the block was about to describe a population it did not come
-        # from. Refusing to emit is the truthful response.
+    if str(pre_solve.source) not in (
+            CARDINALITY_SOURCE_V2_PRE_SOLVE,
+            CARDINALITY_SOURCE_V2_BENCHMARK_PRE_SOLVE):  # pragma: no cover
+        # Defensive: only the V2 stage-1 sampler and the V2 benchmark base cell mint this
+        # record, so a foreign source here would mean the block was about to describe a
+        # population it did not come from. Refusing to emit is the truthful response.
         return {}
     load = route_relative_load
     return {
@@ -2447,8 +2479,13 @@ def _v2_failure_population(
             "stage_resolved": (
                 "route_relative" if load is not None else "pre_solve"
             ),
-            "pre_solve_cardinality_policy": PRE_SOLVE_CARDINALITY_POLICY_V2,
-            "pre_solve_rng_domain": V2_CARDINALITY_RNG_DOMAIN,
+            # Read off the stage-1 record rather than restated as constants: a training
+            # draw carries the sampler's policy and domain, a benchmark base cell its own
+            # policy and NO domain (nothing was drawn).
+            "pre_solve_cardinality_policy": str(pre_solve.policy),
+            "pre_solve_rng_domain": (
+                None if pre_solve.rng_domain is None else str(pre_solve.rng_domain)
+            ),
             "pre_solve_derived_seed": pre_solve.derived_seed,
             "agent_count": int(pre_solve.agent_count),
             "known_requested": int(pre_solve.known_count),
@@ -2763,7 +2800,8 @@ def _episode_outcome_record(
                     else str(out.pre_solve_cardinality.policy)
                 ),
                 "pre_solve_rng_domain": (
-                    None if out.pre_solve_cardinality is None
+                    None if (out.pre_solve_cardinality is None
+                             or out.pre_solve_cardinality.rng_domain is None)
                     else str(out.pre_solve_cardinality.rng_domain)
                 ),
                 "pre_solve_derived_seed": (
@@ -3583,6 +3621,15 @@ def seed_bands(
             "held_out_overlap_count": len(overlap),
             "held_out_verified": not overlap,
         }
+        if isinstance(benchmark, V2BenchmarkManifest):
+            # V2-ONLY keys. The held-out check above ran over EVERY manifest seed -- both
+            # profiles -- and the round size is the declared profile's, not the manifest's.
+            profile_record = benchmark.profile_identity_record(str(cfg.benchmark_profile))
+            band["benchmark_evaluation"]["held_out_checked_over"] = (
+                "entire_manifest_all_profiles")
+            band["benchmark_evaluation"]["n_member_episodes_per_round"] = int(
+                profile_record["n_members"])
+            band["benchmark_evaluation"]["evaluation_profile"] = profile_record
         band["unused_legacy_eval_band"] = {
             "start": int(cfg.eval_base_seed),
             "stop": int(cfg.eval_base_seed) + int(cfg.eval_episodes),
@@ -3957,6 +4004,10 @@ def write_run_config(
                     "path": str(cfg.benchmark_manifest),
                     "absolute_path": str(Path(str(cfg.benchmark_manifest)).resolve()),
                     **benchmark.identity_record(),
+                    # V2-ONLY: which frozen profile this run evaluates.
+                    **({"evaluation_profile": benchmark.profile_identity_record(
+                        str(cfg.benchmark_profile))}
+                       if isinstance(benchmark, V2BenchmarkManifest) else {}),
                 }
             ),
         },
@@ -5377,6 +5428,85 @@ def _observe_world_identity(
     )
 
 
+def _v2_allocation_fingerprint(ctx: Any) -> str:
+    """The UUID-free known-only allocation fingerprint of a freshly set-up V2 context.
+
+    CALL AFTER ``setup_episode`` AND BEFORE ``run_episode``: the beliefs are byte-equal to
+    ``A_init``'s task list only at t=0 (the roster has already verified that agreement).
+    Task indices are mapped to positions in the RAW known-world inventory, so the
+    fingerprint never rests on a generated uuid.
+
+    Raises:
+        MeasurementIntegrityError: the context cannot state its own allocation -- an
+            instrument contradiction, never an episode outcome.
+    """
+    agent_ids = [str(a) for a in (getattr(ctx, "agent_ids", None) or ())]
+    beliefs = getattr(ctx, "beliefs", None) or {}
+    if not agent_ids or agent_ids[0] not in beliefs:
+        raise MeasurementIntegrityError(
+            "the V2 allocation fingerprint needs the t=0 belief of the first scheduled "
+            "ego, and the context carries none")
+    belief_target_ids = [_task_target_id(t) for t in beliefs[agent_ids[0]].tasks]
+    if any(tid is None for tid in belief_target_ids):
+        raise MeasurementIntegrityError(
+            "an allocated known task names no target, so the V2 allocation fingerprint "
+            "cannot be stated")
+    try:
+        return v2_allocation_fingerprint(
+            getattr(ctx, "a_init", None) or {},
+            agent_ids=agent_ids,
+            belief_target_ids=[str(t) for t in belief_target_ids],
+            known_target_ids=[str(t) for t in (getattr(ctx, "known_target_ids", ()) or ())],
+        )
+    except ValueError as exc:
+        raise MeasurementIntegrityError(
+            "the known-only allocation contradicts the known-world inventory (%s)" % exc
+        ) from exc
+
+
+def _observe_v2_world_identity(
+    *,
+    seed: int,
+    pre_solve: PreSolveCardinality,
+    route_relative_load: Optional[RouteRelativeHiddenLoad],
+    match_aou_backend: str,
+    allocation_fingerprint: Optional[str],
+    world_identity: Optional[WorldIdentity],
+) -> V2WorldIdentity:
+    """ONE assembly site for a V2 world's frozen-comparable identity.
+
+    Used by the preflight (which freezes it) and by the evaluation round (which verifies a
+    reconstruction against it), so the two cannot come to describe a world differently.
+    Every input is a RECORDED fact -- the stage-2 draw is read off the construction
+    path's own record and is never re-derived from the seed.
+
+    Raises:
+        MeasurementIntegrityError: a component the V2 identity requires is absent.
+    """
+    missing = [name for name, value in (
+        ("route_relative_load", route_relative_load),
+        ("allocation_fingerprint", allocation_fingerprint),
+        ("world_identity", world_identity)) if value is None]
+    if missing:
+        raise MeasurementIntegrityError(
+            "a generalized_v2 benchmark world cannot state its frozen identity: %s absent"
+            % ", ".join(missing))
+    return V2WorldIdentity(
+        seed=int(seed),
+        agent_count=int(pre_solve.agent_count),
+        known_count=int(pre_solve.known_count),
+        match_aou_backend=resolve_match_aou_backend(match_aou_backend),
+        route_count=int(route_relative_load.route_count),          # type: ignore[union-attr]
+        allocation_fingerprint=str(allocation_fingerprint),
+        hidden_requested=int(route_relative_load.hidden_requested),  # type: ignore[union-attr]
+        hidden_realized=int(world_identity.hidden_realized),        # type: ignore[union-attr]
+        known_realized=int(world_identity.known_realized),          # type: ignore[union-attr]
+        geometric_fingerprint=world_identity.geometric_fingerprint,  # type: ignore[union-attr]
+        fd_selected_ordinal=world_identity.fd_selected_ordinal,     # type: ignore[union-attr]
+        fd_certificate_fingerprint=world_identity.fd_certificate_fingerprint,  # type: ignore[union-attr]
+    )
+
+
 def _recording_kwargs(artifacts: Optional[_AttemptArtifacts]) -> Dict[str, Any]:
     """``setup_episode``'s recording keyword -- or NOTHING at all when artifacts are off.
 
@@ -5535,6 +5665,12 @@ class _EpisodeOutcome:
 
     world_identity: Optional[WorldIdentity] = None
     """The id-free identity of the world this attempt really built (benchmark checks)."""
+
+    allocation_fingerprint: Optional[str] = None
+    """GENERALIZED-V2 only: the UUID-free fingerprint of the known-only allocation
+    (``graph_generalized.v2_allocation_fingerprint``), taken at t=0 before any tick. It is
+    what lets a V2 benchmark member prove it was built on the frozen allocation. ``None``
+    on every other design. Not written into any record by itself."""
 
 
 def _run_one_episode(
@@ -5765,6 +5901,15 @@ def _run_one_episode(
                 % (type(exc).__name__, exc)
             ) from exc
 
+        # GENERALIZED-V2 ONLY: the UUID-free fingerprint of the known-only allocation,
+        # taken HERE while the beliefs are still the t=0 plan. A V2 benchmark member is
+        # verified against its frozen value; nothing else reads it, and no other design
+        # computes it.
+        allocation_fingerprint: Optional[str] = (
+            _v2_allocation_fingerprint(ctx) if pre_solve_cardinality is not None
+            else None
+        )
+
         # The damage plan is a t=0 fact about the context setup produced -- the solved
         # routes, the untouched fuel -- so a plan that cannot be built (no eligible ego,
         # no valid strict window) is a `setup` finding, accounted exactly like an
@@ -5958,6 +6103,7 @@ def _run_one_episode(
             reference=(None if reference is None else reference.to_record()),
             reward_breakdown=_reward_breakdown_record(ep_reward),
             world_identity=world_identity,
+            allocation_fingerprint=allocation_fingerprint,
         )
     finally:
         if ctx is not None:
@@ -6061,11 +6207,11 @@ def evaluate(
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
     if cfg.route_relative_population:
         raise ValueError(
-            "evaluate() is not defined for episode_design=%r: the fixed held-out seed "
-            "band is a fixed-cell construct whose seeds carry no stratum and are not "
-            "drawn from this design's population, so a round taken on it would measure "
-            "something other than what its label says. No evaluation construct exists "
-            "for this design." % (cfg.episode_design,)
+            "evaluate() is not defined for episode_design=%r: the fixed held-out seed-band "
+            "evaluator is a fixed-cell construct whose seeds carry no stratum and are not "
+            "drawn from this design's population. Evaluate this design through "
+            "evaluate_benchmark() with its frozen generalized_v2 benchmark manifest and a "
+            "declared benchmark_profile." % (cfg.episode_design,)
         )
     members = cfg.eval_group_members
     group_size = cfg.eval_group_size
@@ -6534,13 +6680,12 @@ def evaluate_benchmark(
     outcomes_path: Optional[Path] = None,
     artifacts_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    """ONE deterministic round over the FROZEN 18-stratum benchmark.
+    """ONE deterministic round over the FROZEN benchmark of this run's design.
 
-    REFUSED under GENERALIZED-V2 for the same reason ``evaluate`` is, and for one more:
-    the 18-stratum manifest is a GENERALIZED-V1 construct whose strata are built from
-    ``A in {2,3,4}`` and a hidden load defined against ``A``, while V2 draws ``A`` from a
-    wider set and defines its hidden load against a realized route count. A V1 manifest
-    evaluated under V2 would report strata the population never varied.
+    DESIGN-AWARE DISPATCH. Under GENERALIZED-V2 the round is delegated, before anything
+    else happens, to :func:`_evaluate_v2_benchmark`, which reconstructs each member through
+    the two-stage route-relative construction and verifies the frozen V2 identity. The
+    body below is the GENERALIZED-V1 18-stratum round and is unchanged.
 
     THE STRUCTURE IS THE SAME AS :func:`evaluate`'S -- matched groups on one world, one
     attempt per member, skip-and-account on failure, deltas over COMPLETE groups only --
@@ -6576,15 +6721,16 @@ def evaluate_benchmark(
     meta_counts = _empty_meta_counts()
     ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
     if cfg.route_relative_population:
-        raise ValueError(
-            "evaluate_benchmark() is not defined for episode_design=%r: the 18-stratum "
-            "manifest is a %r construct (A in %s, hidden load defined against A), and "
-            "this design draws A from a wider set and defines its hidden load against a "
-            "realized route count. Evaluating a %r manifest here would report strata the "
-            "population never varied."
-            % (cfg.episode_design, EPISODE_DESIGN_GENERALIZED_V1,
-               list(GENERALIZED_AGENT_COUNTS), EPISODE_DESIGN_GENERALIZED_V1)
+        return _evaluate_v2_benchmark(
+            policy, gen, cfg, manifest,
+            iteration=iteration, stage=stage, updates_completed=updates_completed,
+            round_ordinal=round_ordinal, failures_path=failures_path,
+            outcomes_path=outcomes_path, artifacts_root=artifacts_root,
         )
+    if isinstance(manifest, V2BenchmarkManifest):
+        raise BenchmarkManifestError(
+            "a generalized_v2 benchmark manifest cannot be evaluated under "
+            "episode_design=%r" % (cfg.episode_design,))
     tally = _ConditionTally(BENCHMARK_CELLS)
     bench = _BenchmarkTally()
     n_failed = 0
@@ -6771,6 +6917,584 @@ def evaluate_benchmark(
         # readable side by side -- and the per-STRATUM ones beside them.
         **tally.to_record(prefix="eval_"),
         **bench.to_record(),
+        "n_episodes": n_attempted,
+        "n_ok": n_successful,
+        "eval_kills_mean": unique_confirmed_mean,
+        "eval_seconds": time.perf_counter() - t0,
+    }
+
+
+# =============================================================================
+# 5c. GENERALIZED-V2: the frozen ten-cell benchmark evaluation round
+# =============================================================================
+
+class _V2BenchmarkTally:
+    """Per-BASE-CELL member accounting for one V2 round. REPORTING, and SECONDARY.
+
+    The V2 strata are the ten exogenous ``(A, K-A)`` base cells; this carries each cell's
+    member attempts / successes / failures and its within-world REWARD deltas over
+    COMPLETE groups. Reward is downstream of the primary behavioural measurement
+    (:func:`_v2_behaviour_summary`) and is never a substitute for it.
+    """
+
+    def __init__(self) -> None:
+        cells = V2_BENCHMARK_BASE_CELL_KEYS
+        self.attempted = {bc: {c: 0 for c in BENCHMARK_CELLS} for bc in cells}
+        self.failed = {bc: {c: 0 for c in BENCHMARK_CELLS} for bc in cells}
+        self.rewards: Dict[str, Dict[str, List[float]]] = {
+            bc: {c: [] for c in BENCHMARK_CELLS} for bc in cells}
+        self.groups_attempted = {bc: 0 for bc in cells}
+        self.groups_complete = {bc: 0 for bc in cells}
+        self.deltas: Dict[Tuple[str, str], List[float]] = {p: [] for p in BENCHMARK_DELTAS}
+        self.cell_deltas = {bc: {p: [] for p in BENCHMARK_DELTAS} for bc in cells}
+
+    def _require(self, base_cell: str) -> str:
+        if str(base_cell) not in self.attempted:
+            raise MeasurementIntegrityError(
+                "a generalized_v2 benchmark member names base cell %r, which is not one of "
+                "the %d base cells" % (base_cell, len(self.attempted)))
+        return str(base_cell)
+
+    def attempt(self, base_cell: str, cell: str) -> None:
+        self.attempted[self._require(base_cell)][str(cell)] += 1
+
+    def failure(self, base_cell: str, cell: str) -> None:
+        self.failed[self._require(base_cell)][str(cell)] += 1
+
+    def success(self, base_cell: str, cell: str, reward: float) -> None:
+        self.rewards[self._require(base_cell)][str(cell)].append(float(reward))
+
+    def group(self, base_cell: str, member_rewards: Dict[str, float], *,
+              complete: bool) -> None:
+        key = self._require(base_cell)
+        self.groups_attempted[key] += 1
+        if not complete:
+            return
+        self.groups_complete[key] += 1
+        for pair in BENCHMARK_DELTAS:
+            delta = member_rewards[pair[0]] - member_rewards[pair[1]]
+            self.deltas[pair].append(delta)
+            self.cell_deltas[key][pair].append(delta)
+
+    def to_record(self) -> Dict[str, Any]:
+        cells: Dict[str, Any] = {}
+        for bc in V2_BENCHMARK_BASE_CELL_KEYS:
+            cells[bc] = {
+                "n_groups_attempted": int(self.groups_attempted[bc]),
+                "n_groups_complete": int(self.groups_complete[bc]),
+                "members": {
+                    c: {
+                        "n_attempted": int(self.attempted[bc][c]),
+                        "n_successful": len(self.rewards[bc][c]),
+                        "n_failed": int(self.failed[bc][c]),
+                        "reward_mean": _stats_or_none(self.rewards[bc][c])["mean"],
+                    } for c in BENCHMARK_CELLS
+                },
+                "reward_deltas": {
+                    _delta_key(*p): _stats_or_none(v)["mean"]
+                    for p, v in self.cell_deltas[bc].items()
+                },
+                "reward_delta_n": len(self.cell_deltas[bc][BENCHMARK_DELTAS[0]]),
+                "reward_deltas_over": "complete_matched_world_groups",
+            }
+        record: Dict[str, Any] = {"v2_benchmark_base_cells": cells}
+        for pair, values in self.deltas.items():
+            stats = _stats_or_none(values)
+            key = _delta_key(*pair)
+            record[key] = stats["mean"]
+            record["%s_min" % key] = stats["min"]
+            record["%s_max" % key] = stats["max"]
+            record["%s_n" % key] = len(values)
+        return record
+
+
+# The two DISJOINT selected-action switch definitions of the V2 behavioural summary.
+V2_SWITCH_DIRECTIONAL: str = "mild_not_abort_and_severe_abort"
+V2_SWITCH_REVERSE: str = "mild_abort_and_severe_not_abort"
+
+
+def _v2_immediate_fd_member(
+    decisions: Optional[Sequence[Mapping[str, Any]]], cell: str
+) -> Tuple[Optional[float], Optional[str], Optional[str]]:
+    """(aggregate P(ABORT), selected meta-action name, not-measurable reason) of ONE member.
+
+    ONLY immediate-fuel-damage wakes are read -- ordinary and post-FD-boundary wakes are
+    filtered out by their tagged kind, never by the selected action. Exactly one such
+    wake is required; zero or several is a stated, non-measurable reason, never a guess.
+    """
+    fd = [d for d in (decisions or ())
+          if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD]
+    if not fd:
+        return None, None, "%s_no_immediate_fd_wake" % cell
+    if len(fd) > 1:
+        return None, None, "%s_multiple_immediate_fd_wakes" % cell
+    mass = (fd[0].get("aggregate_probability_per_meta_action") or {}).get(_ABORT_NAME)
+    selected = fd[0].get("selected_meta_action_name")
+    if isinstance(mass, bool) or not isinstance(mass, (int, float)) or selected is None:
+        return None, None, "%s_immediate_fd_diagnostics_unrecorded" % cell
+    return float(mass), str(selected), None
+
+
+def _v2_behaviour_summary(groups: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """THE PRIMARY V2 behavioural summary, over ONE evaluation round. PURE.
+
+    ``groups`` is one entry per SCHEDULED matched world group of the round:
+    ``{"group_key", "base_cell", "complete", "member_decisions": {cell: [wake records]}}``,
+    where the wake records are the per-wake diagnostics of THAT round's evaluation members
+    (training rows never reach this function).
+
+    For each COMPLETE group whose MILD and SEVERE members each have exactly one
+    immediate-FD wake, the metric is PAIRED FIRST, per world group:
+
+        delta = P_agg(ABORT | SEVERE) - P_agg(ABORT | MILD)
+
+    and only then aggregated -- per base cell, as an EQUAL-WEIGHT macro mean over the ten
+    base cells, and pooled. ``P_agg`` is the aggregate probability MASS on the abort
+    column, which is NOT the probability of the selected action. The selected-joint-cell
+    directional switch (MILD != ABORT and SEVERE == ABORT) and its reverse are counted over
+    the same metric-eligible groups, with their denominators.
+
+    An incomplete group contributes to no delta and no rate and is listed; a complete group
+    that is not measurable is listed with its reason. Every undefined quantity is
+    ``None``, never ``0``. The macro mean is ``None`` unless EVERY base cell has at least
+    one metric-eligible group -- a mean over fewer cells would silently re-weight the
+    design.
+    """
+    per_cell: Dict[str, Dict[str, Any]] = {
+        bc: {"n_groups_attempted": 0, "n_groups_complete": 0, "deltas": [],
+             "n_directional": 0, "n_reverse": 0}
+        for bc in V2_BENCHMARK_BASE_CELL_KEYS
+    }
+    rows: List[Dict[str, Any]] = []
+    reasons: List[str] = []
+    for g in groups:
+        bc = str(g["base_cell"])
+        slot = per_cell.setdefault(bc, {"n_groups_attempted": 0, "n_groups_complete": 0,
+                                        "deltas": [], "n_directional": 0,
+                                        "n_reverse": 0})
+        slot["n_groups_attempted"] += 1
+        row: Dict[str, Any] = {
+            "group_key": str(g["group_key"]), "base_cell": bc,
+            "complete": bool(g["complete"]), "metric_eligible": False,
+            "not_measurable_reason": None,
+            "p_abort_mild": None, "p_abort_severe": None,
+            "severe_minus_mild_abort_mass": None,
+            "mild_selected_meta_action": None, "severe_selected_meta_action": None,
+            V2_SWITCH_DIRECTIONAL: None, V2_SWITCH_REVERSE: None,
+        }
+        if not g["complete"]:
+            row["not_measurable_reason"] = "incomplete_group"
+            rows.append(row)
+            continue
+        slot["n_groups_complete"] += 1
+        decisions = g.get("member_decisions") or {}
+        mild, mild_sel, mild_why = _v2_immediate_fd_member(
+            decisions.get(SEVERITY_MILD), SEVERITY_MILD)
+        severe, severe_sel, severe_why = _v2_immediate_fd_member(
+            decisions.get(SEVERITY_SEVERE), SEVERITY_SEVERE)
+        why = mild_why or severe_why
+        if why is not None:
+            row["not_measurable_reason"] = why
+            reasons.append(why)
+            rows.append(row)
+            continue
+        delta = float(severe) - float(mild)           # type: ignore[arg-type]
+        directional = mild_sel != _ABORT_NAME and severe_sel == _ABORT_NAME
+        reverse = mild_sel == _ABORT_NAME and severe_sel != _ABORT_NAME
+        row.update({
+            "metric_eligible": True, "p_abort_mild": mild, "p_abort_severe": severe,
+            "severe_minus_mild_abort_mass": delta,
+            "mild_selected_meta_action": mild_sel,
+            "severe_selected_meta_action": severe_sel,
+            V2_SWITCH_DIRECTIONAL: bool(directional), V2_SWITCH_REVERSE: bool(reverse),
+        })
+        slot["deltas"].append(delta)
+        slot["n_directional"] += int(directional)
+        slot["n_reverse"] += int(reverse)
+        rows.append(row)
+
+    by_cell: Dict[str, Any] = {}
+    cell_means: Dict[str, Optional[float]] = {}
+    all_deltas: List[float] = []
+    n_dir = n_rev = 0
+    for bc, slot in per_cell.items():
+        n_eligible = len(slot["deltas"])
+        mean = _stats_or_none(slot["deltas"])["mean"]
+        cell_means[bc] = mean
+        all_deltas.extend(slot["deltas"])
+        n_dir += slot["n_directional"]
+        n_rev += slot["n_reverse"]
+        by_cell[bc] = {
+            "n_groups_attempted": int(slot["n_groups_attempted"]),
+            "n_groups_complete": int(slot["n_groups_complete"]),
+            "n_groups_metric_eligible": n_eligible,
+            "severe_minus_mild_abort_mass_mean": mean,
+            "directional_switch_count": int(slot["n_directional"]),
+            "directional_switch_rate": _fraction(slot["n_directional"], n_eligible),
+            "reverse_switch_count": int(slot["n_reverse"]),
+            "reverse_switch_rate": _fraction(slot["n_reverse"], n_eligible),
+            "rates_over": "metric_eligible_groups",
+        }
+    undefined = [bc for bc in V2_BENCHMARK_BASE_CELL_KEYS if cell_means.get(bc) is None]
+    defined = [cell_means[bc] for bc in V2_BENCHMARK_BASE_CELL_KEYS
+               if cell_means.get(bc) is not None]
+    n_complete = sum(1 for r in rows if r["complete"])
+    n_eligible_total = len(all_deltas)
+    return {
+        "metric": "severe_minus_mild_aggregate_abort_mass",
+        "wake_kind": WAKE_KIND_IMMEDIATE_FD,
+        "abort_meta_action": _ABORT_NAME,
+        "aggregate_mass_is_not_selected_action_probability": True,
+        "pairing": "per_complete_matched_world_group_then_aggregated",
+        "eligibility": ("complete group whose MILD and SEVERE members each have exactly "
+                        "one immediate-fuel-damage wake with recorded diagnostics"),
+        "n_groups_attempted": len(rows),
+        "n_groups_complete": n_complete,
+        "n_groups_incomplete": len(rows) - n_complete,
+        "n_groups_metric_eligible": n_eligible_total,
+        "n_groups_complete_not_measurable": n_complete - n_eligible_total,
+        "not_measurable_reasons": _tally_slugs(reasons),
+        "by_base_cell": by_cell,
+        "macro_mean_over_base_cells": (
+            float(sum(defined)) / len(defined)
+            if defined and not undefined else None),
+        "macro_n_base_cells_required": len(V2_BENCHMARK_BASE_CELL_KEYS),
+        "macro_n_base_cells_defined": len(defined),
+        "macro_undefined_base_cells": undefined,
+        "pooled_mean_over_groups": _stats_or_none(all_deltas)["mean"],
+        "pooled_n_groups": n_eligible_total,
+        "directional_switch_definition": V2_SWITCH_DIRECTIONAL,
+        "directional_switch_count": n_dir,
+        "directional_switch_rate": _fraction(n_dir, n_eligible_total),
+        "reverse_switch_definition": V2_SWITCH_REVERSE,
+        "reverse_switch_count": n_rev,
+        "reverse_switch_rate": _fraction(n_rev, n_eligible_total),
+        "switch_rates_over": "metric_eligible_groups",
+        "groups": rows,
+    }
+
+
+def _v2_group_population(
+    manifest: V2BenchmarkManifest, profile: str,
+    groups: Sequence[Mapping[str, Any]], behaviour: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """The CANONICAL group population one V2 round measured, with digests.
+
+    Two runs quoting the same ``manifest_id`` are comparable only if they measured the
+    same profile AND the same complete / incomplete / metric-eligible groups; the ordered
+    key lists and their digests make that a checkable claim. The frozen-population
+    histograms (``R``, ``H_requested``, ``H_realized``) are REPORTED descriptors of the
+    evaluated worlds -- never strata and never quotas.
+    """
+    def _keys(pred) -> List[str]:
+        return [str(g["group_key"]) for g in groups if pred(g)]
+
+    eligible = {str(r["group_key"]) for r in behaviour.get("groups") or ()
+                if r.get("metric_eligible")}
+    evaluated = _keys(lambda g: True)
+    complete = _keys(lambda g: g["complete"])
+    incomplete = _keys(lambda g: not g["complete"])
+    eligible_keys = [k for k in evaluated if k in eligible]
+    frozen = [w.preflight.identity for w in manifest.profile_worlds(profile)]
+    return {
+        "benchmark_profile_identity": manifest.profile_identity_record(profile),
+        "evaluated_group_keys": evaluated,
+        "evaluated_group_keys_sha256": canonical_digest({"group_keys": evaluated}),
+        "complete_group_keys": complete,
+        "complete_group_keys_sha256": canonical_digest({"group_keys": complete}),
+        "incomplete_group_keys": incomplete,
+        "incomplete_group_keys_sha256": canonical_digest({"group_keys": incomplete}),
+        "metric_eligible_group_keys": eligible_keys,
+        "metric_eligible_group_keys_sha256": canonical_digest(
+            {"group_keys": eligible_keys}),
+        "frozen_population": {
+            "route_count_histogram": _histogram([i.route_count for i in frozen]),
+            "hidden_requested_histogram": _histogram(
+                [i.hidden_requested for i in frozen]),
+            "hidden_requested_given_route_count": _tally_slugs(
+                ["R%d:H%d" % (i.route_count, i.hidden_requested) for i in frozen]),
+            "hidden_realized_histogram": _histogram([i.hidden_realized for i in frozen]),
+            "n_hidden_short_realized": sum(
+                1 for i in frozen if i.hidden_realized < i.hidden_requested),
+            "descriptors_not_strata": True,
+        },
+    }
+
+
+def _v2_benchmark_member_identity(
+    manifest: V2BenchmarkManifest, world: V2BenchmarkWorld, cell: str, profile: str,
+    identity: Optional[V2WorldIdentity],
+) -> Dict[str, Any]:
+    """The frozen-benchmark identity keys one V2 member's records carry.
+
+    The shared benchmark keys keep their V1 names so every reader resolves them; under V2
+    the stratum IS the base cell and there is no load bucket (``null``). The V2-only
+    facts travel in a nested ``benchmark_v2`` block that V1 records never carry.
+    """
+    frozen = world.preflight.identity
+    return {
+        "benchmark_manifest_id": str(manifest.manifest_id),
+        "benchmark_stratum": world.base_cell_key,
+        "benchmark_group_key": world.key,
+        "benchmark_agent_count": int(world.agent_count),
+        "benchmark_load_bucket": None,
+        "benchmark_world_ordinal": int(world.world_ordinal),
+        "benchmark_world_identity": None if identity is None else identity.to_record(),
+        "benchmark_v2": {
+            "design": EPISODE_DESIGN_GENERALIZED_V2,
+            "profile": str(profile),
+            "base_cell": world.base_cell_key,
+            "agent_count": int(world.agent_count),
+            "known_count": int(world.known_count),
+            "known_offset": int(world.known_offset),
+            "member_cell": str(cell),
+            "frozen_route_count": int(frozen.route_count),
+            "frozen_hidden_requested": int(frozen.hidden_requested),
+            "frozen_hidden_realized": int(frozen.hidden_realized),
+            "frozen_identity": frozen.to_record(),
+            "reconstructed_identity_verified": identity is not None,
+        },
+    }
+
+
+def _evaluate_v2_benchmark(
+    policy: Any,
+    gen: ScenarioGenerator,
+    cfg: TrainConfig,
+    manifest: Any,
+    *,
+    iteration: Optional[int],
+    stage: str,
+    updates_completed: int,
+    round_ordinal: int,
+    failures_path: Optional[Path],
+    outcomes_path: Optional[Path],
+    artifacts_root: Optional[Path],
+) -> Dict[str, Any]:
+    """ONE deterministic round over the FROZEN GENERALIZED-V2 benchmark, one profile.
+
+    Each scheduled world of the declared profile is evaluated as a matched CLEAN / MILD /
+    SEVERE triad on its identical frozen seed, with disjoint artifact tags. Every member
+    is rebuilt through the PRODUCTION two-stage construction: ``(A, K)`` from the base
+    cell, then the known-only P1 solve, the ACTUAL route count, the ACTUAL route-relative
+    ``H`` and bounded backoff. Its UUID-free V2 identity is then VERIFIED against the
+    frozen preflight and across the group's completed members; any disagreement is a
+    :class:`BenchmarkIdentityError` and ABORTS.
+
+    NO RUNTIME SUBSTITUTION, EVER, and no preflight call: a failed member is recorded once
+    with the population identity it actually received, its group becomes incomplete, and
+    no other world or seed takes its place.
+    """
+    if not isinstance(manifest, V2BenchmarkManifest):
+        raise BenchmarkManifestError(
+            "episode_design=%r evaluates a frozen generalized_v2 benchmark manifest, got "
+            "%s" % (cfg.episode_design, type(manifest).__name__))
+    profile = str(cfg.benchmark_profile or "")
+    worlds = manifest.profile_worlds(profile)        # an unknown profile RAISES
+    rewards: List[float] = []
+    unique_confirmed: List[float] = []
+    wakes: List[float] = []
+    meta_counts = _empty_meta_counts()
+    ended_counts = {"done": 0, "terminated": 0, "truncated": 0}
+    tally = _ConditionTally(BENCHMARK_CELLS)
+    bench = _V2BenchmarkTally()
+    group_obs: List[Dict[str, Any]] = []
+    n_failed = 0
+    n_groups_successful = 0
+    n_groups = len(worlds)
+    n_attempted = n_groups * BENCHMARK_GROUP_SIZE
+    t0 = time.perf_counter()
+
+    for w, world in enumerate(worlds):
+        pre = world.pre_solve_cardinality()
+        member_rewards: Dict[str, float] = {}
+        identities: Dict[str, V2WorldIdentity] = {}
+        member_decisions: Dict[str, List[Dict[str, Any]]] = {}
+
+        for member, (cell, mode) in enumerate(world.members()):
+            tag = eval_member_tag(round_ordinal=round_ordinal, e=w, member=member,
+                                  group_size=BENCHMARK_GROUP_SIZE)
+            condition = cell_condition(cell)
+            tally.attempt(cell)
+            bench.attempt(world.base_cell_key, cell)
+            artifacts = None
+            if artifacts_root is not None:
+                artifacts = _AttemptArtifacts(
+                    root=artifacts_root,
+                    identity=_AttemptIdentity(
+                        phase=str(stage),
+                        iteration=iteration,
+                        updates_completed=int(updates_completed),
+                        eval_round_ordinal=int(round_ordinal),
+                        eval_episode_index=int(w),
+                        eval_pair_member=int(member),
+                        attempt_ordinal=w * BENCHMARK_GROUP_SIZE + member,
+                        episode_index=None,
+                        seed=int(world.seed),
+                        condition=str(condition),
+                        severity=(str(cell) if cell in SEVERITIES else None),
+                        episode_tag=int(tag),
+                    ),
+                )
+            # A FRESH write-once carrier per member, so a member that fails after stage 2
+            # still reports the population identity it really received.
+            recorder = RouteRelativePopulationRecorder()
+            try:
+                out = _run_one_episode(
+                    policy, gen, cfg,
+                    seed=int(world.seed),
+                    episode_tag=tag,
+                    deterministic=True,
+                    fuel_damage_mode=mode,
+                    pre_solve_cardinality=pre,
+                    population_recorder=recorder,
+                    **_artifact_kwargs(artifacts),
+                )
+            except (_VisualArtifactError, MeasurementIntegrityError,
+                    FuelDamageIntegrityError, BenchmarkIdentityError,
+                    ReferenceIntegrityError, MatchAouBackendError):
+                raise
+            except Exception as exc:
+                n_failed += 1
+                tally.failure(cell)
+                bench.failure(world.base_cell_key, cell)
+                load = recorder.load
+                _append_failure_record(failures_path, _failure_record(
+                    phase="eval",
+                    evaluation_stage=stage,
+                    updates_completed=updates_completed,
+                    iteration=iteration,
+                    attempt_ordinal=w * BENCHMARK_GROUP_SIZE + member,
+                    episode_index=None,
+                    eval_tag="benchmark_v2_%s_%s_tag%d" % (world.key, cell, tag),
+                    seed=int(world.seed),
+                    condition=condition,
+                    cell=cell,
+                    cardinality=_failure_cardinality(None, pre, load),
+                    pre_solve_cardinality=pre,
+                    route_relative_load=load,
+                    benchmark=_v2_benchmark_member_identity(
+                        manifest, world, cell, profile, None),
+                    exc=exc,
+                ))
+                print("  [bench-v2 %s %s %s] FAILED (seed=%d): %s: %s"
+                      % (stage, world.key, cell, world.seed, type(exc).__name__, exc))
+                traceback.print_exc()
+                continue
+
+            print(_format_episode_block(
+                "[bench-v2 stage=%s %s %s seed=%d]"
+                % (_ascii(stage), world.key, cell, world.seed), out
+            ))
+            # THE RECONSTRUCTED V2 WORLD, verified against the frozen manifest BEFORE its
+            # reward or its diagnostics are allowed anywhere near a group or a summary.
+            identity = _observe_v2_world_identity(
+                seed=int(world.seed), pre_solve=pre,
+                route_relative_load=out.route_relative_load,
+                match_aou_backend=cfg.match_aou_backend,
+                allocation_fingerprint=out.allocation_fingerprint,
+                world_identity=out.world_identity,
+            )
+            require_v2_world_matches_manifest(world, identity)
+            identities[cell] = identity
+            member_rewards[tally.success(out, expected_cell=cell)] = out.reward
+            bench.success(world.base_cell_key, cell, out.reward)
+            member_decisions[cell] = _wake_decision_records(out.trajectory)
+            _append_episode_outcome_record(outcomes_path, _episode_outcome_record(
+                out,
+                phase=str(stage),
+                iteration=iteration,
+                updates_completed=int(updates_completed),
+                updates_completed_before=int(updates_completed),
+                attempt_ordinal=w * BENCHMARK_GROUP_SIZE + member,
+                episode_index=None,
+                eval_round_ordinal=int(round_ordinal),
+                eval_episode_index=int(w),
+                eval_group_member=int(member),
+                seed=int(world.seed),
+                episode_tag=int(tag),
+                fuel_damage_mode=str(mode),
+                design=cfg.design,
+                benchmark=_v2_benchmark_member_identity(
+                    manifest, world, cell, profile, identity),
+            ))
+            rewards.append(out.reward)
+            unique_confirmed.append(float(out.targets_confirmed_unique))
+            wakes.append(float(out.n_wakes))
+            _add_meta_action_counts(meta_counts, out.trajectory)
+            if out.ended in ended_counts:
+                ended_counts[out.ended] += 1
+
+        require_v2_matched_group_identity(world, identities)
+        complete = all(cell in member_rewards for cell, _mode in world.members())
+        bench.group(world.base_cell_key, member_rewards, complete=complete)
+        if complete:
+            n_groups_successful += 1
+        group_obs.append({
+            "group_key": world.key,
+            "base_cell": world.base_cell_key,
+            "complete": complete,
+            "member_decisions": {c: member_decisions.get(c)
+                                 for c in (SEVERITY_MILD, SEVERITY_SEVERE)},
+        })
+
+    behaviour = _v2_behaviour_summary(group_obs)
+    n_successful = len(rewards)
+    episodes_with_wakes = sum(1 for x in wakes if x > 0)
+    r = _stats_or_none(rewards)
+    unique_confirmed_mean = _stats_or_none(unique_confirmed)["mean"]
+    return {
+        "evaluation_stage": str(stage),
+        "updates_completed": int(updates_completed),
+        "iteration": None if iteration is None else int(iteration),
+        "eval_round_ordinal": int(round_ordinal),
+        "episode_tag_start": eval_member_tag(
+            round_ordinal=round_ordinal, e=0, member=0,
+            group_size=BENCHMARK_GROUP_SIZE),
+        "eval_population": "benchmark_manifest",
+        "benchmark_design": EPISODE_DESIGN_GENERALIZED_V2,
+        "benchmark_manifest_id": str(manifest.manifest_id),
+        "benchmark_label": manifest.label,
+        "benchmark_profile": profile,
+        "benchmark_n_worlds": int(n_groups),
+        "benchmark_n_members": int(n_attempted),
+        "benchmark_manifest_n_worlds": int(manifest.n_worlds),
+        "benchmark_n_base_cells": len(V2_BENCHMARK_BASE_CELL_KEYS),
+        "n_attempted": n_attempted,
+        "n_successful": n_successful,
+        "n_failed": n_failed,
+        "success_fraction": _fraction(n_successful, n_attempted),
+        "episodes_with_wakes": int(episodes_with_wakes),
+        "wake_fraction_of_successful": _fraction(episodes_with_wakes, n_successful),
+        "eval_group_kind": _EVAL_GROUP_KIND_TRIAD,
+        "eval_group_size": BENCHMARK_GROUP_SIZE,
+        "eval_group_cells": list(BENCHMARK_CELLS),
+        "n_groups_attempted": n_groups,
+        "n_groups_successful": int(n_groups_successful),
+        "group_success_fraction": _fraction(n_groups_successful, n_groups),
+        "eval_delta_keys": [_delta_key(c, r_) for c, r_ in BENCHMARK_DELTAS],
+        "eval_delta_over": "world_groups_with_all_members_successful",
+        "n_pairs_attempted": n_groups,
+        "n_pairs_successful": int(n_groups_successful),
+        "pair_success_fraction": _fraction(n_groups_successful, n_groups),
+        "eval_paired_reward_delta": None,
+        "paired_delta_over": "world_groups_with_all_members_successful",
+        "eval_reward_mean": r["mean"],
+        "eval_reward_min": r["min"],
+        "eval_reward_max": r["max"],
+        "eval_targets_confirmed_unique_mean": unique_confirmed_mean,
+        "target_confirmation_count_semantics": _TARGET_CONFIRMATION_SEMANTICS,
+        "eval_wakes_mean": _stats_or_none(wakes)["mean"],
+        "aggregates_over": "successful_episodes",
+        "meta_action_counts": dict(meta_counts),
+        "meta_action_fractions": _meta_fractions(meta_counts),
+        "ended_counts": dict(ended_counts),
+        **tally.to_record(prefix="eval_"),
+        **bench.to_record(),
+        "v2_benchmark_groups": _v2_group_population(manifest, profile, group_obs,
+                                                    behaviour),
+        # THE PRIMARY V2 behavioural measurement. Reward deltas above are SECONDARY.
+        "v2_behaviour": behaviour,
         "n_episodes": n_attempted,
         "n_ok": n_successful,
         "eval_kills_mean": unique_confirmed_mean,
@@ -7206,9 +7930,16 @@ def train(
     # behind. `validate` has already refused a generalized run that named none, and a
     # fixed-cell run that named one, so reaching here with a path means the design asked
     # for it. `None` -> this run evaluates the historical held-out band (or not at all).
-    benchmark: Optional[BenchmarkManifest] = None
+    benchmark: Optional[Union[BenchmarkManifest, V2BenchmarkManifest]] = None
     if cfg.generalized and cfg.eval_enabled:
-        benchmark = load_benchmark_manifest(str(cfg.benchmark_manifest))
+        # DESIGN-AWARE: V2 reads ONLY the ten-cell V2 schema (which refuses a V1 manifest
+        # by schema), V1 makes exactly its historical call. Under V2 the held-out check
+        # below runs over the WHOLE manifest -- both profiles -- whichever one this run
+        # evaluates.
+        if cfg.route_relative_population:
+            benchmark = load_v2_benchmark_manifest(str(cfg.benchmark_manifest))
+        else:
+            benchmark = load_benchmark_manifest(str(cfg.benchmark_manifest))
         # THE held-out check for this run's real evaluation seeds. Deliberately here --
         # after the manifest is known, before the run directory, the provenance, the
         # policy, the generator or any solver work exists.
@@ -7391,8 +8122,8 @@ def train(
         print("          num_agents / n_known / n_hidden are NOT read on this path")
         print("          bounded backoff may realize FEWER hidden targets than "
               "requested; that is a RECORDED outcome, never a retry")
-        print("          this design defines NO evaluation construct: no benchmark, and "
-              "evaluation must be explicitly disabled")
+        print("          evaluation (when enabled) is the frozen ten-cell %s benchmark, "
+              "one declared profile" % EPISODE_DESIGN_GENERALIZED_V2)
     elif cfg.generalized:
         print("scenario (GENERALIZED-V1): the cell is SAMPLED PER EPISODE -- "
               "A ~ U{%s}, K == A, H_requested ~ U{1..A}"
@@ -7410,11 +8141,20 @@ def train(
         print("          the generator writes the %d known target(s); setup_episode "
               "places the %d hidden one(s) route-relative and patches them in "
               "(split_tasks NOT run)" % (cfg.n_known, cfg.n_hidden))
-    if benchmark is not None:
+    if isinstance(benchmark, V2BenchmarkManifest):
+        chosen = benchmark.profile_worlds(str(cfg.benchmark_profile))
+        print("benchmark (%s): %s  profile=%s  %d of %d world group(s) x %d member(s) = "
+              "%d episode(s)/round, %d base cells (A x K-A)"
+              % (EPISODE_DESIGN_GENERALIZED_V2, benchmark.manifest_id[:16],
+                 cfg.benchmark_profile, len(chosen), benchmark.n_worlds,
+                 BENCHMARK_GROUP_SIZE, len(chosen) * BENCHMARK_GROUP_SIZE,
+                 len(V2_BENCHMARK_BASE_CELL_KEYS)))
+    elif benchmark is not None:
         print("benchmark: %s  %d world group(s) x %d member(s) = %d episode(s)/round, "
               "%d requested strata"
               % (benchmark.manifest_id[:16], benchmark.n_worlds, BENCHMARK_GROUP_SIZE,
                  benchmark.n_members, len(BENCHMARK_STRATA)))
+    if benchmark is not None:
         print("          worlds per base cell: %s"
               % benchmark.worlds_per_base_cell())
         print("          a failed member is recorded and SKIPPED; its group contributes "
@@ -9037,7 +9777,30 @@ def _generalized_summary(
             "totals_across_rounds_are_repeated_measures": True,
         }
 
-    return {
+    # --- the frozen GENERALIZED-V2 benchmark, added ONLY when V2 rounds exist ---
+    v2_rounds = sorted(
+        [r for r in eval_records if r.get("v2_behaviour") is not None],
+        key=lambda r: (int(r.get("updates_completed") or 0),
+                       int(r.get("eval_round_ordinal") or 0)))
+    v2_block: Optional[Dict[str, Any]] = None
+    if v2_rounds:
+        final_v2 = v2_rounds[-1]
+        v2_block = {
+            "manifest_id": final_v2.get("benchmark_manifest_id"),
+            "profiles": _tally_slugs([r.get("benchmark_profile") for r in v2_rounds]),
+            "n_rounds": len(v2_rounds),
+            "final_round_identity": {
+                "evaluation_stage": final_v2.get("evaluation_stage"),
+                "updates_completed": final_v2.get("updates_completed"),
+                "eval_round_ordinal": final_v2.get("eval_round_ordinal"),
+                "benchmark_profile": final_v2.get("benchmark_profile"),
+            },
+            "final_round_behaviour": final_v2.get("v2_behaviour"),
+            "final_round_groups": final_v2.get("v2_benchmark_groups"),
+            "totals_across_rounds_are_repeated_measures": True,
+        }
+
+    summary = {
         "episode_design": (
             successes[0].get("episode_design") if successes
             else EPISODE_DESIGN_GENERALIZED_V1
@@ -9110,6 +9873,10 @@ def _generalized_summary(
             [r.get("reference_fault_reason") for r in failure_records]),
         "benchmark": benchmark,
     }
+    if v2_block is not None:
+        # V2-ONLY key: a V1 or fixed-cell summary keeps exactly the shape it always had.
+        summary["v2_benchmark"] = v2_block
+    return summary
 
 
 def _summarize(
@@ -11038,9 +11805,19 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                            MATCH_AOU_BACKEND_P1_MILP_V1))
     p.add_argument("--benchmark-manifest", type=str,
                    default=d_cfg.benchmark_manifest,
-                   help="path to a FROZEN 18-stratum benchmark manifest; REQUIRED for "
-                        "a %s run with evaluation enabled, and refused otherwise"
-                        % EPISODE_DESIGN_GENERALIZED_V1)
+                   help="path to a FROZEN benchmark manifest of this run's design: the "
+                        "18-stratum manifest for %s, the ten-cell manifest for %s. "
+                        "REQUIRED for either with evaluation enabled; refused for %s"
+                        % (EPISODE_DESIGN_GENERALIZED_V1, EPISODE_DESIGN_GENERALIZED_V2,
+                           EPISODE_DESIGN_FIXED_CELL_V1))
+    p.add_argument("--benchmark-profile", type=str,
+                   choices=list(V2_BENCHMARK_PROFILES),
+                   default=d_cfg.benchmark_profile,
+                   help="which frozen %s benchmark profile to evaluate (%s: world "
+                        "ordinals 0..1, %s: 2..11). REQUIRED for an evaluating %s run; "
+                        "refused otherwise"
+                        % (EPISODE_DESIGN_GENERALIZED_V2, V2_BENCHMARK_PROFILES[0],
+                           V2_BENCHMARK_PROFILES[1], EPISODE_DESIGN_GENERALIZED_V2))
     p.add_argument("--generalized-max-attempts-per-iteration",
                    type=_bounded_type(int, 1, inclusive=True,
                                       what="generalized_max_attempts_per_iteration"),
@@ -11050,9 +11827,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "episodes) and refused for %s. Must be >= "
                         "episodes_per_iteration. NO DEFAULT: it decides how much world "
                         "attrition the run tolerates and sets the run's MAXIMUM POSSIBLE "
-                        "training-attempt seed band -- which under %s is additionally "
-                        "what the frozen benchmark is verified to be held out from, while "
-                        "%s defines no evaluation benchmark."
+                        "training-attempt seed band -- which is additionally what a frozen "
+                        "%s or %s benchmark manifest (every world seed of it, whichever "
+                        "profile is evaluated) is verified to be held out from."
                         % (EPISODE_DESIGN_GENERALIZED_V1, EPISODE_DESIGN_GENERALIZED_V2,
                            EPISODE_DESIGN_FIXED_CELL_V1, EPISODE_DESIGN_GENERALIZED_V1,
                            EPISODE_DESIGN_GENERALIZED_V2))
