@@ -1,4 +1,4 @@
-# Multi-Agent Graph RL — GENERALIZED-V2 IS IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #57, reviewed candidate `a27a3b140248e95096db38c8d5f717cc0098da4d` → merge `f98b293ededf7f67fbbd8f742e797e08109c254b`) — IT IS A POPULATION CONTRACT AND CODE ONLY, IT PRODUCED NO SCIENTIFIC MEASUREMENT, NO V2 BENCHMARK AND NO V2 POLICY RESULT, AND ITS EVALUATION / BENCHMARK DESIGN IS THE SINGLE NEXT UNRESOLVED RESEARCH TASK, DELIBERATELY NOT TAKEN HERE; `generalized_v2` RESOLVES THE SAME FOUR POLICY IDS AS `generalized_v1` AND CHANGES ONLY THE POPULATION — TWO-STAGE ROUTE-RELATIVE `A ~ U{2..6}`, `K | A ~ U{A, A+2}` BEFORE THE KNOWN-ONLY SOLVE AND `H ~ U{1..R}` AFTER IT AGAINST THE REALIZED ROUTED-EGO COUNT, ON TWO DISJOINT SEED DOMAINS, REQUIRING `p1_milp_v1` AND REFUSING `legacy_minlp_v1`, AND DEFINING **NO** EVALUATION CONSTRUCT; A FRESH DETERMINISTIC-P1 FULL ARM HAS SINCE BEEN COMPLETED AND INDEPENDENTLY ACCEPTED AS A VALID MEASUREMENT WITH A NEGATIVE PRIMARY MILD-vs-SEVERE RESULT, AND IT AND R1 ARE DISTINCT MEASUREMENTS THAT ARE **NOT** A CLEAN CAUSAL SOLVER-QUALITY COMPARISON; R1 AT `4af6c5aa…` REMAINS `APPROVE — VALID MEASUREMENT`, IS UNTOUCHED AND IS NOT RERUN; THE EARLIER ABORTED P1 ARM STAYS `DO NOT RESUME`; THIS POST-MERGE DOCUMENTATION LOCK IS THE SOLE WRITABLE REPOSITORY TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE TASK, NO ACTIVE CANDIDATE AND NO ACTIVE SCIENTIFIC RUN REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, SO EVERY RECEIVING ORCHESTRATOR RESOLVES LIVE `main` FROM GITHUB RATHER THAN FROM ANY SHA IN THIS DOCUMENT; SUPPORTED V2 TRAINING CARDINALITY STOPS AT A <= 6 AND A=8 / A=10 ARE ENGINEERING SCALING EVIDENCE ONLY; FIVE FULL CLUSTER RUNS, A CTDE ARM, RESUME / REPAIR, ANY R1 RERUN AND ANY V2 SCIENTIFIC RUN REMAIN UNAUTHORIZED / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
+# Multi-Agent Graph RL — THE GENERALIZED-V2 POPULATION (PR #57, reviewed candidate `a27a3b140248e95096db38c8d5f717cc0098da4d` → merge `f98b293ededf7f67fbbd8f742e797e08109c254b`) AND ITS FROZEN TEN-CELL BENCHMARK / EVALUATION MECHANISM (PR #59, final approved candidate `786e8218a00954f7a7f20fe1dfca93ec71a400d4` → merge `ea8778d5010fcfccec357c57c2861606ecb58bbc`) ARE BOTH IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED — BOTH ARE CODE ONLY; NO SCIENTIFIC V2 MANIFEST, NO FROZEN V2 SEED POPULATION, NO V2 TRAINING RUN AND NO V2 SCIENTIFIC MEASUREMENT EXISTS, AND THE NEXT UNRESOLVED SCIENTIFIC ACTION — THE ACTUAL V2 BENCHMARK PREFLIGHT / FROZEN MANIFEST CREATION — IS NOT AUTHORIZED; `generalized_v2` RESOLVES THE SAME FOUR POLICY IDS AS `generalized_v1` AND CHANGES ONLY THE POPULATION — TWO-STAGE ROUTE-RELATIVE `A ~ U{2..6}`, `K | A ~ U{A, A+2}` BEFORE THE KNOWN-ONLY SOLVE AND `H ~ U{1..R}` AFTER IT AGAINST THE REALIZED ROUTED-EGO COUNT, ON TWO DISJOINT SEED DOMAINS, REQUIRING `p1_milp_v1` AND REFUSING `legacy_minlp_v1`, AND — SINCE PR #59 — EVALUATED ONLY THROUGH ITS OWN TEN-CELL `(A, K−A)` MANIFEST OF 12 FROZEN WORLD GROUPS PER CELL WITH DISJOINT `development` / `confirmatory` PROFILES AND A PRIMARY SEVERE-MINUS-MILD ABORT-MASS ENDPOINT; A FRESH DETERMINISTIC-P1 FULL ARM HAS SINCE BEEN COMPLETED AND INDEPENDENTLY ACCEPTED AS A VALID MEASUREMENT WITH A NEGATIVE PRIMARY MILD-vs-SEVERE RESULT, AND IT AND R1 ARE DISTINCT MEASUREMENTS THAT ARE **NOT** A CLEAN CAUSAL SOLVER-QUALITY COMPARISON; R1 AT `4af6c5aa…` REMAINS `APPROVE — VALID MEASUREMENT`, IS UNTOUCHED AND IS NOT RERUN; THE EARLIER ABORTED P1 ARM STAYS `DO NOT RESUME`; THIS POST-MERGE DOCUMENTATION LOCK IS THE SOLE WRITABLE REPOSITORY TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE TASK, NO ACTIVE CANDIDATE AND NO ACTIVE SCIENTIFIC RUN REMAINS UNTIL A FUTURE TASK IS EXPLICITLY OPENED, SO EVERY RECEIVING ORCHESTRATOR RESOLVES LIVE `main` FROM GITHUB RATHER THAN FROM ANY SHA IN THIS DOCUMENT; SUPPORTED V2 TRAINING CARDINALITY STOPS AT A <= 6 AND A=8 / A=10 ARE ENGINEERING SCALING EVIDENCE ONLY; FIVE FULL CLUSTER RUNS, A CTDE ARM, RESUME / REPAIR, ANY R1 RERUN, THE V2 BENCHMARK PREFLIGHT / MANIFEST CREATION AND ANY V2 SCIENTIFIC RUN REMAIN UNAUTHORIZED / Phase-A + Variable-Severity Baselines CLOSED and VALID / PHASE-B CTDE MERGED AND DOCUMENTED — Handoff
 
 **Supersedes all earlier handoffs.**
 
@@ -133,11 +133,100 @@ orchestrator MUST resolve from GitHub — **this final-stabilization branch is t
 writable task only while its own draft PR is open, and once it is integrated NO writable
 repository task remains**, **R1 stays UNTOUCHED, fixed-budget, with NO early stopping and
 `AUTHORIZED / DISPATCHED — RESULT PENDING`**, and **no scientific result was produced by
-PR #48, PR #49, PR #50 or this record** (§1, §3m, §4, §8, §9) — *(that record's "R1 stays `AUTHORIZED / DISPATCHED — RESULT PENDING`" framing was accurate when written and is SUPERSEDED by the entry below)* — and **2026-09-05, in THIS GENERALIZED-V1 R1 REVIEW + FD MEASUREMENT-HARDENING DOCUMENTATION LOCK, to record that the FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING — it is `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT` at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, with a NEGATIVE primary FD finding that is a VALID NEGATIVE RESULT rather than a validity defect, is ONE measurement rather than a five-run population result, and is NOT an actor-only-vs-CTDE comparison — to record the DIAGNOSTIC REPLAY as ENGINEERING / ANALYSIS EVIDENCE whose findings NAME SUSPECTS AND PROVE NO CAUSE, to record that the DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS MERGED (PR #52, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`) as CODE that MEASURED NOTHING and DID NOT MODIFY R1, and to record that the ONE next thread is DESIGN / RESEARCH on global-action representation, route-relative observation context and bounded cluster validation while five full cluster runs, a CTDE arm, resume / repair and ANY R1 rerun REMAIN UNAUTHORIZED** (§1, §3n, §4, §8, §9). *(that record's "the ONE next thread is DESIGN / RESEARCH" framing was accurate when written and is SUPERSEDED, as CURRENT state only, by the entry below)*, and **2026-09-06, in THIS P1-BACKEND + CERTIFIED-FD POST-INTEGRATION DOCUMENTATION LOCK, to record that the MATCH-AOU DETERMINISTIC-`p=1` SOLVER AND ITS EXPLICIT BACKEND SEAM ARE INTEGRATED (PR #54, approved candidate `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` → merge `9979910a0537e829f1d18483011e4d0fab42c257`) with `legacy_minlp_v1` still the DEFAULT and NO equivalence claimed, that the CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR IS INTEGRATED (PR #55, approved candidate `d36e1338aaac0d55dd081b788a3e8bbcaa310b53` → merge `edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8`) so that LIVE validation binds PHYSICAL position and fuel while the ABSOLUTE TICK is DIAGNOSTIC, to record the PRE-EXISTING FROZEN-BLADE live-list mutation as the closed ROOT CAUSE with BLADE ITSELF UNCHANGED, to record that ONE ATTEMPTED FULL P1 ARM WAS ABORTED DURING TRAINING, is NOT a completed scientific measurement and is NOT authorized for resume, and to record that R1 is UNTOUCHED by both PRs, that neither PR produced a scientific measurement, and that no P1 performance, benefit, learning or P1-vs-R1 comparison may be pre-claimed** (§1, §3o, §4, §8, §9) *(that record's "a FRESH P1 FULL-ARM orchestration is the next scientific thread" and "no approved P1 measurement exists" framings were accurate when written and are SUPERSEDED, as CURRENT state only, by the entry below)*, and **2026-09-12, in THIS GENERALIZED-V2 POST-MERGE DOCUMENTATION / LOCK, to record that GENERALIZED-V2 IS IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #57, reviewed final candidate `a27a3b140248e95096db38c8d5f717cc0098da4d` → merge `f98b293ededf7f67fbbd8f742e797e08109c254b`, a NORMAL merge preserving the candidate as its SECOND PARENT with an IDENTICAL integration tree, over a FOUR-COMMIT append-only review chain), that `generalized_v2` resolves the SAME FOUR low-level policy ids as `generalized_v1` and changes ONLY THE POPULATION — a TWO-STAGE route-relative cardinality with `A ~ U{2,3,4,5,6}` and `K | A ~ U{A, A+2}` BEFORE the known-only solve and `H_requested ~ U{1..R}` AFTER it against the REALIZED routed-ego count, on two disjoint seed domains, REQUIRING `p1_milp_v1` and REFUSING `legacy_minlp_v1` — that it DEFINES NO EVALUATION CONSTRUCT and that designing one is the SINGLE NEXT UNRESOLVED RESEARCH TASK which this record deliberately does NOT take, that it PRODUCED NO SCIENTIFIC MEASUREMENT, NO V2 BENCHMARK AND NO V2 POLICY RESULT, to record the MINIMAL research provenance for why V2 exists — a FRESH deterministic-P1 full arm subsequently COMPLETED and independently ACCEPTED as a VALID MEASUREMENT with a NEGATIVE primary MILD-vs-SEVERE result, P1 making reference solving computationally negligible, R1 and P1 being DISTINCT measurements that are NOT a clean causal solver-quality comparison, a later READ-ONLY construction audit explaining hidden shortfall in the audited current V1 domain by ROUTE-COUNT CAPACITY (`no_route`) rather than hidden-placement geometry, and engineering scaling showing P1 stayed cheap beyond `A = 4` without those larger cells thereby being scientific GENERALIZED-V1 measurements — and to record that R1 at `4af6c5aa…` is UNTOUCHED and NOT rerun, that the EARLIER aborted P1 arm stays `DO NOT RESUME`, and that once this record is integrated NO writable repository task, NO active candidate and NO active scientific run remains** (§1, §3p, §4, §8, §9).
+PR #48, PR #49, PR #50 or this record** (§1, §3m, §4, §8, §9) — *(that record's "R1 stays `AUTHORIZED / DISPATCHED — RESULT PENDING`" framing was accurate when written and is SUPERSEDED by the entry below)* — and **2026-09-05, in THIS GENERALIZED-V1 R1 REVIEW + FD MEASUREMENT-HARDENING DOCUMENTATION LOCK, to record that the FIRST FULL GENERALIZED-V1 ACTOR-ONLY R1 LONG RUN IS NO LONGER PENDING — it is `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT` at measured code SHA `4af6c5aa5dd28072692bfda63282964b55010aae`, with a NEGATIVE primary FD finding that is a VALID NEGATIVE RESULT rather than a validity defect, is ONE measurement rather than a five-run population result, and is NOT an actor-only-vs-CTDE comparison — to record the DIAGNOSTIC REPLAY as ENGINEERING / ANALYSIS EVIDENCE whose findings NAME SUSPECTS AND PROVE NO CAUSE, to record that the DURABLE PER-WAKE FD POLICY DIAGNOSTICS LAYER IS MERGED (PR #52, approved candidate `81a148f80317499d8897db44bd713976962db832` → merge `28eb8dad2643fc79d516b47ec95119a395e76257`) as CODE that MEASURED NOTHING and DID NOT MODIFY R1, and to record that the ONE next thread is DESIGN / RESEARCH on global-action representation, route-relative observation context and bounded cluster validation while five full cluster runs, a CTDE arm, resume / repair and ANY R1 rerun REMAIN UNAUTHORIZED** (§1, §3n, §4, §8, §9). *(that record's "the ONE next thread is DESIGN / RESEARCH" framing was accurate when written and is SUPERSEDED, as CURRENT state only, by the entry below)*, and **2026-09-06, in THIS P1-BACKEND + CERTIFIED-FD POST-INTEGRATION DOCUMENTATION LOCK, to record that the MATCH-AOU DETERMINISTIC-`p=1` SOLVER AND ITS EXPLICIT BACKEND SEAM ARE INTEGRATED (PR #54, approved candidate `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` → merge `9979910a0537e829f1d18483011e4d0fab42c257`) with `legacy_minlp_v1` still the DEFAULT and NO equivalence claimed, that the CERTIFIED-FD PHYSICAL-STATE INTEGRITY REPAIR IS INTEGRATED (PR #55, approved candidate `d36e1338aaac0d55dd081b788a3e8bbcaa310b53` → merge `edf9e840a30a4a4c3b2ef6daa319661c1d6f3cb8`) so that LIVE validation binds PHYSICAL position and fuel while the ABSOLUTE TICK is DIAGNOSTIC, to record the PRE-EXISTING FROZEN-BLADE live-list mutation as the closed ROOT CAUSE with BLADE ITSELF UNCHANGED, to record that ONE ATTEMPTED FULL P1 ARM WAS ABORTED DURING TRAINING, is NOT a completed scientific measurement and is NOT authorized for resume, and to record that R1 is UNTOUCHED by both PRs, that neither PR produced a scientific measurement, and that no P1 performance, benefit, learning or P1-vs-R1 comparison may be pre-claimed** (§1, §3o, §4, §8, §9) *(that record's "a FRESH P1 FULL-ARM orchestration is the next scientific thread" and "no approved P1 measurement exists" framings were accurate when written and are SUPERSEDED, as CURRENT state only, by the entry below)*, and **2026-09-12, in THIS GENERALIZED-V2 POST-MERGE DOCUMENTATION / LOCK, to record that GENERALIZED-V2 IS IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #57, reviewed final candidate `a27a3b140248e95096db38c8d5f717cc0098da4d` → merge `f98b293ededf7f67fbbd8f742e797e08109c254b`, a NORMAL merge preserving the candidate as its SECOND PARENT with an IDENTICAL integration tree, over a FOUR-COMMIT append-only review chain), that `generalized_v2` resolves the SAME FOUR low-level policy ids as `generalized_v1` and changes ONLY THE POPULATION — a TWO-STAGE route-relative cardinality with `A ~ U{2,3,4,5,6}` and `K | A ~ U{A, A+2}` BEFORE the known-only solve and `H_requested ~ U{1..R}` AFTER it against the REALIZED routed-ego count, on two disjoint seed domains, REQUIRING `p1_milp_v1` and REFUSING `legacy_minlp_v1` — that it DEFINES NO EVALUATION CONSTRUCT and that designing one is the SINGLE NEXT UNRESOLVED RESEARCH TASK which this record deliberately does NOT take, that it PRODUCED NO SCIENTIFIC MEASUREMENT, NO V2 BENCHMARK AND NO V2 POLICY RESULT, to record the MINIMAL research provenance for why V2 exists — a FRESH deterministic-P1 full arm subsequently COMPLETED and independently ACCEPTED as a VALID MEASUREMENT with a NEGATIVE primary MILD-vs-SEVERE result, P1 making reference solving computationally negligible, R1 and P1 being DISTINCT measurements that are NOT a clean causal solver-quality comparison, a later READ-ONLY construction audit explaining hidden shortfall in the audited current V1 domain by ROUTE-COUNT CAPACITY (`no_route`) rather than hidden-placement geometry, and engineering scaling showing P1 stayed cheap beyond `A = 4` without those larger cells thereby being scientific GENERALIZED-V1 measurements — and to record that R1 at `4af6c5aa…` is UNTOUCHED and NOT rerun, that the EARLIER aborted P1 arm stays `DO NOT RESUME`, and that once this record is integrated NO writable repository task, NO active candidate and NO active scientific run remains** (§1, §3p, §4, §8, §9) *(that record's "GENERALIZED-V2 DEFINES NO EVALUATION CONSTRUCT" and "its evaluation / benchmark design is the SINGLE NEXT UNRESOLVED RESEARCH TASK" framings were accurate when written and are SUPERSEDED, as CURRENT state only, by the entry below)*, and **2026-09-13, in THIS GENERALIZED-V2 BENCHMARK POST-MERGE DOCUMENTATION / LOCK, to record that the GENERALIZED-V2 FROZEN TEN-CELL BENCHMARK AND EVALUATION CONSTRUCT IS IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED (PR #59: first candidate `735e1fd89c230590b75fcaf506a7f470c92b2dc9` received REQUEST FIXES, append-only final approved candidate `786e8218a00954f7a7f20fe1dfca93ec71a400d4`, NORMAL merge `ea8778d5010fcfccec357c57c2861606ecb58bbc` preserving it as SECOND PARENT with the IDENTICAL tree `727a65f072ae46d72f61287b5c43dbfda9adf72d`), that V2 evaluation is therefore NO LONGER an unresolved DESIGN question while the PR #57 POPULATION contract is unchanged, that NO scientific V2 manifest, NO frozen V2 seed population, NO V2 training run and NO V2 scientific measurement exists, that the NEXT unresolved SCIENTIFIC action — the actual V2 benchmark preflight / frozen manifest creation under the implemented construct — requires its own explicit research decision and authorization and is NOT authorized here, and that R1 is untouched and not rerun, the fresh deterministic-P1 arm remains historical context rather than a clean causal comparator to R1, and `A = 8` / `A = 10` remain engineering-only** (§1, §3q, §4, §8, §9).
 
-**THE LIVE STATE (2026-09-12, GENERALIZED-V2 POST-MERGE DOCUMENTATION / LOCK), STATED FIRST
-BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH BELOW IT, INCLUDING THE 2026-09-06,
-2026-09-05, 2026-09-02, 2026-09-01, 2026-08-31, 2026-08-30 AND 2026-08-26 ONES.** The ACTIVE
+**THE LIVE STATE (2026-09-13, GENERALIZED-V2 BENCHMARK POST-MERGE DOCUMENTATION / LOCK),
+STATED FIRST BECAUSE IT SUPERSEDES EVERY LIVE-STATE PARAGRAPH BELOW IT, INCLUDING THE
+2026-09-12 ONE.** **THE CURRENT PHASE IS: GENERALIZED-V2 POPULATION + BENCHMARK / EVALUATION
+MECHANISM IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED; SCIENTIFIC BENCHMARK POPULATION NOT
+YET CREATED.** GENERALIZED-V1 remains an existing, valid, preserved design.
+
+**PR #59 IS MERGED, RETIRED AND READ-ONLY, AND IT IS CODE.** From original base
+`fe7b449c94281bb12fdadc12be89ee36f447c79a` (the PR-#58 documentation-lock merge), the first
+candidate `735e1fd89c230590b75fcaf506a7f470c92b2dc9` received **REQUEST FIXES**; the
+append-only DIRECT CHILD `786e8218a00954f7a7f20fe1dfca93ec71a400d4` is the FINAL APPROVED
+candidate; and the NORMAL merge `ea8778d5010fcfccec357c57c2861606ecb58bbc` preserves it as
+its SECOND PARENT with the IDENTICAL tree `727a65f072ae46d72f61287b5c43dbfda9adf72d`, so the
+integrated tree is exactly the reviewed tree. Grade A under `GPT_GITHUB`. Its implementation
+branch `task/generalized-v2-benchmark-evaluation` is **RETIRED, READ-ONLY historical
+provenance, NOT writable, and NOT the branch for any future scientific work.** The
+authoritative technical contract is `CLAUDE.md` §5 (the GENERALIZED-V2 BENCHMARK block),
+routed in §6 and locked in §7; §3q below carries the volatile record.
+
+**WHAT PR #59 ADDED — AND WHAT IT DID NOT CHANGE.** A SEPARATE V2 benchmark schema (never the
+V1 18-stratum one) over exactly **ten exogenous base cells `A ∈ {2,3,4,5,6}` × `D = K−A ∈
+{0,2}`**, with **no LOW/HIGH bucket** and `R`, `H_requested`, `H/R` and hidden realization
+kept as REPORTING DESCRIPTORS ONLY; **12 frozen world groups per cell = 120 groups** (360
+member episodes if the whole manifest were evaluated), matched CLEAN / MILD / SEVERE triads,
+split into the disjoint and exhaustive profiles **`development` = ordinals 0..1 (20 groups /
+60 members)** and **`confirmatory` = 2..11 (100 groups / 300 members)**; a strong UUID-free
+frozen world identity whose reconstruction mismatch is a `BenchmarkIdentityError`; a loader
+that verifies the canonical content-addressed bytes AND that the frozen population state is
+one production V2 could produce; a **FAIL-CLOSED preflight** whose ONLY replacement-eligible
+refusals are the strict generator's target-placement refusal, the typed `R == 0`
+`RouteRelativeNoRoutesError`, the typed bounded-backoff zero-realized
+`BoundedBackoffExhaustedError`, and `NO_FD_ELIGIBLE_EGO`; manifest-driven matched evaluation
+with no runtime substitution; held-outness over the WHOLE manifest (both profiles) against
+the run's maximum possible training-attempt band; and the primary **SEVERE − MILD aggregate
+`SELF_PRESERVATION_ABORT` mass at the certified ego's immediate-FD wake**, paired per group,
+summarized per `(A, D)` cell and equal-weight macro-averaged over the ten cells. **The PR #57
+POPULATION contract is UNCHANGED**, PR #57 remains the historical population implementation,
+V2 early stopping stays refused, and V1 benchmark semantics are untouched.
+
+**WHAT DOES NOT EXIST.** **No V2 scientific manifest exists; no V2 scientific seed
+population has been selected or frozen; no V2 training run and no V2 scientific evaluation
+result exists.** **PR #59 produced no scientific benchmark manifest, no real benchmark seed
+selection, no training run and no scientific V2 measurement**, and **its Grade-A
+implementation approval must not be projected onto any future scientific measurement.** No
+benchmark manifest is committed or tracked in the repository, and no repository preset
+selects `generalized_v2`, `generalized_v1` or `p1_milp_v1`.
+
+**UNCHANGED.** **R1** at `4af6c5aa5dd28072692bfda63282964b55010aae` remains `APPROVE — VALID
+MEASUREMENT`, is UNTOUCHED and is **NOT rerun**. The **fresh deterministic-P1 measurement** at
+`ae1941035991df4719df212c4b5dd07db89aee4a` remains HISTORICAL CONTEXT and is **NOT a clean
+causal comparator to R1** (§3p.2). The earlier aborted P1 arm stays `DO NOT RESUME`.
+**`A = 8` / `A = 10` remain ENGINEERING-ONLY**, outside the supported V2 scientific training
+and evaluation population.
+
+**WRITABLE OWNERSHIP, STATED SO THAT IT STAYS TRUE AFTER THIS RECORD IS INTEGRATED.** Before
+this documentation task opened, PR #59 was merged and retired and **no active implementation
+candidate remained**. While THIS GENERALIZED-V2 BENCHMARK POST-MERGE DOCUMENTATION / LOCK is
+open, its branch `task/generalized-v2-benchmark-doc-lock` is the **SOLE WRITABLE REPOSITORY
+TASK**, and **no other implementation, preflight, training or scientific run is authorized
+concurrently.** **ONCE THIS RECORD IS INTEGRATED: NO WRITABLE REPOSITORY TASK REMAINS, NO
+ACTIVE CANDIDATE REMAINS AND NO ACTIVE SCIENTIFIC RUN REMAINS** — its own branch then joins
+`task/generalized-v2-benchmark-evaluation` and `task/generalized-v2-doc-lock` as RETIRED,
+cleanup-only references (this one cleanup-eligible only from its own integration and NOT
+before) — and **NO NEW TASK BECOMES IMPLICITLY AUTHORIZED.** **DO NOT OPEN ANOTHER CLOSURE PR
+MERELY BECAUSE THIS ONE MERGED.** **`ea8778d5010fcfccec357c57c2861606ecb58bbc` IS THE PR-#59
+INTEGRATION AND THIS RECORD'S AUTHORING BASE — IT IS NOT THE PERMANENT LIVE `main`**;
+integrating this record advances `main` past it, and the `CLAUDE.md` §7 hash convention
+forbids this record from naming its own commit or merge SHA. **EVERY RECEIVING ORCHESTRATOR
+RESOLVES THE EXACT LIVE `main` SHA FROM GITHUB AND RE-READS BOTH DOCUMENTS AT THAT SHA**
+(§9.1). **NO REF IS MOVED OR DELETED BY THIS RECORD**, and `phase-a-baseline`,
+`pre-ctde-actor-only`, `flat-final` and `pre-cleanup` keep their EXISTING roles, remain
+PROTECTED and are NEVER cleanup-eligible.
+
+**THE NEXT UNRESOLVED SCIENTIFIC ACTION IS THE ACTUAL V2 BENCHMARK PREFLIGHT / FROZEN
+SCIENTIFIC MANIFEST CREATION, UNDER THE ALREADY-IMPLEMENTED CONSTRUCT — AND IT IS NOT
+AUTHORIZED.** The evaluation DESIGN is no longer unresolved. That future action requires a
+SEPARATE explicit research decision / authorization BEFORE execution, including the real
+benchmark seed namespace, the preflight invocation (`benchmark_base_seed`,
+`max_candidates_per_cell`) and the preservation of the resulting frozen manifest; a candidate
+window is never chosen merely for convenience. **STILL UNAUTHORIZED:** that preflight /
+manifest creation; any V2 training, development evaluation or confirmatory measurement; any
+comparator rerun; **ANY R1 rerun, repair, resume or extension**; any P1 rerun, and resuming,
+repairing or extending the ABORTED P1 arm; a new control arm; the five full cluster runs; a
+CTDE arm; retuning; and any V1-benchmark, V2-population, early-stopping, BLADE, solver, PPO,
+CTDE, reward, observation or action change. **`p(destroy)` remains `1.0`** and **checkpoint
+RESUME remains OUT OF SCOPE.**
+
+**THE PRECEDING LIVE STATE (2026-09-12, GENERALIZED-V2 POST-MERGE DOCUMENTATION / LOCK),
+PRESERVED AS THE RECORD IT WAS AND SUPERSEDED AS CURRENT STATE BY THE BLOCK ABOVE — in
+particular its "GENERALIZED-V2 DEFINES NO EVALUATION CONSTRUCT" and "SINGLE NEXT UNRESOLVED
+RESEARCH TASK IS GENERALIZED-V2 EVALUATION / BENCHMARK DESIGN" paragraphs, which were accurate
+until PR #59. It stated first, over the live-state paragraphs below it, INCLUDING THE
+2026-09-06, 2026-09-05, 2026-09-02, 2026-09-01, 2026-08-31, 2026-08-30 AND 2026-08-26 ONES.** The ACTIVE
 research line is now **GENERALIZED-V2**, and **GENERALIZED-V1 remains an existing, valid,
 preserved design rather than a retired one.**
 
@@ -856,6 +945,7 @@ cross-references it rather than duplicating it.
 
 ## 1. Current state
 
+- ***(OWNERSHIP AND CURRENT-STATE SUPERSESSION, 2026-09-13: every writable-ownership, next-action and run-state clause in this section — the 2026-09-12 bullet immediately below included — is SUPERSEDED as CURRENT state by the 2026-09-13 live-state block in the preamble above and by §3q. **The GENERALIZED-V2 FROZEN TEN-CELL BENCHMARK AND EVALUATION CONSTRUCT IS IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED** (PR #59, `786e8218…` → `ea8778d5…`), so **V2 evaluation is no longer an unresolved design question**; the PR #57 population contract is unchanged. **No V2 scientific manifest, no frozen V2 seed population, no V2 training run and no V2 scientific evaluation result exists.** The **next unresolved scientific action is the actual V2 benchmark preflight / frozen manifest creation**, which is **NOT authorized**. PR #59 is merged and retired and its branch is not the future scientific-work branch; the sole writable repository task is now THIS GENERALIZED-V2 BENCHMARK POST-MERGE DOCUMENTATION / LOCK, and only while its own draft PR is open. **R1 is UNTOUCHED and NOT rerun**, the fresh deterministic-P1 arm remains historical context and NOT a clean causal comparator to R1, and `A = 8` / `A = 10` remain engineering-only. Everything else in this section stands as the record it was.)***
 - ***(OWNERSHIP AND CURRENT-STATE SUPERSESSION, 2026-09-12: every writable-ownership, next-action and run-state clause in this section is SUPERSEDED as CURRENT state by the 2026-09-12 live-state block in the preamble above and by §3p. **GENERALIZED-V2 IS IMPLEMENTED, REVIEWED, APPROVED AND INTEGRATED** (PR #57, `a27a3b14…` → `f98b293e…`) and is CODE that produced **no scientific measurement, no V2 benchmark and no V2 policy result**; the episode-design selector now holds **THREE** designs and `EpisodeDesign.generalized` means V1 **or** V2; the MATCH-AOU backend stays EXPLICIT but is **NOT fully orthogonal to `episode_design`** (`generalized_v2` requires `p1_milp_v1`); the successful-episode quota and its REQUIRED budget apply to **BOTH** generalized designs; **GENERALIZED-V2 defines NO evaluation construct** and designing one is the **SINGLE NEXT UNRESOLVED RESEARCH TASK**, not taken here. The sole writable repository task is now THIS GENERALIZED-V2 POST-MERGE DOCUMENTATION LOCK, and only while its own draft PR is open; PR #57 is merged and retired and its branch is no longer writable; no implementation candidate is under review and no scientific run is active. A **FRESH deterministic-P1 full arm has since been COMPLETED and independently ACCEPTED as a VALID MEASUREMENT with a NEGATIVE primary MILD-vs-SEVERE result** (§3p.2) — a SEPARATE run from the earlier arm, which stays `ABORTED / DO NOT RESUME` — and **R1 and that arm are DISTINCT measurements that are NOT a clean causal solver-quality comparison**. **R1 is UNTOUCHED and is NOT rerun.** Everything else in this section stands as the record it was.)***
 - ***(OWNERSHIP AND CURRENT-STATE SUPERSESSION, 2026-09-06: this bullet's writable-ownership and run-state clauses are SUPERSEDED as CURRENT state by the 2026-09-06 live-state block in the preamble above and by §3o. The sole writable repository task is now THIS P1-BACKEND + CERTIFIED-FD POST-INTEGRATION DOCUMENTATION LOCK, and only while its own draft PR is open; R1 is no longer dispatched-and-pending but `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT` (§3n); PR #52, PR #53, PR #54 and PR #55 have all since been merged; and one attempted full P1 arm is `ABORTED / DO NOT RESUME` and is NOT a measurement (§3o.4). Everything else in this bullet stands as the record it was.)***
 - **LIVE PHASE (2026-09-02) — GENERALIZED-V1: TASKS 1 THROUGH 5 ARE ALL IMPLEMENTED,
@@ -3665,7 +3755,7 @@ the two backends solve DIFFERENT allocation objectives, so a future P1 arm would
 measurement of a different objective rather than a faster way of taking the same one.
 
 
-## 3p. GENERALIZED-V2 — the ROUTE-RELATIVE POPULATION, MERGED (PR #57); the MINIMAL research provenance behind it; and the UNRESOLVED V2 evaluation / benchmark design
+## 3p. GENERALIZED-V2 — the ROUTE-RELATIVE POPULATION, MERGED (PR #57); the MINIMAL research provenance behind it; and the V2 evaluation / benchmark design it LEFT OPEN — SINCE CLOSED BY PR #59 (§3q)
 
 **The authoritative technical contract is `CLAUDE.md` §5 (the GENERALIZED-V2 block), routed
 in §6 and locked in §7. This section carries VOLATILE state and the minimal research
@@ -3701,7 +3791,7 @@ requirement. **NO observation, action, mask, reward, PPO, GAE, CTDE, trigger, ex
 solver or BLADE semantics changed**, `p(destroy)` stays `1.0`, and the episode-outcome
 schema stays at version 3.
 
-**IT DEFINES NO EVALUATION CONSTRUCT**, by design and in four independent places
+**AS PR #57 SHIPPED IT, IT DEFINED NO EVALUATION CONSTRUCT** *(historical; PR #59 has since added one — §3q)*, by design and in four independent places
 (`benchmark_manifest` refused, evaluation refused, `evaluate()` / `evaluate_benchmark()`
 raise, the preflight refuses anything that is not exactly `generalized_v1`), and **none of
 them silently substitutes another population.**
@@ -3764,10 +3854,22 @@ manifest, not its verdict — and **it is NOT rerun.** The approved Phase-A (`73
 FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) baselines likewise remain preserved, valid and
 measurements of the `fixed_cell_v1` bundle.
 
-### 3p.4 The UNRESOLVED next research task — GENERALIZED-V2 evaluation / benchmark design
+### 3p.4 The V2 evaluation / benchmark design question — UNRESOLVED AT PR #57, SINCE CLOSED BY PR #59 (§3q)
 
-**THIS IS THE SINGLE NEXT UNRESOLVED RESEARCH TASK, AND NEITHER PR #57 NOR THIS RECORD
-TAKES ANY PART OF IT.** The next chat / orchestrator must begin **READ-ONLY** and decide the
+*(SUPERSEDED as CURRENT state by §3q. The questions below were OPEN when this record was
+written and are now ANSWERED by the merged PR #59 construct: the evaluation population is the
+ten exogenous `(A, K−A)` base cells with `A ∈ {2,...,6}` — so `A = 5` / `A = 6` DO participate
+— `R` and hidden load are NOT strata, there is NO LOW/HIGH interpretation, the matched
+structure is the CLEAN / MILD / SEVERE triad, the size is 12 frozen world groups per cell
+split into `development` / `confirmatory`, held-outness is checked over the whole manifest
+against the maximum training-attempt band, and `A = 8` / `A = 10` remain engineering-only.
+What is NOT answered by code is the real benchmark seed namespace and the preflight
+invocation — the next, still-unauthorized scientific action (§3q.4) — and comparator
+discipline / any fresh control arm, which remain unauthorized. The list below is preserved as
+the record it was.)*
+
+**AT PR #57 THIS WAS THE SINGLE NEXT UNRESOLVED RESEARCH TASK, AND NEITHER PR #57 NOR THAT
+RECORD TOOK ANY PART OF IT.** The next chat / orchestrator must begin **READ-ONLY** and decide the
 V2 evaluation / benchmark design **BEFORE any scientific V2 comparison run**. The open
 questions belong THERE, and include at minimum:
 
@@ -3782,15 +3884,88 @@ questions belong THERE, and include at minimum:
 - whether `A = 8` / `A = 10` remain engineering-only;
 - comparator discipline, and whether ANY fresh control arm is authorized.
 
-**NO V2 EVALUATION POPULATION, STRATIFICATION, LOW/HIGH INTERPRETATION, MATCHED-GROUP
-CONSTRUCTION, WORLDS-PER-CELL SCALE, SEED BAND OR MANIFEST IDENTITY EXISTS, IS DEFINED, IS
-IMPLIED OR MAY BE INFERRED FROM THIS DOCUMENT OR FROM `CLAUDE.md`.** **NAMING THE TASK IS
-NOT AUTHORIZATION TO EXECUTE ANYTHING.**
+*(At PR #57, and no longer current:)* **NO V2 EVALUATION POPULATION, STRATIFICATION,
+LOW/HIGH INTERPRETATION, MATCHED-GROUP CONSTRUCTION, WORLDS-PER-CELL SCALE, SEED BAND OR
+MANIFEST IDENTITY EXISTED, WAS DEFINED OR COULD BE INFERRED.** **NAMING THE TASK WAS NOT
+AUTHORIZATION TO EXECUTE ANYTHING.**
+
+## 3q. GENERALIZED-V2 BENCHMARK — the FROZEN TEN-CELL BENCHMARK AND EVALUATION CONSTRUCT, MERGED (PR #59); NO SCIENTIFIC V2 BENCHMARK POPULATION YET
+
+**The authoritative technical contract is `CLAUDE.md` §5 (the GENERALIZED-V2 BENCHMARK
+block), routed in §6 and locked in §7. This section carries VOLATILE state only.**
+
+### 3q.1 PR #59 — IMPLEMENTED / REVIEWED / APPROVED / INTEGRATED
+
+Original base `fe7b449c94281bb12fdadc12be89ee36f447c79a` (the PR-#58 documentation-lock
+merge). **APPEND-ONLY review chain, TWO commits on ONE branch and ONE PR:** the first
+candidate `735e1fd89c230590b75fcaf506a7f470c92b2dc9` received **REQUEST FIXES**; the direct
+child `786e8218a00954f7a7f20fe1dfca93ec71a400d4` — fail-closed bounded-backoff exhaustion,
+V2 manifest semantic validation, and `evaluate()` refusal wording — is the **FINAL APPROVED
+candidate**. Integrated by the NORMAL merge `ea8778d5010fcfccec357c57c2861606ecb58bbc`
+(ordered parents `fe7b449c…` then `786e8218…`), whose tree
+`727a65f072ae46d72f61287b5c43dbfda9adf72d` is IDENTICAL to the approved candidate's. No
+rebase, squash, cherry-pick, force-push or history rewrite. Grade A under `GPT_GITHUB`.
+**NINE files**; two AUTHORIZED scope extensions — `graph_episode_setup.py` (classification of
+the route-relative `R == 0` refusal as `RouteRelativeNoRoutesError`, authorized during
+implementation) and a CLASSIFICATION-ONLY change to the locked `graph_hidden_placement.py`
+(`BoundedBackoffExhaustedError` at the existing terminal zero-realized branch, authorized in
+the review fix). Branch `task/generalized-v2-benchmark-evaluation` is **RETIRED, READ-ONLY
+historical provenance, NOT writable, and NOT the future scientific-work branch.**
+
+### 3q.2 What the construct is, in one paragraph
+
+A SEPARATE V2 schema over ten exogenous `(A, D = K−A)` base cells (`A ∈ {2..6}`,
+`D ∈ {0, 2}`), no LOW/HIGH, `R` / `H_requested` / `H/R` / `H_realized` as reporting
+descriptors only; 12 frozen world groups per cell (120 groups; 360 members if the whole
+manifest were evaluated) as matched CLEAN / MILD / SEVERE triads; profiles `development`
+(0..1 → 20 groups / 60 members) and `confirmatory` (2..11 → 100 groups / 300 members),
+disjoint and exhaustive; a UUID-free frozen identity (seed, `A`, `K` / `D`, backend, `R`,
+known-only allocation fingerprint, `H_requested`, `H_realized`, `known_realized`, hidden
+geometry, certified FD ordinal, FD certificate fingerprint) whose mismatch aborts; a loader
+that authenticates the canonical bytes AND the producible population state; a fail-closed,
+policy- and reward-blind preflight replacing ONLY the four recognized world-level refusals and
+accepting short realizations; matched identity-verified evaluation with no runtime
+substitution and incomplete groups kept visible; whole-manifest held-outness against the
+maximum training-attempt band; V2 early stopping still refused; and the primary SEVERE − MILD
+aggregate abort-mass endpoint at the certified ego's immediate-FD wake, paired per group, per
+cell, equal-weight macro over ten cells (undefined unless every cell has an eligible
+measurement), kept apart from the directional / reverse selected-action switch rates over
+explicit metric-eligible denominators, with reward secondary and no inference procedure
+implemented. **The PR #57 population contract is unchanged.**
+
+### 3q.3 What does NOT exist
+
+**No V2 scientific manifest. No selected or frozen V2 scientific seed population. No V2
+training run. No V2 scientific evaluation result.** PR #59 produced no scientific benchmark
+manifest, no real benchmark seed selection, no training run and no scientific V2 measurement,
+and **its Grade-A implementation approval must not be projected onto any future scientific
+measurement.** **R1 is untouched and NOT rerun**; the fresh deterministic-P1 arm (§3p.2)
+remains historical context and NOT a clean causal comparator to R1; `A = 8` / `A = 10` remain
+engineering-only.
+
+### 3q.4 The next unresolved scientific action — NOT AUTHORIZED
+
+**THE ACTUAL V2 BENCHMARK PREFLIGHT / FROZEN SCIENTIFIC MANIFEST CREATION, under the
+already-implemented construct.** It requires a SEPARATE explicit research decision /
+authorization BEFORE execution, covering at least the real benchmark seed namespace, the
+preflight invocation (`benchmark_base_seed`, `max_candidates_per_cell`) and the preservation
+of the resulting frozen manifest. **NAMING IT IS NOT AUTHORIZATION**, and no training,
+development or confirmatory evaluation, comparator rerun, R1 rerun, P1 rerun, CTDE arm,
+resume / repair or other scientific run is authorized by this record.
+
+### 3q.5 Writable ownership
+
+While this record's draft PR is open, `task/generalized-v2-benchmark-doc-lock` is the SOLE
+WRITABLE REPOSITORY TASK and nothing else is authorized concurrently. Once it is integrated:
+**no writable task, no active candidate, no active scientific run.** Live `main` is resolved
+from GitHub (§9.1).
 
 
 ## 4. Current work — GENERALIZED-V1 (STEPS 1–5 ALL MERGED; THE POST-INTEGRATION CLOSURE TASK MERGED AS PR #45; THE CLUSTER ENVIRONMENT REPRODUCIBILITY LOCK MERGED AS PR #46 AND ITS POST-MERGE CLOSURE AS PR #47; OPT-IN TRAINING-REWARD EARLY STOPPING MERGED AS PR #48, ITS DOCUMENTATION / LOCK AS PR #49 AND ITS POST-MERGE CLOSURE AS PR #50, OFF BY DEFAULT AND USED BY NO SCIENTIFIC RUN; THIS FINAL HANDOFF-STABILIZATION CANDIDATE IS THE SOLE WRITABLE TASK ONLY WHILE ITS DRAFT PR IS OPEN, AND ONCE IT IS INTEGRATED NO WRITABLE REPOSITORY TASK REMAINS; THE ACTOR-ONLY R1 IS DISPATCHED WITH ITS RESULT PENDING, ON ITS ORIGINAL FIXED-BUDGET CONTRACT WITH NO EARLY STOPPING — *SUPERSEDED 2026-09-05: R1 IS NOW `COMPLETED / REVIEWED / APPROVE — VALID MEASUREMENT`, AND THE PER-WAKE FD DIAGNOSTICS LAYER IS MERGED AS PR #52, §3n*); Phase-A and Variable-Severity baselines CLOSED; PHASE-B CTDE MERGED
 
-*(**LATEST HEADING AND CURRENT-STATE SUPERSESSION, 2026-09-12.** Since the 2026-09-06 note below, **PR #57 has been merged** — the GENERALIZED-V2 route-relative population — and the **sole writable repository task is now THIS GENERALIZED-V2 POST-MERGE DOCUMENTATION LOCK, and only while its own draft PR is open**. PR #57 is CODE and produced **no scientific measurement, no V2 benchmark and no V2 policy result**; **GENERALIZED-V2 defines NO evaluation construct**, and designing one is the **SINGLE NEXT UNRESOLVED RESEARCH TASK**, which this record does not take. A **FRESH deterministic-P1 full arm has since been COMPLETED and ACCEPTED as a VALID MEASUREMENT with a NEGATIVE primary MILD-vs-SEVERE result**, separate from the still-`DO NOT RESUME` aborted arm, and it and R1 are **NOT a clean causal solver-quality comparison**; **R1 is untouched and is NOT rerun**. §3p owns the new record and §8 the new next action; everything else in this section stands unchanged.)*
+*(**LATEST HEADING AND CURRENT-STATE SUPERSESSION, 2026-09-13.** Since the 2026-09-12 note below, **PR #59 has been merged** — the GENERALIZED-V2 frozen ten-cell benchmark and evaluation construct (`786e8218…` → `ea8778d5…`) — so **V2 evaluation is no longer an unresolved design question**, and the **sole writable repository task is now THIS GENERALIZED-V2 BENCHMARK POST-MERGE DOCUMENTATION / LOCK, and only while its own draft PR is open**. PR #59 is CODE: **no scientific V2 manifest, no frozen V2 seed population, no V2 training run and no V2 scientific result exists**, and the **next unresolved scientific action — the actual V2 benchmark preflight / frozen manifest creation — is NOT authorized**. **R1 is untouched and NOT rerun.** §3q owns the new record and §8 the new next action; everything else in this section stands unchanged.)*
+
+*(**PRECEDING HEADING SUPERSESSION, 2026-09-12.** Since the 2026-09-06 note below, **PR #57 has been merged** — the GENERALIZED-V2 route-relative population — and the **sole writable repository task is now THIS GENERALIZED-V2 POST-MERGE DOCUMENTATION LOCK, and only while its own draft PR is open**. PR #57 is CODE and produced **no scientific measurement, no V2 benchmark and no V2 policy result**; **GENERALIZED-V2 defines NO evaluation construct**, and designing one is the **SINGLE NEXT UNRESOLVED RESEARCH TASK**, which this record does not take. A **FRESH deterministic-P1 full arm has since been COMPLETED and ACCEPTED as a VALID MEASUREMENT with a NEGATIVE primary MILD-vs-SEVERE result**, separate from the still-`DO NOT RESUME` aborted arm, and it and R1 are **NOT a clean causal solver-quality comparison**; **R1 is untouched and is NOT rerun**. §3p owns the new record and §8 the new next action; everything else in this section stands unchanged.)*
 
 *(**FURTHER HEADING AND CURRENT-STATE SUPERSESSION, 2026-09-06.** Since the 2026-09-05 note below, **PR #54 and PR #55 have BOTH been merged** — the deterministic-P1 MATCH-AOU backend and the certified-FD physical-state integrity repair — and the **sole writable repository task is now THIS POST-INTEGRATION DOCUMENTATION LOCK, and only while its own draft PR is open**. Both merged PRs are CODE and neither produced a scientific measurement; **one attempted full P1 arm was ABORTED and is NOT a measurement and NOT resumable**; **R1 is untouched**. §3o owns the new record and §8 the new next action; everything else in this section stands unchanged.)*
 
@@ -4615,8 +4790,62 @@ obligations and bounded implementation/lock task.
 
 ## 8. Next action
 
-**GENERALIZED-V2 IS MERGED AND THE NEXT ACTION HAS CHANGED AGAIN. THIS BLOCK IS STATED FIRST
-BECAUSE IT SUPERSEDES, AS CURRENT STATE ONLY, EVERY PARAGRAPH BELOW IT IN THIS SECTION** —
+**THE GENERALIZED-V2 BENCHMARK / EVALUATION MECHANISM IS MERGED AND THE NEXT ACTION HAS
+CHANGED AGAIN. THIS BLOCK IS STATED FIRST BECAUSE IT SUPERSEDES, AS CURRENT STATE ONLY, EVERY
+PARAGRAPH BELOW IT IN THIS SECTION** — each of which remains accurate as the record it was,
+the 2026-09-12 block immediately below through PR #57.
+
+**PR #59 IS MERGED** (§3q.1): the GENERALIZED-V2 frozen ten-cell benchmark and evaluation
+construct (`786e8218…` → `ea8778d5…`). **IT IS CODE.** It produced no scientific benchmark
+manifest, no real benchmark seed selection, no training run and no scientific V2 measurement,
+and **its Grade-A implementation approval must not be projected onto any future scientific
+measurement.** **The V2 evaluation DESIGN is therefore no longer unresolved**, and the PR #57
+population contract is unchanged.
+
+**THERE IS NO ACTIVE IMPLEMENTATION CANDIDATE AND NO ACTIVE SCIENTIFIC RUN.** PR #59 is merged
+and RETIRED and its branch is not the future scientific-work branch. **No V2 scientific
+manifest exists, no V2 scientific seed population has been selected or frozen, and no V2
+training run or V2 scientific evaluation result exists.** **R1 is UNTOUCHED** at `4af6c5aa…`
+and **is NOT rerun**; the fresh deterministic-P1 arm (§3p.2) remains historical context and is
+**NOT a clean causal comparator to R1**; the earlier P1 arm stays `ABORTED / DO NOT RESUME`;
+and `A = 8` / `A = 10` remain engineering-only, outside the supported V2 scientific
+population.
+
+**ONCE THIS DOCUMENTATION RECORD IS INTEGRATED, NO WRITABLE REPOSITORY TASK REMAINS, NO ACTIVE
+CANDIDATE REMAINS AND NO SCIENTIFIC RUN IS RUNNING**, and **NO NEW TASK BECOMES IMPLICITLY
+AUTHORIZED.** While this record's draft PR is open, its branch
+`task/generalized-v2-benchmark-doc-lock` is the SOLE WRITABLE REPOSITORY TASK, and no other
+implementation, preflight, training or scientific run is authorized concurrently; on its
+integration it becomes a RETIRED, cleanup-only reference (cleanup-eligible only from its own
+integration and NOT before). **DO NOT OPEN ANOTHER CLOSURE PR MERELY BECAUSE THIS ONE
+MERGED.** **NO REF IS MOVED OR DELETED BY THIS RECORD**, and every protected ref keeps its
+role.
+
+**THE NEXT UNRESOLVED SCIENTIFIC ACTION IS THE ACTUAL GENERALIZED-V2 BENCHMARK PREFLIGHT /
+FROZEN SCIENTIFIC MANIFEST CREATION, UNDER THE ALREADY-IMPLEMENTED CONSTRUCT — AND THIS RECORD
+DOES NOT AUTHORIZE IT.** The receiving orchestrator resolves live `main` from GitHub (§9.1)
+and must obtain a SEPARATE explicit research decision / authorization BEFORE execution,
+including the real benchmark seed namespace, the preflight invocation (`benchmark_base_seed`,
+`max_candidates_per_cell`) and the preservation of the resulting frozen manifest; a candidate
+window is never chosen merely for convenience. **NAMING IT IS NOT AUTHORIZATION TO EXECUTE
+ANYTHING.**
+
+**WHAT REMAINS UNAUTHORIZED UNTIL SEPARATELY REVIEWED AND EXPLICITLY AUTHORIZED:** that
+preflight / manifest creation; any V2 training run, development evaluation or confirmatory
+measurement; any comparator rerun; **ANY R1 rerun, repair, resume or extension**; any P1
+rerun, and resuming, repairing, continuing or extending the ABORTED P1 arm; a new control arm;
+the **five full cluster runs**; a **CTDE arm**; retuning; and any change to V1 benchmark
+semantics, V2 population semantics, early stopping, BLADE, solver code, PPO, CTDE, reward
+code, or the observation / action contracts. **`p(destroy)` remains `1.0`**, **checkpoint
+RESUME remains OUT OF SCOPE**, **no benchmark manifest is committed or tracked in the
+repository**, and **no repository preset selects `generalized_v1`, `generalized_v2` or
+`p1_milp_v1` or enables early stopping.**
+
+**(PRECEDING BLOCK, 2026-09-12 — SUPERSEDED AS CURRENT STATE BY THE BLOCK ABOVE AND PRESERVED
+AS THE RECORD IT WAS; its "GENERALIZED-V2 defines no evaluation construct" and "single next
+unresolved research task is V2 evaluation / benchmark design" statements were accurate until
+PR #59.) GENERALIZED-V2 IS MERGED AND THE NEXT ACTION HAS CHANGED AGAIN. THIS BLOCK WAS STATED
+FIRST BECAUSE IT SUPERSEDED, AS CURRENT STATE ONLY, EVERY PARAGRAPH BELOW IT IN THIS SECTION** —
 each of which remains accurate as the record it was, the block immediately below through
 PR #55 and the ones under it through PR #53 and PR #51.
 
@@ -5212,3 +5441,5 @@ so.
 | 2026-09-12 | **GENERALIZED-V2 DEFINES NO EVALUATION CONSTRUCT, DELIBERATELY, AND ITS BENCHMARK / EVALUATION DESIGN BECOMES THE SINGLE NEXT UNRESOLVED RESEARCH TASK** (§3p.4) | Four independent refusals, **none of which substitutes another population**: `validate()` REFUSES a `benchmark_manifest` under V2 and REFUSES evaluation outright (the fixed held-out band carries no stratum); `evaluate()` and `evaluate_benchmark()` RAISE; and the deterministic preflight now tests `cfg.design.generalized_v1_design` rather than `cfg.generalized`. The 18-stratum benchmark, its preflight and the approved `training_reward_plateau_v1` stopping rule all stay **`generalized_v1`-only**. **NO V2 evaluation population, stratification, LOW/HIGH interpretation, matched clean/mild/severe construction, worlds-per-cell scale, seed band or manifest identity exists, is defined or may be inferred.** The next chat / orchestrator **MUST BEGIN READ-ONLY** and decide that design BEFORE any scientific V2 comparison run; **naming the task is not authorization to execute anything** |
 | 2026-09-12 | **A FRESH DETERMINISTIC-P1 FULL ARM WAS SUBSEQUENTLY COMPLETED AND INDEPENDENTLY ACCEPTED AS A VALID MEASUREMENT, WITH A NEGATIVE PRIMARY MILD-vs-SEVERE RESULT** (§3p.2), **at measured code SHA `ae1941035991df4719df212c4b5dd07db89aee4a`**, recorded here as the MINIMAL provenance for the V2 design decision and **not** as archival run reporting — **beyond that measured SHA no denominators, artifacts, metrics, bundle hashes, run directories or timing tables are recorded, and none may be invented** | **THIS SUPERSEDES, AS CURRENT STATE ONLY, the 2026-09-06 statements that no approved P1 measurement exists and that a fresh P1 full-arm orchestration is the next scientific thread** — each remains accurate as the record it was. It is a **SEPARATE run** from the earlier attempted arm, which remains **`ABORTED / DO NOT RESUME`** and **NOT a measurement**. The P1 solver made **reference solving computationally negligible**; a later **READ-ONLY construction audit** established, **in the audited current V1 domain ONLY**, that hidden shortfall was structurally explained by **ROUTE-COUNT CAPACITY (`no_route`)** rather than by hidden-placement geometry — an **observation over an audited domain, never a universal mathematical guarantee** — and engineering scaling showed P1 stayed cheap beyond `A = 4` **without those larger cells thereby being scientific GENERALIZED-V1 measurements**. **Supported V2 training cardinality stops at `A <= 6`; `A = 8` / `A = 10` are ENGINEERING SCALING EVIDENCE ONLY.** **R1 AND THE FRESH P1 ARM ARE DISTINCT REPOSITORY / POPULATION MEASUREMENTS AND ARE NOT A CLEAN CAUSAL SOLVER-QUALITY COMPARISON** — **R1 at `4af6c5aa5dd28072692bfda63282964b55010aae`, the fresh P1 arm at `ae1941035991df4719df212c4b5dd07db89aee4a`**, differing in the deterministic `p1_milp_v1` allocation semantics versus R1's legacy objective and in everything else merged between those two repository states, with allocation semantics FEEDING route-relative construction so the frozen worlds / populations are **not identical**: no solver equivalence, no one-config-field experimental equivalence, and **no causal reward-difference or solver-quality inference is authorized**. **The earlier ABORTED arm is a DIFFERENT, INVALID, `DO NOT RESUME` attempt and must not be conflated with this measured SHA.** **R1 at `4af6c5aa…` is UNTOUCHED, remains `APPROVE — VALID MEASUREMENT`, and is NOT rerun** |
 | 2026-09-12 | **THIS GENERALIZED-V2 POST-MERGE DOCUMENTATION / LOCK IS OPENED**, because merging PR #57 made both documents' present-tense claims stale the moment it landed: they carried no contract, routing or lock for GENERALIZED-V2, they still gave `EPISODE_DESIGNS` as a TWO-element tuple, they still described the MATCH-AOU backend as fully orthogonal to `episode_design` with every design able to run under either backend, they still described the generalized attempt quota and budget as `generalized_v1`-only, and they still named a fresh P1 full-arm orchestration as the next scientific thread under old writable ownership | Documentation only, **exactly two files** (`CLAUDE.md`, `graph_rl_project_handoff.md`); **no source, test, config, preset, manifest, artifact, ref or workflow change, and no training, benchmark generation, preflight, replay, resume, repair, solver run, BLADE run, CTDE work or scientific execution.** `CLAUDE.md` gains the **GENERALIZED-V2 §5 contract**, corrected §4 / §5 statements for the three-design selector, the design-constrained backend, the both-designs attempt quota and the V1-only preflight and stopping rule, **four §6 routing rows**, a **§7 lock entry** for PR #57 and a **§8 phase-state correction**. This handoff gains a 2026-09-12 live-state block, a new **§3p**, and updated §1 / §4 / §8 / §9.2. **THE NEXT ACTION CHANGES**: the single next unresolved research task is **GENERALIZED-V2 EVALUATION / BENCHMARK DESIGN**, which the receiving orchestrator must open READ-ONLY and which **this record neither takes, pre-authorizes nor schedules**. **Once this record is integrated NO writable repository task, NO active candidate and NO active scientific run remains, and NO new task becomes implicitly authorized**; any V2 scientific run, ANY R1 rerun, resume / repair of the aborted P1 arm, a new control arm, five full cluster runs and a CTDE arm all remain UNAUTHORIZED; `p(destroy)` stays `1.0`; and `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and `pre-cleanup` keep their EXISTING roles, remain PROTECTED and are NEVER cleanup-eligible. **This record's own integrating merge SHA is deliberately NOT named** (`CLAUDE.md` §7 hash convention), so every receiving orchestrator resolves live `main` from GitHub (§9.1) |
+| 2026-09-13 | **THE GENERALIZED-V2 FROZEN TEN-CELL BENCHMARK AND EVALUATION CONSTRUCT IS IMPLEMENTED, REVIEWED (Grade A, `GPT_GITHUB`) AND INTEGRATED — PR #59**: original base `fe7b449c94281bb12fdadc12be89ee36f447c79a`; first candidate `735e1fd89c230590b75fcaf506a7f470c92b2dc9` → **REQUEST FIXES**; append-only final approved candidate `786e8218a00954f7a7f20fe1dfca93ec71a400d4`; NORMAL merge `ea8778d5010fcfccec357c57c2861606ecb58bbc` preserving it as SECOND PARENT with the IDENTICAL tree `727a65f072ae46d72f61287b5c43dbfda9adf72d`; NINE files, with two AUTHORIZED scope extensions (`graph_episode_setup.py` typed `R == 0` classification; a classification-only change to the locked `graph_hidden_placement.py`) (§3q.1; contract in `CLAUDE.md` §5, routed §6, locked §7) | A SEPARATE V2 schema over exactly TEN exogenous `(A, K−A)` base cells, **no LOW/HIGH**, and `R` / `H_requested` / `H/R` / `H_realized` as reporting descriptors only; **12 frozen world groups per cell** (120 groups, 360 members if fully evaluated) as matched CLEAN / MILD / SEVERE triads, split into disjoint and exhaustive `development` (0..1 → 20 / 60) and `confirmatory` (2..11 → 100 / 300) profiles; a strong UUID-free frozen identity whose mismatch ABORTS as `BenchmarkIdentityError`; a loader verifying canonical bytes AND producible population state; a **FAIL-CLOSED** preflight replacing ONLY a strict generator placement refusal, `RouteRelativeNoRoutesError`, `BoundedBackoffExhaustedError` and `NO_FD_ELIGIBLE_EGO`, accepting short realizations and blind to `R`, `H`, reward and behaviour; matched identity-verified evaluation with no runtime substitution; whole-manifest held-outness against the maximum training-attempt band; V2 early stopping still refused; and the primary **SEVERE − MILD aggregate `SELF_PRESERVATION_ABORT` mass at the certified ego's immediate-FD wake**, paired per group, per `(A, D)` cell, equal-weight macro over ten cells, kept apart from the selected-action switch rates, with reward secondary and no inference procedure implemented. **The PR #57 population contract is unchanged.** **PR #59 produced NO scientific benchmark manifest, NO real seed selection, NO training run and NO scientific V2 measurement, and its Grade-A implementation approval must NOT be projected onto any future measurement** |
+| 2026-09-13 | **THIS GENERALIZED-V2 BENCHMARK POST-MERGE DOCUMENTATION / LOCK IS OPENED**, because merging PR #59 made both documents' present-tense claims stale: they still said GENERALIZED-V2 defines no evaluation construct, that there is no benchmark to hold the V2 training band out from, that the benchmark preflight is `generalized_v1`-only, and that V2 evaluation / benchmark DESIGN is the single next unresolved research task | Documentation only, **exactly two files** (`CLAUDE.md`, `graph_rl_project_handoff.md`); **no source, test, config, preset, manifest, seed selection, preflight, training, evaluation or other scientific execution, and no ref change.** `CLAUDE.md` gains the **GENERALIZED-V2 BENCHMARK §5 contract**, corrected §5 statements on the dispatch predicates, the held-out band and the V1 preflight path, **four new §6 routing rows** replacing the "what does GENERALIZED-V2 evaluate? NOTHING" row, a **§7 lock entry** for PR #59 and a **§8 phase-state correction**; this handoff gains a 2026-09-13 live-state block, a new **§3q**, and updated §1 / §3p / §4 / §8 / §9.2. **THE CURRENT PHASE IS: GENERALIZED-V2 population + benchmark/evaluation mechanism implemented, reviewed, approved and integrated; scientific benchmark population not yet created.** **THE NEXT UNRESOLVED SCIENTIFIC ACTION is the actual V2 benchmark preflight / frozen scientific manifest creation under the implemented construct, and it is NOT authorized** — it needs its own explicit research decision covering the real seed namespace, the preflight invocation and preservation of the frozen manifest. While this record's draft PR is open it is the SOLE WRITABLE task with nothing else authorized concurrently; **once integrated NO writable repository task, NO active candidate and NO active scientific run remains, and NO new task becomes implicitly authorized.** R1 is untouched and NOT rerun; the fresh P1 arm is historical context, not a clean causal comparator; `A = 8` / `A = 10` stay engineering-only. **This record's own commit and merge SHAs are deliberately NOT named** (`CLAUDE.md` §7 hash convention), so every receiving orchestrator resolves live `main` from GitHub (§9.1) |
