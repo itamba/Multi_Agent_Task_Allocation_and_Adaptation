@@ -197,8 +197,11 @@ Leave untouched; the user deferred decisions about them.
 
 ### 4.4 Preserved run directories and external artifacts
 
-Never modify, move, copy, repackage, delete or regenerate. Locations are as recorded; where the
-repository records none, none is invented.
+**Protect the originals:** never modify, move, delete, regenerate or normalize them. Authorized
+non-destructive copies, lossless packaging and reconstruction checks leave the originals untouched
+and are allowed ([`experiments.md` §5](experiments.md#5-evidence-preservation)). Locations are as
+recorded in the repository or in a run's own `run_config.json`; **a recorded location is not a
+verification that the path still exists**, and where nothing is recorded nothing is invented.
 
 | Artifact | Location as recorded |
 |---|---|
@@ -209,8 +212,9 @@ repository records none, none is invented.
 | FD-VARIABLE-SEVERITY-v1 baseline (valid) | `C:\Users\Itama\f7r2` |
 | FD-VARIABLE-SEVERITY-v1 precursor (invalid) | `…\fd_variable_severity_v1_measurement_bf1e045f_20260822_150640` |
 | GENERALIZED-V1 R1 run tree and diagnostic bundle | location not recorded; bundle SHA-256 `812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792` |
-| GENERALIZED-V2 benchmark preflight | `C:/Users/Itama/PycharmProjects/graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0/` (manifest SHA-256 `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103`) |
-| GENERALIZED-V2 development R1 run directories | source names `graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` and `graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` (full paths not recorded) |
+| GENERALIZED-V2 benchmark manifest (external) | `C:/Users/Itama/PycharmProjects/graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0/benchmark_manifest.json`, SHA-256 `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103` — as recorded in PR #62's `artifact_sha256.txt` |
+| GENERALIZED-V2 development R1 — actor-only | `C:\Users\Itama\PycharmProjects\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` — `train_config.output_dir` in the run's `run_config.json` (PR #61 head) |
+| GENERALIZED-V2 development R1 — CTDE | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` — `train_config.output_dir` in the run's `run_config.json` (PR #62 head) |
 
 ### 4.5 Retired branches observed on `origin` on 2026-09-14
 

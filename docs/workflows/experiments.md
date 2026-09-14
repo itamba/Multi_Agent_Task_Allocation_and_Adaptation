@@ -1,179 +1,197 @@
-# Experiments — planning, run review and evidence preservation
+# Experiments — execution authority, planning, run review and evidence preservation
 
-> **Read this when** you plan, authorize or configure a scientific run, review a completed run,
-> cite a measurement, or preserve run evidence.
+> **Read this when** you plan, authorize, run or review a scientific or engineering run, cite a
+> measurement, or preserve run evidence. Read the section the step needs, plus the contract
+> sections it names.
 >
-> **Status: normative procedure.** It consolidates the validity gate and interpretation rules of
-> the former handoff §4, the standing prohibitions of the former handoff §6 and §8, the
-> engineering-versus-measurement labels, and the comparator discipline of the former `CLAUDE.md`
-> §8. The technical contracts it relies on are
-> [training and benchmarks](../contracts/training_benchmarks.md) and
-> [artifacts and metrics](../contracts/artifacts_metrics.md); past runs are recorded in
-> [`measurements.md`](../history/measurements.md).
+> **Status: normative procedure.** It consolidates, and in places generalizes, the validity gate
+> and interpretation rules of the former handoff §4, the standing prohibitions of the former
+> handoff §6 and §8, the engineering-versus-measurement labels, and the comparator discipline of
+> the former `CLAUDE.md` §8, as revised in the PR #63 review. It defines **no** statistical
+> acceptance threshold and **no** rerun policy.
+>
+> Depends on: [training and benchmarks](../contracts/training_benchmarks.md) (§5–§9 for designs,
+> quotas and benchmarks) · [artifacts and metrics](../contracts/artifacts_metrics.md) (§3–§6 for
+> records and reading rules) · the per-run records in [`measurements.md`](../history/measurements.md).
 
-## 1. What counts as a measurement
+## 1. Status vocabulary
 
-- A **measurement** is an explicitly authorized scientific run with a frozen contract (design,
-  backend, training mode, schedule and budget, seeds, comparator), an exact measured code SHA
-  with complete clean provenance, and an independent review verdict.
-- **Engineering validation is never a measurement**, because of its designated purpose — even
-  when it carries seed bands, a transient manifest or real solver and engine execution. Bounded
-  smokes, selftests, test suites, the Task-5A / Task-5B validations, replays and reconstructions
-  support no reward, learning, performance or comparison claim.
-- A Grade-A **implementation** approval is never projected onto a future measurement.
-- A valid **negative** result is a result. A run whose denominator an instrument defect shrank
-  is not a result at all.
+- **Engineering validation** exists to check wiring, runtime, solver cost, attrition in a bounded
+  sample, or the reproducibility of a mechanism. It can establish **scoped engineering facts**
+  (for example "a solve of roughly 998 seconds terminated optimal", "the P1 backend kept
+  reference solving cheap on these cells") and never **policy-quality, learning, reward-level or
+  comparative** claims — even when it carries seed bands, a transient manifest or real solver and
+  engine execution. Bounded smokes, selftests, test suites, the Task-5A / Task-5B validations,
+  replays and reconstructions are engineering validation.
+- **Executed measurement.** A scientific run executed under an authorized plan, identified by its
+  measured code SHA, resolved configuration and artifacts. It exists as a measurement once it
+  has executed; its **validity is unknown until reviewed**.
+- **Reviewed measurement.** An executed measurement with a recorded review verdict (for example
+  `APPROVE — VALID MEASUREMENT`, `INCONCLUSIVE`, `INVALID`). Cite the verdict with its provenance
+  — who recorded it and where. **An absent accessible verdict record does not establish that no
+  review happened**; say which it is.
+- **Development versus confirmatory.** Development-profile results may inform design choices;
+  they are not confirmatory evidence. Confirmatory evidence comes from a pre-declared plan whose
+  choices were not tuned on the data it confirms.
+- A valid **negative** result is a result. A run whose denominator an instrument defect shrank is
+  not a result at all. A Grade-A **implementation** approval is never projected onto a
+  measurement.
 
-## 2. Planning a run
+## 2. Execution authority — the authorized bounded plan
 
-Before execution, all of the following hold and are written down:
+Scientific execution — training, evaluation, benchmark preflight, replay, resume or repair — runs
+only under an **authorized bounded plan** from the user. The plan states:
 
-- **explicit user authorization** for this specific run;
-- **a frozen contract**: `episode_design`, `match_aou_backend`, `training_mode`,
-  `n_iterations`, `episodes_per_iteration`, `generalized_max_attempts_per_iteration` where
-  required, base seeds, evaluation and checkpoint cadence, `early_stopping`, `fuel_damage_mode`,
-  and the benchmark manifest and profile;
-- **benchmark identity resolved explicitly**: never silently rebuild, replace or regenerate a
-  population; seed windows are never chosen for convenience; population selection is policy-
-  and reward-blind;
-- **held-outness** checked against the maximum possible training-attempt band, over every seed of
-  the manifest;
-- **arms meant to be compared share one frozen manifest**, and under early stopping share the
-  maximum budget, the frozen stopping rule and the training-population contract — not the actual
-  iteration count;
-- **provenance**: a clean checkout, complete Git provenance, one invocation driven by a config
-  file, `cli_overrides` recorded;
-- **a fresh, non-overwriting output directory** — on Windows under a short root, because a
-  267-character playback path once removed a whole evaluation arm (the FD-VARIABLE-SEVERITY-v1
-  precursor);
-- **the environment rules** of [`environments_cleanup.md` §1](environments_cleanup.md#1-execution-contexts);
-- **design limits**: GENERALIZED-V2 requires `p1_milp_v1`, supports `A ≤ 6` only and refuses
-  early stopping.
+- the **question** the run answers;
+- the **population and comparator**: episode design and backend, the benchmark manifest and
+  profile or the rule that builds them, and what the result will be compared with;
+- the **primary endpoint** and the review focus;
+- **resources and attempt budget**: iterations, successful-episode quota and attempt budget,
+  execution context and walltime;
+- **stop conditions** and how integrity aborts or unexpected attrition are handled;
+- the **output location** and what evidence will be preserved.
 
-## 3. Run review — validity before performance
+**Steps the plan covers proceed without asking again.** Escalate before proceeding on a material
+deviation: a changed population, comparator, endpoint or budget; attrition outside what the plan
+expected; any integrity abort; or a need to rerun, replace or extend a run. A documentation task
+authorizes no scientific execution, and a dated authorization in history authorizes nothing now.
 
-### 3.1 Validity gate
+## 3. Planning checklist
 
-The gate below is carried forward verbatim from the former handoff §4. Section references inside
-it (§3e, §3f, §3h, §3i, §3j) are former handoff sections, now in
-[`measurements.md`](../history/measurements.md).
+- **An inspectable resolved configuration and its actual invocation.** The run's
+  `run_config.json` records `train_config` and `config_source`, whose `resolved_from` may be
+  `config_file`, `cli_defaults` or `direct_config`
+  ([training and benchmarks §4](../contracts/training_benchmarks.md#4-configuration-presets));
+  record the actual command or call, and require complete Git provenance on a clean checkout.
+- **Benchmark identity is explicit.** Never silently rebuild, replace or regenerate a population;
+  never choose a seed window for convenience; population selection stays policy- and reward-blind
+  ([training and benchmarks §6](../contracts/training_benchmarks.md#6-training-quota-and-benchmark-preflight),
+  [§9](../contracts/training_benchmarks.md#9-generalized-v2-benchmark-and-evaluation)).
+- **Held-outness** is checked against the run's maximum possible training-attempt band over every
+  seed of the manifest.
+- **Comparisons.** Where the approved design contract requires it — arms of the same generalized
+  comparison — the arms use the identical frozen manifest and, under early stopping, the same
+  maximum budget, stopping rule and training-population contract. A cross-version comparison is
+  allowed only with an explicit list of its consequential differences (code SHA, backend,
+  population, profile) and the causal limits those differences impose.
+- **A fresh, non-overwriting output directory**; on Windows under a short root, because a
+  267-character playback path once removed a whole evaluation arm.
+- **The environment rules** of [`environments_cleanup.md` §1](environments_cleanup.md#1-execution-contexts).
+- **Design limits**: GENERALIZED-V2 requires `p1_milp_v1`, supports `A ≤ 6` only and refuses early
+  stopping; early stopping is approved for `generalized_v1` only.
 
-**What makes a run VALID — carried forward unchanged, and it now has a passing precedent.**
-A run counts as a valid measurement when ALL of:
+## 4. Run review — validity before performance
 
-- Git provenance is COMPLETE and the checkout was clean;
-- `run_summary.json:accounting_reconciled` is true;
-- no INFRASTRUCTURE or DATA-INTEGRITY failure occurred. A `_VisualArtifactError`, a
-  `MeasurementIntegrityError` / `EpisodeRosterError` — including the scheduled-vs-executed
-  CELL mismatch PR #27 added (§3i) — or any crash outside the
-  `generation` / `setup` / `run` / `reward` episode taxonomy ABORTS the run and is not a
-  scientific result;
-- **at least one COMPLETED matched group exists in BOTH the `pre_update` and the
-  `post_update` round.** A group counts only when EVERY member completed — two members for
-  a legacy pair, **all three for a variable-severity triad.**
+### 4.1 Review order
 
-The Phase-A rerun (§3h) satisfied all four, and so did the variable-severity baseline
-(§3j); the two runs before the Phase-A rerun did not, on the data-integrity clause (§3e,
-§3f), and the variable-severity precursor did not either, on the same clause.
+Review applies the design's own contract, in this order, and records each step's result:
 
-For generalized runs the matched group is the CLEAN / MILD / SEVERE triad, and the
-infrastructure and data-integrity aborts also include `TrainingQuotaError`,
-`EarlyStoppingIntegrityError`, `FuelDamageIntegrityError`, `BenchmarkIdentityError`, an aborting
-`ReferenceIntegrityError` and `MatchAouBackendError` (routing:
-[training and benchmarks](../contracts/training_benchmarks.md),
-[reward and solvers](../contracts/reward_solvers.md)).
+1. **Provenance and configuration** match the authorized plan (measured code SHA, clean tree,
+   resolved configuration, invocation).
+2. **Accounting and completion**: `accounting_reconciled`; attempted, successful and failed counts
+   by phase and stage; quota fill on generalized designs; expected attrition identified; **no
+   infrastructure or integrity abort** (`_VisualArtifactError`, `MeasurementIntegrityError` /
+   `EpisodeRosterError` including the scheduled-versus-executed cell check, `TrainingQuotaError`,
+   `EarlyStoppingIntegrityError`, `FuelDamageIntegrityError`, `BenchmarkIdentityError`, an
+   aborting `ReferenceIntegrityError`, `MatchAouBackendError`, or a crash outside the
+   `generation` / `setup` / `run` / `reward` taxonomy).
+3. **Frozen identity**, for benchmark-evaluated designs: manifest id and profile as planned,
+   held-outness verified, member identity verified, complete versus incomplete groups visible.
+4. **Endpoint eligibility**: the matched groups and wakes the primary endpoint needs exist — for
+   GENERALIZED-V2, metric-eligible groups **in every base cell**, since the macro endpoint is
+   undefined otherwise ([training and benchmarks §9](../contracts/training_benchmarks.md#9-generalized-v2-benchmark-and-evaluation)).
+5. **Scientific interpretation**, under §4.3, stating the non-claims.
 
-### 3.2 Interpretation rules
+### 4.2 Historical note — the fixed-cell four-clause gate (2026-08-16 to 2026-08-23)
 
-**A negative result is still a valid result — and §3j is now the worked example.** No
-improvement, no severity-conditioned behavioural difference, or zero productive PPO updates,
-is a valid NEGATIVE SCIENTIFIC OBSERVATION — not a technical failure, and not grounds to
-re-run, re-tune or re-seed. The variable-severity baseline measured exactly that: productive
-training and no severity-conditioned separation.
+The fixed-cell runs were judged valid when provenance was complete on a clean checkout,
+`accounting_reconciled` was true, no infrastructure or data-integrity failure occurred, and at
+least one completed matched group (a pair, or a triad for FD-VARIABLE-SEVERITY-v1) existed in both
+the `pre_update` and the `post_update` round. The Phase-A rerun and the FD-VARIABLE-SEVERITY-v1
+baseline passed it; the corrected short probe, the first long baseline and the variable-severity
+precursor failed it on the data-integrity clause. It is recorded here as that scope's gate; it is
+**not** sufficient for the generalized designs, which follow §4.1.
 
-**Interpretation rules survive unchanged:** a held-out mean is never read without its
-denominator; an all-failed batch reports `null`, never `0.0`; an empty successful-group
-population is `null` too; the per-condition / per-cell means are each over their own
-successful subset, so the within-seed claims are the matched deltas over COMPLETE groups
-alone (`CLAUDE.md` §5); and FD-wake meta-action rates are reported over FD WAKES, never over
-episodes. **Do not reuse §2's, §3e's or §3f's numbers as any expectation** — §2 measured a
-different, easier cell, and §3e and §3f are both scientifically INCONCLUSIVE, as is the
-variable-severity `MAX_PATH` precursor (§3j). **TWO valid scientific baselines now exist and
-they measure DIFFERENT cells: §3h is the LEGACY FD-BASELINE-v1 baseline, and §3j is the
-FD-VARIABLE-SEVERITY-v1 baseline. Neither is an expectation for the other, and neither is an
-expectation for any CTDE comparison.**
+### 4.3 Interpretation rules
 
-Additional rules for generalized and per-wake evidence:
-
+- A mean is never read without its denominator; an all-failed batch or an empty group population
+  is `null`, never `0.0`.
+- Per-condition and per-cell means are each over their own successful subset; **within-world
+  claims come only from matched deltas over complete groups**.
+- FD-wake meta-action rates are reported over FD wakes, never over episodes.
 - **Repeated measures:** every evaluation round re-measures the same frozen worlds; cross-round
-  totals describe a trajectory, never independent worlds. The statistical unit for a final policy
-  is the final round's complete matched groups.
-- **Aggregate probability mass is not the selected action's probability**, and the three wake
-  kinds and the `train` / `pre_update` / `post_update` populations are never pooled silently
+  totals describe a trajectory, never independent worlds. The unit for a final policy is the
+  final round's complete matched groups.
+- Aggregate probability mass is not the selected action's probability; the three wake kinds and
+  the `train` / `pre_update` / `post_update` populations are never pooled silently
   ([artifacts and metrics §5](../contracts/artifacts_metrics.md#5-per-wake-fd-policy-diagnostics)).
-- **The final evaluation round is selected semantically**, never as the last record.
-- **Requested versus realized hidden cardinality** is reported for human or GPT inspection; no
+- The final evaluation round is selected semantically, never as the last record.
+- Requested versus realized hidden cardinality is reported for human or GPT inspection; no
   threshold is computed.
-- **The GENERALIZED-V2 primary endpoint** is undefined unless every base cell has a
-  metric-eligible group; the code implements no inference procedure.
-- **Known artifact defects** are read around, never normalized
+- Known artifact defects are read around, never normalized
   ([artifacts and metrics §6](../contracts/artifacts_metrics.md#6-reading-preserved-artifacts)).
+- **Each reviewed measurement is scoped to its own cell or design.** Inconclusive runs and runs
+  on the easier pre-FD cell are never expectations, and no valid baseline is an expectation for
+  another design or for a CTDE comparison. The current list is in
+  [`measurements.md` §1](../history/measurements.md#1-run-registry).
 
-### 3.3 Comparator discipline
+### 4.4 Comparator discipline
 
 - State each record's **measured code SHA**; never present two SHAs as a one-config-field
   comparison.
 - **Non-equivalent populations support no causal inference.** R1 (legacy objective at
-  `4af6c5aa…`) and the fresh deterministic-P1 arm (at `ae194103…`) ran over different worlds, so
-  no solver-quality or reward-difference inference is authorized.
-- **Historical fixed-cell measurements are not generalized comparators** and not expectations.
-- **A fixed-cell actor-only versus CTDE comparison, if ever resumed,** takes its actor-only arm
-  from the approved Phase-A baseline without re-running it, matches that baseline's cell,
-  schedule, seed policy, held-out band and evaluation construct, names the factor as actor-only
-  versus centralized-critic training, acknowledges the distinct measured SHAs, and bundles no
-  other change. The full specification is preserved in
-  [`decisions.md` §4](../history/decisions.md#4-research-ordering-ctde-comparison-specification-and-difficulty-selection).
-- **The old fixed-cell CTDE measurement is out of scope** and is not reviewed or compared unless
-  the user explicitly asks.
-- **No CTDE benefit is established** by any repository document.
+  `4af6c5aa…`) and the fresh deterministic-P1 arm (at `ae194103…`) ran over different worlds, so no
+  solver-quality or reward-difference inference is drawn from them.
+- Historical fixed-cell measurements are not generalized comparators and not expectations.
+- A fixed-cell actor-only versus CTDE comparison, if a plan ever authorizes one, reuses the
+  approved Phase-A baseline as its actor-only arm, matches that baseline's cell, schedule, seed
+  policy, held-out band and evaluation construct, names the factor as actor-only versus
+  centralized-critic training, acknowledges the distinct measured SHAs, and bundles no other
+  change ([`decisions.md` §4](../history/decisions.md#4-research-ordering-ctde-comparison-specification-and-difficulty-selection)).
+- The old fixed-cell CTDE measurement is out of scope and is not reviewed or compared unless the
+  user asks.
+- No CTDE benefit is established by any repository document.
 
-## 4. Evidence preservation
+## 5. Evidence preservation
 
-- **Preserved run directories and external artifacts** are never modified, moved, copied,
-  repackaged, deleted or regenerated
-  ([registry](environments_cleanup.md#4-authorized-cleanup)).
-- **Evidence commits** follow the practice used by PR #61 and PR #62 (both unreviewed on
-  2026-09-14):
-  - an evidence-only branch whose parent is the measured code SHA, adding files under
-    `research_evidence/<design>/<run>/` only;
-  - byte-identical copies of `run_config.json`, `run_summary.json`, the record streams, the
-    failure ledger, console logs and timing files;
-  - a large `episode_outcomes.jsonl` split only at existing line ends into shards, with an index
-    and a reconstruction hash equal to the source's SHA-256;
-  - an `artifact_sha256.txt` listing every committed file, the source hashes, checkpoint hashes
-    (checkpoints are not committed) and any external manifest's path, hash and id;
-  - staging with `git -c core.autocrlf=false add`, blob identity verified with `git cat-file`,
-    size limits respected, and ignored files added only when declared;
-  - archived bytes never normalized, even to correct a known defect.
-- Record the **measured code SHA** and the **evidence-commit SHA** separately.
+- **Protect the originals.** Original run directories and external artifacts keep their bytes and
+  identity: never modify, move, delete, regenerate or normalize them, even to correct a known
+  defect. **Authorized non-destructive copies, lossless packaging** (such as line-aligned sharding
+  with a reconstruction hash) **and reconstruction checks are allowed** and leave the originals
+  untouched ([registry](environments_cleanup.md#4-authorized-cleanup)).
+- **Preserve enough to inspect the review question**: at least the resolved configuration and
+  provenance, the summary and accounting records, and the records the question needs. Anything
+  not committed (checkpoints, manifests, streams the question does not need) is identified by
+  location and SHA-256.
+- **Record the measured code SHA and the evidence SHA separately.**
 - Documentation links immutable evidence commits and never copies evidence blobs.
 
-## 5. Standing prohibitions
+**Scoped example — PR #61 and PR #62 (both unreviewed on 2026-09-14).** Each is an evidence-only
+commit whose parent is the measured code SHA, adding `research_evidence/generalized_v2/<run>/`:
+byte-identical copies of `run_config.json`, `run_summary.json`, the record streams, the failure
+ledger, console logs and timing files; `episode_outcomes.jsonl` split at existing line ends into
+shards with an index and a reconstruction hash; an `artifact_sha256.txt` listing every committed
+file, source hashes, checkpoint hashes and the external manifest's path, hash and id; staging with
+`git -c core.autocrlf=false add` and blob identity checked with `git cat-file`. Each package is
+roughly 80 MB. This is one adequate shape for a full development-arm review, **not a universal
+requirement**.
 
-Unless the user explicitly authorizes otherwise:
+## 6. Standing constraints
 
-- do not re-run, resume, repair, extend or retune an approved measurement (Phase-A,
-  FD-VARIABLE-SEVERITY-v1, R1, the fresh P1 arm); never resume the aborted P1 arm;
-- do not relax, retry, retune or reclassify expected setup failures (B2 exact-cardinality,
-  fuel-window, `NO_FD_ELIGIBLE_EGO`), including held-out seed `1000005`;
-- do not reopen the closed Defects A, B, C or the roster defect, or act on the recorded
-  over-safety hypothesis, without a new research decision;
-- do not change code, tests, configs or presets in response to a negative result;
-- do not claim more than a result establishes — every measurement record carries its
-  non-claims;
-- do not treat engineering validation as measurement;
-- do not bundle deferred research changes (`p(destroy) < 1`, SAMs / hostile fire, dense
-  per-wake reward, solver or reward-formula changes, a new difficulty factor) into a comparison;
-- checkpoint resume is out of scope; a low-known solver timeout, ETA / peer-dropout, the
-  reachability model and legacy-split retirement are separate future work;
-- no severity, cardinality, stratum or other privileged label may reach the acting path.
+- **Reviewed measurements are reused as recorded by default** (Phase-A, FD-VARIABLE-SEVERITY-v1,
+  R1, the fresh P1 arm). New execution touching them — a rerun, extension, repair or resume —
+  happens only under an authorized plan that names it. **The aborted P1 arm is
+  `DO NOT RESUME`.**
+- Expected setup failures (B2 exact-cardinality, fuel-window, `NO_FD_ELIGIBLE_EGO`, including
+  held-out seed `1000005`) are accounted, never relaxed, retried or reclassified inside a run.
+- Closed Defects A, B, C and the roster defect, and the recorded over-safety hypothesis, are not
+  reopened or acted on without a new research decision.
+- A negative result is not a defect report: code, tests, configs and presets change only in a
+  separately authorized task.
+- A result is never claimed beyond its record's non-claims.
+- Engineering validation stays within §1's scope.
+- Deferred research changes (`p(destroy) < 1`, SAMs / hostile fire, dense per-wake reward, solver
+  or reward-formula changes, a new difficulty factor) are never bundled into a comparison.
+- The code has no checkpoint resume. A low-known solver timeout, ETA / peer-dropout, the
+  reachability model and legacy-split retirement are separate future work.
+- No severity, cardinality, stratum or other privileged label may reach the acting path.

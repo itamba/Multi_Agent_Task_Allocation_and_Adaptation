@@ -315,3 +315,18 @@ consolidated duplicates, whose wording stays readable at the base; no unique fac
   explicitly historical mentions.
 - `git diff --check` is clean, and the diff against the base touches only the declared Markdown
   files.
+
+## 7. PR #63 review-fix ledger
+
+Review of candidate `d55b77fd852da597c213b6e009f0c382f150bb8d`: **REQUEST FIXES** (F1–F5). Fixes
+are appended as new commits on the same branch and PR. From this pass on, edits are made directly
+to the repository files; the verbatim-move guarantee of §0 and §1 applies to the reviewed
+candidate, and every later rewrite of moved text is listed here.
+
+| Finding | Pass | Status | Files |
+|---|---|---|---|
+| F1 — live procedures aligned with the approved working model (authorized bounded plans, task-specific returns, optional grade shorthand, risk-based verification, guidance vs untrusted data, one writable owner, no direct push to `main`, context reuse) | 1 | done | `CLAUDE.md` §1; `cc_review.md`; handoff §4, §6 |
+| F2 — general, consistent experiment and preservation procedure (originals protected but copies allowed, inspectable configuration, scoped evidence example, scoped shared-manifest rule, reuse-by-default, executed vs reviewed, design-specific review order, historical gate as dated note, development vs confirmatory, scoped engineering facts) | 1 | done | `experiments.md`; `environments_cleanup.md` §4.4; handoff §4 |
+| F3 — current contracts separated from history; direct links; section-level reading routes; condensed code routing | 2 | pending | contracts; `CLAUDE.md` §5–§6 |
+| F4 — provenance and timing corrections (manifest separated from run packages, preflight producer SHA unverified, recorded run directories, README reference timing, verdict-record wording) | 1 (handoff, registry), 3 (README, history) | partial | handoff; `environments_cleanup.md`; `README.md`; `measurements.md` |
+| F5 — verification record corrected against test bodies | 4 | pending | this record §0, §2, §6 |
