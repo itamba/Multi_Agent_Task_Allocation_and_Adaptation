@@ -12,8 +12,12 @@
 ## 1. Execution contexts
 
 - **Environment — TWO VALIDATED EXECUTION CONTEXTS, and BOTH are CURRENT.** The LOCAL
-  Windows context is the historical one **every approved measurement to date was taken
-  on**, and it is unchanged. The BGU Slurm cluster context beside it was validated LATER,
+  Windows context is the historical scientific execution context, and it is unchanged.
+  *(Dated: at the 2026-08-31 cluster validation, the then-approved measurements were
+  recorded as LOCAL. Later measurements are checked from their own evidence: the preserved
+  GENERALIZED-V2 development arms record Windows and `nlp_env` in their `run_config.json`,
+  while the fresh deterministic-P1 measurement records only its measured code SHA, so its
+  execution environment is not inferred.)* The BGU Slurm cluster context beside it was validated LATER,
   against exact `main` SHA `926aba66fcaf2b99fc58685eb202888d8deeaf5f`. **Neither supersedes
   the other.** Establish which context you are in FIRST, then use only that context's
   commands — the two have different environment names, different interpreters and different
