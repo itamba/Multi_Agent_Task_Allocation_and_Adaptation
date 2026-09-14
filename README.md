@@ -4,10 +4,10 @@ MSc research software for **runtime adaptation of a static multi-agent task allo
 under a hard **no-communication** constraint, executed in a physics-based military
 simulation.
 
-A MATCH-AOU MINLP solver produces one optimal allocation offline. At runtime each agent
-flies that plan alone: it senses only through its own sensors, keeps its own private
-belief about the plan, and — when its own observations warrant it — a Graph-RL policy
-edits that belief. Agents never exchange information, directly or indirectly.
+A MATCH-AOU optimization solver produces one allocation offline. At runtime each agent flies
+that plan alone: it senses only through its own sensors, keeps its own private belief about
+the plan, and — when its own observations warrant it — a Graph-RL policy edits that belief.
+Agents never exchange information, directly or indirectly.
 
 ---
 
@@ -27,9 +27,10 @@ only its own information**. Concretely:
   decision interval;
 - adaptation is **decentralized and communication-free**: nothing an agent learns may
   originate from a peer's sensors, position, fuel or decisions;
-- a full-information **oracle** solution is computed per episode purely to normalize the
-  training reward — it is a centralized *training* signal and is never visible to a policy
-  at execution time.
+- a **reference** solution is computed per episode purely to normalize the training reward —
+  a full-information t=0 oracle under the historical reference policy, or an event-conditioned
+  MATCH-AOU continuation reference under the generalized designs. It is a centralized
+  *training* signal and is never visible to a policy at execution time.
 
 Execution runs in **BLADE**, a vendored fork of the Panopticon simulation engine
 (aircraft dynamics, fuel burn, weapon engagement, kill resolution).
@@ -48,17 +49,17 @@ Execution runs in **BLADE**, a vendored fork of the Panopticon simulation engine
    │   (route-relative, guaranteed    │   │      └─ wake ──> graph observation   │
    │    to be flown past)             │   │              ──> Graph Transformer   │
    │ scenario patch + reload          │   │              ──> masked meta-action  │
-   │ MATCH-AOU solve  ──> oracle      │   │              ──> edit OWN belief     │
-   │   (all targets; training only)   │   │              ──> executor resync     │
-   └──────────────────────────────────┘   │                                      │
-                                          │  Phase 2 (once):                     │
+   │ reference solve (training only)  │   │              ──> edit OWN belief     │
+   │   (t=0 oracle, or a continuation │   │              ──> executor resync     │
+   │    reference at the FD event)    │   │                                      │
+   └──────────────────────────────────┘   │  Phase 2 (once):                     │
                                           │    GraphPlanExecutor.next_actions()  │
                                           │    ──> env.step(commands)  [BLADE]   │
                                           └──────────────────────────────────────┘
                                                           │
-                                          terminal, oracle-normalized reward
+                                          terminal, reference-normalized reward
                                                           │
-                                                    PPO update
+                                          PPO update (actor-only, or CTDE critic)
 ```
 
 **Private beliefs.** The episode mints *N* independent `Belief(tasks, solution)` objects,
@@ -79,6 +80,8 @@ column, recomputed from the ego's own position.
 relations, implemented directly in PyTorch — no PyG/DGL) produces per-task-node
 embeddings; an action head emits three meta-actions per node — `PLAN_COMPLIANCE`,
 `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` — under a hard legality mask.
+Training is **actor-only by default**; `training_mode = "ctde"` adds a centralized critic
+during training only. Evaluation and inference are actor-only in both modes.
 
 **Execution.** `GraphPlanExecutor` is the sole translation layer from a plan to BLADE
 commands (move / launch / attack / return-to-base). It keeps per-agent private task lists
@@ -96,39 +99,37 @@ These are load-bearing; the authoritative statements live in `CLAUDE.md` §3.
 | **`solution` is the source of truth** | The graph is a stateless projection rebuilt each trigger, never mutated. |
 | **Tasks are append-only** | Within an episode a pop-up task is appended, never removed — positional `task_idx` indexes into `solution` tuples and must stay valid. |
 | **Peer runtime state is not exposed** | Peer graph rows carry no features. |
-| **One radius** | Sensing = attack = arrival = kill-confirmation = discovery = `DETECTION_KM` (50 km) in the current cell. BLADE's per-aircraft `aircraft.range` is deliberately *not* used for discovery. |
-| **Event-triggered** | The policy wakes on a pop-up, a peer-overdue gate, or a fuel-damage event — never on a periodic timer. |
-| **Actor-only PPO** | Phase A has **no centralized critic**. `GraphEncoder.pool()` exists as the seam where a CTDE critic would attach; it is not implemented on `main`. |
+| **One radius** | Sensing = attack = arrival = kill-confirmation = discovery = `DETECTION_KM` (50 km). BLADE's per-aircraft `aircraft.range` is deliberately *not* used for discovery. |
+| **Event-triggered** | The policy wakes on a pop-up, a peer-overdue gate, a fuel-damage event or a post-damage completion boundary — never on a periodic timer. |
+| **Decentralized execution** | The acting path reads only the ego's private observation. A CTDE critic, when selected, exists during training only and reads privileged state that never reaches the actor. |
 
 ---
 
-## 4. Current experiment cell
+## 4. Episode designs, solvers and research state
 
-The primary scenario template is `data/scenarios/strike_training_4v5.json`. Every episode
-is a seeded variation generated from it.
+Every episode is a seeded variation of `data/scenarios/strike_training_4v5.json`. **Which
+population an episode comes from is selected explicitly** by `--episode-design`:
 
-The current reference cell (defaults in `TrainConfig` / `RolloutConfig`):
+| Design | Population | Status |
+|---|---|---|
+| `fixed_cell_v1` (**code default**) | the historical cell: 3 agents, 3 known + 3 route-relative hidden airbase targets, 200 km / 100 km geometry, one fuel-damage factor | preserved; every approved fixed-cell measurement was taken on it. **It is not the current research population.** |
+| `generalized_v1` | `A ∈ {2,3,4}`, `K = A`, hidden load sampled per episode; certified fuel damage with mild / severe severities; event-conditioned continuation reference; 18-stratum frozen benchmark | preserved, valid design |
+| `generalized_v2` | same mechanisms; two-stage route-relative population (`A ∈ {2..6}`, `K ∈ {A, A+2}` before the known-only solve, hidden load against the realized routed-ego count after it); ten-cell frozen benchmark with `development` and `confirmatory` profiles | **current research line**; requires `p1_milp_v1` |
 
-- **3 agents**, all launching from the same BLUE airbase;
-- **3 known targets** — present at `t=0` and solved into `A_init`;
-- **3 hidden targets** — placed *route-relative*, on a leg the assigned agent is
-  geometrically guaranteed to fly past within its sensing radius, so discovery comes from
-  geometry rather than from a connectivity heuristic;
-- enemy targets are airbases only (`include_sams=False`); they do not shoot back;
-- engagement probability is 1.0;
-- geometry floors of 200 km (launch base to any target) and 100 km (between known targets);
-- one difficulty factor, **FD-BASELINE-v1**: a deterministic, seeded, ego-local
-  fuel-damage event that puts exactly one agent into a strict decision window where flying
-  home is still feasible but completing its route is not. Training draws clean/damaged
-  episodes from a seeded mixture; evaluation runs matched clean/damaged pairs on the same
-  seed.
+**Allocation backends** are selected explicitly by `--match-aou-backend`, with no fallback:
+`legacy_minlp_v1` (the **default**, the frozen MINLP through BONMIN) and `p1_milp_v1` (a
+deterministic `p = 1` MILP through SciPy/HiGHS). The two objectives are **not** equivalent:
+changing the backend can change the allocation, the hidden geometry and therefore the
+population.
 
-**On results.** The pipeline, the difficulty factor and the inspection tooling are
-implemented, reviewed and locked. **No long baseline has been run on this cell**, and no
-result is claimed for it. An earlier short probe measured a strictly easier, pre-fuel-damage
-configuration; those numbers are historical and are explicitly *not* a baseline for the
-current cell. The next planned step is a single bounded short probe — see
-`graph_rl_project_handoff.md`.
+Targets are enemy airbases only (`include_sams = False`), and target destruction is
+deterministic (`probability = 1`).
+
+**Results.** Measurements exist and are recorded, with their verdicts, denominators and
+explicit non-claims, in [`docs/history/measurements.md`](docs/history/measurements.md); the
+current phase, open evidence and next actions are in
+[`graph_rl_project_handoff.md`](graph_rl_project_handoff.md). *(Earlier versions of this README
+said no long baseline and no CTDE implementation existed; both statements are historical.)*
 
 ---
 
@@ -136,20 +137,28 @@ current cell. The next planned step is a single bounded short probe — see
 
 ```
 Multi_Agent_Task_Allocation_and_Adaptation/
-├── CLAUDE.md                        # authoritative technical & research contracts
-├── graph_rl_project_handoff.md      # volatile: current phase, next task
-├── requirements.txt
+├── CLAUDE.md                        # mandatory entry point: invariants, boundaries, reading table
+├── graph_rl_project_handoff.md      # current state: phase, owner, evidence, next actions
+├── requirements.txt                 # Python dependency surface (not a lock)
+├── environment.cluster.yml          # validated BGU cluster environment (conda-forge)
 ├── configs/
 │   └── graph_train/
-│       └── final_cell_probe.json    # the bounded short final-cell probe preset
+│       └── final_cell_probe.json    # the one repository preset: a fixed-cell short probe
 ├── data/
 │   └── scenarios/
 │       └── strike_training_4v5.json # the one active scenario template
 ├── docs/
+│   ├── contracts/                   # normative technical contracts per layer
+│   ├── workflows/                   # review, experiment and environment procedures
+│   ├── history/                     # implementation, measurement and decision history
+│   ├── documentation_migration.md   # map of the 2026-09 documentation restructure
 │   └── BLADE_API_DOCUMENTATION.md   # API reference for THIS vendored fork
 ├── src/match_aou/
 │   ├── models/                      # Agent, Task, Step, StepKind, Location, Capability
-│   ├── solvers/                     # MATCH-AOU MINLP solver (frozen)
+│   ├── solvers/
+│   │   ├── match_aou_MINLP_solver.py    # legacy MINLP objective (frozen)
+│   │   ├── match_aou_p1_milp_solver.py  # deterministic p = 1 MILP objective
+│   │   └── match_aou_backend.py         # explicit backend selection
 │   ├── utils/
 │   │   ├── scheduling_utils.py      # post-solve filter/level + nearest_neighbor_order
 │   │   ├── topology_utils.py        # topological levels from precedence
@@ -158,28 +167,33 @@ Multi_Agent_Task_Allocation_and_Adaptation/
 │   │       ├── scenario_factory.py      # scenario -> Agents / Tasks
 │   │       └── scenario_generator.py    # seeded scenario variations
 │   ├── rl/
-│   │   ├── observation/graph_builder.py # (world, solution) -> GraphObservation
-│   │   ├── agent/graph_encoder.py       # Graph Transformer encoder (+ pool() critic seam)
+│   │   ├── observation/
+│   │   │   ├── graph_builder.py         # (world, solution) -> GraphObservation
+│   │   │   └── central_graph_builder.py # training-only CTDE central state
+│   │   ├── agent/graph_encoder.py       # Graph Transformer encoder
 │   │   ├── action/
 │   │   │   ├── graph_action.py          # action head, legality mask, sampling
 │   │   │   ├── graph_effect.py          # apply a meta-action to a solution (pure)
 │   │   │   └── graph_trigger.py         # WHEN the policy wakes (pure)
 │   │   ├── training/
-│   │   │   ├── belief.py                # per-ego private Belief
-│   │   │   ├── graph_episode_setup.py   # episode construction: solve -> place -> patch -> reload
-│   │   │   ├── graph_hidden_placement.py# route-relative hidden-target geometry (pure)
-│   │   │   ├── graph_tick_loop.py       # the two-phase tick
-│   │   │   ├── graph_fuel_damage.py     # FD-BASELINE-v1 difficulty factor (pure)
-│   │   │   ├── graph_reward.py          # terminal oracle-normalized regret
-│   │   │   ├── graph_ppo.py             # PPO core (actor-only)
-│   │   │   ├── graph_train.py           # training entry point
-│   │   │   └── graph_rollout.py         # diagnostic rollout entry point
+│   │   │   ├── belief.py                    # per-ego private Belief
+│   │   │   ├── graph_episode_setup.py       # construction: solve -> place -> patch -> reload
+│   │   │   ├── graph_hidden_placement.py    # route-relative hidden-target geometry (pure)
+│   │   │   ├── graph_tick_loop.py           # the two-phase tick
+│   │   │   ├── graph_fuel_damage.py         # fuel-damage designs and certification (pure)
+│   │   │   ├── graph_reward.py              # terminal reference-normalized reward
+│   │   │   ├── graph_ppo.py                 # PPO core: actor-only and CTDE
+│   │   │   ├── graph_generalized.py         # episode designs, samplers, benchmark manifests
+│   │   │   ├── graph_benchmark_preflight.py # deterministic benchmark population selection
+│   │   │   ├── graph_train.py               # training entry point
+│   │   │   └── graph_rollout.py             # diagnostic rollout entry point
 │   │   └── shared_utils.py              # small shared numeric helpers
 │   └── integrations/
 │       └── panopticon-main/gym/blade/   # vendored BLADE engine (frozen)
-├── tests/                           # solver-free unit/integration tests
+├── tests/                           # unit and integration tests
 └── tools/
-    └── graph_executor_smoke.py      # end-to-end executor smoke (needs BLADE + BONMIN)
+    ├── graph_executor_smoke.py      # end-to-end executor smoke (needs BLADE + BONMIN)
+    └── benchmark_match_aou_p1_milp.py # engineering comparison of the two backends
 ```
 
 The pure layers (`graph_trigger`, `graph_effect`, `graph_hidden_placement`,
@@ -190,9 +204,11 @@ them hand-testable. `tests/test_import_purity.py` enforces that boundary.
 
 ## 6. Environment and installation
 
-The maintained environment is **Windows + PyCharm with a conda environment named
-`nlp_env`**, Python 3.10+. Commands below assume the repository root as the working
-directory.
+Two execution contexts are maintained: **local Windows + PyCharm with a conda environment
+named `nlp_env`**, and the **BGU Slurm cluster with `graph_rl_cluster`** (see
+[`environment.cluster.yml`](environment.cluster.yml)). The full rules are in
+[`docs/workflows/environments_cleanup.md`](docs/workflows/environments_cleanup.md). Commands
+below assume the repository root as the working directory and the local context.
 
 **1. Python dependencies** (`numpy`, `scipy`, `torch`, `pyomo`, `gymnasium`, `shapely`,
 `haversine`):
@@ -208,15 +224,17 @@ fork in this repository rather than to any other copy:
 pip install -e src/match_aou/integrations/panopticon-main/gym
 ```
 
-**3. BONMIN** is required for real MATCH-AOU solves. It is provided by the `nlp_env`
-environment. Anything that *solves* — training, rollouts, the executor smoke — must run
-under `nlp_env`:
+**3. Solvers.** The legacy backend needs **BONMIN**, which ships inside `nlp_env` locally and
+comes from conda-forge on the cluster. The P1 backend needs SciPy's `milp` (HiGHS). Anything
+that *solves* — training, rollouts, preflights, the executor smoke — runs under the solver
+environment:
 
 ```bash
 conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --help
 ```
 
-`--no-capture-output` avoids a Windows console re-encoding failure on Unicode output.
+`--no-capture-output` avoids a Windows console re-encoding failure on Unicode output. On the
+cluster every validation or scientific command also sets `PYTHONNOUSERSITE=1`.
 
 **4. `match_aou` itself is not installed as a package.** `src/` must be on `PYTHONPATH`.
 In PowerShell:
@@ -229,8 +247,8 @@ $env:PYTHONPATH = "src"
 so they need no `PYTHONPATH`.
 
 > A base conda environment also resolves `blade` and `gymnasium` (same vendored fork), which
-> is why the solver-free test suite can run outside `nlp_env`. It does **not** have BONMIN,
-> and a missing solver there fails quietly — never judge a solve by its exit code alone.
+> is why the solver-free tests can run outside `nlp_env`. It does **not** have BONMIN, and a
+> missing solver fails quietly — never judge a solve by its exit code alone.
 
 ---
 
@@ -240,7 +258,11 @@ so they need no `PYTHONPATH`.
 |---|---|
 | `python -m match_aou.rl.training.graph_train` | **Training.** Runs PPO; updates weights; writes a run directory. |
 | `python -m match_aou.rl.training.graph_rollout` | **Diagnostics only.** Drives the full pipeline and reports per-episode statistics. **No learning, no weight update.** |
+| `python -m match_aou.rl.training.graph_benchmark_preflight` | **Benchmark population selection.** Builds a frozen benchmark manifest before training. |
 | `python tools/graph_executor_smoke.py` | **Executor smoke.** One solved scenario end-to-end in BLADE, asserting launch → strike → RTB. |
+
+**Running any of these for a scientific purpose needs explicit authorization** — see
+[`docs/workflows/experiments.md`](docs/workflows/experiments.md).
 
 ### Training
 
@@ -252,63 +274,59 @@ conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_t
 
 #### Running from a JSON preset
 
-A run's shape can be declared in a JSON file instead of a command line, which is what
-makes a bounded experiment reproducible from the repository rather than from a shell
-history. The repository owns one preset: the **bounded short final-cell probe**.
+A run's shape can be declared in a JSON file instead of a command line. The repository owns
+one preset, a **fixed-cell** bounded short probe (`fixed_cell_v1`, 2 iterations × 4 training
+episodes, one `pre_update` and one `post_update` held-out round of 4 matched pairs, visual
+artifacts on). It is a short probe, not a baseline, and not the current research population:
 
 ```bash
 conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config configs/graph_train/final_cell_probe.json
 ```
-
-That preset is 2 iterations x 4 training episodes, plus one `pre_update` and one
-`post_update` held-out round of 4 matched pairs each, on the final cell (3 agents,
-3 known + 3 hidden targets, no SAMs) with FD-BASELINE-v1 and `--visual-artifacts` on.
-It is a **short probe, not a baseline**; a long baseline is separately authorized and is
-deliberately not presettable.
 
 From PyCharm, the same run is a *Module name* run configuration —
 module `match_aou.rl.training.graph_train`, parameters
 `--config configs/graph_train/final_cell_probe.json`, working directory the repository
 root, interpreter `nlp_env`, and `PYTHONPATH` including `src`.
 
-A preset names `TrainConfig` **field** names (nested PPO knobs under `"ppo"`); keys
-beginning with `_` are comments, and an unknown key is refused rather than ignored.
-Resolution is **dataclass defaults < preset < explicitly typed flags**, so a preset can
-be adjusted for one run without editing it:
+A preset names `TrainConfig` **field** names (nested PPO knobs under `"ppo"`, CTDE knobs under
+`"ctde"`); keys beginning with `_` are comments, and an unknown key is refused rather than
+ignored. Resolution is **dataclass defaults < preset < explicitly typed flags**:
 
 ```bash
 conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --config configs/graph_train/final_cell_probe.json --seed 7
 ```
 
-The resolved configuration and the preset it came from are both recorded in
-`run_config.json` (`train_config` and `config_source`, the latter listing which fields
-the preset supplied and which a flag overrode). `config_source` is **always a structured
-object**, never `null`, and its `resolved_from` names one of three truthful provenances:
+The resolved configuration and its source are recorded in `run_config.json` (`train_config`
+and `config_source`). `config_source` is **always a structured object**, never `null`, and its
+`resolved_from` names one of three provenances:
 
 | `resolved_from` | What produced the config |
 |---|---|
 | `config_file` | a command line naming a JSON preset (`path` says which) |
 | `cli_defaults` | a command line with no `--config` |
-| `direct_config` | a `TrainConfig` built in Python and passed straight to `train()` — no command line, no preset |
-
-So "no preset was used" is a stated fact rather than a missing key, and a run driven from
-a script or notebook is never recorded as though a command line had resolved it.
+| `direct_config` | a `TrainConfig` built in Python and passed straight to `train()` |
 
 Selected options (`--help` is authoritative):
 
 | Option | Default | Meaning |
 |---|---|---|
 | `--config PATH` | — | JSON preset of `TrainConfig` fields; explicit flags override it |
-| `--iterations` | — | PPO iterations; required to train (may come from `--config`) |
-| `--episodes` | 8 | training episodes per iteration |
+| `--iterations` | — | PPO iterations (the maximum budget under early stopping); required to train |
+| `--episodes` | 8 | episodes per iteration — attempts on the fixed cell, **successful** episodes on the generalized designs |
 | `--seed` | 0 | base seed; pins initial weights and anchors the episode seed schedule |
 | `--out` | `training_output_<timestamp>` | run directory |
-| `--eval-every` / `--eval-episodes` | 5 / 8 | held-out evaluation cadence and size |
-| `--eval-base-seed` | 1000000 | start of the held-out seed band (must not overlap training seeds) |
-| `--num-agents`, `--n-known`, `--n-hidden` | 3, 3, 3 | the scenario cell |
-| `--fuel-damage-mode`, `--fuel-damage-probability` | mixture, 0.5 | difficulty-factor scheduling |
+| `--episode-design` | `fixed_cell_v1` | `fixed_cell_v1`, `generalized_v1` or `generalized_v2` |
+| `--match-aou-backend` | `legacy_minlp_v1` | `legacy_minlp_v1` or `p1_milp_v1`; `generalized_v2` requires `p1_milp_v1` |
+| `--training-mode` | `actor_only` | `actor_only` or `ctde` (critic during training only) |
+| `--generalized-max-attempts-per-iteration` | — | required attempt budget for the generalized designs |
+| `--benchmark-manifest` / `--benchmark-profile` | — | frozen benchmark for generalized evaluation; the profile (`development` / `confirmatory`) is required for `generalized_v2` |
+| `--early-stopping` | off | training-reward plateau stop; approved for `generalized_v1` only |
+| `--eval-every` / `--eval-episodes` | 5 / 8 | held-out evaluation cadence and size (fixed-cell band) |
+| `--eval-base-seed` | 1000000 | start of the fixed-cell held-out seed band |
+| `--num-agents`, `--n-known`, `--n-hidden` | 3, 3, 3 | the fixed cell (ignored by the generalized designs) |
+| `--fuel-damage-mode`, `--fuel-damage-probability` | `seeded_mixture`, 0.5 | fuel-damage scheduling; the generalized designs require `seeded_variable` |
 | `--visual-artifacts` | off | opt-in per-attempt inspection bundles |
-| `--plot RUN_DIR` | — | re-draw an existing run directory's figures into `<RUN_DIR>/plots/` and exit (no training) |
+| `--plot RUN_DIR` | — | re-draw an existing run directory's figures into `<RUN_DIR>/plots/` and exit |
 
 Training refuses to start unless Git provenance is complete — both the full commit SHA and
 a clean/dirty verdict must be determinable, so a run is always attributable to exact code.
@@ -321,7 +339,7 @@ conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_r
 ```
 
 Options: `--episodes`, `--seed`, `--out` (default `rollouts`), `--deterministic`,
-`--record-first` (record episode 0 with the BLADE playback recorder).
+`--record-first`, `--episode-design`, `--fuel-damage-mode`, `--match-aou-backend`.
 
 ### Executor smoke
 
@@ -331,7 +349,7 @@ conda run -n nlp_env --no-capture-output python tools/graph_executor_smoke.py
 
 ### Tests
 
-The suite is solver-free and runs under a plain `pytest`:
+The solver-free tests run under a plain `pytest` from the base environment:
 
 ```bash
 python -m pytest -q
@@ -352,41 +370,31 @@ A run directory is the record of the run. `graph_train` writes:
 
 | File | Contents |
 |---|---|
-| `run_config.json` | the fully resolved configuration, including nested PPO settings and a Git `provenance` block |
+| `run_config.json` | the fully resolved configuration, its source, and a Git `provenance` block |
 | `train_records.jsonl` | one record per training iteration |
 | `eval_records.jsonl` | one record per held-out evaluation round |
-| `episode_failures.jsonl` | append-only, flushed immediately: every failed episode attempt with its pipeline stage, exact seed and traceback |
+| `episode_outcomes.jsonl` | one durable record per successful attempt, including per-wake actor diagnostics |
+| `episode_failures.jsonl` | append-only: every failed episode attempt with its pipeline stage, exact seed and traceback |
 | `run_summary.json` | derived from the jsonl files, with an accounting reconciliation flag |
-| `plots/` | three figures drawn from the jsonl files alone (below) |
+| `plots/` | figures drawn from the jsonl files alone (below) |
 | `scenarios/` | the generated scenario JSON for each attempt |
-| `checkpoints/` | saved encoder + head + optimizer state |
+| `checkpoints/` | saved model and optimizer state (save-only; there is no resume) |
 
 #### Plots
 
-Figures are derived artifacts, so they live under `<run_dir>/plots/` rather than among
-the records, and each one carries a single claim:
-
 | Figure | What it shows |
 |---|---|
-| `training_performance.png` | training reward; held-out evaluation **split into clean and damaged**; the matched-pair delta `R_damaged - R_clean` |
-| `policy_diagnostics.png` | meta-action mix and policy entropy over the training decisions |
-| `measurement_health.png` | the denominators — training and eval success fractions, wake coverage, the **pair** success fraction, and **per-condition held-out completion** |
+| `training_performance.png` | training reward; held-out evaluation **per condition**; the matched-group deltas |
+| `policy_diagnostics.png` | meta-action mix and raw policy entropy over the training decisions |
+| `measurement_health.png` | the denominators — success fractions, wake coverage, matched-group completion, and requested-vs-realized hidden load on generalized runs |
+| `fd_policy_sensitivity.png` | optional: held-out immediate fuel-damage-wake policy diagnostics, when recorded |
 
-The two condition curves in `training_performance.png` are each a mean over **that
-condition's own successful episodes**, so if one condition fails more held-out seeds than
-the other they are not averages over the same seeds and the gap between them is not a
-within-seed effect. The panel and its legend say so, and the per-condition
-attempted/successful counts in `measurement_health.png` are what make the asymmetry
-inspectable. The **matched-pair delta is the within-seed comparison** — it uses only
-pairs whose both members completed, so it stays valid when the two populations differ.
-
-All three share one x-axis: **PPO updates completed before the measurement**. Training
-points sit at `updates_completed_before` (the updates the policy that generated those
-episodes had received) and evaluation points at `updates_completed`, so the untrained
-policy's first batch and its `pre_update` held-out measurement share an origin. Reward is
-oracle-normalized regret where `0` is the optimum, so a batch or round with no successful
-episode is **dropped** from a curve rather than drawn at 0 — `measurement_health.png` is
-where that gap becomes visible, and the two figures are meant to be read together.
+Per-condition curves are each a mean over **that condition's own successful episodes**, so the
+gap between them is not a within-seed effect; the **matched-group deltas are the within-world
+comparison**, over complete groups only. All figures share one x-axis: **PPO updates completed
+before the measurement**. Reward is reference-normalized regret where `0` is the reference, so
+a batch or round with no successful episode is **dropped** from a curve rather than drawn at 0,
+and an all-failed batch reports `null`, never `0.0`.
 
 Any run directory can be re-plotted later without retraining:
 
@@ -397,16 +405,16 @@ python -m match_aou.rl.training.graph_train --plot training_output_20260101_1200
 matplotlib is optional: if it is missing, plotting prints a notice and the run still
 completes — the jsonl files are the record.
 
-Every scheduled seed is attempted **at most once**. A failure is recorded and never
-retried, replaced or substituted, so each reported statistic describes the successful
-subset and is published next to its denominator. An all-failed batch reports its reward as
-`null`, never `0.0` — the reward is oracle-normalized regret, where `0` is the optimum.
+**Failure accounting.** On the fixed cell every scheduled seed is attempted **at most once**; a
+failure is recorded and never retried or replaced. On the generalized designs each iteration
+fills a quota of successful episodes from a bounded, deterministic sequence of attempts; a
+failed attempt spends its seed and is replaced by the next one. Measurement-integrity faults
+abort the run instead of entering either ledger.
 
 `--visual-artifacts` is off by default and is **observation, not measurement** — nothing it
-captures is read back into the pipeline. When enabled, each scheduled attempt gets one
-bundle under `<run_dir>/visual_artifacts/` containing the generator's known-only scenario,
-the authoritative executed `t=0` scenario, the BLADE playback recording, and a manifest
-stating the attempt's identity and whether the bundle is complete.
+captures is read back into the pipeline. When enabled, each scheduled attempt gets one bundle
+under `<run_dir>/visual_artifacts/` containing the known-only scenario, the executed `t=0`
+scenario, the BLADE playback recording, and a manifest.
 
 ---
 
@@ -414,13 +422,16 @@ stating the attempt's identity and whether the bundle is complete.
 
 | Document | Role |
 |---|---|
-| `README.md` | public orientation — this file |
-| `CLAUDE.md` | **authoritative** technical and research contracts: invariants, locked layer interfaces, build history, open questions |
-| `graph_rl_project_handoff.md` | volatile: current phase state and the next task |
+| `README.md` | stable orientation — this file |
+| `CLAUDE.md` | mandatory entry point: invariants, frozen layers, permission boundaries, task-triggered reading |
+| `graph_rl_project_handoff.md` | current state: phase, active task, evidence, next actions |
+| `docs/contracts/` | authoritative technical contracts per layer |
+| `docs/workflows/` | review, experiment and environment procedures |
+| `docs/history/` | implementation, measurement and decision history |
 | `docs/BLADE_API_DOCUMENTATION.md` | API reference for the vendored BLADE fork *as it exists in this repository* |
 
-Where this README and `CLAUDE.md` disagree, `CLAUDE.md` wins; where `CLAUDE.md` and the
-code disagree, the code wins.
+Where this README and the contracts disagree, the contracts win; where a contract and the code
+disagree, the code decides what happens and the disagreement must be investigated.
 
 ---
 
