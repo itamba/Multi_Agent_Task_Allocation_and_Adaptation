@@ -279,16 +279,16 @@ the BLADE doc 25,322 bytes.
 |---|---:|
 | `CLAUDE.md` | 28,131 |
 | `graph_rl_project_handoff.md` | 10,152 |
-| `README.md` | 26,832 |
+| `README.md` | 26,924 |
 | `docs/BLADE_API_DOCUMENTATION.md` | 26,902 |
-| `docs/workflows/cc_review.md` | 9,150 |
-| `docs/workflows/experiments.md` | 13,777 |
+| `docs/workflows/cc_review.md` | 9,459 |
+| `docs/workflows/experiments.md` | 14,022 |
 | `docs/workflows/environments_cleanup.md` | 17,633 |
 | `docs/contracts/runtime.md` | 47,878 |
 | `docs/contracts/construction_fuel_damage.md` | 54,514 |
 | `docs/contracts/policy_ctde.md` | 24,422 |
-| `docs/contracts/reward_solvers.md` | 45,315 |
-| `docs/contracts/training_benchmarks.md` | 129,887 |
+| `docs/contracts/reward_solvers.md` | 45,753 |
+| `docs/contracts/training_benchmarks.md` | 131,064 |
 | `docs/contracts/artifacts_metrics.md` | 43,459 |
 | `docs/history/implementation.md` | 159,551 |
 | `docs/history/measurements.md` | 112,450 |
@@ -301,14 +301,14 @@ the task spans it.
 
 | Reading route | Sections | Bytes |
 |---|---|---:|
-| Small executor edit (for example the confirmation wait) | core; `cc_review.md` §2–§5; `runtime.md` §3, §6, §7 (add §1 only if per-tick ordering changes) | 62,057 |
+| Small executor edit (for example the confirmation wait) | core; `cc_review.md` §2–§5; `runtime.md` §3, §6, §7 (add §1 only if per-tick ordering changes) | 62,366 |
 | GENERALIZED-V2 development-run review | core; `experiments.md` §4; `artifacts_metrics.md` §4–§6; `training_benchmarks.md` §9; `measurements.md` §1 and §7 | 96,781 |
 | GENERALIZED-V2 run planning | core; `experiments.md` §2, §3, §5; `training_benchmarks.md` §6, §8, §9; `artifacts_metrics.md` §4–§5; `environments_cleanup.md` §1–§3 | 142,561 |
 | Evidence preservation | core; `experiments.md` §5; `environments_cleanup.md` §4 | 46,928 |
 | Routine cleanup | core; `environments_cleanup.md` §4; `cc_review.md` §6 | 46,090 |
 
 Across the four pre-existing documents the base held 1,264,252 bytes; the sixteen files above
-hold 884,131 bytes, and this record adds its own size on top. The reduction comes from
+hold 886,392 bytes, and this record adds its own size on top. The reduction comes from
 consolidated duplicates and removed supersession notes, whose wording stays readable at the base
 and in `docs/history/`; no current requirement was dropped.
 
@@ -352,3 +352,23 @@ candidate, and every later rewrite of moved text is listed here.
 | F3 — contracts current and version-scoped: blanket "does not exist" header rule replaced by a current-status note in all six contracts; supersession parentheticals removed; stale current-state sentences replaced with dated notes or handoff pointers ("NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS", "Every approved measurement…", "MUST BE READ IN §8", "is NOT selected by either harness"); bare former `§N` citations replaced with direct links; code routing condensed to task / files and symbols / contract; `CLAUDE.md` §6 made section-level with conditional dependencies; concrete routes in §5 | 2 | done | six contracts; `CLAUDE.md` §2, §6; this record §5 |
 | F4 — provenance and timing: manifest separated from the run packages; preflight producer SHA recorded as unverified; run directories from `train_config.output_dir`; README reference timing; verdict-record wording | 1 (handoff, registry), 3 (README, history) | done | handoff §4; `environments_cleanup.md` §4.4; `measurements.md` §1, §7; `README.md` §2 |
 | F5 — verification record: §0 corrected; §1.1 states that `CLAUDE.md` §2's built-layer paragraph was rewritten and its CTDE note relocated; §2 rows cite tests by what their bodies check, with gaps named; §4 test gap scoped (and corrected — the V1 summary label *is* asserted); §6 checks restated after F3 | 4 | done | this record §0, §1.1, §1.3, §2, §4, §6 |
+
+Second review, of the F1–F5 candidate: **REQUEST FIXES** (R1–R3 and a context-transfer rule).
+The continuation ran in a new CC session under the user's context-transfer decision, with the
+outgoing session paused, on the same branch and PR with appended commits only.
+
+| Finding | Status | Files |
+|---|---|---|
+| R1 — version scoping completed: `reward_solvers.md` §1 scopes `static_t0_v1` to the two fixed-cell measurements (GENERALIZED measurements use the event-conditioned reference) and replaces the obsolete `§7` pointer with a measurement-history link; §3 scopes the legacy objective to the named legacy-backend records (fixed-cell pair and GENERALIZED-V1 R1) and points to the P1 arm's own record; the backend table links `CLAUDE.md` §2 directly. `training_benchmarks.md` §1 gains a scope note: shared auditability stays shared, while no-replacement and the fixed held-out band are marked `fixed_cell_v1`, with generalized training routed to §6 and generalized evaluation to §5 / §9. Evidence: `TrainConfig.training_attempt_policy`, `train_attempt_seed`, the two `test_task5c_a_*` quota tests, the generalized evaluation branch of `train` | done | `reward_solvers.md` §1, §3; `training_benchmarks.md` §1 |
+| R2 — `experiments.md` §1 permits bounded solver runtime / cost comparisons under declared conditions with causal limitations, and excludes scientific policy-quality and learning comparisons | done | `experiments.md` §1 |
+| R3 — `README.md` §2 diagram labels the pre-tick t=0 reference as clean-episode (or no FD controller) only and the continuation reference as damaged-event only, matching the `run_episode` guard; no other diagram change | done | `README.md` §2 |
+| Context transfer — `cc_review.md` §3: same session by default; a deliberate transfer may use a new session with the outgoing writer stopped, a compact verified handoff and the same branch, PR and append-only history; no concurrent writers | done | `cc_review.md` §3 |
+
+Checks for this pass: internal links and anchors re-resolved (scripted); a case-insensitive,
+whitespace-normalized search of `CLAUDE.md`, `README.md`, the handoff and `docs/` for "every
+approved measurement", "approved measurement was taken", "path every", "— §7)", "EPSILON = 1e-6
+and all (§2)", "comparative" and "same CC session". Remaining hits are classified, not claimed
+absent: this record's own quotations; `environments_cleanup.md` §1's "every approved measurement
+to date was taken on" the LOCAL context (outside this packet's scope, left for review); and the
+source comment in `graph_train.py` above `TRAINING_ATTEMPT_POLICY_SCHEDULED` (source is not edited
+in a documentation task). A pattern search is not a proof that no stale sentence remains.
