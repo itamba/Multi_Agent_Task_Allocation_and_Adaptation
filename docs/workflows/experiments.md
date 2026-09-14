@@ -19,9 +19,11 @@
 - **Engineering validation** exists to check wiring, runtime, solver cost, attrition in a bounded
   sample, or the reproducibility of a mechanism. It can establish **scoped engineering facts**
   (for example "a solve of roughly 998 seconds terminated optimal", "the P1 backend kept
-  reference solving cheap on these cells") and never **policy-quality, learning, reward-level or
-  comparative** claims — even when it carries seed bands, a transient manifest or real solver and
-  engine execution. Bounded smokes, selftests, test suites, the Task-5A / Task-5B validations,
+  reference solving cheap on these cells"). A bounded engineering experiment may **compare solver
+  runtime or cost under its declared conditions**, stating its causal limitations. It never
+  establishes **scientific policy-quality or learning comparisons** — policy benefit, sample
+  efficiency or reward differences — even when it carries seed bands, a transient manifest or real
+  solver and engine execution. This clarification authorizes no experiment. Bounded smokes, selftests, test suites, the Task-5A / Task-5B validations,
   replays and reconstructions are engineering validation.
 - **Executed measurement.** A scientific run executed under an authorized plan, identified by its
   measured code SHA, resolved configuration and artifacts. It exists as a measurement once it
