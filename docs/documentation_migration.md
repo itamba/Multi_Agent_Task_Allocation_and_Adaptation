@@ -13,9 +13,12 @@
 assembler that copied exact base line ranges into the destinations and recorded coverage: no
 base line was copied twice, and every non-blank `CLAUDE.md` line not copied is accounted for in
 §1.1 (headings, two rewritten paragraphs and five phase-state bullets consolidated into history).
-Current state, procedures and orientation were written by hand and verified against code, test
-bodies and preserved artifacts (§2). No source, test, config, preset, evidence or frozen-engine
-file changed.
+That verbatim guarantee describes the reviewed candidate `d55b77f`; later rewrites of moved text
+are listed in §7. Current state, procedures and orientation were written by hand and checked
+against code symbols and preserved artifacts. **Correction (review-fix pass):** the reviewed
+candidate's §2 table cited tests by name without reading their bodies; the bodies were read in
+the review-fix pass, and §2 now states what each cited body checks and where no test was found.
+No source, test, config, preset, evidence or frozen-engine file changed.
 
 **Grouping** — fewer files where the material is read together, split only where a distinct task
 can skip the rest:
@@ -52,8 +55,8 @@ wording stays readable at the base) · **corrected** (rewritten because it was s
 | "## 1. Communication & workflow (read first)" — "**User speaks Hebrew.**" … "**Output discipline:**" | 12–94 | language, scope and minimal-file rules retained; transport, grade, status-block and fix-chain rules corrected (§3); full text moved to history | `CLAUDE.md` §1, `cc_review.md`, `decisions.md` §7 |
 | "**Environment — TWO VALIDATED EXECUTION CONTEXTS, and BOTH are CURRENT.**" … "**What that cluster smoke IS and IS NOT.**" | 95–136 | moved; the three load-bearing rules also retained in brief | `environments_cleanup.md` §1; `CLAUDE.md` §1 |
 | "### 🛑 BLADE engine (vendored Panopticon fork) — FROZEN" (incl. the load-bearing `Game.py` edits, the live-list mutation paragraph and "### 🛑 MATCH-AOU solver — FROZEN") | 141–168 | retained | `CLAUDE.md` §2 |
-| "### 🛑 The BUILT graph layers are stable & reviewed" | 170–177 | corrected (names every locked layer, points to the contracts) | `CLAUDE.md` §2 |
-| "**The Phase-B CTDE training layer is BUILT / REVIEWED / MERGED**" | 179–196 | moved, plus a current-state note | `policy_ctde.md` §4.1 |
+| "### 🛑 The BUILT graph layers are stable & reviewed" | 170–177 | **rewritten**, not moved: the paragraph now names every locked layer and points to the contracts; the rest of base §2 (141–168) is verbatim | `CLAUDE.md` §2 |
+| "**The Phase-B CTDE training layer is BUILT / REVIEWED / MERGED**" | 179–196 | **relocated out of `CLAUDE.md` §2**; its two bullets now open `policy_ctde.md` §4.1, and its present-tense scoping was rewritten in the review-fix pass (§7) | `policy_ctde.md` §4 intro and §4.1 |
 | "Everything derives from **NO-COMMUNICATION**" … "Launch point == the BLUE airbase" | 201–221 | retained | `CLAUDE.md` §3 |
 | "`setup_episode` has TWO explicit paths" (the pipeline, §4) | 227–422 | moved | `runtime.md` §1 |
 | "**Episode-setup (Stage 0)**" through "**NO env-1 `Agent` or `Task` object may enter the returned context**" | 427–520 | moved | `runtime.md` §2 |
@@ -179,7 +182,7 @@ wording stays readable at the base) · **corrected** (rewritten because it was s
 | Document and block | Action | Destination |
 |---|---|---|
 | `README.md` intro ("A MATCH-AOU MINLP solver produces one optimal allocation offline") and §1 oracle bullet | corrected: solver-neutral; reference depends on the design | `README.md` intro, §1 |
-| `README.md` §2 diagram ("MATCH-AOU solve ──> oracle") and "**Policy.**" paragraph | corrected: reference solve; actor-only default with optional training-only CTDE | `README.md` §2 |
+| `README.md` §2 diagram ("MATCH-AOU solve ──> oracle") and "**Policy.**" paragraph | corrected: reference solve; actor-only default with optional training-only CTDE. Review-fix pass: reference timing corrected — the default `static_t0_v1` solve runs in setup, while the event-conditioned policy's clean t=0 reference (before the first tick) and continuation reference (after the FD mutation, before triggers, capture, decision and `env.step`) run in `graph_tick_loop.run_episode` | `README.md` §2 |
 | `README.md` §3 rows "**Event-triggered**" and "**Actor-only PPO**" | corrected: post-FD boundary wake; decentralized execution with optional CTDE | `README.md` §3 |
 | `README.md` §4 "## 4. Current experiment cell" (including "**No long baseline has been run on this cell**") | corrected: the three episode designs, the two backends, where results live; the old statement marked historical | `README.md` §4 |
 | `README.md` §5 layout | corrected: docs tree, `environment.cluster.yml`, solver modules, `central_graph_builder.py`, `graph_generalized.py`, `graph_benchmark_preflight.py`, backend benchmark tool | `README.md` §5 |
@@ -192,22 +195,22 @@ wording stays readable at the base) · **corrected** (rewritten because it was s
 
 ## 2. Changed technical claims
 
-| Claim | Where | Code symbol | Test or evidence anchor |
+| Claim | Where | Code symbol | Test or evidence anchor — what the cited body checks (bodies read in the review-fix pass) |
 |---|---|---|---|
-| An airborne aircraft is not guaranteed a movement-and-burn visit every tick, because landing and fuel exhaustion remove entries from the live list being iterated | BLADE doc §13 | `Game.update_all_aircraft_position` (`aircraft.current_fuel -= aircraft.fuel_rate / 3600`), `Game.land_aicraft` → `Game.remove_aircraft`, the `current_fuel <= 0` branch | `tests/test_graph_fuel_damage.py::test_g1_11b_the_absolute_outer_tick_is_diagnostic_never_binding`; `CLAUDE.md` §2 |
-| `run_summary.json:/generalized/cardinality_sampler` names the V1 sampler for V2 runs; `run_config.json` names the correct V2 sampler | `artifacts_metrics.md` §6.1; handoff §4; `measurements.md` §7 | `graph_train._generalized_summary` exact string `"cardinality_sampler": cardinality_sampler_record(),`; `graph_train.write_run_config` selecting `generalized_v2_cardinality_sampler_record()` when `cfg.route_relative_population` | both `run_config.json` / `run_summary.json` pairs at PR #61 `1375a88…` and PR #62 `b2bbe7a…`; PR #62 `artifact_sha256.txt`. No test covers the summary key (gap §4) |
+| An airborne aircraft is not guaranteed a movement-and-burn visit every tick, because landing and fuel exhaustion remove entries from the live list being iterated | BLADE doc §13 | `Game.update_all_aircraft_position` (`aircraft.current_fuel -= aircraft.fuel_rate / 3600`), `Game.land_aicraft` → `Game.remove_aircraft`, the `current_fuel <= 0` branch | **The claim rests on the `Game.py` source.** No test found exercises a skipped visit (search of `tests/` for `update_all_aircraft_position`: two hits). `tests/test_graph_fuel_damage.py::test_g1_11b_the_absolute_outer_tick_is_diagnostic_never_binding` drives a stub context and proves only the consequence — the live certificate check accepts a +2 outer-tick offset at the certified physical state, with tolerances unchanged. `tests/test_graph_setup_seam.py::test_blade_an_ego_that_burns_out_on_the_ride_home_is_counted_dead` covers only the fuel-exhaustion removal |
+| `run_summary.json:/generalized/cardinality_sampler` names the V1 sampler for V2 runs; `run_config.json` names the correct V2 sampler | `artifacts_metrics.md` §6.1; handoff §4; `measurements.md` §7 | `graph_train._generalized_summary` exact string `"cardinality_sampler": cardinality_sampler_record(),`; `graph_train.write_run_config` selecting `generalized_v2_cardinality_sampler_record()` when `cfg.route_relative_population` | both `run_config.json` / `run_summary.json` pairs at PR #61 `1375a88…` and PR #62 `b2bbe7a…`; PR #62 `artifact_sha256.txt`. `tests/test_graph_train.py::test_gen_the_summary_reports_requested_vs_realized` asserts the summary label for a **`generalized_v1`** run (`rng_domain == "generalized_cardinality_v1"`), where it is correct; a search of `tests/` for `cardinality_sampler` found no assertion on a `generalized_v2` summary |
 | Each evidence commit's single parent is the measured SHA, and its tree adds only `research_evidence/generalized_v2/…` | `artifacts_metrics.md` §6.2; handoff §3; `measurements.md` §7 | `run_config.json:/provenance/git/commit` | `git log -1 --format=%P` of both heads = `ae42cb01677f94868b2873008d87be677e31f0c8`; `git show --name-only` of both heads |
 | V2 development arms' frozen contract and accounting (design, backend, profile, manifest id, schedule, seeds, cadence, 3008/3000/8, 960/960/0, 16 rounds, 375 updates, 3960 records) | handoff §4; `measurements.md` §7; `decisions.md` §1 | `TrainConfig` fields; `run_summary.json` keys `train_episodes_attempted` … `episode_outcomes_recorded` | the committed `run_config.json`, `run_summary.json` and `artifact_sha256.txt` at both evidence heads |
 | Verdict provenance: CTDE verdict attributed to PR #62's own text; no actor-only verdict recorded; no GitHub review record for either PR | handoff §4; `policy_ctde.md` §4.1; `measurements.md` §7 | — | `gh pr view 61 / 62` bodies; PR #62 `artifact_sha256.txt` header |
-| CTDE is implemented and opt-in; `actor_only` is the default; evaluation is actor-only | `README.md` §2, §3, §7 | `TrainConfig.training_mode = TRAINING_MODE_ACTOR_ONLY`, `TRAINING_MODES`, `--training-mode` | `tests/test_graph_ctde.py::test_actor_only_never_constructs_a_critic_or_a_central_state`, `::test_the_poison_is_live_a_ctde_run_hits_it` |
-| Three episode designs; `fixed_cell_v1` is the default; `generalized_v2` requires `p1_milp_v1` and refuses `legacy_minlp_v1` | `README.md` §4, §7 | `graph_generalized.EPISODE_DESIGNS`, `EPISODE_DESIGN_FIXED_CELL_V1`, `TrainConfig.episode_design`, `GENERALIZED_V2_REQUIRED_BACKEND` checked in `TrainConfig.validate` | `tests/test_graph_generalized_v2.py::test_po2_the_design_requires_the_p1_objective_on_both_harnesses`, `::test_po2_the_backend_contract_is_stated_as_design_constrained_not_independent` |
-| Two MATCH-AOU backends, `legacy_minlp_v1` default, explicit selection with no fallback; the P1 backend uses SciPy `milp` (HiGHS) | `README.md` §4, §6; `environments_cleanup.md` §2 | `solvers.match_aou_backend.MATCH_AOU_BACKENDS`, `DEFAULT_MATCH_AOU_BACKEND`; `match_aou_p1_milp_solver` (`from scipy.optimize import Bounds, LinearConstraint, milp`) | `tests/test_match_aou_backend_integration.py::test_po1_every_default_is_the_historical_legacy_backend`; `tests/test_match_aou_p1_milp_solver.py` |
-| The V2 benchmark profiles are `development` and `confirmatory`; the preflight is a module entry point | `README.md` §4, §7 | `graph_generalized.V2_BENCHMARK_PROFILES`; `graph_benchmark_preflight.main` and its `__main__` guard | `tests/test_graph_generalized_v2_benchmark.py::test_po3_the_v2_preflight_config_requires_p1_and_twelve_worlds` |
-| On generalized designs `episodes_per_iteration` is a successful-episode quota and a failed attempt spends its seed and is replaced | `README.md` §7, §8 | `TrainConfig.training_attempt_policy`, `graph_train.train_attempt_seed` | `tests/test_graph_train.py::test_task5c_a_generalized_iteration_fills_its_successful_quota`, `::test_task5c_a_failed_seed_is_spent_and_recorded_once` |
-| Early stopping is opt-in and approved for `generalized_v1` only | `README.md` §7 | `TrainConfig.early_stopping`, `TrainConfig.validate` (`design.generalized_v1_design`) | `tests/test_graph_train.py::test_es_disabled_is_fixed_budget_and_adds_no_record_noise`, `::test_es_the_monitor_reads_training_reward_and_nothing_else` |
-| Runs write `episode_outcomes.jsonl` and may write the optional `fd_policy_sensitivity.png` | `README.md` §8 | `graph_train._EPISODE_OUTCOMES_FILENAME`, `_PLOT_FD_SENSITIVITY` | `artifacts_metrics.md` §3, §5 contracts |
-| The diagnostic rollout accepts `--episode-design`, `--fuel-damage-mode` and `--match-aou-backend` | `README.md` §7 | `graph_rollout` argument parser | — |
-| Statements inside moved contract blocks that something "does not exist" describe that block's PR scope at merge | every contract header | — | reading rule, not a behaviour claim |
+| CTDE is implemented and opt-in; `actor_only` is the default; evaluation is actor-only | `README.md` §2, §3, §7 | `TrainConfig.training_mode = TRAINING_MODE_ACTOR_ONLY`, `TRAINING_MODES`, `--training-mode` | `tests/test_graph_ctde.py::test_actor_only_never_constructs_a_critic_or_a_central_state` — asserts the default mode, then a stubbed actor-only training run (evaluation disabled) completes with every central-CTDE construction site poisoned; `::test_the_poison_is_live_a_ctde_run_hits_it` is its control. **Those two say nothing about evaluation**; evaluation is covered by `::test_evaluation_never_constructs_a_critic_or_a_recorder` (the signature and source of `graph_train.evaluate` carry no critic or recorder) and `::test_a_ctde_trained_actor_runs_with_the_critic_absent` |
+| Three episode designs; `fixed_cell_v1` is the default; `generalized_v2` requires `p1_milp_v1` and refuses `legacy_minlp_v1` | `README.md` §4, §7 | `graph_generalized.EPISODE_DESIGNS`, `EPISODE_DESIGN_FIXED_CELL_V1`, `TrainConfig.episode_design`, `GENERALIZED_V2_REQUIRED_BACKEND` checked in `TrainConfig.validate` | `tests/test_graph_generalized.py::test_po1_fixed_cell_is_the_default_of_both_harnesses` (both configs default to `fixed_cell_v1`); `tests/test_graph_train.py::test_gen_cli_and_rollout_expose_the_selector_without_drift` (both parsers offer exactly the three designs, default `fixed_cell_v1`); `tests/test_graph_generalized_v2.py::test_po2_the_design_requires_the_p1_objective_on_both_harnesses` (V2 with the legacy backend refused by `TrainConfig` and `RolloutConfig` validation) and `::test_po2_the_backend_contract_is_stated_as_design_constrained_not_independent` (the design × backend validity matrix) |
+| Two MATCH-AOU backends, `legacy_minlp_v1` default, explicit selection with no fallback; the P1 backend uses SciPy `milp` (HiGHS) | `README.md` §4, §6; `environments_cleanup.md` §2 | `solvers.match_aou_backend.MATCH_AOU_BACKENDS`, `DEFAULT_MATCH_AOU_BACKEND`; `match_aou_p1_milp_solver` (`from scipy.optimize import Bounds, LinearConstraint, milp`) | `tests/test_match_aou_backend_integration.py::test_po1_every_default_is_the_historical_legacy_backend` (the default and the two-member set, for both configs); `::test_po1_there_is_no_auto_and_no_fallback_in_either_direction` (unknown ids refused; a refused P1 solve never constructs the legacy solver); `::test_po1_p1_backend_uses_the_p1_solver_and_never_touches_bonmin`. The SciPy / HiGHS dependency rests on the module import, not on a test |
+| The V2 benchmark profiles are `development` and `confirmatory`; the preflight is a module entry point | `README.md` §4, §7 | `graph_generalized.V2_BENCHMARK_PROFILES`; `graph_benchmark_preflight.main` and its `__main__` guard | `tests/test_graph_generalized_v2_benchmark.py::test_po1_twelve_worlds_per_cell_and_two_disjoint_exhaustive_profiles` (development 0–1 and confirmatory 2–11, disjoint and exhaustive); `::test_po3_the_v2_preflight_config_requires_p1_and_twelve_worlds` (refuses the legacy backend, `worlds_per_cell != 12` and a window below 12). No test found invokes `graph_benchmark_preflight.main`; the entry-point claim rests on the source |
+| On generalized designs `episodes_per_iteration` is a successful-episode quota and a failed attempt spends its seed and is replaced | `README.md` §7, §8 | `TrainConfig.training_attempt_policy`, `graph_train.train_attempt_seed` | `tests/test_graph_train.py::test_task5c_a_generalized_iteration_fills_its_successful_quota` (stubbed training: a quota of 3 with two failures costs attempts 0–4 and the updater receives exactly 3); `::test_task5c_a_failed_seed_is_spent_and_recorded_once` (a failed seed is attempted once, recorded once, and absent from the outcome stream) |
+| Early stopping is opt-in and approved for `generalized_v1` only | `README.md` §7 | `TrainConfig.early_stopping`, `TrainConfig.validate` (`design.generalized_v1_design`) | `tests/test_graph_train.py::test_es_disabled_is_fixed_budget_and_adds_no_record_noise` (off: the full budget runs and no record key appears); `::test_es_validate_refuses_a_misconfigured_or_non_generalized_policy` (refused under `fixed_cell_v1`); `tests/test_graph_generalized_v2_benchmark.py::test_po3_early_stopping_is_still_refused_under_v2`. (`::test_es_the_monitor_reads_training_reward_and_nothing_else`, cited before, concerns the stopping input, not the approval scope) |
+| Runs write `episode_outcomes.jsonl` and may write the optional `fd_policy_sensitivity.png` | `README.md` §8 | `graph_train._EPISODE_OUTCOMES_FILENAME`, `_PLOT_FD_SENSITIVITY` | `tests/test_graph_fuel_damage.py::test_vs_po3_the_durable_stream_exposes_every_per_attempt_measurement` (one row per successful attempt, disjoint from the failure ledger); `tests/test_graph_wake_diagnostics.py::test_fix7_an_evaluation_v3_run_declares_the_optional_figure` (declared for an evaluation v3 run while the required figures stay three) |
+| The diagnostic rollout accepts `--episode-design`, `--fuel-damage-mode` and `--match-aou-backend` | `README.md` §7 | `graph_rollout._build_arg_parser` | `tests/test_graph_train.py::test_gen_cli_and_rollout_expose_the_selector_without_drift` covers the rollout parser's `--episode-design` choices and default and its `--fuel-damage-mode` default. A search of `tests/` found no test reading the rollout parser's `--match-aou-backend`; that flag rests on the source |
+| Contract headers state current status; statements scoped to one PR name that PR | every contract header | — | reading rule, not a behaviour claim; the former "does not exist = PR scope" header rule was removed in the review-fix pass |
 
 ## 3. Procedural supersessions
 
@@ -248,16 +251,19 @@ Each gap is scoped to what the repository and the accessible GitHub state can sh
 - **Ownership episodes.** Who removed the branches the former handoff listed as
   cleanup-eligible, and when, is not recorded; the roles of three local worktrees are not
   recorded.
-- **Old numbering inside moved text.** Moved contract and history blocks still cite former
-  section numbers (`§5`, `§8`, `§3l`, …) and carry PR-scoped present-tense statements. They are
-  resolved by the compatibility index and by each document's reading note rather than rewritten,
-  so no requirement was changed while moving it. Source-code comments that cite
-  `CLAUDE.md` section numbers were not edited (out of scope) and resolve through the same index.
+- **Old numbering outside the contracts.** The contracts now use direct links. History documents
+  keep their original section citations (they are records), and source-code comments that cite
+  `CLAUDE.md` section numbers were not edited (out of scope); both resolve through the
+  compatibility index in `CLAUDE.md` §8.
 - **A stale pointer that predates this restructure.** `graph_hidden_placement.py` cites
   `graph_rl_project_handoff.md, "Route prediction"`; no such heading existed at the base either.
   The matching text is the closed decision "Route prediction is required and supports
   `num_agents < n_known`" (`decisions.md` §2).
-- **Test coverage.** No test pins the `generalized.cardinality_sampler` summary label.
+- **Test coverage (scoped search, not an exhaustive audit).** A search of `tests/` found no
+  assertion on a `generalized_v2` run's `generalized.cardinality_sampler` summary label (the V1
+  label is asserted), no test exercising BLADE's skipped aircraft visit, no test invoking
+  `graph_benchmark_preflight.main`, and no test reading the rollout parser's
+  `--match-aou-backend`.
 - **This PR's number** is not written into the handoff table, to avoid a self-referential
   update cycle; resolve it on GitHub from the branch name.
 
@@ -267,54 +273,70 @@ Each gap is scoped to what the repository and the accessible GitHub state can sh
 every task — **1,216,122 bytes** before any task-specific reading. `README.md` was 22,808 bytes and
 the BLADE doc 25,322 bytes.
 
-**After** (this candidate):
+**After** (this candidate; section byte counts include each file's header note):
 
 | File | Bytes |
 |---|---:|
-| `CLAUDE.md` | 24,381 |
-| `graph_rl_project_handoff.md` | 9,439 |
-| `README.md` | 25,402 |
+| `CLAUDE.md` | 28,131 |
+| `graph_rl_project_handoff.md` | 10,152 |
+| `README.md` | 26,832 |
 | `docs/BLADE_API_DOCUMENTATION.md` | 26,902 |
-| `docs/workflows/cc_review.md` | 7,255 |
-| `docs/workflows/experiments.md` | 11,275 |
-| `docs/workflows/environments_cleanup.md` | 16,968 |
-| `docs/contracts/runtime.md` | 49,627 |
-| `docs/contracts/construction_fuel_damage.md` | 58,855 |
-| `docs/contracts/policy_ctde.md` | 27,517 |
-| `docs/contracts/reward_solvers.md` | 51,345 |
-| `docs/contracts/training_benchmarks.md` | 152,859 |
-| `docs/contracts/artifacts_metrics.md` | 50,201 |
+| `docs/workflows/cc_review.md` | 9,150 |
+| `docs/workflows/experiments.md` | 13,777 |
+| `docs/workflows/environments_cleanup.md` | 17,633 |
+| `docs/contracts/runtime.md` | 47,878 |
+| `docs/contracts/construction_fuel_damage.md` | 54,514 |
+| `docs/contracts/policy_ctde.md` | 24,422 |
+| `docs/contracts/reward_solvers.md` | 45,315 |
+| `docs/contracts/training_benchmarks.md` | 129,887 |
+| `docs/contracts/artifacts_metrics.md` | 43,459 |
 | `docs/history/implementation.md` | 159,551 |
-| `docs/history/measurements.md` | 112,087 |
+| `docs/history/measurements.md` | 112,450 |
 | `docs/history/decisions.md` | 134,078 |
 
-The mandatory core is now **33,820 bytes** (`CLAUDE.md` plus the handoff).
+The mandatory core is **38,283 bytes** (`CLAUDE.md` plus the handoff).
 
-| Reading route | Documents | Bytes |
+Reading routes follow `CLAUDE.md` §6 at **section** level; a contract is not read whole unless
+the task spans it.
+
+| Reading route | Sections | Bytes |
 |---|---|---:|
-| Focused implementation (for example an executor change) | core + `cc_review.md` + `runtime.md` | 90,702 |
-| Experiment planning | core + `experiments.md` + `training_benchmarks.md` + `artifacts_metrics.md` + `environments_cleanup.md` | 265,123 |
-| Run review | core + `experiments.md` + `artifacts_metrics.md` (+ the one relevant record in `measurements.md`) | 95,296 (+ record) |
-| Evidence preservation | core + `experiments.md` + `environments_cleanup.md` | 62,063 |
-| Routine cleanup | core + `environments_cleanup.md` + `cc_review.md` | 58,043 |
+| Small executor edit (for example the confirmation wait) | core; `cc_review.md` §2–§5; `runtime.md` §3, §6, §7 (add §1 only if per-tick ordering changes) | 62,057 |
+| GENERALIZED-V2 development-run review | core; `experiments.md` §4; `artifacts_metrics.md` §4–§6; `training_benchmarks.md` §9; `measurements.md` §1 and §7 | 96,781 |
+| GENERALIZED-V2 run planning | core; `experiments.md` §2, §3, §5; `training_benchmarks.md` §6, §8, §9; `artifacts_metrics.md` §4–§5; `environments_cleanup.md` §1–§3 | 142,561 |
+| Evidence preservation | core; `experiments.md` §5; `environments_cleanup.md` §4 | 46,928 |
+| Routine cleanup | core; `environments_cleanup.md` §4; `cc_review.md` §6 | 46,090 |
 
 Across the four pre-existing documents the base held 1,264,252 bytes; the sixteen files above
-hold 917,742 bytes, and this record adds its own size on top. The reduction comes from
-consolidated duplicates, whose wording stays readable at the base; no unique fact was dropped.
+hold 884,131 bytes, and this record adds its own size on top. The reduction comes from
+consolidated duplicates and removed supersession notes, whose wording stays readable at the base
+and in `docs/history/`; no current requirement was dropped.
 
 ## 6. Checks performed
 
+Checks on the reviewed candidate `d55b77f` (unchanged claims):
+
 - Coverage: no base line copied twice; the non-blank `CLAUDE.md` lines not copied are exactly the
   title and section headings, the file-map header row (4029–4030), the rewritten lines 3–8 and
-  170–177, and the consolidated phase-state bullets within 6623–7121, all accounted for in §1.1.
+  170–177, the relocated CTDE note 179–196, and the consolidated phase-state bullets within
+  6623–7121, all accounted for in §1.1.
+
+Checks on this review-fix candidate:
+
 - Internal links and GitHub-style anchors across `CLAUDE.md`, `README.md`, the handoff and every
-  file under `docs/` resolve.
-- Every symbol named in §2 exists at the base.
-- A search of the normative documents for stale current-state wording (mounted-main transport,
-  one-commit rule, sole-writable claims, "no long baseline", "no V2 training run") finds only
-  explicitly historical mentions.
-- `git diff --check` is clean, and the diff against the base touches only the declared Markdown
-  files.
+  file under `docs/` resolve (scripted check).
+- Every file path in the contracts' code-routing tables exists, and every identifier named there
+  occurs in `src/match_aou` (scripted check).
+- **Test bodies read**, not only names: every test cited in §2, plus the tests found by scoped
+  searches for evaluation actor-only behaviour, design defaults, early-stopping refusal, backend
+  fallback, V2 profiles, rollout flags, the outcome stream and the optional figure. §2 states what
+  each body checks; §4 lists what the searches did not find.
+- A search of the contracts, workflows, `CLAUDE.md` and the handoff for `SUPERSEDED`,
+  "MUST BE READ IN", "RESULT PENDING", "NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS",
+  "Every approved measurement", "TWO valid scientific baselines" and the former-numbering reading
+  rule finds none. This is a pattern search, not a proof that no stale sentence remains;
+  PR-scoped statements that name their PR are intentional.
+- `git diff --check` is clean, and the diff against the base touches only Markdown files.
 
 ## 7. PR #63 review-fix ledger
 
@@ -325,8 +347,8 @@ candidate, and every later rewrite of moved text is listed here.
 
 | Finding | Pass | Status | Files |
 |---|---|---|---|
-| F1 — live procedures aligned with the approved working model (authorized bounded plans, task-specific returns, optional grade shorthand, risk-based verification, guidance vs untrusted data, one writable owner, no direct push to `main`, context reuse) | 1 | done | `CLAUDE.md` §1; `cc_review.md`; handoff §4, §6 |
-| F2 — general, consistent experiment and preservation procedure (originals protected but copies allowed, inspectable configuration, scoped evidence example, scoped shared-manifest rule, reuse-by-default, executed vs reviewed, design-specific review order, historical gate as dated note, development vs confirmatory, scoped engineering facts) | 1 | done | `experiments.md`; `environments_cleanup.md` §4.4; handoff §4 |
-| F3 — current contracts separated from history; direct links; section-level reading routes; condensed code routing | 2 | pending | contracts; `CLAUDE.md` §5–§6 |
-| F4 — provenance and timing corrections (manifest separated from run packages, preflight producer SHA unverified, recorded run directories, README reference timing, verdict-record wording) | 1 (handoff, registry), 3 (README, history) | partial | handoff; `environments_cleanup.md`; `README.md`; `measurements.md` |
-| F5 — verification record corrected against test bodies | 4 | pending | this record §0, §2, §6 |
+| F1 — live procedures aligned with the approved working model (authorized bounded plans, task-specific returns, optional grade shorthand, risk-based verification, guidance vs untrusted data, one writable owner, no direct push to `main`, context reuse) | 1 | done | `cc_review.md`; `CLAUDE.md` §1; handoff §6 |
+| F2 — general, consistent experiment and preservation procedure (originals protected but copies allowed, inspectable resolved configuration, scoped evidence example and shared-manifest rule, reuse by default, executed vs reviewed, design-specific review order, dated four-clause note, development vs confirmatory) | 1 | done | `experiments.md`; `environments_cleanup.md` §4; handoff §4 |
+| F3 — contracts current and version-scoped: blanket "does not exist" header rule replaced by a current-status note in all six contracts; supersession parentheticals removed; stale current-state sentences replaced with dated notes or handoff pointers ("NO GENERALIZED SCIENTIFIC MEASUREMENT RESULT EXISTS", "Every approved measurement…", "MUST BE READ IN §8", "is NOT selected by either harness"); bare former `§N` citations replaced with direct links; code routing condensed to task / files and symbols / contract; `CLAUDE.md` §6 made section-level with conditional dependencies; concrete routes in §5 | 2 | done | six contracts; `CLAUDE.md` §2, §6; this record §5 |
+| F4 — provenance and timing: manifest separated from the run packages; preflight producer SHA recorded as unverified; run directories from `train_config.output_dir`; README reference timing; verdict-record wording | 1 (handoff, registry), 3 (README, history) | done | handoff §4; `environments_cleanup.md` §4.4; `measurements.md` §1, §7; `README.md` §2 |
+| F5 — verification record: §0 corrected; §1.1 states that `CLAUDE.md` §2's built-layer paragraph was rewritten and its CTDE note relocated; §2 rows cite tests by what their bodies check, with gaps named; §4 test gap scoped (and corrected — the V1 summary label *is* asserted); §6 checks restated after F3 | 4 | done | this record §0, §1.1, §1.3, §2, §4, §6 |
