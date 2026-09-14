@@ -21,13 +21,22 @@
 
 `setup_episode` has TWO explicit paths, selected by whether the
 `(n_hidden, placement_rng)` PAIR was supplied — never inferred from `partial_ratio`.
-Both end at the same `EpisodeContext` and both solve TWICE, independently.
+Both end at the same `EpisodeContext`, and every episode has the same two independent solve
+roles: the allocation (`A_init`) and the reference. **Where solve #2 runs depends on the
+reward-reference policy.** Under the default `static_t0_v1` both solves run in setup, as
+drawn below. Under the opt-in `event_conditioned_continuation_v1` setup performs only the
+allocation solve, and `_t0_reference_or_deferred` defers the reference solve to
+`run_episode`: a clean episode's t=0 reference before the first tick, a damaged episode's
+continuation reference at the event checkpoint, or — if a damaged episode's event never
+fires — a t=0 reference at the episode-exit seam. The opt-in policy MOVES solve #2; it
+never adds a third solve.
 
 ```
 LEGACY SPLIT PATH  (both omitted — unchanged, still the default signature)
 scenario_generator (clustered targets, per-zone discovery connectivity at DETECTION_KM)
   → setup_episode: env.reset → extract (agents, tasks) → split_tasks (partial ⊊ full)
                    → solve_and_normalize ×2 (partial→A_init/belief_tasks; full→oracle)
+                     # full→oracle: static_t0_v1 only; deferred to run_episode otherwise
                    → N independent Beliefs → one GraphPlanExecutor → EpisodeContext
 
 CONSTRUCTION PATH  (both supplied — what training and rollout use)
@@ -39,6 +48,7 @@ scenario_generator (KNOWN-ONLY world: n_known targets, Layer 1 OFF, geometry STR
                    → CLOSE env-1
                    → env-2.reset on the patched JSON → RE-EXTRACT agents + all tasks
                    → solve_and_normalize (ALL env-2 targets → oracle)
+                     # static_t0_v1 only; deferred to run_episode otherwise
                    → N independent Beliefs + one GraphPlanExecutor, built from
                      ENV-2 OBJECTS ONLY → EpisodeContext
                    # split_tasks is NOT called; discovery is guaranteed by geometry
