@@ -277,38 +277,38 @@ the BLADE doc 25,322 bytes.
 
 | File | Bytes |
 |---|---:|
-| `CLAUDE.md` | 28,131 |
-| `graph_rl_project_handoff.md` | 10,152 |
-| `README.md` | 26,924 |
-| `docs/BLADE_API_DOCUMENTATION.md` | 26,902 |
+| `CLAUDE.md` | 28,660 |
+| `graph_rl_project_handoff.md` | 10,677 |
+| `README.md` | 27,281 |
+| `docs/BLADE_API_DOCUMENTATION.md` | 27,160 |
 | `docs/workflows/cc_review.md` | 9,459 |
 | `docs/workflows/experiments.md` | 14,022 |
-| `docs/workflows/environments_cleanup.md` | 17,633 |
-| `docs/contracts/runtime.md` | 47,878 |
-| `docs/contracts/construction_fuel_damage.md` | 54,514 |
-| `docs/contracts/policy_ctde.md` | 24,422 |
-| `docs/contracts/reward_solvers.md` | 45,753 |
+| `docs/workflows/environments_cleanup.md` | 18,004 |
+| `docs/contracts/runtime.md` | 48,705 |
+| `docs/contracts/construction_fuel_damage.md` | 55,169 |
+| `docs/contracts/policy_ctde.md` | 24,853 |
+| `docs/contracts/reward_solvers.md` | 46,122 |
 | `docs/contracts/training_benchmarks.md` | 131,064 |
 | `docs/contracts/artifacts_metrics.md` | 43,459 |
 | `docs/history/implementation.md` | 159,551 |
 | `docs/history/measurements.md` | 112,450 |
 | `docs/history/decisions.md` | 134,078 |
 
-The mandatory core is **38,283 bytes** (`CLAUDE.md` plus the handoff).
+The mandatory core is **39,337 bytes** (`CLAUDE.md` plus the handoff).
 
 Reading routes follow `CLAUDE.md` §6 at **section** level; a contract is not read whole unless
 the task spans it.
 
 | Reading route | Sections | Bytes |
 |---|---|---:|
-| Small executor edit (for example the confirmation wait) | core; `cc_review.md` §2–§5; `runtime.md` §3, §6, §7 (add §1 only if per-tick ordering changes) | 62,366 |
-| GENERALIZED-V2 development-run review | core; `experiments.md` §4; `artifacts_metrics.md` §4–§6; `training_benchmarks.md` §9; `measurements.md` §1 and §7 | 96,781 |
-| GENERALIZED-V2 run planning | core; `experiments.md` §2, §3, §5; `training_benchmarks.md` §6, §8, §9; `artifacts_metrics.md` §4–§5; `environments_cleanup.md` §1–§3 | 142,561 |
-| Evidence preservation | core; `experiments.md` §5; `environments_cleanup.md` §4 | 46,928 |
-| Routine cleanup | core; `environments_cleanup.md` §4; `cc_review.md` §6 | 46,090 |
+| Small executor edit (for example the confirmation wait) | core; `cc_review.md` §2–§5; `runtime.md` §3, §6, §7 (add §1 only if per-tick ordering changes) | 63,420 |
+| GENERALIZED-V2 development-run review | core; `experiments.md` §4; `artifacts_metrics.md` §4–§6; `training_benchmarks.md` §9; `measurements.md` §1 and §7 | 97,835 |
+| GENERALIZED-V2 run planning | core; `experiments.md` §2, §3, §5; `training_benchmarks.md` §6, §8, §9; `artifacts_metrics.md` §4–§5; `environments_cleanup.md` §1–§3 | 143,986 |
+| Evidence preservation | core; `experiments.md` §5; `environments_cleanup.md` §4 | 47,982 |
+| Routine cleanup | core; `environments_cleanup.md` §4; `cc_review.md` §6 | 47,144 |
 
 Across the four pre-existing documents the base held 1,264,252 bytes; the sixteen files above
-hold 886,392 bytes, and this record adds its own size on top. The reduction comes from
+hold 890,714 bytes, and this record adds its own size on top. The reduction comes from
 consolidated duplicates and removed supersession notes, whose wording stays readable at the base
 and in `docs/history/`; no current requirement was dropped.
 
@@ -372,3 +372,76 @@ absent: this record's own quotations; `environments_cleanup.md` §1's "every app
 to date was taken on" the LOCAL context (outside this packet's scope, left for review); and the
 source comment in `graph_train.py` above `TRAINING_ATTEMPT_POLICY_SCHEDULED` (source is not edited
 in a documentation task). A pattern search is not a proof that no stale sentence remains.
+
+## 8. Semantic-content audit
+
+GPT's comprehensive semantic-content audit reviewed all 17 restructure Markdown files document
+by document at candidate `b9efe1f5fea43ba2a6aae2aefa53fb6c7018e929`, against base
+`ae42cb01677f94868b2873008d87be677e31f0c8`. It found S1–S9, fixed here by appended commits on the
+same branch and PR. The previous scoped approval (organization and earlier review fixes) stands
+for its scope; it was not a verification of every migrated claim.
+
+| Fix | Claim corrected | Evidence anchors | Files |
+|---|---|---|---|
+| S1 | "decision/effect/trigger layers are PURE (no BLADE, no torch)" was layer-wide; now scoped to the trigger / effect / placement / fuel-damage helpers' own code, with `graph_action` named as PyTorch | `graph_action.py` (`ActionHead`, `sample_action`, `evaluate_action`, `_masked_dist`); imports of `graph_effect.py`, `graph_trigger.py`, `graph_hidden_placement.py`, `graph_fuel_damage.py` | `CLAUDE.md` §3 |
+| S2 | "both solve TWICE" in setup; now: two solve roles, both in setup under `static_t0_v1`, reference deferred to `run_episode` under the event-conditioned policy, no third solve; the two diagram reference lines annotated | `graph_episode_setup._t0_reference_or_deferred`; `graph_tick_loop.run_episode`; `test_po1_setup_solves_the_t0_reference_only_under_the_historical_policy`, `test_po1_clean_event_conditioned_costs_exactly_one_loop_solve_at_t0`, `test_po1_damaged_event_conditioned_costs_exactly_one_loop_solve_at_the_event`, `test_po1_a_refused_event_manufactures_no_reference_solve` | `runtime.md` §1 |
+| S3 | unqualified `R∈[-1,~0]`; now the range of the unpenalized ratio, with `c > 0` able to go below `-1` | `RewardConfig` (default `0.0`); `_static_t0_breakdown` / `_event_conditioned_breakdown` (`ratio - penalty`, not clamped); `TrainConfig.reward_config()` / `RolloutConfig.reward_config()` (`2.25`); `construction_fuel_damage.md` §2 | `reward_solvers.md` §1 |
+| S4 | two "burns EVERY tick" statements; now per engine visit, route-less visits included, with the absolute outer tick diagnostic; certificate construction and the one-quantum tolerance unchanged | frozen `Game.update_all_aircraft_position`; `FuelDamageController._require_certificate_holds`; `test_g1_11b_the_absolute_outer_tick_is_diagnostic_never_binding`; PR #55 final candidate `d36e1338aaac0d55dd081b788a3e8bbcaa310b53` | `construction_fuel_damage.md` §2, §4 |
+| S5 | §4 "per tick for every airborne aircraft"; now once per visited aircraft, with the §13 skipped-visit caveat | frozen `Game.update_all_aircraft_position`; this document's §13 | `BLADE_API_DOCUMENTATION.md` §4 |
+| S6 | "ASSIGNMENT is the only constructed relation … PRECEDENCE deferred"; now builder capability (optional PRECEDENCE) versus current runtime (actor call sites pass `precedence_relations=[]`, so ASSIGNMENT only), SPATIAL reserved in the actor graph, central SPATIAL training-only | `graph_builder.build_graph_observation`; `graph_tick_loop` actor build call sites; `central_graph_builder.CENTRAL_EDGE_TYPE` | `policy_ctde.md` §1 |
+| S7 | "`test_import_purity.py` enforces that boundary"; the test checks only that graph entry modules load no `DENY_MODULES` flat-path module | `tests/test_import_purity.py` body | `README.md` §5 |
+| S8 | "every approved measurement to date" was LOCAL, as a current universal; now dated to 2026-08-31, with later measurements read from their own evidence | `measurements.md` §6.2 (fresh P1: measured SHA only); PR #61 / #62 `run_config.json` (Windows, `nlp_env` interpreter); `environments_cleanup.md` §3 | `environments_cleanup.md` §1 |
+| S9 | handoff "UNREVIEWED"; now the scoped prior approval (a chat verdict, no GitHub review record), its limit, and this audit's fixes | orchestrator verdict at `b9efe1f5…` as transferred by the user | handoff §2, §3 |
+
+**Additional issue found while applying S1 and S7.** The README said the four pure modules
+"import no PyTorch". A fresh-interpreter import check (module imports only, under `nlp_env`)
+showed that `graph_effect` loads `torch` through its top-level `from .graph_action import
+MetaAction`. None of the four loads `blade`, and all four load `pyomo` through the root package,
+as `runtime.md` §7 already records. Both notes now say this.
+
+**Files with no semantic edit in this audit:** `docs/contracts/training_benchmarks.md`,
+`docs/contracts/artifacts_metrics.md`, `docs/workflows/cc_review.md`,
+`docs/workflows/experiments.md`, `docs/history/implementation.md`,
+`docs/history/measurements.md` and `docs/history/decisions.md`. This record changes only for
+bookkeeping (§5 sizes and this section).
+
+**What kind of evidence each fix rests on:**
+- *Contract verification:* S2, S3 and S6 were checked against the contract text they sit in.
+- *Code behaviour:* every fix was read against the named function bodies.
+- *Test evidence:* the S2 and S4 test bodies, and the S7 test body.
+- *Run and evidence provenance:* S8 relies on the evidence refs' `run_config.json` and on the
+  absence of provenance in the fresh-P1 record.
+- *Historical claims:* S8 and S9 are dated or attributed, not asserted as current fact.
+
+**What this audit did not establish.** Historical numeric measurements were not revalidated where
+their raw artifacts are not preserved or accessibly identified; they are cited as recorded. The
+known V2 gaps remain open:
+- the external benchmark manifest is neither committed nor inspected;
+- the preflight producer SHA is unverified;
+- no repository record of the research authorization exists;
+- the actor-only V2 verdict is inaccessible, and the CTDE verdict is attributed only to PR #62's
+  own package text.
+
+**Residual inline-documentation debt, outside this authorization (recorded, not edited).** These
+are stale comments and docstrings, not behaviour findings, and they are not current evidence:
+- `graph_fuel_damage.py` (module docstring and the projection comments) and
+  `test_graph_fuel_damage.py` still say fuel burns "every tick". The live certified check
+  correctly treats the outer tick as diagnostic.
+- `graph_train.py` keeps PR-#57-era comments saying `generalized_v2` "has no benchmark", while
+  the post-PR-#59 code implements the V2 benchmark.
+- Broad "every approved measurement …" phrases remain in `match_aou_backend.py`,
+  `match_aou_p1_milp_solver.py`, `graph_episode_setup.py`, `graph_hidden_placement.py`,
+  `graph_reward.py`, `graph_train.py` and `test_graph_reference_continuation.py`. Later P1 and
+  generalized measurements make them stale.
+
+**Checks for this pass:**
+- Internal links and anchors resolve (320, scripted).
+- `git diff --check` is clean, and the new commits touch only the ten authorized Markdown files.
+- The cumulative PR against the base is still Markdown-only.
+- A case-insensitive, whitespace-normalized search targeted each corrected claim. Remaining hits
+  are intentional:
+  - function-level purity notes for `apply_meta_action` and `decide_triggers` (correct: those
+    functions use neither BLADE nor torch);
+  - `runtime.md` §7's already-correct description of `test_import_purity.py`;
+  - `construction_fuel_damage.md` §2's already-correct `~[-1, 0]` caveat;
+  - "every tick including route-less" and "UNREVIEWED" in dated history records.
