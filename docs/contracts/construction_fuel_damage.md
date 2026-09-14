@@ -179,8 +179,11 @@ that baseline instead of extending it.
   RE-MEASURES it through the same `measure_window` site from the aircraft's ACTUAL
   position and validates against its ACTUAL fuel immediately before mutating. The
   projection is optimistic by construction: it charges fuel for distance FLOWN, while
-  `Game.update_all_aircraft_position` burns `fuel_rate / 3600` on EVERY tick including
-  route-less ones (the launch tick is exactly that).
+  `Game.update_all_aircraft_position` burns `fuel_rate / 3600` on EVERY engine visit to an
+  airborne aircraft, route-less visits included (the launch tick is exactly that). The frozen
+  engine does not guarantee one visit per aircraft per outer tick — its loop removes entries
+  from the live list it iterates, so a following aircraft can be skipped for a whole update
+  ([§4](#4-certified-fd-eligibility-live-certificate-check-and-post-fd-boundaries)).
 - **Failure policy.** A failed LIVE strict-window check raises BEFORE the mutation, so a
   refused event leaves the engine untouched, and the attempt is accounted as a `run`-stage
   failure. A planning failure (no eligible ego, no valid window) raises at `setup` and is
@@ -406,8 +409,11 @@ no episode converted to clean.
 - **THE EVENT PREDICTION IS TICK-AWARE, FROM THE FROZEN ENGINE'S OWN ONE-SECOND MODEL.**
   `engine_leg_distance_km` transcribes `get_next_coordinates` (floor and all),
   `predict_leg_states` walks the leg, and `fuel_before` is `launch - tick · fuel_rate/3600`
-  because the engine burns that EVERY airborne tick including route-less ones. **No reserve
-  is invented.** The ONE derived allowance is `CERTIFICATE_TICK_TOLERANCE = 1` — the
+  in the certificate's own projected step coordinate, because the engine burns that on each
+  engine visit to an airborne aircraft, route-less visits included. That coordinate follows
+  the frozen one-second, per-visit model; it is **not** a promise about the absolute outer
+  runtime tick, which can run ahead of it when live visits are skipped, so the live check
+  treats the outer tick as diagnostic (below). **No reserve is invented.** The ONE derived allowance is `CERTIFICATE_TICK_TOLERANCE = 1` — the
   engine's own observation quantum, deliberately NOT a free parameter (raising it would
   certify states the engine cannot produce) — and the certificate is validated across that
   whole `bracket_ticks` bracket, not at the nominal tick alone. **THAT QUANTUM IS ALSO WHAT

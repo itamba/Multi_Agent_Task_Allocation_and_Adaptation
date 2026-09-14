@@ -241,8 +241,11 @@ game.facility_auto_defense() -> None
 game.ship_auto_defense() -> None
 ```
 
-`update_all_aircraft_position` burns `fuel_rate / 3600` per tick for **every** airborne
-aircraft, including one with no route.
+`update_all_aircraft_position` burns `fuel_rate / 3600` once for each airborne aircraft its
+live loop actually **visits**, including a visited aircraft with no route. An airborne aircraft
+is **not** guaranteed a visit every outer tick: the loop removes entries from the list it is
+iterating, so the aircraft after a removed one can be skipped for that update
+([§13](#13-gotchas)).
 
 ### Reference points
 
