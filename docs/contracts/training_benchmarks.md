@@ -27,12 +27,25 @@ objectives/hyperparameters/checkpoint payload, reward and oracle normalization, 
 solver, construction/geometry/exact cardinality, the seed formulas and the fixed
 held-out band are all exactly as B1–B3 left them.
 
-- **Exact-cardinality policy = `skip_and_account_v1`.** Every scheduled train/eval seed
-  is attempted **at most once**; a failure is never retried, never replaced by another
-  seed, and never shifts a band. Failures never enter a PPO buffer or a reward
-  aggregate, and each is recorded exactly once. Attempts, successes, failures and
-  denominators stay explicit, so every reward statistic describes the SUCCESSFUL /
-  exact-cardinality-feasible subset — and says so (`aggregates_over`).
+**Scope.** The auditability requirements below (provenance, run artifacts, evaluation timing,
+classification, observability, integrity routing) are shared by every episode design. Two rules
+describe the preserved **`fixed_cell_v1`** path only and are marked as such: no replacement of a
+failed training seed, and evaluation on the fixed held-out seed band. Generalized training
+instead fills a successful-episode quota by deterministic replacement
+(`successful_quota_with_deterministic_replacement_v1`, selected by
+`TrainConfig.training_attempt_policy` —
+[§6](#6-training-quota-and-benchmark-preflight)), and generalized evaluation runs on a frozen
+benchmark manifest ([§5](#5-episode-designs-generalized-v1-sampler-and-18-stratum-benchmark) for
+GENERALIZED-V1, [§9](#9-generalized-v2-benchmark-and-evaluation) for GENERALIZED-V2).
+
+- **Exact-cardinality policy = `skip_and_account_v1`.** Under every design a failed attempt is
+  never retried at its seed, never enters a PPO buffer or a reward aggregate, and is recorded
+  exactly once. Attempts, successes, failures and denominators stay explicit, so every reward
+  statistic describes the SUCCESSFUL / exact-cardinality-feasible subset — and says so
+  (`aggregates_over`). **`fixed_cell_v1` only:** every scheduled train/eval seed is attempted
+  **at most once**, a failure is never replaced by another seed, and it never shifts a band
+  (`scheduled_attempts_v1`); a generalized training failure spends its seed and is replaced by
+  the next deterministic attempt ordinal (§6).
 - **Git provenance is a training PRECONDITION.** `collect_provenance` runs before the
   run creates ANY artifact (not merely before the engine/policy/solver) — `output_dir`
   may sit inside the repo and its own untracked files would otherwise read as dirty
@@ -82,7 +95,8 @@ held-out band are all exactly as B1–B3 left them.
   see [§2](#2-roster-and-world-truth-integrity).)*
 - **Per-round eval scenario preservation (PR #7).** `eval_episode_tag` gives every eval
   round a deterministic, disjoint file-tag namespace. Tags affect artifact names only:
-  every round still evaluates the same fixed held-out seed band. `TrainConfig.validate`
+  every round still evaluates the same population — on `fixed_cell_v1` the same fixed held-out
+  seed band, on a generalized design the same frozen benchmark manifest (§5, §9). `TrainConfig.validate`
   rejects tag ranges that could collide, so pre- and post-update scenario JSONs coexist.
 
 The opt-in visual-artifact bullet of this block is contracted in

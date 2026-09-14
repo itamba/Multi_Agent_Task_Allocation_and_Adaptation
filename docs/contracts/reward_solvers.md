@@ -17,7 +17,7 @@
 ## 1. Terminal reward (Stage 7)
 
 **Reward (Stage 7) — `rl/training/graph_reward.py`.**
-`compute_episode_reward(ctx, result, cfg=RewardConfig()) -> EpisodeReward`. **Terminal, utility-based** (v1): `R = (U_achieved − c·U_aircraft·n_lost − U_oracle)/(|U_oracle| + eps_regret)`, placed on the last wake's `Transition` (others `0.0`; empty trajectory ⇒ nothing attached). `U_oracle = plan_value(ctx.oracle_solution, ctx.oracle_tasks)` — **bit-faithful to `MatchAou._add_objective`** (reuses the solver `EPSILON`; the `y[j]` factor is provably redundant given the y/x constraints; proven under bonmin in `_selftest` T1). `U_achieved = realized_utility(ctx.oracle_tasks, ctx.executor.done)` — full utility IFF all a task's targets are confirmed-killed, **deduped over ego**. `c = aircraft_penalty_coeff` — this module's own default is **0.0**, but BOTH harnesses now pass an explicit `RewardConfig(aircraft_penalty_coeff=2.25)` (FD-BASELINE-v1, below); the FORMULA is unchanged. `n_lost = len(ctx.executor.dead)`; `eps_regret=1e-5` is a division guard (distinct from solver EPSILON). **No-comms:** a centralized/privileged TRAINING signal — MAY read global state, but MUTATES ONLY `Transition.reward` (proven byte-unchanged on real objects in T7). **KNOWN v1 assumption `probability=1.0`** (expected `U_oracle` vs realized `U_achieved` coincide only at p=1; `R∈[-1,~0]`; revisit at p<1). **THIS PARAGRAPH DESCRIBES THE DEFAULT `static_t0_v1` REFERENCE POLICY, WHICH IS UNCHANGED AND IS THE PATH EVERY APPROVED MEASUREMENT WAS TAKEN ON** (`737b4bf`, `bf1e045f` — §7). Under the opt-in `event_conditioned_continuation_v1` policy the SAME function normalizes by `U_ref` instead and `EpisodeReward.u_oracle` is `None`; the formula above is untouched and is still what runs whenever `EpisodeResult.reference is None` (`_static_t0_breakdown`, lifted out byte-for-byte). See the GENERALIZED-V1 reward-reference contract below.
+`compute_episode_reward(ctx, result, cfg=RewardConfig()) -> EpisodeReward`. **Terminal, utility-based** (v1): `R = (U_achieved − c·U_aircraft·n_lost − U_oracle)/(|U_oracle| + eps_regret)`, placed on the last wake's `Transition` (others `0.0`; empty trajectory ⇒ nothing attached). `U_oracle = plan_value(ctx.oracle_solution, ctx.oracle_tasks)` — **bit-faithful to `MatchAou._add_objective`** (reuses the solver `EPSILON`; the `y[j]` factor is provably redundant given the y/x constraints; proven under bonmin in `_selftest` T1). `U_achieved = realized_utility(ctx.oracle_tasks, ctx.executor.done)` — full utility IFF all a task's targets are confirmed-killed, **deduped over ego**. `c = aircraft_penalty_coeff` — this module's own default is **0.0**, but BOTH harnesses now pass an explicit `RewardConfig(aircraft_penalty_coeff=2.25)` (FD-BASELINE-v1, below); the FORMULA is unchanged. `n_lost = len(ctx.executor.dead)`; `eps_regret=1e-5` is a division guard (distinct from solver EPSILON). **No-comms:** a centralized/privileged TRAINING signal — MAY read global state, but MUTATES ONLY `Transition.reward` (proven byte-unchanged on real objects in T7). **KNOWN v1 assumption `probability=1.0`** (expected `U_oracle` vs realized `U_achieved` coincide only at p=1; `R∈[-1,~0]`; revisit at p<1). **THIS PARAGRAPH DESCRIBES THE DEFAULT `static_t0_v1` REFERENCE POLICY, WHICH IS UNCHANGED.** It is the reference the two approved fixed-cell measurements were taken on (`737b4bf`, `bf1e045f` — see [measurement history](../history/measurements.md#2-measurement-records)); GENERALIZED measurements use the event-conditioned reference below and are not static-reference measurements. Under the opt-in `event_conditioned_continuation_v1` policy the SAME function normalizes by `U_ref` instead and `EpisodeReward.u_oracle` is `None`; the formula above is untouched and is still what runs whenever `EpisodeResult.reference is None` (`_static_t0_breakdown`, lifted out byte-for-byte). See the GENERALIZED-V1 reward-reference contract below.
 
 ## 2. Event-conditioned continuation reference
 
@@ -366,7 +366,7 @@ built on top of.
 
 | id | what it solves |
 |---|---|
-| `legacy_minlp_v1` (**DEFAULT**) | the FROZEN general MINLP `match_aou_MINLP_solver.MatchAou` through BONMIN — the historical objective, `EPSILON = 1e-6` and all (§2) |
+| `legacy_minlp_v1` (**DEFAULT**) | the FROZEN general MINLP `match_aou_MINLP_solver.MatchAou` through BONMIN — the historical objective, `EPSILON = 1e-6` and all ([`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion)) |
 | `p1_milp_v1` | the deterministic `p = 1` MILP `match_aou_p1_milp_solver.MatchAouP1MILP` through SciPy/HiGHS — exact covered utility, **no `EPSILON` anywhere in it** |
 
 `MATCH_AOU_BACKENDS` is the CLOSED set of exactly those two ids and
@@ -374,10 +374,12 @@ built on top of.
 validation site and `uses_p1_milp` the ONE predicate.
 
 **`legacy_minlp_v1` REMAINS THE HISTORICAL DEFAULT AND IS THE PRESERVED PATH.** A caller
-that says nothing gets the frozen `MatchAou` through BONMIN — the objective **every
-approved measurement was taken on** (`737b4bf`, `bf1e045f`, and the R1 generalized
-measurement at `4af6c5aa…` — see
-[measurement history](../history/measurements.md#2-measurement-records)). The keyword-OMISSION discipline `_artifact_kwargs` /
+that says nothing gets the frozen `MatchAou` through BONMIN — the objective the
+**named legacy-backend measurements** were taken on: the two approved fixed-cell measurements
+(`737b4bf`, `bf1e045f`) and GENERALIZED-V1 R1 (`4af6c5aa…`) — see
+[measurement history](../history/measurements.md#2-measurement-records). The fresh
+deterministic-P1 arm has its own record
+([measurement history §6](../history/measurements.md#6-the-p1-arms)). The keyword-OMISSION discipline `_artifact_kwargs` /
 `_ctde_kwargs` / `_cardinality_kwargs` / `_generalized_setup_kwargs` already use is applied
 here too: `graph_train._backend_setup_kwargs` and `graph_episode_setup._backend_kwargs`
 return `{}` on the historical backend, so a legacy run makes EXACTLY its pre-integration
