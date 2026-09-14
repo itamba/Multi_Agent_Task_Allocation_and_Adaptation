@@ -29,7 +29,7 @@
 
 | Item | State |
 |---|---|
-| Writable repository task | documentation restructure on branch `docs/project-guidance-restructure`, authorized by the user's documentation packet; one draft PR. **Scoped prior approval:** at candidate `b9efe1f5fea43ba2a6aae2aefa53fb6c7018e929` the GPT orchestrator accepted the restructure's organization and the earlier review fixes (a chat verdict; no GitHub review record) — that is **not** independent verification of every migrated technical or historical claim. A separate semantic-content audit of that candidate requested fixes S1–S9, appended to the same PR and awaiting exact-candidate review; no merge authorized |
+| Writable repository task | documentation restructure on branch `docs/project-guidance-restructure`, authorized by the user's documentation packet; one draft PR. **Scoped prior approval:** at candidate `b9efe1f5fea43ba2a6aae2aefa53fb6c7018e929` the GPT orchestrator accepted the restructure's organization and the earlier review fixes (a chat verdict; no GitHub review record) — that is **not** independent verification of every migrated technical or historical claim. The semantic-content audit of `b9efe1f5…` requested S1–S9, which were appended to the same PR. The current exact candidate and the latest GPT review verdict are resolved from GitHub and the orchestrator review record before integration; this snapshot does not self-record its own review verdict. No merge is authorized here |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Open evidence PRs | #61 and #62 — draft, evidence-only, **untouched by this task**; the user deferred decisions about them |
 | Implementation candidates | none open |
@@ -39,7 +39,7 @@
 
 | PR | Branch | Head | Status |
 |---|---|---|---|
-| documentation restructure | `docs/project-guidance-restructure` | resolve on GitHub | draft; scoped organization / review-fix approval at `b9efe1f5…`; semantic-audit fixes S1–S9 awaiting review |
+| documentation restructure | `docs/project-guidance-restructure` | resolve on GitHub | draft; scoped organization / review-fix approval at `b9efe1f5…` (chat verdict); semantic-audit fixes S1–S9 appended; resolve the current head and latest GPT verdict externally |
 | #61 | `evidence/generalized-v2-actor-only-dev-r1` | `1375a881637a9a32721a1630f598adc571422a47` | draft; body states `READY_FOR_REVIEW / UNREVIEWED`; no GitHub review or comment record |
 | #62 | `evidence/generalized-v2-ctde-dev-r1` | `b2bbe7a6235c3b9255106826cfb268af7e73f72d` | draft; body states `READY_FOR_REVIEW / UNREVIEWED`; no GitHub review or comment record |
 
@@ -81,7 +81,9 @@ stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-1. **GPT exact-candidate review** of the documentation restructure PR. No merge is authorized.
+1. **Documentation PR #63 integration:** before any merge, resolve the exact current head and
+   the latest GPT verdict. A merge requires explicit user authorization and an unchanged
+   approved head.
 2. **Decide the evidence PRs #61 and #62** (review, merge or retain). The user deferred this.
 3. **Recover the missing research decision** on the V2 development arms before any further V2
    scientific action: whether the actor-only arm was reviewed, what comparison conclusion (if

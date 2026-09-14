@@ -278,7 +278,7 @@ the BLADE doc 25,322 bytes.
 | File | Bytes |
 |---|---:|
 | `CLAUDE.md` | 28,660 |
-| `graph_rl_project_handoff.md` | 10,677 |
+| `graph_rl_project_handoff.md` | 11,021 |
 | `README.md` | 27,281 |
 | `docs/BLADE_API_DOCUMENTATION.md` | 27,160 |
 | `docs/workflows/cc_review.md` | 9,459 |
@@ -294,21 +294,21 @@ the BLADE doc 25,322 bytes.
 | `docs/history/measurements.md` | 112,450 |
 | `docs/history/decisions.md` | 134,078 |
 
-The mandatory core is **39,337 bytes** (`CLAUDE.md` plus the handoff).
+The mandatory core is **39,681 bytes** (`CLAUDE.md` plus the handoff).
 
 Reading routes follow `CLAUDE.md` §6 at **section** level; a contract is not read whole unless
 the task spans it.
 
 | Reading route | Sections | Bytes |
 |---|---|---:|
-| Small executor edit (for example the confirmation wait) | core; `cc_review.md` §2–§5; `runtime.md` §3, §6, §7 (add §1 only if per-tick ordering changes) | 63,420 |
-| GENERALIZED-V2 development-run review | core; `experiments.md` §4; `artifacts_metrics.md` §4–§6; `training_benchmarks.md` §9; `measurements.md` §1 and §7 | 97,835 |
-| GENERALIZED-V2 run planning | core; `experiments.md` §2, §3, §5; `training_benchmarks.md` §6, §8, §9; `artifacts_metrics.md` §4–§5; `environments_cleanup.md` §1–§3 | 143,986 |
-| Evidence preservation | core; `experiments.md` §5; `environments_cleanup.md` §4 | 47,982 |
-| Routine cleanup | core; `environments_cleanup.md` §4; `cc_review.md` §6 | 47,144 |
+| Small executor edit (for example the confirmation wait) | core; `cc_review.md` §2–§5; `runtime.md` §3, §6, §7 (add §1 only if per-tick ordering changes) | 63,764 |
+| GENERALIZED-V2 development-run review | core; `experiments.md` §4; `artifacts_metrics.md` §4–§6; `training_benchmarks.md` §9; `measurements.md` §1 and §7 | 98,179 |
+| GENERALIZED-V2 run planning | core; `experiments.md` §2, §3, §5; `training_benchmarks.md` §6, §8, §9; `artifacts_metrics.md` §4–§5; `environments_cleanup.md` §1–§3 | 144,330 |
+| Evidence preservation | core; `experiments.md` §5; `environments_cleanup.md` §4 | 48,326 |
+| Routine cleanup | core; `environments_cleanup.md` §4; `cc_review.md` §6 | 47,488 |
 
 Across the four pre-existing documents the base held 1,264,252 bytes; the sixteen files above
-hold 890,714 bytes, and this record adds its own size on top. The reduction comes from
+hold 891,058 bytes, and this record adds its own size on top. The reduction comes from
 consolidated duplicates and removed supersession notes, whose wording stays readable at the base
 and in `docs/history/`; no current requirement was dropped.
 
@@ -445,3 +445,10 @@ are stale comments and docstrings, not behaviour findings, and they are not curr
   - `runtime.md` §7's already-correct description of `test_import_purity.py`;
   - `construction_fuel_damage.md` §2's already-correct `~[-1, 0]` caveat;
   - "every tick including route-less" and "UNREVIEWED" in dated history records.
+
+**Review-state convention (continuity fix R4, after review of the S1–S9 candidate).** A
+candidate does not record its own exact-candidate verdict as current truth, because issuing the
+verdict would make that text stale at once. The handoff therefore records only durable facts:
+the scoped chat approval at `b9efe1f5…`, the S1–S9 audit request, and that the fixes were
+appended. Integration resolves the exact GitHub head and the latest orchestrator verdict. Only
+the handoff (§2, §3, §5 item 1) and the §5 sizes above changed.
