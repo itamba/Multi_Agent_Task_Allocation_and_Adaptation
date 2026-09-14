@@ -156,9 +156,9 @@ it is **not** a prerequisite for closing this environment record.
 
 **WHAT STILL DOES NOT EXIST ON THE CLUSTER.** **No scientific `sbatch` script, no job array,
 no launcher, no queue/partition/walltime decision and no monitoring runbook** — none is
-written, designed, reviewed or authorized, and **none may be invented from this record.** The
-dispatched actor-only R1 is unaffected: it remains the LOCAL run it was dispatched as, still
-`AUTHORIZED / DISPATCHED — RESULT PENDING` and still UNREVIEWED.
+written, designed, reviewed or authorized, and **none may be invented from this record.**
+*(Dated note: on 2026-08-31 the actor-only GENERALIZED-V1 R1 was a LOCAL run awaiting its result;
+it has since been reviewed — see [`measurements.md`](../history/measurements.md#1-run-registry).)*
 
 ## 4. Authorized cleanup
 

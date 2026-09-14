@@ -111,7 +111,8 @@ MATTERS HERE, AND NOTHING WIDER IS CLAIMED:** an airborne ego is NOT guaranteed 
 position/burn update per outer tick, so the outer tick count is not a physical promise the
 engine makes, and an ego whose peers land can be physically EARLIER than the tick count
 implies. **PR #55 DELIBERATELY DID NOT MODIFY BLADE** — it changed only which quantities
-the certified-FD LIVE integrity check binds (§5). Recording this authorizes no engine fix,
+the certified-FD LIVE integrity check binds
+([`construction_fuel_damage.md` §4](docs/contracts/construction_fuel_damage.md#4-certified-fd-eligibility-live-certificate-check-and-post-fd-boundaries)). Recording this authorizes no engine fix,
 no re-entrant-safe iteration, no copy-before-iterate and no other edit to the frozen files;
 the FROZEN contract above is unchanged.
 
@@ -202,24 +203,29 @@ and its **known limitations and open items**.
 
 ## 6. Task-triggered reading
 
-Always read this file and the handoff. Then read only what the task triggers:
+Always read this file and the handoff. Then read only the **sections** the task triggers — a
+contract is not read whole unless the task spans it. Reuse sections already verified in the
+same task instead of rereading them. Worked routes with sizes are in
+[`documentation_migration.md` §5](docs/documentation_migration.md#5-sizes-and-reading-routes).
 
-| When the task… | Also read |
-|---|---|
-| changes code, tests or configs in any way | [`cc_review.md`](docs/workflows/cc_review.md) and the contract(s) for the layers touched (§5) |
-| touches setup, construction, the executor, triggers, the tick loop or recording | [`runtime.md`](docs/contracts/runtime.md) |
-| touches hidden placement, fuel damage, certification or post-FD wakes | [`construction_fuel_damage.md`](docs/contracts/construction_fuel_damage.md) |
-| touches the observation, encoder, actions, plan effects or CTDE | [`policy_ctde.md`](docs/contracts/policy_ctde.md) |
-| touches reward, reference policies, solvers or backends | [`reward_solvers.md`](docs/contracts/reward_solvers.md) |
-| touches the trainer, run integrity, presets, episode designs, quotas, early stopping, benchmarks or preflight | [`training_benchmarks.md`](docs/contracts/training_benchmarks.md) |
-| touches what a run writes, summarizes or plots | [`artifacts_metrics.md`](docs/contracts/artifacts_metrics.md) |
-| plans, authorizes or configures a scientific run | [`experiments.md` §1–§2](docs/workflows/experiments.md) plus the training and artifacts contracts |
-| reviews a completed run or cites a measurement | [`experiments.md` §4](docs/workflows/experiments.md#4-run-review--validity-before-performance), [`artifacts_metrics.md` §6](docs/contracts/artifacts_metrics.md#6-reading-preserved-artifacts), [`measurements.md`](docs/history/measurements.md) |
-| preserves run evidence | [`experiments.md` §4](docs/workflows/experiments.md#4-evidence-preservation) and [`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup) |
-| sets up or uses an environment, the cluster or a solver | [`environments_cleanup.md` §1–§3](docs/workflows/environments_cleanup.md#1-execution-contexts) |
-| retires branches, worktrees or other refs | [`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup) |
-| uses BLADE APIs | [`BLADE_API_DOCUMENTATION.md`](docs/BLADE_API_DOCUMENTATION.md) |
-| asks why something was decided, or needs a past identity | [`docs/history/`](docs/history/) |
+| When the task… | Also read | …and, only if it also… |
+|---|---|---|
+| changes code, tests or configs in any way | [`cc_review.md` §2–§5](docs/workflows/cc_review.md#2-starting-a-task), then the §5 index row for each layer touched, plus that contract's code-routing and known-limitations sections | changes a documented contract: [`cc_review.md` §5](docs/workflows/cc_review.md#5-code-and-documentation-together) |
+| touches setup, the executor, triggers or the tick loop | the matching [`runtime.md`](docs/contracts/runtime.md) section (§2 setup, §3 execution, §4 triggers, §5 tick loop) | changes per-tick ordering: [`runtime.md` §1](docs/contracts/runtime.md#1-the-end-to-end-pipeline) |
+| touches hidden placement or fuel damage | the matching [`construction_fuel_damage.md`](docs/contracts/construction_fuel_damage.md#1-hidden-cardinality-policies) section (§1 placement, §2–§3 FD designs, §4 certification and post-FD wakes) | runs at the top of a tick: [`runtime.md` §1](docs/contracts/runtime.md#1-the-end-to-end-pipeline) |
+| touches the observation, encoder, actions or plan effects | [`policy_ctde.md` §1–§3](docs/contracts/policy_ctde.md#1-graph-observation-stage-3) and §3 of this file | touches the critic: [`policy_ctde.md` §4](docs/contracts/policy_ctde.md#4-phase-b-ctde) and the capture ordering in [`runtime.md` §1](docs/contracts/runtime.md#1-the-end-to-end-pipeline) |
+| touches the reward or reference policies | [`reward_solvers.md` §1–§2](docs/contracts/reward_solvers.md#1-terminal-reward-stage-7) | changes checkpoint timing: [`runtime.md` §1](docs/contracts/runtime.md#1-the-end-to-end-pipeline) |
+| touches a MATCH-AOU solve or backend selection | [`reward_solvers.md` §3](docs/contracts/reward_solvers.md#3-match-aou-allocation-backends) and §2 of this file | affects `generalized_v2`: [`training_benchmarks.md` §8](docs/contracts/training_benchmarks.md#8-generalized-v2-population) |
+| touches the trainer, run integrity or presets | [`training_benchmarks.md` §1–§4](docs/contracts/training_benchmarks.md#1-trainer-and-run-auditability) | changes what is written: the matching [`artifacts_metrics.md`](docs/contracts/artifacts_metrics.md) section |
+| touches episode designs, samplers, quotas, benchmarks or preflight | the design's sections of [`training_benchmarks.md`](docs/contracts/training_benchmarks.md#5-episode-designs-generalized-v1-sampler-and-18-stratum-benchmark): §5–§6 for V1, §6 and §8–§9 for V2 | touches stopping: [§7](docs/contracts/training_benchmarks.md#7-early-stopping) |
+| touches what a run writes, summarizes or plots | the matching [`artifacts_metrics.md`](docs/contracts/artifacts_metrics.md#1-visual-artifacts) section (§1 visual artifacts, §2 figures, §3 outcome stream, §4 generalized persistence, §5 per-wake diagnostics) | changes a summary a reviewer reads: [§6](docs/contracts/artifacts_metrics.md#6-reading-preserved-artifacts) |
+| plans or configures a scientific run | [`experiments.md` §2–§3](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan), the design's `training_benchmarks.md` sections (above), [`artifacts_metrics.md` §4–§5](docs/contracts/artifacts_metrics.md#4-generalized-persistence-and-aggregates) | runs on a machine or cluster: [`environments_cleanup.md` §1–§3](docs/workflows/environments_cleanup.md#1-execution-contexts) |
+| reviews a completed run or cites a measurement | [`experiments.md` §4](docs/workflows/experiments.md#4-run-review--validity-before-performance), [`artifacts_metrics.md` §6](docs/contracts/artifacts_metrics.md#6-reading-preserved-artifacts), the one relevant record in [`measurements.md`](docs/history/measurements.md#1-run-registry) | reads a specific field: the `artifacts_metrics.md` section that defines it |
+| preserves run evidence | [`experiments.md` §5](docs/workflows/experiments.md#5-evidence-preservation) and [`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup) | — |
+| sets up or uses an environment, the cluster or a solver binary | [`environments_cleanup.md` §1–§3](docs/workflows/environments_cleanup.md#1-execution-contexts) | — |
+| retires branches, worktrees or other refs | [`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup) | — |
+| uses BLADE APIs | [`BLADE_API_DOCUMENTATION.md`](docs/BLADE_API_DOCUMENTATION.md) | — |
+| asks why something was decided, or needs a past identity | [`docs/history/`](docs/history/) | — |
 
 ## 7. History
 
