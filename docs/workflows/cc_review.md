@@ -53,7 +53,10 @@ For every task that changes repository content:
 - branch from the verified base; make **focused commits** (several are allowed); push the branch;
   open **one draft PR**; stop for exact-candidate review and report the full candidate SHA;
 - **once review begins, never amend, rebase, squash or force-push** — review fixes are new
-  commits on the same branch and PR, in the same CC session;
+  commits on the same branch and PR. The same CC session is the default; a deliberate context or
+  ownership transfer may continue in a **new** CC session provided the outgoing writer is stopped,
+  a compact verified handoff (exact base, head and local state) is passed, and the branch, PR and
+  append-only history stay the same. This never permits concurrent writers;
 - **never push directly to `main`**; a merge happens only with explicit user authorization, after
   approval of the exact head;
 - a verdict is relative to its base: if the base changes, request exact-base re-review of the
