@@ -210,8 +210,12 @@ Multi_Agent_Task_Allocation_and_Adaptation/
 ```
 
 The pure layers (`graph_trigger`, `graph_effect`, `graph_hidden_placement`,
-`graph_fuel_damage`) import no simulator, no solver and no PyTorch, which is what makes
-them hand-testable. `tests/test_import_purity.py` enforces that boundary.
+`graph_fuel_damage`) contain no simulator, solver or PyTorch code of their own, which is
+what makes them hand-testable. Two import caveats: `graph_effect` imports the `MetaAction`
+enum from the PyTorch-based `graph_action`, so it loads torch transitively, and every
+`match_aou.*` import inherits `pyomo` from the root package. `tests/test_import_purity.py`
+checks a different boundary: importing each graph entry module in a fresh interpreter loads
+none of the retired flat-path modules on its `DENY_MODULES` list.
 
 ---
 
