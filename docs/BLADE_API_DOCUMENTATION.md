@@ -241,8 +241,11 @@ game.facility_auto_defense() -> None
 game.ship_auto_defense() -> None
 ```
 
-`update_all_aircraft_position` burns `fuel_rate / 3600` per tick for **every** airborne
-aircraft, including one with no route.
+`update_all_aircraft_position` burns `fuel_rate / 3600` once for each airborne aircraft its
+live loop actually **visits**, including a visited aircraft with no route. An airborne aircraft
+is **not** guaranteed a visit every outer tick: the loop removes entries from the list it is
+iterating, so the aircraft after a removed one can be skipped for that update
+([§13](#13-gotchas)).
 
 ### Reference points
 
@@ -702,7 +705,16 @@ one tick.
   until launched, so "is this aircraft airborne?" is `scenario.get_aircraft(id) is not None`.
 - **Set `current_scenario.name` before `start_recording()`.** §9.
 - **`Facility` has no `get_weapon(weapon_id)`** even though `Aircraft` and `Ship` do.
-- **Fuel burns every tick for every airborne aircraft**, including ones with no route.
+- **Fuel burns on each engine visit of an airborne aircraft — but a visit is not guaranteed
+  every tick.** `Game.update_all_aircraft_position` burns `fuel_rate / 3600` for each aircraft
+  it processes, including ones with no route, while iterating the live
+  `current_scenario.aircraft` list. Two paths reachable inside that loop remove entries from the
+  same list — landing (`land_aicraft` → `remove_aircraft`) and fuel exhaustion
+  (`current_fuel <= 0` → `remove_aircraft`) — so the aircraft that followed a removed one can be
+  skipped for that update, losing both its movement and its burn. The project's certified
+  fuel-damage live check therefore binds physical position and fuel, not the outer tick count
+  ([construction and fuel damage §4](contracts/construction_fuel_damage.md#4-certified-fd-eligibility-live-certificate-check-and-post-fd-boundaries)).
+  This describes the frozen engine; it is not a licence to change it.
 
 ---
 
