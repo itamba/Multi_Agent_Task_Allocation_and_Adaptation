@@ -29,7 +29,7 @@
 | R1 diagnostic replay | R1's SHA | bundle SHA-256 `812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792` | engineering / analysis evidence — **not a measurement** |
 | aborted P1 arm | not recorded | not recorded | `ABORTED / DO NOT RESUME` — not a measurement |
 | fresh deterministic-P1 arm | `ae1941035991df4719df212c4b5dd07db89aee4a` | not recorded | accepted as a valid measurement; negative primary MILD-vs-SEVERE result |
-| GENERALIZED-V2 benchmark preflight | `ae42cb01677f94868b2873008d87be677e31f0c8` (per the run configs that consume it) | external, see §7 | no review record in the repository |
+| GENERALIZED-V2 benchmark preflight (produced the external manifest) | **unverified** — no preflight evidence is in the repository, and the consuming runs' measured SHA does not establish the producer's | external manifest, see §7; not part of either evidence package | no authorization or review record in the repository |
 | GENERALIZED-V2 development R1 — actor-only | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #61, head `1375a881637a9a32721a1630f598adc571422a47` | no verdict recorded in accessible artifacts |
 | GENERALIZED-V2 development R1 — CTDE | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #62, head `b2bbe7a6235c3b9255106826cfb268af7e73f72d` | PR #62 records a prior GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`; not independently verified |
 
@@ -1385,7 +1385,10 @@ these runs is not recorded in the repository.
 - **Benchmark manifest.** Not committed. PR #62's `artifact_sha256.txt` records the external file
   `C:/Users/Itama/PycharmProjects/graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0/benchmark_manifest.json`,
   204 244 bytes, SHA-256 `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103`, with
-  the manifest id above. The file was not inspected by GPT or in this restructure.
+  the manifest id above. The file was not inspected by GPT or in this restructure, it is not part
+  of either evidence package, and the code SHA that produced it is **unverified**: the directory
+  name ends in `ae42cb0`, but no preflight report or run configuration for it is in the
+  repository.
 - **Accounting** (from both `run_summary.json`): `updates_completed = 375`; training 3008
   attempted / 3000 successful / 8 failed, all at stage `setup` with `FuelDamageError`; evaluation
   960 attempted / 960 successful / 0 failed over 16 rounds (consistent with the development

@@ -42,17 +42,21 @@ Execution runs in **BLADE**, a vendored fork of the Panopticon simulation engine
 ```
                     offline                                runtime
    ┌──────────────────────────────────┐   ┌──────────────────────────────────────┐
-   │ scenario generator               │   │ per tick:                            │
-   │   └─ known-only world            │   │                                      │
-   │ MATCH-AOU solve  ──> A_init      │   │  Phase 1 (per ego, one snapshot):    │
-   │ hidden-target placement          │   │    own sensing ──> trigger?          │
-   │   (route-relative, guaranteed    │   │      └─ wake ──> graph observation   │
-   │    to be flown past)             │   │              ──> Graph Transformer   │
-   │ scenario patch + reload          │   │              ──> masked meta-action  │
-   │ reference solve (training only)  │   │              ──> edit OWN belief     │
-   │   (t=0 oracle, or a continuation │   │              ──> executor resync     │
-   │    reference at the FD event)    │   │                                      │
-   └──────────────────────────────────┘   │  Phase 2 (once):                     │
+   │ scenario generator               │   │ before tick 1 (event-conditioned     │
+   │   └─ known-only world            │   │   reference policy): t=0 reference   │
+   │ MATCH-AOU solve  ──> A_init      │   │ per tick:                            │
+   │ hidden-target placement          │   │  top: FD mutation ──> continuation   │
+   │   (route-relative, guaranteed    │   │       reference (opt-in policy)      │
+   │    to be flown past)             │   │                                      │
+   │ scenario patch + reload          │   │  Phase 1 (per ego, one snapshot):    │
+   │ reference solve (default policy: │   │    own sensing ──> trigger?          │
+   │   static t=0 oracle, in setup)   │   │      └─ wake ──> graph observation   │
+   └──────────────────────────────────┘   │              ──> Graph Transformer   │
+                                          │              ──> masked meta-action  │
+                                          │              ──> edit OWN belief     │
+                                          │              ──> executor resync     │
+                                          │                                      │
+                                          │  Phase 2 (once):                     │
                                           │    GraphPlanExecutor.next_actions()  │
                                           │    ──> env.step(commands)  [BLADE]   │
                                           └──────────────────────────────────────┘
@@ -61,6 +65,14 @@ Execution runs in **BLADE**, a vendored fork of the Panopticon simulation engine
                                                           │
                                           PPO update (actor-only, or CTDE critic)
 ```
+
+**Reference solves.** Under the default `static_t0_v1` reward-reference policy the second
+MATCH-AOU solve (the full t=0 oracle) runs in episode setup. Under the opt-in
+`event_conditioned_continuation_v1` policy, which GENERALIZED designs select, `run_episode`
+performs it instead: a clean episode's t=0 reference before the first tick, or a damaged
+episode's continuation reference at the top of the firing tick — after the fuel-damage
+mutation and before triggers, the CTDE capture, the decision and `env.step`
+([`reward_solvers.md` §2](docs/contracts/reward_solvers.md#2-event-conditioned-continuation-reference)).
 
 **Private beliefs.** The episode mints *N* independent `Belief(tasks, solution)` objects,
 one per agent. All start byte-equal to the normalized `A_init`, but they are fully
