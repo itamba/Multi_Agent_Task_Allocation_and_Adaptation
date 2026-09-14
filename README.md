@@ -43,11 +43,12 @@ Execution runs in **BLADE**, a vendored fork of the Panopticon simulation engine
                     offline                                runtime
    ┌──────────────────────────────────┐   ┌──────────────────────────────────────┐
    │ scenario generator               │   │ before tick 1 (event-conditioned     │
-   │   └─ known-only world            │   │   reference policy): t=0 reference   │
-   │ MATCH-AOU solve  ──> A_init      │   │ per tick:                            │
-   │ hidden-target placement          │   │  top: FD mutation ──> continuation   │
-   │   (route-relative, guaranteed    │   │       reference (opt-in policy)      │
-   │    to be flown past)             │   │                                      │
+   │   └─ known-only world            │   │   policy, CLEAN episode or no FD     │
+   │ MATCH-AOU solve  ──> A_init      │   │   controller only): t=0 reference    │
+   │ hidden-target placement          │   │ per tick:                            │
+   │   (route-relative, guaranteed    │   │  top: FD mutation ──> continuation   │
+   │    to be flown past)             │   │       reference (event-conditioned,  │
+   │                                  │   │       DAMAGED episode only)          │
    │ scenario patch + reload          │   │  Phase 1 (per ego, one snapshot):    │
    │ reference solve (default policy: │   │    own sensing ──> trigger?          │
    │   static t=0 oracle, in setup)   │   │      └─ wake ──> graph observation   │
