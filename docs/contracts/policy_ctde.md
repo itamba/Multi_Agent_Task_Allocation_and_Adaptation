@@ -5,13 +5,11 @@
 > Phase-B CTDE critic, its central observation, GAE / value semantics, capture timing,
 > checkpoints, or anything that could let privileged or peer information reach the acting path.
 >
-> **Status: normative technical contract.** Sections 1–4 and 6 were moved **verbatim** from
-> `CLAUDE.md` at base `ae42cb01677f94868b2873008d87be677e31f0c8` (Stages 3–5 and the Phase-B
-> CTDE block of former §5, the CTDE paragraph of former §2, rows of former §6, an item of
-> former §8). Inside moved text a bare `§N` means that **former** `CLAUDE.md` section — resolve
-> it with the [compatibility index](../../CLAUDE.md#8-compatibility-index-for-older-references).
-> The no-communication invariants these layers serve are
-> [`CLAUDE.md` §3](../../CLAUDE.md#3-architecture--the-load-bearing-invariants).
+> **Status: normative, current technical contract** for the code on `main`. Its provenance and
+> lock history are in [`implementation.md`](../history/implementation.md) and
+> [`documentation_migration.md`](../documentation_migration.md); current run and evidence state
+> is in the [handoff](../../graph_rl_project_handoff.md). The no-communication invariants these
+> layers serve are [`CLAUDE.md` §3](../../CLAUDE.md#3-architecture--the-load-bearing-invariants).
 >
 > Related contracts: [runtime](runtime.md) · [reward and solvers](reward_solvers.md) ·
 > [training and benchmarks](training_benchmarks.md) · [artifacts and metrics](artifacts_metrics.md).
@@ -35,15 +33,13 @@
 ## 4. Phase-B CTDE
 
 **PHASE-B CTDE — the TRAINING-ONLY centralized critic —
-`rl/observation/central_graph_builder.py` + `rl/training/graph_ppo.py` (its §7 block)
+`rl/observation/central_graph_builder.py` + `rl/training/graph_ppo.py` (its CTDE classes)
 + `rl/training/graph_tick_loop.py` + `rl/training/graph_train.py`.**
 
-BUILT, REVIEWED and MERGED (`a6f3aa9`, integrated `8390d85`, PR #30 — §7). **NO CTDE
-benefit is established, and none may be pre-claimed here.** An OLD-FIXED-CELL-CONTRACT
-CTDE measurement has since been EXECUTED; it is OUT OF SCOPE for this document, is not
-reviewed, re-read or compared anywhere in it, and nothing about it is recorded (§8). What
-follows is the IMPLEMENTED contract, derived from the integrated code, not a design
-proposal.
+Implemented by PR #30. What follows is the implemented contract, derived from the code, not a
+design proposal. **No CTDE benefit over actor-only is established by any repository document**,
+and none may be pre-claimed from this contract; how CTDE results are reviewed and compared is
+[`experiments.md` §4](../workflows/experiments.md#4-run-review--validity-before-performance).
 
 - **TWO TRAINING MODES, SELECTED BY `TrainConfig.training_mode` AND BY NOTHING ELSE.**
   `TRAINING_MODES` = (`actor_only`, `ctde`); `actor_only` is the DEFAULT. The ONE predicate
@@ -72,7 +68,9 @@ proposal.
   PRIVATE `tr.gobs` and nothing else, and the advantage crossing from critic to actor is a
   plain python float. `evaluate` takes NO critic argument and constructs neither a critic
   nor a recorder — held-out evaluation is actor-only in both modes — and a CTDE-trained
-  actor runs with the critic object absent. §3 is not weakened by centralized TRAINING.
+  actor runs with the critic object absent. The no-communication invariants
+  ([`CLAUDE.md` §3](../../CLAUDE.md#3-architecture--the-load-bearing-invariants)) are not
+  weakened by centralized TRAINING.
 - **ARCHITECTURE — ACTOR AND CRITIC SHARE NOTHING.** `CentralCritic` owns its OWN
   `GraphEncoder` INSTANCE (the same class, constructed with the CENTRAL feature widths —
   all three were already constructor parameters, so the encoder itself was NOT changed) plus
@@ -204,60 +202,44 @@ proposal.
 - **PRESETS.** A preset may set `training_mode` and a nested `"ctde"` block (the sibling of
   `"ppo"`), read only by a `ctde` run. The CTDE block has NO CLI flags of its own — it is
   deliberately a preset-only layer, so there is no second naming scheme to drift from
-  `CTDEConfig`. **No CTDE preset exists in the repository**, and adding one belongs to the
-  comparison task (§8), not here.
+  `CTDEConfig`. **No CTDE preset exists in the repository**; a run that needs one defines it
+  under its authorized plan.
 - **SCIENTIFIC NON-CLAIMS, BINDING.** The proof tests, the module `_selftest`s and a passing
   suite are ENGINEERING evidence and measure nothing scientific. **No CTDE benefit — in
   reward, survival, sample efficiency, behavioural separation or anything else — is
-  established or may be pre-claimed.** A CTDE claim requires its own executed, independently
-  reviewed comparison under the same validity gate (§8). An OLD-FIXED-CELL-CONTRACT CTDE
-  measurement has since been EXECUTED and is OUT OF SCOPE: it is not reviewed, re-analysed
-  or compared here, no identity or result is recorded for it, and its existence establishes
-  nothing (§8).
+  established by this contract or may be pre-claimed.** A CTDE claim needs a reviewed
+  comparison under the design's own review
+  ([`experiments.md` §4](../workflows/experiments.md#4-run-review--validity-before-performance)).
 
 ### 4.1 Status of the CTDE layer
-
-**The Phase-B CTDE training layer is BUILT / REVIEWED / MERGED** (approved candidate
-`a6f3aa9`, integrated `8390d85`, PR #30 — §7), and this documentation task is what makes
-it a LOCKED contract like the layers beside it. Two things must be read together and never
-separated:
 
 - **`actor_only` REMAINS THE DEFAULT AND THE PRESERVED REFERENCE PATH.** A run that does
   not select `ctde` constructs no critic, no central observation, no value loss and no
   CTDE advantage — the Phase-A path is not emulated, it is simply the one that runs.
-  Preserving it is load-bearing: the approved Phase-A baseline (`737b4bf`, §7) was
-  measured on it.
-- **NOTHING SCIENTIFIC IS CLAIMED FOR CTDE.** Engineering tests, a passing suite and a
-  merged implementation measure nothing, and **no CTDE benefit over actor-only is
-  established.** An OLD-FIXED-CELL-CONTRACT CTDE measurement has since been EXECUTED, but
-  it is OUT OF SCOPE for this document and for the GENERALIZED-V1 phase, it has not been
-  reviewed or compared here, and **nothing about it — identity, measured SHA, denominator,
-  verdict or result — is recorded or may be inferred** (§8 owns the gate and states the
-  scoping in full).
-
-> **Current-state note (2026-09-14 restructure).** The paragraph above predates the
-> GENERALIZED-V2 development runs. A GENERALIZED-V2 **CTDE development-profile** run at measured
-> code SHA `ae42cb01677f94868b2873008d87be677e31f0c8` is preserved in evidence PR #62; that PR's
-> body and its `artifact_sha256.txt` record a prior GPT verdict
-> `APPROVE — VALID DEVELOPMENT MEASUREMENT`, which no repository review record corroborates and
-> which this document does not re-approve (see the
-> [handoff](../../graph_rl_project_handoff.md#4-runs-and-evidence--current-references)).
-> **No CTDE benefit over actor-only is established by any repository document.** The old
-> fixed-cell CTDE measurement remains out of scope exactly as stated above.
+  Preserving it is load-bearing: the fixed-cell baselines in
+  [`measurements.md`](../history/measurements.md#1-run-registry) were measured on it.
+- **CTDE MEASUREMENTS AND THEIR SCOPE.** An old fixed-cell CTDE measurement exists and is out of
+  scope unless the user asks ([`experiments.md` §4.4](../workflows/experiments.md#44-comparator-discipline)).
+  A GENERALIZED-V2 CTDE development-profile run and its review status are listed in the
+  [handoff](../../graph_rl_project_handoff.md#4-runs-and-evidence--current-references). Neither
+  establishes a CTDE benefit in this contract.
 
 ## 5. Code routing
 
-| … | Go to |
-|---|---|
-| SELECT a training mode — ordinary scientific USE of the already-built CTDE layer | `rl/training/graph_train.py` (`TrainConfig.training_mode` ∈ `TRAINING_MODES` = `actor_only` / `ctde`, `TrainConfig.ctde_enabled`, the nested `ctde` preset block over `CTDEConfig`). Choosing a mode, writing a preset that sets it, or running a comparison is **CONFIGURATION and MEASUREMENT, not a contract change** — it needs no layer review. The DEFAULT is `actor_only`, and it is the path the approved Phase-A baseline was measured on. `value_coeff` is NOT a mode selector: `ctde` REJECTS `value_coeff <= 0` (§5). **It is ORTHOGONAL to `episode_design`**: it selects the training ALGORITHM, never the episode POPULATION, and changes no episode-design contract |
-| Change the CENTRAL GRAPH the critic sees (privileged inputs, liveness, features, edges, exclusions) | `rl/observation/central_graph_builder.py` (`CentralGraphObservation`, `build_central_graph_observation`, `CentralStateRecorder`, `live_aircraft`, `plan_target_ids`, `NO_EGO_INDEX`, `CENTRAL_TASK_FEATURE_DIM` / `CENTRAL_AGENT_FEATURE_DIM` / `CENTRAL_EDGE_ATTR_DIM` / `CENTRAL_EDGE_TYPE`). **RESEARCH-VALIDITY / GRADE A**: what the critic may read is the no-communication boundary itself. Adding any input the §5 exclusion list names — `oracle_solution` / `oracle_tasks` / `U_oracle` / a reward component / the seed / a scheduled FD severity or condition label / the known-vs-hidden split / future RNG or outcome — is a new research decision, never a fix. PURE: no torch, no BLADE/gym import; it must never import `graph_episode_setup` |
-| Change the ACTOR / CRITIC BOUNDARY, or CTDE value / GAE semantics | `rl/training/graph_ppo.py` (`CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`) beside the UNTOUCHED actor-only `EpisodeRecord` / `PPOBuffer` / `compute_returns_and_advantages` / `PPOUpdater`. **RESEARCH-VALIDITY / GRADE A**: disjoint parameter sets, two separate backwards, detached advantages, GAE over the GLOBAL decision sequence with a zero terminal next value, and fixed pre-epoch `V_old` are all contract (§5). Proofs live in `tests/test_graph_ctde.py` and `tests/test_graph_ppo.py` |
-| Change WHEN the central state is CAPTURED | `rl/training/graph_tick_loop.py` — `run_episode`'s `central` parameter and the `capture(...)` call inside the `if wake` branch, IMMEDIATELY BEFORE `_wake_decision`. **RESEARCH-VALIDITY / GRADE A**: the capture point IS the 1:1 alignment `CTDEEpisodeRecord` validates, and moving it silently repairs the mispairing into a wrong value-to-decision match. `central=None` (the default) leaves the loop byte-unchanged |
-| Change ACTOR-ONLY PRESERVATION or CHECKPOINT compatibility | `rl/training/graph_train.py` (`_ctde_kwargs` / `_central_kwargs` — keyword OMISSION, never a `None` keyword; `save_checkpoint(..., critic=None)`'s exactly-five-key actor-only payload and the CTDE additions; the `ctde_enabled`-gated critic diagnostics on a training record; the `training` block of `run_config.json`). **RESEARCH-VALIDITY / GRADE A**: `actor_only` byte-invariance is what keeps the approved Phase-A baseline comparable, and it is pinned by the POISON test + its CONTROL in `tests/test_graph_ctde.py` |
-| Change the graph representation | `rl/observation/graph_builder.py` (`GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`) |
-| Change the encoder | `rl/agent/graph_encoder.py` (`GraphEncoder`, `pool()` critic hook). ONE class with TWO instantiations — the ACTOR's, and the Phase-B `CentralCritic`'s separate instance at the CENTRAL feature widths. Changing it changes BOTH; the actor head carries no value head, and the critic's `ValueHead` lives in `graph_ppo`. |
-| Change actions / mask / sampling | `rl/action/graph_action.py` (`MetaAction`, `ActionHead`, `build_action_mask`, `sample_action`) |
-| Change how a decision edits the plan | `rl/action/graph_effect.py` (`apply_meta_action`) |
+Research-validity changes (the critic's inputs, the actor/critic boundary, capture timing,
+actor-only preservation) follow [`cc_review.md` §4](../workflows/cc_review.md#4-risk-and-verification).
+
+| Task | Files and symbols | Contract |
+|---|---|---|
+| select a training mode (configuration, not a contract change) | `rl/training/graph_train.py`: `TrainConfig.training_mode`, `TRAINING_MODES`, `TrainConfig.ctde_enabled`, the `"ctde"` preset block over `CTDEConfig` | §4 |
+| change what the critic sees | `rl/observation/central_graph_builder.py`: `CentralGraphObservation`, `build_central_graph_observation`, `CentralStateRecorder`, `live_aircraft`, `plan_target_ids`, `NO_EGO_INDEX`, `CENTRAL_TASK_FEATURE_DIM`, `CENTRAL_AGENT_FEATURE_DIM`, `CENTRAL_EDGE_ATTR_DIM`, `CENTRAL_EDGE_TYPE` (pure: no torch, BLADE or gym import; never imports `graph_episode_setup`) | §4, exclusion list |
+| change the actor/critic boundary or GAE / value semantics | `rl/training/graph_ppo.py`: `CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`; tests `tests/test_graph_ctde.py`, `tests/test_graph_ppo.py` | §4 |
+| change when the central state is captured | `rl/training/graph_tick_loop.py`: `run_episode(central=...)` and its `capture` call immediately before `_wake_decision` | §4; [runtime §5](runtime.md#5-resync-stage-6-and-the-two-phase-tick-loop) |
+| change actor-only preservation or checkpoints | `rl/training/graph_train.py`: `_ctde_kwargs`, `_central_kwargs`, `save_checkpoint(..., critic=None)`, the critic diagnostics on training records, `run_config.json:/training`; poison test and control in `tests/test_graph_ctde.py` | §4 |
+| change the graph representation | `rl/observation/graph_builder.py`: `GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM` | §1 |
+| change the encoder (one class, instantiated by the actor and the critic) | `rl/agent/graph_encoder.py`: `GraphEncoder`, `pool()` | §2, §4 |
+| change actions, mask, sampling or re-scoring | `rl/action/graph_action.py`: `MetaAction`, `ActionHead`, `build_action_mask`, `sample_action`, `evaluate_action`, `_masked_dist` | §2 |
+| change how a decision edits the plan | `rl/action/graph_effect.py`: `apply_meta_action` | §3 |
 
 ## 6. Known limitations and open items
 

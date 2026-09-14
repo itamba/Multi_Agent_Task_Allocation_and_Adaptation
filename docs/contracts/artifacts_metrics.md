@@ -4,16 +4,10 @@
 > you **review a completed run** or read preserved evidence: §6 lists the reading rules and
 > known artifact defects every reviewer needs.
 >
-> **Status: normative technical contract.** Sections 1–5 and 7 were moved **verbatim** from
-> `CLAUDE.md` at base `ae42cb01677f94868b2873008d87be677e31f0c8` (the visual-artifact, figure,
-> measurement-surface, generalized-persistence and per-wake-diagnostics blocks of former §5,
-> rows of former §6). Section 6 is new reading guidance written in this restructure and
-> verified against code and preserved artifacts. Inside moved text a bare `§N` means that
-> **former** `CLAUDE.md` section — resolve it with the
-> [compatibility index](../../CLAUDE.md#8-compatibility-index-for-older-references). A
-> statement inside a block that a run or result "does not exist" describes that block's own PR
-> scope when it merged; current run and evidence state lives in the
-> [handoff](../../graph_rl_project_handoff.md).
+> **Status: normative, current technical contract** for the code on `main`. Lock history is in
+> [`implementation.md`](../history/implementation.md), block provenance in
+> [`documentation_migration.md`](../documentation_migration.md), and current run and evidence
+> state in the [handoff](../../graph_rl_project_handoff.md).
 >
 > Related: [training and benchmarks](training_benchmarks.md) ·
 > [experiments workflow](../workflows/experiments.md) · [measurement history](../history/measurements.md).
@@ -149,8 +143,8 @@ stream — `rl/training/graph_train.py`.**
   contributes to NONE of the deltas, is never repaired from its surviving members (a
   clean+mild pair inside a failed triad yields no mild−clean delta either), and is still
   visible in the attempt counts. The per-cell reward MEANS remain each over THAT cell's
-  own successful subset, so — exactly as for the legacy pair (§5, the two presentation
-  invariants) — the only within-seed claims are the deltas.
+  own successful subset, so — exactly as for the legacy pair ([§2](#2-figures-and-presentation-invariants), the two
+  presentation invariants) — the only within-seed claims are the deltas.
 - **`episode_outcomes.jsonl` — ONE durable record per SUCCESSFUL attempt.** The
   per-iteration and per-round records are AGGREGATES, and an aggregate cannot be
   un-averaged: "how did the actor respond to MILD, episode by episode, and in which
@@ -229,11 +223,11 @@ scientific artifact.
 **THE SCHEMA VERSION IN THIS PARAGRAPH IS THE TASK-4 ONE, AND THE CURRENT WRITER IS VERSION 3.**
 "Schema version 2" was accurate when this layer landed, and it is preserved as that record.
 The CURRENT writer is `graph_train._EPISODE_OUTCOME_VERSION = 3`, moved `2 → 3` by the LATER
-per-wake FD policy diagnostics layer (`81a148f8`, PR #52 — §5, §7) to carry the per-wake
+per-wake FD policy diagnostics layer (`81a148f8`, PR #52 — [§5](#5-per-wake-fd-policy-diagnostics)) to carry the per-wake
 actor diagnostics block; **every generalized key this paragraph describes is unchanged by
 that move**, and a v2 artifact stays truthfully readable (`_observed_artifact_schema`
-reports what the RECORDS carry, never the writer's constant). **NEITHER PR #57 NOR THIS
-DOCUMENTATION TASK CHANGED THE SCHEMA:** the GENERALIZED-V2 `generalized_v2_population`
+reports what the RECORDS carry, never the writer's constant). **PR #57 DID NOT CHANGE THE
+SCHEMA:** the GENERALIZED-V2 `generalized_v2_population`
 block is added CONDITIONALLY at version 3, not by a bump.
 
 **THE FAILURE LEDGER KEEPS THE SCHEDULED POPULATION IDENTITY, WHETHER OR NOT A WORLD WAS
@@ -252,10 +246,7 @@ pre-construction: a `run`- or `reward`-stage failure occurs after `setup_episode
 built a world and, at `reward` stage, after `run_episode` really executed one. **The ledger
 therefore records the SCHEDULED cardinality, never a realized one** (there may be no
 realized measurement it could safely report, and reading one out of a failed attempt is
-exactly the reconstruction this contract refuses). *(SUPERSEDED, and corrected here: this
-paragraph previously said those keys are recorded "precisely because it never built a
-world". That is true of a `generation` / `setup` failure and FALSE of a `run` / `reward`
-one; the stage taxonomy itself is unchanged.)*
+exactly the reconstruction this contract refuses).
 
 The ledger also records `reference_fault_reason` — which, by the routing above, **can only
 ever carry the attrition case**, since an aborting reference fault never reaches this ledger
@@ -299,7 +290,7 @@ before any measurement; the code reports the shape and stops there.
 
 **GENERALIZED-V1 DURABLE PER-WAKE FD POLICY DIAGNOSTICS (MEASUREMENT HARDENING) —
 `rl/action/graph_action.py` + `rl/training/graph_tick_loop.py` +
-`rl/training/graph_train.py` (`81a148f8`, integrated `28eb8dad`, PR #52 — §7).**
+`rl/training/graph_train.py` (`81a148f8`, integrated `28eb8dad`, PR #52).**
 
 A REPORTING layer, and nothing else. It adds NO episode mechanism: the bounded-backoff
 geometry, the FD certification physics, the post-FD boundary semantics, the
@@ -425,7 +416,7 @@ benchmark_manifest_id)`, and the group key identifies the WORLD *within* that ro
 contributes a severe-minus-mild delta only when BOTH members are present IN THE SAME ROUND,
 deltas are reported PER ROUND, and the cross-round pool is explicitly flagged
 `totals_across_rounds_are_repeated_measures: true`. Target uuids are used nowhere — they are
-not seed-stable labels (§8).
+not seed-stable labels ([runtime §2](runtime.md#2-episode-setup-stage-0)).
 
 **THE FINAL EVALUATION ROUND IS SELECTED SEMANTICALLY, NEVER `eval_records[-1]`.**
 `_select_final_eval_record` orders by the run's own monotone `eval_round_ordinal` and
@@ -493,8 +484,8 @@ clipping count, ownership label, schema version, selection reason or plot field 
 `GraphObservation` or `CentralGraphObservation`. **PR #52 PRODUCED NO SCIENTIFIC MEASUREMENT
 AND DID NOT MODIFY THE R1 RUN, ITS ARTIFACTS OR ITS VERDICT** — R1 was measured at code SHA
 `4af6c5aa5dd28072692bfda63282964b55010aae`, which PREDATES this layer, so **R1's own
-artifacts are episode-outcome schema v2 and carry NO `wake_decisions`**; §7 owns the R1
-record and §8 the phase state.
+artifacts are episode-outcome schema v2 and carry NO `wake_decisions`**; the R1 record is in
+[measurement history](../history/measurements.md#2-measurement-records).
 
 ## 6. Reading preserved artifacts
 
@@ -549,13 +540,16 @@ single parent is the measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8
 
 ## 7. Code routing
 
-| … | Go to |
-|---|---|
-| Change a FIGURE (or add one) | `rl/training/graph_train.py` (`plot_training`, `_plots_dir`, `_plot_training_performance`, `_plot_policy_diagnostics`, `_plot_measurement_health`, `_PLOT_FILENAMES`, `_PLOT_X_LABEL` / `_PLOT_X_SEMANTICS`, `_xy`, `plot_training_subprocess`). Figures go to `<run_dir>/plots/`; the two presentation invariants in §5 (condition means vs complete-pair delta, and the honest x-axis) are contractual |
-| Read what an episode ACTUALLY did, per successful attempt (not an aggregate) | `rl/training/graph_train.py` (`_EPISODE_OUTCOMES_FILENAME` = `episode_outcomes.jsonl`, `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes` and the `severity_response` / `severity_response_source` / `episode_outcomes_recorded` keys of `run_summary.json`). SUCCESSFUL attempts only — failures stay in `episode_failures.jsonl` and the two streams are disjoint by construction. The severity-response table is DERIVED from this file, never from a parallel in-memory aggregate. |
-| Record or read PER-WAKE ACTOR DIAGNOSTICS (why a wake happened, what the actor saw, what its masked distribution looked like) | `rl/action/graph_action.py` (`summarize_decision`, built on the SHARED `_masked_dist`) + `rl/training/graph_tick_loop.py` (`WAKE_KINDS` = `WAKE_KIND_ORDINARY` / `WAKE_KIND_IMMEDIATE_FD` / `WAKE_KIND_POST_FD_BOUNDARY`, `OWNERSHIP_EGO` / `OWNERSHIP_PEER` / `OWNERSHIP_UNASSIGNED`, `_node_ownership`, `_decision_record`, `Transition.wake_kind` / `.decision`, and `_wake_decision(..., wake_kind=...)` — OMITTED for an ordinary wake) + `rl/training/graph_train.py` (`_EPISODE_OUTCOME_VERSION = 3`, `_WAKE_DIAGNOSTICS_VERSION = 1`, `_wake_decision_records`, `_wake_diag_digest`, `_wake_population_block`, `_EVAL_PHASES`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema`, and the `fd_policy_sensitivity` / `observed_artifact_schema` / `wake_kinds` / `wake_diagnostics_source` keys of `run_summary.json`). **RESEARCH-VALIDITY / GRADE A**: it is DURABLE and REPORTING-ONLY, and the data path has THREE distinct stages — RAW per-wake records PERSISTED in `episode_outcomes.jsonl`, DERIVED reporting summaries in `run_summary.json` (`fd_policy_sensitivity` / `observed_artifact_schema`, computed FROM that stream rather than copied from it) and DERIVED plotting input for the figures — so reporting consumers read it to persist and summarize it, but no acting, mask, belief, command, PPO/CTDE input, advantage, reward, optimizer, early-stopping, evaluation-scheduling or checkpoint-control path reads it back; the probabilities come from the actor's OWN `_masked_dist` on a DETACHED copy of the same logits, so no second implementation can describe a distribution the actor never used; **no RNG draw, no gradient and no control path is added**; the three wake kinds are DISJOINT and tagged at the TRIGGER, never inferred from the selected action, because an approved measurement is reported over the immediate-FD population alone; `train` / `pre_update` / `post_update` are SEPARATE populations and pooling is named where it happens; and an empty population is `None`, never `0.0` (§5) |
-| Ask "which evaluation round was FINAL?" (never `eval_records[-1]`) | `rl/training/graph_train.py` (`_FINAL_EVAL_IDENTITY_FIELDS` = `evaluation_stage` / `updates_completed` / `eval_round_ordinal`, `_final_eval_identity` — the ONE validator — `_select_final_eval_record`, `_select_final_matched_round`, `_INCOMPLETE_FINAL_EVAL_IDENTITY`, `_round_identity`, `_matched_rounds`, `_immediate_fd_abort_mass`, and `run_summary.json:/final_eval_selection`). **RESEARCH-VALIDITY / GRADE A**: the last row a file happens to hold is a fact about the WRITER, not about the run, so the round is chosen by the monotone `eval_round_ordinal` CROSS-CHECKED against `updates_completed` and the selector REFUSES with a stated, persisted reason rather than guessing; a PARTIAL identity is refused even when the remaining fields would have been unique, because such a match succeeds silently and is indistinguishable from a correct one; ALL THREE fields are always compared, never a subset; and matched severe-minus-mild deltas pair through the FULL round identity PLUS `benchmark_group_key`, so re-measuring one frozen world in every round yields independent per-round deltas and a cross-round pool explicitly flagged as REPEATED MEASURES (§5) |
-| Change or read the OPTIONAL FD-policy-sensitivity figure | `rl/training/graph_train.py` (`_PLOT_FD_SENSITIVITY` = `fd_policy_sensitivity.png`, `_PLOT_OPTIONAL_FILENAMES`, `_FD_SENSITIVITY_SERIES_KEYS`, `_FD_DISAGREEMENT_KEY`, `_FD_CELL_ORDER`, the PURE `_fd_sensitivity_plot_data`, `_plot_fd_policy_sensitivity`, the `None`-filtering in `plot_training`, the optional-existence pass in `plot_training_subprocess`, and `run_summary.json:/optional_plot_paths`). **RESEARCH-VALIDITY / GRADE A**: `_PLOT_FILENAMES` still names EXACTLY the three REQUIRED figures and completeness is judged against that set alone, so a pre-v3 run directory keeps three figures and is NOT reported as broken; the figure is **HELD-OUT EVALUATION ONLY** and **IMMEDIATE-FD WAKES ONLY**, so no training row and no ordinary or post-FD-boundary wake enters a value or a denominator on it; SELECTED-joint-cell action and AGGREGATE column MASS are separate panels under names that cannot be confused (the mass is NEVER P(selected action)); raw and normalized joint entropy are distinguished; the argmax-disagreement series is emitted PER CELL rather than for whichever cell sorts first; and `optional_plot_paths` is keyed off the figure's OWN predicate so a run never declares a file it will not write (§5) |
-| Capture per-attempt VISUAL ARTIFACTS (known-only scenario + executed t=0 scenario + BLADE playback + manifest) | `rl/training/graph_train.py` (`TrainConfig.visual_artifacts` and the `--visual-artifacts` flag, `_AttemptIdentity`, `_AttemptArtifacts` with `open` / `capture_known_only_scenario` / `capture_executed_t0_scenario` / `sync_recordings` / `finalize` (which reconciles expected vs observed world counts before it will say `complete`) / `to_manifest`, `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs`; consumed by `_run_one_episode(..., artifacts=...)` and wired from `train` / `evaluate(..., artifacts_root=...)`). OFF by default and OFF is byte-unchanged — see the §5 trainer contract. `graph_tick_loop`, `graph_episode_setup`, `PlaybackRecorder.py` and `Game.py` are NOT touched; recording is armed only through `setup_episode(recording_export_path=...)`. |
-| Persist or AGGREGATE the generalized per-episode diagnostics | `rl/training/graph_train.py` (`_episode_outcome_record`, written at the CURRENT `_EPISODE_OUTCOME_VERSION = 3` — **version 2 was the version this Task-4 layer landed at, and the later per-wake FD diagnostics layer moved the writer `2 → 3`**; the generalized keys below are unchanged by that move, `_reward_breakdown_record`, `_failure_record`'s scheduled-cardinality + `reference_fault_reason` fields, `_EMPTY_BENCHMARK_KEYS`, `_backoff_rejections` / `_eligibility_rejections`, `_generalized_summary` and `run_summary.json:/generalized`, `_construction_record`, `seed_bands(..., benchmark=...)` / `EVAL_SEED_SOURCE_MANIFEST`, the `episode_design` block of `write_run_config`, and the FOURTH `measurement_health.png` panel in `_plot_measurement_health`). **RESEARCH-VALIDITY / GRADE A**: every aggregate is DERIVED from the canonical jsonl streams (ONE metric path), every denominator is explicit, the two streams stay DISJOINT, `null` never means `0`, cross-round benchmark totals are flagged REPEATED MEASURES, and requested-vs-realized is REPORTED for human/GPT inspection with **no automatic acceptance threshold** (§5, §8) |
-| Read why/how a run stopped | `train_records.jsonl:/early_stopping_check` (the durable per-check history — one entry per DUE check, on the iteration it was computed from; ABSENT entirely on a run with the feature off) + `rl/training/graph_train.py` (`_EARLY_STOPPING_RECORD_KEY`, `_early_stopping_summary`, `TERMINATION_REASONS` = `TERMINATION_REASON_PLATEAU` / `TERMINATION_REASON_MAX_BUDGET` / `TERMINATION_REASON_DISABLED`) + `run_summary.json:/early_stopping` (`enabled`, `policy`, `metric`, the configured shape, `earliest_possible_stop_iterations`, `triggered`, `termination_reason`, the planned/actual pairs `planned_iterations` / `completed_iterations`, `planned_successful_episodes` / `actual_successful_episodes`, `planned_max_training_attempts` / `actual_training_attempts`, `stop_completed_iterations` / `stop_iteration_index`, `n_checks`, `checks`, `checks_source`). **RESEARCH-VALIDITY / GRADE A**: the summary is DERIVED from the durable records (ONE metric path), the block is present on EVERY run so `disabled_fixed_budget` STATES the fixed-budget contract rather than leaving it to be inferred, planned and actual are always reported as a PAIR, `null` never means `0`, and **a triggered stop records only that the configured plateau rule fired — never a convergence or optimality claim** (§5) |
+| Task | Files and symbols | Contract |
+|---|---|---|
+| change a figure | `rl/training/graph_train.py`: `plot_training`, `plot_training_subprocess`, `_plot_training_performance`, `_plot_policy_diagnostics`, `_plot_measurement_health`, `_PLOT_FILENAMES`, `_PLOT_X_LABEL` | §2 |
+| change or read the optional FD-policy-sensitivity figure | `graph_train.py`: `_PLOT_FD_SENSITIVITY`, `_PLOT_OPTIONAL_FILENAMES`, `_fd_sensitivity_plot_data`, `_plot_fd_policy_sensitivity` | §5 |
+| capture per-attempt visual artifacts | `graph_train.py`: `TrainConfig.visual_artifacts`, `_AttemptIdentity`, `_AttemptArtifacts` (`sync_recordings`, `finalize`), `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs` | §1 |
+| read what an episode did, per successful attempt | `graph_train.py`: `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes`; `episode_outcomes.jsonl`; `run_summary.json:/severity_response` | §3 |
+| record or read per-wake actor diagnostics | `rl/action/graph_action.py`: `summarize_decision`, `_masked_dist`; `rl/training/graph_tick_loop.py`: `WAKE_KINDS`, `_decision_record`, `Transition.wake_kind` / `.decision`; `graph_train.py`: `_EPISODE_OUTCOME_VERSION`, `_WAKE_DIAGNOSTICS_VERSION`, `_wake_decision_records`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema` | §5 |
+| select the final evaluation round (never `eval_records[-1]`) | `graph_train.py`: `_FINAL_EVAL_IDENTITY_FIELDS`, `_final_eval_identity`, `_select_final_eval_record`, `_select_final_matched_round`, `_round_identity`; `run_summary.json:/final_eval_selection` | §5 |
+| persist or aggregate generalized per-episode data | `graph_train.py`: `_episode_outcome_record`, `_reward_breakdown_record`, `_failure_record`, `_EMPTY_BENCHMARK_KEYS`, `_generalized_summary`, `_construction_record`, `seed_bands`, `write_run_config` | §4; known label defect in [§6.1](#61-known-summary-label-defect-run_summaryjsongeneralizedcardinality_sampler) |
+| read why or how a run stopped | `train_records.jsonl:/early_stopping_check`; `run_summary.json:/early_stopping`; `graph_train.py`: `_early_stopping_summary`, `TERMINATION_REASONS` | [training and benchmarks §7](training_benchmarks.md#7-early-stopping) |
+
+A row that changes what a scientific artifact records, or how a summary is derived from it, is a
+research-validity change ([`cc_review.md` §4](../workflows/cc_review.md#4-risk-and-verification)).

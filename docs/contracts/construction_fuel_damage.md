@@ -5,16 +5,12 @@
 > FD eligibility, the live certificate check, post-FD completion-boundary wakes, or how frozen
 > BLADE tick behaviour bears on the fuel-damage event.
 >
-> **Status: normative technical contract.** Sections 1–4 and 6 were moved **verbatim** from
-> `CLAUDE.md` at base `ae42cb01677f94868b2873008d87be677e31f0c8` (former §5 blocks, rows of
-> former §6, items of former §8). Inside moved text a bare `§N` means that **former**
-> `CLAUDE.md` section — resolve it with the
-> [compatibility index](../../CLAUDE.md#8-compatibility-index-for-older-references). The
-> frozen-engine live-list behaviour that the live certificate check depends on is stated in
-> [`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion). A statement
-> inside a block that a run or result "does not exist" describes that block's own PR scope when
-> it merged; current run and evidence state lives in the
-> [handoff](../../graph_rl_project_handoff.md).
+> **Status: normative, current technical contract** for the code on `main`. Lock history is in
+> [`implementation.md`](../history/implementation.md), block provenance in
+> [`documentation_migration.md`](../documentation_migration.md), and current run and evidence
+> state in the [handoff](../../graph_rl_project_handoff.md). The frozen-engine live-list
+> behaviour that the live certificate check depends on is stated in
+> [`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion).
 >
 > Related contracts: [runtime](runtime.md) · [reward and solvers](reward_solvers.md) ·
 > [training and benchmarks](training_benchmarks.md) · [artifacts and metrics](artifacts_metrics.md).
@@ -23,7 +19,7 @@
 
 **GENERALIZED-V1 HIDDEN CARDINALITY — TWO EXPLICIT POLICIES ON ONE CONSTRUCTION SEAM —
 `rl/training/graph_hidden_placement.py` + `rl/training/graph_episode_setup.py`
-(`5b55ca3`, §7).**
+(`5b55ca3`).**
 
 The policy is SELECTED by `setup_episode(..., hidden_policy=...)` and is NEVER inferred.
 `HIDDEN_CARDINALITY_POLICIES = (HIDDEN_POLICY_EXACT_V1, HIDDEN_POLICY_BOUNDED_BACKOFF_V1)`;
@@ -68,7 +64,8 @@ candidate exhaustion; (5) the result is ACCEPTED when `H_realized >= 1`.
   N succeeded or was rejected cannot shift candidate N+1's fraction and offset draws, and
   the episode rng's END POSITION depends only on the candidate COUNT, never on how many
   attempts the walk took.
-- **ORDINALS, NEVER UUID TEXT.** Generated agent and target ids are not seed-derived (§8),
+- **ORDINALS, NEVER UUID TEXT.** Generated agent and target ids are not seed-derived
+  ([runtime §2](runtime.md#2-episode-setup-stage-0)),
   so a permutation keyed on id strings would make an episode's hidden geometry
   irreproducible across runs of the same seed. Two rosters with opposite lexical orders and
   the same ordinal→route mapping produce identical results. Substreams come from the seeded
@@ -108,7 +105,8 @@ machine-readable `BACKOFF_REJECTION_REASONS` slug (`no_route`, `route_unresolvab
   the audit's own realized count must equal the number of placements, else `RuntimeError`.
 - **NOTHING HERE REACHES THE ACTING PATH.** No count, no policy id, no candidate ordinal
   and no rejection reason enters `GraphObservation`. A count of what is hidden is exactly
-  the privileged quantity an ego cannot sense (§3). The generalized-only `split_meta` keys
+  the privileged quantity an ego cannot sense
+  ([`CLAUDE.md` §3](../../CLAUDE.md#3-architecture--the-load-bearing-invariants)). The generalized-only `split_meta` keys
   (`hidden_policy`, `hidden_realized`, `construction_audit`) are added ONLY under this
   policy, so nothing reading a historical record sees a new field.
 
@@ -120,12 +118,10 @@ machine-readable `BACKOFF_REJECTION_REASONS` slug (`no_route`, `route_unresolvab
 `fixed_cell_v1` the keyword is OMITTED entirely, so setup resolves its own `exact_v1`
 default exactly as it always did and the historical call is byte-unchanged. **There is no
 standalone `hidden_policy` field on either config**, so this policy cannot be enabled apart
-from the bundle. *(SUPERSEDED, and corrected here: this paragraph previously read "NEITHER
-HARNESS EXPOSES THIS POLICY YET … Wiring it into the harnesses, and building the sampler /
-evaluation manifest that would consume it, is later GENERALIZED-V1 work and is NOT
-implemented". That was accurate before PR #40 and is not now.)* The requested-vs-realized
-audit is now PERSISTED and AGGREGATED — see the GENERALIZED-V1 harness / population
-contract below. **No generalized scientific measurement exists** (§8).
+from the bundle. The requested-vs-realized
+audit is PERSISTED and AGGREGATED — see
+[artifacts and metrics §4](artifacts_metrics.md#4-generalized-persistence-and-aggregates).
+Measurements taken on these designs are listed in the [handoff](../../graph_rl_project_handoff.md).
 
 The GENERALIZED-V2 route-relative hidden load, which drives `bounded_backoff_v1` with a
 request resolved after the known-only solve, is contracted in
@@ -138,11 +134,11 @@ request resolved after the known-only solve, is contracted in
 `graph_train` and `graph_rollout`).
 
 THE **ONE** SELECTED DIFFICULTY FACTOR of the Phase-A reference baseline cell, and the
-design the approved Phase-A long-baseline measurement (`737b4bf`, §7) was taken on. The
+design the approved Phase-A long-baseline measurement (`737b4bf`) was taken on. The
 scenario is otherwise UNCHANGED: 3 agents, 3 known + 3 route-relative hidden airbase
 targets, 200 km / 100 km geometry, `DETECTION_KM = 50`, `include_sams=False`,
 `probability = 1`, unchanged BLADE weapon lethality, frozen solver, unchanged PPO. No
-second factor is bundled in (§8).
+second factor is bundled in.
 
 **THIS CONTRACT IS UNCHANGED BY FD-VARIABLE-SEVERITY-v1** (the block that follows). The
 legacy modes — `off`, `seeded_mixture`, `forced_clean`, `forced_damaged`
@@ -215,7 +211,8 @@ that baseline instead of extending it.
   accepted, and the resolved value is recorded in `run_config.json:/difficulty`.
   CONSEQUENCE FOR READING A REWARD: with `c > 0` the penalty term is real, so `R` is no
   longer confined to `~[-1, 0]` — an episode that loses an airframe can score below `-1`.
-  The §5 Stage-7 range note describes the `c = 0.0` case.
+  The range note in [reward and solvers §1](reward_solvers.md#1-terminal-reward-stage-7) describes
+  the `c = 0.0` case.
 - **Observability.** Records and the per-episode `OK` block distinguish clean from damaged
   episodes and PLANNED from LIVE bounds (`FuelDamagePlan.rtb_fuel_floor` vs
   `FuelDamageOutcome.live_rtb_fuel_floor` — kept under separate names, printed side by
@@ -236,12 +233,12 @@ that baseline instead of extending it.
 `rl/training/graph_fuel_damage.py` + `rl/training/graph_train.py` +
 `rl/training/graph_rollout.py`.**
 
-MERGED AND LOCKED (`eecc9b5`, §7), and **MEASURED ONCE — the actor-only baseline at
+MERGED AND LOCKED (`eecc9b5`), and **MEASURED ONCE — the actor-only baseline at
 measured code SHA `bf1e045f` is EXECUTED, independently reviewed and
 `APPROVE — VALID MEASUREMENT`, and its PRIMARY behavioural finding is NEGATIVE: the
 deterministic held-out actor showed NO severity-conditioned FD-wake meta-action
-separation** (§7 owns the authoritative record and every denominator; §8 owns the phase
-state). Nothing beyond that record may be claimed for this design. It is an ADDITIONAL
+separation** ([measurement history](../history/measurements.md#2-measurement-records) owns the
+record and every denominator). Nothing beyond that record may be claimed for this design. It is an ADDITIONAL
 actor-only stress design layered on the legacy factor, not a replacement for it and not a
 reopening of the closed Phase-A reference.
 
@@ -321,7 +318,7 @@ reopening of the closed Phase-A reference.
   `probability = 1`; BLADE weapon lethality, the frozen solver, `graph_reward`'s formula,
   PPO, the encoder, the action space, `DETECTION_KM`, B2 placement, the seed schedules and
   the vendored engine are all unchanged. **`p(destroy) < 1` is a SEPARATE future Grade-A
-  research task and was NOT implemented here** (§8).
+  research task and was NOT implemented here**.
 
 The matched clean / mild / severe triad evaluation and the durable per-episode outcome stream
 that measure this design are contracted in
@@ -332,7 +329,7 @@ that measure this design are contracted in
 **GENERALIZED-V1 CERTIFIED FD ELIGIBILITY + POST-FD COMPLETION-BOUNDARY ADAPTATION —
 `rl/training/graph_fuel_damage.py` + `rl/training/graph_tick_loop.py` +
 `rl/action/graph_trigger.py` + `utils/blade_utils/blade_graph_executor.py` +
-`rl/training/graph_train.py` (`185d39f`, §7).**
+`rl/training/graph_train.py` (`185d39f`).**
 
 TWO OPT-IN policy seams, both carried on `FuelDamageParameters`, both VERSIONED strings, and
 both DEFAULTING to the merged legacy behaviour — so every existing construction site,
@@ -372,7 +369,7 @@ eligibility cannot move the condition or the legacy ego, and neither can move el
 **CERTIFIED ELIGIBILITY — FD CAPABILITY BECOMES A PROPERTY OF WORLD ACCEPTANCE.**
 `_certified_eligibility_walk` is a DETERMINISTIC BOUNDED walk over the candidate population
 `ctx.agent_ids` — the AUTHORITATIVE scheduled agent sequence — where a candidate's identity
-is its ORDINAL there, never generated id text (§8: ids are not seed-derived). Egos the
+is its ORDINAL there, never generated id text (generated ids are not seed-derived). Egos the
 allocated-only `A_init` omitted are INCLUDED and rejected truthfully as `no_route`, because
 "this ego had nothing to fly" is a finding a silently shortened population could not report.
 At most `len(agent_ids)` candidates, each attempted at most ONCE, stopping at the FIRST
@@ -476,7 +473,8 @@ no episode converted to clean.
   correct outcome; **LEGACY, either condition → returns ALWAYS**, because the legacy policy
   makes no certified promise, a damaged episode whose ego never reaches the threshold is an
   ordinary recorded observation there, and an approved measurement contains exactly such an
-  episode (§7: the Phase-A rerun's seed 424). It is PURE and MUTATES NOTHING — it never
+  episode ([measurement history](../history/measurements.md#2-measurement-records): the Phase-A
+  rerun's seed 424). It is PURE and MUTATES NOTHING — it never
   applies a late event to satisfy itself; `scenario` and `ticks` are DIAGNOSTIC ONLY.
   **CALLED ONCE, AT THE SINGLE `graph_tick_loop.run_episode` EPISODE-EXIT SEAM**, which is
   the one path every scientific consumer goes through, so the predicate is not duplicated
@@ -488,7 +486,7 @@ no episode converted to clean.
 
 **THE LIVE CERTIFICATE CHECK BINDS THE EGO'S PHYSICAL STATE, AND ONLY THAT
 (`FuelDamageController._require_certificate_holds`, the certified-FD physical-state
-integrity repair `d36e133`, integrated `edf9e84`, PR #55 — §7).**
+integrity repair `d36e133`, integrated `edf9e84`, PR #55).**
 
 **SETUP-TIME CERTIFICATION REMAINS TICK-AWARE AND IS BYTE-UNCHANGED.** `event_tick`,
 `movement_count`, `bracket_ticks`, `CERTIFICATE_TICK_TOLERANCE == 1` and the fuel and
@@ -509,7 +507,8 @@ EXISTING TOLERANCE:**
 binding once, on the premise that an airborne ego receives exactly one engine update per
 outer tick — and **that premise, not the certifier, is what was wrong**: frozen BLADE can
 skip an airborne ego's entire update when a preceding aircraft leaves
-`scenario.aircraft` mid-pass (§2), so an ego whose peers land is physically EARLIER than
+`scenario.aircraft` mid-pass
+([`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion)), so an ego whose peers land is physically EARLIER than
 the tick count implies while its own state still matches the certificate exactly. **A TICK
 MISMATCH ALONE IS THEREFORE NOT A CERTIFICATE CONTRADICTION AND MUST NEVER BE DESCRIBED AS
 ONE.** `tick_delta` is still computed on every path — it is precisely what a skipped engine
@@ -611,11 +610,10 @@ identical to the pre-Task-4 one; under `generalized_v1` both certified policies 
 force together. **Neither config carries a standalone `eligibility_policy` or
 `post_fd_wake_policy` field**, so neither can be enabled apart from the bundle.
 `FdEligibilityAudit`, `FdEventCertificate` and `PostFdAdaptationOutcome` are now PERSISTED
-per episode and AGGREGATED per run — see the GENERALIZED-V1 harness / population contract
-below. *(SUPERSEDED, and corrected here: this paragraph previously read "NEITHER HARNESS
-EXPOSES THESE POLICIES YET … Nothing persists or aggregates `FdEligibilityAudit` or
-`PostFdAdaptationOutcome` yet". That was accurate before PR #40 and is not now.)* **No
-generalized scientific measurement exists** (§8).
+per episode and AGGREGATED per run — see
+[artifacts and metrics §4](artifacts_metrics.md#4-generalized-persistence-and-aggregates).
+ Measurements taken on these designs are listed in the
+[handoff](../../graph_rl_project_handoff.md).
 
 **WHAT IS EXPLICITLY NOT IN THIS DESIGN.** Target destruction stays DETERMINISTIC at
 `probability = 1` — **`p(destroy) < 1` was NOT implemented here and remains a separate
@@ -626,20 +624,25 @@ action, no peer behaviour change and no communication channel of any kind. BLADE
 solver, `graph_reward`, the encoder, the action space, `DETECTION_KM`, B2 geometry and the
 seed schedules are all unchanged. *(That list is a statement about TASK 2's scope and stays
 accurate as one. The continuation reference and `U_prefix` it excludes were implemented
-AFTERWARDS, as the SEPARATE Task-3 seam contracted immediately below — `graph_reward`'s
+AFTERWARDS, as the SEPARATE Task-3 seam contracted in
+[reward and solvers §2](reward_solvers.md#2-event-conditioned-continuation-reference) — `graph_reward`'s
 static formula is still unchanged there too.)*
 
 ## 5. Code routing
 
-| … | Go to |
-|---|---|
-| Choose or change the HIDDEN-CARDINALITY policy (`exact_v1` vs GENERALIZED-V1 `bounded_backoff_v1`) | `rl/training/graph_hidden_placement.py` (`HIDDEN_CARDINALITY_POLICIES`, `HIDDEN_POLICY_EXACT_V1`, `HIDDEN_POLICY_BOUNDED_BACKOFF_V1`, `place_hidden_targets_bounded`, `_select_leg` — the ONE leg-selection site both policies share, `_ordinal_permutation`, `_candidate_substream_seeds`, `BackoffCandidate` / `BoundedBackoffAudit`, `BACKOFF_REJECTION_REASONS`) + `rl/training/graph_episode_setup.py` (`setup_episode(..., hidden_policy=...)`, `_resolve_construction_mode`, `GENERALIZED_AGENT_COUNTS`, `_require_generalized_cardinality`, `ConstructionAudit`, `EpisodeContext.construction_audit`). **RESEARCH-VALIDITY / GRADE A**: `exact_v1` is the DEFAULT and is the behaviour the approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements were taken on — its geometry, ego order, draw order and rng stream position are test-pinned and must not move (§5). Realized counts come from the RAW world snapshots, never from an allocation, and nothing from either policy may reach `GraphObservation`. **SELECTING it is now done through `episode_design`, never through a standalone `hidden_policy` field** — see the episode-design row below |
-| Place hidden targets along a predicted ego route (PURE geometry — no BLADE / torch / solver / setup import) | `rl/training/graph_hidden_placement.py` (`PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `place_hidden_targets_bounded`, `validate_placement`, `geometric_fingerprint`). CONSUMED by construction-mode `setup_episode` (B3, `dd14ab4`); the import direction is one-way — this layer must never import `graph_episode_setup`. `predict_route` imports `nearest_neighbor_order` from `utils/scheduling_utils.py`, NOT from any executor module. |
-| Change the SHARED intra-level nearest-neighbor ordering (route prediction + execution at once) | `utils/scheduling_utils.py` (`nearest_neighbor_order`). ONE implementation with TWO consumers — `blade_graph_executor.GraphPlanExecutor._eligible` and `graph_hidden_placement.predict_route`. Changing it changes BOTH; that shared identity is the route-fidelity invariant (`2a3f89c`). Pinned by `tests/test_graph_executor_nn_ordering.py`. |
-| Change the LEGACY FD-BASELINE-v1 MECHANISM (rng domain, window, event, live re-validation, RTB measurement) — the PRESERVED Phase-A semantics | `rl/training/graph_fuel_damage.py` (`FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController.maybe_apply` / `live_bounds` / `note_commands` / `note_wake`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_plan` / `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `resolve_condition`, `fuel_for_distance_km`, `rtb_command_for`). PURE — no BLADE / gym / torch / solver import; must never import `graph_episode_setup`. Injected into the tick via `run_episode(..., fuel_damage=...)`. **The approved Phase-A measurement lives on these modes — do not move them; the mild/severe extension has its own row below.** |
-| Change the FD-VARIABLE-SEVERITY-v1 MECHANISM (severity draw, the two live bands, the live-midpoint target) | `rl/training/graph_fuel_damage.py` (`FuelDamageMode.VARIABLE` = `seeded_variable` / `forced_mild` / `forced_severe`, `SEVERITY_MILD` / `SEVERITY_SEVERE` / `SEVERITIES`, `FUEL_DAMAGE_SEVERITY_RNG_DOMAIN`, `derive_fuel_damage_severity_seed`, `resolve_severity`, `FuelDamageParameters.mild_probability` / `variable_severity` / `target_policy`, `TARGET_POLICY_LIVE_SEVERITY_MIDPOINT`, `severity_band` / `_SeverityBand` / `_require_valid_band`, and `FuelDamageController._live_variable_target` beside the untouched `_live_legacy_target`). The severity domain is SEPARATE from `fuel_damage_v1` on purpose (§5) — merging them would move the ego every damaged episode selects and invalidate the approved Phase-A baseline. Same PURITY rules as the row above. |
-| Choose or change CERTIFIED FD ELIGIBILITY (FD capability as a WORLD-ACCEPTANCE property) | `rl/training/graph_fuel_damage.py` (`FD_ELIGIBILITY_POLICIES` = `FD_ELIGIBILITY_LEGACY_V1` / `FD_ELIGIBILITY_CERTIFIED_V1`, `FuelDamageParameters.eligibility_policy` / `certified_eligibility`, `FUEL_DAMAGE_ELIGIBILITY_RNG_DOMAIN`, `derive_fuel_damage_eligibility_seed`, `eligibility_ordinal_permutation`, `certify_fd_candidate`, `_certified_eligibility_walk`, `_build_certified_plan`, `FdEventCertificate`, `FdEligibilityCandidate` / `FdEligibilityAudit`, `FD_ELIGIBILITY_REJECTION_REASONS`, `NO_FD_ELIGIBLE_EGO`, `CERTIFICATE_TICK_TOLERANCE`, `engine_leg_distance_km` / `predict_leg_states`, `FuelDamageController._require_certificate_holds` / `require_certified_event_realized`, `FuelDamageIntegrityError`) + the ONE terminal call site in `rl/training/graph_tick_loop.py` (`run_episode`'s episode-exit seam, BEFORE the recording export). **RESEARCH-VALIDITY / GRADE A**: the eligibility RNG domain is SEPARATE from `fuel_damage_v1` on purpose — merging them would move the ego every LEGACY damaged episode selects and invalidate the approved measurements. The LEGACY policy is the DEFAULT and its live-failure routing is unchanged (§5). **SELECTING the certified policy is now done through `episode_design`, never through a standalone `eligibility_policy` field.** Same PURITY rules as the FD rows above. **SETUP-TIME certification is TICK-AWARE and UNCHANGED** (`event_tick`, `movement_count`, `bracket_ticks`, `CERTIFICATE_TICK_TOLERANCE == 1` and the tolerance derivations built from that quantum), **but `_require_certificate_holds` binds ONLY the ego's PHYSICAL state at LIVE validation — position against `position_tolerance_km` and pre-damage fuel against `fuel_tolerance`, both the certificate's OWN existing quanta, NEITHER widened and NEITHER made dynamic — while the ABSOLUTE OUTER TICK is DIAGNOSTIC ONLY and can never abort on its own** (`d36e133`, PR #55; §2, §5). Every position/fuel/tick delta is computed BEFORE any verdict and all three are reported together; a genuine physical contradiction still raises `FuelDamageIntegrityError` BEFORE the fuel mutation |
-| Choose or change POST-FD COMPLETION-BOUNDARY WAKES (the damaged ego's later decision points) | `rl/training/graph_fuel_damage.py` (`POST_FD_WAKE_POLICIES` = `POST_FD_WAKE_SINGLE_V1` / `POST_FD_WAKE_COMPLETION_BOUNDARY_V1`, `FuelDamageParameters.post_fd_wake_policy` / `completion_boundary_wakes`, `FuelDamageController.boundary_wakes_enabled` / `post_fd_ego` / `deactivate_adaptation` / `note_boundary` / `note_boundary_wake` / `post_fd_outcome`, `PostFdBoundary`, `PostFdAdaptationOutcome`, `POST_FD_DEACTIVATED_RTB` / `POST_FD_DEACTIVATED_DEAD`) + `rl/training/graph_tick_loop.py` (`_post_fd_boundary`, `_drop_confirmed_assignments`, `_assignment_target_id`, and the top-of-tick call site) + `rl/action/graph_trigger.py` (`TriggerKind.POST_FD_COMPLETION`, `decide_triggers(..., post_fd_completion=False)`) + `utils/blade_utils/blade_graph_executor.py` (`reconcile_confirmed_for_ego`, `has_open_assignments`). **RESEARCH-VALIDITY / GRADE A**: only the ACTUALLY damaged ego may enter the state (`post_fd_ego` is the single enforcement site, armed only AFTER the real mutation), the boundary is an ego-LOCAL proximity-gated confirmation and never a peer's outcome, the belief edit touches only that ego's own slice, and the reconciliation runs BEFORE `central.capture` so CTDE samples stay 1:1 (§5). **SELECTING it is now done through `episode_design`, never through a standalone `post_fd_wake_policy` field, and `post_fd_outcome` IS now persisted per episode and aggregated per run** — see the episode-design and persistence rows below |
+| Task | Files and symbols | Contract |
+|---|---|---|
+| choose or change the hidden-cardinality policy | `rl/training/graph_hidden_placement.py`: `HIDDEN_CARDINALITY_POLICIES`, `place_hidden_targets_bounded`, `_select_leg`, `_ordinal_permutation`, `_candidate_substream_seeds`, `BoundedBackoffAudit`, `BACKOFF_REJECTION_REASONS`; `rl/training/graph_episode_setup.py`: `setup_episode(hidden_policy=...)`, `_require_generalized_cardinality`, `ConstructionAudit` | §1; selected only through `episode_design` ([training and benchmarks §5](training_benchmarks.md#5-episode-designs-generalized-v1-sampler-and-18-stratum-benchmark)) |
+| place hidden targets along a predicted route (pure geometry) | `graph_hidden_placement.py`: `PlacementParameters`, `HiddenPlacement`, `predict_route`, `place_hidden_targets`, `validate_placement`, `geometric_fingerprint` | §1 |
+| change the shared nearest-neighbour ordering (route prediction and execution at once) | `utils/scheduling_utils.py`: `nearest_neighbor_order`; `tests/test_graph_executor_nn_ordering.py` | §1; [runtime §3](runtime.md#3-execution-stage-1) |
+| change the legacy FD-BASELINE-v1 mechanism | `rl/training/graph_fuel_damage.py`: `FuelDamageMode`, `FuelDamageParameters`, `FuelDamagePlan`, `FuelDamageOutcome`, `FuelDamageController`, `measure_window`, `plan_fuel_damage`, `build_fuel_damage_controller`, `derive_fuel_damage_seed`, `fuel_for_distance_km`, `rtb_command_for` | §2 |
+| change the FD-VARIABLE-SEVERITY-v1 mechanism | `graph_fuel_damage.py`: `FUEL_DAMAGE_SEVERITY_RNG_DOMAIN`, `derive_fuel_damage_severity_seed`, `resolve_severity`, `severity_band`, `_require_valid_band`, `FuelDamageController._live_variable_target` | §3 |
+| choose or change certified FD eligibility or the live certificate check | `graph_fuel_damage.py`: `FD_ELIGIBILITY_POLICIES`, `derive_fuel_damage_eligibility_seed`, `certify_fd_candidate`, `_certified_eligibility_walk`, `FdEventCertificate`, `FdEligibilityAudit`, `NO_FD_ELIGIBLE_EGO`, `CERTIFICATE_TICK_TOLERANCE`, `FuelDamageController._require_certificate_holds` / `require_certified_event_realized`, `FuelDamageIntegrityError`; the episode-exit call in `graph_tick_loop.run_episode` | §4 |
+| choose or change post-FD completion-boundary wakes | `graph_fuel_damage.py`: `POST_FD_WAKE_POLICIES`, `FuelDamageController.post_fd_ego` / `note_boundary`, `PostFdAdaptationOutcome`; `rl/training/graph_tick_loop.py`: `_post_fd_boundary`, `_drop_confirmed_assignments`; `rl/action/graph_trigger.py`: `TriggerKind.POST_FD_COMPLETION`; `utils/blade_utils/blade_graph_executor.py`: `reconcile_confirmed_for_ego`, `has_open_assignments` | §4 |
+
+`graph_fuel_damage` and `graph_hidden_placement` must stay pure (no BLADE, gymnasium, torch or
+solver import) and must never import `graph_episode_setup`. Every row above is a
+research-validity change ([`cc_review.md` §4](../workflows/cc_review.md#4-risk-and-verification)).
 
 ## 6. Known limitations and open items
 
@@ -651,14 +654,15 @@ static formula is still unchanged there too.)*
   0 (the reference) is clean. **The decision is to ACCEPT the loss and account for it**: the
   seed is attempted once, its failure is recorded once in `episode_failures.jsonl` with the
   pipeline stage, and the batch simply carries a smaller successful population that every
-  statistic reports next to its denominator (§5). The rejected alternatives stay rejected —
+  statistic reports next to its denominator
+  ([training and benchmarks §1](training_benchmarks.md#1-trainer-and-run-auditability)). The rejected alternatives stay rejected —
   no reseeding past a failure, no retry, no band shift, and above all no weakening of the
   cardinality check, the B2 geometry, or the loud failure. **PARTIALLY ADDRESSED, AND ONLY AS AN OPT-IN.** The general
   `n_hidden != usable ego routes` distribution policy B2 named now has ONE concrete answer:
-  the GENERALIZED-V1 `bounded_backoff_v1` cardinality policy (`5b55ca3`, §5), which accepts
+  the GENERALIZED-V1 `bounded_backoff_v1` cardinality policy (§1 above), which accepts
   any `H_realized >= 1` and records requested-vs-realized instead of refusing the world.
-  It is **NOT the default, is NOT selected by either harness, and changes NOTHING about the
-  behaviour above**: `exact_v1` still refuses, `skip_and_account_v1` still accounts, and the
+  It is **NOT the default, is reachable only through `episode_design`, and changes NOTHING
+  about the default behaviour above**: `exact_v1` still refuses, `skip_and_account_v1` still accounts, and the
   measured seed-2 / seed-8 outcomes are unchanged for every run that exists. Distributing
   SEVERAL hidden targets across ONE ego route remains out of scope and unimplemented. The
   first real probe measured the actual scheduled yield as **7/8** train attempts:

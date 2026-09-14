@@ -7,14 +7,11 @@
 > orderings. Reading another contract does not substitute for this one when a change touches
 > the tick.
 >
-> **Status: normative technical contract.** Sections 1–5 and 7 were moved **verbatim** from
-> `CLAUDE.md` at base `ae42cb01677f94868b2873008d87be677e31f0c8` (former §4; the Stage 0, 1, 2
-> and 6 and tick-loop blocks of former §5; rows of former §6; items of former §8). Inside moved
-> text a bare `§N` means that **former** `CLAUDE.md` section — resolve it with the
-> [compatibility index](../../CLAUDE.md#8-compatibility-index-for-older-references). A
-> statement inside a block that a run, manifest or result "does not exist" describes that
-> block's own PR scope when it merged; current run and evidence state lives in the
-> [handoff](../../graph_rl_project_handoff.md).
+> **Status: normative, current technical contract** for the code on `main`. Lock history is in
+> [`implementation.md`](../history/implementation.md), block provenance in
+> [`documentation_migration.md`](../documentation_migration.md), and current run and evidence
+> state in the [handoff](../../graph_rl_project_handoff.md). Frozen-engine limits:
+> [`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion).
 >
 > Related contracts: [construction and fuel damage](construction_fuel_damage.md) ·
 > [policy and CTDE](policy_ctde.md) · [reward and solvers](reward_solvers.md) ·
@@ -76,7 +73,7 @@ EpisodeContext
        # CentralCritic + GAE + CTDEUpdater. `actor_only` (the DEFAULT) builds
        # none of it and the loop above is byte-unchanged. EXECUTION is
        # decentralized in BOTH modes: the actor still reads only its own
-       # private GraphObservation. See §5, and §8 for the un-run comparison.
+       # private GraphObservation. Contract: docs/contracts/policy_ctde.md §4.
 ```
 
 **FIVE OPT-IN GENERALIZED-V1 SEAMS SIT BESIDE THE PIPELINE ABOVE, AND THE DIAGRAM
@@ -89,8 +86,10 @@ and one further terminal step (`require_certified_event_realized`, at the episod
 before the recording export); and `setup_episode` accepts a second REWARD-REFERENCE policy
 (`event_conditioned_continuation_v1`) beside the default `static_t0_v1`, which MOVES the
 episode's second MATCH-AOU reference solve out of setup and into `run_episode`. **All five
-default OFF, and with the defaults the pipeline above is exactly what runs.** §5 owns every
-one of those contracts.
+default OFF, and with the defaults the pipeline above is exactly what runs.** Their contracts:
+[hidden cardinality](construction_fuel_damage.md#1-hidden-cardinality-policies),
+[certified FD and post-FD boundaries](construction_fuel_damage.md#4-certified-fd-eligibility-live-certificate-check-and-post-fd-boundaries),
+[the continuation reference](reward_solvers.md#2-event-conditioned-continuation-reference).
 
 **COUNT THE SEAMS AND THE POLICY IDS SEPARATELY — THEY ARE DIFFERENT QUANTITIES.** The
 paragraph above counts FIVE PIPELINE SEAM SITES (its fifth being the two further
@@ -112,9 +111,7 @@ resolves the **IDENTICAL FOUR IDS** as `generalized_v1` — it changes the POPUL
 episode is drawn from, never the episode MECHANISMS. **There is deliberately no
 per-policy harness field** — the four are resolved from the one selector and are not
 independently settable from a config, a preset or a CLI flag — so a run can never resolve
-half a bundle. *(SUPERSEDED, and corrected here: this paragraph previously gave
-`EPISODE_DESIGNS` as the two-element tuple `(fixed_cell_v1, generalized_v1)`. That was
-accurate before PR #57 and is not now.)*
+half a bundle.
 
 **TWO GENERALIZED-PATH BEHAVIOURS SIT BESIDE THAT RESOLUTION AND ARE NOT POLICY IDS ON
 `EpisodeDesign`.** (1) **`fuel_damage_mode` REMAINS A SEPARATE `TrainConfig` /
@@ -123,11 +120,8 @@ accurate before PR #57 and is not now.)*
 independent value on the fixed-cell path. (2) **The generalized TRAINING CARDINALITY SAMPLER
 is harness / POPULATION behaviour selected on the generalized path**, not a fifth policy id:
 `episode_cardinality` consults it because `cfg.generalized` is true, and `EpisodeDesign`
-neither names nor returns it. *(SUPERSEDED, and corrected here: this paragraph previously
-ended "no harness selects any of them today", and a later revision said "THE FIVE SEAMS ARE
-SELECTED TOGETHER BY ONE HARNESS KNOB". The first was accurate before PR #40; the second
-miscounted — `EpisodeDesign` holds FOUR low-level policy ids, not five.)* §5 owns the
-selector contract.
+neither names nor returns it. The selector contract is
+[training and benchmarks §5](training_benchmarks.md#5-episode-designs-generalized-v1-sampler-and-18-stratum-benchmark).
 
 **THE REWARD-REFERENCE SEAM (GENERALIZED-V1 Task 3, `24a8b1e`) CHANGES WHERE AND AGAINST
 WHAT THE SECOND SOLVE HAPPENS — NEVER THE CREDIT PLACEMENT.** Under the default
@@ -230,8 +224,8 @@ for BOTH solves. So `belief_tasks` is "the known targets the solver assigned" an
 `oracle_tasks` is "the targets the ORACLE assigned"; **neither is an inventory of what
 exists.** A target the solver left unselected is absent from both and is nevertheless
 physically in the world, sensible, attackable and confirmable. Reading either one as a
-world inventory is the defect this contract closes, and it is what made the long baseline
-scientifically inconclusive (§7, §8).
+world inventory is the defect this contract closes (its history:
+[the first long baseline](../history/measurements.md#2-measurement-records)).
 
 `EpisodeContext` therefore carries TWO IMMUTABLE RAW SNAPSHOTS, both taken by
 `_world_target_ids` **BEFORE** their solve ever runs, both deduplicated by target id with
@@ -253,7 +247,8 @@ of it, else `RuntimeError`. **Anything asking "which targets does this episode c
 reads these two fields.** `oracle_tasks` / `oracle_solution` are UNCHANGED and remain
 exactly right for the reward's oracle denominator — that is a question about ALLOCATION,
 and it was always correct. These ids are a RUNTIME snapshot, never a cross-run
-reproducibility key: generated target uuids are not seed-derived (§8), so cross-run
+reproducibility key: generated target uuids are not seed-derived
+([training and benchmarks §11](training_benchmarks.md#11-known-limitations-and-open-items)), so cross-run
 comparison is still `geometric_fingerprint(ctx.placements)`.
 
 **PATH SELECTION (`_resolve_construction_mode`, runs BEFORE any BLADE object exists).**
@@ -311,8 +306,8 @@ crosses (the normalized `a_init` assignments and the ordered known-target id str
 TRUTHFUL — it never claims `split_tasks` ran: `outcome`/`mode` are `"construction"`, and it
 carries `known`, `hidden`, `partial`, `full` (WORLD TARGETS EMITTED, keeping the legacy key
 names the training/rollout records read), plus `n_hidden_requested`, `allocated_known`, and
-`geometric_fingerprint` — coordinates only, because generated uuids are not seed-derived
-(§8). Reproducibility is judged by that fingerprint, never by id.
+`geometric_fingerprint` — coordinates only, because generated uuids are not seed-derived.
+Reproducibility is judged by that fingerprint, never by id.
 
 The hidden-cardinality policies selected on this seam (`exact_v1`, `bounded_backoff_v1`) are
 contracted in [construction and fuel damage §1](construction_fuel_damage.md#1-hidden-cardinality-policies);
@@ -372,9 +367,7 @@ confirmation_wait =
 - **Still out of scope:** general ammunition management and any probabilistic-miss policy.
   An ego with an empty rack still emits its attack and the engine simply launches nothing,
   exactly as before.
-- **Defect C was NOT addressed by this fix.** At THIS lock `is_done()` still treated the
-  `rtb_issued` latch as RTB-resolved. It was closed separately and afterwards by
-  `ea62e4e` — the contract is the next block.
+- **Episode completion is a separate contract** (physical completion, below).
 
 The accepted real-BLADE evidence, both engagements inside the single `DETECTION_KM = 50`
 attack envelope, at the production default `kill_confirm_ticks = 60`:
@@ -459,7 +452,8 @@ different sources, and only the second changed:
   skipped entirely, preserving the existing no-return-required contract for callers that
   opted out.
 - **No BLADE engine behaviour changed.** The classification reads what the frozen engine
-  already exposes; the vendored files are byte-unchanged (§2).
+  already exposes; the vendored files are byte-unchanged
+  ([`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion)).
 
 ## 4. Triggers (Stage 2)
 
@@ -484,36 +478,36 @@ by a peer while this ego is far away is deliberately NOT a boundary.
 **Resync (Stage 6)** — `GraphPlanExecutor.resync` (above): swaps the ego's plan slice without resetting `done`.
 
 **The two-phase tick (Stages 2–6) — `rl/training/graph_tick_loop.py`.**
-`run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None, fuel_damage=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`, and the tick's completion verdict is `executor.is_done(<the POST-STEP obs that step just returned>)` — completion is a PHYSICAL fact about the world the step produced (Defect C, `ea62e4e`), so an episode keeps ticking while an ordered-home aircraft actually flies home, and a death on that return is reconciled into `executor.dead` by the same call, BEFORE the loop returns, hence into `EpisodeResult.n_dead`. An ego whose `rtb_issued` latch is set is SKIPPED for the whole of Phase 1 from then on — no sensing, trigger, wake, policy inference, belief edit or `Transition` — while Phase 2 still runs for it every tick and peers continue normally. The optional `fuel_damage` controller (FD-BASELINE-v1) is consulted at the TOP of a tick, before Phase 1, and its Phase-2 `note_commands` call is a read-only measurement — see §4 and the FD contract below; `None` (the default) leaves the loop byte-unchanged. Under GENERALIZED-V1 (`185d39f`) that same controller is consulted at TWO more places, both no-ops under the legacy defaults: `_post_fd_boundary` runs at the TOP of the tick immediately AFTER the event call and before Phase 1 (only when `fuel_damage.boundary_wakes_enabled`), and ONE terminal `fuel_damage.require_certified_event_realized(...)` runs at the EPISODE-EXIT seam after the loop and **BEFORE the recording export** — see the certified-eligibility contract below. Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`); it only hands `is_done` the post-step observation and READS the answer. **The reward seam is unchanged:** `graph_reward`'s formula still reads `n_lost = len(ctx.executor.dead)` — what changed is that the set is now truthful at episode end. **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
+`run_episode(policy, ctx, cfg=None, *, deterministic=False, max_ticks=None, fuel_damage=None) -> EpisodeResult`. Strict two phases per tick: **Phase 1** runs every ego's `sensed → decide_triggers → (on wake) _wake_decision` against the SAME `obs` snapshot with **no** `env.step`; **Phase 2** issues ONE `env.step(executor.next_actions(obs))`, and the tick's completion verdict is `executor.is_done(<the POST-STEP obs that step just returned>)` — completion is a PHYSICAL fact about the world the step produced (Defect C, `ea62e4e`), so an episode keeps ticking while an ordered-home aircraft actually flies home, and a death on that return is reconciled into `executor.dead` by the same call, BEFORE the loop returns, hence into `EpisodeResult.n_dead`. An ego whose `rtb_issued` latch is set is SKIPPED for the whole of Phase 1 from then on — no sensing, trigger, wake, policy inference, belief edit or `Transition` — while Phase 2 still runs for it every tick and peers continue normally. The optional `fuel_damage` controller (FD-BASELINE-v1) is consulted at the TOP of a tick, before Phase 1, and its Phase-2 `note_commands` call is a read-only measurement — see §1 above and [FD-BASELINE-v1](construction_fuel_damage.md#2-fd-baseline-v1); `None` (the default) leaves the loop byte-unchanged. Under GENERALIZED-V1 (`185d39f`) that same controller is consulted at TWO more places, both no-ops under the legacy defaults: `_post_fd_boundary` runs at the TOP of the tick immediately AFTER the event call and before Phase 1 (only when `fuel_damage.boundary_wakes_enabled`), and ONE terminal `fuel_damage.require_certified_event_realized(...)` runs at the EPISODE-EXIT seam after the loop and **BEFORE the recording export** — see [certified FD eligibility](construction_fuel_damage.md#4-certified-fd-eligibility-live-certificate-check-and-post-fd-boundaries). Because BLADE advances only after all egos decided on the identical snapshot, Phase-1 ego order cannot affect the outcome (structural no-comms; proven in `_selftest`: `env.step` count == tick count). `_wake_decision` is the per-wake chain (Stage 3→6) under `torch.no_grad`, editing ONLY the acting ego's belief. `Policy` (`build_policy()`) bundles encoder+head, built ONCE, lives across episodes. Seam for reward/PPO: `EpisodeResult.trajectory: List[Transition]`. The loop does NOT own the agent lifecycle (executor owns `dead`/`done`/`rtb`/`is_done`); it only hands `is_done` the post-step observation and READS the answer. **The reward seam is unchanged:** `graph_reward`'s formula still reads `n_lost = len(ctx.executor.dead)` — what changed is that the set is now truthful at episode end. **Recording:** armed by setup (`ctx.record`), driven here — start + forced t=0 frame before the loop, throttled `record_step` after each Phase-2 step (before the exit checks), forced terminal frame + `export_recording` after the loop (all exit paths). A pure READ of engine state; default off is a no-op — observational purity proven in `_selftest` TEST 1b (identical `(ended, ticks, n_wakes)` with recording on/off). Artifact: `{export_path}/{scenario_name} Recording {start} - {end}.jsonl`.
 
 ## 6. Code routing
 
-| … | Go to |
-|---|---|
-| Change episode setup / solve+normalize / Belief | `rl/training/graph_episode_setup.py`, `rl/training/belief.py` |
-| Ask "which targets does this episode CONTAIN?" (world inventory, NOT allocation) | `rl/training/graph_episode_setup.py` (`EpisodeContext.known_target_ids` / `executed_target_ids`, `_world_target_ids`, and `_finish_context`'s required-keyword non-empty + subset verification). Both are RAW snapshots taken BEFORE their solve. **Never** answer it from `oracle_tasks`, `belief_tasks` or the beliefs — `solve_and_normalize` is allocated-only by contract, so those omit every unselected target. See the §5 roster-integrity contract |
-| Change the CONSTRUCTION seam (solve → place → patch → reload) | `rl/training/graph_episode_setup.py` → `_setup_episode_construction`, plus its helpers `_resolve_construction_mode`, `_shared_launch_point`, `_require_airbase_only_targets`, `_select_hidden_prototype`, `build_patched_scenario`, `_require_agent_ids_preserved`, `_rematerialize_known_tasks`, `_build_env` / `_extract_world` / `_close_quietly` / `_finish_context`. The hidden-CARDINALITY policy is selected here too (`hidden_policy`) — see the next row |
-| Change the LEGACY split path (retained, not deleted) | `rl/training/graph_episode_setup.py` → `_setup_episode_legacy`, `split_tasks` |
-| Change the tick-loop / policy bundle / rollout | `rl/training/graph_tick_loop.py` |
-| Change WHEN the policy wakes | `rl/action/graph_trigger.py` (`decide_triggers`, `TriggerKind` — FOUR members since `185d39f`, values APPEND-ONLY, `never_overdue`, `NO_TASK_INDEX`) |
-| Change BLADE execution / plan re-sync | `utils/blade_utils/blade_graph_executor.py` (`GraphPlanExecutor`) |
-| Change CONFIRMED-KILL RECONCILIATION (the proximity gate, liveness probe, `done`/cooldown mutations) | `utils/blade_utils/blade_graph_executor.py` — `_reconcile_confirmed` is the ONE implementation, at its historical point inside `_command_for_ego`, with `reconcile_confirmed_for_ego` and `has_open_assignments` as its public face for the post-FD boundary seam. Changing it changes BOTH callers; idempotence through the monotone `done` set is what keeps an early call's emitted command byte-identical (§5). Pinned by `tests/test_graph_executor_nn_ordering.py` |
-| Change the ATTACK-CONFIRMATION WAIT (how long an ego holds before re-firing) | `utils/blade_utils/blade_graph_executor.py` — `_salvo_travel_ticks` (the conservative travel BOUND + the transcribed `KILOMETERS_TO_NAUTICAL_MILES`), `_confirmation_wait_ticks` (live-weapon selection + the `max(kill_confirm_ticks, bound + 1)` floor) and the ATTACK BRANCH of `_command_for_ego` that arms the per-`(ego_id, target_id)` cooldown. Proofs — pure tiers and the real-BLADE tier (incl. the engine-constant comparison) — live in `tests/test_graph_setup_seam.py`. **The vendored engine stays FROZEN** (§2): the wait is derived from what BLADE already exposes, never by editing it. |
-| Change RTB / EPISODE-COMPLETION semantics (when an episode is allowed to end) | `utils/blade_utils/blade_graph_executor.py` — `is_done(observation)` (the two-half verdict), `_physical_state` (the ONE airborne / landed / removed classification site) and `_note_dead` (idempotent death reconciliation) — plus the returning-ego Phase-1 guard in `rl/training/graph_tick_loop.py` (`run_episode`, the `rtb_issued` skip) and the post-step `is_done(obs)` call site. Proofs: the pure lifecycle tier and the real-BLADE `P7` ride-home tier in `tests/test_graph_setup_seam.py`, and the returning-ego `POC-1..4` tier in `tests/test_graph_fuel_damage.py`. **The vendored BLADE engine stays FROZEN** (§2): completion is decided from states the engine already exposes, never by editing it. |
-| Expose the ego's own sensing | `blade_graph_executor.py` → `sensed_target_ids` |
-| Create Agents / Tasks from a scenario | `scenario_factory.py` → `create_agents_from_scenario` / `generate_all_enemy_tasks` (`probability=1.0`) / `iter_enemy_targets` + `make_attack_task` (utility: Facility 100 / Airbase 80 / Ship 95) |
-| Change scenario content / zones / fleet / fuel tiers | `scenario_generator.py` (`VariationConfig` incl. `strict_geometry` (raise instead of silently weakening requested geometry) and `min_target_separation_km` (pairwise known-target floor, default 0.0 = off); `ScenarioGenerator`, `CLASS_RANGE_TIERS`) |
-| Change generation-time discovery connectivity (Layer 1, at `DETECTION_KM`) | `scenario_generator.py` → `_ensure_discovery_chain` / `_compute_zone_bounds` / `_connect_zone_targets`; switch the whole pass OFF with `VariationConfig.ensure_discovery_chain=False` |
-| Change split-time discovery masking (Layer 2, at `DETECTION_KM`) | `rl/training/graph_episode_setup.py` → `split_tasks` |
-| Change post-solve scheduling / levels | `scheduling_utils.py`, `topology_utils.py` |
-| Change domain objects | `agent.py`, `task.py`, `step.py` (`StepKind`), `location.py`, `capability.py` |
+| Task | Files and symbols | Contract |
+|---|---|---|
+| change episode setup, solve-and-normalize or beliefs | `rl/training/graph_episode_setup.py`: `setup_episode`, `solve_and_normalize`, `_finish_context`; `rl/training/belief.py`: `Belief` | §2 |
+| answer "which targets does this episode contain?" (world inventory, never an allocation) | `graph_episode_setup.py`: `EpisodeContext.known_target_ids`, `executed_target_ids`, `_world_target_ids` — never `oracle_tasks`, `belief_tasks` or beliefs | §2 |
+| change the construction seam (solve → place → patch → reload) | `graph_episode_setup.py`: `_setup_episode_construction`, `_resolve_construction_mode`, `_shared_launch_point`, `_require_airbase_only_targets`, `_select_hidden_prototype`, `build_patched_scenario`, `_require_agent_ids_preserved`, `_rematerialize_known_tasks`, `_build_env`, `_extract_world`, `_close_quietly` | §2; [construction §1](construction_fuel_damage.md#1-hidden-cardinality-policies) |
+| change the retained legacy split path | `graph_episode_setup.py`: `_setup_episode_legacy`, `split_tasks` | §2 |
+| change the tick loop, policy bundle or recording | `rl/training/graph_tick_loop.py`: `run_episode`, `_wake_decision`, `Policy`, `build_policy` | §1, §5 |
+| change when the policy wakes | `rl/action/graph_trigger.py`: `decide_triggers`, `TriggerKind` (values append-only), `never_overdue`, `NO_TASK_INDEX` | §4 |
+| change BLADE execution or plan resync | `utils/blade_utils/blade_graph_executor.py`: `GraphPlanExecutor`, `next_actions`, `resync`, `sensed_target_ids` | §3, §5 |
+| change confirmed-kill reconciliation (one implementation, two callers) | `blade_graph_executor.py`: `_reconcile_confirmed`, `reconcile_confirmed_for_ego`, `has_open_assignments`; `tests/test_graph_executor_nn_ordering.py` | §3 |
+| change the attack-confirmation wait | `blade_graph_executor.py`: `_salvo_travel_ticks`, `_confirmation_wait_ticks`, the attack branch of `_command_for_ego`; `tests/test_graph_setup_seam.py` | §3 |
+| change RTB or episode-completion semantics | `blade_graph_executor.py`: `is_done`, `_physical_state`, `_note_dead`; the `rtb_issued` Phase-1 skip in `graph_tick_loop.run_episode`; `tests/test_graph_setup_seam.py`, `tests/test_graph_fuel_damage.py` | §3, §5 |
+| create agents and tasks from a scenario | `utils/blade_utils/scenario_factory.py`: `create_agents_from_scenario`, `generate_all_enemy_tasks`, `iter_enemy_targets`, `make_attack_task` | §2 |
+| change scenario content, geometry or discovery connectivity | `utils/blade_utils/scenario_generator.py`: `VariationConfig` (`strict_geometry`, `min_target_separation_km`, `ensure_discovery_chain`), `ScenarioGenerator`, `CLASS_RANGE_TIERS`, `_ensure_discovery_chain` | §2 |
+| change post-solve scheduling or levels | `utils/scheduling_utils.py`, `utils/topology_utils.py` | [construction §1](construction_fuel_damage.md#1-hidden-cardinality-policies) (shared `nearest_neighbor_order`) |
+| change domain objects | `models/`: `agent.py`, `task.py`, `step.py` (`StepKind`), `location.py`, `capability.py` | — |
+
+Every file above is frozen-engine-safe only as far as it reads what BLADE exposes; the engine
+itself stays frozen ([`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion)).
 
 > Shared domain infra (`scenario_generator`, `scenario_factory`, `scheduling_utils`, `topology_utils`, solver, `models`, `blade_utils`) is used by the graph path and is NOT old-model. Hand-written `.md` API docs may lag — prefer the code.
 
 ## 7. Known limitations and open items
 
 - **Peer-dropout as a deterministic pre-build trigger** (advisor-pending, separate chat): move "peer overdue ⇒ drop its ASSIGNMENT edge" out of the policy; needs a deadline param + a `was_assigned_to_peer` feature to keep recovered-vs-popup semantics.
-- **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` FLOOR calibration** if p<1 lands — the per-salvo TRAVEL component is now derived (§5, Defect B), so what is left open is how long to wait past a confirmed MISS before deliberately re-firing.
+- **`assigned_to_peer` as a task-feature column** (currently edge-derived), **real ETA** (enables PEER-OVERDUE; currently `never_overdue`), **`kill_confirm_ticks` FLOOR calibration** if p<1 lands — the per-salvo TRAVEL component is now derived (§3), so what is left open is how long to wait past a confirmed MISS before deliberately re-firing.
 - **`setup_episode` does not guard `split_meta["outcome"]` — LEGACY-PATH-ONLY since B3
   (`dd14ab4`).** `split_tasks` can return `warn-fallback` or `exhaust` — meaning a hidden
   target has NO known neighbour within `DETECTION_KM` and is therefore undiscoverable at
@@ -526,8 +520,9 @@ by a peer while this ego is far away is deliberately NOT a boundary.
   chain. Since training and rollout both use the construction path, this is now a hazard of
   the retained legacy surface only. Options if the legacy path is ever driven again:
   reject-and-reseed the episode, raise, or tie config to a control-ratio floor plus a
-  guard. Touches a §5 locked file → full recon→prompt→review→lock cycle.
-- **Single-radius invariant (§3) — CLOSED.** Sensing-radius expansion was cancelled.
+  guard. It touches a locked layer, so it is a reviewed research-validity change
+  ([`cc_review.md` §4](../workflows/cc_review.md#4-risk-and-verification)).
+- **Single-radius invariant ([`CLAUDE.md` §3](../../CLAUDE.md#3-architecture--the-load-bearing-invariants)) — CLOSED.** Sensing-radius expansion was cancelled.
   Keep the unified `DETECTION_KM = 50` contract for sensing, arrival, attack,
   kill-confirmation, generator connectivity, and split adjacency. Do not reopen this as
   part of scenario construction.

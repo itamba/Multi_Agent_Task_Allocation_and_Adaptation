@@ -6,14 +6,10 @@
 > timeouts, or anything that compares allocations across backends. The frozen legacy solver's
 > hard constraints are in [`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion).
 >
-> **Status: normative technical contract.** Sections 1–3 and 5 were moved **verbatim** from
-> `CLAUDE.md` at base `ae42cb01677f94868b2873008d87be677e31f0c8` (Stage 7, the continuation
-> reference and the MATCH-AOU backend blocks of former §5, rows of former §6, items of former
-> §8). Inside moved text a bare `§N` means that **former** `CLAUDE.md` section — resolve it with
-> the [compatibility index](../../CLAUDE.md#8-compatibility-index-for-older-references). A
-> statement inside a block that a run or result "does not exist" describes that block's own PR
-> scope when it merged; current run and evidence state lives in the
-> [handoff](../../graph_rl_project_handoff.md).
+> **Status: normative, current technical contract** for the code on `main`. Lock history is in
+> [`implementation.md`](../history/implementation.md), block provenance in
+> [`documentation_migration.md`](../documentation_migration.md), and current run and evidence
+> state in the [handoff](../../graph_rl_project_handoff.md).
 >
 > Related contracts: [runtime](runtime.md) · [construction and fuel damage](construction_fuel_damage.md) ·
 > [training and benchmarks](training_benchmarks.md).
@@ -27,7 +23,7 @@
 
 **GENERALIZED-V1 EVENT-CONDITIONED MATCH-AOU CONTINUATION REFERENCE + REWARD CHECKPOINT —
 `rl/training/graph_episode_setup.py` + `rl/training/graph_tick_loop.py` +
-`rl/training/graph_reward.py` (`24a8b1e`, integrated `df3abf2`, PR #38 — §7).**
+`rl/training/graph_reward.py` (`24a8b1e`, integrated `df3abf2`, PR #38).**
 
 ONE OPT-IN policy seam, a VERSIONED string, DEFAULTING to the merged historical behaviour —
 so every existing call site obtains the historical reference automatically.
@@ -97,7 +93,8 @@ target is destroyed the live BLADE world can no longer supply them either, so sc
 - **DAMAGED — the CONTINUATION reference, at the TOP of the FIRING tick.**
   `build_continuation_reference(ctx, scenario=obs, tick=tick, damaged_ego_id=...)` runs
   immediately AFTER `FuelDamageController.maybe_apply` performed the real `current_fuel`
-  mutation and BEFORE anything reacts to it. **THE ORDERING IS CONTRACTUAL** (§4): the real
+  mutation and BEFORE anything reacts to it. **THE ORDERING IS CONTRACTUAL**
+  ([runtime §1](runtime.md#1-the-end-to-end-pipeline)): the real
   mutation → the continuation reference → the post-FD completion boundary → the triggers →
   the CTDE `central.capture` → the actor decision → Phase 2 / `env.step`. So the reference
   describes the world the actor is ABOUT to decide in, not the world it decided into.
@@ -109,7 +106,8 @@ target is destroyed the live BLADE world can no longer supply them either, so sc
 EPISODE.** It writes no belief, no executor plan / `done` / RTB state, no actor
 `GraphObservation`, no `CentralGraphObservation`, no policy parameter and no BLADE state; it
 touches the engine only by reading it. **No field of it reaches the acting path** — the
-no-communication red line (§3) is untouched, in exactly the sense `graph_reward` as a whole
+no-communication red line
+([`CLAUDE.md` §3](../../CLAUDE.md#3-architecture--the-load-bearing-invariants)) is untouched, in exactly the sense `graph_reward` as a whole
 already is a centralized TRAINING signal. Solver WALL-CLOCK time passes while it runs;
 **SIMULATION time does not, because the checkpoint issues no `env.step`.**
 
@@ -205,7 +203,8 @@ R          = ratio - penalty                # NEVER clamped
 `solve_and_normalize_audited` is now THE ONE MATCH-AOU normalization site, and
 `solve_and_normalize` is a thin projection of it whose **public triple is byte-for-byte
 unchanged in every branch, the failure branch included**, so every historical caller is
-unaffected. The frozen solver (§2) is untouched. `SolveAudit` records what
+unaffected. The frozen solver
+([`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion)) is untouched. `SolveAudit` records what
 `MatchAou.solve` already distinguished but the triple could not express:
 
 - **`invoked=False`** — the degenerate short-circuit fired (no tasks, or no agents) and NO
@@ -280,11 +279,6 @@ exactly TWO routing classes:
 classification lives beside the reasons it classifies instead of being re-derived — possibly
 differently — at four handler sites. A non-`ReferenceIntegrityError` returns `False`; this
 layer still takes no decision on the trainer's behalf and still imports no trainer.
-*(SUPERSEDED, and corrected here: this paragraph previously read "It is NOT routed as an
-aborting instrument fault … Whether it should instead ABORT is a Task-4 decision … It is
-unreachable in practice today, because no harness selects the policy." That was accurate
-before PR #40; the decision has since been taken as above, and both harnesses now select the
-policy through `episode_design`.)*
 
 **LEGACY COMPATIBILITY EDGE CASE — `damaged_event_unrealized_t0`, AND IT IS NOT GENERALIZED
 DAMAGED SEMANTICS.** A DAMAGED-SCHEDULED episode whose event NEVER FIRED physically ran as a
@@ -297,7 +291,8 @@ playback into its manifest only after `run_episode` returns, so exporting first 
 second would leave a real recording no manifest lists.
 **IT EXISTS ONLY TO PRESERVE THE ALREADY-LOCKED TASK-2 LEGACY CONTRACT**, under which a
 scheduled damaged episode may legitimately finish without the FD event firing — an approved
-measurement contains exactly such an episode (§7: the Phase-A rerun's seed 424).
+measurement contains exactly such an episode ([measurement history](../history/measurements.md#2-measurement-records): the Phase-A
+rerun's seed 424).
 **UNDER `certified_both_severities_v1` IT IS UNREACHABLE**: the tick loop's terminal
 `require_certified_event_realized` rejects certified + damaged + not-fired FIRST, as a
 `FuelDamageIntegrityError` instrument abort. **So this fallback is NOT part of the intended
@@ -326,7 +321,7 @@ RECORDED rather than inferred from an absence; and the solver audit `solver_invo
 legible. `is_event_checkpoint` is the kind predicate; `to_record()` is a JSON-ready view of
 plain builtins that deliberately omits `tasks` and `solution`, and whose ids are WITHIN-RUN
 accounting identifiers, **never a cross-run reproducibility key** (generated uuids are not
-seed-derived — §8).
+seed-derived).
 
 **BOTH HARNESSES NOW SELECT THIS POLICY — THROUGH THE BUNDLE, NEVER ON ITS OWN
 (GENERALIZED-V1 Task 4, `db79013`).** `TrainConfig.episode_design` /
@@ -336,13 +331,9 @@ seed-derived — §8).
 entirely, so **a default run still runs `static_t0_v1` with `EpisodeResult.reference` `None`
 on every episode**, from the pre-Task-4 call. **Neither config carries a standalone
 `reference_policy` field**, so the policy cannot be enabled apart from the bundle.
-`EpisodeReference` and the reward decomposition are now PERSISTED per episode and AGGREGATED
-per run — see the GENERALIZED-V1 harness / population contract below. *(SUPERSEDED, and
-corrected here: this paragraph previously read "NEITHER HARNESS EXPOSES THIS POLICY YET …
-Nothing persists or aggregates `EpisodeReference` … That run-level persistence, and the
-generalized sampler / evaluation manifest that would consume it, is Task-4 work and is NOT
-implemented". That was accurate before PR #40 and is not now.)* **No generalized scientific
-measurement exists** (§8).
+`EpisodeReference` and the reward decomposition are PERSISTED per episode and AGGREGATED per
+run — see [artifacts and metrics §4](artifacts_metrics.md#4-generalized-persistence-and-aggregates).
+Measurements taken on these designs are listed in the [handoff](../../graph_rl_project_handoff.md).
 
 **WHAT IS EXPLICITLY NOT IN THIS DESIGN.** Target destruction stays DETERMINISTIC at
 `probability = 1` — **`p(destroy) < 1` was NOT implemented here and remains a separate future
@@ -354,7 +345,7 @@ boundary, `DETECTION_KM`, B2 geometry, the fuel-damage mechanism and the seed sc
 all unchanged. *(That list is a statement about TASK 3's scope and stays accurate as one.
 The generalized training sampler, the evaluation manifest and the new metrics and plot panel
 it excludes were implemented AFTERWARDS, as the SEPARATE Task-4 harness / population layer
-contracted immediately below — `graph_reward`'s static formula is still unchanged there
+contracted in [training and benchmarks §5](training_benchmarks.md#5-episode-designs-generalized-v1-sampler-and-18-stratum-benchmark) — `graph_reward`'s static formula is still unchanged there
 too.)*
 
 ## 3. MATCH-AOU allocation backends
@@ -363,7 +354,7 @@ too.)*
 OBJECTIVES — `solvers/match_aou_backend.py` (NEW) + `solvers/match_aou_p1_milp_solver.py`
 (NEW) + `rl/training/graph_episode_setup.py` + `rl/training/graph_reward.py` +
 `rl/training/graph_train.py` + `rl/training/graph_rollout.py` +
-`rl/training/graph_benchmark_preflight.py` (`8f0d250`, integrated `9979910`, PR #54 — §7).**
+`rl/training/graph_benchmark_preflight.py` (`8f0d250`, integrated `9979910`, PR #54).**
 
 WHICH MATCH-AOU objective a run solves is now a first-class, INDEPENDENT, EXPLICIT
 selector. It adds no episode mechanism: the bounded-backoff geometry, the FD certification
@@ -385,7 +376,8 @@ validation site and `uses_p1_milp` the ONE predicate.
 **`legacy_minlp_v1` REMAINS THE HISTORICAL DEFAULT AND IS THE PRESERVED PATH.** A caller
 that says nothing gets the frozen `MatchAou` through BONMIN — the objective **every
 approved measurement was taken on** (`737b4bf`, `bf1e045f`, and the R1 generalized
-measurement at `4af6c5aa…` — §7). The keyword-OMISSION discipline `_artifact_kwargs` /
+measurement at `4af6c5aa…` — see
+[measurement history](../history/measurements.md#2-measurement-records)). The keyword-OMISSION discipline `_artifact_kwargs` /
 `_ctde_kwargs` / `_cardinality_kwargs` / `_generalized_setup_kwargs` already use is applied
 here too: `graph_train._backend_setup_kwargs` and `graph_episode_setup._backend_kwargs`
 return `{}` on the historical backend, so a legacy run makes EXACTLY its pre-integration
@@ -405,13 +397,11 @@ the stronger invariance claim.
   EITHER approved objective, while **`generalized_v2` REQUIRES `p1_milp_v1` and REFUSES
   `legacy_minlp_v1` before any episode executes** — a REFUSAL of a contradictory request,
   never a selection made on the run's behalf and never a silent override. The reason is
-  stated in the GENERALIZED-V2 block below: V2 resolves its hidden load from the number of
+  stated in
+  [training and benchmarks §8](training_benchmarks.md#8-generalized-v2-population): V2 resolves its hidden load from the number of
   NON-EMPTY ROUTES the known-only allocation produced, and the legacy objective's EPSILON
   stacking incentive changes which allocations are optimal and therefore which egos are
   routed, so two objectives would make one design id mean two population selectors.
-  *(SUPERSEDED, and corrected here: this bullet previously read "It is ORTHOGONAL to
-  `episode_design` and to `training_mode`: either design may run under either backend."
-  That was accurate before PR #57 and is not now.)*
 - **THERE IS NO `auto`, NO FALLBACK IN EITHER DIRECTION, AND NO PER-SOLVE SWITCHING.** A
   refused P1 solve is never rescued by the legacy solver, and an unknown id RAISES rather
   than resolving to the default — a run that quietly solved the legacy objective while its
@@ -475,7 +465,8 @@ agree on the optimal COVERED-TASK SET in the exercised domain — that is an OBS
 engineering comparison, not a guarantee — but they do **NOT** generally share an optimal
 ALLOCATION set, and the difference is systematic rather than incidental. **CONSEQUENCE,
 STATED PLAINLY: selecting `p1_milp_v1` can change `A_init`, and because route-relative
-hidden placement predicts routes FROM `A_init` (§5, B2 / bounded backoff), it can change the
+hidden placement predicts routes FROM `A_init`
+([construction §1](construction_fuel_damage.md#1-hidden-cardinality-policies)), it can change the
 hidden geometry, episode feasibility, the certified FD event and therefore the POPULATION
 IDENTITY itself.** That is why it is a reviewed research decision and not a drop-in swap.
 
@@ -517,20 +508,23 @@ untouched.
 **NOTHING FROM THIS LAYER REACHES THE ACTING PATH:** no backend id, solver audit field,
 termination string or objective value enters `GraphObservation` or
 `CentralGraphObservation`. **NO SCIENTIFIC MEASUREMENT WAS PRODUCED BY THIS INTEGRATION, AND
-NO P1 PERFORMANCE, BENEFIT, LEARNING OR COMPARISON CLAIM MAY BE PRE-CLAIMED** (§8).
+NO P1 PERFORMANCE, BENEFIT, LEARNING OR COMPARISON CLAIM MAY BE PRE-CLAIMED** from it. Later measurements under either backend are listed in the
+[handoff](../../graph_rl_project_handoff.md).
 
 ## 4. Code routing
 
-| … | Go to |
-|---|---|
-| Route a REFERENCE fault — accounted attrition vs measurement-integrity ABORT | `rl/training/graph_reward.py` (`REFERENCE_FAULT_REASONS`, `REFERENCE_ATTRITION_REASONS`, `ReferenceIntegrityError(..., reason=...)` and `.is_measurement_integrity`, `reference_fault_aborts`) + `rl/training/graph_episode_setup.py` (the reason-carrying raise sites in `_solve_reference` / `build_t0_reference` / `build_continuation_reference`) + `rl/training/graph_train.py` (the `reference_fault_aborts` branches in `_run_one_episode`'s run and reward blocks, and the `except (_VisualArtifactError, MeasurementIntegrityError, FuelDamageIntegrityError, BenchmarkIdentityError, ReferenceIntegrityError)` re-raises in the train and both eval attempt handlers). **RESEARCH-VALIDITY / GRADE A**: `reason` is REQUIRED and closed, the routing reads the SLUG and NEVER the message, an unanswered solve is ordinary accounted attrition inside `skip_and_account_v1`, and every other reason ABORTS exactly as a roster or certificate fault does (§5) |
-| SELECT the MATCH-AOU ALLOCATION OBJECTIVE — `legacy_minlp_v1` (DEFAULT, frozen MINLP through BONMIN) vs `p1_milp_v1` (deterministic `p = 1` MILP through SciPy/HiGHS) | `solvers/match_aou_backend.py` (`MATCH_AOU_BACKENDS`, `MATCH_AOU_BACKEND_LEGACY_MINLP_V1` / `MATCH_AOU_BACKEND_P1_MILP_V1`, `DEFAULT_MATCH_AOU_BACKEND`, `resolve_match_aou_backend`, `uses_p1_milp`, `load_p1_milp_solver`, `MatchAouBackendError`) + `solvers/match_aou_p1_milp_solver.py` (`MatchAouP1MILP`, `P1MilpResults`, `P1MilpSolverSection`, `P1MilpUnsupportedInputError`, `P1MilpBackendUnavailableError`, `TERMINATION_OPTIMAL`) + `rl/training/graph_episode_setup.py` (`_backend_kwargs`, `solve_and_normalize_audited(..., backend=...)`, `EpisodeContext.match_aou_backend`, `_finish_context`'s REQUIRED `match_aou_backend` keyword) + `rl/training/graph_reward.py` (`plan_value(..., backend=...)`, `_p1_plan_value`, `episode_match_aou_backend`) + `rl/training/graph_train.py` (`TrainConfig.match_aou_backend`, `_backend_setup_kwargs`, `--match-aou-backend`) + `rl/training/graph_rollout.py` and `rl/training/graph_benchmark_preflight.py` (the same field and flag). **RESEARCH-VALIDITY / GRADE A**: selection is EXPLICIT — never inferred from `episode_design`, from task probabilities or from what is installed — there is **no `auto` and no fallback in either direction**, an unknown id RAISES, and ONE episode stores and uses ONE backend for every solve it performs. **THE DESIGN CONSTRAINS THE VALID VALUE SET WITHOUT MAKING THE CHOICE:** `fixed_cell_v1` and `generalized_v1` each accept EITHER approved objective, while **`generalized_v2` REQUIRES `p1_milp_v1` and REFUSES `legacy_minlp_v1` before execution** (`GENERALIZED_V2_REQUIRED_BACKEND`, checked in both `validate()` methods) — a REFUSAL of a contradictory request, never an override. So it is NOT fully orthogonal to `episode_design`; it remains orthogonal to `training_mode`. **`legacy_minlp_v1` is the DEFAULT and is the objective every approved measurement was taken on**, reached through keyword OMISSION so a legacy run makes exactly its pre-integration calls. **P1 is NOT a transparent speed/performance swap**: it removes the legacy EPSILON stacking incentive, so it changes which allocations are optimal and can change `A_init`, the hidden geometry, feasibility and population identity. The frozen `match_aou_MINLP_solver.py` is untouched, the P1 solver is LAZY-loaded and NOT re-exported through `match_aou.solvers`, and **no repository preset selects `p1_milp_v1`** (§5, §8) |
-| Route a BACKEND / CONFIGURATION fault — abort, never attrition and never a fallback | `solvers/match_aou_backend.py` (`MatchAouBackendError` — a `RuntimeError`, deliberately NOT a `ValueError`) + `rl/training/graph_episode_setup.py` (the re-raise of `P1MilpUnsupportedInputError` / `P1MilpBackendUnavailableError` as that one stable type) + the `except MatchAouBackendError: raise` guards in `rl/training/graph_train.py` (`_run_one_episode`'s setup, run and reward blocks and the train / legacy-eval / benchmark-eval attempt handlers), `rl/training/graph_rollout.py` and `rl/training/graph_benchmark_preflight.py`. **RESEARCH-VALIDITY / GRADE A**: an unknown id, an unreachable P1 stack, or an input outside the P1 contract (multi-step, `p != 1`, precedence) all say the INSTRUMENT is configured against a domain it does not model, so the run ABORTS — it names no pipeline stage, is NEVER written to `episode_failures.jsonl`, never counted against a condition or stratum tally, never entered into `skip_and_account_v1`, never replaced by the next training seed, never turned into a rejected benchmark candidate, **and NEVER answered by silently solving the other objective**. A solve that merely did not reach acceptable optimality is NOT this exception and keeps the existing attrition semantics (§5) |
-| Change the reward | `rl/training/graph_reward.py` (`compute_episode_reward`/`plan_value`/`realized_utility`/`RewardConfig`) |
-| SELECT or change the REWARD-REFERENCE POLICY (`static_t0_v1` vs GENERALIZED-V1 `event_conditioned_continuation_v1`) | `rl/training/graph_reward.py` (`REFERENCE_POLICIES`, `REFERENCE_POLICY_STATIC_T0_V1`, `REFERENCE_POLICY_EVENT_CONDITIONED_V1`, `uses_event_conditioned_reference`) + `rl/training/graph_episode_setup.py` (`setup_episode(..., reference_policy=...)`, `_resolve_reference_policy`, `EpisodeContext.reference_policy` / `t0_reference_tasks`, `_t0_reference_or_deferred`). **RESEARCH-VALIDITY / GRADE A**: `static_t0_v1` is the DEFAULT and is the behaviour the approved Phase-A (`737b4bf`) and FD-VARIABLE-SEVERITY-v1 (`bf1e045f`) measurements were taken on — moving it moves what those measurements mean. `EpisodeContext.reference_policy` is the ONE stored source and `uses_event_conditioned_reference` the canonical runtime predicate; an unknown id RAISES before any BLADE object exists. **SELECTING it is now done through `episode_design`, never through a standalone field** — see the episode-design row below (§5, §8) |
-| Change the CONTINUATION CHECKPOINT TIMING or the REFERENCE CONSTRUCTION | `rl/training/graph_tick_loop.py` (`run_episode`'s three reference sites — the pre-first-tick CLEAN t=0 build, the `build_continuation_reference` call at the TOP of the firing tick immediately after `maybe_apply`, and the episode-exit `damaged_event_unrealized_t0` build BEFORE the recording export — plus `EpisodeResult.reference`) + `rl/training/graph_episode_setup.py` (`build_t0_reference`, `build_continuation_reference`, `_continuation_agents`, `_reference_universe`, `_solve_reference`, `_reference_aircraft_utility`, `SolveAudit`, `solve_and_normalize_audited`, `SOLVE_NOT_ATTEMPTED` / `SOLVE_TERMINATION_UNAVAILABLE`). **RESEARCH-VALIDITY / GRADE A**: the ORDERING is the contract — real `current_fuel` mutation → continuation reference → post-FD boundary → trigger → `central.capture` → actor decision → Phase 2 — so the reference describes the world the actor is ABOUT to decide in; the checkpoint is READ-ONLY measurement that issues no `env.step`; the task universe is the retained RAW t=0 world minus the realized prefix and NEVER a private belief; continuation agents are rebuilt from the LIVE post-event world with dead / RTB-committed / non-airborne egos EXCLUDED by recorded reason; and an unanswered solve is REFUSED (`ReferenceIntegrityError`) rather than recorded as an answered zero (§5) |
-| Change `U_prefix` / `U_post` / `U_ref` ARITHMETIC or the REWARD-BEARING TARGET SCOPE | `rl/training/graph_reward.py` (`_event_conditioned_breakdown` beside the UNTOUCHED `_static_t0_breakdown`, `EpisodeReference` and its `__post_init__` reconciliation, `REFERENCE_KINDS`, `CONTINUATION_EXCLUSION_REASONS`, `ReferenceIntegrityError`, `realized_task_indices` — the ONE all-steps rule both halves share — `task_target_ids`, and `EpisodeReward`'s `u_ref` / `u_oracle` / `u_prefix` / `u_cont_ref` / `u_post` / `scored_completed_targets` / `unscored_completed_target_ids` fields). **RESEARCH-VALIDITY / GRADE A**: `U_prefix` is FROZEN at the checkpoint and never recomputed from the final `done` set; `U_post` scores ONLY continuation-allocated tasks and a kill outside that set is ACCOUNTING-ONLY; `U_aircraft` comes from the reward-bearing reference universe; the reward is NEVER clamped; `u_oracle` is `None` under the opt-in policy, while on the historical one `reference_policy` is `static_t0_v1`, `u_ref` EQUALS `u_oracle`, the OPTIONAL scalar/count checkpoint fields are `None` — never `0.0` / `0` — and `unscored_completed_target_ids` keeps its typed empty-tuple default `()` rather than `None`; and terminal-on-last credit placement is IDENTICAL under both policies (§5) |
-| Change the solver objective/constraints | `match_aou_MINLP_solver.py` (extreme caution — §2). It is the `legacy_minlp_v1` backend and stays FROZEN; the SEPARATE `p1_milp_v1` objective lives in `match_aou_p1_milp_solver.py` and is selected, never substituted — see the backend row above |
+| Task | Files and symbols | Contract |
+|---|---|---|
+| change the terminal reward | `rl/training/graph_reward.py`: `compute_episode_reward`, `plan_value`, `realized_utility`, `RewardConfig`, `_static_t0_breakdown` | §1 |
+| select or change the reward-reference policy | `graph_reward.py`: `REFERENCE_POLICIES`, `uses_event_conditioned_reference`; `rl/training/graph_episode_setup.py`: `setup_episode(reference_policy=...)`, `_resolve_reference_policy`, `EpisodeContext.reference_policy` / `t0_reference_tasks`, `_t0_reference_or_deferred` | §2; selected only through `episode_design` ([training and benchmarks §5](training_benchmarks.md#5-episode-designs-generalized-v1-sampler-and-18-stratum-benchmark)) |
+| change continuation-checkpoint timing or reference construction | `rl/training/graph_tick_loop.py`: `run_episode`, `EpisodeResult.reference`; `graph_episode_setup.py`: `build_t0_reference`, `build_continuation_reference`, `_continuation_agents`, `_reference_universe`, `_solve_reference`, `SolveAudit`, `solve_and_normalize_audited` | §2; ordering in [runtime §1](runtime.md#1-the-end-to-end-pipeline) |
+| change `U_prefix` / `U_post` / `U_ref` arithmetic or the reward-bearing target scope | `graph_reward.py`: `_event_conditioned_breakdown`, `EpisodeReference`, `REFERENCE_KINDS`, `CONTINUATION_EXCLUSION_REASONS`, `realized_task_indices`, `task_target_ids`, `EpisodeReward` | §2 |
+| route a reference fault (accounted attrition or integrity abort) | `graph_reward.py`: `REFERENCE_FAULT_REASONS`, `REFERENCE_ATTRITION_REASONS`, `ReferenceIntegrityError`, `reference_fault_aborts`; the raise sites in `graph_episode_setup.py`; the handlers in `rl/training/graph_train.py` (`_run_one_episode` and the attempt handlers) | §2 |
+| select the MATCH-AOU backend | `solvers/match_aou_backend.py`: `MATCH_AOU_BACKENDS`, `DEFAULT_MATCH_AOU_BACKEND`, `resolve_match_aou_backend`, `uses_p1_milp`, `load_p1_milp_solver`; `solvers/match_aou_p1_milp_solver.py`: `MatchAouP1MILP`; `graph_episode_setup.py`: `_backend_kwargs`, `EpisodeContext.match_aou_backend`; `graph_reward.py`: `plan_value(backend=...)`, `_p1_plan_value`, `episode_match_aou_backend`; `graph_train.py`: `TrainConfig.match_aou_backend`, `_backend_setup_kwargs`; `rl/training/graph_rollout.py`; `rl/training/graph_benchmark_preflight.py` | §3; `generalized_v2` requires `p1_milp_v1` ([training and benchmarks §8](training_benchmarks.md#8-generalized-v2-population)) |
+| route a backend or configuration fault | `match_aou_backend.py`: `MatchAouBackendError`; the re-raise of `P1MilpUnsupportedInputError` / `P1MilpBackendUnavailableError` in `graph_episode_setup.py`; the guards in `graph_train.py`, `graph_rollout.py` and `graph_benchmark_preflight.py` | §3 |
+| change the legacy solver objective or constraints | `solvers/match_aou_MINLP_solver.py` — frozen ([`CLAUDE.md` §2](../../CLAUDE.md#2-do-not-touch-without-explicit-discussion)); the separate P1 objective is `solvers/match_aou_p1_milp_solver.py` | §3 |
+
+Every row is a research-validity change ([`cc_review.md` §4](../workflows/cc_review.md#4-risk-and-verification)).
 
 ## 5. Known limitations and open items
 
