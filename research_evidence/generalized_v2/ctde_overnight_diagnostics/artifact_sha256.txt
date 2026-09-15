@@ -1,0 +1,178 @@
+GENERALIZED-V2 CTDE overnight diagnostic sweep — artifact hash ledger
+Evidence-preservation task. No scientific execution was performed by this task.
+Measured code SHA for all three runs (clean tree, verified in each run's own
+run_config.json:/provenance/git): ae42cb01677f94868b2873008d87be677e31f0c8
+This is the SAME commit that PR #61 and PR #62's evidence commits are parented on;
+it is NOT the SHA of this evidence commit itself (see evidence_manifest.md,
+"Measured code SHA vs evidence-commit identity").
+
+=====================================================================
+COMMITTED FILES (byte-identical copies; hashes verified against source
+before commit, and blob identity checked with `git cat-file` after commit)
+=====================================================================
+
+--- smallbatch/ (source: graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0) ---
+run_config.json            20004  676e384b0c9984da62fae3b7a097afa8b18e40eceadfe72c745e0edf2ddc3077
+run_summary.json           99682  71c907cf46af1a18d7d5de3810b8e54a053027bc27a20ae2d8a2ccc868b9161d
+train_records.jsonl      2147083  39e0b04506d80437d3fc4b532cc4dd0f383c3b275834186ddd5aaa72e109afb1
+eval_records.jsonl        405959  98dc5967ea9768f7da7a52af9dd8e098f4cc7b4e5518755ec5b8931c8acef9a2
+episode_failures.jsonl     33865  cafecc52dee6e4d3ad5f5ab174fe929a956b78748b1fccd18677fb3149849d8b
+official_console.log     6427911  e47828b9ccbbe7a1f53546c3f0d51ff5d09258d65b7af39e4159dd9833bfae4d  (source: <run>.official.console.log)
+invocation_timing.txt        430  b4782abb87df201ab1664ee2e8f0e1ad9b807234c3a65c0028da6ecaa72e2633  (source: <run>.official.timing.txt)
+accounting_check.json        502  51412e37ba6434d83de4918e037b8e3d01585fe145535840ad791bf418248674  (source: <run>.official.check.txt)
+diagnostic_summary.json     7353  06f1e0489a858ca22f4a02a8a72ed5a073a79ca2805f46968b57d5fc4b79c339  (source: sweep/summary_smallbatch.json)
+
+--- largebatch/ (source: graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0) ---
+run_config.json            20013  f36baadccbc07bfcf7d636be942a3f24fd33533c4251e488a6b1998878259149
+run_summary.json          100051  09bdda4342f4d255d354ac915055b86d93e236e1566dae8988082e737724827e
+train_records.jsonl       439938  f819d8a019e1062997270f3664f0e466594ee0390966446136d4ab4fd4cf2c47
+eval_records.jsonl        405506  997c7b30739aff35ecef277aa147d1b06b2ce2479cc2e90eab5494ea12cc0435
+episode_failures.jsonl     33860  f42ac9ec3ebb9212b6d3796bcf054fe633aedee6b5a0c73d5b8be1b6e176cc03
+official_console.log     6282163  7a783a6122d76552592bbdac35f634348897f215a1f245a5b63dd48731b9c699  (source: <run>.official.console.log)
+invocation_timing.txt        430  2acc206ba474375ea8550fdf77038ebd633a798abbf499556a36e22abc5dd7f0  (source: <run>.official.timing.txt)
+accounting_check.json        502  dcfd98dc6a6924b08571954b1e208ffbc0cacabdee5abc4d0b1fce866ebd6928  (source: <run>.official.check.txt)
+diagnostic_summary.json     7525  39f1231b6aae84f1cc26959baa12dfccf025dd2c6beb50cc7bf619e0197054ef  (source: sweep/summary_largebatch.json)
+
+--- fd80/ (source: graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0) ---
+run_config.json            20011  8323148ba2c74bee417c6ba89bce18103986bc294fe802fdebbfdabefd3b6a6b
+run_summary.json          100182  87b07700296c86031589c3c6b0b61897454472ba8544e2d3fb06f9db083c359c
+train_records.jsonl      1085989  d1b4aa21911ec426cb259ded8f11f7627c5f0308faabd04b38924a0d8d735c48
+eval_records.jsonl        405932  57e7b85bec8b193c56241ca0e71dfe4313c224677d07ea70d069ade648150c03
+episode_failures.jsonl     33875  fb28bba07800c3c437a1c426bfc8bd7cae61e363403febf7d426e67134ccb3e1
+official_console.log     6645964  f689db0351523a8e7bb409677829fb993c502d93ab1ec00bc53d5843996a1622  (source: <run>.official.console.log)
+invocation_timing.txt        430  50cbf9929c4c92b372c31bdb271f007ab5be5c5fc5a3d21d3762cd8823ee4137  (source: <run>.official.timing.txt)
+accounting_check.json        495  817b91c4db16682e5e5d50427e77a814d46293f9ff64399d0361b42ebbc2e1dd  (source: <run>.official.check.txt)
+diagnostic_summary.json     7543  868d6c8aceabbf27dfb32affae8f224500b661c6f7d1bd8c8976cbb166cecd89  (source: sweep/summary_fd80.json)
+
+--- sweep/ (shared orchestration; source: graph_rl_v2_ctde_dev_diag_sweep_ae42cb0) ---
+sweep_log.txt                1008  2203e5b9260a5afc96a70f8b1112ca1a4b67fc1e5092bf5b8a676739a3f83e54
+run_sweep.ps1                4196  5bd9d63ce6281ba98a05f2418268c62bf49b38b936298c9978e4cc842d147104
+check_arm.py                 4896  6bfdd1e55183084515c8607308e4c993403e2219790c8eef81cf47f6fa3aa01a
+summarize_arm.py             5291  b3aee309a66f9befb69f1d204dd19efec9d07e350535d83de03843393ecd3846
+config_delta.py               1735  2e0211dc4a481185f0461029bf8402d145666e024154e2ba9ac3db15ed375905
+summary_ctde_r1_pr62.json     7633  983b03060fadaa017329509734f3c7a1c43750f09fa89522d4366a8f2727895e
+arm_smallbatch.cmd             911  edc46bef4d55877d7d23cda76a9543f96de663182c1f42d72c51d79eff7d9323
+arm_largebatch.cmd             913  911569a0e3a3544b74a8cb249e04bb40fd07ca93f43e58539eb239dd78f6e98d
+arm_fd80.cmd                    900  cfdb583b81462d4feffafb3c533944c8382706dad19de64d02f5c6fa6d1d9289
+
+=====================================================================
+DELIBERATELY OMITTED (identified by original path, byte size and SHA-256;
+NOT committed; read-only originals left completely untouched)
+=====================================================================
+
+Reasoning for episode_outcomes.jsonl: each run's diagnostic_summary.json
+(computed by sweep/summarize_arm.py directly from that run's own
+episode_outcomes.jsonl) already carries the final-evaluation-round identity,
+the full per-base-cell primary-endpoint decomposition, the matched deltas,
+the meta-action / FD-wake breakdowns, the complete training-population
+aggregates and the full learning-curve summary statistics needed to
+independently review the diagnostic result. accounting_check.json
+additionally reconciles the raw per-run line counts (episode_outcomes.jsonl
++ episode_failures.jsonl) against run_summary.json before this evidence was
+assembled. Committing the full stream (~73-79 MB per run) was judged
+unnecessary for this review question; only its hash and size are recorded.
+
+--- episode_outcomes.jsonl (one per run; omitted per the reasoning above) ---
+smallbatch/episode_outcomes.jsonl   72895418  b763d588fac327dc68cd4ce1c982aabb3307e19bc62cba55cfe020ff6e59d052
+  (original: graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0\episode_outcomes.jsonl)
+largebatch/episode_outcomes.jsonl   73578857  0307c03f7a37f8de5ee7be53390c7a631eba3c8323e82c0bd34584179ee68d68
+  (original: graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\episode_outcomes.jsonl)
+fd80/episode_outcomes.jsonl         78827437  865bca5c730cccd6420033bd51ee4da87e81ec5443fa3b3b6a20f7a079892d5b
+  (original: graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0\episode_outcomes.jsonl)
+
+--- checkpoints/ (15 files per run; not committed; not needed for this review) ---
+smallbatch/checkpoints (15 files, 40988325 bytes total; original:
+  graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0\checkpoints\)
+  ckpt_iter0049.pt  2732555  991e1336677947a49f259ac6e7f2a892162befb29ace2ae4046118527e743b72
+  ckpt_iter0099.pt  2732555  ca8d8c2465393fe714597f6977fdcf1756c10076994db7e0ee7e1cfcfb22d451
+  ckpt_iter0149.pt  2732555  5f19b8dcb0605311117932602e7c2427567dbcdf94dedfdcf1cb4b37ae356699
+  ckpt_iter0199.pt  2732555  b7e50e8919b84e3ff1463e98eb3d1343d68c353da7ddd914c72baa5c4481eb72
+  ckpt_iter0249.pt  2732555  31306d90fde3b458f4e6384febb12fb5a9626cc94b7d9f5d64c6d376613eaf5f
+  ckpt_iter0299.pt  2732555  b59d5d7d28cf2add0281cb352008007b89d5328f5be4d8f983d24070c3b8d9fd
+  ckpt_iter0349.pt  2732555  42e1740b6739a86c4b95467fb98d918068e07790f63cc92adf4d881807cae29e
+  ckpt_iter0399.pt  2732555  2e0fd615f4b10025a99fe39cef88f90690f1a830c7bc70cc444b708b9ac2fede
+  ckpt_iter0449.pt  2732555  2e12d63615e2d663c74341138da1a6386a299558df8ecdb0a0c4a5207d4aaa45
+  ckpt_iter0499.pt  2732555  44bd1a4089761affa008f9a5f820c8411d5caca06e543e45196b1f79fd178844
+  ckpt_iter0549.pt  2732555  8ce6cbc75be26a563d58c164a6b7335491112af2c185588273cb07d7d6fbfa72
+  ckpt_iter0599.pt  2732555  41bc4fd252f955c27988d5f143b54592a6804f99d8bc332b379b3edf5a4898ca
+  ckpt_iter0649.pt  2732555  895ec6c0872888a5de72c41a839b0e3657061b2d9245cab8384c2aca8b805dab
+  ckpt_iter0699.pt  2732555  1c1a1677feeecf78de435f13ace711e115f560952615f94f91c52b19fa20cd7e
+  ckpt_iter0749.pt  2732555  cc8cad19a7a7c24d7b940b3724ecaa2a82ffdedf53be15a5b0b0005f9dc8b1c1
+
+largebatch/checkpoints (15 files, 40988325 bytes total; original:
+  graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\checkpoints\)
+  ckpt_iter0009.pt  2732555  5fd7888dd90d49f27cbcc8564356de99a19390008548be985ca86e608b0e840a
+  ckpt_iter0019.pt  2732555  0833999fe429bdf1465c905cce7b1d3b4117b2c261f13db07b8b96127661c4fd
+  ckpt_iter0029.pt  2732555  5ae2549da5729f8f41d91b261b6172e1a2b433ce46b52be5bdd5fa1456825cbd
+  ckpt_iter0039.pt  2732555  97715c1a9c7dde9ee82bc5f02e5080c93d766d9af0f1aba5c4b27d3c15dec595
+  ckpt_iter0049.pt  2732555  87b32312e18f6cd8988411c6e4b971613208bc7cf35164b5ab24b9c549933d23
+  ckpt_iter0059.pt  2732555  0c023796290fed165b1279a7f9687dfaebb04f8e16c2bc3342d29bcbf9d3aaeb
+  ckpt_iter0069.pt  2732555  5cd16bef046a475f6545b366fa9016e38a7f710e0263efd7a3404d61ac23a539
+  ckpt_iter0079.pt  2732555  6b71e3d5310e7685baa0c3ca2f9cb1c4c858ad69c3cca759ed02aab4f26a80d4
+  ckpt_iter0089.pt  2732555  af037a3bcd569a7cb9cf70e45fb7a626738da80e6feea570d20a0bc707e9ba8f
+  ckpt_iter0099.pt  2732555  413eba9b4da9e65fd2bfb3ae6e3701c0287e9e692189083c96e50fe5a7157d22
+  ckpt_iter0109.pt  2732555  c5eab046836c4e1a77e2979b780b3c7ae5f24d0bbf4e87bf275d2e9e3b42f021
+  ckpt_iter0119.pt  2732555  c18d36a5e57e395037f1f2a3cce60e1b2b9702ac05998c6604b644e6945bb9dc
+  ckpt_iter0129.pt  2732555  ab173e9363f9c528e1e7a0c3cc597f32a984c5bcfa31eacf6e330993fa2f3076
+  ckpt_iter0139.pt  2732555  1a045314eeb87c30cb2fc642ab3e8585459e1013983cf1a91c5a1b4a2f4c69b9
+  ckpt_iter0149.pt  2732555  d35db91827422faa36cd2b1eb808e24df808b8cd6ff9dfede1cdeb1a8e93f42a
+
+fd80/checkpoints (15 files, 40988325 bytes total; original:
+  graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0\checkpoints\)
+  ckpt_iter0024.pt  2732555  0aa57f2582ab090f64edd448779c6cb333891fe3a3cf9aaaea837e3246f769c3
+  ckpt_iter0049.pt  2732555  74334f04ef32f228f92b015694130328bdd0113af67c95e3f754b15facc455a7
+  ckpt_iter0074.pt  2732555  0fd30ae28898e155d1c9e4ab75bcc0fa0e52c481bcf21cf48e9f3b1b36eff358
+  ckpt_iter0099.pt  2732555  2d0c057875cdf8799f5aeb90e2e23e1c7bdcbec2092de00bc0433cb205d439b7
+  ckpt_iter0124.pt  2732555  8333acd8257921854769dbe34b5dd9e0ccaa3b60b2b02699d0415272d3d94c16
+  ckpt_iter0149.pt  2732555  2ba2ed7ef25b3fdbf64ae1f5b6d8ed1ffbaca38ac8e5d2b89e9728dd73577233
+  ckpt_iter0174.pt  2732555  cb96db9b1a199c2065a78d0a8803b710e70c1e7fbe25db0b7551968161cd3ea6
+  ckpt_iter0199.pt  2732555  f51d2874a4c318d420b5582b2e00842e21ccf935a30db41679ebc959a71c0c20
+  ckpt_iter0224.pt  2732555  1b85d6d6f90c83e62cf69a375a7c43d5d977885d24f501273d2bcc600e626445
+  ckpt_iter0249.pt  2732555  590978359acf03b9902ee4053272df2ab0b19219aea5d8de1328696d9f20419d
+  ckpt_iter0274.pt  2732555  b5def48f2a13b7faea0243056b7357ee063ce0df014a91d78d0569ee9476712b
+  ckpt_iter0299.pt  2732555  58de0d40032549a35090f465ca58932b336a3fef0537b56e2894b8ee7921ba9e
+  ckpt_iter0324.pt  2732555  f3cc6ff700d87a4d3ba4d6d0c5eef6cae97ca482ce3d43b9531aa7e3e008e0cc
+  ckpt_iter0349.pt  2732555  8ad864f4e1de437c1e9c7539648d63937f3b26e9601b2335175740c9a6eb2638
+  ckpt_iter0374.pt  2732555  a92d0015e60b6bc6852b77a3a37e6bc0545f4252347c050e395b71f8dea6aa2b
+
+--- plots/ (4 files per run; not committed per instruction "do not automatically commit ... plots") ---
+smallbatch/plots (original: graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0\plots\)
+  fd_policy_sensitivity.png   253415  fb3f4d2660fed7c45ddf78ad5d1024166a29b20ca63bbfd46bec7f4e86c6bf59
+  measurement_health.png      217390  1cc12b3510b2018e2e3be590a83903baab4afe1d6b7b3277d940890254d3bd4e
+  policy_diagnostics.png      379217  afc5394603809a145cebb1bb9cb0210b311c7eabc399fffde4642e51d37cd3c9
+  training_performance.png    286630  7bc3d46e729edf2688d1c664334fff1e98bed39702bbdce8b4f865f6ad777716
+
+largebatch/plots (original: graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\plots\)
+  fd_policy_sensitivity.png   239288  d5ed17c0e32fd2fa1804a23d9d95bb46c5e36b6a161a3e4e27f40d79f311be15
+  measurement_health.png      220443  3c492d6f36ead7f304499833f4ec1ec1be761a58843ef7a1af275e3f1f6209c4
+  policy_diagnostics.png      243627  835a241dc1fd3659c77b2307a4c9699dee6928849da552faf599b993eec51b61
+  training_performance.png    222456  e4f1c34a1713dff3524ca951ff03f5607056697a7c3d2eaa4249e74d46868492
+
+fd80/plots (original: graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0\plots\)
+  fd_policy_sensitivity.png   235311  92bc84844020dce96176418c581512a9973ecc39bd564a1d80bf0ac635e1715a
+  measurement_health.png      215906  1f8ea915658e710f3571e664fbde5b0d4889a426d38a92680d2cc439eac2a756
+  policy_diagnostics.png      309867  b24f87242c2c79115aa5a450cffe81e530729caeef16f027466f51d7a87c2e5a
+  training_performance.png    260092  8dde45c582a4c046d5a1527f71723cf4962d9f654cc384f5cf9a2246185ffa4f
+
+--- scenarios/ (aggregate only; 3968 files per run, not individually hashed) ---
+Each run's <run_dir>\scenarios\ directory holds 3968 per-episode generated
+scenario JSON files (routine run bookkeeping, unrelated to visual_artifacts,
+which is off for all three runs). Individually hashing ~11,900 small files
+across the three runs was judged disproportionate to this review's needs and
+was not performed; only the aggregate is recorded:
+  smallbatch/scenarios: 3968 files, 67589541 bytes total
+  largebatch/scenarios: 3968 files, 67589541 bytes total
+  fd80/scenarios:       3968 files, 67589541 bytes total
+
+--- External benchmark manifest (shared by all three runs; not part of this
+    evidence package; same artifact already referenced by PR #61 / PR #62) ---
+path:      C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\benchmark_manifest.json
+manifest_id (from provenance.seeds.benchmark_evaluation.manifest_id):
+           ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8
+file SHA-256 (per PR #62's artifact_sha256.txt, and matched by the sweep
+driver's own before/after ManifestSha check on every arm):
+           DD72AFC9CC0D2D1FE494DDBEBE53734DC36BD5890997125D3E96A2A59641A103
+This evidence task did not itself read or hash the external manifest file;
+the sweep driver's own pre/post ManifestSha check (sweep_log.txt) already
+established, for all three arms, that the file was byte-unchanged
+throughout, and it matches PR #62's recorded value.

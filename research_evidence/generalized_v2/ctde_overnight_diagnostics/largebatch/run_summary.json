@@ -1,0 +1,2519 @@
+{
+  "n_iterations": 150,
+  "n_iterations_scheduled": 150,
+  "episodes_per_iteration": 20,
+  "exact_cardinality_policy": "skip_and_account_v1",
+  "updates_completed": 150,
+  "train_episodes_attempted": 3008,
+  "train_episodes_successful": 3000,
+  "train_episodes_failed": 8,
+  "train_success_fraction": 0.9973404255319149,
+  "train_episodes_with_wakes": 2999,
+  "train_wake_fraction_of_successful": 0.9996666666666667,
+  "train_zero_wake_episodes": 1,
+  "training_attempt_policy": "successful_quota_with_deterministic_replacement_v1",
+  "train_replacement_attempts": 8,
+  "train_iterations_at_full_quota": 150,
+  "early_stopping": {
+    "enabled": false,
+    "policy": null,
+    "metric": null,
+    "min_iterations": null,
+    "window_iterations": null,
+    "patience_windows": null,
+    "min_delta": null,
+    "earliest_possible_stop_iterations": null,
+    "triggered": false,
+    "termination_reason": "disabled_fixed_budget",
+    "planned_iterations": 150,
+    "completed_iterations": 150,
+    "planned_successful_episodes": 3000,
+    "actual_successful_episodes": 3000,
+    "planned_max_training_attempts": 4500,
+    "actual_training_attempts": 3008,
+    "stop_completed_iterations": null,
+    "stop_iteration_index": null,
+    "n_checks": 0,
+    "checks": [],
+    "checks_source": "train_records.jsonl"
+  },
+  "n_zero_wake_iterations": 0,
+  "n_all_failed_iterations": 0,
+  "n_productive_iterations": 150,
+  "total_transitions": 9193,
+  "eval_episodes_attempted": 960,
+  "eval_episodes_successful": 960,
+  "eval_episodes_failed": 0,
+  "eval_success_fraction": 1.0,
+  "n_eval_rounds": 16,
+  "failures_recorded": 8,
+  "failures_by_phase": {
+    "train": 8
+  },
+  "failures_by_pipeline_stage": {
+    "setup": 8
+  },
+  "failures_by_error_type": {
+    "FuelDamageError": 8
+  },
+  "failures_by_condition": {
+    "clean": 4,
+    "damaged": 4
+  },
+  "difficulty_factor": "fuel_damage_variable_severity_v1",
+  "fuel_damage_mode": "seeded_variable",
+  "fuel_damage_mild_probability": 0.5,
+  "eval_group_kind": "triad",
+  "eval_group_cells": [
+    "clean",
+    "mild",
+    "severe"
+  ],
+  "aircraft_penalty_coeff": 2.25,
+  "fuel_damage_totals": {
+    "train_fuel_damage_events_applied": 1526,
+    "eval_fuel_damage_events_applied": 640,
+    "train_fuel_damage_wakes": 1526,
+    "eval_fuel_damage_wakes": 640,
+    "train_fuel_damage_rtb_issued": 1402,
+    "eval_fuel_damage_rtb_issued": 609,
+    "train_deaths": 668,
+    "eval_deaths": 320,
+    "train_clean_attempted": 1478,
+    "eval_clean_attempted": 320,
+    "train_clean_successful": 1474,
+    "eval_clean_successful": 320,
+    "train_clean_failed": 4,
+    "eval_clean_failed": 0,
+    "train_damaged_attempted": 1530,
+    "eval_damaged_attempted": 640,
+    "train_damaged_successful": 1526,
+    "eval_damaged_successful": 640,
+    "train_damaged_failed": 4,
+    "eval_damaged_failed": 0,
+    "train_mild_attempted": 776,
+    "eval_mild_attempted": 320,
+    "train_mild_successful": 774,
+    "eval_mild_successful": 320,
+    "train_mild_failed": 2,
+    "eval_mild_failed": 0,
+    "train_severe_attempted": 754,
+    "eval_severe_attempted": 320,
+    "train_severe_successful": 752,
+    "eval_severe_successful": 320,
+    "train_severe_failed": 2,
+    "eval_severe_failed": 0,
+    "eval_groups_attempted": 320,
+    "eval_groups_successful": 320,
+    "eval_pairs_attempted": 320,
+    "eval_pairs_successful": 320
+  },
+  "severity_response": {
+    "pre_update": {
+      "clean": {
+        "n_episodes": 20,
+        "n_fd_fired": 0,
+        "n_fd_wakes": 0,
+        "n_rtb_command_issued": 0,
+        "n_dead": 0,
+        "reward_mean": -0.3125649284342349,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 0,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 0
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": null,
+          "OPPORTUNISTIC_ENGAGEMENT": null,
+          "SELF_PRESERVATION_ABORT": null
+        },
+        "rates_over": "fd_wakes"
+      },
+      "mild": {
+        "n_episodes": 20,
+        "n_fd_fired": 20,
+        "n_fd_wakes": 20,
+        "n_rtb_command_issued": 20,
+        "n_dead": 0,
+        "reward_mean": -0.35393397348284916,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 20,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 0
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": 1.0,
+          "OPPORTUNISTIC_ENGAGEMENT": 0.0,
+          "SELF_PRESERVATION_ABORT": 0.0
+        },
+        "rates_over": "fd_wakes"
+      },
+      "severe": {
+        "n_episodes": 20,
+        "n_fd_fired": 20,
+        "n_fd_wakes": 20,
+        "n_rtb_command_issued": 18,
+        "n_dead": 20,
+        "reward_mean": -0.9007615893178539,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 20,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 0
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": 1.0,
+          "OPPORTUNISTIC_ENGAGEMENT": 0.0,
+          "SELF_PRESERVATION_ABORT": 0.0
+        },
+        "rates_over": "fd_wakes"
+      }
+    },
+    "train": {
+      "clean": {
+        "n_episodes": 1474,
+        "n_fd_fired": 0,
+        "n_fd_wakes": 0,
+        "n_rtb_command_issued": 0,
+        "n_dead": 14,
+        "reward_mean": -0.0718057429973751,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 0,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 0
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": null,
+          "OPPORTUNISTIC_ENGAGEMENT": null,
+          "SELF_PRESERVATION_ABORT": null
+        },
+        "rates_over": "fd_wakes"
+      },
+      "mild": {
+        "n_episodes": 774,
+        "n_fd_fired": 774,
+        "n_fd_wakes": 774,
+        "n_rtb_command_issued": 771,
+        "n_dead": 4,
+        "reward_mean": -0.11398191850763946,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 679,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 95
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": 0.8772609819121447,
+          "OPPORTUNISTIC_ENGAGEMENT": 0.0,
+          "SELF_PRESERVATION_ABORT": 0.1227390180878553
+        },
+        "rates_over": "fd_wakes"
+      },
+      "severe": {
+        "n_episodes": 752,
+        "n_fd_fired": 752,
+        "n_fd_wakes": 752,
+        "n_rtb_command_issued": 631,
+        "n_dead": 650,
+        "reward_mean": -0.5969692054878205,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 655,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 97
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": 0.8710106382978723,
+          "OPPORTUNISTIC_ENGAGEMENT": 0.0,
+          "SELF_PRESERVATION_ABORT": 0.12898936170212766
+        },
+        "rates_over": "fd_wakes"
+      }
+    },
+    "post_update": {
+      "clean": {
+        "n_episodes": 300,
+        "n_fd_fired": 0,
+        "n_fd_wakes": 0,
+        "n_rtb_command_issued": 0,
+        "n_dead": 0,
+        "reward_mean": -0.006249999902343752,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 0,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 0
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": null,
+          "OPPORTUNISTIC_ENGAGEMENT": null,
+          "SELF_PRESERVATION_ABORT": null
+        },
+        "rates_over": "fd_wakes"
+      },
+      "mild": {
+        "n_episodes": 300,
+        "n_fd_fired": 300,
+        "n_fd_wakes": 300,
+        "n_rtb_command_issued": 300,
+        "n_dead": 0,
+        "reward_mean": -0.006249999902343752,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 300,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 0
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": 1.0,
+          "OPPORTUNISTIC_ENGAGEMENT": 0.0,
+          "SELF_PRESERVATION_ABORT": 0.0
+        },
+        "rates_over": "fd_wakes"
+      },
+      "severe": {
+        "n_episodes": 300,
+        "n_fd_fired": 300,
+        "n_fd_wakes": 300,
+        "n_rtb_command_issued": 271,
+        "n_dead": 300,
+        "reward_mean": -0.6502231757694614,
+        "meta_action_counts": {
+          "PLAN_COMPLIANCE": 300,
+          "OPPORTUNISTIC_ENGAGEMENT": 0,
+          "SELF_PRESERVATION_ABORT": 0
+        },
+        "meta_action_rates": {
+          "PLAN_COMPLIANCE": 1.0,
+          "OPPORTUNISTIC_ENGAGEMENT": 0.0,
+          "SELF_PRESERVATION_ABORT": 0.0
+        },
+        "rates_over": "fd_wakes"
+      }
+    }
+  },
+  "severity_response_source": "episode_outcomes.jsonl",
+  "episode_outcomes_recorded": 3960,
+  "observed_artifact_schema": {
+    "state": "uniform",
+    "source": "episode_outcomes.jsonl",
+    "n_episode_outcome_records": 3960,
+    "n_records_without_schema_version": 0,
+    "episode_outcome_schema_versions_observed": [
+      3
+    ],
+    "episode_outcome_schema_version_observed": 3,
+    "n_records_with_wake_decisions": 3960,
+    "wake_diagnostics_recorded": true,
+    "wake_diagnostics_schema_versions_observed": [
+      1
+    ],
+    "wake_diagnostics_schema_version_observed": 1,
+    "episode_outcome_schema_version_writer": 3,
+    "wake_diagnostics_schema_version_writer": 1
+  },
+  "wake_diagnostics_source": "episode_outcomes.jsonl",
+  "wake_kinds": [
+    "ordinary",
+    "immediate_fuel_damage",
+    "post_fd_boundary"
+  ],
+  "fd_policy_sensitivity": {
+    "recorded": true,
+    "source": "episode_outcomes.jsonl",
+    "wake_diagnostics_schema_version_writer": 1,
+    "wake_diagnostics_schema_versions_observed": [
+      1
+    ],
+    "wake_diagnostics_schema_version_observed": 1,
+    "n_episode_records_with_diagnostics": 3960,
+    "phases": [
+      "pre_update",
+      "train",
+      "post_update"
+    ],
+    "evaluation_phases": [
+      "pre_update",
+      "post_update"
+    ],
+    "populations_note": "train / pre_update / post_update are SEPARATE populations and are never averaged together; `all_phases_pooled` is the only pooled view and says so in its own name",
+    "by_phase": {
+      "pre_update": {
+        "n_episode_records": 60,
+        "n_wakes_by_kind": {
+          "ordinary": 156,
+          "immediate_fuel_damage": 40,
+          "post_fd_boundary": 22
+        },
+        "by_wake_kind": {
+          "ordinary": {
+            "n_wakes": 156,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 156,
+              "OPPORTUNISTIC_ENGAGEMENT": 0,
+              "SELF_PRESERVATION_ABORT": 0
+            },
+            "selected_joint_cell_abort_fraction": 0.0,
+            "aggregate_p_abort_mean": 0.16824948109495333,
+            "aggregate_p_plan_mean": 0.7281403621801963,
+            "joint_entropy_raw_mean": 2.1800404221583634,
+            "joint_entropy_normalized_mean": 0.9999862155197028,
+            "n_joint_entropy_normalized_defined": 156,
+            "aggregate_meta_action_entropy_mean": 0.7370799722579809,
+            "joint_vs_aggregate_disagreement_fraction": 0.0,
+            "n_valid_cells_mean": 9.076923076923077,
+            "distance_clipping_fraction_mean": 0.7983745421245422,
+            "selected_node_ownership_counts": {
+              "unassigned": 156
+            }
+          },
+          "immediate_fuel_damage": {
+            "n_wakes": 40,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 40,
+              "OPPORTUNISTIC_ENGAGEMENT": 0,
+              "SELF_PRESERVATION_ABORT": 0
+            },
+            "selected_joint_cell_abort_fraction": 0.0,
+            "aggregate_p_abort_mean": 0.2501520512625575,
+            "aggregate_p_plan_mean": 0.7498479440808297,
+            "joint_entropy_raw_mean": 1.8409926146268845,
+            "joint_entropy_normalized_mean": 0.9999964044148435,
+            "n_joint_entropy_normalized_defined": 40,
+            "aggregate_meta_action_entropy_mean": 0.5303324595093727,
+            "joint_vs_aggregate_disagreement_fraction": 0.0,
+            "n_valid_cells_mean": 6.55,
+            "distance_clipping_fraction_mean": 0.99375,
+            "selected_node_ownership_counts": {
+              "ego_assigned": 6,
+              "peer_assigned": 34
+            }
+          },
+          "post_fd_boundary": {
+            "n_wakes": 22,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 22,
+              "OPPORTUNISTIC_ENGAGEMENT": 0,
+              "SELF_PRESERVATION_ABORT": 0
+            },
+            "selected_joint_cell_abort_fraction": 0.0,
+            "aggregate_p_abort_mean": 0.1708839718591083,
+            "aggregate_p_plan_mean": 0.6790966445749457,
+            "joint_entropy_raw_mean": 1.8788710886781865,
+            "joint_entropy_normalized_mean": 0.9999793656811362,
+            "n_joint_entropy_normalized_defined": 22,
+            "aggregate_meta_action_entropy_mean": 0.8182256452061913,
+            "joint_vs_aggregate_disagreement_fraction": 0.0,
+            "n_valid_cells_mean": 6.7727272727272725,
+            "distance_clipping_fraction_mean": 0.7477272727272727,
+            "selected_node_ownership_counts": {
+              "unassigned": 22
+            }
+          }
+        },
+        "by_wake_kind_and_cell": {
+          "ordinary": {
+            "clean": {
+              "n_wakes": 52,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 52,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.18084067564744216,
+              "aggregate_p_plan_mean": 0.7085067744438465,
+              "joint_entropy_raw_mean": 2.2080167944614706,
+              "joint_entropy_normalized_mean": 0.9999862149232569,
+              "n_joint_entropy_normalized_defined": 52,
+              "aggregate_meta_action_entropy_mean": 0.7751021637366369,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 9.288461538461538,
+              "distance_clipping_fraction_mean": 0.7983745421245422,
+              "selected_node_ownership_counts": {
+                "unassigned": 52
+              }
+            },
+            "mild": {
+              "n_wakes": 52,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 52,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.15946367956124818,
+              "aggregate_p_plan_mean": 0.7247729507776407,
+              "joint_entropy_raw_mean": 2.183346560368171,
+              "joint_entropy_normalized_mean": 0.9999853405333101,
+              "n_joint_entropy_normalized_defined": 52,
+              "aggregate_meta_action_entropy_mean": 0.7565208719326899,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 9.096153846153847,
+              "distance_clipping_fraction_mean": 0.7983745421245422,
+              "selected_node_ownership_counts": {
+                "unassigned": 52
+              }
+            },
+            "severe": {
+              "n_wakes": 52,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 52,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.16444408807616967,
+              "aggregate_p_plan_mean": 0.7511413613191018,
+              "joint_entropy_raw_mean": 2.148757911645449,
+              "joint_entropy_normalized_mean": 0.9999870911025414,
+              "n_joint_entropy_normalized_defined": 52,
+              "aggregate_meta_action_entropy_mean": 0.679616881104616,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 8.846153846153847,
+              "distance_clipping_fraction_mean": 0.7983745421245422,
+              "selected_node_ownership_counts": {
+                "unassigned": 52
+              }
+            }
+          },
+          "immediate_fuel_damage": {
+            "mild": {
+              "n_wakes": 20,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 20,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.2503085270524025,
+              "aggregate_p_plan_mean": 0.7496914863586426,
+              "joint_entropy_raw_mean": 1.840993916988373,
+              "joint_entropy_normalized_mean": 0.9999971345364648,
+              "n_joint_entropy_normalized_defined": 20,
+              "aggregate_meta_action_entropy_mean": 0.5305474445223808,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 6.55,
+              "distance_clipping_fraction_mean": 0.99375,
+              "selected_node_ownership_counts": {
+                "ego_assigned": 3,
+                "peer_assigned": 17
+              }
+            },
+            "severe": {
+              "n_wakes": 20,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 20,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.2499955754727125,
+              "aggregate_p_plan_mean": 0.7500044018030166,
+              "joint_entropy_raw_mean": 1.840991312265396,
+              "joint_entropy_normalized_mean": 0.999995674293222,
+              "n_joint_entropy_normalized_defined": 20,
+              "aggregate_meta_action_entropy_mean": 0.5301174744963646,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 6.55,
+              "distance_clipping_fraction_mean": 0.99375,
+              "selected_node_ownership_counts": {
+                "ego_assigned": 3,
+                "peer_assigned": 17
+              }
+            }
+          },
+          "post_fd_boundary": {
+            "mild": {
+              "n_wakes": 11,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 11,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.17030147259885614,
+              "aggregate_p_plan_mean": 0.6742298332127658,
+              "joint_entropy_raw_mean": 1.884941046888178,
+              "joint_entropy_normalized_mean": 0.9999796766100488,
+              "n_joint_entropy_normalized_defined": 11,
+              "aggregate_meta_action_entropy_mean": 0.8329553766684099,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 6.818181818181818,
+              "distance_clipping_fraction_mean": 0.7477272727272727,
+              "selected_node_ownership_counts": {
+                "unassigned": 11
+              }
+            },
+            "severe": {
+              "n_wakes": 11,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 11,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.1714664711193605,
+              "aggregate_p_plan_mean": 0.6839634559371255,
+              "joint_entropy_raw_mean": 1.872801130468195,
+              "joint_entropy_normalized_mean": 0.9999790547522235,
+              "n_joint_entropy_normalized_defined": 11,
+              "aggregate_meta_action_entropy_mean": 0.8034959137439728,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 6.7272727272727275,
+              "distance_clipping_fraction_mean": 0.7477272727272727,
+              "selected_node_ownership_counts": {
+                "unassigned": 11
+              }
+            }
+          }
+        }
+      },
+      "train": {
+        "n_episode_records": 3000,
+        "n_wakes_by_kind": {
+          "ordinary": 6315,
+          "immediate_fuel_damage": 1526,
+          "post_fd_boundary": 1352
+        },
+        "by_wake_kind": {
+          "ordinary": {
+            "n_wakes": 6315,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 1207,
+              "OPPORTUNISTIC_ENGAGEMENT": 4960,
+              "SELF_PRESERVATION_ABORT": 148
+            },
+            "selected_joint_cell_abort_fraction": 0.023436262866191607,
+            "aggregate_p_abort_mean": 0.022982654357643323,
+            "aggregate_p_plan_mean": 0.19119714762726453,
+            "joint_entropy_raw_mean": 0.6698915209753921,
+            "joint_entropy_normalized_mean": 0.3095545022942743,
+            "n_joint_entropy_normalized_defined": 6315,
+            "aggregate_meta_action_entropy_mean": 0.3096028695462577,
+            "joint_vs_aggregate_disagreement_fraction": 0.14457640538400635,
+            "n_valid_cells_mean": 8.941409342834522,
+            "distance_clipping_fraction_mean": 0.7890925086174492,
+            "selected_node_ownership_counts": {
+              "peer_assigned": 680,
+              "unassigned": 5163,
+              "ego_assigned": 472
+            }
+          },
+          "immediate_fuel_damage": {
+            "n_wakes": 1526,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 1334,
+              "OPPORTUNISTIC_ENGAGEMENT": 0,
+              "SELF_PRESERVATION_ABORT": 192
+            },
+            "selected_joint_cell_abort_fraction": 0.1258191349934469,
+            "aggregate_p_abort_mean": 0.12243611572693598,
+            "aggregate_p_plan_mean": 0.8773452340775361,
+            "joint_entropy_raw_mean": 1.7037259632059976,
+            "joint_entropy_normalized_mean": 0.9274114424813263,
+            "n_joint_entropy_normalized_defined": 1526,
+            "aggregate_meta_action_entropy_mean": 0.341177501380053,
+            "joint_vs_aggregate_disagreement_fraction": 0.000655307994757536,
+            "n_valid_cells_mean": 6.565530799475754,
+            "distance_clipping_fraction_mean": 0.971276706401215,
+            "selected_node_ownership_counts": {
+              "ego_assigned": 838,
+              "peer_assigned": 688
+            }
+          },
+          "post_fd_boundary": {
+            "n_wakes": 1352,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 185,
+              "OPPORTUNISTIC_ENGAGEMENT": 1149,
+              "SELF_PRESERVATION_ABORT": 18
+            },
+            "selected_joint_cell_abort_fraction": 0.013313609467455622,
+            "aggregate_p_abort_mean": 0.01699980605917517,
+            "aggregate_p_plan_mean": 0.1411002592707863,
+            "joint_entropy_raw_mean": 0.4844792843520774,
+            "joint_entropy_normalized_mean": 0.2379180586972448,
+            "n_joint_entropy_normalized_defined": 1352,
+            "aggregate_meta_action_entropy_mean": 0.24254580884455487,
+            "joint_vs_aggregate_disagreement_fraction": 0.07544378698224852,
+            "n_valid_cells_mean": 7.955621301775148,
+            "distance_clipping_fraction_mean": 0.749960963182117,
+            "selected_node_ownership_counts": {
+              "peer_assigned": 88,
+              "unassigned": 1186,
+              "ego_assigned": 78
+            }
+          }
+        },
+        "by_wake_kind_and_cell": {
+          "ordinary": {
+            "clean": {
+              "n_wakes": 3182,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 558,
+                "OPPORTUNISTIC_ENGAGEMENT": 2546,
+                "SELF_PRESERVATION_ABORT": 78
+              },
+              "selected_joint_cell_abort_fraction": 0.02451288497800126,
+              "aggregate_p_abort_mean": 0.022192057188377714,
+              "aggregate_p_plan_mean": 0.17853594531898112,
+              "joint_entropy_raw_mean": 0.6670485920876283,
+              "joint_entropy_normalized_mean": 0.30559511745497575,
+              "n_joint_entropy_normalized_defined": 3182,
+              "aggregate_meta_action_entropy_mean": 0.32505067798591764,
+              "joint_vs_aggregate_disagreement_fraction": 0.1656191074795726,
+              "n_valid_cells_mean": 8.967316153362665,
+              "distance_clipping_fraction_mean": 0.7891391807089481,
+              "selected_node_ownership_counts": {
+                "peer_assigned": 337,
+                "unassigned": 2640,
+                "ego_assigned": 205
+              }
+            },
+            "mild": {
+              "n_wakes": 1578,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 261,
+                "OPPORTUNISTIC_ENGAGEMENT": 1289,
+                "SELF_PRESERVATION_ABORT": 28
+              },
+              "selected_joint_cell_abort_fraction": 0.017743979721166033,
+              "aggregate_p_abort_mean": 0.019075615660912894,
+              "aggregate_p_plan_mean": 0.1638515582812787,
+              "joint_entropy_raw_mean": 0.6201653793331411,
+              "joint_entropy_normalized_mean": 0.2848122084894597,
+              "n_joint_entropy_normalized_defined": 1578,
+              "aggregate_meta_action_entropy_mean": 0.3077022041582487,
+              "joint_vs_aggregate_disagreement_fraction": 0.1520912547528517,
+              "n_valid_cells_mean": 8.94296577946768,
+              "distance_clipping_fraction_mean": 0.7878208574976636,
+              "selected_node_ownership_counts": {
+                "ego_assigned": 90,
+                "unassigned": 1332,
+                "peer_assigned": 156
+              }
+            },
+            "severe": {
+              "n_wakes": 1555,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 388,
+                "OPPORTUNISTIC_ENGAGEMENT": 1125,
+                "SELF_PRESERVATION_ABORT": 42
+              },
+              "selected_joint_cell_abort_fraction": 0.027009646302250803,
+              "aggregate_p_abort_mean": 0.028565282818121637,
+              "aggregate_p_plan_mean": 0.24485585227866216,
+              "joint_entropy_raw_mean": 0.7261706536006889,
+              "joint_entropy_normalized_mean": 0.34276485739565393,
+              "n_joint_entropy_normalized_defined": 1555,
+              "aggregate_meta_action_entropy_mean": 0.27992076248984626,
+              "joint_vs_aggregate_disagreement_fraction": 0.09389067524115756,
+              "n_valid_cells_mean": 8.886816720257235,
+              "distance_clipping_fraction_mean": 0.7902874635189747,
+              "selected_node_ownership_counts": {
+                "peer_assigned": 187,
+                "ego_assigned": 177,
+                "unassigned": 1191
+              }
+            }
+          },
+          "immediate_fuel_damage": {
+            "mild": {
+              "n_wakes": 774,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 679,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 95
+              },
+              "selected_joint_cell_abort_fraction": 0.1227390180878553,
+              "aggregate_p_abort_mean": 0.12034760195598276,
+              "aggregate_p_plan_mean": 0.8796523972691184,
+              "joint_entropy_raw_mean": 1.6955588820368745,
+              "joint_entropy_normalized_mean": 0.9266597203931615,
+              "n_joint_entropy_normalized_defined": 774,
+              "aggregate_meta_action_entropy_mean": 0.33721512714906254,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 6.503875968992248,
+              "distance_clipping_fraction_mean": 0.9742509536114188,
+              "selected_node_ownership_counts": {
+                "ego_assigned": 438,
+                "peer_assigned": 336
+              }
+            },
+            "severe": {
+              "n_wakes": 752,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 655,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 97
+              },
+              "selected_joint_cell_abort_fraction": 0.12898936170212766,
+              "aggregate_p_abort_mean": 0.12458572963480541,
+              "aggregate_p_plan_mean": 0.8749705740904554,
+              "joint_entropy_raw_mean": 1.7121319749412385,
+              "joint_entropy_normalized_mean": 0.9281851564390918,
+              "n_joint_entropy_normalized_defined": 752,
+              "aggregate_meta_action_entropy_mean": 0.34525579613375856,
+              "joint_vs_aggregate_disagreement_fraction": 0.0013297872340425532,
+              "n_valid_cells_mean": 6.628989361702128,
+              "distance_clipping_fraction_mean": 0.9682154466396489,
+              "selected_node_ownership_counts": {
+                "ego_assigned": 400,
+                "peer_assigned": 352
+              }
+            }
+          },
+          "post_fd_boundary": {
+            "mild": {
+              "n_wakes": 765,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 76,
+                "OPPORTUNISTIC_ENGAGEMENT": 679,
+                "SELF_PRESERVATION_ABORT": 10
+              },
+              "selected_joint_cell_abort_fraction": 0.013071895424836602,
+              "aggregate_p_abort_mean": 0.0141778641246454,
+              "aggregate_p_plan_mean": 0.10942151756725864,
+              "joint_entropy_raw_mean": 0.4383608021475131,
+              "joint_entropy_normalized_mean": 0.2112395878192386,
+              "n_joint_entropy_normalized_defined": 765,
+              "aggregate_meta_action_entropy_mean": 0.24475279227386113,
+              "joint_vs_aggregate_disagreement_fraction": 0.07581699346405228,
+              "n_valid_cells_mean": 7.998692810457516,
+              "distance_clipping_fraction_mean": 0.7491072725386452,
+              "selected_node_ownership_counts": {
+                "peer_assigned": 40,
+                "unassigned": 693,
+                "ego_assigned": 32
+              }
+            },
+            "severe": {
+              "n_wakes": 587,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 109,
+                "OPPORTUNISTIC_ENGAGEMENT": 470,
+                "SELF_PRESERVATION_ABORT": 8
+              },
+              "selected_joint_cell_abort_fraction": 0.013628620102214651,
+              "aggregate_p_abort_mean": 0.020677464628025725,
+              "aggregate_p_plan_mean": 0.1823851611501707,
+              "joint_entropy_raw_mean": 0.5445825873955044,
+              "joint_entropy_normalized_mean": 0.2726864236404726,
+              "n_joint_entropy_normalized_defined": 587,
+              "aggregate_meta_action_entropy_mean": 0.23966958682850842,
+              "joint_vs_aggregate_disagreement_fraction": 0.07495741056218058,
+              "n_valid_cells_mean": 7.899488926746167,
+              "distance_clipping_fraction_mean": 0.7510735242421784,
+              "selected_node_ownership_counts": {
+                "peer_assigned": 48,
+                "unassigned": 493,
+                "ego_assigned": 46
+              }
+            }
+          }
+        }
+      },
+      "post_update": {
+        "n_episode_records": 900,
+        "n_wakes_by_kind": {
+          "ordinary": 2025,
+          "immediate_fuel_damage": 600,
+          "post_fd_boundary": 720
+        },
+        "by_wake_kind": {
+          "ordinary": {
+            "n_wakes": 2025,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 178,
+              "OPPORTUNISTIC_ENGAGEMENT": 1845,
+              "SELF_PRESERVATION_ABORT": 2
+            },
+            "selected_joint_cell_abort_fraction": 0.0009876543209876543,
+            "aggregate_p_abort_mean": 0.02565101239433581,
+            "aggregate_p_plan_mean": 0.19757054709495953,
+            "joint_entropy_raw_mean": 0.659569126897388,
+            "joint_entropy_normalized_mean": 0.30401355402360924,
+            "n_joint_entropy_normalized_defined": 2025,
+            "aggregate_meta_action_entropy_mean": 0.2865491436256303,
+            "joint_vs_aggregate_disagreement_fraction": 0.11604938271604938,
+            "n_valid_cells_mean": 9.103703703703705,
+            "distance_clipping_fraction_mean": 0.8059876543209876,
+            "selected_node_ownership_counts": {
+              "unassigned": 1847,
+              "peer_assigned": 20,
+              "ego_assigned": 158
+            }
+          },
+          "immediate_fuel_damage": {
+            "n_wakes": 600,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 600,
+              "OPPORTUNISTIC_ENGAGEMENT": 0,
+              "SELF_PRESERVATION_ABORT": 0
+            },
+            "selected_joint_cell_abort_fraction": 0.0,
+            "aggregate_p_abort_mean": 0.11939208843124409,
+            "aggregate_p_plan_mean": 0.8806079093615214,
+            "joint_entropy_raw_mean": 1.7209762912988662,
+            "joint_entropy_normalized_mean": 0.9311883531183177,
+            "n_joint_entropy_normalized_defined": 600,
+            "aggregate_meta_action_entropy_mean": 0.3335258233298858,
+            "joint_vs_aggregate_disagreement_fraction": 0.0,
+            "n_valid_cells_mean": 6.55,
+            "distance_clipping_fraction_mean": 0.99375,
+            "selected_node_ownership_counts": {
+              "ego_assigned": 528,
+              "peer_assigned": 72
+            }
+          },
+          "post_fd_boundary": {
+            "n_wakes": 720,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 15,
+              "OPPORTUNISTIC_ENGAGEMENT": 705,
+              "SELF_PRESERVATION_ABORT": 0
+            },
+            "selected_joint_cell_abort_fraction": 0.0,
+            "aggregate_p_abort_mean": 0.015783619939328572,
+            "aggregate_p_plan_mean": 0.1353302215329475,
+            "joint_entropy_raw_mean": 0.4957434390878512,
+            "joint_entropy_normalized_mean": 0.24449357593741453,
+            "n_joint_entropy_normalized_defined": 720,
+            "aggregate_meta_action_entropy_mean": 0.2615336971098764,
+            "joint_vs_aggregate_disagreement_fraction": 0.10833333333333334,
+            "n_valid_cells_mean": 7.729166666666667,
+            "distance_clipping_fraction_mean": 0.7416087962962964,
+            "selected_node_ownership_counts": {
+              "unassigned": 705,
+              "peer_assigned": 2,
+              "ego_assigned": 13
+            }
+          }
+        },
+        "by_wake_kind_and_cell": {
+          "ordinary": {
+            "clean": {
+              "n_wakes": 675,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 0,
+                "OPPORTUNISTIC_ENGAGEMENT": 675,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.016440314170387056,
+              "aggregate_p_plan_mean": 0.13071911368795014,
+              "joint_entropy_raw_mean": 0.5355363876289791,
+              "joint_entropy_normalized_mean": 0.24210682810619838,
+              "n_joint_entropy_normalized_defined": 675,
+              "aggregate_meta_action_entropy_mean": 0.2817641899320814,
+              "joint_vs_aggregate_disagreement_fraction": 0.1259259259259259,
+              "n_valid_cells_mean": 9.2,
+              "distance_clipping_fraction_mean": 0.8059876543209876,
+              "selected_node_ownership_counts": {
+                "unassigned": 675
+              }
+            },
+            "mild": {
+              "n_wakes": 675,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 0,
+                "OPPORTUNISTIC_ENGAGEMENT": 675,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.01646476976776116,
+              "aggregate_p_plan_mean": 0.13070635044809292,
+              "joint_entropy_raw_mean": 0.5355766752858957,
+              "joint_entropy_normalized_mean": 0.2421258978043862,
+              "n_joint_entropy_normalized_defined": 675,
+              "aggregate_meta_action_entropy_mean": 0.2818125771648354,
+              "joint_vs_aggregate_disagreement_fraction": 0.1259259259259259,
+              "n_valid_cells_mean": 9.2,
+              "distance_clipping_fraction_mean": 0.8059876543209876,
+              "selected_node_ownership_counts": {
+                "unassigned": 675
+              }
+            },
+            "severe": {
+              "n_wakes": 675,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 178,
+                "OPPORTUNISTIC_ENGAGEMENT": 495,
+                "SELF_PRESERVATION_ABORT": 2
+              },
+              "selected_joint_cell_abort_fraction": 0.002962962962962963,
+              "aggregate_p_abort_mean": 0.04404795324485922,
+              "aggregate_p_plan_mean": 0.3312861771488355,
+              "joint_entropy_raw_mean": 0.9075943177772893,
+              "joint_entropy_normalized_mean": 0.42780793616024304,
+              "n_joint_entropy_normalized_defined": 675,
+              "aggregate_meta_action_entropy_mean": 0.296070663779974,
+              "joint_vs_aggregate_disagreement_fraction": 0.0962962962962963,
+              "n_valid_cells_mean": 8.911111111111111,
+              "distance_clipping_fraction_mean": 0.8059876543209876,
+              "selected_node_ownership_counts": {
+                "unassigned": 497,
+                "peer_assigned": 20,
+                "ego_assigned": 158
+              }
+            }
+          },
+          "immediate_fuel_damage": {
+            "mild": {
+              "n_wakes": 300,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 300,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.11731245063245296,
+              "aggregate_p_plan_mean": 0.8826875470081965,
+              "joint_entropy_raw_mean": 1.7200164846579233,
+              "joint_entropy_normalized_mean": 0.9306315979377109,
+              "n_joint_entropy_normalized_defined": 300,
+              "aggregate_meta_action_entropy_mean": 0.33048061596850553,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 6.55,
+              "distance_clipping_fraction_mean": 0.99375,
+              "selected_node_ownership_counts": {
+                "ego_assigned": 264,
+                "peer_assigned": 36
+              }
+            },
+            "severe": {
+              "n_wakes": 300,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 300,
+                "OPPORTUNISTIC_ENGAGEMENT": 0,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.12147172623003523,
+              "aggregate_p_plan_mean": 0.8785282717148463,
+              "joint_entropy_raw_mean": 1.721936097939809,
+              "joint_entropy_normalized_mean": 0.9317451082989244,
+              "n_joint_entropy_normalized_defined": 300,
+              "aggregate_meta_action_entropy_mean": 0.33657103069126604,
+              "joint_vs_aggregate_disagreement_fraction": 0.0,
+              "n_valid_cells_mean": 6.55,
+              "distance_clipping_fraction_mean": 0.99375,
+              "selected_node_ownership_counts": {
+                "ego_assigned": 264,
+                "peer_assigned": 36
+              }
+            }
+          },
+          "post_fd_boundary": {
+            "mild": {
+              "n_wakes": 450,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 0,
+                "OPPORTUNISTIC_ENGAGEMENT": 450,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.015320240567412434,
+              "aggregate_p_plan_mean": 0.1200532053100566,
+              "joint_entropy_raw_mean": 0.47860199850466517,
+              "joint_entropy_normalized_mean": 0.23141839097828562,
+              "n_joint_entropy_normalized_defined": 450,
+              "aggregate_meta_action_entropy_mean": 0.2664180195704102,
+              "joint_vs_aggregate_disagreement_fraction": 0.11333333333333333,
+              "n_valid_cells_mean": 8.0,
+              "distance_clipping_fraction_mean": 0.7475,
+              "selected_node_ownership_counts": {
+                "unassigned": 450
+              }
+            },
+            "severe": {
+              "n_wakes": 270,
+              "selected_meta_action_counts": {
+                "PLAN_COMPLIANCE": 15,
+                "OPPORTUNISTIC_ENGAGEMENT": 255,
+                "SELF_PRESERVATION_ABORT": 0
+              },
+              "selected_joint_cell_abort_fraction": 0.0,
+              "aggregate_p_abort_mean": 0.016555918892522135,
+              "aggregate_p_plan_mean": 0.16079191523776562,
+              "joint_entropy_raw_mean": 0.5243125067264945,
+              "joint_entropy_normalized_mean": 0.266285550869296,
+              "n_joint_entropy_normalized_defined": 270,
+              "aggregate_meta_action_entropy_mean": 0.25339315967565335,
+              "joint_vs_aggregate_disagreement_fraction": 0.1,
+              "n_valid_cells_mean": 7.277777777777778,
+              "distance_clipping_fraction_mean": 0.7317901234567902,
+              "selected_node_ownership_counts": {
+                "unassigned": 255,
+                "peer_assigned": 2,
+                "ego_assigned": 13
+              }
+            }
+          }
+        }
+      }
+    },
+    "all_phases_pooled": {
+      "note": "TRAINING AND HELD-OUT EVALUATION POOLED -- a mixed denominator, kept only as a coarse run-wide count. No scientific severity claim is made from it; use `by_phase` instead",
+      "n_episode_records": 3960,
+      "n_wakes_by_kind": {
+        "ordinary": 8496,
+        "immediate_fuel_damage": 2166,
+        "post_fd_boundary": 2094
+      },
+      "by_wake_kind": {
+        "ordinary": {
+          "n_wakes": 8496,
+          "selected_meta_action_counts": {
+            "PLAN_COMPLIANCE": 1541,
+            "OPPORTUNISTIC_ENGAGEMENT": 6805,
+            "SELF_PRESERVATION_ABORT": 150
+          },
+          "selected_joint_cell_abort_fraction": 0.01765536723163842,
+          "aggregate_p_abort_mean": 0.026285979451254746,
+          "aggregate_p_plan_mean": 0.20257535800771884,
+          "joint_entropy_raw_mean": 0.6951599273521089,
+          "joint_entropy_normalized_mean": 0.32091124982429664,
+          "n_joint_entropy_normalized_defined": 8496,
+          "aggregate_meta_action_entropy_mean": 0.31195722842499574,
+          "joint_vs_aggregate_disagreement_fraction": 0.13512241054613935,
+          "n_valid_cells_mean": 8.982580037664784,
+          "distance_clipping_fraction_mean": 0.7932898564607604,
+          "selected_node_ownership_counts": {
+            "unassigned": 7166,
+            "peer_assigned": 700,
+            "ego_assigned": 630
+          }
+        },
+        "immediate_fuel_damage": {
+          "n_wakes": 2166,
+          "selected_meta_action_counts": {
+            "PLAN_COMPLIANCE": 1974,
+            "OPPORTUNISTIC_ENGAGEMENT": 0,
+            "SELF_PRESERVATION_ABORT": 192
+          },
+          "selected_joint_cell_abort_fraction": 0.0886426592797784,
+          "aggregate_p_abort_mean": 0.12395145323571241,
+          "aggregate_p_plan_mean": 0.8758945016539548,
+          "joint_entropy_raw_mean": 1.7110393809864946,
+          "joint_entropy_normalized_mean": 0.9297981206251562,
+          "n_joint_entropy_normalized_defined": 2166,
+          "aggregate_meta_action_entropy_mean": 0.34255108932791656,
+          "joint_vs_aggregate_disagreement_fraction": 0.0004616805170821791,
+          "n_valid_cells_mean": 6.5609418282548475,
+          "distance_clipping_fraction_mean": 0.97791701475912,
+          "selected_node_ownership_counts": {
+            "ego_assigned": 1372,
+            "peer_assigned": 794
+          }
+        },
+        "post_fd_boundary": {
+          "n_wakes": 2094,
+          "selected_meta_action_counts": {
+            "PLAN_COMPLIANCE": 222,
+            "OPPORTUNISTIC_ENGAGEMENT": 1854,
+            "SELF_PRESERVATION_ABORT": 18
+          },
+          "selected_joint_cell_abort_fraction": 0.008595988538681949,
+          "aggregate_p_abort_mean": 0.018198372268014226,
+          "aggregate_p_plan_mean": 0.14476859418265237,
+          "joint_entropy_raw_mean": 0.5030021167804114,
+          "joint_entropy_normalized_mean": 0.24818535629350452,
+          "n_joint_entropy_normalized_defined": 2094,
+          "aggregate_meta_action_entropy_mean": 0.25512280786603886,
+          "joint_vs_aggregate_disagreement_fraction": 0.08595988538681948,
+          "n_valid_cells_mean": 7.865329512893982,
+          "distance_clipping_fraction_mean": 0.747065690332166,
+          "selected_node_ownership_counts": {
+            "unassigned": 1913,
+            "peer_assigned": 90,
+            "ego_assigned": 91
+          }
+        }
+      },
+      "by_wake_kind_and_cell": {
+        "ordinary": {
+          "clean": {
+            "n_wakes": 3909,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 610,
+              "OPPORTUNISTIC_ENGAGEMENT": 3221,
+              "SELF_PRESERVATION_ABORT": 78
+            },
+            "selected_joint_cell_abort_fraction": 0.019953952417498082,
+            "aggregate_p_abort_mean": 0.023309299864951685,
+            "aggregate_p_plan_mean": 0.17732901816716407,
+            "joint_entropy_raw_mean": 0.6648382079775879,
+            "joint_entropy_normalized_mean": 0.30386929032730264,
+            "n_joint_entropy_normalized_defined": 3909,
+            "aggregate_meta_action_entropy_mean": 0.32356290562027373,
+            "joint_vs_aggregate_disagreement_fraction": 0.15656178050652342,
+            "n_valid_cells_mean": 9.011767715528268,
+            "distance_clipping_fraction_mean": 0.7921714033955016,
+            "selected_node_ownership_counts": {
+              "unassigned": 3367,
+              "peer_assigned": 337,
+              "ego_assigned": 205
+            }
+          },
+          "mild": {
+            "n_wakes": 2305,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 313,
+              "OPPORTUNISTIC_ENGAGEMENT": 1964,
+              "SELF_PRESERVATION_ABORT": 28
+            },
+            "selected_joint_cell_abort_fraction": 0.012147505422993492,
+            "aggregate_p_abort_mean": 0.021478157242231774,
+            "aggregate_p_plan_mean": 0.1667994529113917,
+            "joint_entropy_raw_mean": 0.6306591086962348,
+            "joint_entropy_normalized_mean": 0.28844593653885475,
+            "n_joint_entropy_normalized_defined": 2305,
+            "aggregate_meta_action_entropy_mean": 0.3102458364809025,
+            "joint_vs_aggregate_disagreement_fraction": 0.14099783080260303,
+            "n_valid_cells_mean": 9.02169197396963,
+            "distance_clipping_fraction_mean": 0.7933789396913041,
+            "selected_node_ownership_counts": {
+              "unassigned": 2059,
+              "ego_assigned": 90,
+              "peer_assigned": 156
+            }
+          },
+          "severe": {
+            "n_wakes": 2282,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 618,
+              "OPPORTUNISTIC_ENGAGEMENT": 1620,
+              "SELF_PRESERVATION_ABORT": 44
+            },
+            "selected_joint_cell_abort_fraction": 0.019281332164767746,
+            "aggregate_p_abort_mean": 0.03624122515443468,
+            "aggregate_p_plan_mean": 0.2819580940654588,
+            "joint_entropy_raw_mean": 0.8122510702253746,
+            "joint_entropy_normalized_mean": 0.38289616077814986,
+            "n_joint_entropy_normalized_defined": 2282,
+            "aggregate_meta_action_entropy_mean": 0.2938056799038709,
+            "joint_vs_aggregate_disagreement_fraction": 0.09246275197195443,
+            "n_valid_cells_mean": 8.89307624890447,
+            "distance_clipping_fraction_mean": 0.7951157531240792,
+            "selected_node_ownership_counts": {
+              "unassigned": 1740,
+              "peer_assigned": 207,
+              "ego_assigned": 335
+            }
+          }
+        },
+        "immediate_fuel_damage": {
+          "mild": {
+            "n_wakes": 1094,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 999,
+              "OPPORTUNISTIC_ENGAGEMENT": 0,
+              "SELF_PRESERVATION_ABORT": 95
+            },
+            "selected_joint_cell_abort_fraction": 0.08683729433272395,
+            "aggregate_p_abort_mean": 0.12189117883429122,
+            "aggregate_p_plan_mean": 0.8781088202156576,
+            "joint_entropy_raw_mean": 1.7049244958260377,
+            "joint_entropy_normalized_mean": 0.9290896212580891,
+            "n_joint_entropy_normalized_defined": 1094,
+            "aggregate_meta_action_entropy_mean": 0.338902780707837,
+            "joint_vs_aggregate_disagreement_fraction": 0.0,
+            "n_valid_cells_mean": 6.517367458866545,
+            "distance_clipping_fraction_mean": 0.9799545137982065,
+            "selected_node_ownership_counts": {
+              "ego_assigned": 705,
+              "peer_assigned": 389
+            }
+          },
+          "severe": {
+            "n_wakes": 1072,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 975,
+              "OPPORTUNISTIC_ENGAGEMENT": 0,
+              "SELF_PRESERVATION_ABORT": 97
+            },
+            "selected_joint_cell_abort_fraction": 0.09048507462686567,
+            "aggregate_p_abort_mean": 0.12605400938790903,
+            "aggregate_p_plan_mean": 0.873634739987441,
+            "joint_entropy_raw_mean": 1.717279758193155,
+            "joint_entropy_normalized_mean": 0.9305211600911742,
+            "n_joint_entropy_normalized_defined": 1072,
+            "aggregate_meta_action_entropy_mean": 0.3462742699532589,
+            "joint_vs_aggregate_disagreement_fraction": 0.0009328358208955224,
+            "n_valid_cells_mean": 6.605410447761194,
+            "distance_clipping_fraction_mean": 0.9758377013740819,
+            "selected_node_ownership_counts": {
+              "ego_assigned": 667,
+              "peer_assigned": 405
+            }
+          }
+        },
+        "post_fd_boundary": {
+          "mild": {
+            "n_wakes": 1226,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 87,
+              "OPPORTUNISTIC_ENGAGEMENT": 1129,
+              "SELF_PRESERVATION_ABORT": 10
+            },
+            "selected_joint_cell_abort_fraction": 0.008156606851549755,
+            "aggregate_p_abort_mean": 0.01599795310707728,
+            "aggregate_p_plan_mean": 0.11839146125107566,
+            "joint_entropy_raw_mean": 0.4661103299230969,
+            "joint_entropy_normalized_mean": 0.22572295029743605,
+            "n_joint_entropy_normalized_defined": 1226,
+            "aggregate_meta_action_entropy_mean": 0.25798246659016383,
+            "joint_vs_aggregate_disagreement_fraction": 0.08890701468189233,
+            "n_valid_cells_mean": 7.988580750407831,
+            "distance_clipping_fraction_mean": 0.7485049457520909,
+            "selected_node_ownership_counts": {
+              "unassigned": 1154,
+              "peer_assigned": 40,
+              "ego_assigned": 32
+            }
+          },
+          "severe": {
+            "n_wakes": 868,
+            "selected_meta_action_counts": {
+              "PLAN_COMPLIANCE": 135,
+              "OPPORTUNISTIC_ENGAGEMENT": 725,
+              "SELF_PRESERVATION_ABORT": 8
+            },
+            "selected_joint_cell_abort_fraction": 0.009216589861751152,
+            "aggregate_p_abort_mean": 0.021306337580581845,
+            "aggregate_p_plan_mean": 0.18202477502840472,
+            "joint_entropy_raw_mean": 0.5551096406134386,
+            "joint_entropy_normalized_mean": 0.27991221084555507,
+            "n_joint_entropy_normalized_defined": 868,
+            "aggregate_meta_action_entropy_mean": 0.2510837046450974,
+            "joint_vs_aggregate_disagreement_fraction": 0.08179723502304148,
+            "n_valid_cells_mean": 7.691244239631336,
+            "distance_clipping_fraction_mean": 0.7450328249579401,
+            "selected_node_ownership_counts": {
+              "unassigned": 759,
+              "peer_assigned": 50,
+              "ego_assigned": 59
+            }
+          }
+        }
+      }
+    },
+    "matched_severe_minus_mild_aggregate_p_abort": {
+      "population": "evaluation records only (pre_update, post_update)",
+      "pairing": "full evaluation identity (evaluation stage, updates_completed, eval round ordinal, benchmark manifest id) + benchmark_group_key",
+      "over": "world_groups_with_both_mild_and_severe_present_in_the_same_round",
+      "n_rounds": 16,
+      "by_round": [
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 10,
+          "eval_round_ordinal": 1,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": -7.132068276405334e-07,
+          "min": -3.08305025100708e-05,
+          "max": 2.072751522064209e-05
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 20,
+          "eval_round_ordinal": 2,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": -2.456456422805786e-06,
+          "min": -2.7604401111602783e-05,
+          "max": 1.0341405868530273e-05
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 30,
+          "eval_round_ordinal": 3,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.028470571711659433,
+          "min": 0.018349334597587585,
+          "max": 0.04101717472076416
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 40,
+          "eval_round_ordinal": 4,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.003988881409168243,
+          "min": 0.0015822574496269226,
+          "max": 0.006936013698577881
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 50,
+          "eval_round_ordinal": 5,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.004690363630652427,
+          "min": 0.0026960372924804688,
+          "max": 0.007622033357620239
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 60,
+          "eval_round_ordinal": 6,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.005556038022041321,
+          "min": 0.003021746873855591,
+          "max": 0.008660733699798584
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 70,
+          "eval_round_ordinal": 7,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.01342935860157013,
+          "min": 0.00847509503364563,
+          "max": 0.019036173820495605
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 80,
+          "eval_round_ordinal": 8,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.006049805507063866,
+          "min": 0.0032822154462337494,
+          "max": 0.009324446320533752
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 90,
+          "eval_round_ordinal": 9,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 1.257285475730896e-08,
+          "min": -5.218014121055603e-05,
+          "max": 4.773586988449097e-05
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 100,
+          "eval_round_ordinal": 10,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.00014676330611109733,
+          "min": -1.547485589981079e-05,
+          "max": 0.00042792782187461853
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 110,
+          "eval_round_ordinal": 11,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 2.7200207114219665e-06,
+          "min": 1.5236437320709229e-06,
+          "max": 7.1711838245391846e-06
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 120,
+          "eval_round_ordinal": 12,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 1.9504781812429427e-05,
+          "min": 1.1671334505081177e-05,
+          "max": 2.4732202291488647e-05
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 130,
+          "eval_round_ordinal": 13,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": -5.6980177760124205e-06,
+          "min": -3.6716461181640625e-05,
+          "max": 3.5259872674942017e-05
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 140,
+          "eval_round_ordinal": 14,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": 0.00013478696346282958,
+          "min": -6.899237632751465e-06,
+          "max": 0.0004686787724494934
+        },
+        {
+          "evaluation_stage": "post_update",
+          "updates_completed": 150,
+          "eval_round_ordinal": 15,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": -9.080488234758377e-05,
+          "min": -0.0002474971115589142,
+          "max": -7.458031177520752e-06
+        },
+        {
+          "evaluation_stage": "pre_update",
+          "updates_completed": 0,
+          "eval_round_ordinal": 0,
+          "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "n_groups_with_immediate_fd_wakes": 20,
+          "n": 20,
+          "mean": -0.00031295157968997956,
+          "min": -0.0010349005460739136,
+          "max": 0.00012674927711486816
+        }
+      ],
+      "pooled_across_rounds": {
+        "n_rounds_with_deltas": 16,
+        "n_group_deltas": 320,
+        "mean_of_round_means": 0.003879761399002746,
+        "min_round_mean": -0.00031295157968997956,
+        "max_round_mean": 0.028470571711659433,
+        "totals_across_rounds_are_repeated_measures": true
+      },
+      "final_round": {
+        "evaluation_stage": "post_update",
+        "updates_completed": 150,
+        "eval_round_ordinal": 15,
+        "benchmark_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+        "n_groups_with_immediate_fd_wakes": 20,
+        "n": 20,
+        "mean": -9.080488234758377e-05,
+        "min": -0.0002474971115589142,
+        "max": -7.458031177520752e-06
+      },
+      "final_round_selection": {
+        "selected": true,
+        "reason": "matched_by_validated_identity",
+        "requested_identity": {
+          "evaluation_stage": "post_update",
+          "updates_completed": 150,
+          "eval_round_ordinal": 15
+        },
+        "matched_identity": {
+          "evaluation_stage": "post_update",
+          "updates_completed": 150,
+          "eval_round_ordinal": 15
+        },
+        "n_candidates": 1
+      }
+    },
+    "metric_semantics": {
+      "selected_joint_cell_abort_fraction": "fraction of wakes whose SELECTED joint (node, meta) cell was an abort -- what deterministic evaluation actually does",
+      "aggregate_p_abort_mean": "mean TOTAL probability mass on the abort column, summed over its k cells. NOT the probability of the selected action",
+      "joint_entropy_raw_mean": "entropy of the joint (node, meta-action) distribution, in nats, cardinality-dependent",
+      "joint_entropy_normalized_mean": "the same entropy divided by log(valid cell count); undefined (and excluded) when fewer than two cells are valid"
+    }
+  },
+  "episode_design": "generalized_v2",
+  "episode_design_policies": {
+    "design": "generalized_v2",
+    "generalized": true,
+    "hidden_policy": "bounded_backoff_v1",
+    "eligibility_policy": "certified_both_severities_v1",
+    "post_fd_wake_policy": "completion_boundary_v1",
+    "reference_policy": "event_conditioned_continuation_v1"
+  },
+  "generalized": {
+    "episode_design": "generalized_v2",
+    "cardinality_sampler": {
+      "policy": "generalized_cardinality_uniform_v1",
+      "rng_domain": "generalized_cardinality_v1",
+      "seed_construction": "sha256('generalized_cardinality_v1:<episode_seed>')[:8]",
+      "agent_counts": [
+        2,
+        3,
+        4
+      ],
+      "agent_count_rule": "A ~ Uniform(agent_counts)",
+      "known_rule": "K == A",
+      "hidden_requested_rule": "H_requested | A ~ Uniform({1, ..., A})",
+      "realized_hidden_may_be_short": true,
+      "retry_on_short_realization": false
+    },
+    "train_by_agent_count": {
+      "2": {
+        "n_attempted": 618,
+        "n_successful": 613,
+        "n_failed": 5,
+        "success_fraction": 0.9919093851132686
+      },
+      "3": {
+        "n_attempted": 612,
+        "n_successful": 612,
+        "n_failed": 0,
+        "success_fraction": 1.0
+      },
+      "4": {
+        "n_attempted": 558,
+        "n_successful": 557,
+        "n_failed": 1,
+        "success_fraction": 0.9982078853046595
+      },
+      "5": {
+        "n_attempted": 629,
+        "n_successful": 628,
+        "n_failed": 1,
+        "success_fraction": 0.9984101748807631
+      },
+      "6": {
+        "n_attempted": 591,
+        "n_successful": 590,
+        "n_failed": 1,
+        "success_fraction": 0.9983079526226735
+      }
+    },
+    "train_by_hidden_requested": {
+      "1": {
+        "n_attempted": 1130,
+        "n_successful": 1127,
+        "n_failed": 3,
+        "success_fraction": 0.9973451327433628
+      },
+      "2": {
+        "n_attempted": 951,
+        "n_successful": 947,
+        "n_failed": 4,
+        "success_fraction": 0.9957939011566772
+      },
+      "3": {
+        "n_attempted": 530,
+        "n_successful": 530,
+        "n_failed": 0,
+        "success_fraction": 1.0
+      },
+      "4": {
+        "n_attempted": 307,
+        "n_successful": 306,
+        "n_failed": 1,
+        "success_fraction": 0.996742671009772
+      },
+      "5": {
+        "n_attempted": 83,
+        "n_successful": 83,
+        "n_failed": 0,
+        "success_fraction": 1.0
+      },
+      "6": {
+        "n_attempted": 7,
+        "n_successful": 7,
+        "n_failed": 0,
+        "success_fraction": 1.0
+      }
+    },
+    "cardinality_requested_vs_realized": {
+      "1": {
+        "n_successful": 1367,
+        "hidden_realized_histogram": {
+          "1": 1367
+        },
+        "hidden_realized_mean": 1.0,
+        "n_short_realized": 0,
+        "short_realized_fraction": 0.0
+      },
+      "2": {
+        "n_successful": 1331,
+        "hidden_realized_histogram": {
+          "2": 1331
+        },
+        "hidden_realized_mean": 2.0,
+        "n_short_realized": 0,
+        "short_realized_fraction": 0.0
+      },
+      "3": {
+        "n_successful": 770,
+        "hidden_realized_histogram": {
+          "3": 770
+        },
+        "hidden_realized_mean": 3.0,
+        "n_short_realized": 0,
+        "short_realized_fraction": 0.0
+      },
+      "4": {
+        "n_successful": 354,
+        "hidden_realized_histogram": {
+          "4": 354
+        },
+        "hidden_realized_mean": 4.0,
+        "n_short_realized": 0,
+        "short_realized_fraction": 0.0
+      },
+      "5": {
+        "n_successful": 131,
+        "hidden_realized_histogram": {
+          "5": 131
+        },
+        "hidden_realized_mean": 5.0,
+        "n_short_realized": 0,
+        "short_realized_fraction": 0.0
+      },
+      "6": {
+        "n_successful": 7,
+        "hidden_realized_histogram": {
+          "6": 7
+        },
+        "hidden_realized_mean": 6.0,
+        "n_short_realized": 0,
+        "short_realized_fraction": 0.0
+      }
+    },
+    "construction_backoff_rejections": {
+      "no_route": 1581
+    },
+    "fd_eligibility_rejections": {
+      "invalid_band": 223,
+      "no_route": 1305,
+      "pre_event_popup_risk": 128
+    },
+    "fd_eligibility_selected_ordinals": {
+      "0": 1381,
+      "1": 1087,
+      "2": 880,
+      "3": 289,
+      "4": 239,
+      "5": 84
+    },
+    "post_fd_adaptation": {
+      "n_episodes_armed": 2166,
+      "n_boundaries_confirmed": 3859,
+      "n_boundaries_with_remaining_mission": 2094,
+      "n_boundaries_terminal": 1765,
+      "n_boundary_wakes": 2094,
+      "boundary_meta_action_counts": {
+        "OPPORTUNISTIC_ENGAGEMENT": 1854,
+        "PLAN_COMPLIANCE": 222,
+        "SELF_PRESERVATION_ABORT": 18
+      },
+      "boundary_meta_action_rates": {
+        "PLAN_COMPLIANCE": 0.10601719197707736,
+        "OPPORTUNISTIC_ENGAGEMENT": 0.8853868194842407,
+        "SELF_PRESERVATION_ABORT": 0.008595988538681949
+      },
+      "rates_over": "post_fd_boundary_wakes",
+      "deactivation_reasons": {
+        "ego_dead": 72,
+        "rtb_committed": 1995
+      }
+    },
+    "reference": {
+      "n_episodes_with_reference": 3960,
+      "kinds": {
+        "clean_t0": 1794,
+        "damaged_event_checkpoint": 2166
+      },
+      "n_solver_invoked": 3960,
+      "n_solver_accepted": 3960,
+      "terminations": {
+        "optimal": 3960
+      },
+      "solver_seconds_mean": 0.004106097020099475,
+      "solver_seconds_max": 0.08685299998614937,
+      "allocated_task_count_mean": 6.2414141414141415,
+      "candidate_task_count_mean": 6.724494949494949,
+      "n_scored_completed_targets": 24075,
+      "n_unscored_completed_targets": 1442,
+      "scored_vs_unscored_over": "successful_episodes_with_a_reference"
+    },
+    "reference_fault_attrition": {},
+    "benchmark": null,
+    "v2_benchmark": {
+      "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+      "profiles": {
+        "development": 16
+      },
+      "n_rounds": 16,
+      "final_round_identity": {
+        "evaluation_stage": "post_update",
+        "updates_completed": 150,
+        "eval_round_ordinal": 15,
+        "benchmark_profile": "development"
+      },
+      "final_round_behaviour": {
+        "metric": "severe_minus_mild_aggregate_abort_mass",
+        "wake_kind": "immediate_fuel_damage",
+        "abort_meta_action": "SELF_PRESERVATION_ABORT",
+        "aggregate_mass_is_not_selected_action_probability": true,
+        "pairing": "per_complete_matched_world_group_then_aggregated",
+        "eligibility": "complete group whose MILD and SEVERE members each have exactly one immediate-fuel-damage wake with recorded diagnostics",
+        "n_groups_attempted": 20,
+        "n_groups_complete": 20,
+        "n_groups_incomplete": 0,
+        "n_groups_metric_eligible": 20,
+        "n_groups_complete_not_measurable": 0,
+        "not_measurable_reasons": {},
+        "by_base_cell": {
+          "A2-D0": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -1.1749565601348877e-05,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A2-D2": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -8.84421169757843e-05,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A3-D0": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -1.041218638420105e-05,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A3-D2": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -0.00013781897723674774,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A4-D0": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -9.877979755401611e-05,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A4-D2": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -9.771250188350677e-05,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A5-D0": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -8.258596062660217e-05,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A5-D2": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -0.00016929209232330322,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A6-D0": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -9.912252426147461e-05,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          },
+          "A6-D2": {
+            "n_groups_attempted": 2,
+            "n_groups_complete": 2,
+            "n_groups_metric_eligible": 2,
+            "severe_minus_mild_abort_mass_mean": -0.00011213310062885284,
+            "directional_switch_count": 0,
+            "directional_switch_rate": 0.0,
+            "reverse_switch_count": 0,
+            "reverse_switch_rate": 0.0,
+            "rates_over": "metric_eligible_groups"
+          }
+        },
+        "macro_mean_over_base_cells": -9.080488234758377e-05,
+        "macro_n_base_cells_required": 10,
+        "macro_n_base_cells_defined": 10,
+        "macro_undefined_base_cells": [],
+        "pooled_mean_over_groups": -9.080488234758377e-05,
+        "pooled_n_groups": 20,
+        "directional_switch_definition": "mild_not_abort_and_severe_abort",
+        "directional_switch_count": 0,
+        "directional_switch_rate": 0.0,
+        "reverse_switch_definition": "mild_abort_and_severe_not_abort",
+        "reverse_switch_count": 0,
+        "reverse_switch_rate": 0.0,
+        "switch_rates_over": "metric_eligible_groups",
+        "groups": [
+          {
+            "group_key": "A2-D0-w000",
+            "base_cell": "A2-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.12053291499614716,
+            "p_abort_severe": 0.12052047252655029,
+            "severe_minus_mild_abort_mass": -1.2442469596862793e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A2-D0-w001",
+            "base_cell": "A2-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.12053529173135757,
+            "p_abort_severe": 0.12052423506975174,
+            "severe_minus_mild_abort_mass": -1.1056661605834961e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A2-D2-w000",
+            "base_cell": "A2-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.10987747460603714,
+            "p_abort_severe": 0.10978702455759048,
+            "severe_minus_mild_abort_mass": -9.045004844665527e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A2-D2-w001",
+            "base_cell": "A2-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.06416773796081543,
+            "p_abort_severe": 0.06408130377531052,
+            "severe_minus_mild_abort_mass": -8.643418550491333e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A3-D0-w000",
+            "base_cell": "A3-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.07592802494764328,
+            "p_abort_severe": 0.07592056691646576,
+            "severe_minus_mild_abort_mass": -7.458031177520752e-06,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A3-D0-w001",
+            "base_cell": "A3-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.07604095339775085,
+            "p_abort_severe": 0.07602758705615997,
+            "severe_minus_mild_abort_mass": -1.3366341590881348e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A3-D2-w000",
+            "base_cell": "A3-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.05555112287402153,
+            "p_abort_severe": 0.05541083216667175,
+            "severe_minus_mild_abort_mass": -0.00014029070734977722,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A3-D2-w001",
+            "base_cell": "A3-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.05555054545402527,
+            "p_abort_severe": 0.05541519820690155,
+            "severe_minus_mild_abort_mass": -0.00013534724712371826,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A4-D0-w000",
+            "base_cell": "A4-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.06433741003274918,
+            "p_abort_severe": 0.06423821300268173,
+            "severe_minus_mild_abort_mass": -9.919703006744385e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A4-D0-w001",
+            "base_cell": "A4-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.09335450083017349,
+            "p_abort_severe": 0.0932561382651329,
+            "severe_minus_mild_abort_mass": -9.836256504058838e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A4-D2-w000",
+            "base_cell": "A4-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.07618772238492966,
+            "p_abort_severe": 0.07610251009464264,
+            "severe_minus_mild_abort_mass": -8.521229028701782e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A4-D2-w001",
+            "base_cell": "A4-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.049034662544727325,
+            "p_abort_severe": 0.04892444983124733,
+            "severe_minus_mild_abort_mass": -0.00011021271347999573,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A5-D0-w000",
+            "base_cell": "A5-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.08390703797340393,
+            "p_abort_severe": 0.0837506651878357,
+            "severe_minus_mild_abort_mass": -0.0001563727855682373,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A5-D0-w001",
+            "base_cell": "A5-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.08389938622713089,
+            "p_abort_severe": 0.08389058709144592,
+            "severe_minus_mild_abort_mass": -8.799135684967041e-06,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A5-D2-w000",
+            "base_cell": "A5-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.04383270442485809,
+            "p_abort_severe": 0.0437416173517704,
+            "severe_minus_mild_abort_mass": -9.108707308769226e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A5-D2-w001",
+            "base_cell": "A5-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.04388274997472763,
+            "p_abort_severe": 0.043635252863168716,
+            "severe_minus_mild_abort_mass": -0.0002474971115589142,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A6-D0-w000",
+            "base_cell": "A6-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.076180599629879,
+            "p_abort_severe": 0.07605399191379547,
+            "severe_minus_mild_abort_mass": -0.0001266077160835266,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A6-D0-w001",
+            "base_cell": "A6-D0",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.07611655443906784,
+            "p_abort_severe": 0.07604491710662842,
+            "severe_minus_mild_abort_mass": -7.163733243942261e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A6-D2-w000",
+            "base_cell": "A6-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.06434430927038193,
+            "p_abort_severe": 0.06416071206331253,
+            "severe_minus_mild_abort_mass": -0.00018359720706939697,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          },
+          {
+            "group_key": "A6-D2-w001",
+            "base_cell": "A6-D2",
+            "complete": true,
+            "metric_eligible": true,
+            "not_measurable_reason": null,
+            "p_abort_mild": 0.039606451988220215,
+            "p_abort_severe": 0.039565782994031906,
+            "severe_minus_mild_abort_mass": -4.0668994188308716e-05,
+            "mild_selected_meta_action": "PLAN_COMPLIANCE",
+            "severe_selected_meta_action": "PLAN_COMPLIANCE",
+            "mild_not_abort_and_severe_abort": false,
+            "mild_abort_and_severe_not_abort": false
+          }
+        ]
+      },
+      "final_round_groups": {
+        "benchmark_profile_identity": {
+          "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+          "profile": "development",
+          "world_ordinals": [
+            0,
+            1
+          ],
+          "n_worlds": 20,
+          "n_members": 60,
+          "group_keys": [
+            "A2-D0-w000",
+            "A2-D0-w001",
+            "A2-D2-w000",
+            "A2-D2-w001",
+            "A3-D0-w000",
+            "A3-D0-w001",
+            "A3-D2-w000",
+            "A3-D2-w001",
+            "A4-D0-w000",
+            "A4-D0-w001",
+            "A4-D2-w000",
+            "A4-D2-w001",
+            "A5-D0-w000",
+            "A5-D0-w001",
+            "A5-D2-w000",
+            "A5-D2-w001",
+            "A6-D0-w000",
+            "A6-D0-w001",
+            "A6-D2-w000",
+            "A6-D2-w001"
+          ],
+          "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+          "seeds": [
+            2000000,
+            2000001,
+            2000064,
+            2000065,
+            2000128,
+            2000129,
+            2000192,
+            2000193,
+            2000256,
+            2000257,
+            2000320,
+            2000321,
+            2000384,
+            2000385,
+            2000448,
+            2000449,
+            2000512,
+            2000513,
+            2000576,
+            2000577
+          ],
+          "seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184"
+        },
+        "evaluated_group_keys": [
+          "A2-D0-w000",
+          "A2-D0-w001",
+          "A2-D2-w000",
+          "A2-D2-w001",
+          "A3-D0-w000",
+          "A3-D0-w001",
+          "A3-D2-w000",
+          "A3-D2-w001",
+          "A4-D0-w000",
+          "A4-D0-w001",
+          "A4-D2-w000",
+          "A4-D2-w001",
+          "A5-D0-w000",
+          "A5-D0-w001",
+          "A5-D2-w000",
+          "A5-D2-w001",
+          "A6-D0-w000",
+          "A6-D0-w001",
+          "A6-D2-w000",
+          "A6-D2-w001"
+        ],
+        "evaluated_group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+        "complete_group_keys": [
+          "A2-D0-w000",
+          "A2-D0-w001",
+          "A2-D2-w000",
+          "A2-D2-w001",
+          "A3-D0-w000",
+          "A3-D0-w001",
+          "A3-D2-w000",
+          "A3-D2-w001",
+          "A4-D0-w000",
+          "A4-D0-w001",
+          "A4-D2-w000",
+          "A4-D2-w001",
+          "A5-D0-w000",
+          "A5-D0-w001",
+          "A5-D2-w000",
+          "A5-D2-w001",
+          "A6-D0-w000",
+          "A6-D0-w001",
+          "A6-D2-w000",
+          "A6-D2-w001"
+        ],
+        "complete_group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+        "incomplete_group_keys": [],
+        "incomplete_group_keys_sha256": "7856c964b8f5295007ae8c690dd18af1ac9b389f5a02f61d1b0582fbeeedf7fe",
+        "metric_eligible_group_keys": [
+          "A2-D0-w000",
+          "A2-D0-w001",
+          "A2-D2-w000",
+          "A2-D2-w001",
+          "A3-D0-w000",
+          "A3-D0-w001",
+          "A3-D2-w000",
+          "A3-D2-w001",
+          "A4-D0-w000",
+          "A4-D0-w001",
+          "A4-D2-w000",
+          "A4-D2-w001",
+          "A5-D0-w000",
+          "A5-D0-w001",
+          "A5-D2-w000",
+          "A5-D2-w001",
+          "A6-D0-w000",
+          "A6-D0-w001",
+          "A6-D2-w000",
+          "A6-D2-w001"
+        ],
+        "metric_eligible_group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+        "frozen_population": {
+          "route_count_histogram": {
+            "1": 2,
+            "2": 5,
+            "3": 8,
+            "4": 2,
+            "5": 3
+          },
+          "hidden_requested_histogram": {
+            "1": 5,
+            "2": 8,
+            "3": 5,
+            "4": 1,
+            "5": 1
+          },
+          "hidden_requested_given_route_count": {
+            "R1:H1": 2,
+            "R2:H1": 2,
+            "R2:H2": 3,
+            "R3:H1": 1,
+            "R3:H2": 4,
+            "R3:H3": 3,
+            "R4:H3": 1,
+            "R4:H4": 1,
+            "R5:H2": 1,
+            "R5:H3": 1,
+            "R5:H5": 1
+          },
+          "hidden_realized_histogram": {
+            "1": 5,
+            "2": 8,
+            "3": 5,
+            "4": 1,
+            "5": 1
+          },
+          "n_hidden_short_realized": 0,
+          "descriptors_not_strata": true
+        }
+      },
+      "totals_across_rounds_are_repeated_measures": true
+    }
+  },
+  "final_eval_paired_reward_delta": null,
+  "final_eval_group_deltas": {
+    "eval_delta_mild_minus_clean": 0.0,
+    "eval_delta_severe_minus_clean": -0.6439731758671177,
+    "eval_delta_severe_minus_mild": -0.6439731758671177
+  },
+  "final_eval_groups_successful": 20,
+  "final_eval_groups_attempted": 20,
+  "final_eval_pairs_successful": 20,
+  "final_eval_pairs_attempted": 20,
+  "accounting_reconciled": true,
+  "initial_pre_update_eval": {
+    "evaluation_stage": "pre_update",
+    "updates_completed": 0,
+    "eval_round_ordinal": 0,
+    "iteration": null,
+    "n_attempted": 60,
+    "n_successful": 60,
+    "n_failed": 0,
+    "success_fraction": 1.0,
+    "eval_reward_mean": -0.5224201637449792,
+    "eval_reward_min": -2.249999718750035,
+    "eval_reward_max": -0.16666666319444454,
+    "aggregates_over": "successful_episodes",
+    "eval_reward_mean_clean": -0.3125649284342349,
+    "eval_reward_mean_damaged": -0.6273477814003515,
+    "n_clean_successful": 20,
+    "n_damaged_successful": 40,
+    "eval_paired_reward_delta": null,
+    "n_pairs_successful": 20,
+    "n_pairs_attempted": 20,
+    "paired_delta_over": "world_groups_with_all_members_successful",
+    "eval_group_kind": "triad",
+    "eval_group_cells": [
+      "clean",
+      "mild",
+      "severe"
+    ],
+    "n_groups_successful": 20,
+    "n_groups_attempted": 20,
+    "eval_delta_over": "world_groups_with_all_members_successful",
+    "cell_reward_means": {
+      "clean": -0.3125649284342349,
+      "mild": -0.35393397348284916,
+      "severe": -0.9007615893178539
+    },
+    "cell_successful": {
+      "clean": 20,
+      "mild": 20,
+      "severe": 20
+    },
+    "group_deltas": {
+      "eval_delta_mild_minus_clean": -0.04136904504861423,
+      "eval_delta_severe_minus_clean": -0.588196660883619,
+      "eval_delta_severe_minus_mild": -0.5468276158350047
+    },
+    "fd_wake_meta_action_counts": {
+      "mild": {
+        "PLAN_COMPLIANCE": 20,
+        "OPPORTUNISTIC_ENGAGEMENT": 0,
+        "SELF_PRESERVATION_ABORT": 0
+      },
+      "severe": {
+        "PLAN_COMPLIANCE": 20,
+        "OPPORTUNISTIC_ENGAGEMENT": 0,
+        "SELF_PRESERVATION_ABORT": 0
+      }
+    },
+    "fd_wakes_by_cell": {
+      "mild": 20,
+      "severe": 20
+    }
+  },
+  "final_eval": {
+    "evaluation_stage": "post_update",
+    "updates_completed": 150,
+    "eval_round_ordinal": 15,
+    "iteration": 149,
+    "n_attempted": 60,
+    "n_successful": 60,
+    "n_failed": 0,
+    "success_fraction": 1.0,
+    "eval_reward_mean": -0.22090772519138296,
+    "eval_reward_min": -2.249999718750035,
+    "eval_reward_max": 0.0,
+    "aggregates_over": "successful_episodes",
+    "eval_reward_mean_clean": -0.006249999902343752,
+    "eval_reward_mean_damaged": -0.3282365878359026,
+    "n_clean_successful": 20,
+    "n_damaged_successful": 40,
+    "eval_paired_reward_delta": null,
+    "n_pairs_successful": 20,
+    "n_pairs_attempted": 20,
+    "paired_delta_over": "world_groups_with_all_members_successful",
+    "eval_group_kind": "triad",
+    "eval_group_cells": [
+      "clean",
+      "mild",
+      "severe"
+    ],
+    "n_groups_successful": 20,
+    "n_groups_attempted": 20,
+    "eval_delta_over": "world_groups_with_all_members_successful",
+    "cell_reward_means": {
+      "clean": -0.006249999902343752,
+      "mild": -0.006249999902343752,
+      "severe": -0.6502231757694614
+    },
+    "cell_successful": {
+      "clean": 20,
+      "mild": 20,
+      "severe": 20
+    },
+    "group_deltas": {
+      "eval_delta_mild_minus_clean": 0.0,
+      "eval_delta_severe_minus_clean": -0.6439731758671177,
+      "eval_delta_severe_minus_mild": -0.6439731758671177
+    },
+    "fd_wake_meta_action_counts": {
+      "mild": {
+        "PLAN_COMPLIANCE": 20,
+        "OPPORTUNISTIC_ENGAGEMENT": 0,
+        "SELF_PRESERVATION_ABORT": 0
+      },
+      "severe": {
+        "PLAN_COMPLIANCE": 20,
+        "OPPORTUNISTIC_ENGAGEMENT": 0,
+        "SELF_PRESERVATION_ABORT": 0
+      }
+    },
+    "fd_wakes_by_cell": {
+      "mild": 20,
+      "severe": 20
+    }
+  },
+  "final_eval_selection": {
+    "selected": true,
+    "reason": "selected_by_validated_identity",
+    "ordered_by": "highest eval_round_ordinal, cross-checked against updates_completed",
+    "n_eval_records": 16,
+    "identity": {
+      "evaluation_stage": "post_update",
+      "updates_completed": 150,
+      "eval_round_ordinal": 15
+    }
+  },
+  "eval_reward_best": -0.22090772519138296,
+  "train_reward_first": -0.4216864956881726,
+  "train_reward_last": -0.05926451935574326,
+  "train_reward_mean": -0.21432817087662825,
+  "n_iterations_without_reward": 0,
+  "aggregates_over": "successful_episodes",
+  "meta_action_totals": {
+    "PLAN_COMPLIANCE": 2726,
+    "OPPORTUNISTIC_ENGAGEMENT": 6109,
+    "SELF_PRESERVATION_ABORT": 358
+  },
+  "run_seconds": 6057.696889400002,
+  "run_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0",
+  "train_records_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\train_records.jsonl",
+  "eval_records_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\eval_records.jsonl",
+  "failures_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\episode_failures.jsonl",
+  "episode_outcomes_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\episode_outcomes.jsonl",
+  "run_config_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\run_config.json",
+  "run_summary_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\run_summary.json",
+  "plots_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\plots",
+  "plot_paths": {
+    "training_performance.png": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\plots\\training_performance.png",
+    "policy_diagnostics.png": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\plots\\policy_diagnostics.png",
+    "measurement_health.png": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\plots\\measurement_health.png"
+  },
+  "optional_plot_paths": {
+    "fd_policy_sensitivity.png": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\plots\\fd_policy_sensitivity.png"
+  },
+  "total_train_episodes": 3008,
+  "n_failed_episodes": 8,
+  "train_baseline_first": -0.4216864956881726,
+  "train_baseline_last": -0.05926451935574326,
+  "train_baseline_mean": -0.21432817087662825,
+  "eval_reward_first": -0.5224201637449792,
+  "eval_reward_last": -0.22090772519138296,
+  "plot_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0\\plots\\training_performance.png"
+}

@@ -1,0 +1,4 @@
+@echo off
+cd /d "C:\Users\Itama\PycharmProjects\Multi_Agent_Task_Allocation_and_Adaptation"
+call conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 750 --episodes 4 --seed 3000000 --out "C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0" --checkpoint-every 50 --eval-every 50 --eval-episodes 8 --training-mode ctde --episode-design generalized_v2 --match-aou-backend p1_milp_v1 --fuel-damage-mode seeded_variable --fuel-damage-probability 0.5 --fuel-damage-mild-probability 0.5 --generalized-max-attempts-per-iteration 6 --benchmark-manifest "C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\benchmark_manifest.json" --benchmark-profile development > "C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0.official.console.log" 2>&1
+exit /b %ERRORLEVEL%

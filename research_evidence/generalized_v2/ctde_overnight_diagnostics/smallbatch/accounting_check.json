@@ -1,0 +1,20 @@
+﻿{
+  "run_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0",
+  "train_attempted": 3008,
+  "train_successful": 3000,
+  "train_failed": 8,
+  "replacement_attempts": 8,
+  "updates": 750,
+  "eval_rounds": 16,
+  "eval_attempted": 960,
+  "eval_successful": 960,
+  "outcome_lines": 3960,
+  "failure_lines": 8,
+  "failures_by_error_type": {
+    "FuelDamageError": 8
+  },
+  "run_seconds": 5931.672627200009,
+  "hard": [],
+  "warn": [],
+  "verdict": "PASS"
+}
