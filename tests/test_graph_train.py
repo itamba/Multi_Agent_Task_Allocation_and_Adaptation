@@ -135,7 +135,12 @@ from match_aou.rl.training.graph_fuel_damage import (  # noqa: E402
     resolve_condition,
     resolve_severity,
 )
-from match_aou.rl.training.graph_ppo import PPOConfig, PPOUpdater  # noqa: E402
+from match_aou.rl.training.graph_ppo import (  # noqa: E402
+    CreditReport,
+    PPOConfig,
+    PPOUpdater,
+    compute_returns_and_advantages,
+)
 from match_aou.rl.training.graph_tick_loop import build_policy  # noqa: E402
 from match_aou.rl.training import graph_rollout, graph_train  # noqa: E402
 from match_aou.rl.training.graph_rollout import (  # noqa: E402
@@ -1316,9 +1321,14 @@ class _RecordingUpdater(PPOUpdater):
         super().__init__(policy, cfg)
         self._log = log
 
-    def update(self, buffer):
+    def update(self, buffer, credit_sink=None):
         rewards = [rec.episode_reward for rec in buffer.records]
         self._log.append(("update", len(rewards)))
+        # A productive update hands the trainer a REAL credit report (the trainer refuses
+        # a productive update without one), built by the real actor-only credit function.
+        if credit_sink is not None and buffer.n_transitions:
+            credit_sink(CreditReport("actor_only", list(buffer.records),
+                                     compute_returns_and_advantages(buffer), self.cfg))
         return {
             "baseline": (sum(rewards) / len(rewards)) if rewards else 0.0,
             "policy_loss": -0.01, "total_loss": -0.02, "entropy": 1.5,
@@ -1344,6 +1354,13 @@ class _StubTransition:
     def __init__(self, ego_id: str, meta_action: int = 0):
         self.ego_id = ego_id
         self.meta_action = meta_action
+        # The fields a credit-diagnostics row copies; a real Transition always has them.
+        # The semantic identity: ENGAGE carries a node, PLAN / ABORT carry none.
+        self.node_v = 0 if int(meta_action) == 1 else None
+        self.tick = 1
+        self.wake_kind = "ordinary"
+        self.log_prob = 0.0
+        self.reward = None
 
 
 def _weight_snapshot(policy) -> dict:
@@ -5352,8 +5369,10 @@ def test_gen_the_outcome_record_states_the_design_and_the_cardinality(
     rows = _read_records(gen.output_dir, "episode_outcomes.jsonl")
     assert len(rows) == 3
     for row in rows:
-        # VERSION 3 adds the per-wake actor diagnostics (`wake_decisions`).
-        assert row["schema_version"] == 3
+        # VERSION 3 added the per-wake actor diagnostics (`wake_decisions`); VERSION 4
+        # adds the action-representation id beside them.
+        assert row["schema_version"] == graph_train._EPISODE_OUTCOME_VERSION == 4
+        assert row["action_representation_id"] == "semantic_k_plus_2_logmeanexp_v1"
         assert row["episode_design"] == EPISODE_DESIGN_GENERALIZED_V1
         assert row["generalized"] is True
         assert row["hidden_policy"] == gen.design.hidden_policy
@@ -7233,7 +7252,8 @@ def test_es_checkpoints_stay_save_only(tmp_path: Path) -> None:
     assert names == ["ckpt_iter0007.pt"], names
     payload = torch.load(Path(cfg.output_dir) / "checkpoints" / names[0],
                          weights_only=False)
-    assert set(payload) == {"iteration", "encoder", "head", "optimizer", "ppo_config"}
+    assert set(payload) == {"iteration", "encoder", "head", "optimizer", "ppo_config",
+                            "action_representation_id"}
     assert payload["iteration"] == 7
 
     # No loader, and none hiding inside `save_checkpoint`.

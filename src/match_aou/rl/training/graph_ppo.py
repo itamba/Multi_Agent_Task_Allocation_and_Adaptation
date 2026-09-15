@@ -32,9 +32,16 @@ optimizers).
 
 The two are DISJOINT, not layered: a run selects one by ``training_mode``, and an
 ``actor_only`` run constructs nothing from section 7. Sections 1-6 were not refactored
-to make room for it, so the Phase-A semantics cannot have moved. The historical
+to make room for it, so the Phase-A credit semantics cannot have moved. The historical
 "PHASE-B SEAM" comments below mark where the critic was expected to join; section 7
 records where it actually did.
+
+OBSERVATIONAL CREDIT REPORTING (both updaters). ``update(source, credit_sink=None)``
+hands an optional sink ONE :class:`CreditReport` after a productive update: the SAME
+batch object the update consumed -- its returns / baseline or its ``V_old`` / GAE
+advantages / TD residuals / targets, plus the normalized advantages -- never a
+recomputation. The sink adds no forward, no GAE pass, no RNG draw and no gradient, and
+nothing in this module reads anything back from it.
 
 THE CREDIT STRUCTURE (locked in planning — read before changing anything)
 -------------------------------------------------------------------------
@@ -77,7 +84,7 @@ MASKS ARE REBUILT, NEVER STORED
 ``build_action_mask`` is a pure function of the stored ``GraphObservation``, so the
 update rebuilds the mask from ``tr.gobs`` rather than carrying a second copy that
 could drift. ``evaluate_action`` is the ONLY way a stored action is re-scored: it and
-``sample_action`` share ONE distribution construction site (``_masked_dist``), which
+``sample_action`` share ONE distribution construction site (``_semantic_dist``), which
 is what makes the epoch-0 ratio exactly 1.0 BY CONSTRUCTION rather than by two code
 paths agreeing (see ``graph_action`` and ``tests/test_graph_action_evaluate.py``). If
 a rebuilt mask ever masks a stored action, ``evaluate_action`` raises — that is a mask
@@ -106,7 +113,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import (
-    TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union,
+    TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union,
 )
 
 import numpy as np
@@ -355,6 +362,10 @@ class AdvantageBatch:
         adv_mean_raw / adv_std_raw: moments of ``raw_advantages`` (logging; a
             ``adv_std_raw`` of 0.0 flags the degenerate all-same-R batch).
         n_episodes / n_transitions: batch shape, for diagnostics.
+        record_positions / chain_ordinals: for transition ``i``, the index of its
+            :class:`EpisodeRecord` in the batch and its position in that record's ego
+            chain. IDENTITY ONLY, recorded in the same flattening loop so a report can
+            join a credit value to its episode; the credit math never reads them.
     """
 
     transitions: List["Transition"]
@@ -366,6 +377,8 @@ class AdvantageBatch:
     adv_std_raw: float
     n_episodes: int
     n_transitions: int
+    record_positions: List[int] = field(default_factory=list)
+    chain_ordinals: List[int] = field(default_factory=list)
 
 
 def _chain_returns(chain_len: int, episode_reward: float, gamma: float) -> List[float]:
@@ -448,12 +461,16 @@ def compute_returns_and_advantages(
     # --- Per-ego chain returns, flattened in the record's own flatten order. ---
     transitions: List["Transition"] = []
     returns_list: List[float] = []
-    for rec in records:
+    record_positions: List[int] = []
+    chain_ordinals: List[int] = []
+    for rec_pos, rec in enumerate(records):
         for chain in rec.chains.values():
             transitions.extend(chain)
             returns_list.extend(
                 _chain_returns(len(chain), rec.episode_reward, cfg.gamma)
             )
+            record_positions.extend([rec_pos] * len(chain))
+            chain_ordinals.extend(range(len(chain)))
 
     if not transitions:
         empty = np.zeros(0, dtype=np.float64)
@@ -487,7 +504,35 @@ def compute_returns_and_advantages(
         adv_std_raw=adv_std,
         n_episodes=n_episodes,
         n_transitions=len(transitions),
+        record_positions=record_positions,
+        chain_ordinals=chain_ordinals,
     )
+
+
+# =============================================================================
+# 4b. The observational credit report (shared by both updaters)
+# =============================================================================
+
+@dataclass(frozen=True)
+class CreditReport:
+    """What ONE productive update used for credit -- handed to an optional sink.
+
+    ``batch`` is THE object the update consumed (an :class:`AdvantageBatch` on
+    ``actor_only``, a :class:`CTDEAdvantageBatch` on ``ctde``), not a copy and not a
+    recomputation, so a report cannot describe credit the update did not use.
+    ``records`` is the record list the batch's ``record_positions`` index into.
+    Everything a reader needs is a numpy array, a python scalar or a stored
+    ``Transition``; nothing here is a tensor, so no gradient can cross it.
+    """
+
+    training_mode: str
+    records: Sequence[Any]
+    batch: Any
+    cfg: "PPOConfig"
+    ctde_cfg: Optional["CTDEConfig"] = None
+
+
+CreditSink = Callable[[CreditReport], None]
 
 
 # =============================================================================
@@ -574,8 +619,17 @@ class PPOUpdater:
         return self.policy.head(emb)
 
     # ------------------------------------------------------------------
-    def update(self, source: RecordSource) -> Dict[str, Any]:
+    def update(
+        self,
+        source: RecordSource,
+        credit_sink: Optional[CreditSink] = None,
+    ) -> Dict[str, Any]:
         """Run ``cfg.n_epochs`` clipped-PPO epochs over ``source`` and step the optimizer.
+
+        ``credit_sink``, when given, receives ONE :class:`CreditReport` after the last
+        epoch of a PRODUCTIVE update (``n_epochs_run > 0``) and nothing otherwise. It is
+        observational: it is handed the already-computed batch, and nothing in this
+        method reads anything back from it.
 
         Per epoch, per transition (the encoder is SINGLE-GRAPH, so this is a python
         loop over transitions — see the module docstring):
@@ -711,6 +765,10 @@ class PPOUpdater:
         for key, values in per_epoch.items():
             diagnostics[key] = float(np.mean(values)) if values else 0.0
         assert diagnostics["n_transitions"] == n  # alignment sanity
+        if credit_sink is not None and cfg.n_epochs > 0:
+            credit_sink(CreditReport(
+                training_mode="actor_only", records=records, batch=batch, cfg=cfg,
+            ))
         return diagnostics
 
 
@@ -1043,6 +1101,12 @@ class CTDEAdvantageBatch:
             ``baseline``. See :meth:`CTDEUpdater.update` for why that matters.
         adv_mean_raw / adv_std_raw: moments of ``raw_advantages`` (logging).
         n_episodes / n_transitions: batch shape.
+        rewards: the realized ``r_t`` the GAE pass consumed, per decision.
+        td_residuals: the one-step ``delta_t = r_t + gamma*V_next[t] - V_old[t]`` from
+            the SAME GAE pass that produced ``raw_advantages`` (no second critic call).
+        record_positions / decision_ordinals: for decision ``i``, the index of its
+            :class:`CTDEEpisodeRecord` and its position in that episode's GLOBAL
+            decision sequence. IDENTITY ONLY; the credit math never reads them.
     """
 
     transitions: List["Transition"]
@@ -1056,6 +1120,11 @@ class CTDEAdvantageBatch:
     adv_std_raw: float
     n_episodes: int
     n_transitions: int
+    rewards: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.float64))
+    td_residuals: np.ndarray = field(
+        default_factory=lambda: np.zeros(0, dtype=np.float64))
+    record_positions: List[int] = field(default_factory=list)
+    decision_ordinals: List[int] = field(default_factory=list)
 
 
 def episode_rewards_sequence(record: CTDEEpisodeRecord) -> List[float]:
@@ -1105,7 +1174,25 @@ def compute_gae(
 
     Returns:
         ``(advantages, value_targets)``, both length ``N`` and index-aligned with the
-        inputs. Both are empty for an empty episode.
+        inputs. Both are empty for an empty episode. The one-step residuals of the same
+        pass are available from :func:`_gae_pass`.
+    """
+    advantages, targets, _deltas = _gae_pass(
+        rewards, values, gamma=gamma, gae_lambda=gae_lambda)
+    return advantages, targets
+
+
+def _gae_pass(
+    rewards: Sequence[float],
+    values: Sequence[float],
+    *,
+    gamma: float,
+    gae_lambda: float,
+) -> Tuple[List[float], List[float], List[float]]:
+    """THE single GAE pass: ``(advantages, value_targets, td_residuals)``.
+
+    :func:`compute_gae` returns the first two; :func:`compute_ctde_advantages` keeps
+    all three, so the reported ``delta_t`` is the residual this very loop accumulated.
     """
     n = len(rewards)
     if n != len(values):
@@ -1113,18 +1200,20 @@ def compute_gae(
             "GAE alignment broken: %d reward(s) vs %d value(s)" % (n, len(values))
         )
     if n == 0:
-        return [], []
+        return [], [], []
 
     advantages = [0.0] * n
+    deltas = [0.0] * n
     running = 0.0
     for t in range(n - 1, -1, -1):
-        # The FINAL decision has no successor state -> V_next = 0 (see the docstring).
+        # The FINAL decision has no successor state -> V_next = 0 (see compute_gae).
         v_next = float(values[t + 1]) if t + 1 < n else 0.0
         delta = float(rewards[t]) + gamma * v_next - float(values[t])
         running = delta + gamma * gae_lambda * running
         advantages[t] = running
+        deltas[t] = delta
     targets = [advantages[t] + float(values[t]) for t in range(n)]
-    return advantages, targets
+    return advantages, targets, deltas
 
 
 def compute_ctde_advantages(
@@ -1176,12 +1265,16 @@ def compute_ctde_advantages(
     values_list: List[float] = []
     adv_list: List[float] = []
     target_list: List[float] = []
+    reward_list: List[float] = []
+    delta_list: List[float] = []
+    record_positions: List[int] = []
+    decision_ordinals: List[int] = []
 
     was_training = critic.training
     critic.eval()
     try:
         with torch.no_grad():
-            for rec in records:
+            for rec_pos, rec in enumerate(records):
                 if not rec.transitions:
                     # A zero-wake episode contributes NOTHING to a CTDE update: no actor
                     # sample, no critic sample, no baseline mass. It is still a valid
@@ -1191,7 +1284,7 @@ def compute_ctde_advantages(
                     float(critic(state).item()) for state in rec.central_states
                 ]
                 ep_rewards = episode_rewards_sequence(rec)
-                ep_adv, ep_targets = compute_gae(
+                ep_adv, ep_targets, ep_deltas = _gae_pass(
                     ep_rewards,
                     ep_values,
                     gamma=cfg.gamma,
@@ -1202,6 +1295,10 @@ def compute_ctde_advantages(
                 values_list.extend(ep_values)
                 adv_list.extend(ep_adv)
                 target_list.extend(ep_targets)
+                reward_list.extend(ep_rewards)
+                delta_list.extend(ep_deltas)
+                record_positions.extend([rec_pos] * len(rec.transitions))
+                decision_ordinals.extend(range(len(rec.transitions)))
     finally:
         critic.train(was_training)
 
@@ -1239,6 +1336,10 @@ def compute_ctde_advantages(
         adv_std_raw=adv_std,
         n_episodes=n_episodes,
         n_transitions=len(transitions),
+        rewards=np.asarray(reward_list, dtype=np.float64),
+        td_residuals=np.asarray(delta_list, dtype=np.float64),
+        record_positions=record_positions,
+        decision_ordinals=decision_ordinals,
     )
 
 
@@ -1309,8 +1410,15 @@ class CTDEUpdater:
         return self.policy.head(emb)
 
     # ------------------------------------------------------------------
-    def update(self, source: CTDERecordSource) -> Dict[str, Any]:
+    def update(
+        self,
+        source: CTDERecordSource,
+        credit_sink: Optional[CreditSink] = None,
+    ) -> Dict[str, Any]:
         """Run ``cfg.n_epochs`` CTDE epochs over ``source`` and step BOTH optimizers.
+
+        ``credit_sink``: as on :meth:`PPOUpdater.update` -- ONE :class:`CreditReport`
+        carrying the pre-update ``V_old`` / GAE batch, after a productive update only.
 
         Per epoch:
 
@@ -1462,6 +1570,11 @@ class CTDEUpdater:
         for key, values in per_epoch.items():
             diagnostics[key] = float(np.mean(values)) if values else 0.0
         assert diagnostics["n_transitions"] == n  # alignment sanity
+        if credit_sink is not None and cfg.n_epochs > 0:
+            credit_sink(CreditReport(
+                training_mode="ctde", records=records, batch=batch, cfg=cfg,
+                ctde_cfg=ctde_cfg,
+            ))
         return diagnostics
 
 
@@ -1518,20 +1631,18 @@ def _make_transition(
     ego_id: str,
     tick: int,
     *,
-    force_cell: Optional[Tuple[int, int]] = None,
+    force_cell: Optional[Tuple[int, Optional[int]]] = None,
 ) -> "Transition":
     """Produce ONE real :class:`Transition`, storing exactly what ``_wake_decision`` stores.
 
     This is SYNTHETIC ROLLOUT DATA construction — the one place ``torch.no_grad`` is
     legitimate in this module's test path (it mirrors the inference-only rollout).
 
-    ``force_cell=(meta_action, node_v)`` pins the stored action instead of sampling it,
-    scoring it through ``evaluate_action``. That is the SAME distribution
-    ``sample_action`` would have drawn from (one shared ``_masked_dist`` construction
-    site, proven bitwise in ``tests/test_graph_action_evaluate.py``), so the stored
-    log-prob is exactly the one a rollout that happened to sample this cell would have
-    stored. It makes the learning-direction / clipping proofs deterministic instead of
-    leaving them to the sampler.
+    ``force_cell=(meta_action, node_v)`` pins the stored SEMANTIC action (``node_v``
+    ``None`` for PLAN / ABORT) instead of sampling it, scoring it through
+    ``evaluate_action``. That is the SAME distribution ``sample_action`` would have drawn
+    from (one shared ``_semantic_dist`` construction site), so the stored log-prob is
+    exactly the one a rollout that happened to sample this action would have stored.
     """
     from .graph_tick_loop import Transition
 
@@ -1544,7 +1655,7 @@ def _make_transition(
                 logits, mask, deterministic=False
             )
         else:
-            meta_action, node_v = int(force_cell[0]), int(force_cell[1])
+            meta_action, node_v = int(force_cell[0]), force_cell[1]
             log_prob, entropy = evaluate_action(logits, mask, meta_action, node_v)
 
     return Transition(
@@ -1552,13 +1663,15 @@ def _make_transition(
         ego_id=str(ego_id),
         tick=int(tick),
         meta_action=int(meta_action),
-        node_v=int(node_v),
+        node_v=node_v,
         log_prob=float(log_prob.item()),
         entropy=float(entropy.item()),
     )
 
 
-def _action_prob(policy: "Policy", gobs: Any, meta_action: int, node_v: int) -> float:
+def _action_prob(
+    policy: "Policy", gobs: Any, meta_action: int, node_v: Optional[int],
+) -> float:
     """Current probability of ``(meta_action, node_v)`` on ``gobs`` (fresh, no-grad)."""
     mask = build_action_mask(gobs)
     with torch.no_grad():
@@ -1692,8 +1805,8 @@ def _selftest() -> None:
     torch.manual_seed(2)
     policy2 = build_policy(embed_dim=64)
     obs_shared = _make_obs()  # the SAME state in both episodes -> directly comparable
-    good_cell = (OE, 2)   # engage the unassigned pop-up (node 2)
-    bad_cell = (PC, 0)    # comply on the ego's own assigned task
+    good_cell = (OE, 2)     # engage the unassigned pop-up (node 2)
+    bad_cell = (PC, None)   # the one global PLAN_COMPLIANCE action
 
     tr_good = _make_transition(policy2, obs_shared, "egoA", 1, force_cell=good_cell)
     tr_bad = _make_transition(policy2, obs_shared, "egoA", 1, force_cell=bad_cell)
@@ -1715,7 +1828,7 @@ def _selftest() -> None:
     p_bad_after = _action_prob(policy2, obs_shared, *bad_cell)
     print(f"  P(good=(node2,OE)): {p_good_before:.6f} -> {p_good_after:.6f}  "
           f"(delta {p_good_after - p_good_before:+.6f})")
-    print(f"  P(bad =(node0,PC)): {p_bad_before:.6f} -> {p_bad_after:.6f}  "
+    print(f"  P(bad =PLAN): {p_bad_before:.6f} -> {p_bad_after:.6f}  "
           f"(delta {p_bad_after - p_bad_before:+.6f})")
     assert p_good_after > p_good_before, (p_good_before, p_good_after)
     assert p_bad_after < p_bad_before, (p_bad_before, p_bad_after)

@@ -48,14 +48,17 @@ target at the FRONT of the ego's queue (attack-now) while the ego's original
 assignments stay in ``solution`` at their original levels and resume naturally
 afterward. No queue object is mutated; the temporal priority lives in the level.
 
-EXTENDS / OUR CHOICE: SELF_PRESERVATION_ABORT is SELECTED through a node-indexed
-``k x 3`` cell like every other meta-action, but its EFFECT is EGO-GLOBAL: it clears
-ALL of the acting ego's remaining assignments, not only the selected node's. Aborting
-to preserve the airframe is a decision about the MISSION — dropping one task while the
-ego flies on to the next would leave it in exactly the danger the abort was chosen to
-escape. Selecting ANY legal SPA cell therefore produces the same empty ego plan, which
-``GraphPlanExecutor`` turns into its single latched RTB — but the effect layer does NOT
-issue RTB; it only edits the plan.
+EXTENDS / OUR CHOICE: SELF_PRESERVATION_ABORT is ONE global semantic action
+(``node_v is None``, ``graph_action.ACTION_REPRESENTATION_ID``) and its EFFECT is
+EGO-GLOBAL: it clears ALL of the acting ego's remaining assignments. Aborting to
+preserve the airframe is a decision about the MISSION — dropping one task while the ego
+flies on to the next would leave it in exactly the danger the abort was chosen to
+escape. The empty ego plan is what ``GraphPlanExecutor`` turns into its single latched
+RTB — but the effect layer does NOT issue RTB; it only edits the plan.
+
+THE NULLABLE-NODE GUARDS: PLAN_COMPLIANCE and SELF_PRESERVATION_ABORT REQUIRE
+``node_v is None``, and OPPORTUNISTIC_ENGAGEMENT REQUIRES an integer task index in
+``[0, len(tasks))``. A malformed identity raises rather than being coerced.
 
 This module replaced the retired flat ``plan_editor.py``. The executor that consumes
 the updated ``solution`` is ``GraphPlanExecutor``; this layer stays decoupled from
@@ -65,11 +68,11 @@ it (no import of, or dependency on, any BLADE executor).
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from ...models import StepKind, Task
 from ..observation.graph_builder import GraphObservation
-from .graph_action import MetaAction
+from .graph_action import GLOBAL_META_ACTIONS, MetaAction
 
 logger = logging.getLogger(__name__)
 
@@ -120,30 +123,29 @@ def apply_meta_action(
     obs: GraphObservation,
     ego_id: str,
     meta_action: int,          # a MetaAction value (int or MetaAction member)
-    node_v: int,               # task-node global index == task_idx
+    node_v: Optional[int],     # None for PLAN / ABORT; task index for ENGAGE
     tasks: List[Task],
 ) -> Dict[str, List[Tuple[int, int, int]]]:
-    """Apply one ``<meta_action, node_v>`` decision to ``solution``, returning a new plan.
+    """Apply one semantic ``<meta_action, node_v>`` decision to ``solution``.
 
     Pure function: returns a NEW ``solution`` dict (copied lists, str keys) and
     never mutates the input. See the module docstring for the per-meta-action
     semantics.
 
-    ``node_v`` is a GLOBAL node index, but task nodes use ``task_idx == node index``
-    (graph_builder's canonical order), so ``node_v`` IS the ``task_idx`` and indexes
-    directly into ``tasks``.
+    For OPPORTUNISTIC_ENGAGEMENT ``node_v`` is a task node, and task nodes use
+    ``task_idx == node index`` (graph_builder's canonical order), so it IS the
+    ``task_idx`` and indexes directly into ``tasks``.
 
     Args:
         solution: the current allocation ``{agent_id: [(task_idx, step_idx, level), ...]}``.
         obs: the :class:`GraphObservation` the decision was made on (used only for
-            logging / target-id traceability — the edit itself is in terms of
-            ``task_idx == node_v``).
+            logging / target-id traceability).
         ego_id: the deciding agent's id (may NOT yet be a key in ``solution`` — a
             pop-up engagement by an unassigned ego is handled by creating the entry).
         meta_action: a :class:`MetaAction` value (accepts the int or the member).
-        node_v: the chosen task node ``== task_idx``; guarded to ``[0, len(tasks))``.
-            SELF_PRESERVATION_ABORT reads it for traceability only — that effect is
-            EGO-GLOBAL and is identical for every legal cell the ego could select.
+        node_v: ``None`` for PLAN_COMPLIANCE and SELF_PRESERVATION_ABORT (global
+            semantic identities); the task index, in ``[0, len(tasks))``, for
+            OPPORTUNISTIC_ENGAGEMENT.
         tasks: the stable Task list (``task_idx`` indexes into it), used to locate
             the ATTACK step index for an inserted assignment.
 
@@ -151,15 +153,12 @@ def apply_meta_action(
         A NEW ``solution`` dict reflecting the edit.
 
     Raises:
-        ValueError: if ``node_v`` is out of range, or ``meta_action`` is not a
-            valid :class:`MetaAction` value.
+        ValueError: if ``meta_action`` is not a valid :class:`MetaAction` value; if a
+            global action carries a node; or if ENGAGE carries no node, a non-integer
+            node, or a node out of range.
     """
-    if not (0 <= node_v < len(tasks)):
-        raise ValueError(
-            f"node_v={node_v} out of range for {len(tasks)} task node(s) "
-            f"(must satisfy 0 <= node_v < len(tasks))"
-        )
-
+    if isinstance(meta_action, bool):
+        raise ValueError(f"unknown meta_action {meta_action!r}; expected a MetaAction value")
     try:
         action = MetaAction(meta_action)
     except ValueError as exc:
@@ -167,20 +166,36 @@ def apply_meta_action(
             f"unknown meta_action {meta_action!r}; expected a MetaAction value"
         ) from exc
 
+    if int(action) in GLOBAL_META_ACTIONS:
+        if node_v is not None:
+            raise ValueError(
+                f"{action.name} is a global semantic action and must carry "
+                f"node_v=None (got node_v={node_v!r})"
+            )
+    else:
+        if node_v is None or isinstance(node_v, bool) or not isinstance(node_v, int):
+            raise ValueError(
+                f"{action.name} requires an integer task node (got node_v={node_v!r})"
+            )
+        if not (0 <= node_v < len(tasks)):
+            raise ValueError(
+                f"node_v={node_v} out of range for {len(tasks)} task node(s) "
+                f"(must satisfy 0 <= node_v < len(tasks))"
+            )
+
     ego_key = str(ego_id)
     new_solution = _copy_solution(solution)
+
+    # --- PLAN_COMPLIANCE: no edit (equal-but-not-same copy) ------------------
+    if action is MetaAction.PLAN_COMPLIANCE:
+        logger.debug("PLAN_COMPLIANCE ego=%s: no-op", ego_key)
+        return new_solution
 
     # Target id is for logging/traceability only; the plan edit is by task_idx.
     target_id = (
         obs.task_target_ids[node_v]
-        if 0 <= node_v < len(obs.task_target_ids) else "?"
+        if node_v is not None and 0 <= node_v < len(obs.task_target_ids) else "?"
     )
-
-    # --- PLAN_COMPLIANCE: no edit (equal-but-not-same copy) ------------------
-    if action is MetaAction.PLAN_COMPLIANCE:
-        logger.debug("PLAN_COMPLIANCE ego=%s node=%d (target %s): no-op",
-                     ego_key, node_v, target_id)
-        return new_solution
 
     # --- OE: add an ego -> task v assignment --------------------------------
     if action is MetaAction.OPPORTUNISTIC_ENGAGEMENT:
@@ -204,8 +219,8 @@ def apply_meta_action(
         return new_solution
 
     # --- SELF_PRESERVATION_ABORT: EGO-GLOBAL mission abort -------------------
-    # The selected cell names WHICH action was taken, not what it reaches: the whole
-    # of THIS ego's remaining plan goes, so the executor's empty-plan branch is reached
+    # One global semantic action: the whole of THIS ego's remaining plan goes, so the
+    # executor's empty-plan branch is reached
     # on the NEXT ``GraphPlanExecutor.next_actions`` call and issues its single latched
     # RTB there. Under ``graph_tick_loop.run_episode`` that call is PHASE 2 OF THE SAME
     # TICK: the wake, this plan edit and the executor resync all happen in Phase 1,
@@ -217,9 +232,7 @@ def apply_meta_action(
         if ego_key in new_solution:
             new_solution[ego_key] = []  # key retained, emptied -> executor RTB
         logger.debug(
-            "SELF_PRESERVATION_ABORT ego=%s cleared ALL remaining assignments "
-            "(selected cell node=%d, target %s)",
-            ego_key, node_v, target_id,
+            "SELF_PRESERVATION_ABORT ego=%s cleared ALL remaining assignments", ego_key,
         )
         return new_solution
 
@@ -280,7 +293,7 @@ def _selftest() -> None:
     print("=" * 72)
 
     # (1) PLAN_COMPLIANCE: equal-but-not-same, no mutation.
-    out = apply_meta_action(base, obs, "ego", MetaAction.PLAN_COMPLIANCE, 0, tasks)
+    out = apply_meta_action(base, obs, "ego", MetaAction.PLAN_COMPLIANCE, None, tasks)
     assert out == base, out
     assert out is not base and out["ego"] is not base["ego"]
     print("[1] PLAN_COMPLIANCE: equal-but-not-same copy   OK")
@@ -292,31 +305,23 @@ def _selftest() -> None:
     assert out_oe["ego"] == [(0, 0, 0), (2, 1, -1)], out_oe["ego"]   # step_idx 1, level -1
     print("[2] OE -> (1,0,-1) [step0] / (2,1,-1) [step1]  (min_level-1, correct step_idx)  OK")
 
-    # (3) ABORT is an EGO-GLOBAL mission abort. THE regression: the ego holds TWO
-    #     assignments at DIFFERENT levels and the selected cell names only ONE of
-    #     them, so the retired node-filtered implementation would have left the other
-    #     tuple in place. Both must go, for EVERY legal cell the ego could select.
+    # (3) ABORT is ONE global action with an EGO-GLOBAL effect: the ego holds TWO
+    #     assignments at DIFFERENT levels and both must go.
     multi = {"ego": [(0, 0, 0), (2, 1, 3)], "p1": [(1, 0, 0)]}
     multi_snapshot = {"ego": [(0, 0, 0), (2, 1, 3)], "p1": [(1, 0, 0)]}
-    out_ab0 = apply_meta_action(multi, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
-    out_ab2 = apply_meta_action(multi, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, 2, tasks)
-    assert out_ab0["ego"] == [], out_ab0["ego"]
-    assert out_ab2["ego"] == [], out_ab2["ego"]        # selected-node INDEPENDENCE
-    assert out_ab0["p1"] == [(1, 0, 0)], out_ab0["p1"]  # peer slice never read/written
-    assert out_ab2["p1"] == [(1, 0, 0)], out_ab2["p1"]
+    out_ab = apply_meta_action(multi, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, None, tasks)
+    assert out_ab["ego"] == [], out_ab["ego"]
+    assert out_ab["p1"] == [(1, 0, 0)], out_ab["p1"]    # peer slice never read/written
     assert multi == multi_snapshot, multi               # input never mutated
-    # The single-assignment case still empties the ego and leaves the peer alone.
-    out_ab = apply_meta_action(base, obs, "ego", MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
-    assert out_ab["ego"] == [] and out_ab["p1"] == [(1, 0, 0)], out_ab
     # Dict SHAPE is preserved: a present-but-empty key stays, an ABSENT key stays absent
     # (an ego with no key already has an empty mission — nothing is invented).
     empty_key = apply_meta_action({"ego": [], "p1": [(1, 0, 0)]}, obs, "ego",
-                                  MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
+                                  MetaAction.SELF_PRESERVATION_ABORT, None, tasks)
     assert empty_key == {"ego": [], "p1": [(1, 0, 0)]}, empty_key
     absent_key = apply_meta_action({"p1": [(1, 0, 0)]}, obs, "ego",
-                                   MetaAction.SELF_PRESERVATION_ABORT, 0, tasks)
+                                   MetaAction.SELF_PRESERVATION_ABORT, None, tasks)
     assert "ego" not in absent_key and absent_key == {"p1": [(1, 0, 0)]}, absent_key
-    print("[3] SELF_PRESERVATION_ABORT is EGO-GLOBAL (every legal cell -> []), "
+    print("[3] SELF_PRESERVATION_ABORT is EGO-GLOBAL (-> []), "
           "peer / input / dict-shape untouched   OK")
 
     # (4) The input solution was never mutated by any call above.
@@ -337,15 +342,20 @@ def _selftest() -> None:
     assert sum(1 for t in out2["ego"] if t[0] == 2) == 1
     print("[6] duplicate insertion idempotent   OK")
 
-    # Guard: node_v out of range raises.
-    for bad_v in (-1, len(tasks)):
+    # Guards: ENGAGE node out of range / missing, and a global action carrying a node.
+    bad = [(MetaAction.OPPORTUNISTIC_ENGAGEMENT, -1),
+           (MetaAction.OPPORTUNISTIC_ENGAGEMENT, len(tasks)),
+           (MetaAction.OPPORTUNISTIC_ENGAGEMENT, None),
+           (MetaAction.PLAN_COMPLIANCE, 0),
+           (MetaAction.SELF_PRESERVATION_ABORT, 0)]
+    for meta, bad_v in bad:
         try:
-            apply_meta_action(base, obs, "ego", MetaAction.PLAN_COMPLIANCE, bad_v, tasks)
+            apply_meta_action(base, obs, "ego", meta, bad_v, tasks)
         except ValueError:
             pass
         else:
-            raise AssertionError(f"expected ValueError for node_v={bad_v}")
-    print("[guard] out-of-range node_v raises ValueError   OK")
+            raise AssertionError(f"expected ValueError for {meta.name} node_v={bad_v}")
+    print("[guard] malformed semantic identities raise ValueError   OK")
 
     print("-" * 72)
     print("All assertions passed.")

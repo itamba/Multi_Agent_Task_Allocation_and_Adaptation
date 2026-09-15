@@ -1073,9 +1073,10 @@ out — a held-out failure that produces entirely normal-looking numbers. **SCIE
 COMPARISON SEMANTICS UNDER THIS POLICY ARE `same maximum budget + same frozen stopping rule +
 same training-population contract`, and NOT `same actual number of completed iterations`.**
 
-**CHECKPOINTS STAY SAVE-ONLY.** `save_checkpoint`'s payload contract is UNCHANGED — the
-actor-only payload still holds exactly its five keys and the CTDE payload its documented
-additions — and **NO loader and NO resume semantics were introduced.** What changed is only
+**CHECKPOINTS STAY SAVE-ONLY.** Early stopping did not change `save_checkpoint`'s payload
+contract ([policy and CTDE §4](policy_ctde.md#4-phase-b-ctde); since 2026-09-16 both payloads
+also carry `action_representation_id`), and **NO loader and NO resume semantics were
+introduced.** What changed is only
 the ITERATION the final checkpoint is written at. **Restoring or continuing a run remains
 DEFERRED and out of scope**: an early-stopped run must not quietly acquire continuation
 semantics through the checkpoint it now writes at a different iteration.
@@ -1564,9 +1565,18 @@ successful-episode quota, at load time and before any run artifact or compute ex
 **Early stopping remains REFUSED under `generalized_v2`.**
 
 **9. THE PRIMARY V2 BEHAVIOURAL ENDPOINT, AS IMPLEMENTED (`_v2_behaviour_summary`).** The
-metric is the **SEVERE − MILD aggregate probability MASS on `SELF_PRESERVATION_ABORT` at the
-immediate-FD wake of the certified ego** (`metric = severe_minus_mild_aggregate_abort_mass`,
-`wake_kind = immediate_fuel_damage`). It is (1) **PAIRED WITHIN ONE FROZEN WORLD GROUP
+metric is the **SEVERE − MILD semantic `P(SELF_PRESERVATION_ABORT)` at the immediate-FD wake of
+the certified ego** (`wake_kind = immediate_fuel_damage`). **The concept is unchanged by the
+2026-09-16 action-representation change; only how `P(ABORT)` is read depends on the wake's own
+representation** (`_wake_meta_probability`): under `semantic_k_plus_2_logmeanexp_v1` it is
+directly the ONE semantic ABORT leaf; a historical (wake-diagnostics-1) record states it as the
+aggregate mass over the node-indexed abort cells. The output key string
+`metric = severe_minus_mild_aggregate_abort_mass` is kept for reader continuity and is
+disambiguated by `action_representation_ids_observed` and `abort_probability_definition`;
+`aggregate_mass_is_not_selected_action_probability` is `true` only when every eligible pair is
+historical, `false` when every one is semantic, and `null` otherwise. A pair whose MILD and
+SEVERE members are stated in different representations is not measurable
+(`mixed_action_representations`). It is (1) **PAIRED WITHIN ONE FROZEN WORLD GROUP
 FIRST**, then (2) **summarized per `(A, D)` base cell**, then (3) **MACRO-AVERAGED WITH EQUAL
 WEIGHT OVER THE TEN BASE CELLS** (`macro_mean_over_base_cells`). A group is
 METRIC-ELIGIBLE only when it is COMPLETE and its MILD and SEVERE members each carry EXACTLY
@@ -1575,9 +1585,8 @@ filtered by their tagged kind, never by the selected action, and zero or several
 immediate-FD wakes is a stated not-measurable reason. **The macro is `None` — undefined —
 unless EVERY base cell has at least one metric-eligible group** (`macro_undefined_base_cells`
 names the gaps), because a mean over fewer cells would silently re-weight the design; a pooled
-over-groups mean is also reported and is NOT the primary endpoint. The AGGREGATE abort mass
-(`aggregate_mass_is_not_selected_action_probability = true`) and the SELECTED joint-cell /
-meta-action result are kept SEPARATE: the **directional switch** (`V2_SWITCH_DIRECTIONAL` —
+over-groups mean is also reported and is NOT the primary endpoint. The `P(ABORT)` endpoint and
+the SELECTED meta-action result are kept SEPARATE: the **directional switch** (`V2_SWITCH_DIRECTIONAL` —
 MILD not abort AND SEVERE abort) and the **reverse switch** (`V2_SWITCH_REVERSE` — MILD abort
 AND SEVERE not abort) are counted per cell and overall with rates whose denominator is
 EXPLICITLY the metric-eligible groups (`rates_over` / `switch_rates_over =

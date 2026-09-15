@@ -2,9 +2,8 @@
 Graph Action Module (Phase-2 RL layer)
 =======================================
 
-The decision core of the Phase-2 graph + Transformer RL layer: the node-wise
-k x 3 meta-action mechanism. It replaced the retired flat action path; its consumer
-is the graph tick-loop (``training/graph_tick_loop.py``).
+The decision core of the Phase-2 graph + Transformer RL layer. It replaced the retired
+flat action path; its consumer is the graph tick-loop (``training/graph_tick_loop.py``).
 
 It consumes the :class:`GraphObservation` produced by
 ``observation/graph_builder.py``: a heterogeneous graph with ``k`` task nodes
@@ -12,25 +11,42 @@ It consumes the :class:`GraphObservation` produced by
 ``[k .. k+a-1]``, ego first so ``ego_index == k``), plus typed COO edges over the
 :class:`EdgeType` codes (SPATIAL, ASSIGNMENT, PRECEDENCE).
 
-The mechanism (FROM THE PAPER, MATCH-AOU paper §4.2.2)
-------------------------------------------------------
-For each of the ``k`` task nodes the policy chooses one of three meta-actions: a
-node-wise **k x 3** decision head with weights SHARED across nodes, scored under
-a masked softmax with an ADDITIVE mask ``M in {0, -inf}^{k x 3}``. The joint
-``(node, meta-action)`` choice is a single Categorical over the flattened ``k*3``
-logits.
+The mechanism
+-------------
+FROM THE PAPER (MATCH-AOU paper §4.2.2): a node-wise **k x 3** decision head with
+weights SHARED across nodes, and an ADDITIVE legality mask ``M in {0, -inf}^{k x 3}``.
+Both are kept: :class:`ActionHead` still emits one score per ``(task node, meta-action)``
+cell and :func:`build_action_mask` still states per-cell legality.
+
+OUR CHOICE — THE SEMANTIC ACTION SPACE (:data:`ACTION_REPRESENTATION_ID`). The policy
+does NOT act on the flattened ``k*3`` cells. Two of the three meta-actions have no
+node-scoped meaning — ``PLAN_COMPLIANCE`` edits nothing and
+``SELF_PRESERVATION_ABORT`` clears the ego's whole plan — so giving each of them ``k``
+node-indexed aliases made one semantic action look like ``k`` actions. The categorical
+the actor samples, stores and re-scores is therefore over ``k + 2`` SEMANTIC LEAVES in a
+fixed order::
+
+    leaf 0        global PLAN_COMPLIANCE           (node None)
+    leaf 1        global SELF_PRESERVATION_ABORT   (node None)
+    leaf 2 + i    OPPORTUNISTIC_ENGAGEMENT(task i) (node i), i in [0, k)
+
+derived from the EXISTING ``k x 3`` scores ``z`` by count-normalized collapse
+(``logmeanexp``) — no new head and no new actor input:
+
+    s_PLAN     = logsumexp_v z[v, PLAN]                   - log(k)
+    s_ABORT    = logsumexp_{v abort-legal} z[v, ABORT]    - log(n_abort_legal)
+    s_ENGAGE_i = z[i, ENGAGE]
+
+Count normalization is load-bearing: duplicating equal PLAN / ABORT evidence over more
+nodes creates no multiplicity bonus. ``ENGAGE`` stays node-local because its effect is.
+Illegal leaves are masked exactly (``-inf``): ABORT is legal iff at least one ABORT cell
+is legal; ``ENGAGE(i)`` is legal iff its cell is.
 
 What we KEEP / DROP relative to the paper
 -----------------------------------------
 - OUR CHOICE: we drop the paper's "Local Queue Optimization" meta-action and keep
   §3.3's "Self-Preservation Abort", giving the locked 3-action set in
   :class:`MetaAction`.
-- OUR CHOICE: Self-Preservation Abort keeps the shared node-indexed SELECTION
-  identity — it is chosen as a ``k x 3`` cell on one of the ego's own assigned task
-  nodes, and that cell is what is sampled, stored and re-scored by PPO. Its EFFECT
-  SCOPE is a different question and is EGO-GLOBAL: ``graph_effect.apply_meta_action``
-  clears the acting ego's whole remaining plan, which the executor turns into RTB. The
-  mask below governs SELECTION only; it is unchanged by that.
 - OUR CHOICE: the exact per-cell mask rules in :func:`build_action_mask`.
 - OUR CHOICE: "sensed" means the EGO's own sensing only, read from the ego-only
   ``sensed`` task-feature column (``task_features[:, 5]``). Under no-communication the
@@ -66,7 +82,7 @@ from ..observation.graph_builder import GraphObservation, EdgeType
 # =============================================================================
 
 class MetaAction(IntEnum):
-    """The locked per-node meta-action set.
+    """The locked meta-action set.
 
     FROM THE PAPER (§4.2.2 / §3.3): the meta-action *names* below.
     OUR CHOICE: we keep three and drop the paper's "Local Queue Optimization";
@@ -75,17 +91,16 @@ class MetaAction(IntEnum):
     policy may OPPORTUNISTIC_ENGAGEMENT), so a CR column would be dead.
 
     The integer value of each member IS its column index in the ``[k, 3]`` mask /
-    logit matrix (e.g. ``mask[v, MetaAction.OPPORTUNISTIC_ENGAGEMENT]``), so member value
-    and column index are one and the same by construction.
+    score matrix (e.g. ``mask[v, MetaAction.OPPORTUNISTIC_ENGAGEMENT]``).
 
-    SELECTION vs EFFECT — two separate things. EVERY member keeps the same node-indexed
-    SELECTION identity: what is sampled, stored and re-scored by PPO is a ``(node, meta)``
-    cell. What the chosen cell then DOES to the plan differs per member:
+    SEMANTIC SELECTION IDENTITY (:data:`ACTION_REPRESENTATION_ID`). What is sampled,
+    stored and re-scored is a ``(meta_action, node_v)`` pair whose node is NULLABLE:
 
-    - PLAN_COMPLIANCE          : no plan edit at all (the node is selection only).
-    - OPPORTUNISTIC_ENGAGEMENT : NODE-LOCAL effect — it assigns the ego to THAT task node.
-    - SELF_PRESERVATION_ABORT  : EGO-GLOBAL effect — it clears the acting ego's whole
-      remaining plan, so every legal cell produces the same result.
+    - PLAN_COMPLIANCE          : ``node_v is None`` — one global action, no plan edit.
+    - OPPORTUNISTIC_ENGAGEMENT : ``node_v`` = the task index — NODE-LOCAL effect (it
+      assigns the ego to THAT task node).
+    - SELF_PRESERVATION_ABORT  : ``node_v is None`` — one global action, EGO-GLOBAL
+      effect (it clears the acting ego's whole remaining plan).
 
     The effects themselves live in ``graph_effect.apply_meta_action``.
     """
@@ -95,7 +110,24 @@ class MetaAction(IntEnum):
     SELF_PRESERVATION_ABORT = 2
 
 
-NUM_META_ACTIONS = 3  # number of columns in the k x 3 head (== len(MetaAction))
+NUM_META_ACTIONS = 3  # number of columns in the k x 3 score head (== len(MetaAction))
+
+#: The ONE identifier of the action representation this module implements. Persisted in
+#: run configuration, checkpoints, per-wake diagnostics and credit diagnostics, so no
+#: artifact can be read under the wrong action semantics.
+ACTION_REPRESENTATION_ID = "semantic_k_plus_2_logmeanexp_v1"
+
+#: Fixed semantic leaf layout: ``[PLAN, ABORT, ENGAGE(0), ..., ENGAGE(k-1)]``.
+SEMANTIC_PLAN_LEAF = 0
+SEMANTIC_ABORT_LEAF = 1
+SEMANTIC_ENGAGE_LEAF_OFFSET = 2
+#: The two meta-actions whose semantic identity carries NO node.
+GLOBAL_META_ACTIONS = (int(MetaAction.PLAN_COMPLIANCE),
+                       int(MetaAction.SELF_PRESERVATION_ABORT))
+
+_PLAN = int(MetaAction.PLAN_COMPLIANCE)
+_ENGAGE = int(MetaAction.OPPORTUNISTIC_ENGAGEMENT)
+_ABORT = int(MetaAction.SELF_PRESERVATION_ABORT)
 
 
 # =============================================================================
@@ -111,8 +143,9 @@ def build_action_mask(
     """Build the additive per-node meta-action mask ``M in {0, -inf}^{k x 3}``.
 
     FROM THE PAPER (§4.2.2): masked softmax with an additive mask in
-    ``{0, -inf}``, ready to add to the logits before the softmax. OUR CHOICE: the
-    exact per-cell validity rules below.
+    ``{0, -inf}``. OUR CHOICE: the exact per-cell validity rules below. The mask is the
+    SOURCE of semantic-leaf legality (:func:`_semantic_dist`); it is not itself the
+    action space.
 
     Pure function of the graph: no torch, and reachability/capability are read from
     the task-feature COLUMNS only (never recomputed — see module docstring).
@@ -133,14 +166,14 @@ def build_action_mask(
 
     Per-column validity (``0.0`` = valid, ``-inf`` = invalid):
 
-    - PLAN_COMPLIANCE          : ALWAYS valid. Invariant: guarantees >= 1 valid action
-                                 per node, so the masked softmax is never all ``-inf``.
+    - PLAN_COMPLIANCE          : ALWAYS valid. Invariant: guarantees the semantic PLAN
+                                 leaf is legal, so the semantic softmax is never all
+                                 ``-inf`` for ``k > 0``.
     - OPPORTUNISTIC_ENGAGEMENT : ``unassigned & sensed & capable & reachable``.
     - SELF_PRESERVATION_ABORT  : ``assigned_to_ego`` (reachability / capability
                                  irrelevant — abandoning the mission to preserve the
-                                 airframe is always physically available). This LEGALITY
-                                 rule is per-node and unchanged; the chosen cell's EFFECT
-                                 is ego-global and belongs to ``graph_effect``.
+                                 airframe is always physically available). The ONE
+                                 semantic ABORT leaf is legal iff any of these is.
 
     Args:
         obs: the :class:`GraphObservation` to mask.
@@ -203,7 +236,7 @@ def build_action_mask(
 
 
 # =============================================================================
-# Action head (the shared per-node policy MLP) + sampling
+# Action head (the shared per-node score MLP)
 # =============================================================================
 
 def _layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0.0) -> nn.Linear:
@@ -218,16 +251,17 @@ def _layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0
 
 
 class ActionHead(nn.Module):
-    """Shared per-node policy MLP producing the k x 3 meta-action logits.
+    """Shared per-node MLP producing the k x 3 source scores.
 
     FROM THE PAPER (§4.2.2): a node-wise k x 3 head whose weights are SHARED across
     task nodes. Here that sharing is by construction — the head is a plain MLP over
     the last (feature) dimension, so applying it to ``node_embeddings`` of shape
     ``[k, embed_dim]`` yields ``[k, num_meta_actions]`` with the same weights for
-    every node.
+    every node. Its output is the SOURCE of the semantic distribution
+    (:func:`_semantic_dist`), not a distribution over cells.
 
-    The head is decoupled from the graph encoder (which comes later); it takes node
-    embeddings as input and knows nothing about how they were produced.
+    The head is decoupled from the graph encoder; it takes node embeddings as input and
+    knows nothing about how they were produced.
     """
 
     def __init__(self, embed_dim: int, hidden_dim: int = 64, num_meta_actions: int = 3):
@@ -251,299 +285,318 @@ class ActionHead(nn.Module):
         )
 
     def forward(self, node_embeddings: torch.Tensor) -> torch.Tensor:
-        """Map node embeddings to per-node meta-action logits.
+        """Map node embeddings to per-node meta-action scores.
 
         Args:
             node_embeddings: ``[k, embed_dim]`` tensor of task-node embeddings.
 
         Returns:
-            ``[k, num_meta_actions]`` logits (weights shared across the ``k`` nodes).
+            ``[k, num_meta_actions]`` scores (weights shared across the ``k`` nodes).
         """
         return self.mlp(node_embeddings)
 
 
-def _masked_dist(
+# =============================================================================
+# Semantic leaf identity
+# =============================================================================
+
+def semantic_leaf_identity(leaf: int, k: int) -> Tuple[int, Optional[int]]:
+    """Decode a semantic leaf index into its ``(meta_action, node_v)`` identity."""
+    leaf = int(leaf)
+    if leaf == SEMANTIC_PLAN_LEAF:
+        return _PLAN, None
+    if leaf == SEMANTIC_ABORT_LEAF:
+        return _ABORT, None
+    node = leaf - SEMANTIC_ENGAGE_LEAF_OFFSET
+    if not (0 <= node < int(k)):
+        raise ValueError("semantic leaf %d is out of range for k=%d" % (leaf, int(k)))
+    return _ENGAGE, node
+
+
+def semantic_leaf_index(meta_action: Any, node_v: Any, k: int) -> int:
+    """The semantic leaf of a ``(meta_action, node_v)`` identity, validated LOUDLY.
+
+    Refuses every malformed identity rather than coercing it into a leaf: a global
+    action carrying a node, an ENGAGE carrying none, a non-integer or boolean node, an
+    ENGAGE node out of ``[0, k)``, and an unknown meta-action. Legality against a mask is
+    a separate question (:func:`evaluate_action`).
+    """
+    if isinstance(meta_action, bool) or not isinstance(meta_action, (int, np.integer)):
+        raise ValueError("meta_action %r is not a MetaAction integer" % (meta_action,))
+    meta = int(meta_action)
+    if meta not in (_PLAN, _ENGAGE, _ABORT):
+        raise ValueError("meta_action %r is out of bounds for %d meta-actions"
+                         % (meta_action, NUM_META_ACTIONS))
+    if meta in GLOBAL_META_ACTIONS:
+        if node_v is not None:
+            raise ValueError(
+                "malformed semantic identity: global %s carries node_v=%r; its semantic "
+                "identity has NO node (node_v must be None)"
+                % (MetaAction(meta).name, node_v))
+        return SEMANTIC_PLAN_LEAF if meta == _PLAN else SEMANTIC_ABORT_LEAF
+    if node_v is None:
+        raise ValueError("malformed semantic identity: OPPORTUNISTIC_ENGAGEMENT carries "
+                         "no node (node_v must be a task index)")
+    if isinstance(node_v, bool) or not isinstance(node_v, (int, np.integer)):
+        raise ValueError("malformed semantic identity: node_v %r is not an integer "
+                         "task index" % (node_v,))
+    node = int(node_v)
+    if not (0 <= node < int(k)):
+        raise ValueError("OPPORTUNISTIC_ENGAGEMENT node_v=%d is out of bounds for k=%d "
+                         "task node(s)" % (node, int(k)))
+    return SEMANTIC_ENGAGE_LEAF_OFFSET + node
+
+
+# =============================================================================
+# THE shared semantic distribution + sampling / re-scoring
+# =============================================================================
+
+def _semantic_dist(
     logits: torch.Tensor,
     mask_np: np.ndarray,
 ) -> Tuple[torch.Tensor, Categorical, torch.Tensor]:
-    """Build THE joint masked distribution over the flattened ``k*3`` decision.
+    """Build THE masked semantic distribution over the ``k + 2`` leaves.
 
-    THE single construction site. :func:`sample_action` (rollout, no-grad) and
-    :func:`evaluate_action` (PPO update, with grad) both route through here, so the
-    distribution they act on is identical BY CONSTRUCTION rather than by two code
-    paths agreeing. That identity is load-bearing: any drift between the rollout
-    distribution and the update distribution would corrupt the PPO ratio
-    ``pi_new / pi_old`` SILENTLY — no crash, just poisoned learning. Do not
-    reimplement any part of this in a caller.
+    THE single construction site. :func:`sample_action` (rollout, no-grad),
+    :func:`evaluate_action` (PPO update, with grad) and :func:`summarize_decision`
+    (reporting, detached) all route through here, so the distribution they act on is
+    identical BY CONSTRUCTION rather than by several code paths agreeing. Any drift
+    between the rollout distribution and the update distribution would corrupt the PPO
+    ratio ``pi_new / pi_old`` SILENTLY. Do not reimplement any part of this in a caller.
 
-    Encapsulates exactly: mask -> tensor, additive masking, row-major flatten
-    (``flat = v*3 + m``), the all ``-inf`` guard, the Categorical, and the
-    clamped-logits entropy (see :func:`sample_action` for the entropy rationale).
+    Encapsulates exactly: legality from the ``[k, 3]`` mask, the count-normalized
+    ``logmeanexp`` collapse of the PLAN column (over all ``k`` nodes) and of the ABORT
+    column (over the abort-LEGAL nodes only), the node-local ENGAGE leaves under their
+    additive cell mask, the fixed leaf order, the Categorical, and the clamped-logits
+    entropy (see :func:`sample_action` for the entropy rationale). Dtype and device
+    follow ``logits``; gradients flow to every source score that enters a legal leaf.
 
     Args:
-        logits: ``[k, 3]`` raw logits from :class:`ActionHead`. Grad-attached or not
-            — this helper never detaches and never touches grad mode.
-        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`
-            (``{0.0, -inf}``).
+        logits: ``[k, 3]`` raw scores from :class:`ActionHead`. Grad-attached or not —
+            this helper never detaches and never touches grad mode.
+        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`.
 
     Returns:
-        ``(flat, dist, entropy)`` — the flattened masked logits ``[k*3]``, the
-        Categorical over them, and the masked-safe scalar entropy.
+        ``(semantic_logits, dist, entropy)`` — the masked semantic logits ``[k + 2]``
+        (``-inf`` on illegal leaves), the Categorical over them, and the masked-safe
+        scalar entropy of the SEMANTIC leaf distribution.
 
     Raises:
-        ValueError: if EVERY entry is ``-inf`` after masking.
+        ValueError: if ``k == 0`` (no task node, hence no semantic action space — the
+            acting path fails loud there rather than inventing a pooled score); if the
+            shapes disagree; or if any PLAN cell is masked (the Plan-Compliance
+            invariant that keeps the semantic softmax from being all ``-inf``).
     """
-    mask_t = torch.as_tensor(mask_np, dtype=logits.dtype, device=logits.device)
-    masked = logits + mask_t                      # -inf in invalid cells
-    flat = masked.reshape(-1)                      # row-major: flat = v*3 + m
-
-    # Guard on the RAW masked logits (before any clamp): the Plan-Compliance
-    # invariant should make this unreachable, but failing loud beats NaNs.
-    if not torch.isfinite(flat).any():
+    mask_np = np.asarray(mask_np)
+    k = int(mask_np.shape[0]) if mask_np.ndim == 2 else -1
+    if k <= 0 or mask_np.shape[1] != NUM_META_ACTIONS:
         raise ValueError(
-            "build_action_mask produced an all -inf mask (no valid action); "
-            "the Plan-Compliance invariant should make this impossible"
-        )
+            "build_action_mask produced no valid action (mask shape %r): a semantic "
+            "action space needs k >= 1 task node" % (tuple(mask_np.shape),))
+    if tuple(logits.shape) != (k, NUM_META_ACTIONS):
+        raise ValueError("score shape %r does not match the [%d, %d] mask"
+                         % (tuple(logits.shape), k, NUM_META_ACTIONS))
+    if not np.isfinite(mask_np[:, _PLAN]).all():
+        raise ValueError("a PLAN_COMPLIANCE cell is masked; the Plan-Compliance "
+                         "invariant keeps the semantic PLAN leaf always legal")
 
-    # Exact distribution: -inf -> zero mass on invalid cells.
-    dist = Categorical(logits=flat)
+    abort_legal = np.isfinite(mask_np[:, _ABORT])
+    n_abort = int(abort_legal.sum())
 
-    # Entropy: version-independent masked-safe form (clamp -inf -> finfo.min so the
-    # masked cells contribute a finite ~0 term instead of 0 * -inf = NaN).
-    safe_flat = torch.clamp(flat, min=torch.finfo(flat.dtype).min)
-    entropy = Categorical(logits=safe_flat).entropy()
+    # PLAN: exact logmeanexp over ALL k nodes -- equal duplicated evidence gets no bonus.
+    plan = torch.logsumexp(logits[:, _PLAN], dim=0) - math.log(k)
+    if n_abort:
+        # ABORT: exact logmeanexp over the abort-LEGAL nodes only.
+        idx = torch.as_tensor(np.flatnonzero(abort_legal), dtype=torch.long,
+                              device=logits.device)
+        abort = (torch.logsumexp(logits[:, _ABORT].index_select(0, idx), dim=0)
+                 - math.log(n_abort))
+    else:
+        # The ONE semantic ABORT leaf is masked when no abort cell is legal.
+        abort = torch.full((), float("-inf"), dtype=logits.dtype, device=logits.device)
+    engage_mask = torch.as_tensor(mask_np[:, _ENGAGE], dtype=logits.dtype,
+                                  device=logits.device)
+    engage = logits[:, _ENGAGE] + engage_mask      # node-local score, -inf if illegal
 
-    return flat, dist, entropy
+    semantic = torch.cat([plan.reshape(1), abort.reshape(1), engage])
+
+    # Exact distribution: -inf -> zero mass on illegal leaves.
+    dist = Categorical(logits=semantic)
+
+    # Entropy: version-independent masked-safe form (clamp -inf -> finfo.min so an
+    # illegal leaf contributes a finite ~0 term instead of 0 * -inf = NaN).
+    safe = torch.clamp(semantic, min=torch.finfo(semantic.dtype).min)
+    entropy = Categorical(logits=safe).entropy()
+
+    return semantic, dist, entropy
 
 
 def sample_action(
     logits: torch.Tensor,
     mask_np: np.ndarray,
     deterministic: bool = False,
-) -> Tuple[int, int, torch.Tensor, torch.Tensor]:
-    """Sample a joint ``(meta_action, node)`` decision under the additive mask.
+) -> Tuple[int, Optional[int], torch.Tensor, torch.Tensor]:
+    """Sample a SEMANTIC ``(meta_action, node_v)`` decision under the legality mask.
 
-    FROM THE PAPER (§4.2.2): masked softmax over the k x 3 head. We flatten the
-    masked logits row-major to ``[k*3]`` (``flat = v*3 + m``, so ``node = flat // 3``
-    and ``meta_action = flat % 3``) and build a single Categorical over the joint
-    decision.
+    The distribution is the ``k + 2``-leaf semantic Categorical built by
+    :func:`_semantic_dist` — the SHARED construction site this function and
+    :func:`evaluate_action` both call, so the PPO update re-scores an action under
+    exactly the distribution it was sampled from.
 
-    Numerical safety: the additive ``{0, -inf}`` mask is exact for ``sample()`` and
-    ``log_prob()`` (invalid cells get exactly zero mass, and we only ever sample a
-    valid cell). ``entropy()``, however, sums ``p * log p`` over masked cells where
-    ``0 * (-inf) = NaN`` on older torch versions. To stay version-independent we
-    compute entropy from a copy of the masked logits clamped to
-    ``torch.finfo(dtype).min`` (a large finite negative), so masked cells contribute
-    a finite ``~0`` term. A NaN entropy would silently poison the PPO entropy bonus.
+    Deterministic selection is ``torch.argmax`` over the SEMANTIC leaves — never a
+    source ``k x 3`` cell and never an aggregate reconstructed afterwards. On an exact
+    tie ``torch.argmax`` returns the FIRST maximal leaf, so ties resolve in the fixed
+    leaf order PLAN, ABORT, ENGAGE(0), ENGAGE(1), ...
 
-    The distribution itself is built by :func:`_masked_dist` — the SHARED
-    construction site this function and :func:`evaluate_action` both call, so the
-    PPO update re-scores an action under exactly the distribution it was sampled
-    from. Everything below the helper call is sampling + flat-index decode only.
+    Numerical safety: the additive ``{0, -inf}`` masking is exact for ``sample()`` and
+    ``log_prob()``. ``entropy()``, however, sums ``p * log p`` over masked leaves where
+    ``0 * (-inf) = NaN`` on older torch versions, so the entropy is computed from a copy
+    of the semantic logits clamped to ``torch.finfo(dtype).min``. A NaN entropy would
+    silently poison the PPO entropy bonus.
 
     Args:
-        logits: ``[k, 3]`` raw logits from :class:`ActionHead`.
-        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`
-            (``{0.0, -inf}``).
-        deterministic: if True, take the argmax cell instead of sampling.
+        logits: ``[k, 3]`` raw scores from :class:`ActionHead`.
+        mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`.
+        deterministic: if True, take the argmax semantic leaf instead of sampling.
 
     Returns:
-        ``(meta_action, node_index, log_prob, entropy)`` where ``meta_action`` and
-        ``node_index`` are python ints and ``log_prob`` / ``entropy`` are scalar
-        tensors (kept in the autograd graph for the PPO update).
+        ``(meta_action, node_v, log_prob, entropy)``: ``meta_action`` a python int,
+        ``node_v`` ``None`` for PLAN / ABORT and the task index for ENGAGE, and
+        ``log_prob`` / ``entropy`` scalar tensors of the SEMANTIC distribution.
 
     Raises:
-        ValueError: if EVERY entry is ``-inf`` after masking. This should be
-            impossible given the Plan-Compliance invariant; we raise a clear error
-            rather than produce NaNs.
+        ValueError: as :func:`_semantic_dist`.
     """
-    flat, dist, entropy = _masked_dist(logits, mask_np)
-
-    # Sampling / log_prob: -inf cells carry exactly zero mass, so a sampled cell is
-    # always a valid one.
+    semantic, dist, entropy = _semantic_dist(logits, mask_np)
     if deterministic:
-        flat_action = torch.argmax(flat)
+        leaf = torch.argmax(semantic)
     else:
-        flat_action = dist.sample()
-    log_prob = dist.log_prob(flat_action)
-
-    flat_idx = int(flat_action.item())
-    node_index = flat_idx // NUM_META_ACTIONS
-    meta_action = flat_idx % NUM_META_ACTIONS
-    return meta_action, node_index, log_prob, entropy
+        leaf = dist.sample()
+    log_prob = dist.log_prob(leaf)
+    meta_action, node_v = semantic_leaf_identity(int(leaf.item()), int(logits.shape[0]))
+    return meta_action, node_v, log_prob, entropy
 
 
 def summarize_decision(
     logits: torch.Tensor,
     mask_np: np.ndarray,
     meta_action: int,
-    node_v: int,
+    node_v: Optional[int],
 ) -> Dict[str, Any]:
-    """REPORTING-ONLY summary of ONE decision, from the SAME logits and mask.
+    """REPORTING-ONLY summary of ONE semantic decision, from the SAME scores and mask.
 
-    MEASUREMENT HARDENING, NOT AN ALGORITHM CHANGE. This function is a pure function of
-    the arguments :func:`sample_action` was already called with, so it needs no second
-    encoder/head forward pass and cannot describe a distribution the actor did not act
-    on. Its output feeds artifacts and plots ONLY: nothing here reaches action selection,
-    PPO, the reward, the optimizer, early stopping, evaluation scheduling or checkpoint
-    control.
+    MEASUREMENT, NOT AN ALGORITHM CHANGE. A pure function of the arguments
+    :func:`sample_action` was already called with, so it needs no second encoder/head
+    forward pass and cannot describe a distribution the actor did not act on. Its output
+    feeds artifacts and plots ONLY.
 
-    FOUR PROPERTIES ARE LOAD-BEARING, and all four are structural rather than
-    conventional:
+    FOUR PROPERTIES ARE LOAD-BEARING, and all four are structural:
 
-    * **THE ACTOR'S OWN DISTRIBUTION, NEVER A RECONSTRUCTION.** Every probability,
-      entropy and argmax below comes from :func:`_masked_dist` -- the SAME single
-      construction site :func:`sample_action` and :func:`evaluate_action` route through
-      -- evaluated on a DETACHED copy of the same logits, in their ORIGINAL dtype. It
-      is deliberately NOT recomputed by an independent masked softmax: a second
-      implementation (in another dtype, or with another tie rule) could report a
-      distribution the actor never acted on, which is exactly the failure this record
-      exists to remove. A report that disagrees with the decision it describes is worse
-      than no report.
-    * **NO RANDOMNESS.** Nothing here samples: no ``dist.sample()``, and no generator of
-      any kind. Calling it therefore cannot shift the torch RNG state and cannot move a
-      later stochastic ``sample_action`` by one draw. A diagnostic that perturbed the
-      training stream would silently change the run it is meant to describe.
-    * **NO GRADIENT.** ``logits.detach()`` is taken BEFORE the distribution is built, so
-      no autograd node is created and the PPO graph is untouched.
-    * **THE SAME FLATTENING AND THE SAME ARGMAX AS THE ACTOR.** Row-major
-      ``flat = node*3 + meta``, exactly :func:`_masked_dist`'s convention; and the joint
-      argmax is literally ``torch.argmax(flat)`` -- the expression
-      ``sample_action(..., deterministic=True)`` evaluates -- so an exact tie resolves to
-      the cell the deterministic actor would really take.
+    * **THE ACTOR'S OWN DISTRIBUTION.** Every probability, entropy and argmax comes from
+      :func:`_semantic_dist` — the SAME construction site the actor samples and PPO
+      re-scores through — on a DETACHED copy of the same scores, in their ORIGINAL dtype.
+    * **NO RANDOMNESS.** Nothing here samples, so the torch RNG state cannot move.
+    * **NO GRADIENT.** ``logits.detach()`` is taken BEFORE the distribution is built.
+    * **THE SAME ARGMAX AS THE ACTOR.** The deterministic leaf is literally
+      ``torch.argmax(semantic_logits)``, the expression the deterministic branch of
+      :func:`sample_action` evaluates, so an exact tie resolves identically.
 
-    JSON conversion happens ONLY after every quantity has been computed -- including the
-    top-two margin, which is differenced in torch on the exact probabilities rather than
-    between two already-converted python floats -- so no reported number is the product
-    of a round trip through an intermediate representation.
-
-    WHY BOTH A JOINT AND AN AGGREGATE VIEW. The action surface is ``k x 3``, so ONE
-    meta-action owns ``k`` cells and its total probability mass is spread across them.
-    The deterministic evaluator picks the single highest JOINT CELL, which is not
-    generally the argmax of the per-meta-action SUM: a meta-action can hold the largest
-    total mass while every one of its cells sits below a rival's single best cell. Both
-    are reported, under names that cannot be confused, together with an explicit
-    ``joint_vs_aggregate_disagree`` flag -- because reporting only the aggregate would
-    describe a choice the actor never makes, and reporting only the joint cell would
-    hide how concentrated that choice was.
+    SCHEMA. The record names its representation (``action_representation_id``). The
+    per-meta-action probability is DIRECTLY a policy action probability for PLAN and
+    ABORT (one leaf each) and the sum over legal ENGAGE leaves for ENGAGE. There is no
+    joint-cell-versus-aggregate field: that quantity described the retired node-indexed
+    alias geometry and is not a measurement of this representation.
 
     Args:
-        logits: ``[k, 3]`` raw logits from :class:`ActionHead` -- the SAME tensor passed
+        logits: ``[k, 3]`` raw scores from :class:`ActionHead` — the SAME tensor passed
             to :func:`sample_action`.
         mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`.
         meta_action: the meta-action the actor actually selected.
-        node_v: the task node the actor actually selected.
+        node_v: the node the actor actually selected (``None`` for PLAN / ABORT).
 
     Returns:
-        A JSON-ready dict of plain builtins (no tensor, no numpy scalar, no NaN), safe
-        to write straight into a durable artifact.
+        A JSON-ready dict of plain builtins (no tensor, no numpy scalar, no NaN).
 
     Raises:
-        ValueError: if the mask leaves no valid cell (the same condition
-            :func:`_masked_dist` refuses).
+        ValueError: as :func:`_semantic_dist`, or on a malformed selected identity.
     """
-    # THE ACTOR'S OWN CONSTRUCTION SITE, on a detached copy of the same logits. `flat`,
-    # `dist` and `entropy_t` below are what `sample_action` acted on, in the same dtype,
-    # so nothing here can describe a distribution the actor did not use.
-    flat, dist, entropy_t = _masked_dist(logits.detach(), mask_np)
-    probs_t = dist.probs.reshape(-1)                # the exact Categorical probabilities
+    semantic, dist, entropy_t = _semantic_dist(logits.detach(), mask_np)
+    probs_t = dist.probs.reshape(-1)
     k = int(logits.shape[0])
-    pm_t = probs_t.reshape(k, NUM_META_ACTIONS)     # row-major: flat = node*3 + meta
-    valid_t = torch.isfinite(flat)
-    # `_masked_dist` already raised on an all -inf mask, so this is >= 1 by the time
-    # control reaches here. The explicit guard documents that and fails loud if a future
-    # edit ever weakens the shared site.
-    n_valid = int(valid_t.sum().item())
+    legal_t = torch.isfinite(semantic)
+    n_valid = int(legal_t.sum().item())
     if n_valid == 0:                                                # pragma: no cover
-        raise ValueError(
-            "summarize_decision received an all -inf mask (no valid action); "
-            "the Plan-Compliance invariant should make this impossible"
-        )
+        raise ValueError("summarize_decision received no legal semantic leaf; the "
+                         "Plan-Compliance invariant should make this impossible")
+    selected_leaf = semantic_leaf_index(meta_action, node_v, k)
 
-    # JOINT ARGMAX with the ACTOR'S semantics: `torch.argmax(flat)` is exactly the
-    # expression the deterministic branch of `sample_action` evaluates, so an exact tie
-    # is broken identically rather than by a second, independently written rule.
-    i1 = int(torch.argmax(flat).item())
+    i1 = int(torch.argmax(semantic).item())
     i2: Optional[int] = None
     if n_valid > 1:
-        # The runner-up is the SAME argmax over the SAME masked logits with the winner
-        # removed -- one ordering basis, not two. `n_valid > 1` guarantees a finite cell
-        # remains, so this can never select a masked one.
-        rest = flat.clone()
+        rest = semantic.clone()
         rest[i1] = float("-inf")
         i2 = int(torch.argmax(rest).item())
-    # The margin is DIFFERENCED IN TORCH, on the exact probabilities, before anything is
-    # converted: subtracting two already-converted python floats would make the reported
-    # margin a product of the conversion rather than of the distribution.
     margin_t = None if i2 is None else (probs_t[i1] - probs_t[i2])
 
-    # AGGREGATE mass per meta-action column, SUMMED FROM THOSE EXACT PROBABILITIES.
-    agg_t = pm_t.sum(dim=0)
-    agg_argmax = int(torch.argmax(agg_t).item())
-    per_meta_valid_t = valid_t.reshape(k, NUM_META_ACTIONS).sum(dim=0)
-
-    # RAW entropy is the SHARED masked-safe entropy `_masked_dist` returns -- the same
-    # scalar `sample_action` hands the PPO entropy bonus -- never a second sum.
-    joint_entropy = float(entropy_t.item())
-    # `log(1) == 0` would divide by zero, and a single valid cell has no spread to
-    # normalize: report `None` rather than NaN or an invented 0.0/1.0 (an invented
-    # number would read as a measurement).
-    joint_entropy_norm: Optional[float] = (
-        float(joint_entropy / math.log(n_valid)) if n_valid > 1 else None
-    )
-    anz = agg_t[agg_t > 0]
-    agg_entropy = (
-        float(-(anz * torch.log(anz)).sum().item()) if int(anz.numel()) else 0.0
-    )
+    engage_legal_t = legal_t[SEMANTIC_ENGAGE_LEAF_OFFSET:]
+    engage_mass_t = probs_t[SEMANTIC_ENGAGE_LEAF_OFFSET:][engage_legal_t].sum()
+    raw_entropy = float(entropy_t.item())
+    norm_entropy: Optional[float] = (
+        float(raw_entropy / math.log(n_valid)) if n_valid > 1 else None)
 
     # ---- JSON conversion ONLY from here down: every value above is already final ----
-    probs = [float(v) for v in probs_t.detach().cpu().tolist()]
-    pm = [[float(v) for v in row] for row in pm_t.detach().cpu().tolist()]
-    agg = [float(v) for v in agg_t.detach().cpu().tolist()]
-    per_meta_valid = [int(v) for v in per_meta_valid_t.detach().cpu().tolist()]
-    valid_rows = [[int(v) for v in row]
-                  for row in valid_t.reshape(k, NUM_META_ACTIONS)
-                  .to(torch.int64).detach().cpu().tolist()]
-    raw_logits = [[float(v) for v in row] for row in logits.detach().cpu().tolist()]
+    probs = [float(v) for v in probs_t.cpu().tolist()]
+    legal = [bool(v) for v in legal_t.cpu().tolist()]
+    scores = [float(v) if ok else None
+              for v, ok in zip(semantic.cpu().tolist(), legal)]
+    mask_arr = np.asarray(mask_np)
+    n_abort_legal = int(np.isfinite(mask_arr[:, _ABORT]).sum())
 
-    joint_meta = i1 % NUM_META_ACTIONS
+    def _leaf(idx: int) -> Dict[str, Any]:
+        meta, node = semantic_leaf_identity(idx, k)
+        return {"leaf": int(idx), "meta_action": int(meta),
+                "meta_action_name": MetaAction(meta).name, "node": node,
+                "probability": probs[idx]}
 
-    def _cell(idx: int) -> Dict[str, Any]:
-        return {
-            "node": int(idx // NUM_META_ACTIONS),
-            "meta_action": int(idx % NUM_META_ACTIONS),
-            "meta_action_name": MetaAction(idx % NUM_META_ACTIONS).name,
-            "probability": probs[idx],
-        }
-
-    sel_meta, sel_node = int(meta_action), int(node_v)
+    leaves = []
+    for idx in range(k + SEMANTIC_ENGAGE_LEAF_OFFSET):
+        entry = _leaf(idx)
+        entry.update({"legal": legal[idx], "score": scores[idx]})
+        leaves.append(entry)
+    sel_meta, sel_node = semantic_leaf_identity(selected_leaf, k)
+    argmax_meta = semantic_leaf_identity(i1, k)[0]
     return {
+        "action_representation_id": ACTION_REPRESENTATION_ID,
         "n_task_nodes": k,
         "n_meta_actions": int(NUM_META_ACTIONS),
-        "raw_logits": raw_logits,
-        "valid_action_mask": valid_rows,
-        "masked_probabilities": pm,
-        "n_valid_cells": n_valid,
-        "valid_cells_per_meta_action": {
-            MetaAction(m).name: per_meta_valid[m] for m in range(NUM_META_ACTIONS)},
-        "selected_node": sel_node,
-        "selected_meta_action": sel_meta,
+        "n_semantic_leaves": k + SEMANTIC_ENGAGE_LEAF_OFFSET,
+        "n_valid_semantic_leaves": n_valid,
+        "n_abort_legal_nodes": n_abort_legal,
+        "n_engage_legal_leaves": int(sum(legal[SEMANTIC_ENGAGE_LEAF_OFFSET:])),
+        "source_scores": [[float(v) for v in row]
+                          for row in logits.detach().cpu().tolist()],
+        "source_cell_legal": [[int(v) for v in row]
+                              for row in np.isfinite(mask_arr).astype(np.int64).tolist()],
+        "semantic_leaves": leaves,
+        "semantic_probabilities": probs,
+        "selected_leaf": int(selected_leaf),
+        "selected_meta_action": int(sel_meta),
         "selected_meta_action_name": MetaAction(sel_meta).name,
-        "selected_cell_probability": pm[sel_node][sel_meta],
-        "top_two_valid_cells": [_cell(i1)] + ([_cell(i2)] if i2 is not None else []),
+        "selected_node": sel_node,
+        "selected_action_probability": probs[selected_leaf],
+        "semantic_probability_per_meta_action": {
+            MetaAction.PLAN_COMPLIANCE.name: probs[SEMANTIC_PLAN_LEAF],
+            MetaAction.OPPORTUNISTIC_ENGAGEMENT.name: float(engage_mass_t.item()),
+            MetaAction.SELF_PRESERVATION_ABORT.name: probs[SEMANTIC_ABORT_LEAF],
+        },
+        "deterministic_argmax_leaf": _leaf(i1),
+        "deterministic_argmax_meta_action": int(argmax_meta),
+        "deterministic_argmax_meta_action_name": MetaAction(argmax_meta).name,
+        "top_two_semantic_leaves": [_leaf(i1)] + ([_leaf(i2)] if i2 is not None else []),
         "top_two_probability_margin": (
             None if margin_t is None else float(margin_t.item())),
-        "aggregate_probability_per_meta_action": {
-            MetaAction(m).name: agg[m] for m in range(NUM_META_ACTIONS)},
-        "joint_argmax_cell": _cell(i1),
-        "joint_argmax_meta_action": int(joint_meta),
-        "joint_argmax_meta_action_name": MetaAction(joint_meta).name,
-        "aggregate_argmax_meta_action": agg_argmax,
-        "aggregate_argmax_meta_action_name": MetaAction(agg_argmax).name,
-        "joint_vs_aggregate_disagree": bool(joint_meta != agg_argmax),
-        "joint_entropy_raw": joint_entropy,
-        "joint_entropy_normalized": joint_entropy_norm,
-        "aggregate_meta_action_entropy": agg_entropy,
+        "semantic_entropy_raw": raw_entropy,
+        "semantic_entropy_normalized": norm_entropy,
     }
 
 
@@ -551,82 +604,69 @@ def evaluate_action(
     logits: torch.Tensor,
     mask_np: np.ndarray,
     meta_action: int,
-    node_v: int,
+    node_v: Optional[int],
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Re-score an ALREADY-CHOSEN ``(meta_action, node_v)`` — the PPO-ratio half.
+    """Re-score an ALREADY-CHOSEN semantic ``(meta_action, node_v)`` — the PPO-ratio half.
 
     Purpose (PPO). The rollout is inference-only: ``graph_tick_loop._wake_decision``
-    runs under ``torch.no_grad`` and stores each wake as a ``Transition`` holding the
-    ``GraphObservation``, the chosen ``(meta_action, node_v)``, and DETACHED
-    ``log_prob`` / ``entropy`` floats. The PPO update must recompute the log-prob WITH
-    grad to form the ratio ``exp(log_prob_new - log_prob_old) = pi_new / pi_old``. This
-    function is that recomputation: re-encode the stored ``gobs``, re-run the head, and
-    call this with the stored action.
+    stores each wake as a ``Transition`` holding the ``GraphObservation``, the semantic
+    ``(meta_action, node_v)`` identity and DETACHED ``log_prob`` / ``entropy`` floats.
+    The PPO update re-encodes the stored ``gobs``, re-runs the head, and calls this with
+    the stored identity to recompute the log-prob WITH grad.
 
     Identity BY CONSTRUCTION. The distribution is built by the SAME
-    :func:`_masked_dist` helper :func:`sample_action` used at rollout time — same
-    additive masking, same row-major flatten (``flat = node_v*3 + meta_action``), same
-    Categorical, same clamped-logits entropy. So on the first PPO epoch (unchanged
-    weights) the returned ``log_prob`` is BITWISE equal to the stored one and the ratio
-    is exactly ``1.0``. This is not a coincidence to be re-verified per call — it holds
-    because there is only one construction path. Never reimplement the construction
-    here; that would reintroduce the drift this design exists to prevent (a drift that
-    fails SILENTLY — it only shows up as a corrupted policy gradient).
+    :func:`_semantic_dist` helper :func:`sample_action` used at rollout time, and the
+    leaf is gathered with the same 0-dim long tensor ``dist.sample()`` returns. So on
+    the first PPO epoch (unchanged weights) the returned ``log_prob`` is BITWISE equal to
+    the stored one and the ratio is exactly ``1.0``. Never reimplement the construction
+    here.
 
     Grad contract: NO ``torch.no_grad`` anywhere inside. The CALLER controls grad mode.
-    Gradients flow from the returned tensors back through ``logits`` to whatever
-    produced them (head + encoder).
 
     Args:
-        logits: ``[k, 3]`` raw logits from :class:`ActionHead`, normally grad-attached
-            (the PPO update re-runs the forward pass with grad enabled).
+        logits: ``[k, 3]`` raw scores from :class:`ActionHead`, normally grad-attached.
         mask_np: ``[k, 3]`` additive mask from :func:`build_action_mask`, rebuilt from
             the STORED observation so it reproduces the rollout-time mask.
-        meta_action: the stored :class:`MetaAction` value (column, ``0..2``).
-        node_v: the stored task-node index (row, ``0..k-1``).
+        meta_action: the stored :class:`MetaAction` value.
+        node_v: ``None`` for PLAN / ABORT; the stored task index for ENGAGE.
 
     Returns:
-        ``(log_prob, entropy)`` — scalar tensors. ``log_prob`` is the joint log-prob of
-        the requested cell; ``entropy`` is the SAME masked-safe policy entropy
-        :func:`sample_action` would have reported for this state.
+        ``(log_prob, entropy)`` — scalar tensors: the semantic log-prob of the stored
+        leaf, and the SAME masked-safe semantic entropy :func:`sample_action` reports.
 
     Raises:
-        ValueError: if the mask is all ``-inf`` (via :func:`_masked_dist`); if
-            ``(node_v, meta_action)`` is out of bounds; or if the requested cell is
-            MASKED. A masked stored action means the mask reconstructed at update time
-            diverged from the rollout-time mask (a stale/mismatched observation), which
-            would otherwise silently feed ``-inf`` into the ratio. We fail LOUD instead.
+        ValueError: on a malformed semantic identity (a global action carrying a node,
+            an ENGAGE with no node, a non-integer node, an out-of-bounds node or
+            meta-action); if the stored ENGAGE cell is MASKED, or an ABORT is stored while
+            no abort cell is legal — either means the mask rebuilt at update time diverged
+            from the rollout-time mask, which would otherwise silently feed ``-inf`` into
+            the ratio; or as :func:`_semantic_dist`.
     """
-    k = int(mask_np.shape[0])
-    node_v = int(node_v)
-    meta_action = int(meta_action)
-
-    if not (0 <= node_v < k) or not (0 <= meta_action < NUM_META_ACTIONS):
-        raise ValueError(
-            f"evaluate_action: action cell (node_v={node_v}, meta_action={meta_action}) "
-            f"is out of bounds for a [{k}, {NUM_META_ACTIONS}] mask"
-        )
+    mask_arr = np.asarray(mask_np)
+    k = int(mask_arr.shape[0]) if mask_arr.ndim == 2 else 0
+    leaf = semantic_leaf_index(meta_action, node_v, k)
 
     # Guard BEFORE building the distribution: a masked stored action is a mask
     # reconstruction bug, not a legitimate zero-probability action.
-    if not np.isfinite(mask_np[node_v, meta_action]):
+    if leaf == SEMANTIC_ABORT_LEAF and not np.isfinite(mask_arr[:, _ABORT]).any():
         raise ValueError(
-            f"evaluate_action: the stored action (node_v={node_v}, "
-            f"meta_action={MetaAction(meta_action).name}) is MASKED (-inf) in the "
-            "supplied mask. The rollout could not have sampled it, so the mask "
-            "rebuilt at update time diverged from the rollout-time mask; check that "
+            "evaluate_action: the stored SELF_PRESERVATION_ABORT is MASKED -- no abort "
+            "cell is legal in the supplied mask, so the semantic ABORT leaf is illegal. "
+            "The mask rebuilt at update time diverged from the rollout-time mask.")
+    if leaf >= SEMANTIC_ENGAGE_LEAF_OFFSET and not np.isfinite(
+            mask_arr[leaf - SEMANTIC_ENGAGE_LEAF_OFFSET, _ENGAGE]):
+        raise ValueError(
+            "evaluate_action: the stored OPPORTUNISTIC_ENGAGEMENT (node_v=%d) is MASKED "
+            "(-inf) in the supplied mask. The rollout could not have sampled it, so the "
+            "mask rebuilt at update time diverged from the rollout-time mask; check that "
             "the stored GraphObservation is the one the action was sampled on."
-        )
+            % (leaf - SEMANTIC_ENGAGE_LEAF_OFFSET))
 
-    flat, dist, entropy = _masked_dist(logits, mask_np)
-
-    # Row-major flatten, identical to sample_action's decode (flat = v*3 + m).
-    flat_idx = node_v * NUM_META_ACTIONS + meta_action
+    semantic, dist, entropy = _semantic_dist(logits, mask_arr)
     # 0-dim long tensor: exactly the shape/dtype dist.sample() returns, so log_prob
     # takes the same gather path and the result is bitwise identical.
-    flat_action = torch.as_tensor(flat_idx, dtype=torch.long, device=flat.device)
-    log_prob = dist.log_prob(flat_action)
-
+    leaf_t = torch.as_tensor(leaf, dtype=torch.long, device=semantic.device)
+    log_prob = dist.log_prob(leaf_t)
     return log_prob, entropy
 
 
@@ -635,56 +675,33 @@ def evaluate_action(
 # =============================================================================
 
 def _selftest() -> None:
-    """Hand-crafted graph (no solver/bonmin) with a KNOWN topology to assert exact mask cells.
+    """Hand-crafted graph (no solver/bonmin) with a KNOWN topology.
 
     Run under nlp_env from the repo, e.g.:
         env PYTHONPATH=src python -m match_aou.rl.action.graph_action
     """
-    # --- Build a synthetic GraphObservation with a known topology ---
     #   k = 4 task nodes, a = 3 agents (ego_index = 4, peer1 = 5, peer2 = 6)
-    #   task 0: assigned to ego (4->0), sensed by ego (col [5]=1), capable=1, reachable=1
-    #   task 1: assigned to peer1 (5->1), sensed by ego (col [5]=1), capable=1, reachable=1
-    #   task 2: unassigned, sensed by ego (col [5]=1), capable=1, reachable=0 (pop-up, out of fuel range)
-    #   task 3: assigned to peer2 (6->3), NOT sensed by ego (col [5]=0),
-    #           capable=1, reachable=1 -> REGRESSION case (unsensed in-plan peer target).
-    # Sensing is now the ego-only `sensed` column [5] = [1, 1, 1, 0] (replaces the SPATIAL edges).
+    #   task 0: assigned to ego, sensed, capable, reachable       -> PLAN + ABORT cells
+    #   task 1: assigned to peer1, sensed                         -> PLAN cell
+    #   task 2: unassigned, sensed, capable, reachable (pop-up)   -> PLAN + ENGAGE cells
+    #   task 3: assigned to peer2, NOT sensed                     -> PLAN cell
     task_features = np.array(
         [
             # [utility, dist_to_ego, capable, reachable, probability, sensed]
-            [0.80, 0.20, 1.0, 1.0, 1.0, 1.0],   # task 0 (sensed)
-            [0.60, 0.40, 1.0, 1.0, 1.0, 1.0],   # task 1 (sensed)
-            [0.50, 0.90, 1.0, 0.0, 1.0, 1.0],   # task 2 (sensed, unreachable)
-            [0.70, 0.50, 1.0, 1.0, 1.0, 0.0],   # task 3 (assigned to peer2, NOT sensed)
+            [0.80, 0.20, 1.0, 1.0, 1.0, 1.0],
+            [0.60, 0.40, 1.0, 1.0, 1.0, 1.0],
+            [0.50, 0.30, 1.0, 1.0, 1.0, 1.0],
+            [0.70, 0.50, 1.0, 1.0, 1.0, 0.0],
         ],
         dtype=np.float32,
     )
-    # agent_features live contract is [a, 1] = [fuel_norm]: ego real, peers 0.0 (featureless).
-    agent_features = np.array(
-        [
-            [0.90],   # ego  (real fuel_norm)
-            [0.00],   # peer1 (featureless)
-            [0.00],   # peer2 (featureless)
-        ],
-        dtype=np.float32,
-    )
-    ego_index = 4  # == k, ego is the first agent node
-    # Edges: ASSIGNMENT only — 4->0, 5->1, 6->3 (complete static allocation, incl. peer2).
-    # SPATIAL edges are gone; ego sensing is carried by task_features[:, 5].
-    edge_index = np.array(
-        [[4, 5, 6],
-         [0, 1, 3]],
-        dtype=np.int64,
-    )
-    edge_type = np.array(
-        [int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT), int(EdgeType.ASSIGNMENT)],
-        dtype=np.int64,
-    )
+    agent_features = np.array([[0.90], [0.00], [0.00]], dtype=np.float32)
     obs = GraphObservation(
         task_features=task_features,
         agent_features=agent_features,
-        ego_index=ego_index,
-        edge_index=edge_index,
-        edge_type=edge_type,
+        ego_index=4,
+        edge_index=np.array([[4, 5, 6], [0, 1, 3]], dtype=np.int64),
+        edge_type=np.array([int(EdgeType.ASSIGNMENT)] * 3, dtype=np.int64),
         task_target_ids=["t0", "t1", "t2", "t3"],
         agent_ids=["ego", "peer1", "peer2"],
         agent_id="ego",
@@ -693,150 +710,54 @@ def _selftest() -> None:
     )
 
     mask = build_action_mask(obs)
-
-    # --- Expected mask (0.0 = valid, -inf = invalid) ---
     NINF = float("-inf")
     expected = np.array(
-        [
-            [0.0, NINF, 0.0],    # node0: PLAN_COMPLIANCE + SELF_PRESERVATION_ABORT
-            [0.0, NINF, NINF],   # node1: PLAN_COMPLIANCE only (peer-assigned+sensed, but CR removed 4->3)
-            [0.0, NINF, NINF],   # node2: PLAN_COMPLIANCE only (unreachable -> no engagement)
-            # node3 REGRESSION: an unsensed in-plan peer target is NOT a pop-up. Engagement is
-            # masked because task3 HAS an ASSIGNMENT edge (-> not unassigned). Only PLAN_COMPLIANCE.
-            [0.0, NINF, NINF],   # node3: PLAN_COMPLIANCE only
-        ],
+        [[0.0, NINF, 0.0], [0.0, NINF, NINF], [0.0, 0.0, NINF], [0.0, NINF, NINF]],
         dtype=np.float32,
     )
-
-    # --- Print the mask with a column legend ---
-    col_names = ["PLAN_COMPLIANCE",
-                 "OPPORTUNISTIC_ENGAGEMENT", "SELF_PRESERVATION_ABORT"]
+    assert np.array_equal(np.isneginf(mask), np.isneginf(expected)), mask
     print("=" * 72)
-    print("graph_action self-test")
+    print("graph_action self-test (%s)" % ACTION_REPRESENTATION_ID)
     print("=" * 72)
-    print("MetaAction columns (index == MetaAction value):")
-    for m in MetaAction:
-        print(f"  [{int(m)}] {m.name}")
-    print("-" * 72)
-    print("action mask  (.  = valid 0.0,  -inf = masked):")
-    header = "        " + "  ".join(f"{n[:10]:>10}" for n in col_names)
-    print(header)
-    for v in range(mask.shape[0]):
-        cells = "  ".join(
-            f"{'.':>10}" if np.isfinite(mask[v, m]) else f"{'-inf':>10}"
-            for m in range(NUM_META_ACTIONS)
-        )
-        print(f"  node{v}  {cells}")
-    print("-" * 72)
+    print("[M] k x 3 source legality matches the expected topology   OK")
 
-    # --- Assert the mask matches the expected topology EXACTLY ---
-    same_inf_pattern = np.array_equal(np.isneginf(mask), np.isneginf(expected))
-    finite_mask = np.where(np.isfinite(mask), mask, 0.0)
-    finite_exp = np.where(np.isfinite(expected), expected, 0.0)
-    same_finite = np.array_equal(finite_mask, finite_exp)
-    assert same_inf_pattern and same_finite, (
-        f"mask mismatch:\n{mask}\nexpected:\n{expected}"
-    )
-
-    # Every node must keep >= 1 valid action (the Plan-Compliance invariant).
-    assert np.all(np.isfinite(mask).any(axis=1)), "a node has no valid action"
-    print("Mask matches expected topology; every node has >= 1 valid action.")
-
-    # --- Exercise the ActionHead + sampling (both stochastic and deterministic) ---
     torch.manual_seed(0)
     head = ActionHead(embed_dim=16)
-    embeddings = torch.randn(mask.shape[0], 16)
+    embeddings = torch.randn(4, 16)
     logits = head(embeddings)
-    assert logits.shape == (mask.shape[0], NUM_META_ACTIONS), logits.shape
+    semantic, dist, _ent = _semantic_dist(logits, mask)
+    assert semantic.shape == (6,)
+    assert torch.isfinite(semantic).tolist() == [True, True, False, False, True, False]
+    exp_plan = torch.logsumexp(logits[:, _PLAN], 0) - math.log(4)
+    assert torch.equal(semantic[SEMANTIC_PLAN_LEAF], exp_plan)
+    assert torch.equal(semantic[SEMANTIC_ABORT_LEAF], logits[0, _ABORT])  # one legal node
+    assert abs(float(dist.probs.sum()) - 1.0) < 1e-6
+    print("[S] k + 2 semantic leaves, logmeanexp PLAN, single-node ABORT   OK")
 
     for deterministic in (False, True):
-        meta_action, node_index, log_prob, entropy = sample_action(
-            logits, mask, deterministic=deterministic
-        )
-        kind = "deterministic" if deterministic else "stochastic   "
-        print(
-            f"sample ({kind}): node={node_index} "
-            f"meta={MetaAction(meta_action).name} "
-            f"log_prob={log_prob.item():.4f} entropy={entropy.item():.4f}"
-        )
-        # The chosen cell must be a VALID (0.0) cell — never a masked -inf cell.
-        assert 0 <= node_index < mask.shape[0]
-        assert 0 <= meta_action < NUM_META_ACTIONS
-        assert mask[node_index, meta_action] == 0.0, (
-            f"sampled a masked cell: node={node_index} meta={meta_action}"
-        )
-        # log_prob / entropy must be finite (a NaN entropy would poison the PPO bonus).
-        assert torch.isfinite(log_prob).all(), "log_prob is not finite"
-        assert torch.isfinite(entropy).all(), "entropy is not finite"
-
-    # -------------------------------------------------------------------------
-    # evaluate_action (the PPO-ratio half) — the shared-construction identity.
-    # -------------------------------------------------------------------------
-    print("-" * 72)
-    print("evaluate_action (PPO re-scoring):")
-
-    # [E1] EXACT agreement with sample_action. Both route through _masked_dist, so
-    #      the two log-probs / entropies are BITWISE equal (torch.equal, not allclose).
-    #      This is the property the whole refactor exists to guarantee: if these ever
-    #      diverge, the PPO ratio pi_new/pi_old is wrong on epoch 0 and learning is
-    #      silently poisoned.
-    for deterministic in (False, True):
-        meta_s, node_s, lp_s, ent_s = sample_action(
-            logits, mask, deterministic=deterministic
-        )
+        meta_s, node_s, lp_s, ent_s = sample_action(logits, mask, deterministic)
         lp_e, ent_e = evaluate_action(logits, mask, meta_s, node_s)
-        kind = "deterministic" if deterministic else "stochastic   "
-        assert torch.equal(lp_s, lp_e), (
-            f"log_prob drift ({kind}): sample={lp_s.item()!r} eval={lp_e.item()!r}"
-        )
-        assert torch.equal(ent_s, ent_e), (
-            f"entropy drift ({kind}): sample={ent_s.item()!r} eval={ent_e.item()!r}"
-        )
-        print(f"  [E1] {kind}: node={node_s} meta={MetaAction(meta_s).name} "
-              f"log_prob={lp_e.item():.6f} entropy={ent_e.item():.6f}  "
-              f"BITWISE == sample_action   OK")
+        assert torch.equal(lp_s, lp_e) and torch.equal(ent_s, ent_e)
+        assert (node_s is None) == (meta_s in GLOBAL_META_ACTIONS)
+        print("[E1] %s: meta=%s node=%r  BITWISE == sample_action   OK"
+              % ("deterministic" if deterministic else "stochastic   ",
+                 MetaAction(meta_s).name, node_s))
 
-    # [E2] The ratio a PPO epoch-0 update would form is exactly 1.0.
-    ratio = torch.exp(lp_e - lp_s)
-    assert torch.equal(ratio, torch.ones_like(ratio)), f"ratio != 1: {ratio.item()!r}"
-    print(f"  [E2] exp(log_prob_new - log_prob_old) == {ratio.item():.1f} exactly   OK")
-
-    # [E3] Grad flows: NO no_grad inside evaluate_action, so the caller's grad mode
-    #      wins and every head parameter receives a finite grad. (The full
-    #      encoder+head sweep lives in tests/test_graph_action_evaluate.py.)
     head.zero_grad(set_to_none=True)
-    logits_grad = head(embeddings)  # fresh forward, grad-attached
-    lp_g, ent_g = evaluate_action(logits_grad, mask, meta_s, node_s)
-    assert lp_g.requires_grad, "evaluate_action returned a detached log_prob"
+    lp_g, _ = evaluate_action(head(embeddings), mask, _ABORT, None)
     lp_g.backward()
-    n_params = 0
-    for name, p in head.named_parameters():
-        assert p.grad is not None, f"parameter {name} has no grad"
-        assert torch.isfinite(p.grad).all(), f"parameter {name} has non-finite grad"
-        n_params += 1
-    print(f"  [E3] backward through evaluate_action: all {n_params} head params "
-          f"have finite grads   OK")
+    assert all(p.grad is not None and torch.isfinite(p.grad).all()
+               for p in head.parameters())
+    print("[E3] backward through evaluate_action: finite head grads   OK")
 
-    # [E4] A MASKED stored action fails LOUD (mask reconstruction diverged), rather
-    #      than quietly returning -inf and corrupting the ratio. node1/OE is -inf.
-    assert not np.isfinite(mask[1, int(MetaAction.OPPORTUNISTIC_ENGAGEMENT)]), \
-        "test setup: node1/OE was expected to be masked"
-    try:
-        evaluate_action(logits, mask, int(MetaAction.OPPORTUNISTIC_ENGAGEMENT), 1)
-    except ValueError as exc:
-        print(f"  [E4] masked cell (node1, OE) -> ValueError   OK\n"
-              f"       {str(exc).splitlines()[0][:96]}...")
-    else:
-        raise AssertionError("evaluate_action accepted a MASKED action cell")
-
-    # [E5] Out-of-bounds cells are rejected too (node index past k).
-    try:
-        evaluate_action(logits, mask, 0, mask.shape[0])
-    except ValueError:
-        print("  [E5] out-of-bounds node index -> ValueError   OK")
-    else:
-        raise AssertionError("evaluate_action accepted an out-of-bounds node index")
-
+    for meta, node in ((_PLAN, 0), (_ABORT, 0), (_ENGAGE, None), (_ENGAGE, 1), (_ENGAGE, 4)):
+        try:
+            evaluate_action(logits, mask, meta, node)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("accepted malformed/masked identity %r" % ((meta, node),))
+    print("[E4] malformed / masked semantic identities -> ValueError   OK")
     print("-" * 72)
     print("All assertions passed.")
 
