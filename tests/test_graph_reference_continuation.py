@@ -510,7 +510,7 @@ def _run(world, controller=None, *, max_ticks=3, central=None, spy=None):
         )
         return graph_tick_loop.Transition(
             gobs=gobs, ego_id=str(ego_id), tick=int(tick),
-            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=0,
+            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=None,
             log_prob=0.0, entropy=0.0,
         )
 

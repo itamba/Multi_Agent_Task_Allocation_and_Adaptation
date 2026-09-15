@@ -175,14 +175,17 @@ OWNERSHIP_PEER = "peer_assigned"
 OWNERSHIP_UNASSIGNED = "unassigned"
 
 
-def _node_ownership(solution: Any, ego_key: str, node_v: int) -> str:
+def _node_ownership(solution: Any, ego_key: str, node_v: Optional[int]) -> Optional[str]:
     """Who owns task node ``node_v`` in this ego's PRIVATE belief solution.
 
     Assignment tuples are positional (``assignment[0] == task_idx``), the same reading
     ``graph_effect`` and ``_assignment_target_id`` use. A malformed tuple is skipped
     rather than raised on: this is a reporting path and must never be able to fail an
-    episode.
+    episode. A GLOBAL semantic action (``node_v is None``) selects no node, so it has no
+    ownership: ``None``, never an invented label.
     """
+    if node_v is None:
+        return None
     ego_has = False
     peer_has = False
     for aid, assigns in (solution or {}).items():
@@ -248,17 +251,22 @@ class Transition:
 
     The rollout is INFERENCE-ONLY: ``log_prob`` / ``entropy`` are stored as DETACHED
     python floats (grads are recomputed from ``gobs`` + ``(meta_action, node_v)`` in the
-    PPO update epochs, which live in a separate task). ``reward`` is filled in later by
-    the reward task — ``None`` until then.
+    PPO update epochs). ``reward`` is filled in later by the reward task — ``None`` until
+    then.
+
+    ``(meta_action, node_v)`` is the SEMANTIC action identity
+    (``graph_action.ACTION_REPRESENTATION_ID``): ``node_v`` is ``None`` for
+    PLAN_COMPLIANCE and SELF_PRESERVATION_ABORT and the task index for
+    OPPORTUNISTIC_ENGAGEMENT. ``evaluate_action`` refuses any other shape.
     """
 
     gobs: GraphObservation          # the GraphObservation the decision was made on
     ego_id: str                     # the deciding ego
     tick: int                       # simulation tick of the wake
     meta_action: int                # a MetaAction value (0..2)
-    node_v: int                     # chosen task-node index (== task_idx)
-    log_prob: float                 # detached scalar log-prob of the joint (node, meta)
-    entropy: float                  # detached scalar policy entropy at this wake
+    node_v: Optional[int]           # None for PLAN / ABORT; task index for ENGAGE
+    log_prob: float                 # detached scalar log-prob of the semantic leaf
+    entropy: float                  # detached scalar semantic-policy entropy at this wake
     reward: Optional[float] = None  # filled later by the reward task
 
     wake_kind: str = WAKE_KIND_ORDINARY
@@ -320,7 +328,7 @@ def _decision_record(
     solution: Any,
     ego_key: str,
     meta_action: int,
-    node_v: int,
+    node_v: Optional[int],
     wake_kind: str,
 ) -> Dict[str, Any]:
     """The durable per-wake diagnostic record. REPORTING-ONLY, JSON-ready.
@@ -353,7 +361,7 @@ def _decision_record(
         "wake_kind": str(wake_kind),
         "ego_id": str(ego_key),
         "tick": int(gobs.current_time),
-        "selected_node": int(node_v),
+        "selected_node": None if node_v is None else int(node_v),
         "selected_meta_action": int(meta_action),
         "selected_meta_action_name": MetaAction(int(meta_action)).name,
         "selected_node_ownership": _node_ownership(solution, ego_key, node_v),
@@ -367,7 +375,7 @@ def _decision_record(
         "fraction_task_distance_clipped": (float(n_clipped) / k if k else 0.0),
         "time_norm": float(gobs.time_norm),
     }
-    record.update(summarize_decision(logits, mask, int(meta_action), int(node_v)))
+    record.update(summarize_decision(logits, mask, int(meta_action), node_v))
     return record
 
 
@@ -393,7 +401,7 @@ def _wake_decision(
       1. build the graph observation from the ego's POST-trigger belief,
       2. encode -> per-node logits,
       3. build the additive action mask,
-      4. sample a joint ``(meta_action, node_v)``,
+      4. sample a SEMANTIC ``(meta_action, node_v)`` (``node_v`` None for PLAN / ABORT),
       5. apply the meta-action to the ego's belief solution (pure plan edit),
       6. resync ONLY this ego's executor slice with the edited plan + tasks,
       7. return the recorded :class:`Transition`.
@@ -437,7 +445,7 @@ def _wake_decision(
         # --- REPORTING-ONLY diagnostics, from the SAME logits/mask just acted on ---
         # AFTER `sample_action`, so a stochastic draw is already taken and cannot be
         # displaced. The distribution is not rebuilt here: `summarize_decision` rebuilds
-        # it through the SHARED `_masked_dist` site on a DETACHED copy of these same
+        # it through the SHARED `_semantic_dist` site on a DETACHED copy of these same
         # logits, in their original dtype, and SAMPLES NOTHING -- no `dist.sample()` and
         # no generator of any kind -- so the torch RNG state is untouched either way and
         # no autograd node is created. Ownership is read BEFORE the belief edit below,
@@ -459,7 +467,7 @@ def _wake_decision(
         ego_id=ego_key,
         tick=int(tick),
         meta_action=int(meta_action),
-        node_v=int(node_v),
+        node_v=None if node_v is None else int(node_v),
         log_prob=float(log_prob.item()),
         entropy=float(entropy.item()),
         wake_kind=str(wake_kind),

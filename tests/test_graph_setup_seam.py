@@ -1619,12 +1619,12 @@ def test_blade_abort_replaces_a_stale_route_with_the_home_base_route() -> None:
             "the mission route already ends at home; it is not a stale route"
         )
 
-        # (4) The ego-global abort, naming only the FIRST of the two assignments.
+        # (4) The ego-global abort: ONE semantic action, carrying no node.
         class _Gobs:
             task_target_ids = [str(t.steps[0].target_id) for t in tasks]
 
         new_solution = apply_meta_action(
-            solution, _Gobs(), ego, int(MetaAction.SELF_PRESERVATION_ABORT), far_idx, tasks
+            solution, _Gobs(), ego, int(MetaAction.SELF_PRESERVATION_ABORT), None, tasks
         )
         assert new_solution[ego] == [], (
             "the abort left %r; a non-empty plan never reaches the RTB branch"
@@ -2328,7 +2328,7 @@ def _fly_home_with_real_blade(*, fuel_multiplier: float) -> Dict[str, Any]:
             wakes.append((str(ego_id), int(tick)))
             return graph_tick_loop.Transition(
                 gobs=None, ego_id=str(ego_id), tick=int(tick),
-                meta_action=0, node_v=0, log_prob=0.0, entropy=0.0,
+                meta_action=0, node_v=None, log_prob=0.0, entropy=0.0,
             )
 
         # Generous but BOUNDED: the return leg at this aircraft's own knots speed plus
