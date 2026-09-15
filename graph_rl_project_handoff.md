@@ -52,7 +52,7 @@
 
 | Item | State |
 |---|---|
-| Writable repository task | **sole owner:** the V2 semantic-action + credit-instrumentation implementation (branch `task/v2-semantic-action-credit-instrumentation`, one draft PR to `main`) until it is reviewed and integrated |
+| Writable repository task | **sole owner:** the V2 semantic-action + credit-instrumentation implementation (branch `task/v2-semantic-action-credit-instrumentation`, draft PR #70 to `main`) until it is reviewed and integrated |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence and review PRs | **none open** — #61, #62, #64, #65 and #67 are closed without merge and their branches deleted |
 | Implementation candidates | the draft PR of the branch above — unreviewed; no merge authorized |
