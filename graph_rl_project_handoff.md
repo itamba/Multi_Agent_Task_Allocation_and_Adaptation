@@ -1,7 +1,8 @@
 # Graph RL project handoff — current snapshot
 
 > **Status: current state only — not a contract and not a history.** This snapshot was refreshed
-> on 2026-09-15; at that refresh live `main` was `fcbedc2e2fff58aefdd4d2f1f766c39311a27587`.
+> on 2026-09-15, at the closure of the GENERALIZED-V2 development research chapter; at that refresh
+> live `main` was `81d37049845087e970d9416abc99adcbb40aef61`.
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -10,13 +11,29 @@
 
 ## 1. Phase
 
-- **GENERALIZED-V2 development diagnosis is closed.** Its population (PR #57), its frozen ten-cell
-  benchmark and evaluation construct (PR #59) and the development closure record (PR #66) are
-  merged. GENERALIZED-V1 remains a valid, preserved design.
-- **Completed at measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8`:** actor-only R1,
-  CTDE R1 and three CTDE development diagnostic arms (`smallbatch`, `largebatch`, `fd80`), plus a
-  read-only matched MILD/SEVERE wake analysis over all five. The development interpretation is
-  closed (§4, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-15).
+- **The GENERALIZED-V2 development research chapter is closed.** Its population (PR #57), its
+  frozen ten-cell benchmark and evaluation construct (PR #59), the development closure record
+  (PR #66) and the benchmark-preflight provenance closure (PR #68) are merged. GENERALIZED-V1
+  remains a valid, preserved design.
+- **GENERALIZED-V2 development diagnosis is closed.** Completed at measured code SHA
+  `ae42cb01677f94868b2873008d87be677e31f0c8`: actor-only R1, CTDE R1 and three CTDE development
+  diagnostic arms (`smallbatch`, `largebatch`, `fd80`), plus a read-only matched MILD/SEVERE wake
+  analysis over all five (§4, [`decisions.md` §1](docs/history/decisions.md#1-decision-log),
+  2026-09-15).
+- **The V2 benchmark-preflight provenance evidence is reviewed and durable**
+  ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
+- **Closure and cleanup are complete** (2026-09-15): the local artifacts are organized and indexed
+  under `C:\gra\`; the temporary evidence and review PRs are closed and their branches removed; the
+  retired merged branches are removed; the four Graph-RL execution / source worktrees targeted by
+  the cleanup (`C:/g1src`, `C:/p1src`, `C:/Users/Itama/ct1s`,
+  `C:/Users/Itama/PycharmProjects/fd_variable_severity_v1_bf1e045f_snapshot`) are removed; the
+  protected refs remain
+  ([`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup)).
+- **`C:/Users/Itama/PycharmProjects/flat-baseline` is intentionally retained** as a safety
+  exception, not an incomplete Graph-RL cleanup: it carries protected branch `flat-final`, and its
+  ignored files hold about 5.2 GB of flat-RL training outputs that are not archived under
+  `C:\gra\` and whose deletion or move was not authorized
+  ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
 - **No scientific run is in progress. The confirmatory profile has not been used.**
 - **Next research work belongs to a fresh orchestrator: GENERALIZED-V2 action-representation
   research design.** This handoff authorizes no implementation and no training.
@@ -24,37 +41,39 @@
   baseline; the Phase-B CTDE implementation; GENERALIZED-V1 Tasks 1–5, early stopping and the
   per-wake diagnostics; the deterministic-P1 backend and the certified-FD physical-state repair;
   the GENERALIZED-V1 R1 measurement; the documentation restructure (PR #63); the GENERALIZED-V2
-  development closure (PR #66); the V2 benchmark-preflight provenance review (§4).
+  development closure (PR #66); the V2 benchmark-preflight provenance review (PR #68); the local
+  artifact archive and Git / worktree cleanup (2026-09-15).
 
 ## 2. Active owner and task
 
 | Item | State |
 |---|---|
-| Writable repository task | **none.** The next writable work is either the closure and cleanup work of §5 or a task the user starts with the next orchestrator; resolve any open writable task on GitHub |
+| Writable repository task | the final archive / cleanup documentation closure (branch `docs/final-archive-cleanup-closure`) until it is reviewed and integrated; **after that, none** |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
-| Evidence and review PRs | #61, #62, #64, #65, #67 — temporary, read-only, pending cleanup (§3) |
-| Implementation candidates | none open |
+| Evidence and review PRs | **none open** — #61, #62, #64, #65 and #67 are closed without merge and their branches deleted |
+| Implementation candidates | none |
 | Scientific runs in progress | none |
 
 ## 3. Candidates and PRs
 
-| PR | Branch | Head (verified 2026-09-15) | Status |
-|---|---|---|---|
-| #66 | `docs/generalized-v2-development-closure` | `157dd9fdbb92fe2835ef2268f485e58b92523a4d` | **merged** (merge commit `fcbedc2e2fff58aefdd4d2f1f766c39311a27587`) |
-| #61 | `evidence/generalized-v2-actor-only-dev-r1` | `1375a881637a9a32721a1630f598adc571422a47` | draft; actor-only R1 evidence |
-| #62 | `evidence/generalized-v2-ctde-dev-r1` | `b2bbe7a6235c3b9255106826cfb268af7e73f72d` | draft; CTDE R1 evidence |
-| #64 | `evidence/ctde-overnight-diagnostics` | `90516d51beeddacded2b89a321d14291e411f2b0` | draft; diagnostic-arm evidence; the preservation candidate was approved |
-| #65 | `review/v2-wake-pair-diagnostics` | `d565174e4ecc25eb60a4dd021e1a20025f55f07f` | draft; **temporary** matched-wake review package; extraction integrity `APPROVE` |
-| #67 | `review/v2-benchmark-preflight-provenance` | `7f56338cde6aacfa59a52399b2378b98a62ea3aa` | draft; **temporary** provenance-review transport; `APPROVE — provenance package correctness / evidence review` at that exact head |
+No evidence, review or implementation PR is open besides this record's own documentation
+candidate. Resolve live PR state on GitHub.
 
-The approvals of #64, #65 and #67 are recorded from user-transferred packets; GitHub holds no
-review or comment record on them. Under the artifact lifecycle decision
-([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-15), **none of #61, #62,
-#64, #65 or #67 is planned for merge into `main`.** They stay open until explicitly authorized
-cleanup removes them; their review conclusions are durably recorded in
-[`measurements.md`](docs/history/measurements.md).
+| PR | Branch | Final state (2026-09-15) |
+|---|---|---|
+| #59, #60, #63, #66, #68 | task and documentation branches | merged; branches deleted after ancestry verification |
+| #61, #62, #64 | `evidence/…` | closed without merge; branches deleted; conclusions in [measurements §7–§8](docs/history/measurements.md#7-generalized-v2-development-r1-arms); sources archived |
+| #65 | `review/v2-wake-pair-diagnostics` | closed without merge; branch deleted; conclusions in [measurements §8.6](docs/history/measurements.md#86-matched-immediate-fd-wake-analysis) |
+| #67 | `review/v2-benchmark-preflight-provenance` | closed without merge; branch deleted; conclusions in [measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review) |
+
+Heads, gates and archive paths:
+[`environments_cleanup.md` §4.3–§4.5](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs).
 
 ## 4. Runs and evidence — current references
+
+**Local archive:** machine-readable index `C:\gra\metadata\ARTIFACT_INDEX.jsonl` (authoritative)
+and human-readable projection `C:\gra\metadata\ARTIFACT_INDEX.md`; identities in
+[measurements §9](docs/history/measurements.md#9-local-artifact-archive-closure).
 
 | Measurement | Measured code SHA | Verdict, with its provenance | Record |
 |---|---|---|---|
@@ -62,8 +81,8 @@ cleanup removes them; their review conclusions are durably recorded in
 | FD-VARIABLE-SEVERITY-v1 actor-only baseline | `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` | `APPROVE — VALID MEASUREMENT`; primary finding negative | [measurements](docs/history/measurements.md) |
 | GENERALIZED-V1 R1 (actor-only, legacy backend) | `4af6c5aa5dd28072692bfda63282964b55010aae` | `APPROVE — VALID MEASUREMENT`; primary FD finding negative; comparator `manifest_id 0e15f007ef176bf977f8b93bb91289f48c16f25ee9eee282ffd1a89477f6fc0d` | [measurements](docs/history/measurements.md) |
 | Fresh deterministic-P1 arm (GENERALIZED-V1 population, `p1_milp_v1`) | `ae1941035991df4719df212c4b5dd07db89aee4a` | accepted as valid; negative primary MILD-vs-SEVERE result; **not a clean causal comparator to R1** | [measurements §6](docs/history/measurements.md#6-the-p1-arms) |
-| Earlier P1 arm | not recorded | **`ABORTED / DO NOT RESUME`** — not a measurement | [measurements §6](docs/history/measurements.md#6-the-p1-arms) |
-| GENERALIZED-V2 benchmark manifest (external, not committed) | producer-recorded exact code SHA `ae42cb01677f94868b2873008d87be677e31f0c8`, producer-recorded clean — not an external attestation | `manifest_id ef17a68a…46ea8`, file SHA-256 `dd72afc9…a103`, consumed by all five V2 runs below; manifest identity and producer provenance reviewed via temporary PR #67 @ `7f56338c…`; **historical authorization not proven**; exact argv unknown (invocation partial) | [measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review) |
+| Earlier P1 arm | `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` — recovered from the archived arm's own artifacts | **`ABORTED / DO NOT RESUME`** — not a measurement | [measurements §6.1](docs/history/measurements.md#61-the-aborted-arm), [§9.3](docs/history/measurements.md#93-recovered-local-identities) |
+| GENERALIZED-V2 benchmark manifest (external, not committed; archived) | producer-recorded exact code SHA `ae42cb01677f94868b2873008d87be677e31f0c8`, producer-recorded clean — not an external attestation | `manifest_id ef17a68a…46ea8`, file SHA-256 `dd72afc9…a103`, consumed by all five V2 runs below; manifest identity and producer provenance reviewed (PR #67 @ `7f56338c…`, now closed); **historical authorization not proven**; exact argv unknown | [measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review) |
 | GENERALIZED-V2 development R1 — actor-only and CTDE | `ae42cb01677f94868b2873008d87be677e31f0c8` | CTDE: prior GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT` as recorded in PR #62; actor-only: no standalone verdict string recorded. Both are inputs to the closed development interpretation | [measurements §7](docs/history/measurements.md#7-generalized-v2-development-r1-arms), [§8](docs/history/measurements.md#8-generalized-v2-development-closure) |
 | GENERALIZED-V2 CTDE diagnostics — `smallbatch`, `largebatch`, `fd80` | `ae42cb01677f94868b2873008d87be677e31f0c8` | **development diagnostic runs, not confirmatory**; accounting `PASS` | [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure) |
 | GENERALIZED-V2 matched immediate-FD wake analysis (PR #65) | — (read-only extraction) | extraction integrity `APPROVE`; not a measurement | [measurements §8.6](docs/history/measurements.md#86-matched-immediate-fd-wake-analysis) |
@@ -92,36 +111,30 @@ measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Closure work remaining before the next research orchestrator** — each step only as explicitly
-authorized cleanup:
-
-1. organize the preserved local artifacts under the approved archive plan and create the local
-   artifact index;
-2. verify byte and key identities after organization;
-3. perform explicit, safe Git / PR / worktree cleanup of #61, #62, #64, #65 and #67 and their
-   branches;
-4. reconcile the protected-ref and cleanup registry
-   ([`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup))
-   and the final live state.
-
-**Next research task (belongs to the next orchestrator): GENERALIZED-V2 action-representation
+**Next research task (belongs to a fresh orchestrator): GENERALIZED-V2 action-representation
 research design** — analysis and design only, including whether to add per-transition advantage
 instrumentation before the next development run
 ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-15). **No implementation
-and no training is authorized.**
+and no training is authorized.** Once this record's documentation candidate is integrated, no
+writable repository task remains.
 
 **Recorded, not scheduled and not authorized:**
 
 - a separate code task to correct the V2 `generalized.cardinality_sampler` summary label in
   `graph_train._generalized_summary`, without touching archived artifacts;
 - an open engineering caveat: a playback-export failure still routes as an ordinary `run`-stage
-  episode failure ([measurements](docs/history/measurements.md#2-measurement-records)).
+  episode failure ([measurements](docs/history/measurements.md#2-measurement-records));
+- `flat-baseline` is intentionally retained as protected historical state and is **not a blocker**
+  for the next Graph-RL research task; any future archival or removal decision for its ignored
+  flat-RL outputs requires its own explicit task
+  ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
 
 ## 6. Blocked or unauthorized now
 
-- merging #61, #62, #64, #65 or #67 (not planned);
-- closing or deleting #61, #62, #64, #65 or #67 or their branches, moving or deleting protected
-  refs, evidence refs or preserved run directories — only in explicitly authorized cleanup;
+- modifying, deleting, pruning, regenerating or rewriting anything under `C:\gra\`, or relocating
+  it except under
+  [`environments_cleanup.md` §4.4](docs/workflows/environments_cleanup.md#44-preserved-run-directories-and-external-artifacts);
+  moving or deleting protected refs;
 - implementing any action-representation, observation, reachability, credit or instrumentation
   change before the design task concludes and a change is authorized; changes to locked layers,
   BLADE, the solvers, PPO, CTDE, the reward or the observation / action contracts;
@@ -138,22 +151,28 @@ and no training is authorized.**
 - early stopping under `generalized_v2` (refused by code) and V2 cardinality above `A = 6`
   (`A = 8` / `A = 10` are engineering evidence only);
 - `p(destroy) < 1` (deferred) and checkpoint resume (out of scope);
-- reviewing or comparing the old fixed-cell CTDE measurement unless the user asks.
+- reviewing, reclassifying or comparing the old fixed-cell CTDE measurement or the unclassified
+  `ct1` artifact unless the user asks.
 
 ## 7. Protected refs, preserved evidence and known gaps
 
 **Registry:** [`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup).
-Evidence and review refs stay protected until authorized cleanup removes them.
+Protected refs: `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and tag `pre-cleanup`.
+Remaining local worktrees: the main checkout and `C:/Users/Itama/PycharmProjects/flat-baseline`
+(branch `flat-final`). Preserved artifacts: the `C:\gra\` archive and its index.
 
 **Known gaps in this snapshot:**
 
-- The V2 benchmark preflight's exact original argv and its historical research-authorization
-  record are absent; its historical prior review is not proven
-  ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
 - No per-immediate-FD-transition advantage diagnostic exists for any V2 run.
 - The PR #65 reachability comparison is positional; task-node identity across paired members is
   not independently certified.
-- Artifact identities known only locally are not yet durably indexed until the archive cleanup
-  (§5) finishes — among them the GENERALIZED-V1 R1 run directory, the fresh P1 arm's artifacts
-  and the old fixed-cell CTDE measurement's identity, none of which is recorded in the
-  repository.
+- The V2 benchmark preflight's exact original argv and its historical research-authorization
+  record are absent; its historical prior review is not proven
+  ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
+- The `ct1` artifact's identity remains unclassified (`UNKNOWN / possible old fixed-cell CTDE
+  arm`); the old fixed-cell CTDE measurement's identity is still not recorded
+  ([measurements §9.3](docs/history/measurements.md#93-recovered-local-identities)).
+- The derived PR #65 extraction package (wake rows and matched pairs) was not copied into the
+  local archive; the five runs it read are archived.
+- The archive index's `evidence_ref_status` strings are archive-time text and still describe the
+  closed PRs as open; the index is deliberately not rewritten.

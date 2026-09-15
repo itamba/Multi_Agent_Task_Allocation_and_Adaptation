@@ -156,11 +156,17 @@ precursor failed it on the data-integrity clause. It is recorded here as that sc
 
 ## 5. Evidence preservation
 
-- **Protect the originals.** Original run directories and external artifacts keep their bytes and
-  identity: never modify, move, delete, regenerate or normalize them, even to correct a known
-  defect. **Authorized non-destructive copies, lossless packaging** (such as line-aligned sharding
-  with a reconstruction hash) **and reconstruction checks are allowed** and leave the originals
-  untouched ([registry](environments_cleanup.md#4-authorized-cleanup)).
+- **Protect the originals.** Original run directories and external artifacts keep their bytes,
+  identity and provenance: never modify, delete, regenerate or normalize them, even to correct a
+  known defect. **They may be relocated only under an explicitly authorized archival relocation**
+  satisfying [`environments_cleanup.md` §4.4](environments_cleanup.md#44-preserved-run-directories-and-external-artifacts),
+  which records the original and current paths in the archive index, verifies byte and key-file
+  identity before and after the move, and leaves the historical paths embedded in the artifact
+  unchanged; relocation is never routine or implicit, and it does not alter the historical path
+  recorded inside an artifact or in an old measurement record. **Authorized non-destructive
+  copies, lossless packaging** (such as line-aligned sharding with a reconstruction hash) **and
+  reconstruction checks remain allowed** and leave the originals untouched
+  ([registry](environments_cleanup.md#4-authorized-cleanup)).
 - **Preserve enough to inspect the review question**: at least the resolved configuration and
   provenance, the summary and accounting records, and the records the question needs. Anything
   not committed (checkpoints, manifests, streams the question does not need) is identified by

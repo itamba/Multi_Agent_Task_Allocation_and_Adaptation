@@ -5,7 +5,7 @@
 >
 > **Status:** §1 and §2 are normative (§1 moved verbatim from the former `CLAUDE.md` §1 at base
 > `ae42cb01677f94868b2873008d87be677e31f0c8`). §3 is a **dated observation**, not live state.
-> §4 is a normative cleanup procedure plus a registry verified on 2026-09-14. A dated
+> §4 is a normative cleanup procedure plus a registry verified on 2026-09-15. A dated
 > environment validation says what was observed then; it is not a claim about any environment
 > now.
 
@@ -168,79 +168,152 @@ it has since been reviewed — see [`measurements.md`](../history/measurements.m
 
 ### 4.1 Rules
 
-- Cleanup happens **only with explicit user authorization** for the specific refs, as its own
-  task, never bundled into another.
-- **Safe deletion only:** delete a branch only after verifying that its tip is reachable from
-  `main` or from its merged PR's `refs/pull/<n>/head`. Never force-delete unreachable work, and
-  never delete a branch whose PR is open.
+- Cleanup happens **only with explicit user authorization** for the specific refs, worktrees or
+  artifacts, as its own task, never bundled into another.
+- **Safe deletion of a merged branch:** delete it only after verifying that its exact tip is an
+  ancestor of live `main` or reachable from its merged PR's `refs/pull/<n>/head`. Never delete a
+  branch whose PR is open, and never force-delete unreachable work except under the next rule.
+- **Temporary evidence and review branches are intentionally unmerged transport**
+  ([`decisions.md` §1](../history/decisions.md#1-decision-log), 2026-09-15 lifecycle decision).
+  One may be deleted only under authorization that names it, and only after all of: its PR is
+  closed, not merged, at its verified exact head; the branch is checked out in no worktree and
+  has no local-only commits; its source artifacts are in the local archive (§4.4) with their key
+  identities reverified; and its reviewed conclusions are durably recorded on `main`. The deletion
+  is recorded as branch removal only; nothing is claimed about GitHub's internal retention of
+  pull-request refs.
 - A documentation branch becomes cleanup-eligible only after its own candidate is reviewed and
   integrated.
-- Protected refs (§4.2) and preserved artifacts (§4.4) are **never** cleanup-eligible and never
-  move.
+- **Worktree removal:** `git worktree remove` **without `--force`**, only after verifying that
+  the worktree's HEAD matches its recorded role, that it has no tracked modification and no
+  untracked file, that its ignored files hold no run output which removal would delete, and that
+  its commit is reachable from `main` or a protected ref. Removing a worktree never deletes its
+  commit or a branch it carries. `git worktree prune` is used only for stale administrative
+  metadata.
+- Protected refs (§4.2) are **never** cleanup-eligible. Preserved artifacts (§4.4) are **never**
+  deleted, rewritten, regenerated or normalized, and are relocated only under §4.4's archival
+  relocation rule.
 
 ### 4.2 Protected refs
 
-Verified against `origin` on 2026-09-14. Their roles are distinct and never interchangeable.
+Verified against `origin` on 2026-09-15, before and after that day's cleanup (§4.7), with
+identical identities. Their roles are distinct and never interchangeable.
 
 | Ref | Commit | Role |
 |---|---|---|
 | `main` | resolve live | integration branch |
-| `phase-a-baseline` | `4f0068847b017795717c5f0e331f647bcfc30547` | code state of the original Phase-A reference |
+| `phase-a-baseline` | `4f0068847b017795717c5f0e331f647bcfc30547` | code state of the original Phase-A reference (remote-only; no local branch is needed) |
 | `pre-ctde-actor-only` | `d437084c5fb1a22c21596a48c58e03f7e15a0115` | the actor-only state Phase-B CTDE was merged onto (first parent of the CTDE merge) |
 | `flat-final` | `4d44c3454a5561a6cb9d7aed593d59a40068d6d7` | the retired flat-RL path |
 | tag `pre-cleanup` | tag object `cce4e1e6c08878340e64543fa612a4435e11ae17`, peels to `561b7cb7f2d873e584a8c0dabe71df8050f1b4ed` | the last commit before the flat-path cleanup |
 
-### 4.3 Evidence refs
+### 4.3 Temporary evidence and review refs
 
-Leave untouched; the user deferred decisions about them.
+**None remains.** On 2026-09-15, under explicit authorization and after the §4.1 gates, each PR
+below was closed without merge at its verified head and its branch deleted from `origin` and
+locally. Its conclusions survive in the repository record named here and its sources in the local
+archive (§4.4, paths relative to `C:\gra\`).
 
-| Ref | Head | PR |
-|---|---|---|
-| `evidence/generalized-v2-actor-only-dev-r1` | `1375a881637a9a32721a1630f598adc571422a47` | #61 (draft) |
-| `evidence/generalized-v2-ctde-dev-r1` | `b2bbe7a6235c3b9255106826cfb268af7e73f72d` | #62 (draft) |
+| PR | Branch | Verified head | Durable record on `main` | Archived sources |
+|---|---|---|---|---|
+| #61 | `evidence/generalized-v2-actor-only-dev-r1` | `1375a881637a9a32721a1630f598adc571422a47` | [`measurements.md` §7–§8](../history/measurements.md#7-generalized-v2-development-r1-arms) | `runs\development\v2_actor_only_r1_seed3000000_ae42cb0` |
+| #62 | `evidence/generalized-v2-ctde-dev-r1` | `b2bbe7a6235c3b9255106826cfb268af7e73f72d` | [`measurements.md` §7–§8](../history/measurements.md#7-generalized-v2-development-r1-arms) | `runs\development\v2_ctde_r1_seed3000000_ae42cb0` |
+| #64 | `evidence/ctde-overnight-diagnostics` | `90516d51beeddacded2b89a321d14291e411f2b0` | [`measurements.md` §8](../history/measurements.md#8-generalized-v2-development-closure) | `diagnostics\v2_ctde_smallbatch_seed3000000_ae42cb0`, `…largebatch…`, `…fd80…`, `diagnostics\v2_ctde_sweep_driver_ae42cb0` |
+| #65 | `review/v2-wake-pair-diagnostics` | `d565174e4ecc25eb60a4dd021e1a20025f55f07f` | [`measurements.md` §8.6](../history/measurements.md#86-matched-immediate-fd-wake-analysis) | the five V2 run directories it read; the derived extraction package itself was not copied into the archive |
+| #67 | `review/v2-benchmark-preflight-provenance` | `7f56338cde6aacfa59a52399b2378b98a62ea3aa` | [`measurements.md` §8.11](../history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review) | `benchmarks\v2_preflight_seed2000000_ae42cb0` |
+
+**Ledger check before deletion.** Every file SHA-256 in the `artifact_sha256.txt` ledgers of #61,
+#62, #64 and #67 matched archived bytes. The only unmatched entries were derived packaging — the
+committed `episode_outcomes` shards and shard index of #61 and #62, whose recorded original
+`episode_outcomes.jsonl` hashes do match the archive — and values that are not file hashes
+(manifest id, seed-list hash, ledger self-hashes).
 
 ### 4.4 Preserved run directories and external artifacts
 
-**Protect the originals:** never modify, move, delete, regenerate or normalize them. Authorized
-non-destructive copies, lossless packaging and reconstruction checks leave the originals untouched
-and are allowed ([`experiments.md` §5](experiments.md#5-evidence-preservation)). Locations are as
-recorded in the repository or in a run's own `run_config.json`; **a recorded location is not a
-verification that the path still exists**, and where nothing is recorded nothing is invented.
+- **Protection.** Original artifact bytes and provenance are protected: never modify, delete,
+  regenerate or normalize them, even to correct a known defect. Authorized non-destructive copies,
+  lossless packaging and reconstruction checks are allowed
+  ([`experiments.md` §5](experiments.md#5-evidence-preservation)).
+- **Authorized archival relocation.** An artifact may change location only under explicit
+  authorization, by a same-volume rename that copies and rewrites no bytes, and only when: its
+  original path is recorded; its current path is indexed; its file count, total bytes and
+  key-file SHA-256 values are verified before and after the move; and the historical paths
+  embedded inside it (`output_dir`, `repo_root`, ledger and script paths) are **not** rewritten.
+  Those embedded paths are stale by design; the index resolves them.
+- **Current local archive** (closure identities reviewed 2026-09-15):
 
-| Artifact | Location as recorded |
-|---|---|
-| first final-cell short probe | `training_output_20260815_173029` |
-| corrected-cell short probe | `training_output_20260816_162130` |
-| first long baseline (inconclusive) | `training_output_long_baseline_100x8_seed0` |
-| Phase-A long baseline (valid) | `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` |
-| FD-VARIABLE-SEVERITY-v1 baseline (valid) | `C:\Users\Itama\f7r2` |
-| FD-VARIABLE-SEVERITY-v1 precursor (invalid) | `…\fd_variable_severity_v1_measurement_bf1e045f_20260822_150640` |
-| GENERALIZED-V1 R1 run tree and diagnostic bundle | location not recorded; bundle SHA-256 `812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792` |
-| GENERALIZED-V2 benchmark manifest (external) | `C:/Users/Itama/PycharmProjects/graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0/benchmark_manifest.json`, SHA-256 `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103` — as recorded in PR #62's `artifact_sha256.txt` |
-| GENERALIZED-V2 development R1 — actor-only | `C:\Users\Itama\PycharmProjects\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` — `train_config.output_dir` in the run's `run_config.json` (PR #61 head) |
-| GENERALIZED-V2 development R1 — CTDE | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` — `train_config.output_dir` in the run's `run_config.json` (PR #62 head) |
+  | Item | Path | SHA-256 |
+  |---|---|---|
+  | archive root | `C:\gra\` | — |
+  | machine-readable index (authoritative; 28 rows) | `C:\gra\metadata\ARTIFACT_INDEX.jsonl` | `de96d9ba4c04e10c075549d37a1b445a6e513d133ef55591a1849bd0b0b80552` |
+  | human-readable projection (not independent) | `C:\gra\metadata\ARTIFACT_INDEX.md` | `a34d69a52c7f99f93abf402e516345f6c2c9eca0fa213f7bf6efb8c8a5f211c6` |
+  | archive move ledger (28 rows) | `C:\gra\metadata\ARCHIVE_MOVE_LEDGER.jsonl` | `15287e8fa7b1051f48cd2b4d1d629f61d687c567d0c4858c5248569d8b6f9eb7` |
 
-### 4.5 Retired branches observed on `origin` on 2026-09-14
+  Per-artifact identities and recovered provenance:
+  [`measurements.md` §9](../history/measurements.md#9-local-artifact-archive-closure).
+- **Reading the index.** Its `evidence_ref_status` strings and caveats are archive-time text:
+  they still describe PRs #61, #62, #64 and #67 as open and several source worktrees as left in
+  place. Since 2026-09-15 those PRs are closed, their branches deleted and those worktrees removed
+  (§4.3, §4.6); the index is deliberately not rewritten. For `v2_ctde_r1_seed3000000_ae42cb0` and
+  the three diagnostic arms, `file_count` and `total_bytes` exclude the added `sidecars/` child,
+  whose file hashes are listed in each row's caveats.
+- **Retention.** Nothing under `C:\gra\` is cleanup-eligible under this registry — including the
+  B4 engineering smokes, invalid precursor runs, the aborted P1 arm, the Task 5 engineering
+  artifacts, the unclassified `ct1`, `rollouts` and `generated_scenarios`, and the review bundles.
+  Pruning any of them requires its own separate authorization.
 
-Cleanup-eligible only after the §4.1 verification and explicit authorization.
+Principal artifacts, original location → current location (the index lists all 28):
 
-| Branch | Tip | Merged by |
+| Artifact | Original location | Current location (under `C:\gra\`) |
 |---|---|---|
-| `task/generalized-v2-benchmark-doc-lock` | `6cbc4a60d3022b51776a4c027bdfc55beedbadac` | PR #60 |
+| first real post-B3 probe (archive-time identity match, [`measurements.md` §9.3](../history/measurements.md#93-recovered-local-identities)) | `training_output_b4_probe_20260730_182528` (repository checkout) | `runs\legacy_measurements\b4_probe_a3f0838_unconfirmed_registry_match` |
+| first final-cell short probe | `training_output_20260815_173029` (repository checkout) | `runs\legacy_measurements\probe_20260815_238062d` |
+| corrected-cell short probe | `training_output_20260816_162130` (repository checkout) | `runs\legacy_measurements\probe_20260816_900ff0b` |
+| first long baseline (inconclusive) | `training_output_long_baseline_100x8_seed0` (repository checkout) | `runs\legacy_measurements\phase_a_first_long_c30b698` |
+| Phase-A long baseline (valid) | `training_output_long_baseline_100x8_seed0_rerun_20260818_737b4bf` (repository checkout) | `runs\measurements\phase_a_rerun_737b4bf` |
+| FD-VARIABLE-SEVERITY-v1 baseline (valid) | `C:\Users\Itama\f7r2` | `runs\measurements\fd_variable_severity_valid_bf1e045f` |
+| FD-VARIABLE-SEVERITY-v1 precursor (invalid) | `C:\Users\Itama\PycharmProjects\fd_variable_severity_v1_measurement_bf1e045f_20260822_150640` | `runs\legacy_measurements\fd_variable_severity_invalid_precursor_bf1e045f` |
+| GENERALIZED-V1 R1 run tree and diagnostic bundle | `C:\g1r1` | `runs\measurements\generalized_v1_r1_4af6c5a` |
+| aborted P1 arm (`DO NOT RESUME`) | `C:\p1r1` | `runs\legacy_measurements\p1_aborted_8f0d250_DO_NOT_RESUME` |
+| fresh deterministic-P1 arm | `C:\p1_fresh_ae194103` | `runs\measurements\p1_fresh_ae194103` |
+| GENERALIZED-V2 benchmark preflight and manifest | `C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0` | `benchmarks\v2_preflight_seed2000000_ae42cb0` |
+| GENERALIZED-V2 development R1 — actor-only | `C:\Users\Itama\PycharmProjects\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` | `runs\development\v2_actor_only_r1_seed3000000_ae42cb0` |
+| GENERALIZED-V2 development R1 — CTDE | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` | `runs\development\v2_ctde_r1_seed3000000_ae42cb0` |
+| GENERALIZED-V2 CTDE diagnostic arms and sweep driver | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_{smallbatch,largebatch,fd80}_seed3000000_ae42cb0`, `…\graph_rl_v2_ctde_dev_diag_sweep_ae42cb0` | `diagnostics\v2_ctde_{smallbatch,largebatch,fd80}_seed3000000_ae42cb0`, `diagnostics\v2_ctde_sweep_driver_ae42cb0` |
+
+### 4.5 Retired merged branches
+
+**None remains.** On 2026-09-15 each branch below was deleted from `origin` and locally after its
+PR was verified `MERGED` at the listed head and that head was verified an ancestor of live `main`.
+
+| Branch | Head | Merged by |
+|---|---|---|
 | `task/generalized-v2-benchmark-evaluation` | `786e8218a00954f7a7f20fe1dfca93ec71a400d4` | PR #59 |
+| `task/generalized-v2-benchmark-doc-lock` | `6cbc4a60d3022b51776a4c027bdfc55beedbadac` | PR #60 |
+| `docs/project-guidance-restructure` | `7936e97af4549231da0148620689d0326e88a799` | PR #63 |
+| `docs/generalized-v2-development-closure` | `157dd9fdbb92fe2835ef2268f485e58b92523a4d` | PR #66 |
+| `docs/v2-preflight-provenance-closure` | `0378114f5de3629854c72a446220219178b502a5` | PR #68 |
 
-### 4.6 Local worktrees observed on 2026-09-14
+### 4.6 Local worktrees
 
-These detached worktrees exist on the user's machine. Only the FD-VARIABLE-SEVERITY-v1 snapshot's
-role is recorded; do not remove any of them without a user decision.
+**Removed on 2026-09-15** (`git worktree remove` without `--force`, after the §4.1 gates; every
+commit stays reachable from `main`; no branch was deleted by these removals):
 
-| Path | Commit |
-|---|---|
-| `C:/Users/Itama/PycharmProjects/fd_variable_severity_v1_bf1e045f_snapshot` | `bf1e045` — the pinned measurement snapshot |
-| `C:/g1src` | `4af6c5a` |
-| `C:/p1src` | `8f0d250` |
-| `C:/Users/Itama/ct1s` | `76abdc4` |
-| `C:/Users/Itama/PycharmProjects/flat-baseline` | `4d44c34` (`flat-final`) |
+| Path | HEAD | Role |
+|---|---|---|
+| `C:/g1src` | `4af6c5aa5dd28072692bfda63282964b55010aae` | GENERALIZED-V1 R1 execution source |
+| `C:/p1src` | `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` | aborted P1 arm execution source |
+| `C:/Users/Itama/ct1s` | `76abdc480e80a84f1503208730d4525cd5e89b69` | source checkout matching the unclassified `ct1` artifact's recorded commit |
+| `C:/Users/Itama/PycharmProjects/fd_variable_severity_v1_bf1e045f_snapshot` | `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` | FD-VARIABLE-SEVERITY-v1 pinned measurement snapshot |
+
+`git worktree prune --dry-run` then reported no stale metadata, so no prune was run.
+
+**Retained:** `C:/Users/Itama/PycharmProjects/flat-baseline`, carrying protected branch
+`flat-final` at `4d44c3454a5561a6cb9d7aed593d59a40068d6d7`. Its tracked tree is clean, but its
+ignored files hold flat-RL training outputs that are **not** in the local archive —
+`training_output_5k_util_and_match/` (10 514 files, 3 281 368 218 bytes) and
+`training_output_RL_util/` (6 283 files, 1 961 549 611 bytes) — which removing the worktree would
+delete. Its removal needs a separate decision about those outputs. Branch `flat-final` stays
+protected either way.
 
 ### 4.7 Cleanup already performed
 
@@ -252,3 +325,9 @@ role is recorded; do not remove any of them without a user decision.
   observed absent from the remote.
 - The branches the former handoff listed as cleanup-eligible after PR #33 through PR #58 are no
   longer present on `origin` as of 2026-09-14; who removed them, and when, is not recorded.
+- **2026-09-15, research-chapter closure** (live `main` `81d37049845087e970d9416abc99adcbb40aef61`
+  before and after): the local archive of §4.4 was verified (index, ledger and projection hashes;
+  all 28 rows' key hashes, file counts and bytes); PRs #61, #62, #64, #65 and #67 were closed and
+  their branches deleted (§4.3); the five merged branches of §4.5 were deleted; four worktrees
+  were removed and `flat-baseline` retained (§4.6); the protected refs of §4.2 were unchanged.
+  Nothing under `C:\gra\` was modified or deleted.
