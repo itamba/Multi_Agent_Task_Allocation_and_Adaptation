@@ -238,9 +238,7 @@ committed `episode_outcomes` shards and shard index of #61 and #62, whose record
   original path is recorded; its current path is indexed; its file count, total bytes and
   key-file SHA-256 values are verified before and after the move; and the historical paths
   embedded inside it (`output_dir`, `repo_root`, ledger and script paths) are **not** rewritten.
-  Those embedded paths are stale by design; the index resolves them. *(The "never … move" wording
-  of [`experiments.md` §5](experiments.md#5-evidence-preservation) predates this rule and is not
-  yet aligned with it.)*
+  Those embedded paths are stale by design; the index resolves them.
 - **Current local archive** (closure identities reviewed 2026-09-15):
 
   | Item | Path | SHA-256 |
