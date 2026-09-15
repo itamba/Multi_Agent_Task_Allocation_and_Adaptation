@@ -37,6 +37,10 @@
 | GENERALIZED-V2 CTDE diagnostic — `fd80` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64 (same head); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
 | GENERALIZED-V2 matched immediate-FD wake extraction (all five runs above) | reads the five runs' recorded artifacts; executes no project code | temporary review PR #65, head `d565174e4ecc25eb60a4dd021e1a20025f55f07f` | **read-only analysis package, not a measurement and not a run**; extraction integrity `APPROVE` (§8) |
 
+Locations above are **as recorded on their own dates** and are not rewritten. Since 2026-09-15 the
+local artifacts live in the local archive under `C:\gra\`, and PRs #61, #62, #64, #65 and #67 are
+closed with their branches deleted; current locations and archive identities are in §9.
+
 ## 2. Measurement records
 
 - `a3f0838` — **First real post-B3 instrumented probe — CLOSED / REVIEWED MEASUREMENT.**
@@ -1752,3 +1756,135 @@ executed no project code — file reads, JSON parsing and SHA-256 hashing only.
 Full historical provenance is **not** complete. Future confirmatory use of this manifest is
 governed by the 2026-09-15 decision entry
 ([`decisions.md` §1](decisions.md#1-decision-log)).
+
+## 9. Local artifact archive closure
+
+Recorded on 2026-09-15 at the research-chapter Git and worktree cleanup
+([`environments_cleanup.md` §4.7](../workflows/environments_cleanup.md#47-cleanup-already-performed)).
+The archive was organized earlier the same day by authorized same-volume directory renames (move
+timestamps in the ledger); the cleanup task re-verified it read-only — file reads and SHA-256
+hashing only, no project code executed. **The dated records above keep their locations as
+recorded**; this section adds current locations without rewriting them.
+
+### 9.1 Archive identity
+
+- Archive root `C:\gra\`; **28 indexed items**, each with `archive_result = MOVED_VERIFIED`.
+- Machine-readable index `C:\gra\metadata\ARTIFACT_INDEX.jsonl` — 28 rows, SHA-256
+  `de96d9ba4c04e10c075549d37a1b445a6e513d133ef55591a1849bd0b0b80552`; authoritative.
+- Human-readable projection `C:\gra\metadata\ARTIFACT_INDEX.md` — SHA-256
+  `a34d69a52c7f99f93abf402e516345f6c2c9eca0fa213f7bf6efb8c8a5f211c6`; not an independent source.
+- Move ledger `C:\gra\metadata\ARCHIVE_MOVE_LEDGER.jsonl` — 28 rows, SHA-256
+  `15287e8fa7b1051f48cd2b4d1d629f61d687c567d0c4858c5248569d8b6f9eb7`; per item: source,
+  destination, `same_volume = true`, pre- and post-move file count, total bytes and key-file
+  SHA-256 values.
+- **Same-volume rename migration:** no artifact bytes were copied or rewritten, and no scientific
+  artifact was deleted.
+- **Embedded historical paths are unchanged and stale by design.** `output_dir`, `repo_root`,
+  evidence-ledger, `RUN_IDENTITY` and script paths inside the artifacts still name the original
+  locations; the index is the resolver. The index's own `evidence_ref_status` strings are
+  archive-time text and still describe #61, #62, #64 and #67 as open
+  ([`environments_cleanup.md` §4.4](../workflows/environments_cleanup.md#44-preserved-run-directories-and-external-artifacts)).
+
+### 9.2 Preserved identities
+
+Re-verified on 2026-09-15, before any Git evidence was removed: for **all 28 rows**, every indexed
+key-file SHA-256 matched the bytes at the current path, and file count and total bytes matched
+the index. For `v2_ctde_r1…` and the three diagnostic arms the counts exclude the added
+`sidecars/` child, as the ledger's `post_count_note` states; each sidecar file's SHA-256 matched
+the value in its row's caveats. The #61, #62, #64 and #67 evidence ledgers were also cross-checked
+against the archive before their branches were deleted
+([`environments_cleanup.md` §4.3](../workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs)).
+The V2 preflight spot check: `benchmark_manifest.json`
+`dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103`,
+`benchmark_preflight_report.json`
+`a4c90680badb3ee12bae92fc13ae528ba85f00e26e59f9ed36493be2f6d4e216`, 120 scenario files.
+
+"Measured SHA" is the value the index records, with its provenance and caveats in the index row;
+it is not a verdict. Paths are relative to `C:\gra\`.
+
+| Artifact id | Group | Current path | Measured SHA (index) | Files | Bytes | Key hashes |
+|---|---|---|---|---|---|---|
+| `v2_benchmark_preflight_seed2000000_ae42cb0` | benchmarks | `benchmarks\v2_preflight_seed2000000_ae42cb0` | `ae42cb0` | 125 | 2652472 | 125 |
+| `v2_actor_only_r1_seed3000000_ae42cb0` | development | `runs\development\v2_actor_only_r1_seed3000000_ae42cb0` | `ae42cb0` | 3994 | 170956871 | 8 |
+| `v2_ctde_r1_seed3000000_ae42cb0` | development | `runs\development\v2_ctde_r1_seed3000000_ae42cb0` | `ae42cb0` | 3993 | 185228275 | 7 |
+| `v2_ctde_smallbatch_seed3000000_ae42cb0` | diagnostics | `diagnostics\v2_ctde_smallbatch_seed3000000_ae42cb0` | `ae42cb0` | 3993 | 185316529 | 25 |
+| `v2_ctde_largebatch_seed3000000_ae42cb0` | diagnostics | `diagnostics\v2_ctde_largebatch_seed3000000_ae42cb0` | `ae42cb0` | 3993 | 184081905 | 25 |
+| `v2_ctde_fd80_seed3000000_ae42cb0` | diagnostics | `diagnostics\v2_ctde_fd80_seed3000000_ae42cb0` | `ae42cb0` | 3993 | 190072468 | 25 |
+| `v2_ctde_sweep_driver_ae42cb0` | diagnostics | `diagnostics\v2_ctde_sweep_driver_ae42cb0` | `ae42cb0` | 14 | 49921 | 14 |
+| `phase_a_rerun_737b4bf` | valid | `runs\measurements\phase_a_rerun_737b4bf` | `737b4bf` | 5457 | 7543993559 | 8 |
+| `phase_a_first_long_c30b698` | invalid | `runs\legacy_measurements\phase_a_first_long_c30b698` | `c30b698` | 5342 | 6826059323 | 9 |
+| `probe_20260815_238062d` | invalid | `runs\legacy_measurements\probe_20260815_238062d` | `238062d` | 126 | 132861584 | 5 |
+| `probe_20260816_900ff0b` | invalid | `runs\legacy_measurements\probe_20260816_900ff0b` | `900ff0b` | 126 | 160394934 | 6 |
+| `b4_probe_a3f0838_unconfirmed_registry_match` | invalid | `runs\legacy_measurements\b4_probe_a3f0838_unconfirmed_registry_match` | `a3f0838` | 19 | 1713678 | 6 |
+| `b4_observability_smoke_20260801_152146` | engineering | `legacy\engineering_smoke\training_output_b4_observability_smoke_20260801_152146` | — | 10 | 1562127 | 5 |
+| `b4_observability_smoke_20260801_173605` | engineering | `legacy\engineering_smoke\training_output_b4_observability_smoke_20260801_173605` | — | 10 | 1562127 | 5 |
+| `fd_variable_severity_valid_bf1e045f` | valid | `runs\measurements\fd_variable_severity_valid_bf1e045f` | `bf1e045` | 3201 | 4664082617 | 12 |
+| `fd_variable_severity_invalid_precursor_bf1e045f` | invalid | `runs\legacy_measurements\fd_variable_severity_invalid_precursor_bf1e045f` | `bf1e045` | 3131 | 4181116530 | 6 |
+| `generalized_v1_r1_4af6c5a` | valid | `runs\measurements\generalized_v1_r1_4af6c5a` | `4af6c5a` | 3993 | 157499888 | 36 |
+| `p1_aborted_8f0d250_DO_NOT_RESUME` | invalid | `runs\legacy_measurements\p1_aborted_8f0d250_DO_NOT_RESUME` | `8f0d250` | 472 | 14508617 | 8 |
+| `p1_fresh_ae194103` | valid | `runs\measurements\p1_fresh_ae194103` | `ae19410` | 3929 | 210665675 | 13 |
+| `p1_fresh_preflight_revalidation` | review | `reviews\p1_fresh_preflight_revalidation` | — | 29 | 317640 | 3 |
+| `p1_construction_audit_ae194103` | review | `reviews\p1_construction_audit_ae194103` | — | 95 | 35514071 | 17 |
+| `phase_a_rerun_737b4bf_gpt_review` | review | `reviews\phase_a_rerun_737b4bf_gpt_review` | `737b4bf` | 1203 | 64282536 | 6 |
+| `phase_a_rerun_737b4bf_gpt_review_zip` | review | `reviews\long_baseline_rerun_737b4bf_gpt_review.zip` | `737b4bf` | 1 | 3076694 | 1 |
+| `task5a_engineering` | engineering | `legacy\engineering\task5a` | `09eab06` | 59 | 2929321 | 4 |
+| `task5b_engineering` | engineering | `legacy\engineering\task5b` | `4af6c5a` | 133 | 3967760 | 4 |
+| `ct1_possible_old_fixed_cell_ctde` | unknown | `legacy\unclassified\ct1_possible_old_fixed_cell_ctde` | — | 3202 | 4671039030 | 4 |
+| `legacy_rollouts` | unknown | `legacy\unclassified\rollouts` | — | 35 | 497740 | 1 |
+| `legacy_generated_scenarios` | unknown | `legacy\unclassified\generated_scenarios` | — | 4 | 97663 | 1 |
+
+Group labels are archive organization, not verdicts; every verdict stays as recorded in §1–§8.
+
+### 9.3 Recovered local identities
+
+Recorded to close earlier "not recorded" gaps where the archived bytes support it, and only that
+far. None changes a verdict.
+
+- **First real post-B3 probe (`a3f0838`).** The archived directory formerly named
+  `training_output_b4_probe_20260730_182528` — now
+  `runs\legacy_measurements\b4_probe_a3f0838_unconfirmed_registry_match` — has **6 of 6** key
+  files (`run_config.json`, `train_records.jsonl`, `eval_records.jsonl`, `episode_failures.jsonl`,
+  `run_summary.json`, `training_plot.png`) byte-identical to the evidence SHA-256 values of the
+  `a3f0838` record in §2, re-hashed on 2026-09-15. This is an **archive-time identity match to the
+  recorded first post-B3 probe**, which strongly closes the registry's location gap. No claim is
+  made about where the directory was when the probe was reviewed; the archive directory name is
+  kept as it is.
+- **Aborted P1 arm.** The archived arm's own `RUN_IDENTITY.txt` and `run/run_config.json` record
+  measured code SHA `8f0d250cd9f96e6b8bce635065701dc47a5ee87e` (`run_config.json`: `dirty =
+  false`; `RUN_IDENTITY.txt`: detached execution worktree `C:/p1src`, backend `p1_milp_v1`,
+  `actor_only`, `generalized_v1`). This is **recovered local artifact provenance for the
+  already-invalid arm of §6.1**: it stays **`ABORTED / DO NOT RESUME`**, is not a measurement and
+  is not upgraded by this identity. Current path
+  `runs\legacy_measurements\p1_aborted_8f0d250_DO_NOT_RESUME`.
+- **Task 5A.** The preserved engineering artifact's `README_ENGINEERING_ONLY.txt`, `console.log`
+  and `r/run_config.json` (`dirty = false`) record repository SHA
+  `09eab0673153bd443185ec94530ccf0b042be465`, a commit
+  reachable from `main`. This closes the missing local Task 5A identity of §1; it remains
+  **engineering validation only**, not a measurement. Current path `legacy\engineering\task5a`.
+- **GENERALIZED-V1 R1.** The run tree, formerly `C:\g1r1`, is now
+  `runs\measurements\generalized_v1_r1_4af6c5a`; among its 36 re-verified key files is
+  `GENERALIZED_V1_R1_FD_POLICY_DIAGNOSTICS.zip` with the recorded bundle SHA-256
+  `812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792`.
+- **Fresh deterministic-P1 arm.** Formerly `C:\p1_fresh_ae194103`, now
+  `runs\measurements\p1_fresh_ae194103`; its index row records the measured SHA from the arm's
+  own review bundle, equal to §6.2's `ae1941035991df4719df212c4b5dd07db89aee4a`. §6.2's statement
+  that no identity, denominators or artifacts are recorded stays as the record it was; nothing
+  beyond location and key hashes is added here.
+- **Fresh P1 construction audit.** Beyond its directory name, the preserved
+  `results\construction_audit_report.json` itself records `repository_sha` and `head_sha`
+  `ae1941035991df4719df212c4b5dd07db89aee4a` with an empty `porcelain` on `main` — provenance
+  emitted by the audit tooling, not an external attestation. It remains **engineering / design
+  evidence**, not a measurement. Current path `reviews\p1_construction_audit_ae194103`.
+- **`ct1`.** `legacy\unclassified\ct1_possible_old_fixed_cell_ctde` (formerly
+  `C:\Users\Itama\ct1`) records `run_config` commit `76abdc480e80a84f1503208730d4525cd5e89b69`
+  and `training_mode = ctde`. **That is not sufficient to identify it as the old fixed-cell CTDE
+  measurement of §1.** Classification stays **`UNKNOWN / possible old fixed-cell CTDE arm`**; it is
+  not reinterpreted, reviewed or compared.
+
+### 9.4 Non-claims
+
+No artifact under `C:\gra\` was modified or deleted by the cleanup; no verdict, measured SHA or
+classification in §1–§8 is changed; no invalid, aborted, engineering or unclassified artifact is
+upgraded; the B4 engineering smokes, `rollouts` and `generated_scenarios` stay uninterpreted;
+closing the evidence PRs and deleting their branches removes no conclusion recorded in this
+document.
