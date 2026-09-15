@@ -30,8 +30,12 @@
 | aborted P1 arm | not recorded | not recorded | `ABORTED / DO NOT RESUME` — not a measurement |
 | fresh deterministic-P1 arm | `ae1941035991df4719df212c4b5dd07db89aee4a` | not recorded | accepted as a valid measurement; negative primary MILD-vs-SEVERE result |
 | GENERALIZED-V2 benchmark preflight (produced the external manifest) | **unverified** — no preflight evidence is in the repository, and the consuming runs' measured SHA does not establish the producer's | external manifest, see §7; not part of either evidence package | no authorization or review record in the repository |
-| GENERALIZED-V2 development R1 — actor-only | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #61, head `1375a881637a9a32721a1630f598adc571422a47` | no verdict recorded in accessible artifacts |
-| GENERALIZED-V2 development R1 — CTDE | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #62, head `b2bbe7a6235c3b9255106826cfb268af7e73f72d` | PR #62 records a prior GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`; not independently verified |
+| GENERALIZED-V2 development R1 — actor-only | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #61, head `1375a881637a9a32721a1630f598adc571422a47`; local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` | no verdict recorded in accessible artifacts; an input to the 2026-09-15 development interpretation (§8) |
+| GENERALIZED-V2 development R1 — CTDE | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #62, head `b2bbe7a6235c3b9255106826cfb268af7e73f72d`; local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` | PR #62 records a prior GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`; not independently verified |
+| GENERALIZED-V2 CTDE diagnostic — `smallbatch` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64, head `90516d51beeddacded2b89a321d14291e411f2b0`; local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
+| GENERALIZED-V2 CTDE diagnostic — `largebatch` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64 (same head); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
+| GENERALIZED-V2 CTDE diagnostic — `fd80` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64 (same head); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
+| GENERALIZED-V2 matched immediate-FD wake extraction (all five runs above) | reads the five runs' recorded artifacts; executes no project code | temporary review PR #65, head `d565174e4ecc25eb60a4dd021e1a20025f55f07f` | **read-only analysis package, not a measurement and not a run**; extraction integrity `APPROVE` (§8) |
 
 ## 2. Measurement records
 
@@ -1410,3 +1414,255 @@ these runs is not recorded in the repository.
 - **Known artifact defect.** Both `run_summary.json` files carry the wrong
   `generalized.cardinality_sampler` label
   ([artifacts and metrics §6.1](../contracts/artifacts_metrics.md#61-known-summary-label-defect-run_summaryjsongeneralizedcardinality_sampler)).
+
+## 8. GENERALIZED-V2 development closure
+
+Recorded on 2026-09-15. It extends §7, which stays as the record it was on 2026-09-14. The
+decisions taken on this record are in
+[`decisions.md` §1](decisions.md#1-decision-log) (2026-09-15 rows).
+
+### 8.1 Scope and epistemic status
+
+Several distinct things are recorded here. Each has its own status, and none upgrades another:
+
+| Layer | What it is | Status |
+|---|---|---|
+| technical completion and accounting | the five runs finished and reconciled their own counts | established from each run's own artifacts (§8.3) |
+| evidence preservation | PR #61, #62 and #64 carry copies of run files | PR #64's preservation candidate `90516d51…` was approved, as stated in the user-transferred packet of 2026-09-15; GitHub holds no review or comment record on any of the four PRs |
+| analysis package | PR #65 extracts per-wake rows and matched pairs from recorded artifacts | extraction integrity `APPROVE` at `d565174e…` (same attribution); a **temporary** package, not a permanent evidence archive |
+| scientific interpretation | what the combined development data are consistent with | a **development** interpretation, conditioned on the recorded frozen manifest (§8.10) |
+| confirmatory evidence | — | **none exists**. The confirmatory profile was not used |
+
+**The three overnight arms are development diagnostic runs**, executed by one sequential
+LOCAL `nlp_env` sweep between 2026-09-13 22:20 UTC and 2026-09-14 03:27 UTC. They are not
+confirmatory measurements. **Repeated evaluation rounds re-measure the same frozen development
+worlds.** Cross-round totals below describe repeated measures, never independent worlds
+([`experiments.md` §4.3](../workflows/experiments.md#43-interpretation-rules)).
+
+Every number in §8.3–§8.9 was checked on 2026-09-15 against the relevant preserved evidence
+files at the evidence heads named in §1. For the two R1 arms (PR #61, PR #62), those heads provide
+the run configuration, summary, evaluation, training and episode evidence used here. For the three
+diagnostic arms, PR #64 additionally provides each arm's `accounting_check.json`. PR #65 provides
+`immediate_fd_wakes.jsonl`, `matched_mild_severe_pairs.jsonl` and `extraction_summary.json`. No
+scientific execution was needed or performed for that check.
+
+### 8.2 The five runs
+
+All five record measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8` with
+`provenance.git.dirty = false`. Evidence-commit SHAs are ledger locations, not measurement
+identities ([artifacts and metrics §6.2](../contracts/artifacts_metrics.md#62-measured-code-sha-versus-evidence-commit-identity)).
+
+| Variant | `training_mode` | Evidence ref at review | Local original |
+|---|---|---|---|
+| actor-only R1 | `actor_only` | PR #61 @ `1375a881637a9a32721a1630f598adc571422a47` | `C:\Users\Itama\PycharmProjects\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` |
+| CTDE R1 | `ctde` | PR #62 @ `b2bbe7a6235c3b9255106826cfb268af7e73f72d` | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` |
+| `smallbatch` | `ctde` | PR #64 @ `90516d51beeddacded2b89a321d14291e411f2b0` | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0` |
+| `largebatch` | `ctde` | PR #64 (same) | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0` |
+| `fd80` | `ctde` | PR #64 (same) | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0` |
+
+PR #64 does not commit the three arms' `episode_outcomes.jsonl`, checkpoints, plots or
+`scenarios/`. It records their hashes in its `artifact_sha256.txt`.
+
+### 8.3 Shared configuration and accounting
+
+- **Controlled R1 pair.** Actor-only R1 and CTDE R1 are GENERALIZED-V2 development-profile runs
+  with the same recorded frozen manifest, seed and training budget, differing in
+  `training_mode` (§7).
+- **Common to all five runs:** `episode_design = generalized_v2`, `match_aou_backend =
+  p1_milp_v1`, `benchmark_profile = development`, `fuel_damage_mode = seeded_variable`,
+  `fuel_damage_mild_probability = 0.5`, `base_seed = 3000000`, `early_stopping = false`,
+  `held_out_verified = true`, `manifest_id
+  ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8`.
+- **Identical accounting in all five `run_summary.json`:** training 3008 attempted / 3000
+  successful / 8 failed, all `FuelDamageError` at `setup`; evaluation 960 / 960 / 0 over 16
+  rounds (1 `pre_update` + 15 `post_update`); `accounting_reconciled = true`; early stopping not
+  triggered. Each diagnostic arm's own read-only `accounting_check.json` reports `PASS` with an
+  empty `hard` list.
+- **What differs** (`run_config.json:/train_config`; transitions per update =
+  `run_summary.json:total_transitions / updates_completed`):
+
+| Variant | `n_iterations` | successful episodes / update | `generalized_max_attempts_per_iteration` | `fuel_damage_probability` | updates completed | transitions / update |
+|---|---:|---:|---:|---:|---:|---:|
+| actor-only R1 | 375 | 8 | 12 | 0.5 | 375 | ≈ 24.8 |
+| CTDE R1 | 375 | 8 | 12 | 0.5 | 375 | ≈ 24.9 |
+| `smallbatch` | 750 | 4 | 6 | 0.5 | 750 | ≈ 12.1 |
+| `largebatch` | 150 | 20 | 30 | 0.5 | 150 | ≈ 61.3 |
+| `fd80` | 375 | 8 | 12 | **0.8** | 375 | ≈ 29.6 |
+
+- **Known label defect, non-behavioural.** Every `run_summary.json:/generalized/cardinality_sampler`
+  carries the GENERALIZED-V1 record (`generalized_cardinality_uniform_v1`). This is a summary label
+  only; no archived artifact is rewritten
+  ([artifacts and metrics §6.1](../contracts/artifacts_metrics.md#61-known-summary-label-defect-run_summaryjsongeneralizedcardinality_sampler)).
+
+### 8.4 Final primary endpoint
+
+The endpoint is `SEVERE − MILD` aggregate `P(SELF_PRESERVATION_ABORT)` in the semantically
+selected final round, macro-averaged with equal weight over the ten base cells of matched V2
+groups ([training and benchmarks §9](../contracts/training_benchmarks.md#9-generalized-v2-benchmark-and-evaluation)).
+It comes from `run_summary.json:/generalized/v2_benchmark/final_round_behaviour`. The final-round
+mean of the PR #65 pair deltas reproduces each value exactly.
+
+| Variant | Final round (updates) | `macro_mean_over_base_cells` | Base cells defined | MILD→SEVERE selected-action switches (directional / reverse) |
+|---|---:|---:|---:|---:|
+| actor-only R1 | 375 | `+2.0936131477355958e-07` | 10 / 10 | 0 / 0 |
+| CTDE R1 | 375 | `-2.415850758552551e-07` | 10 / 10 | 0 / 0 |
+| `smallbatch` | 750 | `-2.9802322387695314e-09` | 10 / 10 | 0 / 0 |
+| `largebatch` | 150 | `-9.080488234758377e-05` | 10 / 10 | 0 / 0 |
+| `fd80` | 375 | `-8.512288331985474e-08` | 10 / 10 | 0 / 0 |
+
+**Development finding: none of the five final policies showed meaningful severity-conditioned
+selected-action separation on the frozen development benchmark.** These are small
+aggregate-probability differences that produced no final MILD↔SEVERE selected-action switches;
+they are not evidence of behavioural separation.
+
+### 8.5 The three CTDE diagnostic arms
+
+Each arm changes one training-configuration axis away from CTDE R1 and holds the design,
+backend, manifest, profile and seed fixed (§8.3).
+
+- **`smallbatch`.** Question: do more frequent PPO updates on smaller batches (4 successful
+  episodes and ≈ 12 transitions per update, 750 updates, same 3000-episode budget) reveal or
+  stabilize severity-dependent learning? **Final result: no severity separation.**
+  **Transient:** in the rounds at updates 200 and 250, all 20 MILD and all 20 SEVERE immediate-FD
+  wakes selected `SELF_PRESERVATION_ABORT`, with zero MILD↔SEVERE selected-action differences.
+  **This was a global conservative mode, not severity discrimination.** It had reverted by the
+  next evaluated round.
+- **`largebatch`.** Question: does a larger, lower-variance update (20 successful episodes and
+  ≈ 61 transitions per update, 150 updates) improve severity discrimination? **Final result: no
+  severity separation.** **Transient:** at update 30 the round-mean `SEVERE − MILD` aggregate
+  `P(ABORT)` was ≈ `+0.02847057`, yet all 20 MILD and all 20 SEVERE wakes still selected
+  `PLAN_COMPLIANCE`. A sizable aggregate-probability sensitivity appeared transiently without
+  crossing the deterministic action boundary.
+- **`fd80`.** Question: is insufficient fuel-damage exposure the explanation? Training
+  `fuel_damage_probability` was raised from R1's 0.5 to 0.8. Training population: 541 CLEAN /
+  1247 MILD / 1212 SEVERE successful episodes and 2459 applied FD events, against 1474 / 774 / 752
+  and 1526 in both R1 arms. **Final result: severity separation remained effectively zero
+  despite substantially more FD training exposure.**
+
+### 8.6 Matched immediate-FD wake analysis
+
+**Provenance.** Temporary review PR #65, approved extraction candidate
+`d565174e4ecc25eb60a4dd021e1a20025f55f07f`. It is a standard-library read-only extraction from
+the five runs' already-recorded `wake_decisions`. It is not a scientific execution: no replay,
+checkpoint load, policy recomputation, BLADE or solver run. Its source hashes equal the PR #61,
+#62 and #64 ledgers, and the sources were unchanged by extraction. The package is not intended
+as permanent repository evidence; its quantitative findings are recorded here.
+
+**Coverage.** 5 variants × 16 evaluation rounds × 20 matched development groups per round:
+**1600 MILD/SEVERE pairs and 3200 immediate-FD wakes**. Every expected pair formed, every MILD and
+SEVERE member had exactly one immediate-FD wake, and `extraction_summary.json:/anomalies` is
+empty. The pairs include each run's `pre_update` round. **They are matched pair observations
+across repeated evaluations of the same frozen development worlds, not 1600 independent
+worlds.**
+
+**What the actor sees** (measured code `ae42cb01…`,
+[policy and CTDE §1](../contracts/policy_ctde.md#1-graph-observation-stage-3)):
+
+- the ego's own `fuel_norm = current_fuel / max_fuel`, clipped;
+- a per-task `reachable_by_ego` bit, currently the conservative round-trip placeholder
+  `round_trip_cost ≤ budget·(1 − σ)` rather than remaining-route slack
+  ([policy and CTDE §6](../contracts/policy_ctde.md#6-known-limitations-and-open-items));
+- a per-task distance, `dist_to_ego_norm`, recorded as `task_distance_norm`: haversine distance
+  over the fixed normalizer `theater_scale_km`, clipped to `[0, 1]`.
+
+- **Selected action.** The selected meta-action differed in **0 / 1600** pairs. Totals were
+  MILD: 1560 `PLAN_COMPLIANCE`, 40 `SELF_PRESERVATION_ABORT`; SEVERE: 1560 and 40. All 80
+  `ABORT` wakes are the `smallbatch` rounds at updates 200 and 250. This is a development
+  finding, not an independence claim.
+- **Fuel signal.** Recorded `SEVERE − MILD ego_fuel_norm` had mean ≈ `-0.43648`, min ≈ `-0.48432`
+  and max ≈ `-0.35513`; the statistics are identical in every variant. **The actor observation
+  therefore contains a large, direct post-damage fuel difference.**
+- **Reachability signal.** These comparisons are positional: the records do not independently
+  certify that task-node order is identical across the two members, as the PR #65 manifest
+  cautions. No pair had exact-equal `reachable_by_ego` vectors, so all 1600 differ in at least
+  one entry. Over 8000 compared entries, MILD→SEVERE transitions were `1→0`: 4000, `0→1`: 0,
+  `1→1`: 2880, `0→0`: 1120. Every pair had at least one `1→0`, with a mean of 2.5 and a maximum
+  of 7 per pair. Each variant shows the same aggregate pattern (800 / 0 / 576 / 224). **This is
+  positional-vector evidence, not an independently reconstructed task-identity proof.**
+- **Distance signal.** Recorded `task_distance_norm` vectors were exactly equal MILD vs SEVERE
+  in all 1600 pairs. That includes the 7 pairs whose wake ticks differ by one (all in group
+  `A5-D0-w001`). Equality is physically unsurprising, because fuel damage changes fuel, not
+  location. **Clipping is near-total at these wakes:** in every one of the 160 round × severity
+  wake populations, 19 of 20 wakes had every task distance clipped, for a mean clipped fraction
+  of `0.99375`. This limits how informative absolute distance can be for route-relative
+  reasoning. It does not establish that distance clipping caused anything.
+
+### 8.7 Action-geometry finding
+
+This is an observed structural phenomenon. **It is not a proven cause of the failure to learn
+severity separation.**
+
+The action distribution is a flattened `k × 3` categorical. Deterministic selection is
+`torch.argmax` over the row-major joint cells. `PLAN_COMPLIANCE` and `SELF_PRESERVATION_ABORT`
+keep node-indexed selection identities even though `PLAN` makes no node-scoped plan edit and
+`ABORT`'s effect is ego-global and independent of the selected node
+([policy and CTDE §2–§3](../contracts/policy_ctde.md#2-encoder-action-head-and-selection-stage-4)).
+
+In the `smallbatch` rounds at updates 200 and 250, **for each severity separately**:
+
+| Update | Selected `ABORT` | Aggregate meta-action argmax | `joint_vs_aggregate_disagree` | Mean aggregate `P(PLAN)` / `P(ABORT)` |
+|---:|---:|---|---:|---|
+| 200 | 20 / 20 | `PLAN` 17, `ABORT` 3 | 17 / 20 | ≈ 0.6577 / 0.3423 |
+| 250 | 20 / 20 | `PLAN` 17, `ABORT` 3 | 17 / 20 | ≈ 0.6427 / 0.3573 |
+
+In both rounds, deterministic joint-cell selection chose `ABORT` in all 20 wakes, while in 17 of
+them most of the aggregate semantic mass lay on `PLAN`. **This is direct evidence that
+joint-cell deterministic selection and aggregate semantic meta-action preference can diverge
+materially under the current action representation.** On its own it does not establish that
+this aliasing caused the absence of severity separation.
+
+### 8.8 Transient aggregate severity sensitivity
+
+The actor was not mathematically invariant to severity. The largest round-mean
+`SEVERE − MILD` aggregate `P(ABORT)` over all 80 rounds were:
+
+| Rank | Variant, update | Round mean |
+|---:|---|---:|
+| 1 | `largebatch`, 30 | `+0.028471` |
+| 2 | `largebatch`, 70 | `+0.013429` |
+| 3 | actor-only R1, 175 | `+0.006877` |
+| 4 | `largebatch`, 80 | `+0.006050` |
+| 5 | `largebatch`, 60 | `+0.005556` |
+
+In all five rounds, MILD and SEVERE each selected `PLAN_COMPLIANCE` in 20 / 20 wakes, and
+`joint_vs_aggregate_disagree` was false on every wake. **The learned distribution was capable of
+transient severity sensitivity, but it did not become stable, severity-conditioned
+deterministic behaviour.** Non-claim: the actor is not described as unable to distinguish
+the states at all.
+
+### 8.9 Actor-only versus CTDE
+
+- Actor-only R1 and CTDE R1 both ended with effectively zero primary separation (§8.4). **No
+  development evidence establishes a CTDE benefit for the target severity-conditioned
+  behaviour**, and the three CTDE batch and exposure variants did not establish one either.
+- The narrow conclusion: **the implemented centralized critic / GAE path was not sufficient to
+  produce the observed target behaviour under these development runs.** This is not a general
+  statement about CTDE.
+- Credit semantics at the measured code: actor-only uses per-ego-grouped chains over the
+  episode's scalar terminal reward (`compute_returns_and_advantages`). CTDE runs GAE over the
+  episode's global decision sequence with a training-only centralized critic
+  ([policy and CTDE §4](../contracts/policy_ctde.md#4-phase-b-ctde)).
+- **No per-immediate-FD-transition MILD/SEVERE advantage diagnostic was persisted**, in either
+  mode. Whether the relevant wake receives a stable, discriminative advantage signal
+  **remains unresolved**.
+
+### 8.10 Benchmark-provenance boundary and non-claims
+
+- **Manifest identity is consistent.** All five run configs record `manifest_id
+  ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8`, profile `development`,
+  `held_out_verified = true`. The external file is SHA-256
+  `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103` at
+  `C:/Users/Itama/PycharmProjects/graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0/benchmark_manifest.json`,
+  as recorded by PR #62's `artifact_sha256.txt`; PR #64's `sweep/sweep_log.txt` records the same
+  file hash on each arm's `ARM END` line.
+- **The producing preflight's code provenance, authorization and independent review are still
+  not preserved in the repository** (§7). Its producer SHA is **not known**; the directory name
+  and the consuming runs' SHA do not establish it.
+- Three things are therefore kept distinct: run, accounting and artifact consistency
+  (established); the development interpretation, conditioned on the recorded frozen manifest
+  (this section); and full benchmark-provenance closure (**open**).
+- The CTDE R1 verdict provenance in §7 is unchanged.
+- **Non-claims.** No confirmatory result exists. No hypothesis is shown mathematically
+  impossible. None of these is established as a cause of the missing severity separation: the
+  action-geometry mismatch (§8.7), distance clipping, the reachability changes, or critic
+  diagnostics. No CTDE conclusion beyond §8.9 is drawn.
