@@ -22,13 +22,57 @@
 ## 2. Encoder, action head and selection (Stage 4)
 
 **Encode + decide (Stage 4) — `rl/agent/graph_encoder.py` + `rl/action/graph_action.py`.**
-`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the size-agnostic **critic hook**, now CONSUMED by the Phase-B `CentralCritic` (its own SECOND `GraphEncoder` instance + `ValueHead`; the ACTOR's encoder and head are unchanged and carry no value head — see the CTDE contract below). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]`. `build_action_mask(obs, ...) -> [k,3]` (hard physical/structural legality; `OPPORTUNISTIC_ENGAGEMENT` gated by `unassigned` AND `sensed`). `sample_action(logits, mask, deterministic=False) -> (meta:int, node_v:int, log_prob, entropy)`. `evaluate_action(logits, mask, meta, node_v) -> (log_prob, entropy)` re-scores a stored decision through the SAME private `_masked_dist` construction site (grad-mode caller-controlled; masked / out-of-bounds cells fail loud). **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
-**SELECTION CONTRACT (locked by Defect A, `d56fda6`).** The action surface REMAINS `k × 3`, and EVERY meta-action retains NODE-INDEXED SELECTION IDENTITY: the selected `(node_v, meta_action)` cell is what `sample_action` samples, what `Transition` stores, and what `evaluate_action` re-scores under PPO, with `node_v` still bounds-checked to `[0, k)`. **Selection identity is NOT effect scope**, and the three members differ on the second: `PLAN_COMPLIANCE` performs NO plan edit; `OPPORTUNISTIC_ENGAGEMENT` has a NODE-LOCAL effect (it assigns the ego to THAT task node); `SELF_PRESERVATION_ABORT` has an EGO-GLOBAL effect (Stage 5). `build_action_mask` governs SELECTION only — its per-column legality rules, `NUM_META_ACTIONS`, the logit/mask shape and the sampling/evaluation action identities are all UNCHANGED by Defect A.
+`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the size-agnostic **critic hook**, now CONSUMED by the Phase-B `CentralCritic` (its own SECOND `GraphEncoder` instance + `ValueHead`; the ACTOR's encoder and head are unchanged and carry no value head — see the CTDE contract below). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]` emits the per-node SOURCE scores `z[v, m]`. `build_action_mask(obs, ...) -> [k,3]` states per-CELL legality (hard physical/structural: PLAN always; `OPPORTUNISTIC_ENGAGEMENT` iff `unassigned & sensed & capable & reachable`; `SELF_PRESERVATION_ABORT` iff `assigned_to_ego`) and is the SOURCE of semantic-leaf legality, not the action space. **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
+
+**SELECTION CONTRACT — THE SEMANTIC ACTION REPRESENTATION `semantic_k_plus_2_logmeanexp_v1`
+(`graph_action.ACTION_REPRESENTATION_ID`; user-approved 2026-09-16,
+[`decisions.md` §1](../history/decisions.md#1-decision-log)).** It supersedes the node-indexed
+selection identity locked by Defect A (`d56fda6`), under which every meta-action was selected,
+stored and re-scored as one of `k × 3` cells; that representation is historical and is what every
+run and checkpoint before this change used.
+
+- **ONE categorical over `k + 2` SEMANTIC LEAVES, in a fixed order:** leaf 0 global
+  `PLAN_COMPLIANCE`, leaf 1 global `SELF_PRESERVATION_ABORT`, leaf `2 + i`
+  `OPPORTUNISTIC_ENGAGEMENT(task_i)`. It is derived from the EXISTING `k × 3` source scores by
+  count-normalized collapse — **no new actor head, no new actor input, encoder unchanged**:
+  - `s_PLAN = logsumexp_v z[v, PLAN] − log k` (exact `logmeanexp` over all `k` nodes);
+  - `s_ABORT = logsumexp_{v abort-legal} z[v, ABORT] − log n_abort_legal`, over exactly the
+    nodes whose ABORT cell is legal; the ONE ABORT leaf is masked when none is;
+  - `s_ENGAGE(i) = z[i, ENGAGE]`, legal iff that cell is legal.
+
+  Count normalization is part of the contract: duplicating equal PLAN / ABORT evidence over more
+  nodes buys no probability. No canonical node is chosen for PLAN or ABORT. Illegal leaves are
+  exactly `−inf`; dtype, device and gradients follow the source scores. **`k == 0` fails loud**
+  (`ValueError`): no pooled or invented global score exists.
+- **ONE construction site, `graph_action._semantic_dist`.** `sample_action`, `evaluate_action`
+  and `summarize_decision` all route through it. `sample_action(logits, mask, deterministic=False)
+  -> (meta:int, node_v:Optional[int], log_prob, entropy)`; deterministic selection is
+  `torch.argmax` over the SEMANTIC leaves, so an exact tie resolves in leaf order (PLAN, ABORT,
+  ENGAGE by ascending task index) — never a source cell and never an aggregate reconstructed
+  afterwards.
+- **STORED IDENTITY IS SEMANTIC.** `Transition.(meta_action, node_v)` stores `node_v = None` for
+  PLAN and ABORT and the task index for ENGAGE — never a placeholder node.
+  `evaluate_action(logits, mask, meta, node_v) -> (log_prob, entropy)` re-scores it through the
+  same site (grad mode caller-controlled) and FAILS LOUD (`ValueError`) on a global action
+  carrying a node, an ENGAGE without an integer node (booleans refused), an out-of-bounds node or
+  meta-action, an ENGAGE whose cell is masked at update time, and an ABORT stored while no abort
+  cell is legal. With unchanged weights the re-scored log-prob is bitwise the stored one, so the
+  epoch-0 PPO ratio is exactly 1 in BOTH updaters.
+- **THE ENTROPY BONUS IS THE SEMANTIC-LEAF ENTROPY** (masked-safe clamp form); there is no alias
+  spread left to reward.
+- **PERMUTATION AND SIZE.** Permuting task nodes leaves the PLAN and ABORT scores and probabilities
+  unchanged and permutes the ENGAGE leaves (and a deterministic ENGAGE choice) with their nodes.
+  **Total ENGAGE mass still depends on how many genuinely distinct ENGAGE actions exist and their
+  scores** — deliberately not changed here ([§6](#6-known-limitations-and-open-items)).
+- **SELECTION IDENTITY IS STILL NOT EFFECT SCOPE:** `PLAN_COMPLIANCE` performs NO plan edit;
+  `OPPORTUNISTIC_ENGAGEMENT` has a NODE-LOCAL effect; `SELF_PRESERVATION_ABORT` has an EGO-GLOBAL
+  effect (Stage 5). `build_action_mask`'s per-cell rules, `NUM_META_ACTIONS` and the `[k, 3]`
+  score / mask shape are unchanged.
 
 ## 3. Plan effect (Stage 5)
 
 **Effect (Stage 5) — `rl/action/graph_effect.py`.**
-`apply_meta_action(solution, obs, ego_id, meta_action, node_v, tasks) -> new_solution`. PURE (BLADE-free, torch-free), copy-on-write (`_copy_solution`, never mutates input). comply = no-op; engage = add an ego→task assignment AT THE SELECTED NODE. **ABORT IS EGO-GLOBAL (locked by Defect A, `d56fda6`):** selecting `SELF_PRESERVATION_ABORT` on ANY legal cell clears **ALL** of the acting ego's REMAINING assignments, and **the selected node does NOT scope the effect** — every legal abort cell of a given ego therefore produces the identical empty slice. Only `solution[str(ego_id)]` is written: **peer assignment slices, peer beliefs and every task list stay untouched**, `tasks` remains append-only, and `GraphPlanExecutor.done` is not reset. An ego with no key already has an empty mission, so the dict SHAPE is preserved as found (no key is invented). The layer stays PURE and **issues no BLADE command of any kind**: `graph_tick_loop._wake_decision` resyncs ONLY the acting ego's executor slice, and the resulting EMPTY PLAN reaches `GraphPlanExecutor.next_actions` in **Phase 2 of the SAME tick** — the wake, this plan edit and the resync all happen in Phase 1, before any `env.step` — where the PRE-EXISTING empty-plan branch emits the single latched `aircraft_return_to_base`. Nothing new was built for RTB. Does NOT touch the graph — the edge appears on the next rebuild.
+`apply_meta_action(solution, obs, ego_id, meta_action, node_v, tasks) -> new_solution`. PURE (BLADE-free; torch is loaded only transitively through the `MetaAction` import), copy-on-write (`_copy_solution`, never mutates input). comply = no-op; engage = add an ego→task assignment AT THE SELECTED NODE. **NULLABLE-NODE GUARDS:** `PLAN_COMPLIANCE` and `SELF_PRESERVATION_ABORT` REQUIRE `node_v is None`; `OPPORTUNISTIC_ENGAGEMENT` REQUIRES an integer node in `[0, len(tasks))`; anything else raises `ValueError`. **ABORT IS EGO-GLOBAL (effect locked by Defect A, `d56fda6`):** the ONE semantic `SELF_PRESERVATION_ABORT` action clears **ALL** of the acting ego's REMAINING assignments. Only `solution[str(ego_id)]` is written: **peer assignment slices, peer beliefs and every task list stay untouched**, `tasks` remains append-only, and `GraphPlanExecutor.done` is not reset. An ego with no key already has an empty mission, so the dict SHAPE is preserved as found (no key is invented). The layer stays PURE and **issues no BLADE command of any kind**: `graph_tick_loop._wake_decision` resyncs ONLY the acting ego's executor slice, and the resulting EMPTY PLAN reaches `GraphPlanExecutor.next_actions` in **Phase 2 of the SAME tick** — the wake, this plan edit and the resync all happen in Phase 1, before any `env.step` — where the PRE-EXISTING empty-plan branch emits the single latched `aircraft_return_to_base`. Nothing new was built for RTB. Does NOT touch the graph — the edge appears on the next rebuild.
 
 ## 4. Phase-B CTDE
 
@@ -66,7 +110,8 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   state, no peer privileged state, no critic value and no critic parameter reaches action
   selection or `evaluate_action`: `CTDEUpdater._forward_logits` re-encodes the stored
   PRIVATE `tr.gobs` and nothing else, and the advantage crossing from critic to actor is a
-  plain python float. `evaluate` takes NO critic argument and constructs neither a critic
+  plain python float. Both updaters re-score the SAME semantic identity through the SAME
+  `graph_action.evaluate_action` ([§2](#2-encoder-action-head-and-selection-stage-4)). `evaluate` takes NO critic argument and constructs neither a critic
   nor a recorder — held-out evaluation is actor-only in both modes — and a CTDE-trained
   actor runs with the critic object absent. The no-communication invariants
   ([`CLAUDE.md` §3](../../CLAUDE.md#3-architecture--the-load-bearing-invariants)) are not
@@ -161,7 +206,9 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   is what `EpisodeRecord` does for the Phase-A per-ego credit structure — with
   `delta_t = r_t + gamma*V_next[t] - V_old[t]`, `A_t = delta_t + gamma*gae_lambda*A_{t+1}`,
   `target_t = A_t + V_old[t]`, and **`V_next` of the LAST decision is ZERO** (the episode
-  genuinely ends there). Per-decision rewards are READ off the transitions
+  genuinely ends there). The ONE GAE pass (`_gae_pass`) also keeps each `delta_t`, stored on
+  `CTDEAdvantageBatch.td_residuals` beside the realized `rewards` it consumed; `compute_gae`
+  still returns only `(advantages, value_targets)`. Per-decision rewards are READ off the transitions
   (`episode_rewards_sequence`), so the credit math consumes exactly what the unchanged
   terminal reward layer produced. Advantages are normalized across ALL decision samples of
   the batch under the same `adv_norm_eps` guard the actor-only path uses, and the actor
@@ -188,17 +235,25 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   than null (a nullable key would invite reading "no critic" as "a critic that scored 0").
   `run_config.json` carries a `training` block: `mode`, `ctde_enabled`, and the resolved
   `ctde` config or `null`.
+- **OBSERVATIONAL CREDIT REPORT.** `PPOUpdater.update` and `CTDEUpdater.update` take an
+  optional `credit_sink`; after a PRODUCTIVE update (`n_epochs_run > 0`) each hands it ONE
+  `CreditReport` carrying the SAME batch object the update consumed (`AdvantageBatch` /
+  `CTDEAdvantageBatch`, with identity-only `record_positions` and chain / decision ordinals).
+  No forward, GAE pass, RNG draw or gradient is added and nothing reads the report back; the
+  trainer turns it into `train_credit_diagnostics.jsonl`
+  ([artifacts and metrics §5.1](artifacts_metrics.md#51-training-credit-diagnostics)).
 - **CHECKPOINTS.** `save_checkpoint(policy, updater, iteration, ckpt_dir, critic=None)`.
-  **THE ACTOR-ONLY PAYLOAD IS UNCHANGED** — with `critic is None` (every `actor_only` run)
-  it holds EXACTLY the five keys it always held (`iteration` / `encoder` / `head` /
-  `optimizer` / `ppo_config`), nothing renamed and nothing added, not even a mode label, so
-  a Phase-A checkpoint stays readable by anything that could read one. A CTDE run saves
-  strictly MORE: the same five keys (`encoder` / `head` / `optimizer` are the ACTOR's) plus
-  `training_mode`, `critic_encoder`, `value_head`, `critic_optimizer` and `ctde_config`.
-  There is deliberately NO second "actor export" file — the actor portion of the one payload
-  already suffices for later inference, precisely because the actor's keys did not move.
-  **There is NO loader and NO resume**, in either mode; restoring a run remains a separate
-  deferred task, and no export functionality beyond the above exists.
+  **THE ACTOR-ONLY PAYLOAD** — with `critic is None` (every `actor_only` run) — holds the five
+  historical keys (`iteration` / `encoder` / `head` / `optimizer` / `ppo_config`) PLUS
+  `action_representation_id`. A CTDE run saves strictly MORE: those six keys (`encoder` /
+  `head` / `optimizer` are the ACTOR's) plus `training_mode`, `critic_encoder`, `value_head`,
+  `critic_optimizer` and `ctde_config`. **SEMANTIC COMPATIBILITY IS INTENTIONALLY BROKEN:** the
+  encoder / head tensor shapes did not change, so a historical checkpoint (five keys, no
+  representation id) would still load into them, but its weights were trained under the retired
+  node-indexed action representation and it remains evidence of that representation only. **No
+  migration, warm-start conversion, loader compatibility or resume exists**, in either mode;
+  restoring a run remains a separate deferred task. There is deliberately NO second "actor
+  export" file.
 - **PRESETS.** A preset may set `training_mode` and a nested `"ctde"` block (the sibling of
   `"ppo"`), read only by a `ctde` run. The CTDE block has NO CLI flags of its own — it is
   deliberately a preset-only layer, so there is no second naming scheme to drift from
@@ -233,14 +288,17 @@ actor-only preservation) follow [`cc_review.md` §4](../workflows/cc_review.md#4
 |---|---|---|
 | select a training mode (configuration, not a contract change) | `rl/training/graph_train.py`: `TrainConfig.training_mode`, `TRAINING_MODES`, `TrainConfig.ctde_enabled`, the `"ctde"` preset block over `CTDEConfig` | §4 |
 | change what the critic sees | `rl/observation/central_graph_builder.py`: `CentralGraphObservation`, `build_central_graph_observation`, `CentralStateRecorder`, `live_aircraft`, `plan_target_ids`, `NO_EGO_INDEX`, `CENTRAL_TASK_FEATURE_DIM`, `CENTRAL_AGENT_FEATURE_DIM`, `CENTRAL_EDGE_ATTR_DIM`, `CENTRAL_EDGE_TYPE` (pure: no torch, BLADE or gym import; never imports `graph_episode_setup`) | §4, exclusion list |
-| change the actor/critic boundary or GAE / value semantics | `rl/training/graph_ppo.py`: `CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`; tests `tests/test_graph_ctde.py`, `tests/test_graph_ppo.py` | §4 |
+| change the actor/critic boundary or GAE / value semantics | `rl/training/graph_ppo.py`: `CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `_gae_pass`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`; tests `tests/test_graph_ctde.py`, `tests/test_graph_ppo.py` | §4 |
+| change what an update reports about its credit | `rl/training/graph_ppo.py`: `CreditReport`, `CreditSink`, the `credit_sink` parameter of `PPOUpdater.update` / `CTDEUpdater.update`, `AdvantageBatch.record_positions` / `chain_ordinals`, `CTDEAdvantageBatch.rewards` / `td_residuals` / `record_positions` / `decision_ordinals`; tests `tests/test_graph_semantic_action_credit.py` | §4; [artifacts and metrics §5.1](artifacts_metrics.md#51-training-credit-diagnostics) |
 | change when the central state is captured | `rl/training/graph_tick_loop.py`: `run_episode(central=...)` and its `capture` call immediately before `_wake_decision` | §4; [runtime §5](runtime.md#5-resync-stage-6-and-the-two-phase-tick-loop) |
 | change actor-only preservation or checkpoints | `rl/training/graph_train.py`: `_ctde_kwargs`, `_central_kwargs`, `save_checkpoint(..., critic=None)`, the critic diagnostics on training records, `run_config.json:/training`; poison test and control in `tests/test_graph_ctde.py` | §4 |
 | change the graph representation | `rl/observation/graph_builder.py`: `GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM` | §1 |
 | change the encoder (one class, instantiated by the actor and the critic) | `rl/agent/graph_encoder.py`: `GraphEncoder`, `pool()` | §2, §4 |
-| change actions, mask, sampling or re-scoring | `rl/action/graph_action.py`: `MetaAction`, `ActionHead`, `build_action_mask`, `sample_action`, `evaluate_action`, `_masked_dist` | §2 |
-| change how a decision edits the plan | `rl/action/graph_effect.py`: `apply_meta_action` | §3 |
+| change actions, mask, sampling or re-scoring | `rl/action/graph_action.py`: `MetaAction`, `ACTION_REPRESENTATION_ID`, `ActionHead`, `build_action_mask`, `_semantic_dist`, `semantic_leaf_index`, `semantic_leaf_identity`, `GLOBAL_META_ACTIONS`, `sample_action`, `evaluate_action`; `rl/training/graph_tick_loop.py`: `Transition.node_v`; tests `tests/test_graph_action_evaluate.py`, `tests/test_graph_semantic_action_credit.py` | §2 |
+| change how a decision edits the plan | `rl/action/graph_effect.py`: `apply_meta_action` (nullable-node guards) | §3 |
 
 ## 6. Known limitations and open items
 
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
+- **Total ENGAGE mass under the semantic representation.** PLAN and ABORT are one leaf each, but the combined probability of OPPORTUNISTIC_ENGAGEMENT still depends on the number and scores of the genuinely distinct `ENGAGE(task_i)` leaves. This is not addressed; a hierarchical meta-action / target factorization is a possible future research intervention and is not authorized by this contract.
+- **`k == 0` acting is unsupported:** the semantic construction fails loud rather than inventing a pooled global score; a decision requires at least one task node.

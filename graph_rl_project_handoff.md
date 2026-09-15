@@ -1,8 +1,8 @@
 # Graph RL project handoff — current snapshot
 
 > **Status: current state only — not a contract and not a history.** This snapshot was refreshed
-> on 2026-09-15, at the closure of the GENERALIZED-V2 development research chapter; at that refresh
-> live `main` was `81d37049845087e970d9416abc99adcbb40aef61`.
+> on 2026-09-16, when the approved GENERALIZED-V2 action-representation and credit-instrumentation
+> implementation task opened from live `main` `63247404d88f714c6268383321ac25d766406055`.
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -34,9 +34,13 @@
   ignored files hold about 5.2 GB of flat-RL training outputs that are not archived under
   `C:\gra\` and whose deletion or move was not authorized
   ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
-- **No scientific run is in progress. The confirmatory profile has not been used.**
-- **Next research work belongs to a fresh orchestrator: GENERALIZED-V2 action-representation
-  research design.** This handoff authorizes no implementation and no training.
+- **No scientific run is in progress or authorized. The confirmatory profile has not been used.**
+- **The GENERALIZED-V2 action-representation design is decided (2026-09-16) and its
+  implementation is in flight:** the semantic `k + 2` action representation
+  `semantic_k_plus_2_logmeanexp_v1` plus observational per-transition credit instrumentation
+  (`train_credit_diagnostics.jsonl`), as one Grade-A code + contract task
+  ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-16). It authorizes
+  no training or evaluation.
 - **Closed:** Phase A (fixed cell, FD-BASELINE-v1); the FD-VARIABLE-SEVERITY-v1 actor-only
   baseline; the Phase-B CTDE implementation; GENERALIZED-V1 Tasks 1–5, early stopping and the
   per-wake diagnostics; the deterministic-P1 backend and the certified-FD physical-state repair;
@@ -48,16 +52,17 @@
 
 | Item | State |
 |---|---|
-| Writable repository task | the final archive / cleanup documentation closure (branch `docs/final-archive-cleanup-closure`) until it is reviewed and integrated; **after that, none** |
+| Writable repository task | **sole owner:** the V2 semantic-action + credit-instrumentation implementation (branch `task/v2-semantic-action-credit-instrumentation`, one draft PR to `main`) until it is reviewed and integrated |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence and review PRs | **none open** — #61, #62, #64, #65 and #67 are closed without merge and their branches deleted |
-| Implementation candidates | none |
-| Scientific runs in progress | none |
+| Implementation candidates | the draft PR of the branch above — unreviewed; no merge authorized |
+| Scientific runs in progress | none; none authorized |
 
 ## 3. Candidates and PRs
 
-No evidence, review or implementation PR is open besides this record's own documentation
-candidate. Resolve live PR state on GitHub.
+The only open PR is the implementation task's draft PR (branch
+`task/v2-semantic-action-credit-instrumentation`). Resolve live PR state and its exact head on
+GitHub.
 
 | PR | Branch | Final state (2026-09-15) |
 |---|---|---|
@@ -96,11 +101,13 @@ and human-readable projection `C:\gra\metadata\ARTIFACT_INDEX.md`; identities in
 - **Actor-visible severity information is demonstrably present:** a large post-damage `fuel_norm`
   difference and consistent `reachable_by_ego` `1→0` flips.
 - **Simple batch-size and FD-exposure explanations are strongly weakened.**
-- **The action representation has a demonstrated joint-cell versus semantic-aggregate mismatch.**
-  This is a direct structural finding whose causal role is unresolved.
+- **The measured action representation had a demonstrated joint-cell versus semantic-aggregate
+  mismatch.** This is a direct structural finding whose causal role is unresolved; the approved
+  semantic representation removes the alias geometry, but no run has measured it.
 - **Route-relative representation quality and immediate-FD credit remain open.** Distance is
-  near-totally clipped at these wakes, reachability is still the round-trip placeholder, and no
-  per-transition advantage was recorded.
+  near-totally clipped at these wakes, reachability is still the round-trip placeholder (both
+  deliberately unchanged by the in-flight task), and no per-transition advantage was recorded
+  for any preserved run.
 - **CTDE did not establish a benefit for the target behaviour.**
 
 **Standing interpretation rules:** R1 and the fresh P1 arm are distinct repository and
@@ -111,12 +118,11 @@ measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Next research task (belongs to a fresh orchestrator): GENERALIZED-V2 action-representation
-research design** — analysis and design only, including whether to add per-transition advantage
-instrumentation before the next development run
-([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-15). **No implementation
-and no training is authorized.** Once this record's documentation candidate is integrated, no
-writable repository task remains.
+**Next action: GPT exact-candidate review** of the implementation draft PR's full head SHA
+(`GPT_GITHUB`; review fixes are append-only commits on the same branch and PR). **Not training.**
+After an approved and authorized merge, a next development run would still need its own explicit
+authorized bounded plan ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan));
+none exists.
 
 **Recorded, not scheduled and not authorized:**
 
@@ -135,9 +141,11 @@ writable repository task remains.
   it except under
   [`environments_cleanup.md` §4.4](docs/workflows/environments_cleanup.md#44-preserved-run-directories-and-external-artifacts);
   moving or deleting protected refs;
-- implementing any action-representation, observation, reachability, credit or instrumentation
-  change before the design task concludes and a change is authorized; changes to locked layers,
-  BLADE, the solvers, PPO, CTDE, the reward or the observation / action contracts;
+- any change outside the in-flight task's approved scope — in particular reachability, distance
+  normalization / clipping or other observation features, the reward, FD physics, the V2
+  population / benchmark / profiles, PPO hyperparameters, batch size, training budget, FD
+  exposure, CTDE architecture / features, early stopping, BLADE and the solvers; checkpoint
+  migration, warm-start conversion or resume;
 - **without an authorized bounded plan that names it**
   ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)):
   any V2 training, evaluation or benchmark preflight; re-running or extending any preserved run;
@@ -163,7 +171,9 @@ Remaining local worktrees: the main checkout and `C:/Users/Itama/PycharmProjects
 
 **Known gaps in this snapshot:**
 
-- No per-immediate-FD-transition advantage diagnostic exists for any V2 run.
+- No per-immediate-FD-transition advantage diagnostic exists for any preserved V2 run; the
+  instrumentation that would record one is unmerged code, and every preserved run and checkpoint
+  uses the historical node-indexed action representation.
 - The PR #65 reachability comparison is positional; task-node identity across paired members is
   not independently certified.
 - The V2 benchmark preflight's exact original argv and its historical research-authorization
