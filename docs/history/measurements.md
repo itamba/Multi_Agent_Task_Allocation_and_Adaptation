@@ -1439,11 +1439,12 @@ confirmatory measurements. **Repeated evaluation rounds re-measure the same froz
 worlds.** Cross-round totals below describe repeated measures, never independent worlds
 ([`experiments.md` §4.3](../workflows/experiments.md#43-interpretation-rules)).
 
-Every number in §8.3–§8.9 was checked on 2026-09-15 against the files at the evidence heads
-named in §1: `run_config.json`, `run_summary.json`, `eval_records.jsonl`, `train_records.jsonl`
-and `accounting_check.json` of each run, and `immediate_fd_wakes.jsonl`,
-`matched_mild_severe_pairs.jsonl` and `extraction_summary.json` of PR #65. No scientific
-execution was needed or performed for that check.
+Every number in §8.3–§8.9 was checked on 2026-09-15 against the relevant preserved evidence
+files at the evidence heads named in §1. For the two R1 arms (PR #61, PR #62), those heads provide
+the run configuration, summary, evaluation, training and episode evidence used here. For the three
+diagnostic arms, PR #64 additionally provides each arm's `accounting_check.json`. PR #65 provides
+`immediate_fd_wakes.jsonl`, `matched_mild_severe_pairs.jsonl` and `extraction_summary.json`. No
+scientific execution was needed or performed for that check.
 
 ### 8.2 The five runs
 
@@ -1510,8 +1511,9 @@ mean of the PR #65 pair deltas reproduces each value exactly.
 | `fd80` | 375 | `-8.512288331985474e-08` | 10 / 10 | 0 / 0 |
 
 **Development finding: none of the five final policies showed meaningful severity-conditioned
-selected-action separation on the frozen development benchmark.** These magnitudes are
-floating-point-scale differences in aggregate mass, not evidence of behavioural separation.
+selected-action separation on the frozen development benchmark.** These are small
+aggregate-probability differences that produced no final MILD↔SEVERE selected-action switches;
+they are not evidence of behavioural separation.
 
 ### 8.5 The three CTDE diagnostic arms
 
