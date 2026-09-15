@@ -29,7 +29,7 @@
 | R1 diagnostic replay | R1's SHA | bundle SHA-256 `812ff43322e134e9a7ca31720007393ff1220ba50c35955b2a724b30d4d5d792` | engineering / analysis evidence — **not a measurement** |
 | aborted P1 arm | not recorded | not recorded | `ABORTED / DO NOT RESUME` — not a measurement |
 | fresh deterministic-P1 arm | `ae1941035991df4719df212c4b5dd07db89aee4a` | not recorded | accepted as a valid measurement; negative primary MILD-vs-SEVERE result |
-| GENERALIZED-V2 benchmark preflight (produced the external manifest) | **unverified** — no preflight evidence is in the repository, and the consuming runs' measured SHA does not establish the producer's | external manifest, see §7; not part of either evidence package | no authorization or review record in the repository |
+| GENERALIZED-V2 benchmark preflight (produced the external manifest) | `ae42cb01677f94868b2873008d87be677e31f0c8` — **producer-recorded** in `benchmark_preflight_report.json:/provenance/git` with `dirty = false`; not an external attestation (§8.11) | external local `C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0`; reviewed via temporary review PR #67, head `7f56338cde6aacfa59a52399b2378b98a62ea3aa` (not for merge) | provenance package `APPROVE — provenance package correctness / evidence review` (not a scientific-validity verdict); historical research authorization and historical prior review `NOT PRESERVED / NOT PROVEN` |
 | GENERALIZED-V2 development R1 — actor-only | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #61, head `1375a881637a9a32721a1630f598adc571422a47`; local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` | no verdict recorded in accessible artifacts; an input to the 2026-09-15 development interpretation (§8) |
 | GENERALIZED-V2 development R1 — CTDE | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #62, head `b2bbe7a6235c3b9255106826cfb268af7e73f72d`; local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` | PR #62 records a prior GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`; not independently verified |
 | GENERALIZED-V2 CTDE diagnostic — `smallbatch` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64, head `90516d51beeddacded2b89a321d14291e411f2b0`; local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_smallbatch_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
@@ -1392,7 +1392,8 @@ these runs is not recorded in the repository.
   the manifest id above. The file was not inspected by GPT or in this restructure, it is not part
   of either evidence package, and the code SHA that produced it is **unverified**: the directory
   name ends in `ae42cb0`, but no preflight report or run configuration for it is in the
-  repository.
+  repository. *(Superseded on 2026-09-15 for the producer SHA and clean state only — see
+  §8.11.)*
 - **Accounting** (from both `run_summary.json`): `updates_completed = 375`; training 3008
   attempted / 3000 successful / 8 failed, all at stage `setup` with `FuelDamageError`; evaluation
   960 attempted / 960 successful / 0 failed over 16 rounds (consistent with the development
@@ -1655,14 +1656,99 @@ the states at all.
   `C:/Users/Itama/PycharmProjects/graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0/benchmark_manifest.json`,
   as recorded by PR #62's `artifact_sha256.txt`; PR #64's `sweep/sweep_log.txt` records the same
   file hash on each arm's `ARM END` line.
-- **The producing preflight's code provenance, authorization and independent review are still
-  not preserved in the repository** (§7). Its producer SHA is **not known**; the directory name
-  and the consuming runs' SHA do not establish it.
+- **Producer provenance (updated 2026-09-15; detail in §8.11).** The earlier statement here that
+  the producer SHA was not known and producer provenance was open is superseded narrowly: the
+  preflight's own report records producer code SHA `ae42cb01677f94868b2873008d87be677e31f0c8` on
+  `main` with `dirty = false`, reviewed as producer-recorded provenance — not an external
+  attestation, and not inferred from the directory name or the consuming runs' SHA. The exact
+  original argv remains unknown; the historical research authorization and the historical prior
+  review remain **not preserved / not proven**.
 - Three things are therefore kept distinct: run, accounting and artifact consistency
   (established); the development interpretation, conditioned on the recorded frozen manifest
-  (this section); and full benchmark-provenance closure (**open**).
+  (this section); and benchmark provenance — manifest identity reviewed, producer-recorded exact
+  SHA and clean state reviewed, invocation partial, historical authorization and historical prior
+  review not proven, current evidence review complete. **Full historical provenance is not
+  complete.**
 - The CTDE R1 verdict provenance in §7 is unchanged.
 - **Non-claims.** No confirmatory result exists. No hypothesis is shown mathematically
   impossible. None of these is established as a cause of the missing severity separation: the
   action-geometry mismatch (§8.7), distance clipping, the reachability changes, or critic
   diagnostics. No CTDE conclusion beyond §8.9 is drawn.
+
+### 8.11 GENERALIZED-V2 benchmark-preflight provenance review
+
+Recorded on 2026-09-15 from temporary review PR #67 (branch
+`review/v2-benchmark-preflight-provenance`, draft, exact reviewed candidate
+`7f56338cde6aacfa59a52399b2378b98a62ea3aa`). GPT verdict on that exact candidate:
+**`APPROVE — provenance package correctness / evidence review`**. The approval covers manifest
+byte identity, the producer-recorded exact Git SHA, the producer-recorded historical clean state,
+static manifest integrity, package and ledger correctness, and the separation of known from
+unknown provenance. **It is not a scientific-validity approval, not a retrospective research
+authorization and not proof of any prior historical review.** PR #67 is review transport, not
+intended for merge; this section is the durable record. Building and reviewing the package
+executed no project code — file reads, JSON parsing and SHA-256 hashing only.
+
+- **Manifest identity — reviewed.** External local source
+  `C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0`.
+  `benchmark_manifest.json`: 204 244 bytes, file SHA-256
+  `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103`; `manifest_id
+  ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8`, recomputed over the
+  canonical JSON of the record without `manifest_id` and equal to the stored id; schema
+  `generalized_v2_benchmark_manifest`, version 1; required backend `p1_milp_v1`. **120 world
+  groups / 360 members** (`clean`, `mild`, `severe` per group) over ten base cells `A2..A6` ×
+  `D0/D2`, 12 worlds each; **development ordinals 0–1: 20 groups / 60 members; confirmatory
+  ordinals 2–11: 100 groups / 300 members.** The report's `/manifest` block (id, file SHA-256,
+  `seed_list_sha256 6d65318a5d44046b58bf44882d435c87172145d3cb4d3d21f1f31fe93fe88518`, 120 / 360)
+  matches. Profile membership is a property of the manifest: **no confirmatory evaluation has
+  been run.**
+- **Producer code provenance — reviewed, producer-recorded.** From
+  `benchmark_preflight_report.json:/provenance/git`: `available = true`, `commit =
+  ae42cb01677f94868b2873008d87be677e31f0c8`, `branch = main`, `dirty = false`, `dirty_path_count
+  = 0`, `repo_root = C:\Users\Itama\PycharmProjects\Multi_Agent_Task_Allocation_and_Adaptation`.
+  This is **producer-recorded exact provenance, independently reviewed from the preserved
+  artifact**: it was emitted by the executing project code (`_git_provenance(_REPO_ROOT)` in
+  `graph_train.py`, called from `_run_v2_benchmark_preflight` in
+  `graph_benchmark_preflight.py`, both checked at `ae42cb0…`). **It is not an external
+  attestation**; it rests on that code having run as committed and on the report bytes being
+  unaltered. The exact SHA is **not** inferred from the directory suffix `ae42cb0` or from the
+  manifest `notes` text. The historical clean state is likewise only the report's own `dirty =
+  false` (`git status --porcelain`: tracked changes and untracked non-ignored files); nothing is
+  inferred from any later checkout.
+- **Invocation provenance — partial.** *Known:* the effective request (`worlds_per_cell = 12`,
+  `benchmark_base_seed = 2000000`, `max_candidates_per_cell = 64`, `n_base_cells = 10`) and
+  settings (policy `deterministic_per_cell_window_fail_closed_v2`, design `generalized_v2`,
+  backend `p1_milp_v1`, seeded-variable fuel damage, geometry) from the report; completion
+  (`status = complete`, `manifest_written = true`, `failure = null`, 120 candidates attempted and
+  accepted, 0 rejected); native exit code `0` (`native_exit_code.txt`); timestamps
+  (`generated_utc = 2026-09-13T12:26:07.718521+00:00`; `invocation_start_local.txt` start
+  15:25:53.69, end 15:26:08.26 local); environment clues the artifacts record (console warnings
+  from the LOCAL Windows `nlp_env` site-packages; the Windows `repo_root`). *Unknown:* the exact
+  original argv; whether `--config` was explicitly supplied; the exact Python version; how
+  `label` / `notes` were supplied. A code-derived guess at the invocation is **not** recorded as
+  fact.
+- **Authorization and prior review.** Historical research authorization: **`NOT PRESERVED / NOT
+  PROVEN`**. Historical prior review: **`NOT PRESERVED / NOT PROVEN`**. The manifest `notes`
+  text containing "authorized" is operator-supplied descriptive text, not an authorization
+  record. The PR #67 evidence review does not retroactively prove a historical review.
+- **Technical conformance.** The effective persisted settings are descriptively consistent with
+  the implemented GENERALIZED-V2 benchmark contract
+  ([training and benchmarks §9](../contracts/training_benchmarks.md#9-generalized-v2-benchmark-and-evaluation)).
+  Technical conformance does not prove historical research authorization or scientific validity.
+- **Provenance and reporting caveats** (source artifacts are not rewritten): the console banner
+  prints the V1 preflight policy label `deterministic_per_cell_window_v1`, while the V2 report
+  records the correct `deterministic_per_cell_window_fail_closed_v2`; the `START_UTC` label in
+  `invocation_start_local.txt` holds local-time values; the exact argv is absent.
+
+| Provenance item | State |
+|---|---|
+| Manifest identity | reviewed |
+| Producer-recorded exact code SHA | reviewed |
+| Producer-recorded clean state | reviewed |
+| Invocation | partial |
+| Historical research authorization | not preserved / not proven |
+| Historical prior review | not preserved / not proven |
+| Current evidence review (PR #67 @ `7f56338c…`) | complete |
+
+Full historical provenance is **not** complete. Future confirmatory use of this manifest is
+governed by the 2026-09-15 decision entry
+([`decisions.md` §1](decisions.md#1-decision-log)).

@@ -38,8 +38,11 @@ A dated authorization recorded in history is **not** a permission now.
 
 ## 1. Communication, authority and workflow
 
-- **The user speaks Hebrew.** Talk to the user in Hebrew; code, comments and repository
-  documents stay in English.
+- **Communication routing.** The GPT orchestrator speaks with the user in Hebrew. CC packets,
+  CC returns to GPT, code, comments and repository documents are English unless a packet
+  explicitly says otherwise. A CC return is the concise evidence and status the packet requests,
+  addressed to the orchestrator — not a user-facing summary; CC adds no Hebrew summary unless the
+  packet asks for one. GPT interprets CC output and decides what to relay to the user.
 - **Authority.** The user's chat decisions and the packets or authorized plans the user transfers
   direct the work; **a current user decision supersedes stale guidance**. Repository guidance —
   this file, `docs/workflows/`, `docs/contracts/`, and the handoff as the current-state record —
