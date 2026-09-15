@@ -124,15 +124,15 @@ def _make_transition(
     ego_id: str,
     tick: int,
     *,
-    force_cell: Optional[Tuple[int, int]] = None,
+    force_cell: Optional[Tuple[int, Optional[int]]] = None,
 ) -> Transition:
     """One real `Transition`, storing exactly what `_wake_decision` stores.
 
     Synthetic ROLLOUT data: `no_grad` here mirrors the inference-only rollout path.
-    `force_cell=(meta_action, node_v)` pins the stored action and scores it through
-    `evaluate_action` — the SAME distribution `sample_action` draws from (one shared
-    `_masked_dist` site), so the stored log-prob is exactly what a rollout that
-    sampled that cell would have stored. That makes P2/P3 deterministic.
+    `force_cell=(meta_action, node_v)` pins the stored SEMANTIC action (`node_v` None
+    for PLAN / ABORT) and scores it through `evaluate_action` — the SAME distribution
+    `sample_action` draws from (one shared `_semantic_dist` site), so the stored
+    log-prob is exactly what a rollout that sampled that action would have stored.
     """
     mask = build_action_mask(gobs)
     with torch.no_grad():
@@ -142,20 +142,21 @@ def _make_transition(
                 logits, mask, deterministic=False
             )
         else:
-            meta_action, node_v = int(force_cell[0]), int(force_cell[1])
+            meta_action, node_v = int(force_cell[0]), force_cell[1]
             log_prob, entropy = evaluate_action(logits, mask, meta_action, node_v)
     return Transition(
         gobs=gobs,
         ego_id=str(ego_id),
         tick=int(tick),
         meta_action=int(meta_action),
-        node_v=int(node_v),
+        node_v=node_v,
         log_prob=float(log_prob.item()),
         entropy=float(entropy.item()),
     )
 
 
-def _action_prob(policy, gobs: GraphObservation, meta_action: int, node_v: int) -> float:
+def _action_prob(policy, gobs: GraphObservation, meta_action: int,
+                 node_v: Optional[int]) -> float:
     """Current probability of `(meta_action, node_v)` on `gobs` (fresh forward, no-grad)."""
     mask = build_action_mask(gobs)
     with torch.no_grad():
@@ -172,7 +173,7 @@ def _two_outcome_buffer(policy, gobs: GraphObservation) -> PPOBuffer:
     advantages (+1 / -1 after normalization) point unambiguously at one cell.
     """
     tr_good = _make_transition(policy, gobs, "egoA", 1, force_cell=(OE, 2))
-    tr_bad = _make_transition(policy, gobs, "egoA", 1, force_cell=(PC, 0))
+    tr_bad = _make_transition(policy, gobs, "egoA", 1, force_cell=(PC, None))
     buf = PPOBuffer()
     buf.add(EpisodeRecord.from_trajectory([tr_good], 0.0, seed=0, episode_index=0))
     buf.add(EpisodeRecord.from_trajectory([tr_bad], -1.0, seed=1, episode_index=1))
@@ -449,14 +450,14 @@ def test_positive_advantage_action_becomes_more_probable() -> None:
     assert batch.advantages[0] > 0.5 > batch.advantages[1], batch.advantages
 
     p_good_before = _action_prob(policy, obs, OE, 2)
-    p_bad_before = _action_prob(policy, obs, PC, 0)
+    p_bad_before = _action_prob(policy, obs, PC, None)
 
     updater = PPOUpdater(policy, PPOConfig(lr=1e-3, n_epochs=4))
     for _ in range(6):
         updater.update(buf)
 
     p_good_after = _action_prob(policy, obs, OE, 2)
-    p_bad_after = _action_prob(policy, obs, PC, 0)
+    p_bad_after = _action_prob(policy, obs, PC, None)
     print(f"\n  P(good=(node2,OE)): {p_good_before:.6f} -> {p_good_after:.6f}")
     print(f"  P(bad =(node0,PC)): {p_bad_before:.6f} -> {p_bad_after:.6f}")
 

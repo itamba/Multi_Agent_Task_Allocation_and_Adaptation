@@ -187,6 +187,11 @@ a console scrollback:
                                  ``pre_update`` measurement of the initial policy.
   * ``episode_failures.jsonl`` -- append-only, flushed per record: every failed attempt
                                  with its phase, seed, pipeline stage and traceback.
+  * ``train_credit_diagnostics.jsonl`` -- TRAINING-ONLY, append-only: one row per
+                                 transition of every productive update, carrying the
+                                 credit values that update ALREADY computed
+                                 (``_credit_rows``). Observational; read back by nothing
+                                 but the run summary's schema observation.
   * ``run_summary.json``       -- derived from the three jsonl files at completion.
   * ``plots/``                 -- the three figures, derived from the jsonl files alone:
                                  ``training_performance.png`` (train reward, held-out
@@ -334,6 +339,7 @@ from .graph_ppo import (
     CTDEConfig,
     CTDEEpisodeRecord,
     CTDEUpdater,
+    CreditReport,
     EpisodeRecord,
     PPOBuffer,
     PPOConfig,
@@ -410,7 +416,7 @@ from .graph_tick_loop import (
     run_episode,
 )
 from ..observation.central_graph_builder import CentralStateRecorder
-from ..action.graph_action import MetaAction
+from ..action.graph_action import ACTION_REPRESENTATION_ID, MetaAction
 from ...models import StepKind
 from ...utils.blade_utils.scenario_generator import (
     ScenarioGenerator,
@@ -561,15 +567,48 @@ _EPISODE_OUTCOME_SCHEMA = "graph_train_episode_outcome"
 # path the design is `fixed_cell_v1`, the reference policy is `static_t0_v1`, requested
 # equals realized, and the structures the historical policies do not produce are `null`
 # rather than a fabricated zero.
-_EPISODE_OUTCOME_VERSION = 3
+_EPISODE_OUTCOME_VERSION = 4
 # VERSION 3 adds the PER-WAKE ACTOR DIAGNOSTICS (`wake_decisions`, versioned by
 # `_WAKE_DIAGNOSTICS_VERSION`): for every recorded wake, why it happened, what the actor
-# saw and what the masked joint distribution actually looked like. It exists because the
+# saw and what the masked distribution actually looked like. It exists because the
 # R1 diagnostic replay had to reconstruct all of that OFFLINE from checkpoints, which is
 # only possible while the checkpoints, the manifest and the exact code SHA all still
 # exist together. It is REPORTING-ONLY and additive: a v2 record simply lacks the key,
 # and every reader below treats an absent key as "not recorded" rather than as zero.
-_WAKE_DIAGNOSTICS_VERSION = 1
+# VERSION 4 adds the top-level `action_representation_id` and carries wake diagnostics
+# schema 2. The MEANING of the action a record describes changed (the semantic k + 2
+# representation), so the version moves rather than hiding that change behind v3.
+_WAKE_DIAGNOSTICS_VERSION = 2
+# WAKE DIAGNOSTICS 1 described the retired node-indexed k x 3 joint distribution
+# (`aggregate_probability_per_meta_action`, `joint_*`, `joint_vs_aggregate_disagree`).
+# WAKE DIAGNOSTICS 2 describes the semantic k + 2 leaf distribution and names its
+# representation on every wake (`action_representation_id`,
+# `semantic_probability_per_meta_action`, `semantic_entropy_*`). The readers below keep
+# BOTH readable and never read one schema's field under the other's meaning.
+
+#: A READER label for historical wake records, which carry no representation id. It is
+#: never written into any artifact.
+LEGACY_ACTION_REPRESENTATION_LABEL = "legacy_node_indexed_joint_k_x_3"
+
+# TRAINING CREDIT DIAGNOSTICS -- `train_credit_diagnostics.jsonl`. One row per transition
+# of every productive update, built by `_credit_rows` from the `CreditReport` the updater
+# handed its sink AFTER the update: the values the update already used, never a second
+# forward, GAE pass or baseline. Schema rule: every key is present on every row; a key
+# that the row's training mode does not define is `null` ("not defined for this mode"),
+# never `0`. The `measurement_join` block is a TRAINER-SIDE join of measurement tags
+# (cell / condition / severity / FD ego / FD tick) written after credit exists; no
+# learning object carries them.
+_CREDIT_DIAGNOSTICS_FILENAME = "train_credit_diagnostics.jsonl"
+_CREDIT_DIAGNOSTICS_SCHEMA = "graph_train_credit_diagnostics"
+_CREDIT_DIAGNOSTICS_VERSION = 1
+
+
+class CreditDiagnosticsError(RuntimeError):
+    """The credit-diagnostics artifact could not be produced or persisted.
+
+    An INSTRUMENTATION / INFRASTRUCTURE integrity failure: an instrumented run that
+    silently lost its credit rows would be scientifically incomplete, so the run stops.
+    """
 
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
@@ -2685,6 +2724,8 @@ def _episode_outcome_record(
     return {
         "schema": _EPISODE_OUTCOME_SCHEMA,
         "schema_version": _EPISODE_OUTCOME_VERSION,
+        # The action semantics every selected action and probability below is stated in.
+        "action_representation_id": ACTION_REPRESENTATION_ID,
         # --- WHICH POPULATION this episode was drawn from, and under which policies ---
         # Stated on BOTH designs rather than only on the generalized one: "this run was
         # the historical fixed cell" is a fact worth recording, and a reader must never
@@ -2994,41 +3035,66 @@ def _wake_decision_records(trajectory: List[Any]) -> List[Dict[str, Any]]:
     return out
 
 
+def _wake_action_representation(record: Mapping[str, Any]) -> str:
+    """The action representation ONE wake record is stated in.
+
+    A wake-diagnostics-2 record names it; a historical record carries no id and is read
+    under the reader label :data:`LEGACY_ACTION_REPRESENTATION_LABEL`.
+    """
+    rid = record.get("action_representation_id")
+    return str(rid) if isinstance(rid, str) and rid else LEGACY_ACTION_REPRESENTATION_LABEL
+
+
+def _num(value: Any) -> Optional[float]:
+    """A finite-typed number as float, else ``None`` (``bool`` is not a number here)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _wake_meta_probability(record: Mapping[str, Any], name: str) -> Optional[float]:
+    """P(meta-action) of ONE wake, read under THAT record's own representation.
+
+    Semantic records: the one PLAN / ABORT leaf, or the ENGAGE leaves' sum
+    (``semantic_probability_per_meta_action``). Historical records: the aggregate column
+    mass over the node-indexed aliases (``aggregate_probability_per_meta_action``). An
+    unknown representation is not read at all.
+    """
+    rep = _wake_action_representation(record)
+    if rep == ACTION_REPRESENTATION_ID:
+        source = record.get("semantic_probability_per_meta_action")
+    elif rep == LEGACY_ACTION_REPRESENTATION_LABEL:
+        source = record.get("aggregate_probability_per_meta_action")
+    else:
+        return None
+    return _num((source or {}).get(name)) if isinstance(source, Mapping) else None
+
+
 def _wake_diag_digest(records: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Aggregate a flat list of per-wake diagnostics. REPORTING-ONLY.
+    """Aggregate a flat list of per-wake diagnostics. REPORTING-ONLY, version-aware.
 
     Every rate carries its own explicit denominator, and an EMPTY population reports
     ``None`` rather than ``0.0`` -- on a rate, 0 is a measured value and would read as
     "the actor never aborted" when the truth is "no wake of this kind occurred".
 
-    The two ABORT quantities are deliberately kept apart under names that cannot be
-    confused, because they answer different questions:
+    REPRESENTATION-NEUTRAL KEYS (``selected_abort_fraction``, ``p_abort_mean``,
+    ``p_plan_mean``, ``p_engage_mean``, ``entropy_raw_mean``,
+    ``entropy_normalized_mean``, ``n_valid_actions_mean``) read each wake under its OWN
+    representation (:func:`_wake_meta_probability`). Under the semantic representation
+    ``P(ABORT)`` is directly the one ABORT leaf; under the historical one it was the
+    aggregate mass over the abort aliases. A population mixing representations reports
+    those means as ``None`` with ``mixed_action_representations: true`` -- never a mean
+    across two action semantics.
 
-    * ``selected_joint_cell_abort_fraction`` -- how often the actor's SELECTED joint
-      cell was an abort. This is what deterministic evaluation actually does.
-    * ``aggregate_p_abort_mean`` -- the mean total probability MASS on the abort column,
-      summed over its ``k`` cells. It is NOT the probability of the selected action and
-      must never be labelled as one.
+    HISTORICAL KEYS (``selected_joint_cell_abort_fraction``, ``aggregate_p_*``,
+    ``joint_*``, ``joint_vs_aggregate_disagreement_fraction``, ``n_valid_cells_mean``)
+    are computed from HISTORICAL records only, keep their original meaning, and are
+    ``None`` when none is present. No semantic record contributes to them.
     """
     n = len(records)
-    if n == 0:
-        return {
-            "n_wakes": 0,
-            "selected_meta_action_counts": {name: 0 for name in _META_NAMES},
-            "selected_joint_cell_abort_fraction": None,
-            "aggregate_p_abort_mean": None,
-            "aggregate_p_plan_mean": None,
-            "joint_entropy_raw_mean": None,
-            "joint_entropy_normalized_mean": None,
-            "n_joint_entropy_normalized_defined": 0,
-            "aggregate_meta_action_entropy_mean": None,
-            "joint_vs_aggregate_disagreement_fraction": None,
-            "n_valid_cells_mean": None,
-            "distance_clipping_fraction_mean": None,
-            "selected_node_ownership_counts": {},
-        }
     counts = {name: 0 for name in _META_NAMES}
     own: Dict[str, int] = {}
+    by_rep: Dict[str, int] = {}
     for r in records:
         nm = str(r.get("selected_meta_action_name") or "")
         if nm in counts:
@@ -3036,37 +3102,80 @@ def _wake_diag_digest(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         o = str(r.get("selected_node_ownership") or "")
         if o:
             own[o] = own.get(o, 0) + 1
+        rep = _wake_action_representation(r)
+        by_rep[rep] = by_rep.get(rep, 0) + 1
+    mixed = len(by_rep) > 1
+    legacy = [r for r in records
+              if _wake_action_representation(r) == LEGACY_ACTION_REPRESENTATION_LABEL]
 
-    def _mean(key: str) -> Optional[float]:
-        vals = [r[key] for r in records
-                if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]
+    def _mean(rows: List[Dict[str, Any]], key: str) -> Optional[float]:
+        vals = [v for v in (_num(r.get(key)) for r in rows) if v is not None]
         return (float(sum(vals)) / len(vals)) if vals else None
 
-    agg = [r.get("aggregate_probability_per_meta_action") or {} for r in records]
-    abort_mass = [float(a[_ABORT_NAME]) for a in agg if isinstance(a.get(_ABORT_NAME), (int, float))]
-    plan_mass = [float(a[_PLAN_NAME]) for a in agg if isinstance(a.get(_PLAN_NAME), (int, float))]
-    norm_ent = [float(r["joint_entropy_normalized"]) for r in records
-                if isinstance(r.get("joint_entropy_normalized"), (int, float))]
-    dis = [bool(r.get("joint_vs_aggregate_disagree")) for r in records
+    def _neutral_mean(fn) -> Optional[float]:
+        if mixed:
+            return None
+        vals = [v for v in (fn(r) for r in records) if v is not None]
+        return (float(sum(vals)) / len(vals)) if vals else None
+
+    def _is_semantic(r) -> bool:
+        return _wake_action_representation(r) == ACTION_REPRESENTATION_ID
+
+    def _entropy_raw(r):
+        return _num(r.get("semantic_entropy_raw" if _is_semantic(r) else "joint_entropy_raw"))
+
+    def _entropy_norm(r):
+        return _num(r.get("semantic_entropy_normalized" if _is_semantic(r)
+                          else "joint_entropy_normalized"))
+
+    def _n_valid(r):
+        return _num(r.get("n_valid_semantic_leaves" if _is_semantic(r) else "n_valid_cells"))
+
+    n_norm_defined = 0 if mixed else sum(1 for r in records if _entropy_norm(r) is not None)
+    legacy_counts = sum(1 for r in legacy
+                        if str(r.get("selected_meta_action_name") or "") == _ABORT_NAME)
+    legacy_agg = [r.get("aggregate_probability_per_meta_action") or {} for r in legacy]
+    abort_mass = [v for v in (_num(a.get(_ABORT_NAME)) for a in legacy_agg) if v is not None]
+    plan_mass = [v for v in (_num(a.get(_PLAN_NAME)) for a in legacy_agg) if v is not None]
+    legacy_norm = [v for v in (_num(r.get("joint_entropy_normalized")) for r in legacy)
+                   if v is not None]
+    dis = [bool(r.get("joint_vs_aggregate_disagree")) for r in legacy
            if r.get("joint_vs_aggregate_disagree") is not None]
     return {
         "n_wakes": n,
         "selected_meta_action_counts": counts,
-        "selected_joint_cell_abort_fraction": float(counts[_ABORT_NAME]) / n,
-        "aggregate_p_abort_mean": (float(sum(abort_mass)) / len(abort_mass)) if abort_mass else None,
-        "aggregate_p_plan_mean": (float(sum(plan_mass)) / len(plan_mass)) if plan_mass else None,
-        "joint_entropy_raw_mean": _mean("joint_entropy_raw"),
-        # Normalization is UNDEFINED for a single valid cell, so that wake contributes
+        "selected_node_ownership_counts": own,
+        "n_wakes_by_action_representation": by_rep,
+        "action_representation_ids_observed": sorted(by_rep),
+        "mixed_action_representations": bool(mixed),
+        # --- representation-neutral (each wake read under its own representation) ---
+        "selected_abort_fraction": (float(counts[_ABORT_NAME]) / n) if n else None,
+        "p_abort_mean": _neutral_mean(lambda r: _wake_meta_probability(r, _ABORT_NAME)),
+        "p_plan_mean": _neutral_mean(lambda r: _wake_meta_probability(r, _PLAN_NAME)),
+        "p_engage_mean": _neutral_mean(
+            lambda r: _wake_meta_probability(r, MetaAction.OPPORTUNISTIC_ENGAGEMENT.name)),
+        "entropy_raw_mean": _neutral_mean(_entropy_raw),
+        # Normalization is UNDEFINED for a single valid action, so that wake contributes
         # to neither the mean nor its denominator, and the denominator is reported.
+        "entropy_normalized_mean": _neutral_mean(_entropy_norm),
+        "n_entropy_normalized_defined": n_norm_defined,
+        "n_valid_actions_mean": _neutral_mean(_n_valid),
+        "distance_clipping_fraction_mean": _mean(records, "fraction_task_distance_clipped"),
+        # --- HISTORICAL node-indexed joint representation only ---
+        "selected_joint_cell_abort_fraction": (
+            float(legacy_counts) / len(legacy) if legacy else None),
+        "aggregate_p_abort_mean": (
+            (float(sum(abort_mass)) / len(abort_mass)) if abort_mass else None),
+        "aggregate_p_plan_mean": (
+            (float(sum(plan_mass)) / len(plan_mass)) if plan_mass else None),
+        "joint_entropy_raw_mean": _mean(legacy, "joint_entropy_raw"),
         "joint_entropy_normalized_mean": (
-            (float(sum(norm_ent)) / len(norm_ent)) if norm_ent else None),
-        "n_joint_entropy_normalized_defined": len(norm_ent),
-        "aggregate_meta_action_entropy_mean": _mean("aggregate_meta_action_entropy"),
+            (float(sum(legacy_norm)) / len(legacy_norm)) if legacy_norm else None),
+        "n_joint_entropy_normalized_defined": len(legacy_norm),
+        "aggregate_meta_action_entropy_mean": _mean(legacy, "aggregate_meta_action_entropy"),
         "joint_vs_aggregate_disagreement_fraction": (
             (float(sum(1 for d in dis if d)) / len(dis)) if dis else None),
-        "n_valid_cells_mean": _mean("n_valid_cells"),
-        "distance_clipping_fraction_mean": _mean("fraction_task_distance_clipped"),
-        "selected_node_ownership_counts": own,
+        "n_valid_cells_mean": _mean(legacy, "n_valid_cells"),
     }
 
 
@@ -3918,6 +4027,14 @@ def write_run_config(
             "ctde_enabled": bool(cfg.ctde_enabled),
             "ctde": asdict(cfg.ctde) if cfg.ctde_enabled else None,
             "execution": "decentralized_actor_only",
+            # The action semantics this run samples, stores, re-scores and reports in.
+            "action_representation_id": ACTION_REPRESENTATION_ID,
+            # The training-only credit artifact every productive update writes.
+            "credit_diagnostics": {
+                "artifact": _CREDIT_DIAGNOSTICS_FILENAME,
+                "schema": _CREDIT_DIAGNOSTICS_SCHEMA,
+                "schema_version": _CREDIT_DIAGNOSTICS_VERSION,
+            },
             # GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTS, and the
             # bounded budget behind it. Recorded on BOTH designs and stated positively:
             # the fixed-cell entry says the historical contract out loud (one attempt per
@@ -7016,11 +7133,15 @@ V2_SWITCH_REVERSE: str = "mild_abort_and_severe_not_abort"
 def _v2_immediate_fd_member(
     decisions: Optional[Sequence[Mapping[str, Any]]], cell: str
 ) -> Tuple[Optional[float], Optional[str], Optional[str]]:
-    """(aggregate P(ABORT), selected meta-action name, not-measurable reason) of ONE member.
+    """(P(ABORT), selected meta-action name, not-measurable reason) of ONE member.
 
     ONLY immediate-fuel-damage wakes are read -- ordinary and post-FD-boundary wakes are
     filtered out by their tagged kind, never by the selected action. Exactly one such
     wake is required; zero or several is a stated, non-measurable reason, never a guess.
+
+    ``P(ABORT)`` is read under the wake's OWN representation
+    (:func:`_wake_meta_probability`): the one semantic ABORT leaf, or -- for a historical
+    record -- the aggregate mass over the abort aliases. The concept is unchanged.
     """
     fd = [d for d in (decisions or ())
           if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD]
@@ -7028,11 +7149,18 @@ def _v2_immediate_fd_member(
         return None, None, "%s_no_immediate_fd_wake" % cell
     if len(fd) > 1:
         return None, None, "%s_multiple_immediate_fd_wakes" % cell
-    mass = (fd[0].get("aggregate_probability_per_meta_action") or {}).get(_ABORT_NAME)
+    p_abort = _wake_meta_probability(fd[0], _ABORT_NAME)
     selected = fd[0].get("selected_meta_action_name")
-    if isinstance(mass, bool) or not isinstance(mass, (int, float)) or selected is None:
+    if p_abort is None or selected is None:
         return None, None, "%s_immediate_fd_diagnostics_unrecorded" % cell
-    return float(mass), str(selected), None
+    return p_abort, str(selected), None
+
+
+def _v2_fd_representation(decisions: Optional[Sequence[Mapping[str, Any]]]) -> Optional[str]:
+    """The representation of a member's single immediate-FD wake, or ``None``."""
+    fd = [d for d in (decisions or ())
+          if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD]
+    return _wake_action_representation(fd[0]) if len(fd) == 1 else None
 
 
 def _v2_behaviour_summary(groups: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
@@ -7046,13 +7174,15 @@ def _v2_behaviour_summary(groups: Sequence[Mapping[str, Any]]) -> Dict[str, Any]
     For each COMPLETE group whose MILD and SEVERE members each have exactly one
     immediate-FD wake, the metric is PAIRED FIRST, per world group:
 
-        delta = P_agg(ABORT | SEVERE) - P_agg(ABORT | MILD)
+        delta = P(ABORT | SEVERE) - P(ABORT | MILD)
 
     and only then aggregated -- per base cell, as an EQUAL-WEIGHT macro mean over the ten
-    base cells, and pooled. ``P_agg`` is the aggregate probability MASS on the abort
-    column, which is NOT the probability of the selected action. The selected-joint-cell
-    directional switch (MILD != ABORT and SEVERE == ABORT) and its reverse are counted over
-    the same metric-eligible groups, with their denominators.
+    base cells, and pooled. ``P(ABORT)`` is the SEMANTIC abort probability: under the
+    semantic representation it is directly the one ABORT leaf; a historical record states
+    it as the aggregate mass over the node-indexed abort aliases. A pair whose two
+    members are stated in DIFFERENT representations is not measurable. The selected
+    meta-action directional switch (MILD != ABORT and SEVERE == ABORT) and its reverse
+    are counted over the same metric-eligible groups, with their denominators.
 
     An incomplete group contributes to no delta and no rate and is listed; a complete group
     that is not measurable is listed with its reason. Every undefined quantity is
@@ -7067,6 +7197,7 @@ def _v2_behaviour_summary(groups: Sequence[Mapping[str, Any]]) -> Dict[str, Any]
     }
     rows: List[Dict[str, Any]] = []
     reasons: List[str] = []
+    reps_eligible: set = set()
     for g in groups:
         bc = str(g["base_cell"])
         slot = per_cell.setdefault(bc, {"n_groups_attempted": 0, "n_groups_complete": 0,
@@ -7093,11 +7224,16 @@ def _v2_behaviour_summary(groups: Sequence[Mapping[str, Any]]) -> Dict[str, Any]
         severe, severe_sel, severe_why = _v2_immediate_fd_member(
             decisions.get(SEVERITY_SEVERE), SEVERITY_SEVERE)
         why = mild_why or severe_why
+        pair_reps = {_v2_fd_representation(decisions.get(SEVERITY_MILD)),
+                     _v2_fd_representation(decisions.get(SEVERITY_SEVERE))}
+        if why is None and len(pair_reps) != 1:
+            why = "mixed_action_representations"
         if why is not None:
             row["not_measurable_reason"] = why
             reasons.append(why)
             rows.append(row)
             continue
+        reps_eligible.update(pair_reps)
         delta = float(severe) - float(mild)           # type: ignore[arg-type]
         directional = mild_sel != _ABORT_NAME and severe_sel == _ABORT_NAME
         reverse = mild_sel == _ABORT_NAME and severe_sel != _ABORT_NAME
@@ -7140,11 +7276,27 @@ def _v2_behaviour_summary(groups: Sequence[Mapping[str, Any]]) -> Dict[str, Any]
                if cell_means.get(bc) is not None]
     n_complete = sum(1 for r in rows if r["complete"])
     n_eligible_total = len(all_deltas)
+    reps_sorted = sorted(str(r) for r in reps_eligible)
     return {
         "metric": "severe_minus_mild_aggregate_abort_mass",
         "wake_kind": WAKE_KIND_IMMEDIATE_FD,
         "abort_meta_action": _ABORT_NAME,
-        "aggregate_mass_is_not_selected_action_probability": True,
+        # WHICH action semantics the eligible pairs' P(ABORT) is stated in. The metric
+        # concept -- SEVERE minus MILD semantic abort probability -- is the same in both;
+        # only the historical representation had to express it as alias mass.
+        "action_representation_ids_observed": reps_sorted,
+        "abort_probability_definition": {
+            ACTION_REPRESENTATION_ID: "the one semantic SELF_PRESERVATION_ABORT leaf",
+            LEGACY_ACTION_REPRESENTATION_LABEL:
+                "aggregate mass over the node-indexed abort cells",
+        },
+        # True only for the historical representation, where the aggregate mass was not
+        # the probability of any single selectable action; False under the semantic one,
+        # where it IS the ABORT action's probability; None when no eligible pair exists.
+        "aggregate_mass_is_not_selected_action_probability": (
+            True if reps_sorted == [LEGACY_ACTION_REPRESENTATION_LABEL]
+            else False if reps_sorted == [ACTION_REPRESENTATION_ID]
+            else None),
         "pairing": "per_complete_matched_world_group_then_aggregated",
         "eligibility": ("complete group whose MILD and SEVERE members each have exactly "
                         "one immediate-fuel-damage wake with recorded diagnostics"),
@@ -7653,14 +7805,17 @@ def save_checkpoint(
     ``PPOConfig`` is stored as a plain dict (not the dataclass) so a loader never needs
     to unpickle a project class.
 
-    THE ACTOR-ONLY PAYLOAD IS UNCHANGED. With ``critic is None`` -- which is every
-    ``actor_only`` run -- the saved object holds EXACTLY the five keys it always held
-    (``iteration`` / ``encoder`` / ``head`` / ``optimizer`` / ``ppo_config``), with the
-    same meanings. Nothing was renamed and nothing was added, not even a mode label: a
-    Phase-A checkpoint must stay readable by anything that could read one before.
+    THE ACTOR-ONLY PAYLOAD. With ``critic is None`` -- which is every ``actor_only`` run
+    -- the saved object holds the five historical keys (``iteration`` / ``encoder`` /
+    ``head`` / ``optimizer`` / ``ppo_config``) PLUS ``action_representation_id``. The
+    encoder / head tensor shapes did not change, so a historical checkpoint would still
+    LOAD into them -- but its weights were trained under the retired node-indexed action
+    representation, and semantic compatibility is INTENTIONALLY broken. The id is what
+    makes a new checkpoint self-describing; a historical one (no id) remains evidence of
+    the old representation. No migration and no warm-start conversion exist.
 
     A CTDE run saves the ACTUAL CTDE training state, which is strictly more: the same
-    five keys (``encoder`` / ``head`` / ``optimizer`` are the ACTOR's), plus
+    six keys (``encoder`` / ``head`` / ``optimizer`` are the ACTOR's), plus
     ``training_mode`` and the critic's own ``critic_encoder`` / ``value_head`` /
     ``critic_optimizer`` / ``ctde_config``. There is deliberately NO second
     "actor export" file -- the actor portion of this one payload is already sufficient
@@ -7678,6 +7833,7 @@ def save_checkpoint(
         "head": policy.head.state_dict(),
         "optimizer": updater.optimizer.state_dict(),
         "ppo_config": asdict(updater.cfg),
+        "action_representation_id": ACTION_REPRESENTATION_ID,
     }
     if critic is not None:
         payload["training_mode"] = TRAINING_MODE_CTDE
@@ -7687,6 +7843,172 @@ def save_checkpoint(
         payload["ctde_config"] = asdict(updater.ctde_cfg)
     torch.save(payload, path)
     return path
+
+
+def _credit_measurement_tags(out: Any) -> Dict[str, Any]:
+    """MEASUREMENT-ONLY tags of one successful training episode, for the credit join.
+
+    Read off the episode OUTCOME the trainer already holds, and stored in a trainer-side
+    map keyed by episode identity. They never enter a ``Transition``, a record, a batch,
+    an observation, the reward or an optimizer: the credit rows are joined to them only
+    after the update has already produced its credit values.
+    """
+    plan = out.fuel_damage_plan or {}
+    outcome = out.fuel_damage_outcome or {}
+    return {
+        "cell": _outcome_cell(plan),
+        "condition": plan.get("condition"),
+        "severity": plan.get("severity"),
+        "fd_selected_ego_id": plan.get("ego_id"),
+        "fd_event_tick": outcome.get("event_tick"),
+    }
+
+
+def _credit_rows(
+    report: CreditReport,
+    *,
+    iteration: int,
+    updates_completed_before: int,
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+) -> List[Dict[str, Any]]:
+    """One JSON row per transition of ONE productive update. REPORTING-ONLY.
+
+    Every credit number is COPIED out of ``report.batch`` -- the object the update
+    consumed -- and never recomputed: no forward pass, no GAE pass, no baseline. Keys the
+    row's training mode does not define are ``None`` (never ``0``). The
+    ``measurement_join`` block is looked up by ``(episode_index, seed)`` AFTER the
+    credit values exist; the credit computation never saw it.
+    """
+    batch = report.batch
+    records = list(report.records)
+    cfg = report.cfg
+    ctde = report.training_mode == TRAINING_MODE_CTDE
+    n_with_wakes = sum(1 for rec in records if rec.has_wakes)
+    rows: List[Dict[str, Any]] = []
+    for i, tr in enumerate(batch.transitions):
+        rec = records[int(batch.record_positions[i])]
+        tags = measurement_tags.get((int(rec.episode_index), int(rec.seed)))
+        fd_ego = None if tags is None else tags.get("fd_selected_ego_id")
+        meta = int(tr.meta_action)
+        rows.append({
+            "schema": _CREDIT_DIAGNOSTICS_SCHEMA,
+            "schema_version": _CREDIT_DIAGNOSTICS_VERSION,
+            "action_representation_id": ACTION_REPRESENTATION_ID,
+            "training_mode": str(report.training_mode),
+            "iteration": int(iteration),
+            "updates_completed_before": int(updates_completed_before),
+            "episode_seed": int(rec.seed),
+            "episode_index": int(rec.episode_index),
+            "batch_transition_ordinal": int(i),
+            "episode_decision_ordinal": (
+                int(batch.decision_ordinals[i]) if ctde else None),
+            "ego_chain_ordinal": None if ctde else int(batch.chain_ordinals[i]),
+            "ego_id": str(tr.ego_id),
+            "tick": int(tr.tick),
+            "wake_kind": str(tr.wake_kind),
+            "selected_meta_action": meta,
+            "selected_meta_action_name": MetaAction(meta).name,
+            "selected_node": None if tr.node_v is None else int(tr.node_v),
+            "stored_log_prob": float(tr.log_prob),
+            "episode_reward": float(rec.episode_reward),
+            "transition_reward": (
+                float(batch.rewards[i]) if ctde
+                else (None if tr.reward is None else float(tr.reward))),
+            "raw_advantage": float(batch.raw_advantages[i]),
+            "normalized_advantage": float(batch.advantages[i]),
+            "batch_raw_advantage_mean": float(batch.adv_mean_raw),
+            "batch_raw_advantage_std": float(batch.adv_std_raw),
+            "adv_norm_eps": float(cfg.adv_norm_eps),
+            "gamma": float(cfg.gamma),
+            "batch_n_transitions": int(batch.n_transitions),
+            "batch_n_episodes": int(batch.n_episodes),
+            "batch_n_episodes_with_wakes": int(n_with_wakes),
+            # --- actor_only credit (null under ctde) ---
+            "return": None if ctde else float(batch.returns[i]),
+            "actor_only_episode_baseline": None if ctde else float(batch.baseline),
+            # --- ctde credit (null under actor_only) ---
+            "value_old": float(batch.values[i]) if ctde else None,
+            "td_residual": float(batch.td_residuals[i]) if ctde else None,
+            "value_target": float(batch.value_targets[i]) if ctde else None,
+            "gae_lambda": (float(report.ctde_cfg.gae_lambda)
+                           if ctde and report.ctde_cfg is not None else None),
+            # --- measurement-only join (never an input to anything above) ---
+            "measurement_join": {
+                "joined": tags is not None,
+                "cell": None if tags is None else tags.get("cell"),
+                "condition": None if tags is None else tags.get("condition"),
+                "severity": None if tags is None else tags.get("severity"),
+                "fd_selected_ego_id": fd_ego,
+                "fd_event_tick": None if tags is None else tags.get("fd_event_tick"),
+                "is_fd_selected_ego": (
+                    None if fd_ego is None else str(tr.ego_id) == str(fd_ego)),
+            },
+        })
+    return rows
+
+
+def _persist_credit_diagnostics(
+    path: Path,
+    reports: Sequence[CreditReport],
+    diag: Mapping[str, Any],
+    *,
+    iteration: int,
+    updates_completed_before: int,
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+) -> int:
+    """Write one update's credit rows, or STOP the run. Returns the row count.
+
+    Fails LOUD (:class:`CreditDiagnosticsError`) when a productive update handed over no
+    report or several, when the rows do not cover exactly the update's transitions, or
+    when the file cannot be written -- each would leave an instrumented run silently
+    incomplete.
+    """
+    productive = (int(diag.get("n_epochs_run", 0)) > 0
+                  and int(diag.get("n_transitions", 0)) > 0)
+    if len(reports) > 1:
+        raise CreditDiagnosticsError(
+            "an update handed %d credit reports; exactly one is expected" % len(reports))
+    if not reports:
+        if productive:
+            raise CreditDiagnosticsError(
+                "a productive update (%d transition(s)) produced no credit report; the "
+                "train_credit_diagnostics artifact would be incomplete"
+                % int(diag["n_transitions"]))
+        return 0
+    rows = _credit_rows(reports[0], iteration=iteration,
+                        updates_completed_before=updates_completed_before,
+                        measurement_tags=measurement_tags)
+    if len(rows) != int(diag.get("n_transitions", -1)):
+        raise CreditDiagnosticsError(
+            "credit rows (%d) do not cover the update's %s transition(s)"
+            % (len(rows), diag.get("n_transitions")))
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            for row in rows:
+                fh.write(json.dumps(row) + "\n")
+            fh.flush()
+    except (OSError, TypeError, ValueError) as exc:
+        raise CreditDiagnosticsError(
+            "could not persist %s: %s" % (_CREDIT_DIAGNOSTICS_FILENAME, exc)) from exc
+    return len(rows)
+
+
+def _observed_credit_diagnostics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """What the credit artifact actually carries -- OBSERVED, never asserted."""
+    versions = sorted({int(r["schema_version"]) for r in rows
+                       if isinstance(r.get("schema_version"), int)
+                       and not isinstance(r.get("schema_version"), bool)})
+    reps = sorted({str(r["action_representation_id"]) for r in rows
+                   if isinstance(r.get("action_representation_id"), str)})
+    return {
+        "source": _CREDIT_DIAGNOSTICS_FILENAME,
+        "recorded": bool(rows),
+        "n_rows": len(rows),
+        "schema_versions_observed": versions,
+        "action_representation_ids_observed": reps,
+        "training_modes_observed": sorted({str(r.get("training_mode")) for r in rows}),
+        "schema_version_writer": _CREDIT_DIAGNOSTICS_VERSION,
+    }
 
 
 # =============================================================================
@@ -7972,6 +8294,8 @@ def train(
     # The durable per-SUCCESSFUL-ATTEMPT stream. Disjoint from the failure ledger by
     # construction: an attempt appears in exactly one of the two files.
     outcomes_path = run_dir / _EPISODE_OUTCOMES_FILENAME
+    # The TRAINING-ONLY credit stream: the credit values each productive update used.
+    credit_path = run_dir / _CREDIT_DIAGNOSTICS_FILENAME
 
     # Written BEFORE the completeness gate below, so a refused run still leaves an
     # inspectable record of what was attempted and why it was refused.
@@ -7998,7 +8322,7 @@ def train(
     # Truncate the ledger and the outcome stream: they describe THIS run, and appending
     # to a previous run's records in a reused directory would silently corrupt the
     # accounting. After the gate, so a refused run never destroys an earlier run's files.
-    for append_only_path in (failures_path, outcomes_path):
+    for append_only_path in (failures_path, outcomes_path, credit_path):
         with open(append_only_path, "w", encoding="utf-8"):
             pass
 
@@ -8314,6 +8638,11 @@ def train(
             # How much learning stands behind the episodes collected BELOW -- they are
             # generated by the policy as it is now, before this iteration's update.
             updates_before = updates_completed
+            # MEASUREMENT-ONLY tags per successful episode, keyed by (episode_index,
+            # seed). A TRAINER-SIDE map: it never enters the buffer, a Transition, an
+            # observation, the reward or the update, and is joined to credit rows only
+            # after the update has produced them (`_credit_rows`).
+            credit_tags: Dict[Tuple[int, int], Dict[str, Any]] = {}
 
             # ---- collect the batch ----
             t_eps = time.perf_counter()
@@ -8566,6 +8895,7 @@ def train(
                     buf.add(EpisodeRecord.from_trajectory(
                         out.trajectory, out.reward, seed=seed, episode_index=g,
                     ))
+                credit_tags[(int(g), int(seed))] = _credit_measurement_tags(out)
                 rewards.append(out.reward)
                 unique_confirmed.append(float(out.targets_confirmed_unique))
                 ticks.append(float(out.ticks))
@@ -8577,8 +8907,17 @@ def train(
 
             # ---- ONE update over the batch (empty batch -> documented no-op) ----
             t_upd = time.perf_counter()
-            diag = updater.update(buf)
+            # The credit sink only COLLECTS the report the update hands it after its last
+            # epoch; the rows are built and written below, outside the update.
+            credit_reports: List[CreditReport] = []
+            diag = updater.update(buf, credit_sink=credit_reports.append)
             update_seconds = time.perf_counter() - t_upd
+            _persist_credit_diagnostics(
+                credit_path, credit_reports, diag,
+                iteration=int(iteration),
+                updates_completed_before=int(updates_before),
+                measurement_tags=credit_tags,
+            )
             buf.clear()
             if int(diag["n_epochs_run"]) > 0:
                 updates_completed += 1
@@ -9148,17 +9487,18 @@ def _round_identity(rec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _immediate_fd_abort_mass(rec: Dict[str, Any]) -> Optional[float]:
-    """Mean AGGREGATE P(ABORT) over this record's IMMEDIATE-FD wakes, or ``None``.
+    """Mean P(ABORT) over this record's IMMEDIATE-FD wakes, or ``None``.
 
-    ``None`` -- never ``0.0`` -- when the record has no immediate-FD wake at all: on a
-    probability mass 0 is a measured value and would read as "the actor put no weight on
-    aborting" when the truth is "this episode was never asked".
+    Each wake is read under its OWN representation (:func:`_wake_meta_probability`): the
+    semantic ABORT leaf, or the historical aggregate abort mass. ``None`` -- never
+    ``0.0`` -- when the record has no immediate-FD wake at all: on a probability 0 is a
+    measured value and would read as "the actor put no weight on aborting" when the
+    truth is "this episode was never asked".
     """
-    mass = [float(d["aggregate_probability_per_meta_action"][_ABORT_NAME])
-            for d in rec.get("wake_decisions") or ()
-            if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD
-            and isinstance((d.get("aggregate_probability_per_meta_action") or {})
-                           .get(_ABORT_NAME), (int, float))]
+    mass = [p for p in (_wake_meta_probability(d, _ABORT_NAME)
+                        for d in rec.get("wake_decisions") or ()
+                        if str(d.get("wake_kind") or "") == WAKE_KIND_IMMEDIATE_FD)
+            if p is not None]
     return (float(sum(mass)) / len(mass)) if mass else None
 
 
@@ -9370,18 +9710,30 @@ def _fd_policy_sensitivity_from_outcomes(
             "final_round_selection": selection,
         },
         "metric_semantics": {
+            "selected_abort_fraction":
+                "fraction of wakes whose SELECTED meta-action was SELF_PRESERVATION_ABORT",
+            "p_abort_mean":
+                "mean P(ABORT), each wake read under its own action representation: the "
+                "one semantic ABORT leaf (%s), or the aggregate mass over the "
+                "node-indexed abort cells (historical records). None over a population "
+                "that mixes representations" % ACTION_REPRESENTATION_ID,
+            "entropy_normalized_mean":
+                "policy entropy divided by log(valid action count), per representation "
+                "(semantic leaves, or historical joint cells); undefined (and excluded) "
+                "when fewer than two actions are valid",
             "selected_joint_cell_abort_fraction":
-                "fraction of wakes whose SELECTED joint (node, meta) cell was an abort "
-                "-- what deterministic evaluation actually does",
+                "HISTORICAL records only: fraction of wakes whose SELECTED joint "
+                "(node, meta) cell was an abort",
             "aggregate_p_abort_mean":
-                "mean TOTAL probability mass on the abort column, summed over its k "
-                "cells. NOT the probability of the selected action",
+                "HISTORICAL records only: mean TOTAL probability mass on the abort "
+                "column, summed over its k cells. NOT the probability of the selected "
+                "action",
             "joint_entropy_raw_mean":
-                "entropy of the joint (node, meta-action) distribution, in nats, "
-                "cardinality-dependent",
+                "HISTORICAL records only: entropy of the joint (node, meta-action) "
+                "distribution, in nats, cardinality-dependent",
             "joint_entropy_normalized_mean":
-                "the same entropy divided by log(valid cell count); undefined (and "
-                "excluded) when fewer than two cells are valid",
+                "HISTORICAL records only: the same entropy divided by log(valid cell "
+                "count); undefined (and excluded) when fewer than two cells are valid",
         },
     }
 
@@ -9416,6 +9768,12 @@ def _observed_artifact_schema(
         int(r["wake_diagnostics_schema_version"]) for r in with_diag
         if isinstance(r.get("wake_diagnostics_schema_version"), int)
         and not isinstance(r.get("wake_diagnostics_schema_version"), bool)})
+    # The action representation the records' WAKES are stated in, observed per wake --
+    # a historical wake (no id) is reported under the reader label, never as the
+    # current representation.
+    wake_reps = sorted({_wake_action_representation(d) for r in with_diag
+                        for d in (r.get("wake_decisions") or ())
+                        if isinstance(d, Mapping)})
     if not rows:
         state = "no_records"
     elif len(versions) == 1 and n_unversioned == 0:
@@ -9435,10 +9793,12 @@ def _observed_artifact_schema(
         "wake_diagnostics_schema_versions_observed": diag_versions,
         "wake_diagnostics_schema_version_observed": (
             diag_versions[0] if len(diag_versions) == 1 else None),
+        "wake_action_representations_observed": wake_reps,
         # The CURRENT writer, reported under names that cannot be read as an
         # observation of the artifact.
         "episode_outcome_schema_version_writer": _EPISODE_OUTCOME_VERSION,
         "wake_diagnostics_schema_version_writer": _WAKE_DIAGNOSTICS_VERSION,
+        "action_representation_id_writer": ACTION_REPRESENTATION_ID,
     }
 
 
@@ -10266,7 +10626,7 @@ def build_run_summary(
     no training involved.
     """
     run_path = Path(run_dir)
-    return _summarize(
+    summary = _summarize(
         _read_jsonl(run_path / "train_records.jsonl"),
         _read_jsonl(run_path / "eval_records.jsonl"),
         _read_jsonl(run_path / "episode_failures.jsonl"),
@@ -10278,6 +10638,11 @@ def build_run_summary(
         run_dir=run_path,
         run_seconds=run_seconds,
     )
+    # The credit artifact's SCHEMA is observed here and nothing else is read from it:
+    # no stopping, evaluation, checkpoint or reward path consumes its values.
+    summary["observed_credit_diagnostics"] = _observed_credit_diagnostics(
+        _read_jsonl(run_path / _CREDIT_DIAGNOSTICS_FILENAME))
+    return summary
 
 
 def write_run_summary(run_dir: Union[str, Path], summary: Dict[str, Any]) -> Path:
@@ -10733,14 +11098,16 @@ def _plot_policy_diagnostics(
     ax = axes[1]
     ax.plot(train_x, entropies, color="tab:brown", linewidth=1.6,
             marker=".", markersize=4)
-    # LABEL ONLY -- the plotted series is byte-unchanged. It is the RAW entropy of the
-    # JOINT (node, meta-action) distribution over the k x 3 surface, so it grows with the
-    # number of valid cells and is NOT comparable across episodes of different task-node
-    # counts. The cardinality-normalized form lives on `fd_policy_sensitivity.png`.
-    ax.set_ylabel("raw joint (node, meta-action) entropy (nats)")
-    ax.set_title("RAW JOINT (node, meta-action) policy entropy per TRAINING batch "
-                 "-- CARDINALITY-DEPENDENT, so not comparable across differing "
-                 "task-node counts (collapse detector for the mix above; the "
+    # LABEL ONLY -- the plotted series is the record's `entropy` unchanged. Under the
+    # semantic representation it is the RAW entropy of the k + 2 semantic-leaf
+    # distribution (a historical run's records hold the joint k x 3 cell entropy); either
+    # way it grows with the number of valid actions and is NOT comparable across episodes
+    # of different task-node counts. The normalized form lives on
+    # `fd_policy_sensitivity.png`.
+    ax.set_ylabel("raw policy entropy (nats)")
+    ax.set_title("RAW policy entropy per TRAINING batch (semantic leaves; historical runs: "
+                 "joint cells) -- CARDINALITY-DEPENDENT, so not comparable across "
+                 "differing task-node counts (collapse detector for the mix above; the "
                  "normalized form is on %s)" % _PLOT_FD_SENSITIVITY, fontsize=10)
     ax.grid(alpha=0.25)
 
@@ -10790,9 +11157,9 @@ def _plot_policy_diagnostics(
 # The four per-cell series `fd_policy_sensitivity.png` draws, plus the disagreement
 # series, named once so the figure and its test read the SAME keys.
 _FD_SENSITIVITY_SERIES_KEYS = (
-    "selected_joint_cell_abort_fraction",
-    "aggregate_p_abort_mean",
-    "joint_entropy_normalized_mean",
+    "selected_abort_fraction",
+    "p_abort_mean",
+    "entropy_normalized_mean",
     "distance_clipping_fraction_mean",
 )
 _FD_DISAGREEMENT_KEY = "joint_vs_aggregate_disagreement_fraction"
@@ -10921,13 +11288,14 @@ def _plot_fd_policy_sensitivity(
     which admits ``pre_update`` / ``post_update`` records and nothing else, so no training
     row can enter a value or a denominator here.
 
-    Every panel names its own quantity, because four of them are routinely conflated:
+    Every panel names its own quantity, and each wake is read under its own action
+    representation (:func:`_wake_diag_digest`):
 
-    * the SELECTED JOINT CELL action -- what deterministic evaluation does;
-    * the AGGREGATE probability MASS on a meta-action column, summed over its k cells --
-      NOT the probability of the selected action, and never labelled as one;
-    * RAW joint entropy, in nats, which is cardinality-dependent;
-    * NORMALIZED joint entropy, divided by ``log(valid cell count)``.
+    * the SELECTED meta-action -- what deterministic evaluation does;
+    * P(ABORT) -- the one semantic ABORT leaf, or for a historical record the aggregate
+      mass over its node-indexed abort cells;
+    * NORMALIZED policy entropy, divided by ``log(valid action count)``; the historical
+      joint-vs-aggregate argmax disagreement is drawn only where historical records exist.
 
     Populations are never pooled: post-FD boundary wakes and ordinary wakes are separate
     populations and appear on no panel here, and the matched panel pairs mild against
@@ -10956,18 +11324,18 @@ def _plot_fd_policy_sensitivity(
     fig, axes = plt.subplots(1, 5, figsize=(26, 4.8))
 
     ax = axes[0]
-    _draw(ax, "selected_joint_cell_abort_fraction")
+    _draw(ax, "selected_abort_fraction")
     ax.set_ylim(-0.05, 1.05)
-    ax.set_title("SELECTED joint-cell action\nfraction of immediate-FD wakes selecting "
+    ax.set_title("SELECTED meta-action\nfraction of immediate-FD wakes selecting "
                  "SELF_PRESERVATION_ABORT", fontsize=9)
-    ax.set_ylabel("selected-cell ABORT fraction")
+    ax.set_ylabel("selected ABORT fraction")
 
     ax = axes[1]
-    _draw(ax, "aggregate_p_abort_mean")
+    _draw(ax, "p_abort_mean")
     ax.set_ylim(-0.05, 1.05)
-    ax.set_title("AGGREGATE probability MASS on the ABORT column\n"
-                 "(summed over its k cells -- NOT P(selected action))", fontsize=9)
-    ax.set_ylabel("mean aggregate P(ABORT)")
+    ax.set_title("P(SELF_PRESERVATION_ABORT)\n(semantic ABORT leaf; historical records: "
+                 "aggregate abort-cell mass)", fontsize=9)
+    ax.set_ylabel("mean P(ABORT)")
 
     ax = axes[2]
     matched = data["matched"]
@@ -10978,22 +11346,22 @@ def _plot_fd_policy_sensitivity(
             ax.scatter([x] * len(pts), pts, s=14, alpha=0.45, color="#9467bd")
         ax.axhline(0.0, color="black", lw=0.8, ls="--")
         last = matched["points"][int(matched["x"][-1])]
-        ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
+        ax.set_title("MATCHED severe - mild P(ABORT)\n"
                      "(paired within a round by frozen benchmark group; n=%d group(s) "
                      "at the last x)" % len(last), fontsize=9)
     else:
-        ax.set_title("MATCHED severe - mild aggregate P(ABORT)\n"
+        ax.set_title("MATCHED severe - mild P(ABORT)\n"
                      "(no matched benchmark group in this run)", fontsize=9)
         ax.text(0.5, 0.5, "no matched groups", ha="center", va="center",
                 transform=ax.transAxes, color="#888888")
-    ax.set_ylabel("severe - mild aggregate P(ABORT)")
+    ax.set_ylabel("severe - mild P(ABORT)")
 
     ax = axes[3]
     for c in cells:
-        xy = data["series"]["joint_entropy_normalized_mean"].get(c) or {"x": []}
+        xy = data["series"]["entropy_normalized_mean"].get(c) or {"x": []}
         if xy["x"]:
             ax.plot(xy["x"], xy["y"], marker="o",
-                    label="%s: norm. joint entropy" % c, color=colors.get(c))
+                    label="%s: norm. policy entropy" % c, color=colors.get(c))
     # PER-CELL disagreement, for every cell that has immediate-FD wakes. Reading it from
     # one arbitrary cell -- in practice `clean`, which has none -- made the series
     # silently empty.
@@ -11001,10 +11369,10 @@ def _plot_fd_policy_sensitivity(
         xy = data["disagreement_series"].get(c) or {"x": []}
         if xy["x"]:
             ax.plot(xy["x"], xy["y"], marker="s", ls=":", color=colors.get(c),
-                    alpha=0.7, label="%s: joint vs aggregate argmax disagreement" % c)
+                    alpha=0.7, label="%s: historical joint vs aggregate disagreement" % c)
     ax.set_ylim(-0.05, 1.05)
-    ax.set_title("NORMALIZED joint (node, meta-action) entropy\n"
-                 "[raw entropy / log(valid cells)] + PER-CELL argmax disagreement",
+    ax.set_title("NORMALIZED policy entropy [raw / log(valid actions)]\n"
+                 "+ historical-records-only joint vs aggregate argmax disagreement",
                  fontsize=9)
     ax.set_ylabel("normalized entropy / disagreement fraction")
 

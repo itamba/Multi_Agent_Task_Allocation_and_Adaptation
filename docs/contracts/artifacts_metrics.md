@@ -320,6 +320,17 @@ reporting readers remain as implemented — they detect diagnostics from a list-
 successful ZERO-WAKE episode records `[]` — a real, legitimate outcome of the
 event-triggered design, and deliberately NOT `null`, which would read as "not recorded".
 
+**CURRENT WRITER: EPISODE OUTCOME VERSION 4, WAKE DIAGNOSTICS VERSION 2 (2026-09-16).** The action
+representation changed to `semantic_k_plus_2_logmeanexp_v1`
+([policy and CTDE §2](policy_ctde.md#2-encoder-action-head-and-selection-stage-4)), so the
+MEANING of every selected action and probability changed and the versions move rather than hide
+it: `_EPISODE_OUTCOME_VERSION = 4` adds a top-level `action_representation_id`, and
+`_WAKE_DIAGNOSTICS_VERSION = 2` is the semantic per-wake schema below. Wake diagnostics 1 (records
+of episode-outcome v3) describe the historical node-indexed joint representation and carry no
+representation id; readers label them `LEGACY_ACTION_REPRESENTATION_LABEL`
+(`legacy_node_indexed_joint_k_x_3`, a reader label never written to an artifact). **No archived
+artifact is rewritten.**
+
 **`wake_decisions` IS DURABLE AND REPORTING-ONLY, AND THE SECOND HALF IS STRUCTURAL.**
 **THE DURABLE DATA PATH HAS THREE DISTINCT STAGES AND THEY MUST NOT BE COLLAPSED INTO
 "IT REACHES ALL THREE".** (i) **RAW PER-WAKE RECORDS → `episode_outcomes.jsonl`**,
@@ -355,27 +366,44 @@ call acted on.
   carries no such field rather than inventing one.
 
 **THE PROBABILITIES ARE THE ACTOR'S OWN, FROM THE SHARED CONSTRUCTION SITE.** Every
-probability, entropy and argmax comes from `graph_action._masked_dist` — the SAME single
-site `sample_action` and `evaluate_action` already route through — evaluated on a DETACHED
-copy of the same logits in their ORIGINAL dtype. It is deliberately NOT a second masked
-softmax: an independent implementation, in another dtype or with another tie rule, could
-report a distribution the actor never acted on. The joint argmax is literally
-`torch.argmax(flat)` — the expression the deterministic branch of `sample_action` evaluates
-— so an exact tie breaks identically, the row-major `flat = node*3 + meta` convention is the
-shared one, the raw entropy is the same scalar the PPO entropy bonus receives, and the
-top-two margin is differenced IN TORCH on the exact probabilities before any JSON conversion.
-Conversion to plain builtins happens only after every quantity is final.
+probability, entropy and argmax comes from `graph_action._semantic_dist` — the SAME single
+site `sample_action` and `evaluate_action` route through — evaluated on a DETACHED copy of
+the same scores in their ORIGINAL dtype. It is deliberately NOT a second softmax: an
+independent implementation, in another dtype or with another tie rule, could report a
+distribution the actor never acted on. The deterministic leaf is literally
+`torch.argmax(semantic_logits)` — the expression the deterministic branch of `sample_action`
+evaluates — so an exact tie breaks identically, the raw entropy is the same scalar the PPO
+entropy bonus receives, and the top-two margin is differenced IN TORCH on the exact
+probabilities before any JSON conversion. Conversion to plain builtins happens only after
+every quantity is final.
 
-**TWO VIEWS OF ONE `k × 3` SURFACE, NAMED SO THEY CANNOT BE CONFUSED.** One meta-action owns
-`k` cells, so its total mass is spread across them and the highest JOINT CELL is not
-generally the argmax of the per-column SUM: a meta-action can hold the largest total mass
-while every one of its cells sits below a rival's single best cell. Both are therefore
-reported, with an explicit `joint_vs_aggregate_disagree` flag —
-`selected_joint_cell_abort_fraction` is what deterministic evaluation ACTUALLY DOES, and
-`aggregate_p_abort_mean` is the total MASS on the abort column and is **NEVER** the
-probability of the selected action. Normalized joint entropy is `raw / log(valid cells)` and
-is `None` — never `0.0` or `1.0` — when fewer than two cells are valid, because a single
-valid cell has no spread to normalize. The record also carries the actor-INPUT summary only
+**THE SEMANTIC PER-WAKE SCHEMA (wake diagnostics 2).** Each wake record names
+`action_representation_id` and carries: `n_task_nodes`, `n_semantic_leaves` (`k + 2`, the
+action-space size), `n_valid_semantic_leaves`, `n_abort_legal_nodes`,
+`n_engage_legal_leaves`; the source `source_scores` `[k, 3]` and `source_cell_legal`;
+`semantic_leaves` (leaf, meta-action, nullable node, legal, score, probability) and the flat
+`semantic_probabilities`; the selected `selected_leaf` / `selected_meta_action(_name)` /
+nullable `selected_node` / `selected_action_probability`; `semantic_probability_per_meta_action`
+(PLAN = the one PLAN leaf, ABORT = the one ABORT leaf, ENGAGE = the sum over legal ENGAGE leaves);
+`deterministic_argmax_leaf` / `deterministic_argmax_meta_action(_name)`;
+`top_two_semantic_leaves` and `top_two_probability_margin`; `semantic_entropy_raw` and
+`semantic_entropy_normalized` (`raw / log(valid leaves)`, `None` — never `0.0` or `1.0` — with
+fewer than two legal leaves). A global action's `selected_node_ownership` is `None`.
+**There is NO `joint_vs_aggregate_disagree` field**: that quantity described the retired
+alias geometry and is not a measurement of this representation, so it is not fabricated.
+
+**HISTORICAL RECORDS (wake diagnostics 1) STAY READABLE UNDER THEIR OWN MEANING.** They carry
+`aggregate_probability_per_meta_action`, `joint_*` and `joint_vs_aggregate_disagree`: one
+meta-action owned `k` cells, so `selected_joint_cell_abort_fraction` was what deterministic
+evaluation did and `aggregate_p_abort_mean` was the total abort-column MASS, **NEVER** the
+probability of a selected action. `_wake_diag_digest` keeps those HISTORICAL keys computed from
+historical records only, and adds REPRESENTATION-NEUTRAL keys (`selected_abort_fraction`,
+`p_abort_mean`, `p_plan_mean`, `p_engage_mean`, `entropy_raw_mean`, `entropy_normalized_mean`,
+`n_valid_actions_mean`) that read each wake under its own representation
+(`_wake_meta_probability`: the semantic leaf, or the historical aggregate mass). A population
+mixing representations reports those neutral means as `None` with
+`mixed_action_representations: true`; `fd_policy_sensitivity.png` plots the neutral keys.
+The record also carries the actor-INPUT summary only
 the tick loop can see: graph shape, the ego's own `fuel_norm`, the `reachable_by_ego` vector,
 the `dist_to_ego_norm` column, and how much of that column is SATURATED at the fixed
 normalizer (`n_task_distance_clipped` / `fraction_task_distance_clipped`) — a property of the
@@ -468,7 +496,8 @@ emitted for EVERY cell that has immediate-FD wakes, never for "whichever cell so
 `policy_diagnostics.png`'s entropy panel changed its LABEL ONLY — the plotted series is
 byte-unchanged — to say that it is the RAW joint entropy and therefore cardinality-dependent.
 
-**WHAT IS EXPLICITLY NOT IN THIS TASK.** Target destruction stays DETERMINISTIC at
+**WHAT IS EXPLICITLY NOT IN THIS TASK** (PR #52's scope, kept as recorded; the action
+representation itself changed later, 2026-09-16). Target destruction stays DETERMINISTIC at
 `probability = 1` — **`p(destroy) < 1` was NOT implemented here and remains a separate future
 Grade-A research task**. The frozen solver / BONMIN and the vendored BLADE engine are
 untouched. No actor, encoder, `ActionHead`, PPO, GAE or critic architecture change; **no new
@@ -486,6 +515,53 @@ AND DID NOT MODIFY THE R1 RUN, ITS ARTIFACTS OR ITS VERDICT** — R1 was measure
 `4af6c5aa5dd28072692bfda63282964b55010aae`, which PREDATES this layer, so **R1's own
 artifacts are episode-outcome schema v2 and carry NO `wake_decisions`**; the R1 record is in
 [measurement history](../history/measurements.md#2-measurement-records).
+
+### 5.1 Training credit diagnostics
+
+**`train_credit_diagnostics.jsonl` — TRAINING-ONLY, APPEND-ONLY, OBSERVATIONAL (2026-09-16).**
+Schema `graph_train_credit_diagnostics`, `_CREDIT_DIAGNOSTICS_VERSION = 1`, named in
+`run_config.json:/training/credit_diagnostics`. `train` truncates it at run start and, after
+EVERY productive update, writes ONE row per transition that update trained on — every wake kind,
+not only fuel-damage wakes, so the batch context behind normalization stays readable.
+
+- **THE VALUES THE UPDATE USED, NEVER A RECONSTRUCTION.** `PPOUpdater.update` /
+  `CTDEUpdater.update(…, credit_sink=…)` hand the trainer a `CreditReport` holding the SAME
+  `AdvantageBatch` / `CTDEAdvantageBatch` object the update consumed
+  ([policy and CTDE §4](policy_ctde.md#4-phase-b-ctde)); `graph_train._credit_rows` copies
+  numbers out of it. No actor or critic forward, GAE pass, baseline computation, RNG draw or
+  gradient is added, and turning the sink on or off leaves selected actions, stored log-probs,
+  advantages, optimizer state and parameters identical (tested).
+- **COMMON FIELDS:** `schema`, `schema_version`, `action_representation_id`, `training_mode`,
+  `iteration`, `updates_completed_before`, `episode_seed`, `episode_index`,
+  `batch_transition_ordinal`, `ego_id`, `tick`, `wake_kind`, `selected_meta_action(_name)`,
+  nullable `selected_node`, `stored_log_prob`, `episode_reward`, `transition_reward`,
+  `raw_advantage`, `normalized_advantage`, `batch_raw_advantage_mean`,
+  `batch_raw_advantage_std`, `adv_norm_eps`, `gamma`, `batch_n_transitions`,
+  `batch_n_episodes`, `batch_n_episodes_with_wakes`.
+- **ACTOR-ONLY FIELDS:** `return`, `actor_only_episode_baseline`, `ego_chain_ordinal`
+  (position in the ego's chain, the actor-only credit structure); `transition_reward` is the
+  transition's realized reward (`null` if unset).
+- **CTDE FIELDS:** `value_old` (`V_old`), `td_residual` (`delta_t` from the same GAE pass),
+  `value_target`, `gae_lambda`, `episode_decision_ordinal` (position in the episode's global
+  decision sequence); `transition_reward` is the `r_t` the GAE pass consumed, and
+  `raw_advantage` is the GAE advantage.
+- **SCHEMA RULE: every key is present on every row; a key the row's training mode does not define
+  is `null`** ("not defined for this mode"), never `0`.
+- **`measurement_join` IS MEASUREMENT ONLY.** `cell`, `condition`, `severity`,
+  `fd_selected_ego_id`, `fd_event_tick`, `is_fd_selected_ego` and `joined` come from a
+  TRAINER-SIDE map keyed by `(episode_index, seed)` (`_credit_measurement_tags`), filled from the
+  episode outcome and read only by `_persist_credit_diagnostics` AFTER the update. No such tag
+  enters `GraphObservation`, `Transition`, `CentralGraphObservation`, a record or batch, the
+  mask, the reward, PPO / GAE or an optimizer (tested structurally and by AST).
+- **FAIL LOUD.** `_persist_credit_diagnostics` raises `CreditDiagnosticsError` — the run stops —
+  when a productive update hands over no report or several, when the rows do not cover exactly
+  the update's transitions, or when the file cannot be written.
+- **NO CONTROL PATH READS IT BACK.** Early stopping, evaluation scheduling, checkpointing, the
+  reward, failure classification and action selection never reference it; `build_run_summary`
+  only OBSERVES its schema as `run_summary.json:/observed_credit_diagnostics` (row count, schema
+  versions, representation ids, training modes).
+- **NOT MEASURED BY THIS LAYER.** It is engineering instrumentation; no credit or
+  severity-separation result exists until a future authorized run records and a review reads it.
 
 ## 6. Reading preserved artifacts
 
@@ -529,7 +605,11 @@ single parent is the measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8
   external wall clock.
 - **Schema versions are observed, not assumed**: read
   `run_summary.json:/observed_artifact_schema`. Runs measured before PR #52 (R1 included) carry
-  episode-outcome schema v2 and no `wake_decisions`.
+  episode-outcome schema v2 and no `wake_decisions`. Every preserved GENERALIZED-V2 run carries
+  episode-outcome v3 / wake diagnostics 1 — the historical node-indexed action representation
+  (`wake_action_representations_observed` = `legacy_node_indexed_joint_k_x_3`) — and no
+  `train_credit_diagnostics.jsonl`. Episode-outcome v4 / wake diagnostics 2 is the semantic
+  representation; never read a probability of one under the other's meaning.
 - **Sharded evidence streams**: an evidence commit may split `episode_outcomes.jsonl` into
   line-aligned shards; reconstruct by concatenating the shards in the order given by
   `episode_outcomes.index.json` and check the SHA-256 against `artifact_sha256.txt` before
@@ -546,7 +626,8 @@ single parent is the measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8
 | change or read the optional FD-policy-sensitivity figure | `graph_train.py`: `_PLOT_FD_SENSITIVITY`, `_PLOT_OPTIONAL_FILENAMES`, `_fd_sensitivity_plot_data`, `_plot_fd_policy_sensitivity` | §5 |
 | capture per-attempt visual artifacts | `graph_train.py`: `TrainConfig.visual_artifacts`, `_AttemptIdentity`, `_AttemptArtifacts` (`sync_recordings`, `finalize`), `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs` | §1 |
 | read what an episode did, per successful attempt | `graph_train.py`: `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes`; `episode_outcomes.jsonl`; `run_summary.json:/severity_response` | §3 |
-| record or read per-wake actor diagnostics | `rl/action/graph_action.py`: `summarize_decision`, `_masked_dist`; `rl/training/graph_tick_loop.py`: `WAKE_KINDS`, `_decision_record`, `Transition.wake_kind` / `.decision`; `graph_train.py`: `_EPISODE_OUTCOME_VERSION`, `_WAKE_DIAGNOSTICS_VERSION`, `_wake_decision_records`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema` | §5 |
+| record or read per-wake actor diagnostics | `rl/action/graph_action.py`: `summarize_decision`, `_semantic_dist`, `ACTION_REPRESENTATION_ID`; `rl/training/graph_tick_loop.py`: `WAKE_KINDS`, `_decision_record`, `_node_ownership`, `Transition.wake_kind` / `.decision`; `graph_train.py`: `_EPISODE_OUTCOME_VERSION`, `_WAKE_DIAGNOSTICS_VERSION`, `LEGACY_ACTION_REPRESENTATION_LABEL`, `_wake_action_representation`, `_wake_meta_probability`, `_wake_decision_records`, `_wake_diag_digest`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema` | §5 |
+| record or read training credit diagnostics | `graph_train.py`: `_CREDIT_DIAGNOSTICS_FILENAME`, `_CREDIT_DIAGNOSTICS_SCHEMA`, `_CREDIT_DIAGNOSTICS_VERSION`, `CreditDiagnosticsError`, `_credit_measurement_tags`, `_credit_rows`, `_persist_credit_diagnostics`, `_observed_credit_diagnostics`; `rl/training/graph_ppo.py`: `CreditReport`; tests `tests/test_graph_semantic_action_credit.py` | §5.1 |
 | select the final evaluation round (never `eval_records[-1]`) | `graph_train.py`: `_FINAL_EVAL_IDENTITY_FIELDS`, `_final_eval_identity`, `_select_final_eval_record`, `_select_final_matched_round`, `_round_identity`; `run_summary.json:/final_eval_selection` | §5 |
 | persist or aggregate generalized per-episode data | `graph_train.py`: `_episode_outcome_record`, `_reward_breakdown_record`, `_failure_record`, `_EMPTY_BENCHMARK_KEYS`, `_generalized_summary`, `_construction_record`, `seed_bands`, `write_run_config` | §4; known label defect in [§6.1](#61-known-summary-label-defect-run_summaryjsongeneralizedcardinality_sampler) |
 | read why or how a run stopped | `train_records.jsonl:/early_stopping_check`; `run_summary.json:/early_stopping`; `graph_train.py`: `_early_stopping_summary`, `TERMINATION_REASONS` | [training and benchmarks §7](training_benchmarks.md#7-early-stopping) |

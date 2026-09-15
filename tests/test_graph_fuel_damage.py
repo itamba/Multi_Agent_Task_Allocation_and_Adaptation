@@ -896,7 +896,7 @@ def _drive_loop(ctx, *, seed=1, agent_ids=None, params=_PARAMS):
         wakes.append((str(ego_id), int(tick)))
         return graph_tick_loop.Transition(
             gobs=None, ego_id=str(ego_id), tick=int(tick),
-            meta_action=int(MetaAction.SELF_PRESERVATION_ABORT), node_v=0,
+            meta_action=int(MetaAction.SELF_PRESERVATION_ABORT), node_v=None,
             log_prob=0.0, entropy=0.0,
         )
 
@@ -1170,13 +1170,14 @@ def test_p3_1_abort_empties_only_the_damaged_ego_and_issues_exactly_one_rtb() ->
         assert not any("aircraft_return_to_base" in c for c in before), before
 
         # The abort itself: the SAME pure effect layer a wake would call, on the damaged
-        # ego's private belief only.
+        # ego's private belief only. Its semantic identity carries NO node, whichever of
+        # the ego's legal abort cells carried the evidence (`selected_node`).
         new_solution = apply_meta_action(
             solution, _AbortGobs(), ego,
-            int(MetaAction.SELF_PRESERVATION_ABORT), selected_node, tasks,
+            int(MetaAction.SELF_PRESERVATION_ABORT), None, tasks,
         )
         assert new_solution[ego] == [], (
-            "abort on node %d left %r: the effect is EGO-GLOBAL, not node-scoped"
+            "abort (source cell %d) left %r: the effect is EGO-GLOBAL, not node-scoped"
             % (selected_node, new_solution[ego])
         )
         assert new_solution[peer] == [(1, 0, 0)], "the peer's plan was edited"
@@ -1207,9 +1208,8 @@ def test_p3_1b_abort_is_ego_global_and_every_peer_slice_is_untouched() -> None:
 
     Two peers, one of them holding several assignments of its own, so "the acting ego's
     whole slice and nothing else" is a real claim rather than an artefact of a two-entry
-    dict. The `k x 3` selection surface is asserted UNCHANGED alongside it: the actor
-    still has one legal abort CELL PER assigned node -- which is exactly why selected-node
-    independence has to be proven rather than assumed.
+    dict. The `k x 3` SOURCE legality is asserted alongside it: one legal abort cell per
+    assigned node, all of which collapse into the ONE semantic ABORT action (node None).
     """
     ego = _ABORT_EGO
     tasks = _abort_tasks()
@@ -1245,33 +1245,24 @@ def test_p3_1b_abort_is_ego_global_and_every_peer_slice_is_untouched() -> None:
     assert all(math.isfinite(float(mask[v, int(MetaAction.PLAN_COMPLIANCE)]))
                for v in range(len(tasks))), mask
 
-    # --- every legal cell produces the SAME ego-global result -----------------------
-    results = [
-        apply_meta_action(solution, gobs, ego,
-                          int(MetaAction.SELF_PRESERVATION_ABORT), v, tasks)
-        for v in legal_cells
-    ]
-    for v, out in zip(legal_cells, results):
-        assert out[ego] == [], (
-            "abort on node %d left %r; the effect must be ego-global" % (v, out[ego])
-        )
-        assert out["peer_a"] == [(1, 0, 0)], (v, out["peer_a"])
-        assert out["peer_b"] == [(1, 0, 2), (2, 0, 2)], (v, out["peer_b"])
-    assert results[0] == results[1], (results[0], results[1])
+    # --- the ONE semantic abort action (node None) produces the ego-global result -----
+    out = apply_meta_action(solution, gobs, ego, spa, None, tasks)
+    assert out[ego] == [], "abort left %r; the effect must be ego-global" % (out[ego],)
+    assert out["peer_a"] == [(1, 0, 0)], out["peer_a"]
+    assert out["peer_b"] == [(1, 0, 2), (2, 0, 2)], out["peer_b"]
 
     # --- purity: the input solution and the task list are untouched -----------------
     assert solution == snapshot, solution
     assert tasks == tasks_snapshot and all(a is b for a, b in zip(tasks, tasks_snapshot))
 
-    # --- the bounds guard is unchanged ---------------------------------------------
-    for bad_v in (-1, len(tasks)):
+    # --- the nullable-node guard: ABORT carrying ANY node is a malformed identity ----
+    for bad_v in legal_cells + [-1, len(tasks)]:
         try:
-            apply_meta_action(solution, gobs, ego,
-                              int(MetaAction.SELF_PRESERVATION_ABORT), bad_v, tasks)
+            apply_meta_action(solution, gobs, ego, spa, bad_v, tasks)
         except ValueError:
             pass
         else:
-            raise AssertionError("out-of-range node_v=%r must still raise" % (bad_v,))
+            raise AssertionError("ABORT with node_v=%r must raise" % (bad_v,))
 
 
 def test_p3_1c_a_real_wake_decision_aborts_the_whole_ego_and_yields_one_rtb() -> None:
@@ -1318,9 +1309,10 @@ def test_p3_1c_a_real_wake_decision_aborts_the_whole_ego_and_yields_one_rtb() ->
             _ForcedPolicy(selected_node, int(MetaAction.SELF_PRESERVATION_ABORT)),
             ego, scenario, beliefs[ego], executor, cfg, tick=7, deterministic=True,
         )
-        # The real `sample_action` really decoded the forced abort cell.
+        # The real `sample_action` selected the ONE semantic abort action; its identity
+        # carries no node whichever abort cell carried the forcing score.
         assert transition.meta_action == int(MetaAction.SELF_PRESERVATION_ABORT), transition
-        assert transition.node_v == selected_node, transition
+        assert transition.node_v is None, transition
         assert transition.ego_id == ego and transition.tick == 7
 
         # BEFORE Phase 2: belief and executor slice are both empty for the actor only.
@@ -1550,7 +1542,9 @@ def _executor_ctx(*, meta_action, target_distance_km=250.0, kill_selected_at=Non
             task_target_ids = [
                 str(t.steps[0].target_id) for t in belief.tasks
             ]
-        node_v = int(belief.solution.get(str(ego_id), [(0, 0, 0)])[0][0])
+        node_v = (int(belief.solution.get(str(ego_id), [(0, 0, 0)])[0][0])
+                  if int(meta_action) == int(MetaAction.OPPORTUNISTIC_ENGAGEMENT)
+                  else None)
         belief.solution = apply_meta_action(
             belief.solution, _Gobs(), str(ego_id), int(meta_action), node_v, belief.tasks
         )
@@ -1992,7 +1986,7 @@ def _returning_ego_run(*, max_ticks=14, target_distance_km=30.0):
         wake_calls.append((str(ego_id), int(tick)))
         return graph_tick_loop.Transition(
             gobs=None, ego_id=str(ego_id), tick=int(tick),
-            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=0,
+            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=None,
             log_prob=0.0, entropy=0.0,
         )
 
@@ -3309,7 +3303,7 @@ class _StubTransition:
         self.ego_id = ego_id
         self.tick = 1
         self.meta_action = int(meta_action)
-        self.node_v = 0
+        self.node_v = None
         self.log_prob = 0.0
         self.entropy = 0.0
         self.gobs = None
@@ -3321,7 +3315,7 @@ class _StubUpdater:
         self.cfg = ppo
         self.optimizer = torch.optim.Adam(policy.encoder.parameters(), lr=1e-4)
 
-    def update(self, buf):
+    def update(self, buf, credit_sink=None):
         n_eps = len(getattr(buf, "episodes", []) or [])
         return {
             "policy_loss": 0.0, "total_loss": 0.0, "entropy": 0.0, "mean_ratio": 1.0,
@@ -4575,7 +4569,7 @@ def _run_boundary(world, controller, *, max_ticks=3):
         wakes.append((int(tick), str(ego_id)))
         return graph_tick_loop.Transition(
             gobs=None, ego_id=str(ego_id), tick=int(tick),
-            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=0,
+            meta_action=int(MetaAction.PLAN_COMPLIANCE), node_v=None,
             log_prob=0.0, entropy=0.0,
         )
 

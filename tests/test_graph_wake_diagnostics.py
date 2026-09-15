@@ -7,7 +7,8 @@ Solver-free and BLADE-free. Every test here drives the real production symbols
 ``_episode_outcome_record`` / ``plot_training``) -- nothing is re-implemented here.
 
 PO1  zero policy drift    -- adding diagnostics changes no decision and no RNG state.
-PO2  action semantics     -- the locked duplicated-cell case is reported accurately.
+PO2  action semantics     -- the semantic k + 2 distribution is reported accurately, and
+                             historical (node-indexed) records stay readable.
 PO3  attribution/control  -- the three wake populations stay disjoint, a zero-wake
                              success records ``[]``, legacy records stay readable and
                              plottable, and no control path reads the diagnostics.
@@ -26,9 +27,10 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from match_aou.rl.action.graph_action import (  # noqa: E402
+    ACTION_REPRESENTATION_ID,
     MetaAction,
     NUM_META_ACTIONS,
-    _masked_dist,
+    _semantic_dist,
     sample_action,
     summarize_decision,
 )
@@ -87,14 +89,14 @@ def test_po1_summarizer_alone_leaves_rng_state_untouched():
     torch.manual_seed(99)
     before = torch.get_rng_state().clone()
     for _ in range(25):
-        summarize_decision(logits, mask, PLAN, 0)
+        summarize_decision(logits, mask, PLAN, None)
     assert torch.equal(torch.get_rng_state(), before)
     # And the very next sampled action is the one an un-instrumented run would draw.
     torch.manual_seed(99)
     expect = sample_action(logits, mask, deterministic=False)
     torch.manual_seed(99)
     for _ in range(25):
-        summarize_decision(logits, mask, PLAN, 0)
+        summarize_decision(logits, mask, PLAN, None)
     got = sample_action(logits, mask, deterministic=False)
     assert (got[0], got[1]) == (expect[0], expect[1])
 
@@ -103,23 +105,24 @@ def test_po1_summarizer_takes_no_gradient_and_does_not_touch_the_graph():
     """No autograd node is created, and a grad-attached input is left intact."""
     logits, mask = _fixed_case()
     logits = logits.clone().requires_grad_(True)
-    out = summarize_decision(logits, mask, PLAN, 0)
+    out = summarize_decision(logits, mask, PLAN, None)
     assert logits.grad is None
     # Everything returned is a plain builtin -- no tensor can leak into an artifact.
     json.dumps(out)
 
 
 # =============================================================================
-# PO2 -- ACTION-SEMANTICS ACCURACY (the locked duplicated-cell case)
+# PO2 -- ACTION-SEMANTICS ACCURACY (the duplicated-evidence case, semantic schema)
 # =============================================================================
 
-def _locked_disagreement_case():
-    """LOCKED: joint-cell argmax says ABORT, aggregate-meta argmax says PLAN.
+def _duplicated_evidence_case():
+    """PLAN legal on three nodes with equal score 1.0; ABORT legal on ONE node at 1.6.
 
-    PLAN is valid on all three nodes with equal logit 1.0; ABORT is valid on ONE node
-    with the single largest logit 1.6. So ABORT owns the biggest SINGLE cell while PLAN
-    owns the biggest TOTAL mass -- exactly the duplicated-representation effect the
-    artifact must report without conflating the two.
+    Under the retired joint k x 3 representation this was the LOCKED disagreement case:
+    ABORT owned the biggest single cell while PLAN's three aliases owned the biggest total
+    mass. Under the semantic representation PLAN is ONE leaf scored
+    ``logmeanexp(1, 1, 1) = 1.0`` and ABORT is ONE leaf scored ``1.6`` -- duplication buys
+    PLAN nothing, and there is no alias geometry left to disagree with.
     """
     logits = torch.tensor([[1.0, 0.0, 0.0],
                            [1.0, 0.0, 0.0],
@@ -130,63 +133,55 @@ def _locked_disagreement_case():
     return logits, mask
 
 
-def test_po2_joint_and_aggregate_argmax_disagree_and_are_reported_accurately():
-    logits, mask = _locked_disagreement_case()
-    d = summarize_decision(logits, mask, ABORT, 2)
+def test_po2_semantic_leaves_are_reported_accurately():
+    logits, mask = _duplicated_evidence_case()
+    d = summarize_decision(logits, mask, ABORT, None)
 
-    # --- independently expected values (hand-computed from the logits above) ---
+    # --- independently expected values: TWO legal leaves, PLAN at 1.0, ABORT at 1.6 ---
     e1, e16 = np.exp(1.0), np.exp(1.6)
-    z = 3.0 * e1 + e16
-    p_plan_cell = e1 / z
-    p_abort_cell = e16 / z
+    p_plan, p_abort = e1 / (e1 + e16), e16 / (e1 + e16)
 
-    assert d["joint_argmax_meta_action_name"] == MetaAction.SELF_PRESERVATION_ABORT.name
-    assert d["aggregate_argmax_meta_action_name"] == MetaAction.PLAN_COMPLIANCE.name
-    assert d["joint_vs_aggregate_disagree"] is True
+    assert d["action_representation_id"] == ACTION_REPRESENTATION_ID
+    assert "joint_vs_aggregate_disagree" not in d, "a retired-geometry field was fabricated"
+    assert d["n_semantic_leaves"] == 3 + 2
+    assert d["n_valid_semantic_leaves"] == 2
+    assert d["n_abort_legal_nodes"] == 1 and d["n_engage_legal_leaves"] == 0
+    assert [leaf["legal"] for leaf in d["semantic_leaves"]] == [True, True, False, False, False]
+    assert [leaf["node"] for leaf in d["semantic_leaves"]] == [None, None, 0, 1, 2]
 
-    assert d["n_valid_cells"] == 4
-    assert d["valid_cells_per_meta_action"] == {
-        MetaAction.PLAN_COMPLIANCE.name: 3,
-        MetaAction.OPPORTUNISTIC_ENGAGEMENT.name: 0,
-        MetaAction.SELF_PRESERVATION_ABORT.name: 1,
-    }
-    agg = d["aggregate_probability_per_meta_action"]
-    assert agg[MetaAction.PLAN_COMPLIANCE.name] == pytest.approx(3.0 * p_plan_cell)
-    assert agg[MetaAction.SELF_PRESERVATION_ABORT.name] == pytest.approx(p_abort_cell)
+    agg = d["semantic_probability_per_meta_action"]
+    assert agg[MetaAction.PLAN_COMPLIANCE.name] == pytest.approx(p_plan, rel=1e-6)
+    assert agg[MetaAction.SELF_PRESERVATION_ABORT.name] == pytest.approx(p_abort, rel=1e-6)
     assert agg[MetaAction.OPPORTUNISTIC_ENGAGEMENT.name] == 0.0
-    # ...and the aggregate really is larger for PLAN while the single cell is larger
-    # for ABORT: the whole point of reporting both.
-    assert agg[MetaAction.PLAN_COMPLIANCE.name] > agg[MetaAction.SELF_PRESERVATION_ABORT.name]
-    assert p_abort_cell > p_plan_cell
+    assert d["semantic_probabilities"][2:] == [0.0, 0.0, 0.0]
+    assert sum(d["semantic_probabilities"]) == pytest.approx(1.0)
 
-    assert d["selected_cell_probability"] == pytest.approx(p_abort_cell)
-    assert d["top_two_probability_margin"] == pytest.approx(p_abort_cell - p_plan_cell)
-    assert d["top_two_valid_cells"][0]["meta_action_name"] == \
+    assert d["selected_meta_action_name"] == MetaAction.SELF_PRESERVATION_ABORT.name
+    assert d["selected_node"] is None and d["selected_leaf"] == 1
+    assert d["selected_action_probability"] == pytest.approx(p_abort, rel=1e-6)
+    assert d["deterministic_argmax_meta_action_name"] == \
         MetaAction.SELF_PRESERVATION_ABORT.name
-    assert d["top_two_valid_cells"][1]["meta_action_name"] == \
-        MetaAction.PLAN_COMPLIANCE.name
+    assert d["top_two_probability_margin"] == pytest.approx(p_abort - p_plan, rel=1e-5)
+    assert [x["meta_action_name"] for x in d["top_two_semantic_leaves"]] == [
+        MetaAction.SELF_PRESERVATION_ABORT.name, MetaAction.PLAN_COMPLIANCE.name]
 
-    # masked cells carry EXACTLY zero mass, and the distribution normalizes.
-    pm = np.asarray(d["masked_probabilities"])
-    assert pm.sum() == pytest.approx(1.0)
-    assert pm[0, ENGAGE] == 0.0 and pm[1, ABORT] == 0.0
-
-    # entropy: raw, and normalized by log(valid cells)
-    ps = np.array([p_plan_cell] * 3 + [p_abort_cell])
-    assert d["joint_entropy_raw"] == pytest.approx(float(-(ps * np.log(ps)).sum()))
-    assert d["joint_entropy_normalized"] == pytest.approx(
-        d["joint_entropy_raw"] / np.log(4))
+    ps = np.array([p_plan, p_abort])
+    assert d["semantic_entropy_raw"] == pytest.approx(float(-(ps * np.log(ps)).sum()),
+                                                      rel=1e-6)
+    assert d["semantic_entropy_normalized"] == pytest.approx(
+        d["semantic_entropy_raw"] / np.log(2))
+    json.dumps(d)
 
 
-def test_po2_single_valid_cell_reports_null_normalized_entropy():
-    """Fewer than two valid cells -> None, never NaN and never an invented number."""
+def test_po2_single_valid_leaf_reports_null_normalized_entropy():
+    """Fewer than two legal leaves -> None, never NaN and never an invented number."""
     logits = torch.tensor([[0.5, 0.0, 0.0]], dtype=torch.float32)
     mask = np.array([[0.0, NEG, NEG]], dtype=np.float32)
-    d = summarize_decision(logits, mask, PLAN, 0)
-    assert d["n_valid_cells"] == 1
-    assert d["joint_entropy_normalized"] is None
+    d = summarize_decision(logits, mask, PLAN, None)
+    assert d["n_valid_semantic_leaves"] == 1
+    assert d["semantic_entropy_normalized"] is None
     assert d["top_two_probability_margin"] is None
-    assert d["joint_entropy_raw"] == pytest.approx(0.0)
+    assert d["semantic_entropy_raw"] == pytest.approx(0.0)
     json.dumps(d)  # still serializable
 
 
@@ -194,20 +189,51 @@ def test_po2_all_masked_raises_like_the_actor_path():
     logits = torch.zeros((2, NUM_META_ACTIONS))
     mask = np.full((2, NUM_META_ACTIONS), NEG, dtype=np.float32)
     with pytest.raises(ValueError):
-        summarize_decision(logits, mask, PLAN, 0)
+        summarize_decision(logits, mask, PLAN, None)
 
 
-def test_po2_digest_keeps_selected_cell_and_aggregate_mass_apart():
-    """The digest must not conflate the SELECTED action with aggregate column mass."""
-    logits, mask = _locked_disagreement_case()
-    d = summarize_decision(logits, mask, ABORT, 2)
-    dig = GT._wake_diag_digest([d])
+def test_po2_digest_keeps_historical_selected_cell_and_aggregate_mass_apart():
+    """A HISTORICAL record is still read under its own (node-indexed) meaning."""
+    legacy = _Tr(TL.WAKE_KIND_IMMEDIATE_FD, ABORT,
+                 agg={MetaAction.PLAN_COMPLIANCE.name: 0.7,
+                      MetaAction.OPPORTUNISTIC_ENGAGEMENT.name: 0.0,
+                      MetaAction.SELF_PRESERVATION_ABORT.name: 0.3},
+                 extra={"joint_vs_aggregate_disagree": True}).decision
+    dig = GT._wake_diag_digest([legacy])
     assert dig["n_wakes"] == 1
+    assert dig["action_representation_ids_observed"] == [
+        GT.LEGACY_ACTION_REPRESENTATION_LABEL]
     # selected joint cell WAS abort -> fraction 1.0 ...
     assert dig["selected_joint_cell_abort_fraction"] == pytest.approx(1.0)
     # ... while the aggregate abort MASS is well under half.
-    assert dig["aggregate_p_abort_mean"] < 0.5
+    assert dig["aggregate_p_abort_mean"] == pytest.approx(0.3)
     assert dig["joint_vs_aggregate_disagreement_fraction"] == pytest.approx(1.0)
+    # the neutral keys read the historical record as its aggregate abort mass
+    assert dig["selected_abort_fraction"] == pytest.approx(1.0)
+    assert dig["p_abort_mean"] == pytest.approx(0.3)
+
+
+def test_po2_digest_reads_semantic_records_and_never_pools_representations():
+    logits, mask = _duplicated_evidence_case()
+    semantic = summarize_decision(logits, mask, ABORT, None)
+    p_abort = semantic["semantic_probability_per_meta_action"][
+        MetaAction.SELF_PRESERVATION_ABORT.name]
+    dig = GT._wake_diag_digest([semantic])
+    assert dig["action_representation_ids_observed"] == [ACTION_REPRESENTATION_ID]
+    assert dig["p_abort_mean"] == p_abort
+    assert dig["selected_abort_fraction"] == 1.0
+    # no historical key is filled from a semantic record
+    for key in ("selected_joint_cell_abort_fraction", "aggregate_p_abort_mean",
+                "joint_entropy_raw_mean", "joint_vs_aggregate_disagreement_fraction"):
+        assert dig[key] is None, key
+
+    legacy = _Tr(TL.WAKE_KIND_IMMEDIATE_FD, PLAN).decision
+    mixed = GT._wake_diag_digest([semantic, legacy])
+    assert mixed["mixed_action_representations"] is True
+    for key in ("p_abort_mean", "p_plan_mean", "entropy_normalized_mean"):
+        assert mixed[key] is None, key
+    # counts stay meta-action semantic and well-defined across both
+    assert mixed["selected_abort_fraction"] == pytest.approx(0.5)
 
 
 def test_po2_digest_empty_population_reports_none_not_zero():
@@ -216,20 +242,22 @@ def test_po2_digest_empty_population_reports_none_not_zero():
     for key in ("selected_joint_cell_abort_fraction", "aggregate_p_abort_mean",
                 "joint_entropy_raw_mean", "joint_entropy_normalized_mean",
                 "joint_vs_aggregate_disagreement_fraction",
-                "distance_clipping_fraction_mean"):
+                "selected_abort_fraction", "p_abort_mean", "entropy_raw_mean",
+                "entropy_normalized_mean", "distance_clipping_fraction_mean"):
         assert dig[key] is None, key
 
 
 def test_po2_undefined_normalized_entropy_excluded_from_mean_and_denominator():
-    logits1, mask1 = _locked_disagreement_case()
-    multi = summarize_decision(logits1, mask1, ABORT, 2)
+    logits1, mask1 = _duplicated_evidence_case()
+    multi = summarize_decision(logits1, mask1, ABORT, None)
     single = summarize_decision(torch.tensor([[0.5, 0.0, 0.0]]),
-                                np.array([[0.0, NEG, NEG]], dtype=np.float32), PLAN, 0)
+                                np.array([[0.0, NEG, NEG]], dtype=np.float32), PLAN, None)
     dig = GT._wake_diag_digest([multi, single])
     assert dig["n_wakes"] == 2
-    assert dig["n_joint_entropy_normalized_defined"] == 1
-    assert dig["joint_entropy_normalized_mean"] == pytest.approx(
-        multi["joint_entropy_normalized"])
+    assert dig["n_entropy_normalized_defined"] == 1
+    assert dig["entropy_normalized_mean"] == pytest.approx(
+        multi["semantic_entropy_normalized"])
+    assert dig["n_joint_entropy_normalized_defined"] == 0
 
 
 # =============================================================================
@@ -460,7 +488,7 @@ def test_po3_transition_defaults_keep_pre_change_behaviour():
         task_target_ids=["t"], agent_ids=["e"], agent_id="e",
         current_time=0, time_norm=0.0,
     )
-    tr = TL.Transition(gobs=gobs, ego_id="e", tick=0, meta_action=PLAN, node_v=0,
+    tr = TL.Transition(gobs=gobs, ego_id="e", tick=0, meta_action=PLAN, node_v=None,
                        log_prob=-1.0, entropy=1.0)
     assert tr.wake_kind == TL.WAKE_KIND_ORDINARY
     assert tr.decision is None
@@ -475,6 +503,8 @@ def test_po3_node_ownership_classification():
     # a malformed tuple is skipped, never raised on (this is a reporting path)
     assert TL._node_ownership({"ego": [("bad",)]}, "ego", 0) == TL.OWNERSHIP_UNASSIGNED
     assert TL._node_ownership(None, "ego", 0) == TL.OWNERSHIP_UNASSIGNED
+    # a GLOBAL semantic action selects no node, so it has no ownership at all
+    assert TL._node_ownership(sol, "ego", None) is None
 
 
 def test_po3_outcome_record_carries_versioned_wake_list_and_is_json_safe():
@@ -482,8 +512,9 @@ def test_po3_outcome_record_carries_versioned_wake_list_and_is_json_safe():
     recs = GT._wake_decision_records([_Tr(TL.WAKE_KIND_IMMEDIATE_FD, ABORT)])
     assert len(recs) == 1
     json.dumps(recs)
-    assert GT._EPISODE_OUTCOME_VERSION == 3
-    assert isinstance(GT._WAKE_DIAGNOSTICS_VERSION, int)
+    # v4 / wake-diagnostics 2: the semantic action representation, named on the record.
+    assert GT._EPISODE_OUTCOME_VERSION == 4
+    assert GT._WAKE_DIAGNOSTICS_VERSION == 2
 
 
 def test_po3_fd_sensitivity_splits_by_cell_within_the_fd_population():
@@ -506,92 +537,85 @@ def test_po3_fd_sensitivity_splits_by_cell_within_the_fd_population():
 # FIX 1 -- THE REPORTED DISTRIBUTION IS THE ACTOR'S EXACT DISTRIBUTION
 # =============================================================================
 # `summarize_decision` must not rebuild the distribution with an independent
-# implementation. Every quantity below is compared to `_masked_dist` / the Categorical
+# implementation. Every quantity below is compared to `_semantic_dist` / the Categorical
 # `sample_action` itself routes through, by EXACT equality -- an independent float64
-# masked softmax cannot satisfy these.
+# softmax cannot satisfy these.
 
 def _ref(logits, mask):
     """The actor's own distribution, built through the SAME shared site."""
-    return _masked_dist(logits, mask)
+    return _semantic_dist(logits, mask)
 
 
-def test_fix1_reported_values_equal_the_masked_dist_construction_exactly():
+def test_fix1_reported_values_equal_the_semantic_dist_construction_exactly():
     logits, mask = _fixed_case()
-    d = summarize_decision(logits, mask, PLAN, 0)
-    flat, dist, ent = _ref(logits, mask)
+    d = summarize_decision(logits, mask, PLAN, None)
+    sem, dist, ent = _ref(logits, mask)
 
-    probs = dist.probs.reshape(-1).tolist()
-    k = int(logits.shape[0])
+    probs = dist.probs.tolist()
     # EXACT equality, not approx: any second implementation would drift here.
-    assert [v for row in d["masked_probabilities"] for v in row] == probs
-    assert d["joint_entropy_raw"] == float(ent.item())
-    assert d["n_valid_cells"] == int(torch.isfinite(flat).sum().item())
+    assert d["semantic_probabilities"] == probs
+    assert d["semantic_entropy_raw"] == float(ent.item())
+    legal = torch.isfinite(sem)
+    assert d["n_valid_semantic_leaves"] == int(legal.sum().item())
 
-    agg_ref = dist.probs.reshape(k, NUM_META_ACTIONS).sum(dim=0).tolist()
-    assert [d["aggregate_probability_per_meta_action"][MetaAction(m).name]
-            for m in range(NUM_META_ACTIONS)] == agg_ref
+    engage_ref = float(dist.probs[2:][legal[2:]].sum().item())
+    assert [d["semantic_probability_per_meta_action"][MetaAction(m).name]
+            for m in range(NUM_META_ACTIONS)] == [probs[0], engage_ref, probs[1]]
 
-    i1 = int(torch.argmax(flat).item())
-    cell = d["joint_argmax_cell"]
-    assert cell["node"] * NUM_META_ACTIONS + cell["meta_action"] == i1
-    assert cell["probability"] == probs[i1]
-    # and the normalized form is the raw one over log(valid cells) -- same raw value
-    assert d["joint_entropy_normalized"] == pytest.approx(
-        float(ent.item()) / math.log(d["n_valid_cells"]))
+    i1 = int(torch.argmax(sem).item())
+    leaf = d["deterministic_argmax_leaf"]
+    assert leaf["leaf"] == i1 and leaf["probability"] == probs[i1]
+    assert d["semantic_entropy_normalized"] == pytest.approx(
+        float(ent.item()) / math.log(d["n_valid_semantic_leaves"]))
 
 
 def test_fix1_close_float32_logits_stay_in_the_actors_dtype():
-    """Cells a float64 recomputation would separate differently stay exact.
+    """Leaves a float64 recomputation would separate differently stay exact.
 
     The reported probabilities must be exactly the float32 Categorical values -- so
-    every one of them is exactly representable as a float32. A float64 masked softmax
-    of the same logits would generally NOT be, which is what makes this falsifying.
+    every one of them is exactly representable as a float32.
     """
     logits = torch.tensor([[0.30000001, 0.30000004, 0.29999998],
                            [0.30000002, 0.30000000, 0.30000003]],
                           dtype=torch.float32)
     mask = np.zeros((2, 3), dtype=np.float32)
-    d = summarize_decision(logits, mask, PLAN, 0)
-    _flat, dist, ent = _ref(logits, mask)
+    d = summarize_decision(logits, mask, PLAN, None)
+    _sem, dist, ent = _ref(logits, mask)
 
-    probs = dist.probs.reshape(-1).tolist()
-    flat_reported = [v for row in d["masked_probabilities"] for v in row]
-    assert flat_reported == probs
-    for v in flat_reported:
+    probs = dist.probs.tolist()
+    assert d["semantic_probabilities"] == probs
+    for v in d["semantic_probabilities"]:
         assert float(np.float32(v)) == v, "a float64 recomputation leaked in"
-    assert d["joint_entropy_raw"] == float(ent.item())
+    assert d["semantic_entropy_raw"] == float(ent.item())
 
 
 def test_fix1_exact_ties_resolve_like_deterministic_sample_action():
-    """An exact tie must land on the cell the DETERMINISTIC actor would take."""
-    logits = torch.tensor([[1.0, 0.0, 1.0],
-                           [1.0, 0.0, 1.0],
-                           [1.0, 0.0, 0.0]], dtype=torch.float32)
-    mask = np.array([[0.0, NEG, 0.0],
-                     [0.0, NEG, 0.0],
-                     [0.0, NEG, NEG]], dtype=np.float32)
+    """An exact PLAN / ABORT tie lands on the leaf the DETERMINISTIC actor takes: PLAN."""
+    # k = 1, so logmeanexp is exactly the single score: PLAN == ABORT == 1.0 bit-for-bit.
+    logits = torch.tensor([[1.0, 0.0, 1.0]], dtype=torch.float32)
+    mask = np.array([[0.0, NEG, 0.0]], dtype=np.float32)
+    sem, _dist, _ent = _ref(logits, mask)
+    assert float(sem[0]) == float(sem[1]), "fixture is no longer an exact tie"
     meta, node, _lp, _e = sample_action(logits, mask, deterministic=True)
+    assert (meta, node) == (PLAN, None), "ties resolve in fixed leaf order"
     d = summarize_decision(logits, mask, meta, node)
-    assert d["joint_argmax_cell"]["node"] == node
-    assert d["joint_argmax_cell"]["meta_action"] == meta
-    assert d["joint_argmax_meta_action"] == meta
-    # the runner-up is a DIFFERENT valid cell, chosen on the same ordering basis
-    second = d["top_two_valid_cells"][1]
-    assert (second["node"], second["meta_action"]) != (node, meta)
-    assert np.isfinite(mask[second["node"], second["meta_action"]])
+    assert d["deterministic_argmax_leaf"]["leaf"] == 0
+    assert d["deterministic_argmax_meta_action"] == meta
+    second = d["top_two_semantic_leaves"][1]
+    assert second["meta_action"] == ABORT and second["node"] is None
 
 
 def test_fix1_selected_probability_agrees_with_the_selected_log_probability():
     logits, mask = _fixed_case()
     meta, node, log_prob, entropy = sample_action(logits, mask, deterministic=True)
     d = summarize_decision(logits, mask, meta, node)
-    _flat, dist, _e = _ref(logits, mask)
+    _sem, dist, _e = _ref(logits, mask)
 
-    idx = node * NUM_META_ACTIONS + meta
-    assert d["selected_cell_probability"] == float(dist.probs.reshape(-1)[idx])
-    assert d["selected_cell_probability"] == pytest.approx(
+    idx = d["selected_leaf"]
+    assert d["selected_action_probability"] == float(dist.probs[idx])
+    assert d["selected_action_probability"] == pytest.approx(
         float(torch.exp(log_prob).item()), rel=1e-6)
-    assert d["joint_entropy_raw"] == float(entropy.item())
+    assert d["semantic_entropy_raw"] == float(entropy.item())
 
 
 # =============================================================================
@@ -630,10 +654,10 @@ def test_fix2_training_rows_cannot_change_evaluation_plot_data():
     with_train = GT._fd_sensitivity_plot_data(eval_rows + train_rows)
     assert eval_only == with_train, "training rows leaked into the plotted series"
     # and the eval values are the eval ones, not an average of the two
-    sel = eval_only["series"]["selected_joint_cell_abort_fraction"]
+    sel = eval_only["series"]["selected_abort_fraction"]
     assert sel["severe"] == {"x": [float(x)], "y": [1.0]}
     assert sel["mild"] == {"x": [float(x)], "y": [0.0]}
-    agg = eval_only["series"]["aggregate_p_abort_mean"]
+    agg = eval_only["series"]["p_abort_mean"]
     assert agg["severe"]["y"] == [pytest.approx(1.0)]
     assert agg["mild"]["y"] == [pytest.approx(0.0)]
 
@@ -780,20 +804,37 @@ def test_fix4_build_run_summary_reports_a_legacy_v2_run_as_v2(tmp_path):
 
 
 def test_fix4_build_run_summary_reports_a_v3_run_as_v3(tmp_path):
+    """A HISTORICAL v3 run (wake diagnostics 1, node-indexed) is reported as exactly that."""
     rec = _fd_rec("post_update", "severe", 4, 0.7, ABORT, group="g0", ordinal=1)
     rec.update({"schema": GT._EPISODE_OUTCOME_SCHEMA, "schema_version": 3,
-                "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
-    run = _write_run(tmp_path, "current_v3", [rec])
+                "wake_diagnostics_schema_version": 1})
+    run = _write_run(tmp_path, "historical_v3", [rec])
     summary = GT.build_run_summary(run)
     obs = summary["observed_artifact_schema"]
     assert obs["state"] == "uniform"
     assert obs["episode_outcome_schema_version_observed"] == 3
     assert obs["wake_diagnostics_recorded"] is True
-    assert obs["wake_diagnostics_schema_version_observed"] == (
-        GT._WAKE_DIAGNOSTICS_VERSION)
+    assert obs["wake_diagnostics_schema_version_observed"] == 1
+    assert obs["wake_action_representations_observed"] == [
+        GT.LEGACY_ACTION_REPRESENTATION_LABEL]
     assert summary["fd_policy_sensitivity"]["recorded"] is True
     assert summary["fd_policy_sensitivity"][
-        "wake_diagnostics_schema_versions_observed"] == [GT._WAKE_DIAGNOSTICS_VERSION]
+        "wake_diagnostics_schema_versions_observed"] == [1]
+
+
+def test_fix4_build_run_summary_reports_a_semantic_v4_run_as_v4(tmp_path):
+    logits, mask = _duplicated_evidence_case()
+    wake = summarize_decision(logits, mask, ABORT, None)
+    wake["wake_kind"] = TL.WAKE_KIND_IMMEDIATE_FD
+    rec = {"schema": GT._EPISODE_OUTCOME_SCHEMA, "schema_version": 4,
+           "action_representation_id": ACTION_REPRESENTATION_ID,
+           "wake_diagnostics_schema_version": 2, "phase": "post_update",
+           "cell": "severe", "updates_completed": 4, "wake_decisions": [wake]}
+    obs = GT.build_run_summary(_write_run(tmp_path, "semantic_v4", [rec]))[
+        "observed_artifact_schema"]
+    assert obs["episode_outcome_schema_version_observed"] == 4
+    assert obs["wake_diagnostics_schema_version_observed"] == 2
+    assert obs["wake_action_representations_observed"] == [ACTION_REPRESENTATION_ID]
 
 
 def test_fix4_empty_and_mixed_run_directories_report_a_truthful_state(tmp_path):
@@ -805,8 +846,7 @@ def test_fix4_empty_and_mixed_run_directories_report_a_truthful_state(tmp_path):
     assert empty["wake_diagnostics_recorded"] is False
 
     v3 = _fd_rec("post_update", "mild", 1, 0.2, PLAN)
-    v3.update({"schema_version": 3,
-               "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
+    v3.update({"schema_version": 3, "wake_diagnostics_schema_version": 1})
     mixed = GT.build_run_summary(_write_run(tmp_path, "mixed", [
         {"schema_version": 2, "phase": "train", "cell": "clean",
          "updates_completed": 0},
@@ -1009,8 +1049,7 @@ def test_fix7_a_train_only_v3_run_declares_no_optional_figure(tmp_path):
     """v3 diagnostics on TRAINING rows only: the figure is never written, so never
     declared."""
     train_only = _fd_rec("train", "severe", 2, 0.4, ABORT)
-    train_only.update({"schema_version": 3,
-                       "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
+    train_only.update({"schema_version": 3, "wake_diagnostics_schema_version": 1})
     summary = GT.build_run_summary(_write_run(tmp_path, "train_only", [train_only]))
 
     # the DIGEST legitimately records the training population ...
@@ -1030,8 +1069,7 @@ def test_fix7_a_train_only_v3_run_declares_no_optional_figure(tmp_path):
 
 def test_fix7_an_evaluation_v3_run_declares_the_optional_figure(tmp_path):
     ev = _fd_rec("post_update", "severe", 4, 0.6, ABORT, group="g0", ordinal=1)
-    ev.update({"schema_version": 3,
-               "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
+    ev.update({"schema_version": 3, "wake_diagnostics_schema_version": 1})
     summary = GT.build_run_summary(_write_run(
         tmp_path, "with_eval", [ev], [_eval_round_row("post_update", 4, 1)]))
     assert GT._fd_sensitivity_plot_data([ev])["recorded"] is True
@@ -1062,8 +1100,7 @@ def _stub_plt():
 def test_fix7_declaration_and_figure_agree_on_every_shape(tmp_path):
     """The declaration is the figure's own predicate, on four populations."""
     def v3(rec):
-        rec.update({"schema_version": 3,
-                    "wake_diagnostics_schema_version": GT._WAKE_DIAGNOSTICS_VERSION})
+        rec.update({"schema_version": 3, "wake_diagnostics_schema_version": 1})
         return rec
 
     cases = {
@@ -1094,29 +1131,28 @@ def test_fix8_top_two_margin_is_the_torch_difference_not_a_python_one():
     distribution is defined in. The fixture below is chosen because the two really do
     differ, so this test fails if the conversion order is ever reversed.
     """
-    logits = torch.tensor(np.random.RandomState(11).randn(3, 3).astype(np.float32))
+    logits = torch.tensor(np.random.RandomState(5).randn(3, 3).astype(np.float32))
     mask = np.zeros((3, 3), dtype=np.float32)
     meta, node, _lp, _e = sample_action(logits, mask, deterministic=True)
     d = summarize_decision(logits, mask, meta, node)
-    _flat, dist, _ent = _ref(logits, mask)
-    probs_t = dist.probs.reshape(-1)
+    _sem, dist, _ent = _ref(logits, mask)
+    probs_t = dist.probs
 
-    cells = d["top_two_valid_cells"]
-    i1 = cells[0]["node"] * NUM_META_ACTIONS + cells[0]["meta_action"]
-    i2 = cells[1]["node"] * NUM_META_ACTIONS + cells[1]["meta_action"]
+    leaves = d["top_two_semantic_leaves"]
+    i1, i2 = leaves[0]["leaf"], leaves[1]["leaf"]
     torch_margin = float((probs_t[i1] - probs_t[i2]).item())
     python_margin = float(probs_t[i1]) - float(probs_t[i2])
     assert torch_margin != python_margin, "fixture no longer separates the two"
     assert d["top_two_probability_margin"] == torch_margin
 
 
-def test_fix8_a_single_valid_cell_still_reports_a_null_margin():
+def test_fix8_a_single_valid_leaf_still_reports_a_null_margin():
     logits = torch.tensor([[0.4, 0.1, 0.2]], dtype=torch.float32)
     mask = np.array([[0.0, NEG, NEG]], dtype=np.float32)
-    d = summarize_decision(logits, mask, PLAN, 0)
-    assert d["n_valid_cells"] == 1
+    d = summarize_decision(logits, mask, PLAN, None)
+    assert d["n_valid_semantic_leaves"] == 1
     assert d["top_two_probability_margin"] is None
-    assert len(d["top_two_valid_cells"]) == 1
+    assert len(d["top_two_semantic_leaves"]) == 1
 
 
 def test_fix8_tick_loop_comment_no_longer_claims_a_numpy_only_summarizer():
@@ -1124,7 +1160,7 @@ def test_fix8_tick_loop_comment_no_longer_claims_a_numpy_only_summarizer():
     import inspect
     src = inspect.getsource(TL._wake_decision)
     assert "numpy-only inside" not in src
-    assert "_masked_dist" in src and "SAMPLES NOTHING" in src
+    assert "_semantic_dist" in src and "SAMPLES NOTHING" in src
 
 
 # =============================================================================

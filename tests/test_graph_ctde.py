@@ -85,11 +85,13 @@ from match_aou.rl.training.graph_ppo import (  # noqa: E402
     CTDEEpisodeRecord,
     CTDEUpdater,
     CentralCritic,
+    CreditReport,
     PPOConfig,
     PPOUpdater,
     build_central_critic,
     compute_ctde_advantages,
     compute_gae,
+    compute_returns_and_advantages,
 )
 from match_aou.rl.training.graph_tick_loop import Policy, Transition  # noqa: E402
 from match_aou.utils.blade_utils.blade_graph_executor import GraphPlanExecutor  # noqa: E402
@@ -330,7 +332,7 @@ def _actor_obs(k=3, a=2, *, ego_index=None, seed=0):
     )
 
 
-def _transition(gobs, *, reward=None, meta=0, node=0):
+def _transition(gobs, *, reward=None, meta=0, node=None):
     return Transition(
         gobs=gobs, ego_id="a0", tick=1, meta_action=meta, node_v=node,
         log_prob=-1.0, entropy=0.5, reward=reward,
@@ -532,15 +534,21 @@ def test_actor_only_is_unaffected_by_unused_ctde_configuration():
     assert not weird.ctde_enabled
 
 
-def test_actor_only_checkpoint_payload_keys_are_exactly_the_phase_a_five(tmp_path):
-    """PO1: `critic=None` saves the pre-CTDE payload -- no renames, no extra keys."""
+def test_actor_only_checkpoint_payload_keys_are_the_phase_a_five_plus_representation(tmp_path):
+    """PO1: `critic=None` saves the five pre-CTDE keys plus the action-representation id.
+
+    No CTDE key is added; the id is what makes a checkpoint of the semantic action
+    representation distinguishable from a historical (node-indexed) one.
+    """
     torch.manual_seed(0)
     policy = graph_train.build_policy()
     updater = PPOUpdater(policy, PPOConfig())
     path = graph_train.save_checkpoint(policy, updater, 3, tmp_path)
     payload = torch.load(path, weights_only=False)
-    assert set(payload) == {"iteration", "encoder", "head", "optimizer", "ppo_config"}
+    assert set(payload) == {"iteration", "encoder", "head", "optimizer", "ppo_config",
+                            "action_representation_id"}
     assert payload["iteration"] == 3
+    assert payload["action_representation_id"] == "semantic_k_plus_2_logmeanexp_v1"
 
 
 def test_ctde_checkpoint_carries_the_actual_ctde_training_state(tmp_path):
@@ -553,9 +561,11 @@ def test_ctde_checkpoint_carries_the_actual_ctde_training_state(tmp_path):
     payload = torch.load(path, weights_only=False)
     assert set(payload) == {
         "iteration", "encoder", "head", "optimizer", "ppo_config",
+        "action_representation_id",
         "training_mode", "critic_encoder", "value_head", "critic_optimizer",
         "ctde_config",
     }
+    assert payload["action_representation_id"] == "semantic_k_plus_2_logmeanexp_v1"
     assert payload["training_mode"] == graph_train.TRAINING_MODE_CTDE
     assert payload["ctde_config"] == {
         "critic_lr": 3e-4, "value_coeff": 0.5, "gae_lambda": 0.95,
@@ -615,7 +625,7 @@ class _SentinelCTDEUpdater:
         self.optimizer = torch.optim.Adam(policy.encoder.parameters(), lr=1e-4)
         self.critic_optimizer = torch.optim.Adam(critic.parameters(), lr=1e-4)
 
-    def update(self, buf):
+    def update(self, buf, credit_sink=None):
         n_eps = getattr(buf, "n_episodes", 0)
         diag = {
             "policy_loss": 0.0, "total_loss": 0.0, "entropy": 0.0, "mean_ratio": 1.0,
@@ -1630,23 +1640,36 @@ def _plateau_updaters(schedule):
             "critic_grad_norm": 0.0,
         }
 
+    # A productive update must hand the trainer a REAL credit report (the trainer fails
+    # loud otherwise), so each stand-in builds it from the real credit function over the
+    # real buffer -- the reward trajectory under test still comes from `schedule`.
     class _ActorOnly:
         def __init__(self, policy, ppo):
             self.cfg = ppo
             self.optimizer = torch.optim.Adam(policy.encoder.parameters(), lr=1e-4)
 
-        def update(self, buf):
-            return _diag(int(getattr(buf, "n_episodes", 0)))
+        def update(self, buf, credit_sink=None):
+            n = int(getattr(buf, "n_episodes", 0))
+            if credit_sink is not None and n:
+                credit_sink(CreditReport("actor_only", list(buf.records),
+                                         compute_returns_and_advantages(buf), self.cfg))
+            return _diag(n)
 
     class _Ctde:
         def __init__(self, policy, critic, ppo, ctde):
             self.cfg = ppo
             self.ctde_cfg = ctde
+            self.critic = critic
             self.optimizer = torch.optim.Adam(policy.encoder.parameters(), lr=1e-4)
             self.critic_optimizer = torch.optim.Adam(critic.parameters(), lr=1e-4)
 
-        def update(self, buf):
-            return _diag(int(getattr(buf, "n_episodes", 0)))
+        def update(self, buf, credit_sink=None):
+            n = int(getattr(buf, "n_episodes", 0))
+            if credit_sink is not None and n:
+                batch = compute_ctde_advantages(buf, self.critic, self.cfg, self.ctde_cfg)
+                credit_sink(CreditReport("ctde", list(buf.records), batch, self.cfg,
+                                         self.ctde_cfg))
+            return _diag(n)
 
     return _ActorOnly, _Ctde
 
