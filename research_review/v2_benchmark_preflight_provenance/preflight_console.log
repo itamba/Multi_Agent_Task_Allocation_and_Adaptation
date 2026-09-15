@@ -1,0 +1,261 @@
+==============================================================================
+benchmark preflight: policy=deterministic_per_cell_window_v1 design=generalized_v2 backend=p1_milp_v1
+worlds_per_cell=12 benchmark_base_seed=2000000 max_candidates_per_cell=64
+==============================================================================
+[preflight-v2] A2-D0: window [2000000, 2000064), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A2-D2: window [2000064, 2000128), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A3-D0: window [2000128, 2000192), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A3-D2: window [2000192, 2000256), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A4-D0: window [2000256, 2000320), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A4-D2: window [2000320, 2000384), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A5-D0: window [2000384, 2000448), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A5-D2: window [2000448, 2000512), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A6-D0: window [2000512, 2000576), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+[preflight-v2] A6-D2: window [2000576, 2000640), need 12 world(s)
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+C:\Users\Itama\anaconda3\envs\nlp_env\Lib\site-packages\gymnasium\utils\passive_env_checker.py:158: UserWarning: [33mWARN: The obs returned by the `reset()` method is not within the observation space.[0m
+  logger.warn(f"{pre} is not within the observation space.")
+==============================================================================
+status=complete  manifest_id=ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8  worlds=120  members=360
+manifest: C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\benchmark_manifest.json
+report  : C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\benchmark_preflight_report.json
+candidates attempted=120 accepted=120 rejected=0

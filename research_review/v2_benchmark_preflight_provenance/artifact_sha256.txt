@@ -1,0 +1,40 @@
+# TEMPORARY / REVIEW-ONLY package ledger -- GENERALIZED-V2 benchmark preflight provenance
+# Format of file rows: <sha256> <bytes> <name>
+
+[A] SOURCE-ARTIFACT FACTS (read from the original external directory; bytes unmodified)
+source_path C:\Users\Itama\PycharmProjects\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0
+source_file_count_total 125 (5 top-level files + 120 under scenarios/)
+# Five byte-identical copies committed in this directory (source sha256 == committed blob content sha256):
+dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103 204244 benchmark_manifest.json
+a4c90680badb3ee12bae92fc13ae528ba85f00e26e59f9ed36493be2f6d4e216 365325 benchmark_preflight_report.json
+d8e92c908bde532477635fe3b83799954c0059215fa103dde2763d7568562eae 34051 preflight_console.log
+993f0ff42fc797f882c8e295082d29cd3a3230d23067c1ba9e67d92fb2372751 72 invocation_start_local.txt
+9aca8dfce962538fb8131d73f84cada05e4dc79f5a0d3612c511b1150f3e33e2 4 native_exit_code.txt
+# Not committed: the 120 files under scenarios/ (identified in scenario_sha256.txt).
+
+source_manifest_file_sha256 dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103
+manifest_id (benchmark_manifest.json:/manifest_id) ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8
+# Producer-recorded provenance, verbatim from benchmark_preflight_report.json:/provenance/git
+producer_recorded_available true
+producer_recorded_commit ae42cb01677f94868b2873008d87be677e31f0c8
+producer_recorded_branch main
+producer_recorded_dirty false
+producer_recorded_dirty_path_count 0
+producer_recorded_repo_root C:\Users\Itama\PycharmProjects\Multi_Agent_Task_Allocation_and_Adaptation
+producer_recorded_reason null
+
+[B] DERIVED LEDGER FACTS (computed by static parsing/hashing in this review task)
+scenario_ledger scenario_sha256.txt
+scenario_file_count 120
+scenario_total_bytes 2048776
+scenario_ledger_self_hash c0f2be611d3fbc74b1515124c1dc70cdced5cbbc152b4e8e1c523890c3306a6f (sha256 of every byte of scenario_sha256.txt before its last line)
+scenario_ledger_file_sha256 d7ea81dcde4ec4588bfab74aed2e53aa3b6baf691711337c79335a65d73b2270 (whole file, LF line endings)
+recomputed_manifest_id ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8 (sha256 of canonical JSON of manifest minus manifest_id; equals stored id)
+manifest_file_equals_canonical_record true (file bytes == canonical JSON of the full record incl. manifest_id)
+recomputed_seed_list_sha256 6d65318a5d44046b58bf44882d435c87172145d3cb4d3d21f1f31fe93fe88518 (equals report:/manifest/seed_list_sha256)
+
+[C] GIT EVIDENCE COMMIT IDENTITY
+# This package is carried by branch review/v2-benchmark-preflight-provenance, based on
+# main fcbedc2e2fff58aefdd4d2f1f766c39311a27587. The review commit SHA is resolved from
+# GitHub (it cannot be written inside its own commit). It is a REVIEW-TRANSPORT identity:
+# it is NOT the producer code SHA and NOT a measurement identity.

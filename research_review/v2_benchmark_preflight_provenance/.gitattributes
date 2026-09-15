@@ -1,0 +1,8 @@
+# Byte-identical source copies: no EOL conversion, no textual diff/whitespace checks.
+benchmark_manifest.json -text -diff
+benchmark_preflight_report.json -text -diff
+preflight_console.log -text -diff
+invocation_start_local.txt -text -diff
+native_exit_code.txt -text -diff
+# Derived ledgers are written with LF and hashed as LF bytes.
+scenario_sha256.txt -text
