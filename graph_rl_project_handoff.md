@@ -24,9 +24,16 @@
   ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
 - **Closure and cleanup are complete** (2026-09-15): the local artifacts are organized and indexed
   under `C:\gra\`; the temporary evidence and review PRs are closed and their branches removed; the
-  retired merged branches are removed; this research cycle's execution and source worktrees are
-  removed; the protected refs remain
+  retired merged branches are removed; the four Graph-RL execution / source worktrees targeted by
+  the cleanup (`C:/g1src`, `C:/p1src`, `C:/Users/Itama/ct1s`,
+  `C:/Users/Itama/PycharmProjects/fd_variable_severity_v1_bf1e045f_snapshot`) are removed; the
+  protected refs remain
   ([`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup)).
+- **`C:/Users/Itama/PycharmProjects/flat-baseline` is intentionally retained** as a safety
+  exception, not an incomplete Graph-RL cleanup: it carries protected branch `flat-final`, and its
+  ignored files hold about 5.2 GB of flat-RL training outputs that are not archived under
+  `C:\gra\` and whose deletion or move was not authorized
+  ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
 - **No scientific run is in progress. The confirmatory profile has not been used.**
 - **Next research work belongs to a fresh orchestrator: GENERALIZED-V2 action-representation
   research design.** This handoff authorizes no implementation and no training.
@@ -117,11 +124,9 @@ writable repository task remains.
   `graph_train._generalized_summary`, without touching archived artifacts;
 - an open engineering caveat: a playback-export failure still routes as an ordinary `run`-stage
   episode failure ([measurements](docs/history/measurements.md#2-measurement-records));
-- a documentation alignment: the "never … move" wording of
-  [`experiments.md` §5](docs/workflows/experiments.md#5-evidence-preservation) predates the
-  archival relocation rule of
-  [`environments_cleanup.md` §4.4](docs/workflows/environments_cleanup.md#44-preserved-run-directories-and-external-artifacts);
-- a decision about the retained `flat-baseline` worktree's unarchived flat-RL training outputs
+- `flat-baseline` is intentionally retained as protected historical state and is **not a blocker**
+  for the next Graph-RL research task; any future archival or removal decision for its ignored
+  flat-RL outputs requires its own explicit task
   ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
 
 ## 6. Blocked or unauthorized now
