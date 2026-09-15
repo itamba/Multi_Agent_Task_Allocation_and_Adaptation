@@ -13,8 +13,11 @@
 ## 1. Roles, authority and sources of truth
 
 - **The user** directs the work through chat decisions and the packets or authorized plans the
-  user transfers, and speaks Hebrew with CC. Repository text stays English. **A current user
-  decision supersedes stale guidance**; record the supersession where the guidance lives.
+  user transfers. The GPT orchestrator communicates with the user in Hebrew; CC packets and CC
+  returns to GPT are English by default, and repository text stays English. CC returns are
+  orchestrator-facing evidence and status, not user-facing summaries; CC adds no Hebrew summary
+  unless a packet explicitly asks for one. **A current user decision supersedes stale
+  guidance**; record the supersession where the guidance lives.
 - **The GPT orchestrator** is read-only. It inspects exact GitHub state — branches, PRs, files,
   full SHAs — and approves an **exact full candidate SHA**. Transport is never approval.
 - **CC** implements, preserves evidence, reviews or cleans up, within the task it was given.
