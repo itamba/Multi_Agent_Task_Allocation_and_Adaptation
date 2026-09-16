@@ -1,0 +1,221 @@
+{
+ "artifacts": [
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\authorized_plan.json",
+   "bytes": 8923,
+   "disposition": "copied",
+   "git_path": "run_artifacts/authorized_plan.json",
+   "group": "run",
+   "name": "authorized_plan.json",
+   "role": "pre-run authorized bounded plan, written before training",
+   "sha256": "629603a717b9933f7f956c08ef1a802556f6c0076c77bb8bee99ede05e71a467"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\preflight.json",
+   "bytes": 18457,
+   "disposition": "copied",
+   "git_path": "run_artifacts/preflight.json",
+   "group": "run",
+   "name": "preflight.json",
+   "role": "pre-run technical preflight, written before training",
+   "sha256": "2ca5e9a132b0a186dc48241f29c9b761867f387d3d567f4f54c3d55c8bc2dbc1"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\run_config.json",
+   "bytes": 19952,
+   "disposition": "copied",
+   "git_path": "run_artifacts/run_config.json",
+   "group": "run",
+   "name": "run_config.json",
+   "role": "trainer-resolved configuration and provenance",
+   "sha256": "8f2f9893175d4a1166f9cedfb1bc85aeb4c9de0fd1c4b8779054479a02ce35be"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\run_summary.json",
+   "bytes": 123817,
+   "disposition": "copied",
+   "git_path": "run_artifacts/run_summary.json",
+   "group": "run",
+   "name": "run_summary.json",
+   "role": "trainer run summary: accounting, final round, schema observation",
+   "sha256": "d9a9ede5a08bd16d33feada46af3b9dcfaf2917706056fd636b72c536e71b989"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\train_records.jsonl",
+   "bytes": 1026636,
+   "disposition": "copied",
+   "git_path": "run_artifacts/train_records.jsonl",
+   "group": "run",
+   "name": "train_records.jsonl",
+   "role": "one record per training update (baseline, n_transitions)",
+   "sha256": "5d2b92275da29c49a36de6353e23454c38e64aefb98bcbc0e67ba6fcbf967b4e"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\eval_records.jsonl",
+   "bytes": 409905,
+   "disposition": "copied",
+   "git_path": "run_artifacts/eval_records.jsonl",
+   "group": "run",
+   "name": "eval_records.jsonl",
+   "role": "one record per evaluation round, incl. per-round v2_behaviour",
+   "sha256": "2f3e4f7d475e82c56c39ad3416a72b8acb055c0d4a5c3158b4ee65f8f884687b"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\episode_failures.jsonl",
+   "bytes": 33865,
+   "disposition": "copied",
+   "git_path": "run_artifacts/episode_failures.jsonl",
+   "group": "run",
+   "name": "episode_failures.jsonl",
+   "role": "failure ledger (taxonomy, failed seeds)",
+   "sha256": "a5812b4a26c118882526f8f29d5722258a7c04ccbeccbfc37c5be352586b1567"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\episode_outcomes.jsonl",
+   "bytes": 86330277,
+   "disposition": "external_only; eval immediate-FD wakes extracted",
+   "git_path": null,
+   "group": "run",
+   "name": "episode_outcomes.jsonl",
+   "role": "per-episode outcomes incl. wake diagnostics (train + eval)",
+   "sha256": "3011a163b3b341d5ab25881dae2394e45d7a5ae8ec66854a3f5088d147198740"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\train_credit_diagnostics.jsonl",
+   "bytes": 11891488,
+   "disposition": "external_only; FD-selected-ego immediate-FD rows extracted",
+   "git_path": null,
+   "group": "run",
+   "name": "train_credit_diagnostics.jsonl",
+   "role": "per-transition credit of every productive update",
+   "sha256": "6f04ff38ec7beb5009b85c9d35a97527369c5f83257b3590e58e7e904d06b72e"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\checkpoints\\ckpt_iter0374.pt",
+   "bytes": 1368139,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "run",
+   "name": "checkpoints/ckpt_iter0374.pt",
+   "role": "final actor checkpoint (not loaded or executed)",
+   "sha256": "c231b812c1e19376e5888c9d426c0a1c3a487c41144bda9a829aa622c8bde1f6"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\training_console.log",
+   "bytes": 6347289,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "run",
+   "name": "training_console.log",
+   "role": "trainer console output (*.log is git-ignored)",
+   "sha256": "67c53b3a08651cd85d7eac7331f18ce76c222775eb99c29f3e13f0fafcf78267"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\native_exit_code.txt",
+   "bytes": 0,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "run",
+   "name": "native_exit_code.txt",
+   "role": "launcher exit-code file; EMPTY due to the reported cmd redirect defect (`echo %RC%> file` parses a one-digit code as a handle redirect); not repaired",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\launch.cmd",
+   "bytes": 1581,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "run",
+   "name": "launch.cmd",
+   "role": "the detached launcher that produced the run",
+   "sha256": "71e925171b370d61f6bbde38eedd3ec280b04fbd3d16a3aabdf46484389a7c0a"
+  },
+  {
+   "absolute_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37\\invocation_start_local.txt",
+   "bytes": 78,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "run",
+   "name": "invocation_start_local.txt",
+   "role": "launcher start/end local timestamps",
+   "sha256": "13edcdd18526478c5e0736ee668ee9ac7c713a71ae95be9b6ab22add14a694d5"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\run_config.json",
+   "bytes": 19816,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator_r1",
+   "name": "run_config.json",
+   "role": "comparator resolved configuration",
+   "sha256": "8e104fc012eb1b69543b2d9145ceaf40d3bbe722d74404389b3028f7c2935801"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\run_summary.json",
+   "bytes": 99632,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator_r1",
+   "name": "run_summary.json",
+   "role": "comparator final-round behaviour",
+   "sha256": "db97794b3fec4875afb870ea84d8d2fa2338e497891fbafc68def12649faebc9"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\eval_records.jsonl",
+   "bytes": 405802,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator_r1",
+   "name": "eval_records.jsonl",
+   "role": "comparator per-round v2_behaviour",
+   "sha256": "2987bf78539eddfbf1acc054ce12717d737bfc965e09c970af38aed61960d03c"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\episode_outcomes.jsonl",
+   "bytes": 73894321,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator_r1",
+   "name": "episode_outcomes.jsonl",
+   "role": "comparator eval immediate-FD wakes (trajectory recomputation)",
+   "sha256": "b1bcc0647c45932e1ad6c939d0c740100291dc60a6a83371efb6485d8ebb9da3"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\episode_failures.jsonl",
+   "bytes": 33865,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator_r1",
+   "name": "episode_failures.jsonl",
+   "role": "comparator failure ledger (failed-seed comparison)",
+   "sha256": "294ab3abcddf8c5831c28b513560cc85c1fc753b1d99c564786ad4da08dc75c8"
+  },
+  {
+   "absolute_path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "bytes": 204244,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "benchmark",
+   "name": "benchmark_manifest.json",
+   "role": "frozen GENERALIZED-V2 benchmark manifest consumed by the run",
+   "sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103"
+  },
+  {
+   "absolute_path": "C:\\gra\\metadata\\ARTIFACT_INDEX.jsonl",
+   "bytes": 76904,
+   "disposition": "external_only; read for comparator hash verification",
+   "git_path": null,
+   "group": "archive",
+   "name": "ARTIFACT_INDEX.jsonl",
+   "role": "archive index: independent record of comparator key hashes",
+   "sha256": "de96d9ba4c04e10c075549d37a1b445a6e513d133ef55591a1849bd0b0b80552"
+  }
+ ],
+ "comparator_code_sha": "ae42cb01677f94868b2873008d87be677e31f0c8",
+ "extraction_invoked_no_scientific_execution": true,
+ "hash_algorithm": "sha256",
+ "measured_code_sha": "d4e9f3721e6d151c00be3fe93c3d149df9d31965",
+ "schema": "semantic_action_actor_only_dev_r1_source_manifest",
+ "schema_version": 1,
+ "sources_unchanged_during_extraction": true
+}

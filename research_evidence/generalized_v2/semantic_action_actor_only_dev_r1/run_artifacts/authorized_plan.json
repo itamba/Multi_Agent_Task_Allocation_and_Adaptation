@@ -1,0 +1,209 @@
+{
+ "record": "authorized_plan",
+ "record_version": 1,
+ "written_at": "2026-09-16T05:23:18.477616+03:00",
+ "written_before_any_training_episode": true,
+ "authorization": {
+  "source": "user-approved bounded plan, transferred to CC via the GPT orchestrator packet",
+  "authority": "docs/workflows/experiments.md section 2 (authorized bounded plan)",
+  "profile_scope": "DEVELOPMENT ONLY",
+  "development_only": true,
+  "confirmatory_profile_untouched": true,
+  "confirmatory_statement": "The confirmatory profile is NOT selected, NOT inspected and NOT executed by this run. Only manifest world ordinals [0, 1] (the development profile) are consumed.",
+  "arms_authorized": 1,
+  "ctde_arm_authorized": false,
+  "hyperparameter_sweep_authorized": false
+ },
+ "scientific_question": {
+  "primary": "Does replacing the historical duplicated node-indexed PLAN / ABORT selection identities with the semantic k + 2 representation produce stable severity-conditioned behaviour at the certified ego's immediate-fuel-damage wake?",
+  "secondary": "Using the newly integrated per-transition credit diagnostics, does the immediate-FD transition receive different actor-only credit under MILD versus SEVERE?",
+  "evidence_class": "DEVELOPMENT evidence only; not confirmatory evidence."
+ },
+ "intervention": {
+  "action_representation_id": "semantic_k_plus_2_logmeanexp_v1",
+  "observational_artifact": "train_credit_diagnostics.jsonl",
+  "historical_action_representation": "node-indexed joint k x 3"
+ },
+ "comparator": {
+  "arm": "GENERALIZED-V2 actor-only development R1",
+  "measured_code_sha": "ae42cb01677f94868b2873008d87be677e31f0c8",
+  "training_mode": "actor_only",
+  "run_config_source": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\run_config.json",
+  "archive_key": "v2_actor_only_r1_seed3000000_ae42cb0",
+  "comparison_is_cross_version": true,
+  "historical_representation_not_rerun": true,
+  "no_contemporaneous_control_arm": true
+ },
+ "primary_endpoint": {
+  "statistic": "SEVERE - MILD  P(SELF_PRESERVATION_ABORT)",
+  "wake": "immediate_fuel_damage wake of the certified (FD-selected) ego",
+  "p_abort_definition_under_this_representation": "directly the ONE semantic SELF_PRESERVATION_ABORT leaf",
+  "aggregation": [
+   "pair MILD and SEVERE within the same frozen world group",
+   "summarize per ten V2 base cells",
+   "equal-weight macro mean over all ten base cells"
+  ],
+  "required_final_round_validity": "all ten base cells must have metric-eligible groups, or the macro is UNDEFINED",
+  "redefinition_after_observation": "FORBIDDEN"
+ },
+ "secondary_behavioural_endpoints": [
+  "MILD -> SEVERE directional switches (MILD != ABORT and SEVERE == ABORT)",
+  "reverse switches (MILD == ABORT and SEVERE != ABORT)",
+  "evaluation-round trajectory of semantic P(ABORT)"
+ ],
+ "credit_endpoint": {
+  "artifact": "train_credit_diagnostics.jsonl",
+  "filter": {
+   "wake_kind": "immediate_fuel_damage",
+   "acting_ego": "the FD-selected ego (measurement_join.is_fd_selected_ego)"
+  },
+  "compare_mild_vs_severe_on": [
+   "raw_advantage",
+   "normalized_advantage"
+  ],
+  "preserve_batch_normalization_context": [
+   "batch_raw_advantage_mean",
+   "batch_raw_advantage_std",
+   "adv_norm_eps",
+   "batch_n_transitions",
+   "batch_n_episodes",
+   "batch_n_episodes_with_wakes"
+  ],
+  "coverage_requirement": "every transition of every productive training update",
+  "integrity_rule": "a productive update missing its credit report, a row-count mismatch or a persistence failure is an instrumentation-integrity failure and ABORTS the run (CreditDiagnosticsError)",
+  "learning_rule_change_from_these_observations": "FORBIDDEN during this run"
+ },
+ "completion_conditions": [
+  "all 375 intended updates completed",
+  "3000 successful training episodes under the authorized quota / attempt contract",
+  "accounting reconciled",
+  "all failures classified under the existing taxonomy",
+  "final development evaluation present",
+  "all ten V2 base cells defined for the primary endpoint",
+  "train_credit_diagnostics.jsonl complete for every productive update",
+  "action representation provenance == semantic_k_plus_2_logmeanexp_v1",
+  "run config and actual invocation match this authorized plan",
+  "no infrastructure / integrity abort"
+ ],
+ "stop_conditions": {
+  "on_hard_integrity_failure": "STOP the run; do not silently change the plan",
+  "forbidden_reactions": [
+   "increase attempts",
+   "change seeds",
+   "change the training budget",
+   "alter FD exposure",
+   "adjust PPO",
+   "enable early stopping",
+   "regenerate the benchmark"
+  ],
+  "any_such_change_requires": "a new user decision"
+ },
+ "interpretation_boundaries": [
+  "No advance claim that the action representation will fix severity discrimination.",
+  "Review will distinguish: (1) behavioural separation + discriminative credit; (2) discriminative credit without behavioural separation; (3) no meaningful credit separation; (4) invalid / incomplete measurement.",
+  "Repeated evaluations on the same frozen development worlds are NOT independent samples.",
+  "No result from this run is confirmatory evidence."
+ ],
+ "training_design_frozen_to_comparator": {
+  "episode_design": "generalized_v2",
+  "training_mode": "actor_only",
+  "match_aou_backend": "p1_milp_v1",
+  "benchmark_profile": "development",
+  "base_seed": 3000000,
+  "n_iterations": 375,
+  "successful_episodes_per_iteration": 8,
+  "successful_episode_quota_total": 3000,
+  "generalized_max_attempts_per_iteration": 12,
+  "max_possible_training_attempts": 4500,
+  "fuel_damage_mode": "seeded_variable",
+  "fuel_damage_probability": 0.5,
+  "fuel_damage_mild_probability": 0.5,
+  "eval_every": 25,
+  "checkpoint_every": 25,
+  "early_stopping": false,
+  "solver_timeout": null,
+  "solver_timeout_note": "the historical actor-only R1 run config records NO solver timeout and the current CLI exposes no solver-timeout knob"
+ },
+ "seed_schedule": {
+  "training_base_seed": 3000000,
+  "training_seed_band_half_open": [
+   3000000,
+   3004500
+  ],
+  "training_seed_band_note": "max_possible_training_attempts = 375 x 12 = 4500 seeds",
+  "evaluation_seed_source": "benchmark_manifest (development profile), FIXED across rounds",
+  "evaluation_seeds": [
+   2000000,
+   2000001,
+   2000064,
+   2000065,
+   2000128,
+   2000129,
+   2000192,
+   2000193,
+   2000256,
+   2000257,
+   2000320,
+   2000321,
+   2000384,
+   2000385,
+   2000448,
+   2000449,
+   2000512,
+   2000513,
+   2000576,
+   2000577
+  ],
+  "held_out_expectation": "manifest seeds lie in [2000000, 2000588); disjoint from [3000000, 3004500)"
+ },
+ "benchmark": {
+  "manifest_path_consumed": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "profile": "development",
+  "regenerated_or_mutated": false,
+  "same_frozen_population_as_comparator": true
+ },
+ "invocation": {
+  "argv": [
+   "python",
+   "-m",
+   "match_aou.rl.training.graph_train",
+   "--iterations",
+   "375",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "actor_only",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development"
+  ],
+  "full_command": "conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 375 --episodes 8 --seed 3000000 --out C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37 --checkpoint-every 25 --eval-every 25 --eval-episodes 8 --training-mode actor_only --episode-design generalized_v2 --match-aou-backend p1_milp_v1 --fuel-damage-mode seeded_variable --generalized-max-attempts-per-iteration 12 --benchmark-manifest C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json --benchmark-profile development",
+  "cwd": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+  "env": {
+   "PYTHONPATH": "src"
+  }
+ },
+ "output_location": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+ "evidence_preservation": "run directory preserved in place; no historical run reused or overwritten"
+}
