@@ -1,0 +1,592 @@
+{
+ "record": "preflight",
+ "record_version": 1,
+ "preflight_timestamp": "2026-09-16T16:32:34.898423+03:00",
+ "written_before_any_training_episode": true,
+ "development_only": true,
+ "confirmatory_profile_untouched": true,
+ "confirmatory_statement": "The confirmatory profile is NOT selected, NOT inspected and NOT executed. Only manifest world ordinals [0, 1] (development) are consumed.",
+ "run_id": "graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+ "code": {
+  "measured_code_sha": "8056266cff89f677911462b29970346bed0a57c1",
+  "measured_code_sha_required_by_plan": "8056266cff89f677911462b29970346bed0a57c1",
+  "origin_main_resolved_to": "8056266cff89f677911462b29970346bed0a57c1",
+  "matches_required": true,
+  "branch": "main",
+  "working_tree_clean": true,
+  "dirty_paths": [],
+  "ahead_behind_origin_main": [
+   "0",
+   "0"
+  ],
+  "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation"
+ },
+ "open_prs": {
+  "checked": "gh pr list --state open",
+  "open_prs": [
+   {
+    "headRefName": "evidence/generalized-v2-semantic-action-actor-only-dev-r1",
+    "headRefOid": "0d136fa89286c4bbd9e89dfb6bd0a3326c70b670",
+    "isDraft": true,
+    "number": 71
+   }
+  ],
+  "only_evidence_pr_71_open_at_read_only_head": true,
+  "conflicting_writable_task": false
+ },
+ "source_difference_classification": {
+  "range": "d4e9f3721e6d151c00be3fe93c3d149df9d31965..8056266cff89f677911462b29970346bed0a57c1",
+  "commits": [
+   "8056266cff89f677911462b29970346bed0a57c1 Merge pull request #72 from itamba/docs/v2-semantic-action-dev-r1-verdict",
+   "2baeca25f4712b30ce72e75999ceef8fbd82ee0e docs: precise transient-separation wording; name draft PR #72 in handoff",
+   "888da5a842d69623c332c179053e5a6b4af08b84 docs(handoff): refresh current state after semantic-action dev R1 review",
+   "fe41e83bf022da9e0ae8564f4ea9486c9fe1b77a docs(history): record semantic-action actor-only dev R1 verdict and decisions"
+  ],
+  "files_changed": [
+   "docs/history/decisions.md",
+   "docs/history/measurements.md",
+   "graph_rl_project_handoff.md"
+  ],
+  "classification": "DOCUMENTATION ONLY (docs/history/*.md and graph_rl_project_handoff.md); no src/, tests/, configs/, presets, environment files or docs/contracts/ changed",
+  "executable_config_or_contract_files_changed": [],
+  "comparator_reusable": true
+ },
+ "comparator": {
+  "arm": "GENERALIZED-V2 semantic-action actor-only development R1",
+  "run_id": "graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+  "run_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+  "measured_code_sha": "d4e9f3721e6d151c00be3fe93c3d149df9d31965",
+  "training_mode": "actor_only",
+  "verdict": "APPROVE — VALID DEVELOPMENT MEASUREMENT",
+  "evidence_pr": 71,
+  "evidence_exact_head": "0d136fa89286c4bbd9e89dfb6bd0a3326c70b670",
+  "reused_not_rerun": true,
+  "reuse_justification": "current main 8056266 differs from d4e9f37 only by merged documentation PR #72 (docs/history + handoff); no source/config/contract behavioural difference",
+  "run_config_sha256": "8f2f9893175d4a1166f9cedfb1bc85aeb4c9de0fd1c4b8779054479a02ce35be",
+  "config_source": {
+   "path": null,
+   "absolute_path": null,
+   "format": null,
+   "config_fields": [],
+   "cli_overrides": [],
+   "resolved_from": "cli_defaults"
+  },
+  "invocation_argv": [
+   "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\rl\\training\\graph_train.py",
+   "--iterations",
+   "375",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "actor_only",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development"
+  ],
+  "launch_cmd_sha256": "71e925171b370d61f6bbde38eedd3ec280b04fbd3d16a3aabdf46484389a7c0a"
+ },
+ "config_comparison_vs_semantic_actor_only": {
+  "method": "trainer's own _build_arg_parser + resolve_train_config + validate on the exact argv, compared field-by-field with the comparator run_config.json:/train_config",
+  "differences": [
+   {
+    "path": "/output_dir",
+    "a": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+    "b": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266"
+   },
+   {
+    "path": "/training_mode",
+    "a": "actor_only",
+    "b": "ctde"
+   }
+  ],
+  "authorized_differences": [
+   "/training_mode actor_only -> ctde",
+   "/output_dir",
+   "measured repository SHA / provenance (run_config.json:/provenance, not train_config)"
+  ],
+  "ctde_block_note": "the comparator's train_config already carries ctde = frozen values (inactive under actor_only); under training_mode=ctde the same block becomes active",
+  "unauthorized_differences": []
+ },
+ "config_comparison_vs_historical_ctde_r1": {
+  "role": "authoritative source for CTDE-specific hyperparameters; contextual secondary evidence only, NOT the primary comparator",
+  "run": "GENERALIZED-V2 CTDE development R1 (historical node-indexed action representation)",
+  "measured_code_sha": "ae42cb01677f94868b2873008d87be677e31f0c8",
+  "evidence_pr": 62,
+  "evidence_commit": "b2bbe7a6235c3b9255106826cfb268af7e73f72d",
+  "run_config_path_in_commit": "research_evidence/generalized_v2/ctde_dev_r1/run_config.json",
+  "run_config_sha256": "beac06d463639b25ebe4e00b42b7f1a370ea9fe2500c2cfb4d65137e11030b27",
+  "ctde": {
+   "critic_lr": 0.0003,
+   "value_coeff": 0.5,
+   "gae_lambda": 0.95
+  },
+  "differences": [
+   {
+    "path": "/benchmark_manifest",
+    "a": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+    "b": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json"
+   },
+   {
+    "path": "/output_dir",
+    "a": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0",
+    "b": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266"
+   }
+  ],
+  "ctde_parameters_match_exactly": true,
+  "ppo_parameters_match_exactly": true,
+  "historical_config_source": {
+   "path": null,
+   "absolute_path": null,
+   "format": null,
+   "config_fields": [],
+   "cli_overrides": [],
+   "resolved_from": "cli_defaults"
+  },
+  "note": "the only differences are the archived manifest path (byte-identical file) and output_dir"
+ },
+ "resolved_configuration": {
+  "train_config": {
+   "n_iterations": 375,
+   "episodes_per_iteration": 8,
+   "base_seed": 3000000,
+   "output_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+   "ppo": {
+    "clip_ratio": 0.2,
+    "entropy_coeff": 0.01,
+    "lr": 0.0003,
+    "n_epochs": 4,
+    "gamma": 1.0,
+    "max_grad_norm": 0.5,
+    "adv_norm_eps": 1e-08
+   },
+   "training_mode": "ctde",
+   "ctde": {
+    "critic_lr": 0.0003,
+    "value_coeff": 0.5,
+    "gae_lambda": 0.95
+   },
+   "checkpoint_every": 25,
+   "eval_every": 25,
+   "eval_episodes": 8,
+   "eval_base_seed": 1000000,
+   "max_ticks": null,
+   "episode_design": "generalized_v2",
+   "match_aou_backend": "p1_milp_v1",
+   "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "benchmark_profile": "development",
+   "generalized_max_attempts_per_iteration": 12,
+   "early_stopping": false,
+   "early_stopping_min_iterations": 100,
+   "early_stopping_window_iterations": 25,
+   "early_stopping_patience_windows": 3,
+   "early_stopping_min_delta": 0.01,
+   "num_agents": 3,
+   "n_known": 3,
+   "n_hidden": 3,
+   "min_target_distance_km": 200.0,
+   "min_known_separation_km": 100.0,
+   "include_sams": false,
+   "randomize_red_airbase_positions": true,
+   "stretch_target_ratio": 0.5,
+   "fuel_damage_mode": "seeded_variable",
+   "fuel_damage_probability": 0.5,
+   "fuel_damage_leg_progress": 0.3,
+   "fuel_damage_rtb_margin": 1.1,
+   "fuel_damage_mild_probability": 0.5,
+   "aircraft_penalty_coeff": 2.25,
+   "visual_artifacts": false,
+   "num_red_airbases": [
+    6,
+    6
+   ],
+   "partial_ratio": 0.5
+  },
+  "config_source": {
+   "path": null,
+   "absolute_path": null,
+   "format": null,
+   "config_fields": [],
+   "cli_overrides": [],
+   "resolved_from": "cli_defaults"
+  },
+  "ctde_enabled": true,
+  "ctde_source_defaults_CTDEConfig": {
+   "critic_lr": 0.0003,
+   "value_coeff": 0.5,
+   "gae_lambda": 0.95
+  }
+ },
+ "ppo_configuration": {
+  "clip_ratio": 0.2,
+  "entropy_coeff": 0.01,
+  "lr": 0.0003,
+  "n_epochs": 4,
+  "gamma": 1.0,
+  "max_grad_norm": 0.5,
+  "adv_norm_eps": 1e-08
+ },
+ "ctde_configuration": {
+  "critic_lr": 0.0003,
+  "value_coeff": 0.5,
+  "gae_lambda": 0.95
+ },
+ "action_representation": {
+  "id": "semantic_k_plus_2_logmeanexp_v1",
+  "source": "match_aou.rl.action.graph_action.ACTION_REPRESENTATION_ID"
+ },
+ "training_budget": {
+  "n_iterations": 375,
+  "successful_episodes_per_iteration": 8,
+  "successful_episode_quota_total": 3000,
+  "generalized_max_attempts_per_iteration": 12,
+  "max_possible_training_attempts": 4500
+ },
+ "seed_schedule": {
+  "training_base_seed": 3000000,
+  "training_seed_band_half_open": [
+   3000000,
+   3004500
+  ],
+  "training_seed_formula": "train_seed = base_seed + global_attempt_ordinal",
+  "training_seed_band_note": "max_possible_training_attempts = 375 x 12 = 4500 seeds",
+  "actor_init_seed": "torch.manual_seed(base_seed=3000000) before build_policy(); critic built after",
+  "per_episode_reseed": "random.seed(seed); torch.manual_seed(seed) as the first statements of _run_one_episode",
+  "evaluation_seed_source": "benchmark_manifest (development profile), FIXED across rounds",
+  "evaluation_seeds": [
+   2000000,
+   2000001,
+   2000064,
+   2000065,
+   2000128,
+   2000129,
+   2000192,
+   2000193,
+   2000256,
+   2000257,
+   2000320,
+   2000321,
+   2000384,
+   2000385,
+   2000448,
+   2000449,
+   2000512,
+   2000513,
+   2000576,
+   2000577
+  ],
+  "held_out_verified_over_entire_manifest": true
+ },
+ "benchmark_manifest": {
+  "manifest_path_consumed": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "profile": "development",
+  "development_world_ordinals": [
+   0,
+   1
+  ],
+  "n_development_worlds": 20,
+  "regenerated_or_mutated": false,
+  "same_frozen_population_as_comparator": true,
+  "n_worlds": 120,
+  "n_members": 360,
+  "development_seeds_equal_actor_only_recorded": true,
+  "all_manifest_seeds_held_out_of_train_band": true,
+  "comparator_recorded_manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "loaded_through": "graph_generalized.load_v2_benchmark_manifest (identity verified by code)",
+  "confirmatory_worlds_inspected_or_executed": false
+ },
+ "actor_initialization_identity_check": {
+  "class": "solver-free ENGINEERING preflight assertion; not a rollout, evaluation or scientific result",
+  "result": "PASS — actor state identical under actor_only and ctde initialization sequences",
+  "seed": 3000000,
+  "actor_only_sequence_1": {
+   "actor_hash": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "actor_hash_after_updater": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "rng_after_init": "57e1b5c6080034d6cced0bc2e0dfbb8bc1921b43b481e0d013c48150a014c7b8"
+  },
+  "ctde_sequence_1": {
+   "actor_hash": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "actor_hash_after_critic": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "actor_hash_after_updater": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "critic_hash": "968a6fbf6617c43531076b37df8b509bbbdd21e58fd09a5dc94daa50b437e41a",
+   "rng_after_init": "f1eba168c7b1a7ec4cfb051d4b3547198631c05ac18be4f1a0a4d98e9fec2fed",
+   "n_actor_params": 48,
+   "n_critic_params": 48,
+   "shared_param_objects": 0,
+   "shared_storage_ptrs": 0,
+   "actor_optimizer_params_eq_actor": true,
+   "critic_optimizer_params_eq_critic": true,
+   "optimizers_disjoint": true,
+   "critic_encoder_is_actor_encoder": false
+  },
+  "ctde_sequence_2": {
+   "actor_hash": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "actor_hash_after_critic": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "actor_hash_after_updater": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "critic_hash": "968a6fbf6617c43531076b37df8b509bbbdd21e58fd09a5dc94daa50b437e41a",
+   "rng_after_init": "f1eba168c7b1a7ec4cfb051d4b3547198631c05ac18be4f1a0a4d98e9fec2fed",
+   "n_actor_params": 48,
+   "n_critic_params": 48,
+   "shared_param_objects": 0,
+   "shared_storage_ptrs": 0,
+   "actor_optimizer_params_eq_actor": true,
+   "critic_optimizer_params_eq_critic": true,
+   "optimizers_disjoint": true,
+   "critic_encoder_is_actor_encoder": false
+  },
+  "actor_only_sequence_2": {
+   "actor_hash": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "actor_hash_after_updater": "bc24cd740a52f516043178cfad730cbb03e49b3d515ae9a827a6b8bc52f3ecdf",
+   "rng_after_init": "57e1b5c6080034d6cced0bc2e0dfbb8bc1921b43b481e0d013c48150a014c7b8"
+  },
+  "actor_state_identical_actor_only_vs_ctde": true,
+  "ctde_init_deterministic": true,
+  "rng_state_after_init_differs_between_modes": true,
+  "post_episode_reseed_draws_identical": true,
+  "source_order_in_train": {
+   "manual_seed_base_seed_idx": 9792,
+   "build_policy_idx": 9829,
+   "build_central_critic_idx": 10334,
+   "seed_then_actor_then_critic": true
+  },
+  "run_one_episode_first_statements": [
+   "random.seed(seed)",
+   "torch.manual_seed(seed)"
+  ],
+  "run_one_episode_reseeds_first": true
+ },
+ "invocation": {
+  "argv": [
+   "python",
+   "-m",
+   "match_aou.rl.training.graph_train",
+   "--iterations",
+   "375",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "ctde",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development"
+  ],
+  "full_command": "conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 375 --episodes 8 --seed 3000000 --out C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266 --checkpoint-every 25 --eval-every 25 --eval-episodes 8 --training-mode ctde --episode-design generalized_v2 --match-aou-backend p1_milp_v1 --fuel-damage-mode seeded_variable --generalized-max-attempts-per-iteration 12 --benchmark-manifest C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json --benchmark-profile development",
+  "cwd": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+  "env": {
+   "PYTHONPATH": "src"
+  },
+  "module": "match_aou.rl.training.graph_train",
+  "ctde_cli_overrides": "NONE — CTDE values resolve from the verified frozen source defaults"
+ },
+ "launcher": {
+  "path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266\\launch.cmd",
+  "sha256": "a07be5ca127f7de2457b2d6c272c57829d08bbd3f9c2cab9b6d701a5090c06a6",
+  "comparator_launch_cmd_sha256": "71e925171b370d61f6bbde38eedd3ec280b04fbd3d16a3aabdf46484389a7c0a",
+  "correction": "native exit code written with prefix redirect (>\"file\" echo %RC%); verified on a scratch cmd that exit code 3 is written as '3'",
+  "correction_scope": "launcher only; no repository source change; no scientific execution change",
+  "detach_method": "PowerShell Start-Process cmd.exe /c launch.cmd (hidden window), recorded in launch_record.json after launch"
+ },
+ "execution_environment": {
+  "execution_context": "LOCAL Windows / nlp_env",
+  "python_executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+  "python_version": "3.12.3 | packaged by conda-forge | (main, Apr 15 2024, 18:20:11) [MSC v.1938 64 bit (AMD64)]",
+  "platform": {
+   "system": "Windows",
+   "release": "10",
+   "version": "10.0.19045",
+   "machine": "AMD64",
+   "node": "Itamars-Lenovo-Yoga"
+  },
+  "conda_default_env": "nlp_env",
+  "packages": {
+   "torch": {
+    "version": "2.7.1+cpu",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\torch\\__init__.py"
+   },
+   "numpy": {
+    "version": "2.2.4",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\numpy\\__init__.py"
+   },
+   "scipy": {
+    "version": "1.13.1",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\scipy\\__init__.py"
+   },
+   "pyomo": {
+    "version": "6.9.1",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\pyomo\\__init__.py"
+   },
+   "gymnasium": {
+    "version": "1.0.0",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\gymnasium\\__init__.py"
+   },
+   "blade": {
+    "version": null,
+    "path": "c:\\users\\itama\\pycharmprojects\\multi_agent_task_allocation_and_adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py",
+    "dist_version": "1.0.0"
+   },
+   "match_aou": {
+    "version": null,
+    "path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\__init__.py"
+   },
+   "shapely": {
+    "version": "2.0.6",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\shapely\\__init__.py"
+   }
+  },
+  "bonmin_on_path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Library\\bin\\bonmin.EXE",
+  "torch_num_threads": 4,
+  "action_representation_id": "semantic_k_plus_2_logmeanexp_v1",
+  "actor_only_recorded_python": "3.12.3 | packaged by conda-forge | (main, Apr 15 2024, 18:20:11) [MSC v.1938 64 bit (AMD64)]",
+  "actor_only_recorded_packages": {
+   "torch": {
+    "available": true,
+    "version": "2.7.1+cpu",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\torch\\__init__.py",
+    "error": null
+   },
+   "gymnasium": {
+    "available": true,
+    "version": "1.0.0",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\gymnasium\\__init__.py",
+    "error": null
+   },
+   "blade": {
+    "available": true,
+    "version": "1.0.0",
+    "path": "c:\\users\\itama\\pycharmprojects\\multi_agent_task_allocation_and_adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py",
+    "error": null
+   },
+   "match_aou": {
+    "available": true,
+    "version": null,
+    "path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\__init__.py",
+    "error": null
+   }
+  },
+  "actor_only_recorded_platform": {
+   "system": "Windows",
+   "release": "10",
+   "version": "10.0.19045",
+   "machine": "AMD64",
+   "node": "Itamars-Lenovo-Yoga"
+  },
+  "actor_only_recorded_python_executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+  "identity_vs_comparator": "python version, executable, platform/node, torch 2.7.1+cpu, gymnasium 1.0.0, blade path/version and match_aou path identical to comparator run_config provenance; numpy 2.2.4 / scipy 1.13.1 / pyomo 6.9.1 identical to the comparator's preflight.json",
+  "p1_backend_note": "generalized_v2 uses p1_milp_v1 (SciPy HiGHS); BONMIN is not invoked"
+ },
+ "run_directory": {
+  "path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+  "created_fresh": true,
+  "reuses_or_overwrites_a_previous_run": false
+ },
+ "scientific_question": {
+  "primary": "Now that the semantic k + 2 action representation has demonstrated that the actor can temporarily learn strong MILD/SEVERE separation, does the existing centralized-training critic + GAE path allow that separation to be retained through the fixed 375-update budget?",
+  "tests": "credit / optimization stability under the already-integrated semantic action representation",
+  "does_not_test": "a new action representation",
+  "evidence_class": "DEVELOPMENT evidence only; not confirmatory evidence."
+ },
+ "primary_endpoint": {
+  "statistic": "SEVERE - MILD  P(SELF_PRESERVATION_ABORT)",
+  "wake": "immediate_fuel_damage wake of the certified (FD-selected) ego",
+  "p_abort_definition_under_this_representation": "directly the ONE semantic SELF_PRESERVATION_ABORT leaf",
+  "round": "final evaluation round, selected semantically (never as the last record)",
+  "aggregation": [
+   "pair MILD and SEVERE within the same frozen world group",
+   "summarize per ten V2 base cells",
+   "equal-weight macro mean over all ten base cells"
+  ],
+  "validity": [
+   "final round semantically identified",
+   "10 / 10 base cells defined",
+   "all expected matched development groups eligible"
+  ],
+  "primary_comparison": "semantic CTDE final endpoint vs reviewed semantic actor-only final endpoint",
+  "success_threshold": "NONE (no post-hoc threshold may be introduced)",
+  "redefinition_after_observation": "FORBIDDEN"
+ },
+ "secondary_endpoints": {
+  "behavioural_all_16_rounds_matched_update_counts": [
+   "MILD mean P(ABORT)",
+   "SEVERE mean P(ABORT)",
+   "ten-cell macro SEVERE - MILD",
+   "directional switches (MILD != ABORT and SEVERE == ABORT)",
+   "reverse switches (MILD == ABORT and SEVERE != ABORT)",
+   "per-base-cell values"
+  ],
+  "descriptive_attention_actor_only_trajectory": {
+   "75": "strong separation begins",
+   "100-150": "near-universal separation",
+   "175": "collapse"
+  },
+  "no_cherry_picking": "all rounds are reported",
+  "credit_artifact": "train_credit_diagnostics.jsonl (every transition of every productive update)",
+  "credit_fields_immediate_fd_fd_selected_ego": [
+   "raw_advantage (GAE advantage)",
+   "normalized_advantage",
+   "value_old",
+   "td_residual",
+   "value_target",
+   "reward",
+   "batch normalization moments",
+   "gae_lambda",
+   "episode decision ordinal"
+  ],
+  "credit_analyses": [
+   "MILD vs SEVERE descriptive distributions",
+   "same-update-batch MILD vs SEVERE comparisons",
+   "ABORT vs non-ABORT within each severity (explicitly NON-counterfactual)",
+   "25-iteration windows, including before, during and after any separation / collapse",
+   "structural check: does CTDE raw advantage vary within episodes / decision sequences (actor-only: constant)",
+   "CTDE immediate-FD credit trajectory vs behavioural separation trajectory"
+  ],
+  "credit_interpretation_limit": "not causal action values without a matched counterfactual",
+  "measurement_tags_observational_only": "severity / FD tags never enter critic, actor, GAE, reward or action selection",
+  "comparator_integrity_checks_after_run": [
+   "same training attempt seeds as semantic actor-only until ordinary deterministic replacements",
+   "setup-failure seeds expected to match (setup is training-mode-independent)",
+   "same frozen benchmark members",
+   "same action representation",
+   "pre-update evaluation trajectory / decisions compared with semantic actor-only pre-update values; any unexplained difference is an anomaly to investigate before interpreting the arm comparison"
+  ],
+  "historical_node_indexed_ctde_r1": "contextual secondary evidence only"
+ }
+}

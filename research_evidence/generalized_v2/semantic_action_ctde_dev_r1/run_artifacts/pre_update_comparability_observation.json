@@ -1,0 +1,32 @@
+{
+ "record": "pre_update_comparability_observation",
+ "written_after_launch": true,
+ "class": "read-only engineering observation over already-written artifacts; not a scientific result and not a review verdict",
+ "compared": {
+  "ctde_arm": "this run, episode_outcomes.jsonl phase=pre_update and eval_records.jsonl evaluation_stage=pre_update",
+  "comparator": "graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37 (same phase / stage)"
+ },
+ "normalization": "timing fields dropped (seconds, elapsed, ...); UUID-valued strings replaced by a placeholder (aircraft ids are not seed-derived); UUIDs embedded inside free-text 'detail' strings were NOT normalized",
+ "result": {
+  "episode_tags_equal": true,
+  "rows": 60,
+  "pre_update_eval_record_normalized_differences": 0,
+  "identical_normalized_rows": 42,
+  "identical_wake_decisions": 50,
+  "selected_actions_differ": false,
+  "rewards_differ": false,
+  "difference_classes": [
+   "ego UUIDs inside construction / eligibility 'detail' text (id generation, not seed-derived)",
+   "episode length and wake tick shifted by exactly +/-1 tick on a few worlds (tags 900042, 900044, 900055, ...)",
+   "wake probabilities / scores differing at ~1e-7, consistent with the time_norm feature of a wake one tick apart"
+  ]
+ },
+ "historical_control": {
+  "compared": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0 vs C:\\gra\\runs\\development\\v2_ctde_r1_seed3000000_ae42cb0 (both measured at ae42cb0, read-only)",
+  "identical_normalized_rows": 42,
+  "pre_update_eval_record_normalized_differences": 0,
+  "same_difference_classes": true,
+  "overlapping_tags": ["900042", "900048", "900036", "900055"]
+ },
+ "interpretation_boundary": "The actor weights at update 0 are proven identical (preflight.json actor_initialization_identity_check). The +/-1-tick differences reproduce between the historical actor-only and CTDE pair at one code SHA, so they are a pre-existing process-level execution nondeterminism (plausibly hash- or id-ordered iteration interacting with the recorded BLADE live-list removal behaviour), NOT a CTDE-introduced confound. The cause is not established here; it is recorded for the run review and must be considered when interpreting per-episode (not aggregate) cross-arm comparisons."
+}

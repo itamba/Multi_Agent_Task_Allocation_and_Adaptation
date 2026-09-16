@@ -1,0 +1,290 @@
+{
+ "record": "authorized_plan",
+ "record_version": 1,
+ "written_at": "2026-09-16T16:32:34.898423+03:00",
+ "written_before_any_training_episode": true,
+ "run_id": "graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+ "measured_code_sha": "8056266cff89f677911462b29970346bed0a57c1",
+ "authorization": {
+  "source": "user-approved bounded plan (full CTDE comparison after repository cleanup), transferred to CC via the GPT orchestrator packet",
+  "authority": "docs/workflows/experiments.md section 2 (authorized bounded plan)",
+  "profile_scope": "DEVELOPMENT ONLY",
+  "arms_authorized": 1,
+  "ctde_arm_authorized": true,
+  "actor_only_rerun_authorized": false,
+  "hyperparameter_sweep_authorized": false,
+  "development_only": true,
+  "confirmatory_profile_untouched": true,
+  "confirmatory_statement": "The confirmatory profile is NOT selected, NOT inspected and NOT executed. Only manifest world ordinals [0, 1] (development) are consumed."
+ },
+ "scientific_question": {
+  "primary": "Now that the semantic k + 2 action representation has demonstrated that the actor can temporarily learn strong MILD/SEVERE separation, does the existing centralized-training critic + GAE path allow that separation to be retained through the fixed 375-update budget?",
+  "tests": "credit / optimization stability under the already-integrated semantic action representation",
+  "does_not_test": "a new action representation",
+  "evidence_class": "DEVELOPMENT evidence only; not confirmatory evidence."
+ },
+ "primary_comparator": {
+  "arm": "GENERALIZED-V2 semantic-action actor-only development R1",
+  "run_id": "graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+  "run_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+  "measured_code_sha": "d4e9f3721e6d151c00be3fe93c3d149df9d31965",
+  "training_mode": "actor_only",
+  "verdict": "APPROVE — VALID DEVELOPMENT MEASUREMENT",
+  "evidence_pr": 71,
+  "evidence_exact_head": "0d136fa89286c4bbd9e89dfb6bd0a3326c70b670",
+  "reused_not_rerun": true,
+  "reuse_justification": "current main 8056266 differs from d4e9f37 only by merged documentation PR #72 (docs/history + handoff); no source/config/contract behavioural difference"
+ },
+ "historical_ctde_config_source": {
+  "role": "authoritative source for CTDE-specific hyperparameters; contextual secondary evidence only, NOT the primary comparator",
+  "run": "GENERALIZED-V2 CTDE development R1 (historical node-indexed action representation)",
+  "measured_code_sha": "ae42cb01677f94868b2873008d87be677e31f0c8",
+  "evidence_pr": 62,
+  "evidence_commit": "b2bbe7a6235c3b9255106826cfb268af7e73f72d",
+  "run_config_path_in_commit": "research_evidence/generalized_v2/ctde_dev_r1/run_config.json",
+  "run_config_sha256": "beac06d463639b25ebe4e00b42b7f1a370ea9fe2500c2cfb4d65137e11030b27",
+  "ctde": {
+   "critic_lr": 0.0003,
+   "value_coeff": 0.5,
+   "gae_lambda": 0.95
+  }
+ },
+ "primary_endpoint": {
+  "statistic": "SEVERE - MILD  P(SELF_PRESERVATION_ABORT)",
+  "wake": "immediate_fuel_damage wake of the certified (FD-selected) ego",
+  "p_abort_definition_under_this_representation": "directly the ONE semantic SELF_PRESERVATION_ABORT leaf",
+  "round": "final evaluation round, selected semantically (never as the last record)",
+  "aggregation": [
+   "pair MILD and SEVERE within the same frozen world group",
+   "summarize per ten V2 base cells",
+   "equal-weight macro mean over all ten base cells"
+  ],
+  "validity": [
+   "final round semantically identified",
+   "10 / 10 base cells defined",
+   "all expected matched development groups eligible"
+  ],
+  "primary_comparison": "semantic CTDE final endpoint vs reviewed semantic actor-only final endpoint",
+  "success_threshold": "NONE (no post-hoc threshold may be introduced)",
+  "redefinition_after_observation": "FORBIDDEN"
+ },
+ "secondary_endpoints": {
+  "behavioural_all_16_rounds_matched_update_counts": [
+   "MILD mean P(ABORT)",
+   "SEVERE mean P(ABORT)",
+   "ten-cell macro SEVERE - MILD",
+   "directional switches (MILD != ABORT and SEVERE == ABORT)",
+   "reverse switches (MILD == ABORT and SEVERE != ABORT)",
+   "per-base-cell values"
+  ],
+  "descriptive_attention_actor_only_trajectory": {
+   "75": "strong separation begins",
+   "100-150": "near-universal separation",
+   "175": "collapse"
+  },
+  "no_cherry_picking": "all rounds are reported",
+  "credit_artifact": "train_credit_diagnostics.jsonl (every transition of every productive update)",
+  "credit_fields_immediate_fd_fd_selected_ego": [
+   "raw_advantage (GAE advantage)",
+   "normalized_advantage",
+   "value_old",
+   "td_residual",
+   "value_target",
+   "reward",
+   "batch normalization moments",
+   "gae_lambda",
+   "episode decision ordinal"
+  ],
+  "credit_analyses": [
+   "MILD vs SEVERE descriptive distributions",
+   "same-update-batch MILD vs SEVERE comparisons",
+   "ABORT vs non-ABORT within each severity (explicitly NON-counterfactual)",
+   "25-iteration windows, including before, during and after any separation / collapse",
+   "structural check: does CTDE raw advantage vary within episodes / decision sequences (actor-only: constant)",
+   "CTDE immediate-FD credit trajectory vs behavioural separation trajectory"
+  ],
+  "credit_interpretation_limit": "not causal action values without a matched counterfactual",
+  "measurement_tags_observational_only": "severity / FD tags never enter critic, actor, GAE, reward or action selection",
+  "comparator_integrity_checks_after_run": [
+   "same training attempt seeds as semantic actor-only until ordinary deterministic replacements",
+   "setup-failure seeds expected to match (setup is training-mode-independent)",
+   "same frozen benchmark members",
+   "same action representation",
+   "pre-update evaluation trajectory / decisions compared with semantic actor-only pre-update values; any unexplained difference is an anomaly to investigate before interpreting the arm comparison"
+  ],
+  "historical_node_indexed_ctde_r1": "contextual secondary evidence only"
+ },
+ "training_design_frozen": {
+  "episode_design": "generalized_v2",
+  "training_mode": "ctde",
+  "action_representation_id": "semantic_k_plus_2_logmeanexp_v1",
+  "match_aou_backend": "p1_milp_v1",
+  "benchmark_profile": "development",
+  "base_seed": 3000000,
+  "n_iterations": 375,
+  "successful_episodes_per_iteration": 8,
+  "successful_episode_quota_total": 3000,
+  "generalized_max_attempts_per_iteration": 12,
+  "max_possible_training_attempts": 4500,
+  "fuel_damage_mode": "seeded_variable",
+  "fuel_damage_probability": 0.5,
+  "fuel_damage_mild_probability": 0.5,
+  "eval_every": 25,
+  "checkpoint_every": 25,
+  "expected_evaluation_rounds": 16,
+  "early_stopping": false,
+  "solver_timeout": null,
+  "resume_or_warm_start": false,
+  "actor_only_second_arm": false,
+  "hyperparameter_sweep": false,
+  "ppo": {
+   "clip_ratio": 0.2,
+   "entropy_coeff": 0.01,
+   "lr": 0.0003,
+   "n_epochs": 4,
+   "gamma": 1.0,
+   "max_grad_norm": 0.5,
+   "adv_norm_eps": 1e-08
+  },
+  "ctde": {
+   "critic_lr": 0.0003,
+   "value_coeff": 0.5,
+   "gae_lambda": 0.95
+  },
+  "unchanged": [
+   "batch size",
+   "FD exposure",
+   "reward",
+   "observation features",
+   "action representation",
+   "population",
+   "solver",
+   "training length",
+   "early stopping"
+  ]
+ },
+ "seed_schedule": {
+  "training_base_seed": 3000000,
+  "training_seed_band_half_open": [
+   3000000,
+   3004500
+  ],
+  "training_seed_formula": "train_seed = base_seed + global_attempt_ordinal",
+  "training_seed_band_note": "max_possible_training_attempts = 375 x 12 = 4500 seeds",
+  "actor_init_seed": "torch.manual_seed(base_seed=3000000) before build_policy(); critic built after",
+  "per_episode_reseed": "random.seed(seed); torch.manual_seed(seed) as the first statements of _run_one_episode",
+  "evaluation_seed_source": "benchmark_manifest (development profile), FIXED across rounds",
+  "evaluation_seeds": [
+   2000000,
+   2000001,
+   2000064,
+   2000065,
+   2000128,
+   2000129,
+   2000192,
+   2000193,
+   2000256,
+   2000257,
+   2000320,
+   2000321,
+   2000384,
+   2000385,
+   2000448,
+   2000449,
+   2000512,
+   2000513,
+   2000576,
+   2000577
+  ],
+  "held_out_verified_over_entire_manifest": true
+ },
+ "benchmark": {
+  "manifest_path_consumed": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "profile": "development",
+  "development_world_ordinals": [
+   0,
+   1
+  ],
+  "n_development_worlds": 20,
+  "regenerated_or_mutated": false,
+  "same_frozen_population_as_comparator": true
+ },
+ "invocation": {
+  "argv": [
+   "python",
+   "-m",
+   "match_aou.rl.training.graph_train",
+   "--iterations",
+   "375",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "ctde",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development"
+  ],
+  "full_command": "conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 375 --episodes 8 --seed 3000000 --out C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266 --checkpoint-every 25 --eval-every 25 --eval-episodes 8 --training-mode ctde --episode-design generalized_v2 --match-aou-backend p1_milp_v1 --fuel-damage-mode seeded_variable --generalized-max-attempts-per-iteration 12 --benchmark-manifest C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json --benchmark-profile development",
+  "cwd": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+  "env": {
+   "PYTHONPATH": "src"
+  },
+  "module": "match_aou.rl.training.graph_train",
+  "ctde_cli_overrides": "NONE — CTDE values resolve from the verified frozen source defaults"
+ },
+ "execution_environment": "LOCAL Windows / nlp_env (same as the semantic actor-only comparator)",
+ "completion_conditions": [
+  "375 / 375 productive updates",
+  "3000 successful training episodes",
+  "attempts within the authorized <= 4500 band",
+  "accounting reconciled",
+  "all failures classified",
+  "16 evaluation rounds complete",
+  "final 10 / 10 base-cell endpoint defined",
+  "complete credit artifact for all productive transitions",
+  "uniform semantic_k_plus_2_logmeanexp_v1",
+  "CTDE config exactly frozen",
+  "no integrity / infrastructure abort"
+ ],
+ "stop_conditions": {
+  "hard_stop_on": [
+   "manifest mismatch",
+   "source/config mismatch outside authorized differences",
+   "actor-initialization mismatch",
+   "credit persistence / row-count integrity failure",
+   "measurement-integrity exception",
+   "confirmatory access",
+   "need to change budget, seeds, PPO, CTDE knobs, batch size or FD exposure"
+  ],
+  "forbidden_reactions": [
+   "repair",
+   "resume",
+   "extend",
+   "retune"
+  ],
+  "any_such_change_requires": "a new user decision"
+ },
+ "output_location": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+ "evidence_preservation": "new run directory; no previous run directory reused or overwritten"
+}
