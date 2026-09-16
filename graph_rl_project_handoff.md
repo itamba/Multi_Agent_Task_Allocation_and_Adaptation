@@ -59,19 +59,20 @@
 
 | Item | State |
 |---|---|
-| Writable repository task | **sole owner:** the semantic-action development R1 verdict documentation task (branch `docs/v2-semantic-action-dev-r1-verdict`, one draft PR to `main`) until it is reviewed and integrated |
+| Writable repository task | **sole owner:** the semantic-action development R1 verdict documentation task (branch `docs/v2-semantic-action-dev-r1-verdict`, draft PR #72 to `main`) until it is reviewed and integrated |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | **#71** (`evidence/generalized-v2-semantic-action-actor-only-dev-r1`), draft, **read-only evidence at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`, not for merge**; no other evidence or review PR is open |
-| Candidates | the documentation task's draft PR — unreviewed; no merge authorized |
+| Candidates | draft PR #72 (the documentation task) — under GPT exact-candidate review; no merge authorized |
 | Scientific runs in progress | none; none authorized |
 
 ## 3. Candidates and PRs
 
-Open PRs: the documentation task's draft PR and evidence PR #71. Resolve live PR state and exact
-heads on GitHub.
+Open PRs: documentation draft PR #72 and evidence PR #71. Resolve live PR state and exact heads on
+GitHub.
 
 | PR | Branch | State |
 |---|---|---|
+| #72 | `docs/v2-semantic-action-dev-r1-verdict` | open draft; **the sole writable repository task**; under GPT exact-candidate review; no merge authorized |
 | #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | open draft; exact reviewed candidate `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; **read-only, not for merge**; conclusions in [measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1); its lifecycle (close, archive) needs its own explicit authorization |
 | #70 | `task/v2-semantic-action-credit-instrumentation` | merged as `d4e9f3721e6d151c00be3fe93c3d149df9d31965` |
 | #59, #60, #63, #66, #68 | task and documentation branches | merged; branches deleted after ancestry verification (2026-09-15) |
@@ -113,8 +114,10 @@ and key hashes are in [measurements §10.2](docs/history/measurements.md#102-ide
   present and simple batch-size and FD-exposure explanations are strongly weakened. CTDE did not
   establish a benefit there.
 - **Under the semantic representation the actor learned strong severity-conditioned behaviour
-  temporarily:** near-universal deterministic separation at updates 75–150 (up to 20 / 20
-  directional switches, macro up to `+0.650`), which the historical representation never showed.
+  temporarily:** strong separation emerged by update 75 (macro `+0.296`, 4 / 20 directional
+  switches), then became near-universal across the frozen development worlds at updates 100–150
+  (19 / 20, 20 / 20 and 19 / 20 directional switches; macro up to `+0.650`), before collapsing by
+  update 175 — behaviour the historical representation never showed.
   This is cross-version development evidence that the old action geometry was a **material
   bottleneck / contributor** — not proof that it was the only cause.
 - **The separation was not retained:** it collapsed by update 175, and the final primary endpoint
@@ -139,7 +142,7 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: GPT exact-candidate review** of the verdict documentation task's draft PR full head SHA
+**Now: GPT exact-candidate review** of draft PR #72's full head SHA (branch `docs/v2-semantic-action-dev-r1-verdict`)
 (`GPT_GITHUB`; review fixes are append-only commits on the same branch and PR). No merge is
 authorized.
 

@@ -2066,9 +2066,10 @@ The reviewed current interpretation (development only):
 1. **Actor-visible severity signal was already known to exist** (§8.6).
 2. **The old action geometry was a demonstrated structural mismatch** (§8.7).
 3. **With the semantic representation the actor can learn strong severity-conditioned behaviour
-   temporarily:** near-universal deterministic separation for four consecutive evaluation rounds
-   (updates 75–150; 19–20 of 20 groups at updates 100–150), a qualitatively new development
-   behaviour that historical R1 never showed.
+   temporarily:** strong separation emerged by update 75 (macro `+0.296`, 4 / 20 directional
+   switches), then became near-universal across the frozen development worlds at updates
+   100–150 (19 / 20, 20 / 20 and 19 / 20 directional switches), before collapsing by update 175 —
+   a qualitatively new development behaviour that historical R1 never showed.
 4. **The behaviour is not retained to the fixed final budget:** it collapses by update 175 and
    the final endpoint is effectively zero.
 5. **Actor-only advantage is too coarse to identify local FD-action credit** (§10.7).
