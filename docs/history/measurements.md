@@ -36,6 +36,7 @@
 | GENERALIZED-V2 CTDE diagnostic — `largebatch` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64 (same head); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_largebatch_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
 | GENERALIZED-V2 CTDE diagnostic — `fd80` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64 (same head); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
 | GENERALIZED-V2 matched immediate-FD wake extraction (all five runs above) | reads the five runs' recorded artifacts; executes no project code | temporary review PR #65, head `d565174e4ecc25eb60a4dd021e1a20025f55f07f` | **read-only analysis package, not a measurement and not a run**; extraction integrity `APPROVE` (§8) |
+| GENERALIZED-V2 semantic-action actor-only development R1 (`semantic_k_plus_2_logmeanexp_v1`) | `d4e9f3721e6d151c00be3fe93c3d149df9d31965` | evidence PR #71, exact candidate `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT` (2026-09-16, as transferred in the user-approved documentation packet); **development only**; final primary endpoint effectively zero, transient separation at updates 75–150 (§10) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. Since 2026-09-15 the
 local artifacts live in the local archive under `C:\gra\`, and PRs #61, #62, #64, #65 and #67 are
@@ -1888,3 +1889,209 @@ classification in §1–§8 is changed; no invalid, aborted, engineering or uncl
 upgraded; the B4 engineering smokes, `rollouts` and `generated_scenarios` stay uninterpreted;
 closing the evidence PRs and deleting their branches removes no conclusion recorded in this
 document.
+
+## 10. GENERALIZED-V2 semantic-action actor-only development R1
+
+Recorded on 2026-09-16. The decisions taken on this record are in
+[`decisions.md` §1](decisions.md#1-decision-log) (the 2026-09-16 rows that follow the
+implementation-opening row). §7–§9 stay as the records they were.
+
+### 10.1 Scope and epistemic status
+
+| Layer | What it is | Status |
+|---|---|---|
+| measurement validity | the run executed its recorded authorized plan, completed and reconciled | **`APPROVE — VALID DEVELOPMENT MEASUREMENT`** — GPT verdict of 2026-09-16 on the exact evidence candidate below, as transferred in the user-approved documentation packet; GitHub holds no separate review record (§10.2–§10.3) |
+| observed findings | final endpoint, evaluation trajectory, credit summaries | reproduced from the evidence package (§10.4–§10.6) |
+| interpretation | what the findings are consistent with | a **development** interpretation, cross-version against historical actor-only R1; hypotheses, not proofs (§10.8–§10.9) |
+| confirmatory evidence | — | **none**. The confirmatory profile was not selected, inspected or executed |
+
+**Repeated measures.** Every evaluation round re-measures the same 20 frozen development worlds;
+cross-round values describe a trajectory, never independent samples
+([`experiments.md` §4.3](../workflows/experiments.md#43-interpretation-rules)).
+
+### 10.2 Identity and evidence provenance
+
+| Item | Value |
+|---|---|
+| Run id | `graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` |
+| Measured code SHA | `d4e9f3721e6d151c00be3fe93c3d149df9d31965` (the PR #70 merge); run-recorded branch `main`, `dirty = false`, 0 dirty paths |
+| Training mode | `actor_only` |
+| Action representation | `semantic_k_plus_2_logmeanexp_v1` — uniform on every episode outcome, wake and credit row |
+| Population and benchmark | `generalized_v2`, `p1_milp_v1`, base seed `3000000`; manifest `ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8` (file SHA-256 `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103`), **development** profile, held-out verified — the same frozen development population and the same training seed stream as historical actor-only R1 (§7) |
+| Budget | 375 updates × 8 successful episodes; `generalized_max_attempts_per_iteration = 12`; `eval_every = 25`; `checkpoint_every = 25`; **early stopping disabled** (`disabled_fixed_budget`) |
+| PPO (resolved) | `gamma = 1.0`, `lr = 0.0003`, `clip_ratio = 0.2`, `entropy_coeff = 0.01`, `n_epochs = 4`, `max_grad_norm = 0.5`, `adv_norm_eps = 1e-08` |
+| Authorized plan | `authorized_plan.json` (SHA-256 `629603a717b9933f7f956c08ef1a802556f6c0076c77bb8bee99ede05e71a467`), written before `run_config.json`; one arm, `ctde_arm_authorized = false`, `hyperparameter_sweep_authorized = false`; every checked resolved field matches the plan and the invocation argv matches it |
+| Evidence | draft PR #71, branch `evidence/generalized-v2-semantic-action-actor-only-dev-r1`, **exact candidate `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`** (parent chain `bf34e955…` → measured SHA); package `research_evidence/generalized_v2/semantic_action_actor_only_dev_r1/`; **not for merge** |
+| Large artifacts | outside Git, identified by SHA-256 in the package's `artifact_sha256.txt`: `episode_outcomes.jsonl` `3011a163b3b341d5ab25881dae2394e45d7a5ae8ec66854a3f5088d147198740`, `train_credit_diagnostics.jsonl` `6f04ff38ec7beb5009b85c9d35a97527369c5f83257b3590e58e7e904d06b72e`, final checkpoint `ckpt_iter0374.pt` `c231b812c1e19376e5888c9d426c0a1c3a487c41144bda9a829aa622c8bde1f6` |
+| Comparator | historical actor-only R1, measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8`, archive key `v2_actor_only_r1_seed3000000_ae42cb0`; its per-round quantities were **recomputed from the archived artifacts** by the package's extractor, not taken from prose |
+
+Evidence-commit SHAs are ledger locations, not measurement identities
+([artifacts and metrics §6.2](../contracts/artifacts_metrics.md#62-measured-code-sha-versus-evidence-commit-identity)).
+
+### 10.3 Validity facts
+
+- **Completion:** 375 / 375 updates; `train_records.jsonl` has 375 rows; final checkpoint present.
+- **Training accounting:** 3000 successful episodes of 3008 attempted; **8 failed and replaced**,
+  all `FuelDamageError` (`no_fd_eligible_ego`) at phase `train`, stage `setup` — the expected
+  certified-FD eligibility attrition class. The failed seeds (`3001255`, `3001265`, `3001741`,
+  `3001807`, `3001879`, `3002177`, `3002296`, `3002868`) are **exactly the failed seeds of
+  historical actor-only R1**. `accounting_reconciled = true`.
+- **Evaluation:** 16 rounds; 960 / 960 evaluation episodes successful, 0 failed.
+- **Endpoint eligibility:** the final primary endpoint is defined on 10 / 10 base cells;
+  20 / 20 groups complete and metric-eligible.
+- **Credit coverage:** 9166 credit rows cover every transition of every productive update
+  (375 / 375 updates' row counts equal `train_records.n_transitions`).
+- **Schemas:** uniform episode outcome v4, wake diagnostics v2, credit diagnostics v1.
+- **Configuration:** the resolved training configuration differs from historical R1 only in
+  `benchmark_manifest` (path) and `output_dir`; the action representation is a code difference
+  at the measured SHA, not a configuration key.
+
+**Non-blocking anomalies** (recorded, not repaired; source artifacts are not rewritten):
+
+1. `native_exit_code.txt` is empty (0 bytes): the launcher line `echo %RC%> file` is parsed by
+   `cmd` as a handle redirect for a one-digit code. Completion is established independently by
+   `run_summary.json`, `train_records.jsonl` and the final checkpoint.
+2. `v2_behaviour.metric` reads the legacy string `severe_minus_mild_aggregate_abort_mass`. The
+   same block defines `P(ABORT)` as the one semantic `SELF_PRESERVATION_ABORT` leaf and sets
+   `aggregate_mass_is_not_selected_action_probability = false`. This is the contracted
+   reader-continuity label ([training and benchmarks §9](../contracts/training_benchmarks.md#9-generalized-v2-benchmark-and-evaluation)),
+   not a value defect.
+3. The manifest was consumed at its authorized archived path
+   `C:\gra\benchmarks\v2_preflight_seed2000000_ae42cb0\benchmark_manifest.json`, while the
+   comparator recorded the pre-archival path; the file is byte-identical to the historical source
+   (same SHA-256 and `manifest_id`), so this is not a population change.
+
+### 10.4 Final primary endpoint
+
+Final round selected semantically: `post_update`, 375 updates, evaluation round 15.
+
+| Quantity | Value |
+|---|---|
+| Ten-cell macro `SEVERE − MILD P(ABORT)` | `+0.000888290349394083` |
+| Base cells defined | 10 / 10 |
+| Metric-eligible groups | 20 / 20 |
+| MILD → SEVERE directional switches | 0 / 20 |
+| Reverse switches | 0 / 20 |
+
+**The run does NOT establish stable final severity-conditioned behaviour.** The final value is
+numerically non-zero but effectively zero, with no selected-action switch in any group; it is not
+a success.
+
+### 10.5 Transient learned separation
+
+Key trajectory (ten-cell macro; directional switches out of 20 groups; reverse switches were
+0 / 20 in every round):
+
+| Updates | Macro SEVERE − MILD P(ABORT) | Directional switches |
+|---:|---:|---:|
+| 75 | `+0.2955018974840641` | 4 / 20 |
+| 100 | `+0.6111742591485381` | 19 / 20 |
+| 125 | `+0.6502656679600477` | 20 / 20 |
+| 150 | `+0.5764810834079981` | 19 / 20 |
+| 175 | `+0.0028667372651398184` | 0 / 20 |
+
+Rounds at updates 0–50 lie within `[−0.00052, +0.000011]`, and every later round (updates
+175–375) stays small, between `+0.00045` and `+0.0061`, with 0 directional switches, ending at
+the final value of §10.4. All 16 rounds, with per-cell and per-group values, are in the
+package's `extracted/behaviour_summary.json` and `extracted/collapse_timeline.json`.
+
+**Historical actor-only R1 comparator** (measured SHA `ae42cb01677f94868b2873008d87be677e31f0c8`,
+recomputed from its archived artifacts): largest observed round `+0.006876615434885025` (updates
+175); **0 directional switches in every round**; final macro `+2.0936131477355958e-07`.
+
+**Comparison boundary.** This is a **cross-version DEVELOPMENT comparison** — different measured
+code SHA and action representation, same frozen development population and training seed
+stream. It is **not a contemporaneous randomized control and not confirmatory evidence**.
+
+### 10.6 Credit findings
+
+Population: training credit rows with `wake_kind = immediate_fuel_damage` and
+`is_fd_selected_ego = true` — **1526 rows: 774 MILD, 752 SEVERE**.
+
+**Descriptive severity summaries** (pooled over all training updates; different episodes, worlds
+and policy states):
+
+| Severity | n | Raw advantage mean | Normalized advantage mean |
+|---|---:|---:|---:|
+| MILD | 774 | `+0.09266661183010043` | `+0.372028710830354` |
+| SEVERE | 752 | `-0.32571354607250536` | `-1.146134736059606` |
+
+**Matched within update batch** (309 batches contain both severities; same baseline and
+normalization, still different episodes and worlds):
+
+| `SEVERE − MILD` | Mean | Median |
+|---|---:|---:|
+| raw advantage | `-0.4715824457157431` | `-0.4062499894748267` |
+| normalized advantage | `-1.8726210434928396` | `-1.9523004768366192` |
+
+SEVERE lies below MILD in raw advantage in **299 / 309** batches.
+
+**Within-severity ABORT-vs-not** (rows that selected ABORT versus rows that did not):
+
+| Severity | Raw ABORT − not gap | Normalized ABORT − not gap |
+|---|---:|---:|
+| SEVERE (202 ABORT / 550 not) | `+0.20462639823500103` | `+0.17649193803586716` |
+| MILD (64 ABORT / 710 not) | `-0.3048436088994812` | `-1.508242941125282` |
+
+**These are NOT counterfactual action-value estimates.** They compare different episodes and
+worlds.
+
+### 10.7 Structural credit limitation
+
+**This is a major reviewed finding.** Verified from the persisted credit rows, not only from code
+(`graph_ppo.compute_returns_and_advantages` and `_chain_returns` at the measured SHA):
+
+- `gamma = 1.0` in `run_config.json` and on every row;
+- **6689 ego chains checked, 0 with varying raw advantage** (1222 have more than one transition);
+- **2999 episodes checked, 0 with varying raw advantage** (2415 have more than one transition);
+- in **2999 / 2999** episodes the stored transition rewards sum to the episode reward;
+- **1114** episodes have a non-zero reward, and in each all of it sits on exactly one transition,
+  at the episode's latest tick and last in its ego chain;
+- per row: `return == episode_reward`, `raw_advantage == return − baseline`, and the normalized
+  advantage recomputes from the batch moments; the baseline equals `train_records.baseline`
+  (recomputable from rows in 374 batches; one batch's zero-wake episodes contribute no row).
+
+**Actor-only credit is therefore episode / chain-level, not local causal credit for the
+immediate-FD decision.**
+
+> The immediate-FD transition's actor-only advantage is effectively the episode outcome relative
+> to the batch baseline. Severity differences therefore partly restate different episode
+> outcomes. The observed SEVERE ABORT-vs-not advantage gap is suggestive association, not proof
+> that ABORT caused the better outcome.
+
+### 10.8 Research interpretation
+
+The reviewed current interpretation (development only):
+
+1. **Actor-visible severity signal was already known to exist** (§8.6).
+2. **The old action geometry was a demonstrated structural mismatch** (§8.7).
+3. **With the semantic representation the actor can learn strong severity-conditioned behaviour
+   temporarily:** near-universal deterministic separation for four consecutive evaluation rounds
+   (updates 75–150; 19–20 of 20 groups at updates 100–150), a qualitatively new development
+   behaviour that historical R1 never showed.
+4. **The behaviour is not retained to the fixed final budget:** it collapses by update 175 and
+   the final endpoint is effectively zero.
+5. **Actor-only advantage is too coarse to identify local FD-action credit** (§10.7).
+6. **The next focused question** is whether a richer state-dependent training critic / GAE path
+   can preserve the learned separation under the semantic action representation.
+
+Defensible reading: this is evidence that the historical action geometry was a **material
+bottleneck / contributor**; the remaining research problem is now primarily **retention /
+optimization / credit stability**, rather than the action space's inability to express the
+desired behaviour.
+
+### 10.9 Limitations and non-claims
+
+- It is **not** standalone causal proof that action aliasing was the only cause of the historical
+  failure; the comparison is cross-version with no contemporaneous control (§10.5).
+- The action-representation change did **not** solve the project objective: the final endpoint
+  is effectively zero.
+- One run, one seed stream, 20 frozen development worlds re-measured every round; no variance
+  across training seeds is estimated.
+- Credit comparisons are descriptive or matched-within-batch associations, never action values
+  (§10.6–§10.7).
+- **No claim that CTDE will succeed.** Historical CTDE at `ae42cb0…` did not establish a benefit
+  under the old representation (§8.9); CTDE under the semantic representation is unmeasured.
+- Reachability (still the round-trip placeholder) and distance clipping (§8.6) were deliberately
+  unchanged and remain open; this measurement does not address them.
+- No confirmatory evidence exists; the confirmatory profile is untouched.
