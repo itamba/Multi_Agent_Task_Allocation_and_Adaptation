@@ -119,7 +119,9 @@ from typing import (
 import numpy as np
 import torch
 
-from ..action.graph_action import build_action_mask, evaluate_action
+from ..action.graph_action import (
+    SEMANTIC_ABORT_LEAF, _semantic_dist, build_action_mask, evaluate_action,
+)
 from ..agent.graph_encoder import GraphEncoder
 from ..observation.central_graph_builder import (
     CENTRAL_AGENT_FEATURE_DIM,
@@ -552,6 +554,13 @@ class ActorGradientReport:
     so the group gradients sum to ``total_policy_surrogate_grad``.
     ``total_actor_loss_grad`` is the gradient of the real epoch-0 ``actor_loss``
     (surrogate minus the entropy bonus). Nothing here is a tensor.
+
+    CONTRAST (optional): given a ``(positive_id, negative_id)`` pair of the same opaque
+    ids, ``contrast_value`` is ``mean P(ABORT)`` over the positive-id transitions minus
+    ``mean P(ABORT)`` over the negative-id transitions -- the semantic ABORT-leaf
+    probability of :func:`_semantic_dist`, built from the SAME epoch-0 logits the losses
+    used -- and ``contrast_grad`` is its actor-parameter gradient. Both are ``None`` when
+    no pair was given or either id has no transition in the batch.
     """
 
     records: Sequence[Any]
@@ -563,6 +572,9 @@ class ActorGradientReport:
     total_actor_loss_grad: np.ndarray
     entropy_coeff: float
     epoch: int = 0
+    contrast_ids: Optional[Tuple[int, int]] = None
+    contrast_value: Optional[float] = None
+    contrast_grad: Optional[np.ndarray] = None
 
 
 GradientSink = Callable[[ActorGradientReport], None]
@@ -1464,6 +1476,7 @@ class CTDEUpdater:
         credit_sink: Optional[CreditSink] = None,
         gradient_group_ids: Optional[Sequence[int]] = None,
         gradient_sink: Optional[GradientSink] = None,
+        gradient_contrast_ids: Optional[Tuple[int, int]] = None,
     ) -> Dict[str, Any]:
         """Run ``cfg.n_epochs`` CTDE epochs over ``source`` and step BOTH optimizers.
 
@@ -1479,6 +1492,12 @@ class CTDEUpdater:
         the sink ONE :class:`ActorGradientReport`. No forward, GAE pass, RNG draw,
         ``.grad`` write or optimizer change is added; the real backward, clipping and
         steps are unchanged.
+
+        ``gradient_contrast_ids`` (optional, requires the two above): a
+        ``(positive_id, negative_id)`` pair of those opaque ids. When both occur in the
+        batch, epoch 0 also forms the differentiable contrast ``mean P(ABORT | positive)
+        - mean P(ABORT | negative)`` from the SAME epoch-0 logits through
+        :func:`_semantic_dist` (no forward) and reports its value and gradient.
 
         Per epoch:
 
@@ -1558,6 +1577,15 @@ class CTDEUpdater:
                 raise ValueError(
                     "gradient_group_ids has %d entries but the batch has %d transitions"
                     % (len(group_ids), batch.n_transitions))
+        contrast_ids: Optional[Tuple[int, int]] = None
+        if gradient_contrast_ids is not None:
+            if group_ids is None:
+                raise ValueError("gradient_contrast_ids requires gradient_group_ids")
+            if len(gradient_contrast_ids) != 2:
+                raise ValueError("gradient_contrast_ids must be two distinct ids")
+            contrast_ids = (int(gradient_contrast_ids[0]), int(gradient_contrast_ids[1]))
+            if contrast_ids[0] == contrast_ids[1]:
+                raise ValueError("gradient_contrast_ids must be two distinct ids")
 
         if batch.n_transitions == 0:
             for key in ("policy_loss", "total_loss", "entropy", "mean_ratio",
@@ -1577,6 +1605,8 @@ class CTDEUpdater:
             value_losses: List[torch.Tensor] = []
             ratios_detached: List[float] = []
             kl_terms: List[float] = []
+            # (contrast side, the SAME epoch-0 logits, mask) -- kept only when requested.
+            contrast_inputs: List[Tuple[int, torch.Tensor, np.ndarray]] = []
 
             for i, tr in enumerate(batch.transitions):
                 # --- ACTOR: the ego's PRIVATE observation only ---
@@ -1590,6 +1620,9 @@ class CTDEUpdater:
                     clipped_surrogate(ratio, float(advantages[i]), cfg.clip_ratio)
                 )
                 entropies.append(entropy)
+                if (contrast_ids is not None and _epoch == 0
+                        and group_ids[i] in contrast_ids):
+                    contrast_inputs.append((contrast_ids.index(group_ids[i]), logits, mask))
 
                 r = float(ratio.detach().item())
                 ratios_detached.append(r)
@@ -1612,6 +1645,16 @@ class CTDEUpdater:
                 members: Dict[int, List[int]] = {}
                 for i, g in enumerate(group_ids):
                     members.setdefault(g, []).append(i)
+                contrast_value: Optional[float] = None
+                contrast_grad: Optional[np.ndarray] = None
+                sides: Tuple[List[torch.Tensor], List[torch.Tensor]] = ([], [])
+                for side, c_logits, c_mask in contrast_inputs:
+                    _, c_dist, _ = _semantic_dist(c_logits, c_mask)
+                    sides[side].append(c_dist.probs[SEMANTIC_ABORT_LEAF])
+                if sides[0] and sides[1]:
+                    contrast = torch.stack(sides[0]).mean() - torch.stack(sides[1]).mean()
+                    contrast_value = float(contrast.detach().item())
+                    contrast_grad = _flat_actor_grad(contrast, self.actor_parameters)
                 gradient_report = ActorGradientReport(
                     records=records,
                     batch=batch,
@@ -1628,6 +1671,9 @@ class CTDEUpdater:
                     total_actor_loss_grad=_flat_actor_grad(
                         actor_loss, self.actor_parameters),
                     entropy_coeff=float(cfg.entropy_coeff),
+                    contrast_ids=contrast_ids,
+                    contrast_value=contrast_value,
+                    contrast_grad=contrast_grad,
                 )
 
             # TWO independent backwards on two disjoint graphs. The actor's backward

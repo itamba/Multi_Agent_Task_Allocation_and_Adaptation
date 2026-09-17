@@ -639,6 +639,13 @@ _ACTOR_GRADIENT_GROUPS = (
     _ACTOR_GRADIENT_GROUP_POST_FD,
     _ACTOR_GRADIENT_GROUP_ORDINARY,
 )
+# The local severity-separation contrast: mean semantic P(ABORT) over the POSITIVE group's
+# transitions minus that over the NEGATIVE group's, in that order. Only the two group
+# ids (`_actor_gradient_contrast_ids`) cross into the updater.
+_ACTOR_GRADIENT_CONTRAST = (_ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_SEVERE,
+                            _ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_MILD)
+_ACTOR_GRADIENT_CONTRAST_DEFINITION = (
+    "mean_p_abort_immediate_fd_severe_minus_mean_p_abort_immediate_fd_mild")
 _ACTOR_GRADIENT_DERIVED = {
     "fd": (_ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_MILD,
            _ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_SEVERE),
@@ -4105,6 +4112,7 @@ def write_run_config(
                 "gradient": "ppo_policy_surrogate_before_entropy",
                 "group_loss": "sum_over_group_div_total_batch_transitions",
                 "groups": list(_ACTOR_GRADIENT_GROUPS),
+                "separation_contrast": _ACTOR_GRADIENT_CONTRAST_DEFINITION,
             },
             # GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTS, and the
             # bounded budget behind it. Recorded on BOTH designs and stated positively:
@@ -8107,6 +8115,12 @@ def _actor_gradient_group_ids(
     ]
 
 
+def _actor_gradient_contrast_ids() -> Tuple[int, int]:
+    """The ``(positive, negative)`` OPAQUE ids of the severity-separation contrast."""
+    return (_ACTOR_GRADIENT_GROUPS.index(_ACTOR_GRADIENT_CONTRAST[0]),
+            _ACTOR_GRADIENT_GROUPS.index(_ACTOR_GRADIENT_CONTRAST[1]))
+
+
 # Vector math for the gradient record is ELEMENTWISE numpy only (no `np.dot` /
 # `np.linalg`): BLAS-backed calls initialize a second OpenMP runtime next to torch's on
 # this Windows stack and abort the process (see PLOTTING RUNS IN A CHILD PROCESS above).
@@ -8143,6 +8157,16 @@ def _actor_gradient_record(
     records and must match exactly, so a misaligned id list fails LOUD instead of
     misattributing gradient. Empty groups carry ``n_transitions = 0``, norm ``0.0`` and
     ``null`` cosine / projection. No full gradient vector is persisted.
+
+    SEPARATION PRESSURE: with ``h`` the actor-parameter gradient of the contrast
+    ``mean P(ABORT | SEVERE immediate-FD) - mean P(ABORT | MILD immediate-FD)`` and ``g``
+    any reported policy-gradient component, ``separation_pressure = -dot(h, g)`` and
+    ``separation_alignment = cosine(-g, h)``. A raw gradient-descent step ``-lr * g``
+    changes the contrast by ``lr * separation_pressure`` to first order, so POSITIVE means
+    the component locally pushes toward larger SEVERE-minus-MILD ABORT separation and
+    NEGATIVE means it pushes against it. It is a local first-order raw-gradient quantity,
+    not a prediction of the Adam step. Every contrast field is ``null`` when either group
+    is absent from the batch; an empty component is ``null`` too.
     """
     batch = report.batch
     records = list(report.records)
@@ -8167,6 +8191,24 @@ def _actor_gradient_record(
     grads = {name: report.group_policy_surrogate_grads.get(gid, zero)
              for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS)}
 
+    if tuple(report.contrast_ids or ()) != _actor_gradient_contrast_ids():
+        raise ActorGradientDiagnosticsError(
+            "the update's separation contrast ids %r are not the trainer's %r"
+            % (report.contrast_ids, _actor_gradient_contrast_ids()))
+    h = report.contrast_grad
+    contrast_expected = all(counts[g] > 0 for g in _ACTOR_GRADIENT_CONTRAST)
+    if (h is None) != (not contrast_expected) or (
+            (report.contrast_value is None) != (h is None)):
+        raise ActorGradientDiagnosticsError(
+            "the separation contrast is %s but its two groups are %s"
+            % ("absent" if h is None else "present",
+               "both present" if contrast_expected else "not both present"))
+
+    def separation(v: np.ndarray, defined: bool) -> Dict[str, Any]:
+        if h is None or not defined:
+            return {"separation_alignment": None, "separation_pressure": None}
+        return {"separation_alignment": _cosine(-v, h), "separation_pressure": -_dot(h, v)}
+
     def block(v: np.ndarray, count: int) -> Dict[str, Any]:
         defined = count > 0
         return {
@@ -8175,7 +8217,11 @@ def _actor_gradient_record(
             "grad_norm": _norm(v),
             "cosine_vs_total": _cosine(v, total) if defined else None,
             "projection_on_total": _projection(v, total) if defined else None,
+            **separation(v, defined),
         }
+
+    total_sep = separation(total, True)
+    actor_sep = separation(actor_total, True)
 
     derived_vecs = {name: sum((grads[m] for m in members), zero)
                     for name, members in _ACTOR_GRADIENT_DERIVED.items()}
@@ -8202,6 +8248,14 @@ def _actor_gradient_record(
         "total_policy_surrogate_grad_norm": total_norm,
         "total_actor_loss_grad_norm": _norm(actor_total),
         "cosine_policy_surrogate_vs_actor_loss": _cosine(total, actor_total),
+        "separation_contrast_definition": _ACTOR_GRADIENT_CONTRAST_DEFINITION,
+        "separation_contrast": (None if report.contrast_value is None
+                                else float(report.contrast_value)),
+        "separation_contrast_grad_norm": None if h is None else _norm(h),
+        "total_policy_surrogate_separation_alignment": total_sep["separation_alignment"],
+        "total_policy_surrogate_separation_pressure": total_sep["separation_pressure"],
+        "total_actor_loss_separation_alignment": actor_sep["separation_alignment"],
+        "total_actor_loss_separation_pressure": actor_sep["separation_pressure"],
         "groups": {name: block(grads[name], counts[name])
                    for name in _ACTOR_GRADIENT_GROUPS},
         "derived": {name: block(derived_vecs[name], derived_counts[name])
@@ -9186,7 +9240,8 @@ def train(
             gradient_reports: List[ActorGradientReport] = []
             gradient_kwargs: Dict[str, Any] = (
                 {"gradient_group_ids": _actor_gradient_group_ids(buf.records, credit_tags),
-                 "gradient_sink": gradient_reports.append}
+                 "gradient_sink": gradient_reports.append,
+                 "gradient_contrast_ids": _actor_gradient_contrast_ids()}
                 if gradient_path is not None else {}
             )
             diag = updater.update(buf, credit_sink=credit_reports.append,

@@ -39,8 +39,9 @@
 - **Open instrumentation task:** an opt-in, observational epoch-0 CTDE actor-gradient
   decomposition (`train_actor_gradient_diagnostics.jsonl`,
   [artifacts and metrics §5.2](docs/contracts/artifacts_metrics.md#52-ctde-actor-gradient-diagnostics)),
-  asking whether immediate fuel-damage decisions carry actor-gradient pressure that the rest of
-  the PPO batch cancels. Draft PR #74; engineering evidence only.
+  plus a local first-order severity-separation pressure (does each gradient component push
+  SEVERE-minus-MILD semantic ABORT probability up or down), asking whether immediate fuel-damage
+  decisions carry useful actor-gradient pressure that the rest of the PPO batch cancels. Draft PR #74; engineering evidence only.
 - **The V2 benchmark-preflight provenance evidence is reviewed and durable**
   ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
 - **Closure and cleanup of the historical V2 chapter are complete** (2026-09-15): the local

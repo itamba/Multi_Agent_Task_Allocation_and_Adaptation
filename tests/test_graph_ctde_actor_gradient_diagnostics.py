@@ -14,6 +14,10 @@ production symbols (``CTDEUpdater.update``, ``graph_train._actor_gradient_*``).
   G8  fail loud: misuse, misalignment, unattributable FD wakes, persistence
   G9  configuration: OFF by default, CTDE only, recorded in run_config.json, CLI flag
   G10 end to end through the real trainer
+  G11 the separation contrast is the semantic ABORT difference of the SAME epoch-0 logits
+  G12 separation pressure / alignment match an independent autograd reference
+  G13 sign semantics: positive pressure == a raw descent step raises the contrast
+  G14 a missing MILD or SEVERE group makes every contrast field null (not 0 / NaN)
 """
 from __future__ import annotations
 
@@ -33,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from match_aou.rl.action import graph_action as GA  # noqa: E402
 from match_aou.rl.training import graph_ppo as GP  # noqa: E402
 from match_aou.rl.training import graph_tick_loop as TL  # noqa: E402
 from match_aou.rl.training import graph_train as GT  # noqa: E402
@@ -105,12 +110,13 @@ def _setup(seed=21):
     return policy, critic
 
 
-def _run(policy, critic, records, *, ids=None, cfg=None, spy=None):
+def _run(policy, critic, records, *, ids=None, cfg=None):
     cfg = cfg or PPOConfig(n_epochs=3)
     updater = CTDEUpdater(policy, critic, cfg, CTDEConfig())
     reports = []
     kwargs = {} if ids is None else {"gradient_group_ids": ids,
-                                     "gradient_sink": reports.append}
+                                     "gradient_sink": reports.append,
+                                     "gradient_contrast_ids": GT._actor_gradient_contrast_ids()}
     torch.manual_seed(7)
     np.random.seed(7)
     diag = updater.update(records, **kwargs)
@@ -539,6 +545,207 @@ def test_g10_training_writes_one_record_per_productive_update_only_when_enabled(
         assert rec["batch_n_transitions"] == tr["n_transitions"]
         assert rec["groups"]["ordinary"]["n_transitions"] == tr["n_transitions"]
         assert rec["reconstruction_relative_error"] < 1e-6
+        assert rec["separation_contrast"] is None      # the stub batch has no FD wake
+
+
+# =============================================================================
+# G11 -- G14: local severity-separation pressure
+# =============================================================================
+
+def _p_abort(logits, mask):
+    _, dist, _ = GA._semantic_dist(logits, mask)
+    return dist.probs[GA.SEMANTIC_ABORT_LEAF]
+
+
+def _reference(policy, batch, ids):
+    """Independent autograd reference on a COPY of the pre-update actor."""
+    params = list(policy.encoder.parameters()) + list(policy.head.parameters())
+    n = len(ids)
+    losses, pos, neg = [], [], []
+    for i, tr in enumerate(batch.transitions):
+        logits = policy.head(policy.encoder(tr.gobs))
+        mask = GP.build_action_mask(tr.gobs)
+        lp, ent = GP.evaluate_action(logits, mask, tr.meta_action, tr.node_v)
+        losses.append((GP.clipped_surrogate(torch.exp(lp - float(tr.log_prob)),
+                                            float(batch.advantages[i]), 0.2), ent))
+        if ids[i] == SEVERE:
+            pos.append(_p_abort(logits, mask))
+        elif ids[i] == MILD:
+            neg.append(_p_abort(logits, mask))
+    contrast = torch.stack(pos).mean() - torch.stack(neg).mean()
+
+    def grad(t):
+        return _flat(torch.autograd.grad(t, params, retain_graph=True, allow_unused=True),
+                     params)
+
+    h = grad(contrast)
+    comps = {name: grad(sum(losses[i][0] for i, g in enumerate(ids) if g == gid) / n)
+             for gid, name in enumerate(GT._ACTOR_GRADIENT_GROUPS)}
+    surrogate = torch.stack([l for l, _ in losses]).mean()
+    comps["total"] = grad(surrogate)
+    comps["actor"] = grad(surrogate - 0.01 * torch.stack([e for _, e in losses]).mean())
+    comps["fd"] = comps["immediate_fd_mild"] + comps["immediate_fd_severe"]
+    comps["non_fd"] = comps["post_fd"] + comps["ordinary"]
+    return float(contrast.item()), h, comps, params
+
+
+def test_g11_contrast_is_the_semantic_abort_difference_of_the_same_epoch0_logits(
+        monkeypatch):
+    policy, critic = _setup(41)
+    records = _records(policy)
+    ids = GT._actor_gradient_group_ids(records, _TAGS)
+    seen = []
+    real = GP.evaluate_action
+
+    def spy(logits, mask, meta, node):
+        seen.append((logits, mask))
+        return real(logits, mask, meta, node)
+
+    monkeypatch.setattr(GP, "evaluate_action", spy)
+    _, _, reports = _run(policy, critic, records, ids=ids)
+    epoch0 = seen[:len(ids)]                    # the calls epoch 0 itself made
+    with torch.no_grad():
+        sev = [float(_p_abort(lo, m)) for (lo, m), g in zip(epoch0, ids) if g == SEVERE]
+        mild = [float(_p_abort(lo, m)) for (lo, m), g in zip(epoch0, ids) if g == MILD]
+    expected = sum(sev) / len(sev) - sum(mild) / len(mild)
+    rep = reports[0]
+    assert rep.contrast_ids == (SEVERE, MILD)
+    assert rep.contrast_value == pytest.approx(expected, abs=1e-7)
+    assert rep.contrast_grad is not None and _np_norm(rep.contrast_grad) > 0
+    rec = GT._actor_gradient_record(rep, iteration=0, updates_completed_before=0,
+                                    measurement_tags=_TAGS)
+    assert rec["separation_contrast"] == rep.contrast_value
+    assert rec["separation_contrast_grad_norm"] == pytest.approx(_np_norm(rep.contrast_grad))
+    # no gradient vector is persisted: every leaf is a scalar, string or null
+    def leaves(obj):
+        for v in (obj.values() if isinstance(obj, dict) else [obj]):
+            yield from (leaves(v) if isinstance(v, dict) else [v])
+    assert all(v is None or isinstance(v, (int, float, str)) for v in leaves(rec))
+
+
+def test_g12_pressure_and_alignment_match_an_independent_autograd_reference():
+    policy, critic = _setup(42)
+    records = _records(policy)
+    ids = GT._actor_gradient_group_ids(records, _TAGS)
+    probe = copy.deepcopy(policy)
+    _, _, reports = _run(policy, critic, records, ids=ids)
+    rec = GT._actor_gradient_record(reports[0], iteration=0, updates_completed_before=0,
+                                    measurement_tags=_TAGS)
+    contrast, h, comps, _ = _reference(probe, reports[0].batch, ids)
+    assert rec["separation_contrast"] == pytest.approx(contrast, abs=1e-6)
+    assert rec["separation_contrast_grad_norm"] == pytest.approx(_np_norm(h), rel=1e-4)
+
+    def check(block_pressure, block_alignment, g):
+        assert block_pressure == pytest.approx(-_np_dot(h, g), rel=1e-4, abs=1e-9)
+        assert block_alignment == pytest.approx(
+            _np_dot(-g, h) / (_np_norm(g) * _np_norm(h)), rel=1e-4, abs=1e-6)
+
+    for name in GT._ACTOR_GRADIENT_GROUPS:
+        b = rec["groups"][name]
+        check(b["separation_pressure"], b["separation_alignment"], comps[name])
+    for name in ("fd", "non_fd"):
+        b = rec["derived"][name]
+        check(b["separation_pressure"], b["separation_alignment"], comps[name])
+    check(rec["total_policy_surrogate_separation_pressure"],
+          rec["total_policy_surrogate_separation_alignment"], comps["total"])
+    check(rec["total_actor_loss_separation_pressure"],
+          rec["total_actor_loss_separation_alignment"], comps["actor"])
+    # additivity: pressure is linear in g
+    assert sum(rec["groups"][g]["separation_pressure"] for g in GT._ACTOR_GRADIENT_GROUPS) \
+        == pytest.approx(rec["total_policy_surrogate_separation_pressure"], rel=1e-5)
+    json.dumps(rec, allow_nan=False)
+
+
+def test_g13_positive_pressure_means_a_raw_descent_step_raises_the_contrast():
+    policy, critic = _setup(43)
+    records = _records(policy)
+    ids = GT._actor_gradient_group_ids(records, _TAGS)
+    probe = copy.deepcopy(policy)
+    _, _, reports = _run(policy, critic, records, ids=ids)
+    rec = GT._actor_gradient_record(reports[0], iteration=0, updates_completed_before=0,
+                                    measurement_tags=_TAGS)
+    batch = reports[0].batch
+    contrast0, _, comps, _ = _reference(copy.deepcopy(probe), batch, ids)
+
+    def contrast_after_step(g, eps):
+        stepped = copy.deepcopy(probe)
+        params = list(stepped.encoder.parameters()) + list(stepped.head.parameters())
+        offset = 0
+        with torch.no_grad():
+            for p in params:
+                n = p.numel()
+                p -= eps * torch.as_tensor(g[offset:offset + n], dtype=p.dtype).view_as(p)
+                offset += n
+        return _reference(stepped, batch, ids)[0]
+
+    signs = set()
+    cases = [(rec["groups"][g]["separation_pressure"], comps[g], g)
+             for g in GT._ACTOR_GRADIENT_GROUPS]
+    cases += [(rec["derived"][g]["separation_pressure"], comps[g], g) for g in ("fd", "non_fd")]
+    cases.append((rec["total_policy_surrogate_separation_pressure"], comps["total"], "total"))
+    for pressure, g, name in cases:
+        if abs(pressure) < 1e-5:
+            continue
+        eps = 1e-2 / max(_np_norm(g), 1e-12)          # a small raw descent step
+        delta = contrast_after_step(g, eps) - contrast0
+        assert np.sign(delta) == np.sign(pressure), (name, pressure, delta)
+        assert delta / eps == pytest.approx(pressure, rel=0.25), (name, pressure, delta / eps)
+        signs.add(np.sign(pressure))
+    for b in list(rec["groups"].values()) + list(rec["derived"].values()):
+        if b["separation_alignment"] is not None:
+            assert np.sign(b["separation_alignment"]) == np.sign(b["separation_pressure"])
+    assert signs == {-1.0, 1.0}, "fixture must exercise both signs"
+
+
+@pytest.mark.parametrize("keep", ["severe", "mild"])
+def test_g14_missing_mild_or_severe_nulls_every_contrast_field(tmp_path, keep):
+    policy, critic = _setup(44)
+    records = _records(policy)
+    tags = {k: dict(v) for k, v in _TAGS.items()}
+    tags[(0, 300)]["severity"] = keep                   # both FD episodes share one severity
+    tags[(2, 302)]["severity"] = keep
+    ids = GT._actor_gradient_group_ids(records, tags)
+    assert (MILD in ids) != (SEVERE in ids)
+    _, diag, reports = _run(policy, critic, records, ids=ids)
+    rep = reports[0]
+    assert rep.contrast_value is None and rep.contrast_grad is None
+    rec = GT._actor_gradient_record(rep, iteration=0, updates_completed_before=0,
+                                    measurement_tags=tags)
+    for key in ("separation_contrast", "separation_contrast_grad_norm",
+                "total_policy_surrogate_separation_alignment",
+                "total_policy_surrogate_separation_pressure",
+                "total_actor_loss_separation_alignment", "total_actor_loss_separation_pressure"):
+        assert rec[key] is None, key
+    for b in list(rec["groups"].values()) + list(rec["derived"].values()):
+        assert b["separation_alignment"] is None and b["separation_pressure"] is None
+    # the decomposition itself is still written normally
+    assert rec["reconstruction_relative_error"] < 1e-6
+    assert rec["groups"]["immediate_fd_%s" % keep]["n_transitions"] == 2
+    text = json.dumps(rec, allow_nan=False)
+    assert "NaN" not in text
+    path = tmp_path / "g.jsonl"
+    assert GT._persist_actor_gradient_diagnostics(path, reports, diag, iteration=0,
+                                                  updates_completed_before=0,
+                                                  measurement_tags=tags) == 1
+
+
+def test_g14_contrast_wiring_is_checked_both_ways():
+    policy, critic = _setup(45)
+    records = _records(policy)
+    ids = GT._actor_gradient_group_ids(records, _TAGS)
+    upd = CTDEUpdater(policy, critic, PPOConfig(n_epochs=1), CTDEConfig())
+    with pytest.raises(ValueError):
+        upd.update(records, gradient_contrast_ids=(1, 0))
+    with pytest.raises(ValueError):
+        upd.update(records, gradient_group_ids=ids, gradient_sink=lambda r: None,
+                   gradient_contrast_ids=(1, 1))
+    _, _, reports = _run(copy.deepcopy(policy), copy.deepcopy(critic), records, ids=ids)
+    kw = dict(iteration=0, updates_completed_before=0, measurement_tags=_TAGS)
+    for bad in (dataclasses.replace(reports[0], contrast_ids=None),
+                dataclasses.replace(reports[0], contrast_ids=(0, 1)),
+                dataclasses.replace(reports[0], contrast_grad=None, contrast_value=None)):
+        with pytest.raises(GT.ActorGradientDiagnosticsError):
+            GT._actor_gradient_record(bad, **kw)
 
 
 if __name__ == "__main__":  # pragma: no cover - direct runner
