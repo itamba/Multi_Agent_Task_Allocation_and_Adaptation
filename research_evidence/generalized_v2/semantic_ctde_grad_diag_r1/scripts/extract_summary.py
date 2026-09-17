@@ -292,7 +292,8 @@ def main():
         path = os.path.join(PACKAGE_DIR, name)
         if args.check:
             with open(path, "rb") as f:
-                same = f.read() == data
+                # a checkout under core.autocrlf=true may hold CRLF; compare content, not endings
+                same = f.read().replace(b"\r\n", b"\n") == data
             print("%s %s" % ("MATCH" if same else "DIFFER", name))
             ok = ok and same
         else:
