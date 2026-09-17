@@ -563,6 +563,74 @@ not only fuel-damage wakes, so the batch context behind normalization stays read
 - **NOT MEASURED BY THIS LAYER.** It is engineering instrumentation; no credit or
   severity-separation result exists until a future authorized run records and a review reads it.
 
+### 5.2 CTDE actor-gradient diagnostics
+
+**`train_actor_gradient_diagnostics.jsonl` — OPT-IN, OFF BY DEFAULT, CTDE ONLY, TRAINING-ONLY,
+APPEND-ONLY, OBSERVATIONAL.** Enabled by `TrainConfig.actor_gradient_diagnostics` /
+`--actor-gradient-diagnostics`; `TrainConfig.validate` refuses it unless
+`training_mode = ctde`. Schema `graph_train_actor_gradient_diagnostics`,
+`_ACTOR_GRADIENT_DIAGNOSTICS_VERSION = 1`. `run_config.json:/training/actor_gradient_diagnostics`
+always records `enabled`, the artifact name, schema and version, the scope
+(`ctde_updater_epoch_0`), the gradient and group-loss definitions and the four group names. When
+it is off, no file is created and the update receives no group ids. When it is on, `train`
+truncates the file at run start and writes ONE record per productive update.
+
+- **WHAT IS MEASURED.** At PPO epoch 0 of `CTDEUpdater.update`, after the per-transition policy
+  losses and `actor_loss` exist and BEFORE the real `backward()`, clipping and optimizer steps,
+  the updater differentiates with `torch.autograd.grad` on the retained graph (writing no
+  `.grad`): for each group `G`, `sum(policy_loss_i for i in G) / n_transitions` — the group's real
+  share of the batch-mean clipped surrogate, **before the entropy term and never re-normalized by
+  the group's own size** — plus the total surrogate (`policy_loss`) and the total actual actor
+  loss (`policy_loss - entropy_coeff * entropy_mean`). The group gradients therefore sum to the
+  total surrogate gradient, and each record reports that reconstruction error.
+- **GROUPS ARE MEASUREMENT METADATA RESOLVED TRAINER-SIDE.** `graph_train._actor_gradient_group`
+  classifies each transition from `Transition.wake_kind` and the same `credit_tags` join the
+  credit rows use (§5.1): `immediate_fuel_damage` wakes of the joined FD-selected ego split into
+  `immediate_fd_mild` / `immediate_fd_severe` by the joined severity; `post_fd_boundary` wakes are
+  `post_fd`; every other wake is `ordinary`. `_actor_gradient_group_ids` turns them into OPAQUE
+  integers in the batch's transition order, and ONLY those integers cross into
+  `CTDEUpdater.update(…, gradient_group_ids=…, gradient_sink=…)`; `graph_ppo` never sees a group
+  name, severity or ego tag. An immediate-FD wake with no join, a non-selected ego or a severity
+  other than MILD / SEVERE fails loud.
+- **OBSERVATIONAL GUARANTEES (tested).** Diagnostic on versus off leaves actor and critic
+  parameters, both optimizer states, the torch and numpy RNG states, the module forward count, the
+  final `.grad`, the clip-norm calls and the optimizer step count identical; any labelling of the
+  ids gives the identical update, advantages, evaluated logits and credit rows. No tag enters an
+  actor or critic observation, GAE / advantages, a PPO loss, the reward, action selection or an
+  optimizer.
+- **RECORD FIELDS.** `schema`, `schema_version`, `action_representation_id`, `training_mode`,
+  `iteration`, `updates_completed_before`, `epoch` (`0`), `gradient`, `group_loss`,
+  `n_actor_parameters`, `batch_n_transitions`, `entropy_coeff`,
+  `total_policy_surrogate_grad_norm`, `total_actor_loss_grad_norm`,
+  `cosine_policy_surrogate_vs_actor_loss`; `groups.<group>` and `derived.fd` /
+  `derived.non_fd` (`fd = immediate_fd_mild + immediate_fd_severe`,
+  `non_fd = post_fd + ordinary`), each with `n_transitions`, `batch_fraction`, `grad_norm`,
+  `cosine_vs_total` and `projection_on_total` (signed projection onto the total surrogate
+  direction); `fd_grad_norm`, `non_fd_grad_norm`, `cosine_fd_vs_non_fd`,
+  `projection_non_fd_on_fd` (signed projection of the non-FD gradient onto the FD direction);
+  `reconstruction_error_norm`, `reconstruction_relative_error`. No full gradient vector is
+  persisted.
+- **UNDEFINED IS `null`, NEVER `0`.** An empty group has `n_transitions = 0` and `grad_norm = 0.0`
+  with `null` cosine and projection; a cosine is `null` when either vector has zero norm, a
+  projection when its reference direction has zero norm; `cosine_fd_vs_non_fd` and
+  `projection_non_fd_on_fd` are `null` unless both derived groups are non-empty. Records are
+  written with `allow_nan = False`. The vector arithmetic is elementwise numpy only, because
+  BLAS-backed numpy calls can abort next to torch on the local Windows stack.
+- **FAIL LOUD.** `_persist_actor_gradient_diagnostics` raises `ActorGradientDiagnosticsError` —
+  the run stops — when a productive update hands over no report or several, when the record does
+  not cover the update's transitions, when the ids re-derived from the report's own batch do not
+  match the ids the update used, or when the file cannot be written. `CTDEUpdater.update` raises
+  `ValueError` when only one of `gradient_group_ids` / `gradient_sink` is given or the id count
+  differs from the batch.
+- **COST AND SCOPE.** Up to six extra `autograd.grad` passes per productive update, at epoch 0
+  only (one per non-empty group plus the two totals), over the already-retained epoch-0 graph;
+  nothing on actor-only runs. Epochs 1+ are not decomposed, and version 1 has no
+  action-conditioned subgroups.
+- **NO CONTROL PATH READS IT BACK, AND IT MEASURES NOTHING BY ITSELF.** No stopping, evaluation,
+  checkpoint, reward or selection path references it. It is engineering instrumentation: no
+  gradient-pressure or cancellation result exists until a future authorized run records it and a
+  review reads it.
+
 ## 6. Reading preserved artifacts
 
 These rules apply to every completed run directory and every evidence commit. They record
@@ -628,6 +696,7 @@ single parent is the measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8
 | read what an episode did, per successful attempt | `graph_train.py`: `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes`; `episode_outcomes.jsonl`; `run_summary.json:/severity_response` | §3 |
 | record or read per-wake actor diagnostics | `rl/action/graph_action.py`: `summarize_decision`, `_semantic_dist`, `ACTION_REPRESENTATION_ID`; `rl/training/graph_tick_loop.py`: `WAKE_KINDS`, `_decision_record`, `_node_ownership`, `Transition.wake_kind` / `.decision`; `graph_train.py`: `_EPISODE_OUTCOME_VERSION`, `_WAKE_DIAGNOSTICS_VERSION`, `LEGACY_ACTION_REPRESENTATION_LABEL`, `_wake_action_representation`, `_wake_meta_probability`, `_wake_decision_records`, `_wake_diag_digest`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema` | §5 |
 | record or read training credit diagnostics | `graph_train.py`: `_CREDIT_DIAGNOSTICS_FILENAME`, `_CREDIT_DIAGNOSTICS_SCHEMA`, `_CREDIT_DIAGNOSTICS_VERSION`, `CreditDiagnosticsError`, `_credit_measurement_tags`, `_credit_rows`, `_persist_credit_diagnostics`, `_observed_credit_diagnostics`; `rl/training/graph_ppo.py`: `CreditReport`; tests `tests/test_graph_semantic_action_credit.py` | §5.1 |
+| record or read CTDE actor-gradient diagnostics | `graph_train.py`: `TrainConfig.actor_gradient_diagnostics`, `_ACTOR_GRADIENT_DIAGNOSTICS_FILENAME`, `_ACTOR_GRADIENT_DIAGNOSTICS_SCHEMA`, `_ACTOR_GRADIENT_DIAGNOSTICS_VERSION`, `_ACTOR_GRADIENT_GROUPS`, `ActorGradientDiagnosticsError`, `_actor_gradient_group`, `_actor_gradient_group_ids`, `_actor_gradient_record`, `_persist_actor_gradient_diagnostics`; `rl/training/graph_ppo.py`: `ActorGradientReport`, `GradientSink`, `_flat_actor_grad`; tests `tests/test_graph_ctde_actor_gradient_diagnostics.py` | §5.2 |
 | select the final evaluation round (never `eval_records[-1]`) | `graph_train.py`: `_FINAL_EVAL_IDENTITY_FIELDS`, `_final_eval_identity`, `_select_final_eval_record`, `_select_final_matched_round`, `_round_identity`; `run_summary.json:/final_eval_selection` | §5 |
 | persist or aggregate generalized per-episode data | `graph_train.py`: `_episode_outcome_record`, `_reward_breakdown_record`, `_failure_record`, `_EMPTY_BENCHMARK_KEYS`, `_generalized_summary`, `_construction_record`, `seed_bands`, `write_run_config` | §4; known label defect in [§6.1](#61-known-summary-label-defect-run_summaryjsongeneralizedcardinality_sampler) |
 | read why or how a run stopped | `train_records.jsonl:/early_stopping_check`; `run_summary.json:/early_stopping`; `graph_train.py`: `_early_stopping_summary`, `TERMINATION_REASONS` | [training and benchmarks §7](training_benchmarks.md#7-early-stopping) |

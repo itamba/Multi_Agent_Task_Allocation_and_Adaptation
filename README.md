@@ -343,6 +343,7 @@ Selected options (`--help` is authoritative):
 | `--num-agents`, `--n-known`, `--n-hidden` | 3, 3, 3 | the fixed cell (ignored by the generalized designs) |
 | `--fuel-damage-mode`, `--fuel-damage-probability` | `seeded_mixture`, 0.5 | fuel-damage scheduling; the generalized designs require `seeded_variable` |
 | `--visual-artifacts` | off | opt-in per-attempt inspection bundles |
+| `--actor-gradient-diagnostics` | off | `ctde` only: opt-in observational epoch-0 actor-gradient decomposition per update |
 | `--plot RUN_DIR` | — | re-draw an existing run directory's figures into `<RUN_DIR>/plots/` and exit |
 
 Training refuses to start unless Git provenance is complete — both the full commit SHA and
@@ -392,6 +393,7 @@ A run directory is the record of the run. `graph_train` writes:
 | `eval_records.jsonl` | one record per held-out evaluation round |
 | `episode_outcomes.jsonl` | one durable record per successful attempt, including per-wake actor diagnostics |
 | `episode_failures.jsonl` | append-only: every failed episode attempt with its pipeline stage, exact seed and traceback |
+| `train_actor_gradient_diagnostics.jsonl` | only with `--actor-gradient-diagnostics` (`ctde`): one observational epoch-0 policy-gradient decomposition per update |
 | `run_summary.json` | derived from the jsonl files, with an accounting reconciliation flag |
 | `plots/` | figures drawn from the jsonl files alone (below) |
 | `scenarios/` | the generated scenario JSON for each attempt |
