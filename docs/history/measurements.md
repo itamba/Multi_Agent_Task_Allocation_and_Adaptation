@@ -37,6 +37,8 @@
 | GENERALIZED-V2 CTDE diagnostic — `fd80` | `ae42cb01677f94868b2873008d87be677e31f0c8` | evidence PR #64 (same head); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_fd80_seed3000000_ae42cb0` | **development diagnostic run, not a confirmatory measurement**; accounting `PASS` (§8) |
 | GENERALIZED-V2 matched immediate-FD wake extraction (all five runs above) | reads the five runs' recorded artifacts; executes no project code | temporary review PR #65, head `d565174e4ecc25eb60a4dd021e1a20025f55f07f` | **read-only analysis package, not a measurement and not a run**; extraction integrity `APPROVE` (§8) |
 | GENERALIZED-V2 semantic-action actor-only development R1 (`semantic_k_plus_2_logmeanexp_v1`) | `d4e9f3721e6d151c00be3fe93c3d149df9d31965` | evidence PR #71, exact candidate `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT` (2026-09-16, as transferred in the user-approved documentation packet); **development only**; final primary endpoint effectively zero, transient separation at updates 75–150 (§10) |
+| GENERALIZED-V2 semantic-action CTDE actor-gradient diagnostic A — `p = 0.5` (150 updates) | `6ed964a1abd09de2130aee3d0d314c8f32165056` — PR #74 approved head, **unmerged when measured** | local original `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a`; compact index `research_evidence/generalized_v2/semantic_ctde_grad_diag_r1/` (PR #74) | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-17, as transferred in the user-approved documentation packet); **development diagnostic only**; no meaningful severity-conditioned behaviour (§11) |
+| GENERALIZED-V2 semantic-action CTDE actor-gradient diagnostic B — FD100 intervention (150 updates) | `6ed964a1abd09de2130aee3d0d314c8f32165056` — PR #74 approved head, **unmerged when measured** | local original `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a`; compact index as above | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-17, as transferred in the user-approved documentation packet); **development diagnostic only**; probability-level separation acquired at update 75, not retained (§11) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. Since 2026-09-15 the
 local artifacts live in the local archive under `C:\gra\`, and PRs #61, #62, #64, #65 and #67 are
@@ -2095,4 +2097,273 @@ desired behaviour.
   under the old representation (§8.9); CTDE under the semantic representation is unmeasured.
 - Reachability (still the round-trip placeholder) and distance clipping (§8.6) were deliberately
   unchanged and remain open; this measurement does not address them.
+- No confirmatory evidence exists; the confirmatory profile is untouched.
+
+## 11. GENERALIZED-V2 semantic-action CTDE actor-gradient development diagnostics
+
+Recorded on 2026-09-17. The decisions taken on these records are the 2026-09-17 rows of
+[`decisions.md` §1](decisions.md#1-decision-log) that follow the instrumentation-opening row.
+§10 stays as the record it was.
+
+### 11.1 Scope and epistemic status
+
+| Layer | What it is | Status |
+|---|---|---|
+| measurement validity | each run executed its recorded authorized plan, completed and reconciled | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** for both runs — GPT orchestrator review of 2026-09-17, as transferred in the user-approved documentation packet (§11.2–§11.3) |
+| observed findings | gradient windows, held-out trajectory, credit and entropy quantities | reproduced from the original gradient, credit, evaluation and summary artifacts by the compact index's extractor (§11.4–§11.7) |
+| development interpretation | what the findings are consistent with | **development only**; hypotheses, not proofs; no causal attribution (§11.8) |
+| unresolved hypotheses and next research action | open mechanism questions | a read-only mechanism audit, not a conclusion that any item is defective (§11.9) |
+| confirmatory evidence | — | **none**. The confirmatory profile was not selected, inspected or executed |
+
+**Repeated measures.** Every evaluation round re-measures the same 20 frozen development worlds;
+cross-round values describe a trajectory, never independent samples
+([`experiments.md` §4.3](../workflows/experiments.md#43-interpretation-rules)).
+
+### 11.2 Identity and evidence provenance
+
+| Item | Run A — `p = 0.5` diagnostic baseline | Run B — FD100 intervention |
+|---|---|---|
+| Run id | `graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a` | `graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a` |
+| Local original (authoritative, external, untouched) | `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a` | `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a` |
+| Wall clock (local, 2026-09-17) | 16:02:53 – 16:55:49 | 17:34:17 – 18:19:05 |
+| `fuel_damage_probability` / `fuel_damage_mild_probability` | `0.5` / `0.5` | **`1.0`** / `0.5` |
+| Authorized plan SHA-256 | `d157f37345dc6486256896d25bc52b149e00bb39ae3afbfd68f7d8d4a9f11330` | `99571b95b09bc93021234d4675915720dbe9ec12b692ee3f94b816ffa3320cf0` |
+
+Shared by both runs:
+
+| Item | Value |
+|---|---|
+| Measured code SHA | `6ed964a1abd09de2130aee3d0d314c8f32165056`, branch `task/v2-ctde-gradient-pressure-diagnostics` — the GPT-approved head of PR #74, **unmerged when measured**; `run_config.json:/provenance/git` records `dirty = false`, 0 dirty paths |
+| Design | GENERALIZED-V2, `training_mode = ctde`, `p1_milp_v1`, `semantic_k_plus_2_logmeanexp_v1`, DEVELOPMENT profile of manifest `ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8`, base seed `3000000` |
+| Budget | 150 updates × 8 successful episodes; `generalized_max_attempts_per_iteration = 12`; `eval_every = 25`; `checkpoint_every = 25`; early stopping disabled |
+| PPO / CTDE | `gamma = 1.0`, `lr = 0.0003`, `clip_ratio = 0.2`, `entropy_coeff = 0.01`, `n_epochs = 4`, `max_grad_norm = 0.5`, `adv_norm_eps = 1e-08`; `critic_lr = 0.0003`, `value_coeff = 0.5`, `gae_lambda = 0.95` — otherwise the frozen semantic CTDE configuration |
+| Diagnostic | `--actor-gradient-diagnostics` on ([artifacts and metrics §5.2](../contracts/artifacts_metrics.md#52-ctde-actor-gradient-diagnostics)); training credit diagnostics as always ([§5.1](../contracts/artifacts_metrics.md#51-training-credit-diagnostics)) |
+| Compact Git index | `research_evidence/generalized_v2/semantic_ctde_grad_diag_r1/` on PR #74: README, `artifact_manifest.json`, `diagnostic_summary.json` and a standard-library extractor that reads the external originals (`--check` regenerates both JSON files byte-identically). **No record stream or checkpoint is committed** |
+
+**Comparison boundary.** The only scientific configuration intervention in Run B versus Run A is
+`fuel_damage_probability 0.5 → 1.0`, plus the required fresh `output_dir`. The flattened
+`run_config.json` difference is exactly that key, its derived `difficulty` block (FD probability
+and scheduled cell probabilities), the output directory, the invocation argv and the collection
+timestamp. **Known BLADE run-to-run timing nondeterminism remains a comparison limitation**: the
+two runs' physical executions are not claimed bit-identical apart from the intervention. The
+evaluation population is unchanged (the forced CLEAN / MILD / SEVERE benchmark).
+
+**External artifact identities** (SHA-256; all verified against the originals):
+
+| Artifact | Run A | Run B |
+|---|---|---|
+| `authorized_plan.json` | `d157f37345dc6486256896d25bc52b149e00bb39ae3afbfd68f7d8d4a9f11330` | `99571b95b09bc93021234d4675915720dbe9ec12b692ee3f94b816ffa3320cf0` |
+| `preflight.json` | `e7236413fc57735b0831cb7f02dad67bc2cb6ee8bcc8da13ba765d0fa83a9156` | `eb830d3b373847b84396d2da7579cb247eae2ddf43772b4581fefcfe07e000bd` |
+| `run_config.json` | `a1129e6dec81ccf136b096987a057e4bb21676082a01c26d510a2be85d27dcf5` | `1ddeb5ed080a6af03dc8e71a3d5dba042258c580665d075b02a7d86d1ec0c38f` |
+| `run_summary.json` | `29ca9e60cf5a0ca5af05d411ad6496468f1f8bb261ade30d277596b4aed931ab` | `dbfa3e9134ad93cd36e65f8409d74e7962540796341cf82e5d4b76ee2feb0bd1` |
+| `train_records.jsonl` | `402c0fce5d67c623eb85edcbf4f7c00e2dec3856500dd5225a29e314e330f88c` | `d7637750081351cc55cb4505d28045f6fd7738cb2afbd841e08a342fb02d67ea` |
+| `eval_records.jsonl` | `388b3e4b51b1d78e6ce80d4da90b27202dc79de86000e4d54b0b22481784e5f4` | `1117e44a0c92896f3338253f0e2a37a8fdf8b8504ff9660cdefa42daf2a54b82` |
+| `episode_failures.jsonl` (empty) | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `train_actor_gradient_diagnostics.jsonl` | `e445f45ff551e1eb78cf83fddfe9926f527e1e6bef6ebbebea02c17946aa2aed` | `c29bbf8b4ac319f3091d906d6928a8559ec34a49ae7220e71e1c819a3ca39aec` |
+| `train_credit_diagnostics.jsonl` | `2754c7ec6bb56b97fc0a0bfeb5c194945369af2301650ee5aa7858a925590ee0` | `87c0c3acadc08ea33fa33fb9f008df43de08bfc2307955b400a5177d60567a6b` |
+
+`episode_outcomes.jsonl`, the console log, the launcher files, the six checkpoints and the
+scenario and plot trees are identified in the index's `artifact_manifest.json`.
+
+### 11.3 Validity facts
+
+| Fact | Run A (`p = 0.5`) | Run B (FD100) |
+|---|---|---|
+| Productive updates | 150 / 150 | 150 / 150 |
+| Training episodes successful | 1200 / 1200; 0 failures, 0 replacements | 1200 / 1200; 0 failures, 0 replacements |
+| Trained transitions (`run_summary` = sum of `train_records.n_transitions`) | 3581 | 4514 |
+| Training clean / damaged successful | 612 / 588 | **0 / 1200** |
+| FD events applied / immediate-FD wakes | 588 / 588 | 1200 / 1200 |
+| MILD / SEVERE training episodes | 302 / 286 | 625 / 575 |
+| Evaluation rounds; episodes successful | 7; 420 / 420 | 7; 420 / 420 |
+| Final round groups complete / metric-eligible | 20 / 20 / 20 | 20 / 20 / 20 |
+| `accounting_reconciled` | `true` | `true` |
+| Gradient diagnostic rows | 150, one per productive update | 150, one per productive update |
+| Updates with both MILD and SEVERE immediate-FD transitions (defined contrast) | **120 / 150** | **149 / 150** |
+| Credit diagnostic rows | 3581, exactly one per trained transition | 4514, exactly one per trained transition |
+| Maximum gradient reconstruction relative error | `5.0e-7` | `1.0e-6` |
+
+Run B is genuinely FD100 on the training distribution. Both `native_exit_code.txt` files hold
+`0`, and neither console log contains `CRASH` or `Traceback`.
+
+### 11.4 Observed gradient findings
+
+Definitions ([artifacts and metrics §5.2](../contracts/artifacts_metrics.md#52-ctde-actor-gradient-diagnostics)):
+a component's `separation_pressure = −dot(h, g)` is its local first-order raw-gradient push on
+`mean P(ABORT | SEVERE) − mean P(ABORT | MILD)`; positive pushes toward larger separation. **FD
+pressure** is `derived.fd`, **non-FD** is `derived.non_fd`, **total** is the total policy
+surrogate. Windows and counts use only updates with a defined contrast; medians are over those
+updates.
+
+**Run A (`p = 0.5`).** FD separation pressure is positive in **56 / 120 = 46.7%** of defined
+updates.
+
+| Iterations | Defined | FD positive | Median FD pressure | Median non-FD pressure | Median total surrogate pressure |
+|---|---:|---:|---:|---:|---:|
+| 0–24 | 21 | 52.4% | `+0.003633` | `+0.012425` | `+0.027715` |
+| 25–49 | 22 | 40.9% | `-0.000326` | `+0.006101` | `+0.002160` |
+| 50–74 | 22 | 54.5% | `+0.002959` | `-0.000318` | `-0.001298` |
+| 75–99 | 18 | 22.2% | `-0.007114` | `+0.000501` | `-0.009729` |
+| 100–124 | 17 | 64.7% | `+0.000643` | `+0.000077` | `+0.001874` |
+| 125–149 | 20 | 45.0% | `-0.000422` | `-0.000062` | `+0.001232` |
+
+Only **19 / 120** defined updates have FD pressure `> 0` with non-FD pressure `< 0`, and only
+**9 / 120** have a positive FD pressure that becomes a negative total surrogate pressure. **The
+`p = 0.5` result therefore does NOT support simple non-FD cancellation as the dominant
+explanation.** In the critical 75–99 window the FD component itself is negative in **14 / 18**
+defined updates.
+
+**Run B (FD100).** FD separation pressure is positive in **98 / 149 = 65.8%** of defined updates.
+
+| Iterations | Defined | FD positive | Median FD pressure | Median non-FD pressure | Median total surrogate pressure |
+|---|---:|---:|---:|---:|---:|
+| 0–24 | 24 | 75.0% | `+0.014278` | `+0.009408` | `+0.013295` |
+| 25–49 | 25 | 52.0% | `+0.000656` | `+0.002084` | `-0.000437` |
+| 50–74 | 25 | 80.0% | `+0.019473` | `+0.018952` | `+0.053334` |
+| 75–99 | 25 | 52.0% | `+0.000257` | `-0.000663` | `-0.000679` |
+| 100–124 | 25 | 76.0% | `+0.000341` | `-0.000089` | `-0.000217` |
+| 125–149 | 25 | 60.0% | `+0.000275` | `+0.001297` | `+0.000692` |
+
+FD100 materially improves FD-gradient directional coherence, especially before update 75.
+Cancellation / interference becomes visible after acquisition: **37 / 149** defined updates
+have positive FD pressure and negative non-FD pressure, and in **23 / 149** a positive FD
+pressure becomes a negative total surrogate pressure. **This is not described as the sole cause
+of the later collapse.**
+
+### 11.5 Behavioural findings
+
+Held-out DEVELOPMENT evaluation trajectory, ten-cell macro `SEVERE − MILD P(ABORT)`; every round
+has 60 / 60 episodes, 10 / 10 base cells defined, 20 / 20 groups metric-eligible, and **0 / 20
+directional and 0 / 20 reverse selected-action switches in both runs**:
+
+| Updates | Run A (`p = 0.5`) | Run B (FD100) |
+|---:|---:|---:|
+| 0 (pre-update) | `-0.0005158037` | `-0.0005158037` |
+| 25 | `-0.0000049397` | `+0.0000906825` |
+| 50 | `+0.0000051774` | `+0.0020783611` |
+| 75 | `+0.0001370527` | **`+0.0427981213`** |
+| 100 | `+0.0000016853` | `-0.0000086490` |
+| 125 | `+0.0000046670` | `-0.0000035509` |
+| 150 | `-0.0000008188` | `-0.0000019804` |
+
+- **Run A:** no meaningful severity-conditioned behaviour appears.
+- **Run B:** at update 75 all 20 matched groups are measurable, but there are still 0 / 20
+  directional switches; the separation collapses by update 100 and stays effectively zero through
+  update 150.
+
+**FD100 improves acquisition of probability-level severity separation but does not produce stable
+retained severity-conditioned behaviour.** It is qualitatively stronger than the `p = 0.5`
+diagnostic run but much weaker than the semantic actor-only transient at updates 75–150 (§10.5).
+
+### 11.6 Credit findings
+
+Population: training credit rows with `wake_kind = immediate_fuel_damage` and
+`is_fd_selected_ego = true` — Run A **588** (MILD 302: 251 PLAN / 51 ABORT; SEVERE 286: 229 PLAN /
+57 ABORT); Run B **1200** (MILD 625: 485 PLAN / 140 ABORT; SEVERE 575: 443 PLAN / 131 ABORT /
+1 OPPORTUNISTIC_ENGAGEMENT, which is outside the ABORT − PLAN comparison).
+
+**Action-conditioned normalized advantage** (mean over ABORT rows minus mean over PLAN rows,
+within severity, pooled over updates):
+
+| Severity | Run A `ABORT − PLAN` | Run B `ABORT − PLAN` |
+|---|---:|---:|
+| MILD | `-1.326949` | `-1.118971` |
+| SEVERE | `+0.165636` | `+0.392281` |
+
+FD100 makes the descriptive SEVERE action-credit association more consistently favourable to
+ABORT while preserving the negative MILD ABORT association. **These remain NON-COUNTERFACTUAL
+comparisons across different sampled episodes and actions.**
+
+**Critic decision-locality** — within-update `SEVERE − MILD` (per update holding both severities:
+`mean(SEVERE) − mean(MILD)`; median over 120 updates in Run A, 149 in Run B):
+
+| Quantity | Run A | Run B |
+|---|---:|---:|
+| `value_old` | `-0.000560` | `-0.000073` |
+| `value_target` | `-0.351518` | `-0.353858` |
+| raw advantage | `-0.330884` | `-0.357481` |
+
+Increasing FD exposure does **NOT** make the critic's pre-update value estimate meaningfully
+severity-sensitive at the immediate-FD decision, despite large target and advantage differences.
+
+**Local TD residual relative to raw GAE advantage** (per-row median of
+`|td_residual| / |raw_advantage|`): Run A MILD ≈ `0.48%`, SEVERE ≈ `0.19%`; Run B MILD ≈
+`0.20%`, SEVERE ≈ `0.25%` — tiny in the median. **This ratio is a descriptive diagnostic, not a
+formal decomposition of causal credit.** It is a median statement only: the ratio of mean
+magnitudes is much larger (Run A `19.4%` / `12.8%`, Run B `17.6%` / `12.6%`, MILD / SEVERE), so a
+minority of rows carry a substantial local residual.
+
+### 11.7 Entropy finding
+
+- **Run A:** total surrogate versus actual actor-loss gradients have mean cosine ≈ `0.999` over the
+  120 defined updates (`0.993` over all 150 rows); **0 / 120** defined updates have the entropy
+  term flip the sign of separation pressure.
+- **Run B:** the mean cosine is not the load-bearing fact, because a few updates differ in
+  magnitude / direction (minimum cosine `0.39`); the exact fact is that **0 / 149** defined updates
+  have the entropy term flip the sign of total separation pressure.
+
+**There is no current evidence that the entropy bonus explains the acquisition or retention
+failure.**
+
+### 11.8 Development interpretation
+
+DEVELOPMENT ONLY. The reviewed supported interpretation:
+
+1. The `p = 0.5` diagnostic does **not** support "a healthy FD gradient simply drowned by ordinary
+   transitions" as the dominant mechanism: the FD component itself is frequently incoherent with
+   the desired severity contrast (§11.4).
+2. Increasing FD exposure to 100% materially changes the learning signal: almost every update
+   contains both severities (120 / 150 → 149 / 150); FD separation pressure is positive more often
+   (46.7% → 65.8%); the SEVERE ABORT-vs-PLAN normalized advantage becomes more favourable
+   (`+0.166` → `+0.392`); held-out probability-level separation reaches `+0.0428` at update 75.
+3. This is evidence that FD exposure is a **material contributor to acquisition**.
+4. It does **not** solve **retention**: separation collapses by update 100 and is effectively zero
+   thereafter.
+5. More exposure does not make `value_old` meaningfully distinguish immediate-FD MILD from SEVERE,
+   and the local TD residual stays tiny relative to GAE advantage in the median. **Critic / credit
+   locality remains an unresolved mechanism question.**
+6. Non-FD gradient interference exists and is more visible after FD100 acquisition, but the
+   evidence does **not** establish it as the sole or primary cause of collapse.
+7. **No additional tuning run is approved.** In particular, no approval is inferred for
+   greater-than-100%-equivalent oversampling or replay, stratified loss weighting, batch-size
+   changes, lambda / learning-rate / entropy changes, clipping changes, reward shaping, critic
+   architecture changes or observation changes.
+
+### 11.9 Unresolved hypotheses and next research action
+
+The next action is a **fresh read-only mechanism audit** in a new orchestrator chat, before any
+further implementation or scientific execution. Priority questions — **an investigation list, not
+a conclusion that any one item is defective**:
+
+1. **Actor private observation identifiability:** does the acting ego's immediate-FD private graph
+   contain an informative, non-saturated signal distinguishing MILD and SEVERE? Inspect fuel
+   normalization, distance / reachability clipping and any other relevant actor-visible features.
+2. **Critic conditioning:** why does `value_old` barely distinguish severities despite very
+   different targets? Inspect the central observation contents and whether value prediction is
+   appropriately conditioned on the current decision / acting ego.
+3. **PPO mechanics:** inspect clipping, normalized advantages, repeated PPO epochs and Adam /
+   gradient clipping for mechanisms that could acquire and then erase separation.
+4. **Gradient interaction:** why do non-FD components sometimes oppose a healthy FD component after
+   acquisition?
+
+No new run or code change is authorized by this record.
+
+### 11.10 Limitations and non-claims
+
+- **Two development diagnostic runs, one seed stream, 150 updates each**; the same 20 frozen
+  development worlds are re-measured every round (not independent samples); no variance across
+  training seeds is estimated.
+- The Run A versus Run B comparison changes one configuration key but is **not bit-identical
+  physical execution** (BLADE timing nondeterminism); it is not a randomized control.
+- Separation pressure is a **local first-order raw-gradient** quantity at PPO epoch 0 only; it does
+  not predict the actual Adam step, and epochs 1–3, clipping and gradient-norm clipping are not
+  decomposed.
+- Credit quantities are descriptive, pooled or matched-within-update associations, **never action
+  values**; the TD ratio is not a causal credit decomposition.
+- **No causal claim** that FD exposure, non-FD interference, critic conditioning or PPO mechanics
+  is the cause of acquisition or collapse.
+- Run B's update-75 separation (`+0.0428`, 0 / 20 switches) is a probability-level effect only; no
+  selected-action severity conditioning was observed in either run.
+- The measured SHA was an unmerged candidate; the semantic-action CTDE R1 (evidence PR #73) remains
+  unreviewed and is not used here.
 - No confirmatory evidence exists; the confirmatory profile is untouched.
