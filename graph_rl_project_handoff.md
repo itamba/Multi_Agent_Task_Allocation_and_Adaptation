@@ -1,8 +1,8 @@
 # Graph RL project handoff — current snapshot
 
 > **Status: current state only — not a contract and not a history.** This snapshot was refreshed
-> on 2026-09-16, when the semantic-action actor-only development R1 verdict documentation task
-> opened from live `main` `d4e9f3721e6d151c00be3fe93c3d149df9d31965`.
+> on 2026-09-17, when the CTDE actor-gradient diagnostics instrumentation task opened from live
+> `main` `8056266cff89f677911462b29970346bed0a57c1`.
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -28,10 +28,19 @@
   `d4e9f3721e6d151c00be3fe93c3d149df9d31965`
   ([measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1)).
   Its evidence is draft PR #71 at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`, **read-only and not
-  for merge**.
-- **The next research direction is approved but not yet planned:** a semantic-action CTDE
-  development arm ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-16). It
-  authorizes no execution until a bounded run plan is frozen.
+  for merge**. The verdict documentation (PR #72) is merged as
+  `8056266cff89f677911462b29970346bed0a57c1`.
+- **A semantic-action CTDE development R1 has been executed and preserved, but not reviewed:**
+  run `graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266`, measured code SHA
+  `8056266cff89f677911462b29970346bed0a57c1` as recorded by its evidence package, which carries
+  its own `authorized_plan.json`. Its evidence is draft PR #73 at
+  `ad9b545034670a7c7a9d8ff98012d56c0be07f46`, **read-only and not for merge**. **No validity or
+  scientific verdict is recorded**; nothing about its results is claimed here.
+- **Open instrumentation task:** an opt-in, observational epoch-0 CTDE actor-gradient
+  decomposition (`train_actor_gradient_diagnostics.jsonl`,
+  [artifacts and metrics §5.2](docs/contracts/artifacts_metrics.md#52-ctde-actor-gradient-diagnostics)),
+  asking whether immediate fuel-damage decisions carry actor-gradient pressure that the rest of
+  the PPO batch cancels. Draft PR #74; engineering evidence only.
 - **The V2 benchmark-preflight provenance evidence is reviewed and durable**
   ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
 - **Closure and cleanup of the historical V2 chapter are complete** (2026-09-15): the local
@@ -46,33 +55,37 @@
   ignored files hold about 5.2 GB of flat-RL training outputs that are not archived under
   `C:\gra\` and whose deletion or move was not authorized
   ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
-- **No scientific run is in progress or authorized. The confirmatory profile has not been used.**
+- **No scientific run is in progress, and this snapshot authorizes none. The confirmatory profile
+  has not been used.**
 - **Closed:** Phase A (fixed cell, FD-BASELINE-v1); the FD-VARIABLE-SEVERITY-v1 actor-only
   baseline; the Phase-B CTDE implementation; GENERALIZED-V1 Tasks 1–5, early stopping and the
   per-wake diagnostics; the deterministic-P1 backend and the certified-FD physical-state repair;
   the GENERALIZED-V1 R1 measurement; the documentation restructure (PR #63); the GENERALIZED-V2
   development closure (PR #66); the V2 benchmark-preflight provenance review (PR #68); the local
   artifact archive and Git / worktree cleanup (2026-09-15); the semantic-action + credit
-  implementation (PR #70); the semantic-action actor-only development R1 review (2026-09-16).
+  implementation (PR #70); the semantic-action actor-only development R1 review (2026-09-16) and
+  its verdict documentation (PR #72).
 
 ## 2. Active owner and task
 
 | Item | State |
 |---|---|
-| Writable repository task | **sole owner:** the semantic-action development R1 verdict documentation task (branch `docs/v2-semantic-action-dev-r1-verdict`, draft PR #72 to `main`) until it is reviewed and integrated |
+| Writable repository task | **sole owner:** the CTDE actor-gradient diagnostics instrumentation task (branch `task/v2-ctde-gradient-pressure-diagnostics`, draft PR #74 to `main`) until it is reviewed and integrated |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
-| Evidence PRs | **#71** (`evidence/generalized-v2-semantic-action-actor-only-dev-r1`), draft, **read-only evidence at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`, not for merge**; no other evidence or review PR is open |
-| Candidates | draft PR #72 (the documentation task) — under GPT exact-candidate review; no merge authorized |
-| Scientific runs in progress | none; none authorized |
+| Evidence PRs | **#71** (`evidence/generalized-v2-semantic-action-actor-only-dev-r1`), draft, read-only at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; **#73** (`evidence/generalized-v2-semantic-action-ctde-dev-r1`), draft, read-only at `ad9b545034670a7c7a9d8ff98012d56c0be07f46`, no verdict recorded. Both **not for merge** |
+| Candidates | draft PR #74 (the instrumentation task) — for GPT exact-candidate review; no merge authorized |
+| Scientific runs in progress | none; none authorized by this task |
 
 ## 3. Candidates and PRs
 
-Open PRs: documentation draft PR #72 and evidence PR #71. Resolve live PR state and exact heads on
-GitHub.
+Open PRs: instrumentation draft PR #74 and evidence PRs #71 and #73. Resolve live PR state and
+exact heads on GitHub.
 
 | PR | Branch | State |
 |---|---|---|
-| #72 | `docs/v2-semantic-action-dev-r1-verdict` | open draft; **the sole writable repository task**; under GPT exact-candidate review; no merge authorized |
+| #74 | `task/v2-ctde-gradient-pressure-diagnostics` | open draft; **the sole writable repository task**; code, tests, contracts and this handoff; no scientific execution; no merge authorized |
+| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | open draft; head `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; **read-only evidence, not for merge**; no validity or scientific verdict recorded; its review and lifecycle need their own authorization |
+| #72 | `docs/v2-semantic-action-dev-r1-verdict` | merged as `8056266cff89f677911462b29970346bed0a57c1` |
 | #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | open draft; exact reviewed candidate `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; **read-only, not for merge**; conclusions in [measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1); its lifecycle (close, archive) needs its own explicit authorization |
 | #70 | `task/v2-semantic-action-credit-instrumentation` | merged as `d4e9f3721e6d151c00be3fe93c3d149df9d31965` |
 | #59, #60, #63, #66, #68 | task and documentation branches | merged; branches deleted after ancestry verification (2026-09-15) |
@@ -103,6 +116,7 @@ and key hashes are in [measurements §10.2](docs/history/measurements.md#102-ide
 | GENERALIZED-V2 CTDE diagnostics — `smallbatch`, `largebatch`, `fd80` | `ae42cb01677f94868b2873008d87be677e31f0c8` | **development diagnostic runs, not confirmatory**; accounting `PASS` | [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure) |
 | GENERALIZED-V2 matched immediate-FD wake analysis (PR #65) | — (read-only extraction) | extraction integrity `APPROVE`; not a measurement | [measurements §8.6](docs/history/measurements.md#86-matched-immediate-fd-wake-analysis) |
 | **GENERALIZED-V2 semantic-action actor-only development R1** (`semantic_k_plus_2_logmeanexp_v1`) | `d4e9f3721e6d151c00be3fe93c3d149df9d31965` | **`APPROVE — VALID DEVELOPMENT MEASUREMENT`** (GPT, 2026-09-16) on evidence PR #71 @ `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; development only | [measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1) |
+| GENERALIZED-V2 semantic-action CTDE development R1 (`semantic_k_plus_2_logmeanexp_v1`) | `8056266cff89f677911462b29970346bed0a57c1` (as recorded by its evidence package) | **no verdict recorded** — preserved for review on draft PR #73 @ `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; not a measurement until reviewed | not yet recorded |
 
 **Current research interpretation (development only; numbers in
 [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure) and
@@ -142,17 +156,14 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: GPT exact-candidate review** of draft PR #72's full head SHA (branch `docs/v2-semantic-action-dev-r1-verdict`)
-(`GPT_GITHUB`; review fixes are append-only commits on the same branch and PR). No merge is
-authorized.
+**Now: GPT exact-candidate review** of draft PR #74's full head SHA (branch
+`task/v2-ctde-gradient-pressure-diagnostics`) (`GPT_GITHUB`; review fixes are append-only commits
+on the same branch and PR). No merge is authorized.
 
-**Next unresolved action after this documentation candidate is integrated: freeze the bounded
-semantic-action CTDE development-run plan** under the approved 2026-09-16 direction
-([`decisions.md` §1](docs/history/decisions.md#1-decision-log)). The plan must satisfy
-[`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan).
-The CTDE run is **neither authorized nor launched**; no hyperparameter sweep is authorized; the
-arm must not retune observations, reward, FD exposure, batch size or the action representation;
-the confirmatory profile stays untouched.
+**Unresolved and not scheduled here:** the review of evidence PR #73 (semantic-action CTDE
+development R1), and any run that would use the new diagnostic. A diagnostic run needs its own
+authorized bounded plan ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan));
+the instrumentation authorizes none, and the follow-up experiment is out of this task's scope.
 
 **Recorded, not scheduled and not authorized:**
 
@@ -161,8 +172,8 @@ the confirmatory profile stays untouched.
   ([policy and CTDE §6](docs/contracts/policy_ctde.md#6-known-limitations-and-open-items));
 - local causal credit at the immediate-FD decision: actor-only instrumentation cannot provide it
   (measurements §10.7); any change to reward or credit structure would need its own decision;
-- evidence PR #71's lifecycle (closing it, archiving the run directory under `C:\gra\` and
-  indexing it) requires its own explicit authorization;
+- the lifecycles of evidence PRs #71 and #73 (closing them, archiving their run directories under
+  `C:\gra\` and indexing them) require their own explicit authorization;
 - a separate code task to correct the V2 `generalized.cardinality_sampler` summary label in
   `graph_train._generalized_summary`, without touching archived artifacts;
 - the launcher `cmd` exit-code redirect defect (`echo %RC%> file` writes an empty file for a
@@ -176,22 +187,24 @@ the confirmatory profile stays untouched.
 
 ## 6. Blocked or unauthorized now
 
-- modifying, merging or closing evidence PR #71, or modifying, deleting or relocating the
-  semantic-action R1 run directory, without explicit authorization;
+- modifying, merging or closing evidence PR #71 or #73, or modifying, deleting or relocating
+  either semantic-action R1 run directory, without explicit authorization;
 - modifying, deleting, pruning, regenerating or rewriting anything under `C:\gra\`, or relocating
   it except under
   [`environments_cleanup.md` §4.4](docs/workflows/environments_cleanup.md#44-preserved-run-directories-and-external-artifacts);
   moving or deleting protected refs;
-- any change outside the documentation task's scope — in particular source code, tests, contracts,
-  reachability, distance normalization / clipping or other observation features, the reward, FD
-  physics, the V2 population / benchmark / profiles, PPO hyperparameters, batch size, training
-  budget, FD exposure, the action representation, CTDE architecture / features, early stopping,
-  BLADE and the solvers; checkpoint migration, warm-start conversion or resume;
+- any change outside the instrumentation task's scope — in particular training semantics,
+  action-conditioned gradient subgroups, actor-only gradient instrumentation, reachability,
+  distance normalization / clipping or other observation features, the reward, FD events or
+  physics, the V2 population / benchmark / profiles, PPO hyperparameters (learning rate, lambda,
+  entropy), batch size or weighting, oversampling, training budget, FD exposure, the action
+  representation, CTDE architecture / critic features, early stopping, BLADE and the solvers;
+  checkpoint migration, warm-start conversion or resume;
 - **without an authorized bounded plan that names it**
   ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)):
-  any V2 training, evaluation or benchmark preflight — **including the semantic-action CTDE
-  development arm**; re-running or extending any preserved run, including the semantic-action
-  actor-only R1; any hyperparameter sweep; further batch, exposure or training-length tuning;
+  any V2 training, evaluation or benchmark preflight — **including any run using the new
+  actor-gradient diagnostic**; re-running or extending any preserved run, including both
+  semantic-action R1 arms; any hyperparameter sweep; further batch, exposure or training-length tuning;
   any R1 or P1 rerun, repair or extension; the five full cluster runs;
 - **any use of the confirmatory profile.** A future confirmatory plan must also name manifest
   `ef17a68a…46ea8`, decide explicitly whether to adopt it, preserve the development /
@@ -212,14 +225,16 @@ Remaining local worktrees: the main checkout and `C:/Users/Itama/PycharmProjects
 (branch `flat-final`). Preserved artifacts: the `C:\gra\` archive and its index; the
 semantic-action R1 run directory at its original location
 (`C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37`)
-with its evidence package on PR #71.
+with its evidence package on PR #71; the semantic-action CTDE R1 evidence package on PR #73
+(its run-directory location is recorded in that package, not here).
 
 **Known gaps in this snapshot:**
 
-- Per-transition credit is recorded only for the semantic-action actor-only R1; no preserved run
+- Per-transition credit is recorded for the two semantic-action R1 arms only; no preserved run
   under the historical representation has it, and under actor-only it is episode / chain-level,
-  not local FD-action credit (measurements §10.7).
-- The semantic-action R1 run directory is not yet in the `C:\gra\` archive index.
+  not local FD-action credit (measurements §10.7). No preserved run has
+  `train_actor_gradient_diagnostics.jsonl`.
+- Neither semantic-action R1 run directory is in the `C:\gra\` archive index.
 - The semantic-action R1's `native_exit_code.txt` is empty (launcher defect); completion rests on
   the run's own summary, train records and final checkpoint.
 - The PR #65 reachability comparison is positional; task-node identity across paired members is
