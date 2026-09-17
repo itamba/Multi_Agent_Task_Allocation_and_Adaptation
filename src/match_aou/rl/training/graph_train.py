@@ -192,6 +192,12 @@ a console scrollback:
                                  credit values that update ALREADY computed
                                  (``_credit_rows``). Observational; read back by nothing
                                  but the run summary's schema observation.
+  * ``train_actor_gradient_diagnostics.jsonl`` -- OPT-IN (``--actor-gradient-diagnostics``),
+                                 CTDE only, append-only: one record per productive
+                                 update decomposing the epoch-0 policy-surrogate
+                                 gradient by measurement group
+                                 (``_actor_gradient_record``). Observational; read back
+                                 by nothing.
   * ``run_summary.json``       -- derived from the three jsonl files at completion.
   * ``plots/``                 -- the three figures, derived from the jsonl files alone:
                                  ``training_performance.png`` (train reward, held-out
@@ -290,6 +296,7 @@ import argparse
 import importlib
 import importlib.metadata
 import json
+import math
 import os
 import platform
 import random
@@ -303,6 +310,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
+import numpy as np
 import torch
 
 from ...solvers.match_aou_backend import (
@@ -339,6 +347,7 @@ from .graph_ppo import (
     CTDEConfig,
     CTDEEpisodeRecord,
     CTDEUpdater,
+    ActorGradientReport,
     CreditReport,
     EpisodeRecord,
     PPOBuffer,
@@ -610,6 +619,40 @@ class CreditDiagnosticsError(RuntimeError):
     silently lost its credit rows would be scientifically incomplete, so the run stops.
     """
 
+# ACTOR-GRADIENT DIAGNOSTICS -- `train_actor_gradient_diagnostics.jsonl`. OPT-IN, OFF by
+# default, CTDE only. One record per productive update decomposing the EPOCH-0 PPO
+# policy-surrogate gradient (before the entropy term) into four measurement groups. The
+# groups are resolved HERE, trainer-side, from the same `credit_tags` join the credit rows
+# use; `CTDEUpdater` receives only their opaque integer ids (the index into
+# `_ACTOR_GRADIENT_GROUPS`) and never learns what a group means. Undefined cosines /
+# projections are `null`, never `0`.
+_ACTOR_GRADIENT_DIAGNOSTICS_FILENAME = "train_actor_gradient_diagnostics.jsonl"
+_ACTOR_GRADIENT_DIAGNOSTICS_SCHEMA = "graph_train_actor_gradient_diagnostics"
+_ACTOR_GRADIENT_DIAGNOSTICS_VERSION = 1
+_ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_MILD = "immediate_fd_mild"
+_ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_SEVERE = "immediate_fd_severe"
+_ACTOR_GRADIENT_GROUP_POST_FD = "post_fd"
+_ACTOR_GRADIENT_GROUP_ORDINARY = "ordinary"
+_ACTOR_GRADIENT_GROUPS = (
+    _ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_MILD,
+    _ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_SEVERE,
+    _ACTOR_GRADIENT_GROUP_POST_FD,
+    _ACTOR_GRADIENT_GROUP_ORDINARY,
+)
+_ACTOR_GRADIENT_DERIVED = {
+    "fd": (_ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_MILD,
+           _ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_SEVERE),
+    "non_fd": (_ACTOR_GRADIENT_GROUP_POST_FD, _ACTOR_GRADIENT_GROUP_ORDINARY),
+}
+
+
+class ActorGradientDiagnosticsError(RuntimeError):
+    """The actor-gradient diagnostic could not be produced, verified or persisted.
+
+    Like :class:`CreditDiagnosticsError`: an enabled diagnostic that silently dropped or
+    misattributed a record would be scientifically incomplete, so the run stops.
+    """
+
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
 # them into the summary would create a second, divergeable metric path.
@@ -834,6 +877,7 @@ _CLI_FIELD_BY_DEST = {
     "fuel_damage_rtb_margin": "fuel_damage_rtb_margin",
     "aircraft_penalty_coeff": "aircraft_penalty_coeff",
     "visual_artifacts": "visual_artifacts",
+    "actor_gradient_diagnostics": "actor_gradient_diagnostics",
     "training_mode": "training_mode",
     "episode_design": "episode_design",
     "match_aou_backend": "match_aou_backend",
@@ -987,6 +1031,10 @@ class TrainConfig:
         visual_artifacts: opt in to per-attempt inspection bundles (OFF by default). See
             :class:`_AttemptArtifacts`; it is an observation surface and changes nothing
             an episode measures.
+        actor_gradient_diagnostics: opt in (OFF by default, ``ctde`` only) to the
+            epoch-0 actor-gradient decomposition artifact
+            ``train_actor_gradient_diagnostics.jsonl``. Observational; it changes no
+            update.
         num_red_airbases: LEGACY, like ``partial_ratio`` -- the construction path emits
             ``n_known`` targets and never reads this.
     """
@@ -1214,6 +1262,11 @@ class TrainConfig:
     # next to the seed schedule. It changes no seed, no scenario tag, no scenario name and
     # no episode outcome (see `_AttemptArtifacts`).
     visual_artifacts: bool = False
+
+    # --- ACTOR-GRADIENT DIAGNOSTICS: opt-in, OFF by default, CTDE only -------------
+    # Observational: extra `autograd.grad` calls on the epoch-0 graph of each productive
+    # update (cost), no change to what the update does. See `_actor_gradient_record`.
+    actor_gradient_diagnostics: bool = False
 
     # --- LEGACY split surface (see `derived_split`) -------------------------------
     # The Phase-A baseline cell, kept so `derived_split` / `split_preview` / the
@@ -1547,6 +1600,13 @@ class TrainConfig:
                     "critic set training_mode='actor_only'."
                     % (self.ctde.value_coeff,)
                 )
+
+        # The actor-gradient diagnostic instruments `CTDEUpdater` only; accepting it on an
+        # `actor_only` run would record an enabled diagnostic that can never write.
+        if self.actor_gradient_diagnostics and not self.ctde_enabled:
+            raise ValueError(
+                "actor_gradient_diagnostics requires training_mode='ctde', got %r"
+                % (self.training_mode,))
 
         # --- THE DESIGN SELECTOR, checked before anything reads it -----------------
         # An UNRECOGNIZED design raises rather than falling back on the historical
@@ -4034,6 +4094,17 @@ def write_run_config(
                 "artifact": _CREDIT_DIAGNOSTICS_FILENAME,
                 "schema": _CREDIT_DIAGNOSTICS_SCHEMA,
                 "schema_version": _CREDIT_DIAGNOSTICS_VERSION,
+            },
+            # The OPT-IN actor-gradient diagnostic, stated whether or not it is on.
+            "actor_gradient_diagnostics": {
+                "enabled": bool(cfg.actor_gradient_diagnostics),
+                "artifact": _ACTOR_GRADIENT_DIAGNOSTICS_FILENAME,
+                "schema": _ACTOR_GRADIENT_DIAGNOSTICS_SCHEMA,
+                "schema_version": _ACTOR_GRADIENT_DIAGNOSTICS_VERSION,
+                "scope": "ctde_updater_epoch_0",
+                "gradient": "ppo_policy_surrogate_before_entropy",
+                "group_loss": "sum_over_group_div_total_batch_transitions",
+                "groups": list(_ACTOR_GRADIENT_GROUPS),
             },
             # GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTS, and the
             # bounded budget behind it. Recorded on BOTH designs and stated positively:
@@ -7993,6 +8064,201 @@ def _persist_credit_diagnostics(
     return len(rows)
 
 
+def _actor_gradient_group(tr: Any, tags: Optional[Mapping[str, Any]]) -> str:
+    """The MEASUREMENT group of one transition. Trainer-side only; fails LOUD.
+
+    ``immediate_fuel_damage`` wakes split by the joined severity and must belong to the
+    joined FD-selected ego; ``post_fd_boundary`` wakes are ``post_fd``; every other wake
+    is ``ordinary``. An immediate-FD wake that cannot be attributed raises rather than
+    being filed under a group it may not belong to.
+    """
+    kind = str(tr.wake_kind)
+    if kind == WAKE_KIND_POST_FD_BOUNDARY:
+        return _ACTOR_GRADIENT_GROUP_POST_FD
+    if kind != WAKE_KIND_IMMEDIATE_FD:
+        return _ACTOR_GRADIENT_GROUP_ORDINARY
+    if tags is None:
+        raise ActorGradientDiagnosticsError(
+            "an immediate fuel-damage transition has no measurement join")
+    if str(tags.get("fd_selected_ego_id")) != str(tr.ego_id):
+        raise ActorGradientDiagnosticsError(
+            "an immediate fuel-damage transition of ego %r is not the joined FD-selected "
+            "ego %r" % (tr.ego_id, tags.get("fd_selected_ego_id")))
+    severity = tags.get("severity")
+    if severity == SEVERITY_MILD:
+        return _ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_MILD
+    if severity == SEVERITY_SEVERE:
+        return _ACTOR_GRADIENT_GROUP_IMMEDIATE_FD_SEVERE
+    raise ActorGradientDiagnosticsError(
+        "an immediate fuel-damage transition has unattributable severity %r" % (severity,))
+
+
+def _actor_gradient_group_ids(
+    records: Sequence[CTDEEpisodeRecord],
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+) -> List[int]:
+    """OPAQUE group ids, one per transition, in the order ``compute_ctde_advantages``
+    flattens ``records`` (record order, then each record's decisions; zero-wake records
+    contribute nothing). Only these integers cross into the updater."""
+    return [
+        _ACTOR_GRADIENT_GROUPS.index(_actor_gradient_group(
+            tr, measurement_tags.get((int(rec.episode_index), int(rec.seed)))))
+        for rec in records for tr in rec.transitions
+    ]
+
+
+# Vector math for the gradient record is ELEMENTWISE numpy only (no `np.dot` /
+# `np.linalg`): BLAS-backed calls initialize a second OpenMP runtime next to torch's on
+# this Windows stack and abort the process (see PLOTTING RUNS IN A CHILD PROCESS above).
+def _dot(a: np.ndarray, b: np.ndarray) -> float:
+    return float(np.sum(a * b))
+
+
+def _norm(v: np.ndarray) -> float:
+    return math.sqrt(_dot(v, v))
+
+
+def _cosine(a: np.ndarray, b: np.ndarray) -> Optional[float]:
+    """Cosine, or ``None`` when either vector has zero norm (undefined, never 0)."""
+    na, nb = _norm(a), _norm(b)
+    return None if na == 0.0 or nb == 0.0 else _dot(a, b) / (na * nb)
+
+
+def _projection(v: np.ndarray, onto: np.ndarray) -> Optional[float]:
+    """Signed length of ``v`` along ``onto``'s direction; ``None`` if ``onto`` is zero."""
+    n = _norm(onto)
+    return None if n == 0.0 else _dot(v, onto) / n
+
+
+def _actor_gradient_record(
+    report: ActorGradientReport,
+    *,
+    iteration: int,
+    updates_completed_before: int,
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+) -> Dict[str, Any]:
+    """ONE JSON record from ONE :class:`ActorGradientReport`. REPORTING-ONLY.
+
+    The group ids the updater used are RE-DERIVED from the report's own batch and
+    records and must match exactly, so a misaligned id list fails LOUD instead of
+    misattributing gradient. Empty groups carry ``n_transitions = 0``, norm ``0.0`` and
+    ``null`` cosine / projection. No full gradient vector is persisted.
+    """
+    batch = report.batch
+    records = list(report.records)
+    n = int(batch.n_transitions)
+    expected = []
+    for i, tr in enumerate(batch.transitions):
+        rec = records[int(batch.record_positions[i])]
+        expected.append(_ACTOR_GRADIENT_GROUPS.index(_actor_gradient_group(
+            tr, measurement_tags.get((int(rec.episode_index), int(rec.seed))))))
+    if list(report.group_ids) != expected or len(expected) != n:
+        raise ActorGradientDiagnosticsError(
+            "the update's gradient group ids are not aligned with its batch transitions")
+    counts = {name: int(report.group_counts.get(gid, 0))
+              for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS)}
+    if (set(report.group_counts) - set(range(len(_ACTOR_GRADIENT_GROUPS)))
+            or sum(counts.values()) != n):
+        raise ActorGradientDiagnosticsError(
+            "gradient group counts do not partition the batch's %d transitions" % n)
+    total = report.total_policy_surrogate_grad
+    actor_total = report.total_actor_loss_grad
+    zero = np.zeros_like(total)
+    grads = {name: report.group_policy_surrogate_grads.get(gid, zero)
+             for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS)}
+
+    def block(v: np.ndarray, count: int) -> Dict[str, Any]:
+        defined = count > 0
+        return {
+            "n_transitions": int(count),
+            "batch_fraction": float(count) / n,
+            "grad_norm": _norm(v),
+            "cosine_vs_total": _cosine(v, total) if defined else None,
+            "projection_on_total": _projection(v, total) if defined else None,
+        }
+
+    derived_vecs = {name: sum((grads[m] for m in members), zero)
+                    for name, members in _ACTOR_GRADIENT_DERIVED.items()}
+    derived_counts = {name: sum(counts[m] for m in members)
+                      for name, members in _ACTOR_GRADIENT_DERIVED.items()}
+    fd, non_fd = derived_vecs["fd"], derived_vecs["non_fd"]
+    both = derived_counts["fd"] > 0 and derived_counts["non_fd"] > 0
+    residual = total - sum(grads.values(), zero)
+    total_norm = _norm(total)
+    residual_norm = _norm(residual)
+    return {
+        "schema": _ACTOR_GRADIENT_DIAGNOSTICS_SCHEMA,
+        "schema_version": _ACTOR_GRADIENT_DIAGNOSTICS_VERSION,
+        "action_representation_id": ACTION_REPRESENTATION_ID,
+        "training_mode": TRAINING_MODE_CTDE,
+        "iteration": int(iteration),
+        "updates_completed_before": int(updates_completed_before),
+        "epoch": int(report.epoch),
+        "gradient": "ppo_policy_surrogate_before_entropy",
+        "group_loss": "sum_over_group_div_total_batch_transitions",
+        "n_actor_parameters": int(total.size),
+        "batch_n_transitions": n,
+        "entropy_coeff": float(report.entropy_coeff),
+        "total_policy_surrogate_grad_norm": total_norm,
+        "total_actor_loss_grad_norm": _norm(actor_total),
+        "cosine_policy_surrogate_vs_actor_loss": _cosine(total, actor_total),
+        "groups": {name: block(grads[name], counts[name])
+                   for name in _ACTOR_GRADIENT_GROUPS},
+        "derived": {name: block(derived_vecs[name], derived_counts[name])
+                    for name in _ACTOR_GRADIENT_DERIVED},
+        "fd_grad_norm": _norm(fd),
+        "non_fd_grad_norm": _norm(non_fd),
+        "cosine_fd_vs_non_fd": _cosine(fd, non_fd) if both else None,
+        "projection_non_fd_on_fd": _projection(non_fd, fd) if both else None,
+        "reconstruction_error_norm": residual_norm,
+        "reconstruction_relative_error": (
+            None if total_norm == 0.0 else residual_norm / total_norm),
+    }
+
+
+def _persist_actor_gradient_diagnostics(
+    path: Path,
+    reports: Sequence[ActorGradientReport],
+    diag: Mapping[str, Any],
+    *,
+    iteration: int,
+    updates_completed_before: int,
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+) -> int:
+    """Write one update's gradient record, or STOP the run. Returns the record count.
+
+    Fails LOUD (:class:`ActorGradientDiagnosticsError`) when a productive update handed
+    over no report or several, when the record does not cover the update's transitions
+    or its group ids are misaligned, or when the file cannot be written.
+    """
+    productive = (int(diag.get("n_epochs_run", 0)) > 0
+                  and int(diag.get("n_transitions", 0)) > 0)
+    if len(reports) > 1:
+        raise ActorGradientDiagnosticsError(
+            "an update handed %d gradient reports; exactly one is expected" % len(reports))
+    if not reports:
+        if productive:
+            raise ActorGradientDiagnosticsError(
+                "a productive update (%d transition(s)) produced no gradient report"
+                % int(diag["n_transitions"]))
+        return 0
+    record = _actor_gradient_record(reports[0], iteration=iteration,
+                                    updates_completed_before=updates_completed_before,
+                                    measurement_tags=measurement_tags)
+    if record["batch_n_transitions"] != int(diag.get("n_transitions", -1)):
+        raise ActorGradientDiagnosticsError(
+            "the gradient record covers %d transition(s), the update %s"
+            % (record["batch_n_transitions"], diag.get("n_transitions")))
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, allow_nan=False) + "\n")
+            fh.flush()
+    except (OSError, TypeError, ValueError) as exc:
+        raise ActorGradientDiagnosticsError(
+            "could not persist %s: %s" % (_ACTOR_GRADIENT_DIAGNOSTICS_FILENAME, exc)) from exc
+    return 1
+
+
 def _observed_credit_diagnostics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """What the credit artifact actually carries -- OBSERVED, never asserted."""
     versions = sorted({int(r["schema_version"]) for r in rows
@@ -8296,6 +8562,9 @@ def train(
     outcomes_path = run_dir / _EPISODE_OUTCOMES_FILENAME
     # The TRAINING-ONLY credit stream: the credit values each productive update used.
     credit_path = run_dir / _CREDIT_DIAGNOSTICS_FILENAME
+    # The OPT-IN actor-gradient stream; `None` (no file at all) when it is off.
+    gradient_path = (run_dir / _ACTOR_GRADIENT_DIAGNOSTICS_FILENAME
+                     if cfg.actor_gradient_diagnostics else None)
 
     # Written BEFORE the completeness gate below, so a refused run still leaves an
     # inspectable record of what was attempted and why it was refused.
@@ -8322,7 +8591,9 @@ def train(
     # Truncate the ledger and the outcome stream: they describe THIS run, and appending
     # to a previous run's records in a reused directory would silently corrupt the
     # accounting. After the gate, so a refused run never destroys an earlier run's files.
-    for append_only_path in (failures_path, outcomes_path, credit_path):
+    for append_only_path in (failures_path, outcomes_path, credit_path, gradient_path):
+        if append_only_path is None:
+            continue
         with open(append_only_path, "w", encoding="utf-8"):
             pass
 
@@ -8910,7 +9181,16 @@ def train(
             # The credit sink only COLLECTS the report the update hands it after its last
             # epoch; the rows are built and written below, outside the update.
             credit_reports: List[CreditReport] = []
-            diag = updater.update(buf, credit_sink=credit_reports.append)
+            # OPT-IN gradient decomposition: only OPAQUE integer group ids cross into the
+            # updater; the tags that resolve them stay here.
+            gradient_reports: List[ActorGradientReport] = []
+            gradient_kwargs: Dict[str, Any] = (
+                {"gradient_group_ids": _actor_gradient_group_ids(buf.records, credit_tags),
+                 "gradient_sink": gradient_reports.append}
+                if gradient_path is not None else {}
+            )
+            diag = updater.update(buf, credit_sink=credit_reports.append,
+                                  **gradient_kwargs)
             update_seconds = time.perf_counter() - t_upd
             _persist_credit_diagnostics(
                 credit_path, credit_reports, diag,
@@ -8918,6 +9198,13 @@ def train(
                 updates_completed_before=int(updates_before),
                 measurement_tags=credit_tags,
             )
+            if gradient_path is not None:
+                _persist_actor_gradient_diagnostics(
+                    gradient_path, gradient_reports, diag,
+                    iteration=int(iteration),
+                    updates_completed_before=int(updates_before),
+                    measurement_tags=credit_tags,
+                )
             buf.clear()
             if int(diag["n_epochs_run"]) > 0:
                 updates_completed += 1
@@ -12250,6 +12537,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "known-only scenario, the executed t=0 scenario, the BLADE "
                         "playback and a manifest (default: %%(default)s)"
                         % _VISUAL_ARTIFACTS_DIRNAME)
+    p.add_argument("--actor-gradient-diagnostics", action="store_true",
+                   default=d_cfg.actor_gradient_diagnostics,
+                   help="ctde only: write %s, one epoch-0 policy-surrogate gradient "
+                        "decomposition per productive update (observational; costs "
+                        "extra autograd passes) (default: %%(default)s)"
+                        % _ACTOR_GRADIENT_DIAGNOSTICS_FILENAME)
     p.add_argument("--config", type=str, default=None, metavar="PATH",
                    help="JSON preset of TrainConfig fields (see configs/graph_train/); "
                         "any flag given EXPLICITLY on the command line overrides it")
