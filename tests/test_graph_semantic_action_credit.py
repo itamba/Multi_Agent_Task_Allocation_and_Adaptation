@@ -711,8 +711,10 @@ def test_c4_actor_critic_and_credit_code_never_reads_a_measurement_tag():
                                                    "fd_selected_ego_id", "fd_event_tick"}
         assert not leaked, (mod.__name__, leaked)
 
-    # In `train`, the tag map reaches ONLY the post-update persistence call.
-    n_calls_with_tags = 0
+    # In `train`, the tag map reaches ONLY the post-update credit persistence call and
+    # the OPT-IN actor-gradient diagnostic's trainer-side functions (which hand the
+    # updater opaque integer group ids only; tests/test_graph_ctde_actor_gradient_diagnostics.py).
+    calls_with_tags = []
     for call in [n for n in ast.walk(ast.parse(_dedent(inspect.getsource(GT.train))))
                  if isinstance(n, ast.Call)]:
         func = call.func.attr if isinstance(call.func, ast.Attribute) else getattr(
@@ -720,9 +722,10 @@ def test_c4_actor_critic_and_credit_code_never_reads_a_measurement_tag():
         uses = {n.id for a in list(call.args) + [k.value for k in call.keywords]
                 for n in ast.walk(a) if isinstance(n, ast.Name)}
         if "credit_tags" in uses:
-            assert func == "_persist_credit_diagnostics", func
-            n_calls_with_tags += 1
-    assert n_calls_with_tags == 1
+            calls_with_tags.append(func)
+    assert sorted(calls_with_tags) == sorted([
+        "_persist_credit_diagnostics", "_actor_gradient_group_ids",
+        "_persist_actor_gradient_diagnostics"]), calls_with_tags
 
     # the credit VALUES do not depend on the tags at all
     policy = _policy(8)

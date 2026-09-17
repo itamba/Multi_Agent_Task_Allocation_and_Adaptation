@@ -1,0 +1,229 @@
+{
+ "measured_code_sha": "6ed964a1abd09de2130aee3d0d314c8f32165056",
+ "runs": {
+  "A_p050": {
+   "files": {
+    "authorized_plan.json": {
+     "bytes": 6355,
+     "sha256": "d157f37345dc6486256896d25bc52b149e00bb39ae3afbfd68f7d8d4a9f11330"
+    },
+    "episode_failures.jsonl": {
+     "bytes": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "episode_outcomes.jsonl": {
+     "bytes": 35218715,
+     "sha256": "933a327f726baf27484da8c4dca0fa8a3e4c08c67554d6977d63e1325ad1c414"
+    },
+    "eval_records.jsonl": {
+     "bytes": 179666,
+     "sha256": "388b3e4b51b1d78e6ce80d4da90b27202dc79de86000e4d54b0b22481784e5f4"
+    },
+    "invocation_start_local.txt": {
+     "bytes": 78,
+     "sha256": "44bbea6fb5eb56b7b5c4b6ab3452b8f55c91d07953c8a3d34e4e257c631f7624"
+    },
+    "launch.cmd": {
+     "bytes": 1825,
+     "sha256": "d43d58832f38051b22ccf98b2411fd41372e212482c2d8b294f13778e0577bba"
+    },
+    "launch_record.json": {
+     "bytes": 1981,
+     "sha256": "fcef23e6f7d3aaa0d25a152576eca513891eabdec3948bd2f5bba44aa0ad83a9"
+    },
+    "native_exit_code.txt": {
+     "bytes": 3,
+     "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    "preflight.json": {
+     "bytes": 17948,
+     "sha256": "e7236413fc57735b0831cb7f02dad67bc2cb6ee8bcc8da13ba765d0fa83a9156"
+    },
+    "run_config.json": {
+     "bytes": 20691,
+     "sha256": "a1129e6dec81ccf136b096987a057e4bb21676082a01c26d510a2be85d27dcf5"
+    },
+    "run_summary.json": {
+     "bytes": 118955,
+     "sha256": "29ca9e60cf5a0ca5af05d411ad6496468f1f8bb261ade30d277596b4aed931ab"
+    },
+    "train_actor_gradient_diagnostics.jsonl": {
+     "bytes": 443250,
+     "sha256": "e445f45ff551e1eb78cf83fddfe9926f527e1e6bef6ebbebea02c17946aa2aed"
+    },
+    "train_credit_diagnostics.jsonl": {
+     "bytes": 4709970,
+     "sha256": "2754c7ec6bb56b97fc0a0bfeb5c194945369af2301650ee5aa7858a925590ee0"
+    },
+    "train_records.jsonl": {
+     "bytes": 435092,
+     "sha256": "402c0fce5d67c623eb85edcbf4f7c00e2dec3856500dd5225a29e314e330f88c"
+    },
+    "training_console.log": {
+     "bytes": 2576329,
+     "sha256": "b1f19546ae05f4d23a12622c4910de87a9efc2086dee2a6691cc7e2786dcfd0b"
+    }
+   },
+   "run_dir": "C:\\gruns\\graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a",
+   "run_id": "graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a",
+   "trees": {
+    "checkpoints": {
+     "files": {
+      "checkpoints/ckpt_iter0024.pt": {
+       "bytes": 2732619,
+       "sha256": "b647df606e6e78f0de231046b0c715a4494ccc5578efff6d8b6add5e9f04da08"
+      },
+      "checkpoints/ckpt_iter0049.pt": {
+       "bytes": 2732619,
+       "sha256": "1abeeb64f458df376a6575c60717ff97de231847be3497512c466bcf1ea1a1be"
+      },
+      "checkpoints/ckpt_iter0074.pt": {
+       "bytes": 2732619,
+       "sha256": "e5baae312a21402f5f2723b1e1e03a9edc103fc9a7954a4c9b9a0773c38ef847"
+      },
+      "checkpoints/ckpt_iter0099.pt": {
+       "bytes": 2732619,
+       "sha256": "4de3197ddd049f8b52c38b481885d912042618e4d8ac1538da4c573acafbae7e"
+      },
+      "checkpoints/ckpt_iter0124.pt": {
+       "bytes": 2732619,
+       "sha256": "b4f688bc143c69aadc98fcaeb9a28f93f1e78f2942d141828460114c5617577c"
+      },
+      "checkpoints/ckpt_iter0149.pt": {
+       "bytes": 2732619,
+       "sha256": "0797afdd20eef7003c7fbf29100700fe4ad63a86ebb3a0a25cf56abbf37f3bd8"
+      }
+     },
+     "n_files": 6,
+     "total_bytes": 16395714,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "18fa239e2f8ab37d3949400e677a47afb501a7194c65c527ad91cfe4d2d0c2e8"
+    },
+    "plots": {
+     "n_files": 4,
+     "total_bytes": 917266,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "b13e2768e9efaad11f3ce707a619bd7eae4607b2a39df479a8f03ed36b2aefa4"
+    },
+    "scenarios": {
+     "n_files": 1620,
+     "total_bytes": 27584931,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "bb99e6bea5c818545faeeee95cfd0775f761e7ce4792f342a42fe58bab029c13"
+    }
+   }
+  },
+  "B_fd100": {
+   "files": {
+    "authorized_plan.json": {
+     "bytes": 7818,
+     "sha256": "99571b95b09bc93021234d4675915720dbe9ec12b692ee3f94b816ffa3320cf0"
+    },
+    "episode_failures.jsonl": {
+     "bytes": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "episode_outcomes.jsonl": {
+     "bytes": 38599031,
+     "sha256": "8858b36f6aed19537b9c714c8e20390b7fd8c69a42cb9619671a73fc93caedc1"
+    },
+    "eval_records.jsonl": {
+     "bytes": 179604,
+     "sha256": "1117e44a0c92896f3338253f0e2a37a8fdf8b8504ff9660cdefa42daf2a54b82"
+    },
+    "invocation_start_local.txt": {
+     "bytes": 78,
+     "sha256": "23e00dd4f9fd2f4e047fe016775c1f4b4a54a8866788b5e91829de7c2458f839"
+    },
+    "launch.cmd": {
+     "bytes": 1855,
+     "sha256": "dc6415c90628a0f3cfe1ce5e46b2537e5489209164b08f572f0d62ab48eabce7"
+    },
+    "launch_record.json": {
+     "bytes": 1949,
+     "sha256": "287c916068d6c4f8e18dfedd22b3c187a8aa85f53ef4887490cae3517f6c64db"
+    },
+    "native_exit_code.txt": {
+     "bytes": 3,
+     "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    "preflight.json": {
+     "bytes": 17911,
+     "sha256": "eb830d3b373847b84396d2da7579cb247eae2ddf43772b4581fefcfe07e000bd"
+    },
+    "run_config.json": {
+     "bytes": 20755,
+     "sha256": "1ddeb5ed080a6af03dc8e71a3d5dba042258c580665d075b02a7d86d1ec0c38f"
+    },
+    "run_summary.json": {
+     "bytes": 116987,
+     "sha256": "dbfa3e9134ad93cd36e65f8409d74e7962540796341cf82e5d4b76ee2feb0bd1"
+    },
+    "train_actor_gradient_diagnostics.jsonl": {
+     "bytes": 453685,
+     "sha256": "c29bbf8b4ac319f3091d906d6928a8559ec34a49ae7220e71e1c819a3ca39aec"
+    },
+    "train_credit_diagnostics.jsonl": {
+     "bytes": 6026746,
+     "sha256": "87c0c3acadc08ea33fa33fb9f008df43de08bfc2307955b400a5177d60567a6b"
+    },
+    "train_records.jsonl": {
+     "bytes": 435616,
+     "sha256": "d7637750081351cc55cb4505d28045f6fd7738cb2afbd841e08a342fb02d67ea"
+    },
+    "training_console.log": {
+     "bytes": 2765133,
+     "sha256": "d03a2d2c91ec0691c9a527c0ba5fc8f1864de0de21c1292346122f48fe8a8a3b"
+    }
+   },
+   "run_dir": "C:\\gruns\\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+   "run_id": "graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+   "trees": {
+    "checkpoints": {
+     "files": {
+      "checkpoints/ckpt_iter0024.pt": {
+       "bytes": 2732619,
+       "sha256": "3f4cf23301c5abdbf4cf0f10af0fc6fcfac3424a968b624b0dcf257d2172aabd"
+      },
+      "checkpoints/ckpt_iter0049.pt": {
+       "bytes": 2732619,
+       "sha256": "a9f2a3da88724344cda03a77f709bf0c6d274ad03eda1c7cca8607f1dec36fcb"
+      },
+      "checkpoints/ckpt_iter0074.pt": {
+       "bytes": 2732619,
+       "sha256": "a05a1678ffd5ebaad27e2c00f0978d96558665ed2ecc4f5a67b562faeafb0e09"
+      },
+      "checkpoints/ckpt_iter0099.pt": {
+       "bytes": 2732619,
+       "sha256": "c383d8211aa407bbda9d6096e35b6108e26980ea934c080c214ea16b7fea2c66"
+      },
+      "checkpoints/ckpt_iter0124.pt": {
+       "bytes": 2732619,
+       "sha256": "9640ed671b971a33376e89f72006080e479a6aa709b2d0d595289531a6b7c1ad"
+      },
+      "checkpoints/ckpt_iter0149.pt": {
+       "bytes": 2732619,
+       "sha256": "0230928ed5daf4774a38a9a97d7a070d20ddb2db9acced6092427f4d6c3b2454"
+      }
+     },
+     "n_files": 6,
+     "total_bytes": 16395714,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "aa974408147736818fe471acd823ec5a1cd7793c43f030740d096fb2cb78f691"
+    },
+    "plots": {
+     "n_files": 4,
+     "total_bytes": 907767,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "24100a3b006dc8a968f4794ba72a04adc5913f2022093168c2e1d999e0f4c1de"
+    },
+    "scenarios": {
+     "n_files": 1620,
+     "total_bytes": 27584931,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "088c22cfb286d9232019c4161b3f959734e10322c5aa09e6dc3c4482512c922c"
+    }
+   }
+  }
+ }
+}

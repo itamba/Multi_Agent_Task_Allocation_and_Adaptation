@@ -242,6 +242,19 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   No forward, GAE pass, RNG draw or gradient is added and nothing reads the report back; the
   trainer turns it into `train_credit_diagnostics.jsonl`
   ([artifacts and metrics §5.1](artifacts_metrics.md#51-training-credit-diagnostics)).
+- **OBSERVATIONAL EPOCH-0 ACTOR-GRADIENT REPORT (CTDE only, opt-in).** `CTDEUpdater.update` also
+  takes `gradient_group_ids` (one opaque integer per transition, in batch order) together with
+  `gradient_sink`. At epoch 0, after the per-transition policy losses and `actor_loss` are built
+  and before the real `actor_loss.backward()`, it differentiates each id's summed policy loss
+  divided by the full batch size, the total surrogate and the total actor loss with
+  `torch.autograd.grad(…, retain_graph=True)`, and after a productive update hands the sink ONE
+  `ActorGradientReport` of flat numpy gradients. With the optional `gradient_contrast_ids`
+  `(positive, negative)` pair it also forms, when both ids occur, the differentiable contrast
+  `mean P(ABORT | positive) - mean P(ABORT | negative)` from the SAME epoch-0 logits through
+  `_semantic_dist`, and reports its value and gradient. No forward, GAE pass, RNG draw, `.grad` write or
+  optimizer change is added, and the real backward, both clips and both steps are unchanged;
+  the updater attaches no meaning to the ids. `PPOUpdater` is not instrumented
+  ([artifacts and metrics §5.2](artifacts_metrics.md#52-ctde-actor-gradient-diagnostics)).
 - **CHECKPOINTS.** `save_checkpoint(policy, updater, iteration, ckpt_dir, critic=None)`.
   **THE ACTOR-ONLY PAYLOAD** — with `critic is None` (every `actor_only` run) — holds the five
   historical keys (`iteration` / `encoder` / `head` / `optimizer` / `ppo_config`) PLUS
@@ -290,6 +303,7 @@ actor-only preservation) follow [`cc_review.md` §4](../workflows/cc_review.md#4
 | change what the critic sees | `rl/observation/central_graph_builder.py`: `CentralGraphObservation`, `build_central_graph_observation`, `CentralStateRecorder`, `live_aircraft`, `plan_target_ids`, `NO_EGO_INDEX`, `CENTRAL_TASK_FEATURE_DIM`, `CENTRAL_AGENT_FEATURE_DIM`, `CENTRAL_EDGE_ATTR_DIM`, `CENTRAL_EDGE_TYPE` (pure: no torch, BLADE or gym import; never imports `graph_episode_setup`) | §4, exclusion list |
 | change the actor/critic boundary or GAE / value semantics | `rl/training/graph_ppo.py`: `CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `_gae_pass`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`; tests `tests/test_graph_ctde.py`, `tests/test_graph_ppo.py` | §4 |
 | change what an update reports about its credit | `rl/training/graph_ppo.py`: `CreditReport`, `CreditSink`, the `credit_sink` parameter of `PPOUpdater.update` / `CTDEUpdater.update`, `AdvantageBatch.record_positions` / `chain_ordinals`, `CTDEAdvantageBatch.rewards` / `td_residuals` / `record_positions` / `decision_ordinals`; tests `tests/test_graph_semantic_action_credit.py` | §4; [artifacts and metrics §5.1](artifacts_metrics.md#51-training-credit-diagnostics) |
+| change the epoch-0 actor-gradient report | `rl/training/graph_ppo.py`: `ActorGradientReport`, `GradientSink`, `_flat_actor_grad`, the `gradient_group_ids` / `gradient_sink` / `gradient_contrast_ids` parameters of `CTDEUpdater.update`; tests `tests/test_graph_ctde_actor_gradient_diagnostics.py` | §4; [artifacts and metrics §5.2](artifacts_metrics.md#52-ctde-actor-gradient-diagnostics) |
 | change when the central state is captured | `rl/training/graph_tick_loop.py`: `run_episode(central=...)` and its `capture` call immediately before `_wake_decision` | §4; [runtime §5](runtime.md#5-resync-stage-6-and-the-two-phase-tick-loop) |
 | change actor-only preservation or checkpoints | `rl/training/graph_train.py`: `_ctde_kwargs`, `_central_kwargs`, `save_checkpoint(..., critic=None)`, the critic diagnostics on training records, `run_config.json:/training`; poison test and control in `tests/test_graph_ctde.py` | §4 |
 | change the graph representation | `rl/observation/graph_builder.py`: `GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM` | §1 |
