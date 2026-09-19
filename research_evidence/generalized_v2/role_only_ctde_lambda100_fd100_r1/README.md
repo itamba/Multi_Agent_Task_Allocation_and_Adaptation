@@ -12,8 +12,10 @@ development worlds, not randomized, not confirmatory.**
 - Intervention: **`ctde.gae_lambda 0.95 → 1.0`** plus a fresh `output_dir`; nothing else in the
   resolved `train_config`.
 - The run **has completed**.
-- **Scientific measurement verdict: PENDING GPT review.** Nothing here is an interpretation or a
-  verdict.
+- **Measurement verdict:** `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (GPT review of
+  this evidence package, 2026-09-19). The interpretation is recorded in
+  [`docs/history/measurements.md` §14](../../../docs/history/measurements.md#14-generalized-v2-role-only-acting-ego-ctde-gae_lambda--10-development-diagnostic),
+  not here.
 - **Primary comparison:** same-code role-only `λ = 0.95` versus `λ = 1.0`. The symmetric
   (`6ed964a…`) and explicit-readout (`1a1e0c9…`) arms are **secondary cross-version context
   only**, compared through update 100.

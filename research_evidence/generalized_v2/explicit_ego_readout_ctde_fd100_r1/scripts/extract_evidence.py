@@ -621,7 +621,7 @@ def build(runs_root):
         "formal_status": {
             "implementation_candidate": "1a1e0c953c54e9d3f46c871158d5ab6bdd881f24 GPT-approved for measurement (PR #75)",
             "run": "completed",
-            "scientific_measurement_verdict": "PENDING GPT review",
+            "scientific_measurement_verdict": "APPROVE -- VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT (GPT review of this evidence package, 2026-09-19; recorded in docs/history/measurements.md section 13)",
             "evidence_class": "DEVELOPMENT only; not randomized; not confirmatory",
             "primary_comparator": "role_only (68055e3); the intended code-level difference is the critic readout",
             "secondary_context": "symmetric FD100 (6ed964a), common range through update 100",

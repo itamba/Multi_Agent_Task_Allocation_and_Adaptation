@@ -3405,7 +3405,7 @@
   "new_run_authorized": false,
   "primary_comparison": "same-code role-only lambda = 0.95 (graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3) vs lambda = 1.0",
   "run": "completed",
-  "scientific_measurement_verdict": "PENDING GPT review",
+  "scientific_measurement_verdict": "APPROVE -- VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT (GPT review of this evidence package, 2026-09-19; recorded in docs/history/measurements.md section 14)",
   "secondary_context": "symmetric FD100 (6ed964a) and explicit readout (1a1e0c9): CROSS-VERSION context only, compared through update 100"
  },
  "integrity_checks": {

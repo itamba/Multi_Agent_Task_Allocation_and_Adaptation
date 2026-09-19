@@ -841,7 +841,7 @@ def build(runs_root):
             "measured_code_note": "the role-only acting-ego implementation measured by the primary comparator; run from an isolated detached worktree, NOT from PR #75's later explicit-readout head",
             "intervention": "ctde.gae_lambda 0.95 -> 1.0 (plus a fresh output_dir); nothing else in the resolved train_config",
             "run": "completed",
-            "scientific_measurement_verdict": "PENDING GPT review",
+            "scientific_measurement_verdict": "APPROVE -- VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT (GPT review of this evidence package, 2026-09-19; recorded in docs/history/measurements.md section 14)",
             "evidence_class": "DEVELOPMENT only; one seed stream; repeated evaluation on the same frozen development worlds; not randomized; not confirmatory",
             "primary_comparison": "same-code role-only lambda = 0.95 (graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3) vs lambda = 1.0",
             "secondary_context": "symmetric FD100 (6ed964a) and explicit readout (1a1e0c9): CROSS-VERSION context only, compared through update 100",

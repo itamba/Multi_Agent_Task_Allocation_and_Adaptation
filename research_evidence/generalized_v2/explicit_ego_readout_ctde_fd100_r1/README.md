@@ -8,8 +8,11 @@
   **GPT-approved for measurement**; the run executed under the user-authorized bounded plan in
   `originals/authorized_plan.json`.
 - The run **has completed**.
-- **Scientific measurement verdict: PENDING GPT review.** Nothing here is an interpretation or a
-  verdict.
+- **Measurement verdict:** `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (GPT review of
+  this evidence package, 2026-09-19). The interpretation, including the owner-transition audit,
+  is recorded in
+  [`docs/history/measurements.md` §13](../../../docs/history/measurements.md#13-generalized-v2-explicit-acting-ego-readout-ctde-development-diagnostic-and-owner-transition-audit),
+  not here.
 - The **primary comparator is the role-only acting-ego run** (`68055e3…`); the intended
   code-level difference is the critic readout. The **symmetric FD100 run** (`6ed964a…`) is
   **secondary context**, compared only through update 100.

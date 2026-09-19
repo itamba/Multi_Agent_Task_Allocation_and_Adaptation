@@ -1777,7 +1777,7 @@
   "new_run_authorized": false,
   "primary_comparator": "role_only (68055e3); the intended code-level difference is the critic readout",
   "run": "completed",
-  "scientific_measurement_verdict": "PENDING GPT review",
+  "scientific_measurement_verdict": "APPROVE -- VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT (GPT review of this evidence package, 2026-09-19; recorded in docs/history/measurements.md section 13)",
   "secondary_context": "symmetric FD100 (6ed964a), common range through update 100"
  },
  "integrity_checks": {
