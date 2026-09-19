@@ -208,7 +208,17 @@ identical identities. Their roles are distinct and never interchangeable.
 
 ### 4.3 Temporary evidence and review refs
 
-**None remains.** On 2026-09-15, under explicit authorization and after the §4.1 gates, each PR
+**Open now** (observed 2026-09-19 against `origin`, live `main`
+`ed33b7e24a652fa00b13c708517012f8b3302496`; each branch exists on `origin` and locally at the same
+head). Neither is cleanup-eligible yet: under §4.1 its source run must first be archived with its
+key identities reverified. Neither may be modified or closed without explicit authorization.
+
+| PR | Branch | Head | Durable record on `main` | Source run (original location, not archived) | Status |
+|---|---|---|---|---|---|
+| #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` | [`measurements.md` §10](../history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1) | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | open draft; verdict durable on `main`; **not cleanup-eligible** until the source run is archived |
+| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | `ad9b545034670a7c7a9d8ff98012d56c0be07f46` | [`measurements.md` §16](../history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure), made durable by the 2026-09-19 closure documentation | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | open draft; **not cleanup-eligible** until that documentation is integrated and the source run is archived |
+
+**Closed on 2026-09-15.** Under explicit authorization and after the §4.1 gates, each PR
 below was closed without merge at its verified head and its branch deleted from `origin` and
 locally. Its conclusions survive in the repository record named here and its sources in the local
 archive (§4.4, paths relative to `C:\gra\`).
@@ -282,7 +292,16 @@ Principal artifacts, original location → current location (the index lists all
 
 ### 4.5 Retired merged branches
 
-**None remains.** On 2026-09-15 each branch below was deleted from `origin` and locally after its
+**Merged branch awaiting cleanup** (observed 2026-09-19):
+
+| Branch | Head | Merged by | Status |
+|---|---|---|---|
+| `task/v2-ctde-gradient-pressure-diagnostics` | `3e29a57dac54361c1a71f43f9487a6860fcae7c3` | PR #74 (merge `adc213670ce4844a7cf60943ecf50150318e40b1`) | present on `origin` and locally; verified ancestor of live `main`; not checked out in any worktree; the §4.1 safe-deletion gates are otherwise satisfied, but deletion **requires separate explicit authorization naming this branch** |
+
+The branch of PR #75, `task/ctde-acting-ego-conditioning`, is already absent from `origin` and
+locally.
+
+**Deleted on 2026-09-15.** Each branch below was deleted from `origin` and locally after its
 PR was verified `MERGED` at the listed head and that head was verified an ancestor of live `main`.
 
 | Branch | Head | Merged by |
@@ -306,6 +325,13 @@ commit stays reachable from `main`; no branch was deleted by these removals):
 | `C:/Users/Itama/PycharmProjects/fd_variable_severity_v1_bf1e045f_snapshot` | `bf1e045f90f74361e4ee944f7bd683a3ea72d04b` | FD-VARIABLE-SEVERITY-v1 pinned measurement snapshot |
 
 `git worktree prune --dry-run` then reported no stale metadata, so no prune was run.
+
+**Later lifecycle — observation of 2026-09-19** (not a cleanup action): the detached worktree
+`C:/grolelambda1` (at `68055e39768d5fa601e5960a9f08823b9e65c08f`, the source checkout of the
+role-only `gae_lambda = 1.0` diagnostic) is absent from disk and not registered, and no stale
+worktree metadata remains for it. The local scratch directory `C:\tmp\l1v` (λ = 1 evidence
+verification; scratch, never a Git worktree) is also absent. Who removed them, and when, is
+unknown. The only registered worktrees are the main checkout and `flat-baseline`.
 
 **Retained:** `C:/Users/Itama/PycharmProjects/flat-baseline`, carrying protected branch
 `flat-final` at `4d44c3454a5561a6cb9d7aed593d59a40068d6d7`. Its tracked tree is clean, but its
