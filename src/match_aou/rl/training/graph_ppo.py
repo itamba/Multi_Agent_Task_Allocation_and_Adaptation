@@ -25,8 +25,7 @@ Sections 1-6 are the ACTOR-ONLY Phase-A path and are exactly what the approved P
 baseline was measured on: ``EpisodeRecord`` / ``PPOBuffer`` /
 ``compute_returns_and_advantages`` / ``PPOUpdater``, with NO value loss and an
 episode-mean baseline. Section 7 adds the Phase-B CTDE path — ``CTDEConfig``,
-``CentralCritic`` (its OWN encoder + a :class:`ValueHead` off
-``GraphEncoder.pool_with_ego``: the global mean pool and the acting ego's embedding),
+``CentralCritic`` (its OWN encoder + a :class:`ValueHead` off ``GraphEncoder.pool``),
 ``CTDEEpisodeRecord`` / ``CTDEBuffer``, ``compute_ctde_advantages`` (GAE over the
 episode's GLOBAL decision sequence) and ``CTDEUpdater`` (separate actor and critic
 optimizers).
@@ -915,20 +914,15 @@ class CTDEConfig:
 # 7a. The critic network
 # -----------------------------------------------------------------------------
 
-# The critic's READOUT, recorded on every CTDE checkpoint. The value head reads
-# ``[global mean pool ; acting-ego embedding]`` (``2 * embed_dim``); earlier CTDE critics
-# read the mean pool alone (``embed_dim``), so their ``value_head`` tensors do not fit.
-CRITIC_READOUT_ID = "mean_pool_plus_acting_ego_v1"
-
-
 class ValueHead(torch.nn.Module):
-    """Scalar state-value head over a fixed-width graph READOUT.
+    """Scalar state-value head over a POOLED graph summary.
 
-    Consumes a ``[input_dim]`` vector. :class:`CentralCritic` feeds it
-    ``[global mean pool ; acting-ego embedding]`` from ``GraphEncoder.pool_with_ego``,
-    i.e. ``input_dim = 2 * embed_dim``. Both parts are size-agnostic -- a mean over all
-    nodes and one node row -- so the value estimator stays native to a varying number of
-    targets and agents with no padding, and the head's input width never changes.
+    Consumes ``GraphEncoder.pool(...)`` -- the ``[embed_dim]`` mean over ALL node
+    embeddings, which is the size-agnostic hook the encoder has carried since Phase A
+    for exactly this purpose. Pooling is what makes the value estimator native to a
+    varying number of targets and agents with no padding: the graph can shrink as
+    targets are destroyed and aircraft are lost, and the head's input width never
+    changes.
 
     INITIALIZATION, stated as the code has it: both layers are orthogonally initialized
     through :func:`_ctde_layer_init` with zero bias -- the hidden layer at its default
@@ -943,26 +937,25 @@ class ValueHead(torch.nn.Module):
     untrained critic applies uniformly across a batch cancels there rather than here.
     """
 
-    def __init__(self, input_dim: int, hidden_dim: int = 64):
+    def __init__(self, embed_dim: int, hidden_dim: int = 64):
         super().__init__()
-        self.input_dim = input_dim
+        self.embed_dim = embed_dim
         self.hidden_dim = hidden_dim
         self.mlp = torch.nn.Sequential(
-            _ctde_layer_init(torch.nn.Linear(input_dim, hidden_dim)),
+            _ctde_layer_init(torch.nn.Linear(embed_dim, hidden_dim)),
             torch.nn.Tanh(),
             _ctde_layer_init(torch.nn.Linear(hidden_dim, 1), std=1.0),
         )
 
-    def forward(self, readout: torch.Tensor) -> torch.Tensor:
-        """Map a ``[input_dim]`` readout to a SCALAR value (shape ``[]``)."""
-        return self.mlp(readout).squeeze(-1)
+    def forward(self, pooled: torch.Tensor) -> torch.Tensor:
+        """Map a ``[embed_dim]`` pooled summary to a SCALAR value (shape ``[]``)."""
+        return self.mlp(pooled).squeeze(-1)
 
 
 class CentralCritic(torch.nn.Module):
     """The centralized value estimator: its OWN encoder + a :class:`ValueHead`.
 
-    ``V(s, acting_ego) = value_head([mean_pool ; ego_embedding])``, both from ONE
-    ``critic_encoder.pool_with_ego(central_obs, edge_attr)`` pass.
+    ``V(s) = value_head(critic_encoder.pool(central_obs, edge_attr))``.
 
     THE ENCODER IS A DISTINCT INSTANCE. It is constructed here, from the same
     ``GraphEncoder`` CLASS the actor uses, with the CENTRAL feature widths
@@ -974,19 +967,8 @@ class CentralCritic(torch.nn.Module):
     ``CentralGraphObservation.ego_index`` is the node of the live agent that owns the
     current decision, so the encoder's EXISTING role mechanism marks that node EGO and
     every other live agent PEER: the critic values ``V(s, acting_ego)``. No
-    agent-identity or agent-order feature is invented and the encoder's role semantics
-    are untouched.
-
-    EXPLICIT ACTING-EGO READOUT. The value head reads the global mean pool (over ALL
-    projected nodes, the acting ego included) CONCATENATED with the acting ego's own
-    projected post-message-passing row, so ``ValueHead`` consumes ``2 * embed_dim``. It
-    adds no information the encoder did not already compute -- only a dedicated readout
-    channel for the decision owner, which a mean over every node dilutes.
-
-    FAIL CLOSED: a central state whose ``ego_index`` is not a live agent node -- the
-    ``NO_EGO_INDEX`` sentinel of a non-decision projection, a task row, an out-of-range
-    index, or a graph with no agent at all -- is not a decision state and raises
-    ``ValueError``; the critic never returns a value for it.
+    agent-identity or agent-order feature is invented, the architecture and pooling are
+    unchanged, and the encoder's role semantics are untouched.
     """
 
     def __init__(
@@ -1003,21 +985,24 @@ class CentralCritic(torch.nn.Module):
             edge_attr_dim=CENTRAL_EDGE_ATTR_DIM,
             **encoder_kwargs,
         )
-        self.value_head = ValueHead(2 * self.encoder.embed_dim, hidden_dim)
+        self.value_head = ValueHead(self.encoder.embed_dim, hidden_dim)
 
     def forward(self, central_obs: "CentralGraphObservation") -> torch.Tensor:
-        """Estimate ``V(s, acting_ego)`` for one decision state; returns a SCALAR tensor.
+        """Estimate ``V(s)`` for one central state; returns a SCALAR tensor.
 
-        Raises ``ValueError`` (via ``GraphEncoder.pool_with_ego``) unless ``ego_index``
-        names an agent node. That also covers the empty graph (every target destroyed
-        AND every agent lost), which formerly returned a defensive zero: it has no
-        acting ego, cannot arise at a decision capture, and is refused rather than
-        valued.
+        A state with NO nodes at all (every target destroyed AND every agent lost)
+        would make the pooling mean over an empty set, i.e. NaN. It cannot arise at a
+        capture point -- a decision requires an airborne ego, so there is always at
+        least one agent node -- but the guard is here anyway so the critic's output is
+        finite by construction rather than by an argument about the caller.
         """
-        pooled, ego_embedding = self.encoder.pool_with_ego(
-            central_obs, edge_attr=central_obs.edge_attr
+        n_nodes = int(central_obs.task_features.shape[0]) + int(
+            central_obs.agent_features.shape[0]
         )
-        return self.value_head(torch.cat([pooled, ego_embedding], dim=-1))
+        if n_nodes == 0:
+            return torch.zeros((), dtype=torch.float32)
+        pooled = self.encoder.pool(central_obs, edge_attr=central_obs.edge_attr)
+        return self.value_head(pooled)
 
 
 def build_central_critic(embed_dim: int = 64, **kwargs: Any) -> CentralCritic:

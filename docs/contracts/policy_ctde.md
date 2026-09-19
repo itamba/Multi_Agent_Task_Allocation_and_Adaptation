@@ -22,7 +22,7 @@
 ## 2. Encoder, action head and selection (Stage 4)
 
 **Encode + decide (Stage 4) — `rl/agent/graph_encoder.py` + `rl/action/graph_action.py`.**
-`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the size-agnostic **critic hook**; `pool_with_ego()` (that mean plus the projected `ego_index` row, from one pass) is CONSUMED by the Phase-B `CentralCritic` (its own SECOND `GraphEncoder` instance + `ValueHead`; the ACTOR's encoder and head are unchanged and carry no value head — see the CTDE contract below). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]` emits the per-node SOURCE scores `z[v, m]`. `build_action_mask(obs, ...) -> [k,3]` states per-CELL legality (hard physical/structural: PLAN always; `OPPORTUNISTIC_ENGAGEMENT` iff `unassigned & sensed & capable & reachable`; `SELF_PRESERVATION_ABORT` iff `assigned_to_ego`) and is the SOURCE of semantic-leaf legality, not the action space. **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
+`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the size-agnostic **critic hook**, now CONSUMED by the Phase-B `CentralCritic` (its own SECOND `GraphEncoder` instance + `ValueHead`; the ACTOR's encoder and head are unchanged and carry no value head — see the CTDE contract below). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]` emits the per-node SOURCE scores `z[v, m]`. `build_action_mask(obs, ...) -> [k,3]` states per-CELL legality (hard physical/structural: PLAN always; `OPPORTUNISTIC_ENGAGEMENT` iff `unassigned & sensed & capable & reachable`; `SELF_PRESERVATION_ABORT` iff `assigned_to_ego`) and is the SOURCE of semantic-leaf legality, not the action space. **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
 
 **SELECTION CONTRACT — THE SEMANTIC ACTION REPRESENTATION `semantic_k_plus_2_logmeanexp_v1`
 (`graph_action.ACTION_REPRESENTATION_ID`; user-approved 2026-09-16,
@@ -118,33 +118,16 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   weakened by centralized TRAINING.
 - **ARCHITECTURE — ACTOR AND CRITIC SHARE NOTHING.** `CentralCritic` owns its OWN
   `GraphEncoder` INSTANCE (the same class, constructed with the CENTRAL feature widths —
-  all three were already constructor parameters; the class gained only the readout helper
-  `pool_with_ego`, below) plus its own `ValueHead`, and `CTDEUpdater` builds a SECOND Adam over the critic's parameters
+  all three were already constructor parameters, so the encoder itself was NOT changed) plus
+  its own `ValueHead`, and `CTDEUpdater` builds a SECOND Adam over the critic's parameters
   alone. The two parameter sets are DISJOINT — no sharing, tying or copying — and the actor
   loss and the value loss are backpropagated in TWO SEPARATE `backward()` calls, each with
-  its own grad-norm clip and its own `optimizer.step()`. `ValueHead(input_dim, hidden_dim)`
-  is a `Linear → Tanh → Linear` MLP over the critic's READOUT (below), orthogonally
+  its own grad-norm clip and its own `optimizer.step()`. `ValueHead` is a
+  `Linear → Tanh → Linear` MLP over the pooled `[embed_dim]` summary, orthogonally
   initialized (hidden at the default `sqrt(2)` gain, OUTPUT at `std=1.0`, the conventional
   value-head gain), so the untrained critic is an arbitrary small-magnitude function of the
   state and **NOT zero everywhere** — nothing relies on it being zero, because a uniform
   offset cancels in the batch-mean subtraction of `compute_ctde_advantages`.
-- **EXPLICIT ACTING-EGO READOUT.** `V(global_state, acting_ego) =
-  ValueHead([global mean pool ; acting-ego embedding])`. Both halves come from ONE call of
-  `GraphEncoder.pool_with_ego(obs, edge_attr)`, which runs the encoder stack once, applies
-  `out_proj` once to every node, and returns the mean over ALL projected nodes (the acting
-  ego included — it is not removed from the pool) and the projected POST-message-passing row
-  `ego_index`; `ValueHead` therefore consumes `2 * embed_dim` (hidden width and scalar output
-  unchanged). **This adds no information** — no feature, no identity and no privileged
-  input the encoder did not already compute; it is only a dedicated readout channel for the
-  decision owner, which a mean over every node dilutes. The role-only conditioning below
-  remains part of the central state. **It FAILS CLOSED:** `pool_with_ego` raises
-  `ValueError` unless `ego_index` is an integer agent-node index `k <= ego_index < k + a`, so
-  the critic refuses the `NO_EGO_INDEX` sentinel of a non-decision projection, a task row, an
-  out-of-range or non-integer index, and a graph with no agent node; it never values a state
-  without a decision owner. `graph_ppo.CRITIC_READOUT_ID = "mean_pool_plus_acting_ego_v1"`
-  names this readout. Every CTDE run measured before it — including the role-only
-  acting-ego diagnostic at `68055e39768d5fa601e5960a9f08823b9e65c08f` — used the mean-pool
-  readout and remains a description of that critic.
 - **THE CENTRAL GRAPH IS THE LIVE WORLD, AND PRESENCE IS LIVENESS.**
   `build_central_graph_observation(scenario, *, agent_ids, executor, current_time, config, acting_agent_id)`
   is STATELESS, like the actor builder, and returns a `CentralGraphObservation` —
@@ -170,8 +153,8 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
     the only conditioning:** the physical features, edges, node set and feature widths are
     identical whichever agent acts; no numeric or string agent identity, agent order,
     severity, condition label, wake kind, selected action, reward or future information is
-    added; and the critic optimizer, PPO, GAE and the reward are unchanged (the critic's
-    READOUT is the separate change above). The conditioning follows the
+    added; and the encoder, `pool()` (mean pooling), `CentralCritic` / `ValueHead`, the
+    critic optimizer, PPO, GAE and the reward are unchanged. The conditioning follows the
     physical agent, not a fixed row or the scheduled order. **It FAILS CLOSED:** a capture
     whose acting agent has no live node (never scheduled, or physically dead) raises and
     records nothing — there is no silent fallback. `CentralStateRecorder.capture` requires
@@ -214,8 +197,10 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
     targets) MAY legitimately be **0** — every target destroyed is a normal late-episode
     state. The live-agent count is likewise variable, but **at an ACTUAL DECISION CAPTURE it
     is at least 1**: a decision requires an airborne ego, so that ego always has a node.
-    A state with no agent node — including the all-empty graph, formerly valued by a
-    defensive zero — has no decision owner and is REFUSED by the explicit-readout critic.
+    `CentralCritic.forward` does carry an all-empty `n_nodes == 0` guard returning a finite
+    zero, but that branch is DEFENSIVE — it makes the output finite by construction rather
+    than by an argument about the caller, and it is **not a reachable normal decision
+    state**.
 - **MULTI-AGENT TEMPORAL SEMANTICS — ONE CENTRAL STATE PER ACTUAL DECISION.**
   `run_episode(..., central=CentralStateRecorder())` calls `capture` INSIDE the `if wake`
   branch and IMMEDIATELY BEFORE `_wake_decision`, and nowhere else, naming the loop's
@@ -294,13 +279,7 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   historical keys (`iteration` / `encoder` / `head` / `optimizer` / `ppo_config`) PLUS
   `action_representation_id`. A CTDE run saves strictly MORE: those six keys (`encoder` /
   `head` / `optimizer` are the ACTOR's) plus `training_mode`, `critic_encoder`, `value_head`,
-  `critic_optimizer`, `ctde_config` and `critic_readout_id`. **CRITIC CHECKPOINTS BEFORE THE
-  EXPLICIT READOUT DO NOT FIT:** their `value_head` is `embed_dim` wide and they carry no
-  `critic_readout_id`; a strict `load_state_dict` into the current critic RAISES a size
-  mismatch — never silent, and nothing pads or adapts the old weights. PyTorch has already
-  copied the same-shaped tensors when it raises, so a critic whose load was refused must be
-  discarded, never used. The actor-only payload is unchanged. **SEMANTIC COMPATIBILITY IS
-  INTENTIONALLY BROKEN:** the
+  `critic_optimizer` and `ctde_config`. **SEMANTIC COMPATIBILITY IS INTENTIONALLY BROKEN:** the
   encoder / head tensor shapes did not change, so a historical checkpoint (five keys, no
   representation id) would still load into them, but its weights were trained under the retired
   node-indexed action representation and it remains evidence of that representation only. **No
@@ -331,6 +310,13 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   A GENERALIZED-V2 CTDE development-profile run and its review status are listed in the
   [handoff](../../graph_rl_project_handoff.md#4-runs-and-evidence--current-references). Neither
   establishes a CTDE benefit in this contract.
+- **THE ACTING-EGO DEVELOPMENT DIAGNOSTICS ARE HISTORY, NOT CONTRACT.** The role-only
+  conditioning above, an explicit `[mean pool ; acting-ego embedding]` critic readout that was
+  measured and then retired from the code, and a role-only `gae_lambda = 1.0` configuration
+  run are recorded in
+  [`measurements.md` §12–§14](../history/measurements.md#12-generalized-v2-role-only-acting-ego-ctde-development-diagnostic).
+  The current critic is the role-only, mean-pool critic this section describes, and
+  `CTDEConfig.gae_lambda` stays `0.95`.
 
 ## 5. Code routing
 
@@ -341,13 +327,13 @@ actor-only preservation) follow [`cc_review.md` §4](../workflows/cc_review.md#4
 |---|---|---|
 | select a training mode (configuration, not a contract change) | `rl/training/graph_train.py`: `TrainConfig.training_mode`, `TRAINING_MODES`, `TrainConfig.ctde_enabled`, the `"ctde"` preset block over `CTDEConfig` | §4 |
 | change what the critic sees | `rl/observation/central_graph_builder.py`: `CentralGraphObservation`, `build_central_graph_observation`, `CentralStateRecorder`, `live_aircraft`, `plan_target_ids`, `NO_EGO_INDEX`, `CENTRAL_TASK_FEATURE_DIM`, `CENTRAL_AGENT_FEATURE_DIM`, `CENTRAL_EDGE_ATTR_DIM`, `CENTRAL_EDGE_TYPE` (pure: no torch, BLADE or gym import; never imports `graph_episode_setup`) | §4, exclusion list |
-| change the actor/critic boundary or GAE / value semantics | `rl/training/graph_ppo.py`: `CTDEConfig`, `CRITIC_READOUT_ID`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `_gae_pass`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`; tests `tests/test_graph_ctde.py`, `tests/test_graph_ppo.py` | §4 |
+| change the actor/critic boundary or GAE / value semantics | `rl/training/graph_ppo.py`: `CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `_gae_pass`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`; tests `tests/test_graph_ctde.py`, `tests/test_graph_ppo.py` | §4 |
 | change what an update reports about its credit | `rl/training/graph_ppo.py`: `CreditReport`, `CreditSink`, the `credit_sink` parameter of `PPOUpdater.update` / `CTDEUpdater.update`, `AdvantageBatch.record_positions` / `chain_ordinals`, `CTDEAdvantageBatch.rewards` / `td_residuals` / `record_positions` / `decision_ordinals`; tests `tests/test_graph_semantic_action_credit.py` | §4; [artifacts and metrics §5.1](artifacts_metrics.md#51-training-credit-diagnostics) |
 | change the epoch-0 actor-gradient report | `rl/training/graph_ppo.py`: `ActorGradientReport`, `GradientSink`, `_flat_actor_grad`, the `gradient_group_ids` / `gradient_sink` / `gradient_contrast_ids` parameters of `CTDEUpdater.update`; tests `tests/test_graph_ctde_actor_gradient_diagnostics.py` | §4; [artifacts and metrics §5.2](artifacts_metrics.md#52-ctde-actor-gradient-diagnostics) |
 | change when the central state is captured | `rl/training/graph_tick_loop.py`: `run_episode(central=...)` and its `capture` call immediately before `_wake_decision` | §4; [runtime §5](runtime.md#5-resync-stage-6-and-the-two-phase-tick-loop) |
 | change actor-only preservation or checkpoints | `rl/training/graph_train.py`: `_ctde_kwargs`, `_central_kwargs`, `save_checkpoint(..., critic=None)`, the critic diagnostics on training records, `run_config.json:/training`; poison test and control in `tests/test_graph_ctde.py` | §4 |
 | change the graph representation | `rl/observation/graph_builder.py`: `GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM` | §1 |
-| change the encoder (one class, instantiated by the actor and the critic) | `rl/agent/graph_encoder.py`: `GraphEncoder`, `pool()`, `pool_with_ego()` (critic readout only; the actor never calls it) | §2, §4 |
+| change the encoder (one class, instantiated by the actor and the critic) | `rl/agent/graph_encoder.py`: `GraphEncoder`, `pool()` | §2, §4 |
 | change actions, mask, sampling or re-scoring | `rl/action/graph_action.py`: `MetaAction`, `ACTION_REPRESENTATION_ID`, `ActionHead`, `build_action_mask`, `_semantic_dist`, `semantic_leaf_index`, `semantic_leaf_identity`, `GLOBAL_META_ACTIONS`, `sample_action`, `evaluate_action`; `rl/training/graph_tick_loop.py`: `Transition.node_v`; tests `tests/test_graph_action_evaluate.py`, `tests/test_graph_semantic_action_credit.py` | §2 |
 | change how a decision edits the plan | `rl/action/graph_effect.py`: `apply_meta_action` (nullable-node guards) | §3 |
 
