@@ -42,6 +42,7 @@
 | GENERALIZED-V2 role-only acting-ego CTDE development diagnostic — FD100 configuration (100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` — PR #75 approved implementation head, **unmerged when measured** | local original `C:\gruns\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3`; compact package `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` on PR #75 | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only, cross-version** against diagnostic B; critic localization improved, held-out acquisition / retention not improved (§12) |
 | GENERALIZED-V2 explicit acting-ego readout CTDE development diagnostic — FD100 configuration (100 updates) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` — PR #75 explicit-readout candidate, **unmerged when measured, later retired from the code** | local original `C:\gruns\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9`; evidence package `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` on PR #75, reviewed at evidence commit `557e072b94884bef37ece82a064ad877a5a2f636` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; primary comparator the role-only run; no locality or behavioural improvement over role-only; includes the read-only owner-transition audit (§13) |
 | GENERALIZED-V2 role-only acting-ego CTDE `gae_lambda = 1.0` development diagnostic — FD100 configuration (100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` — the role-only implementation, run from the isolated detached worktree `C:\grolelambda1` | local original `C:\gruns\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3`; evidence package `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` on PR #75, reviewed at evidence commit `1076208b68ee9abd76f159535c5f38fe98970ce5` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; same-code comparator role-only λ0.95; exact λ = 1 telescoping, held-out separation effectively zero; **negative intervention, not the final configuration** (§14) |
+| GENERALIZED-V2 semantic-action CTDE development R1 (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state, 375 updates; executed 2026-09-16) | `8056266cff89f677911462b29970346bed0a57c1` (the PR #72 merge; run-recorded clean `main`) | evidence PR #73, exact candidate `ad9b545034670a7c7a9d8ff98012d56c0be07f46` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`, assigned **retrospectively on 2026-09-19** (as transferred in the user-approved documentation packet); **development only**; primary comparator semantic actor-only R1 (§10); no directional switch in any round, the actor-only transient was never acquired; no CTDE benefit established (§16) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. Since 2026-09-15 the
 local artifacts live in the local archive under `C:\gra\`, and PRs #61, #62, #64, #65 and #67 are
@@ -2848,3 +2849,149 @@ Recorded on 2026-09-19, on §10–§14. **Development evidence only; no causal a
 6. The next research direction, for a future orchestrator, returns to **actor-side optimization /
    stability, gradient-to-policy mapping and retention mechanics**. **No actor-side mechanism has
    been identified**, and no run is authorized by this record.
+
+## 16. GENERALIZED-V2 semantic-action CTDE development R1 — retrospective review closure
+
+Recorded on 2026-09-19. **The verdict below was assigned retrospectively, on 2026-09-19, after
+§11–§15 were recorded.** It does not rewrite their historical epistemic state: when §11 was
+written this run was unreviewed and it was not used there (§11.10), and §12–§15 did not use it
+either. The decisions taken on this record are the 2026-09-19 rows of
+[`decisions.md` §1](decisions.md#1-decision-log) that follow the actor-side research-direction
+row.
+
+### 16.1 Scope and epistemic status
+
+| Layer | What it is | Status |
+|---|---|---|
+| measurement validity | the run executed its recorded authorized plan, completed and reconciled | **`APPROVE — VALID DEVELOPMENT MEASUREMENT`** — GPT verdict on the exact evidence candidate below, assigned retrospectively on 2026-09-19 and transferred in the user-approved documentation packet |
+| observed findings | final endpoint, evaluation trajectory, credit summaries | reproduced from the evidence package (§16.3–§16.6) |
+| development interpretation | what the findings are consistent with | **development only**; no causal attribution (§16.7) |
+| confirmatory evidence | — | **none**. The confirmatory profile was not selected, inspected or executed |
+
+**Repeated measures.** Every evaluation round re-measures the same 20 frozen development worlds;
+cross-round values describe a trajectory, never independent samples
+([`experiments.md` §4.3](../workflows/experiments.md#43-interpretation-rules)).
+
+### 16.2 Identity, evidence and comparison boundary
+
+| Item | Value |
+|---|---|
+| Run id | `graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` |
+| Measured code SHA | `8056266cff89f677911462b29970346bed0a57c1` (the PR #72 merge); run-recorded branch `main`, `dirty = false`, 0 dirty paths |
+| Training mode | `ctde` with the **then-current symmetric central state** (before the role-only acting-ego conditioning of §12); `critic_lr = 0.0003`, `value_coeff = 0.5`, `gae_lambda = 0.95` |
+| Action representation | `semantic_k_plus_2_logmeanexp_v1` — uniform on every episode outcome and credit row, and in the resolved configuration |
+| Population and budget | the §10 frozen design unchanged: `generalized_v2`, `p1_milp_v1`, base seed `3000000`, manifest `ef17a68a…46ea8` (file SHA-256 `dd72afc9…a103`), **development** profile, held-out verified; 375 updates × 8 successful episodes, ≤ 12 attempts per iteration, evaluation / checkpoint every 25, early stopping disabled |
+| Authorized plan | `authorized_plan.json` (SHA-256 `fa82114cb07aef23895e57b79783d819a315b853d025179b3fa0af43ea0c02e6`), written before `run_config.json`; invocation argv matches it |
+| Evidence | draft PR #73, branch `evidence/generalized-v2-semantic-action-ctde-dev-r1`, **exact candidate `ad9b545034670a7c7a9d8ff98012d56c0be07f46`** (parent: the measured SHA); package `research_evidence/generalized_v2/semantic_action_ctde_dev_r1/`; **not for merge** |
+| Large artifacts | outside Git, identified by SHA-256 in the package's `artifact_sha256.txt`: `episode_outcomes.jsonl` `71f4bfaa05769aae35df7d947c1e1cf4403788274c3340a0e0c04f995c3d296f`, `train_credit_diagnostics.jsonl` `479f17a684518720e32b9894867ab58ad4aabe0f218f3ff91517c7073609d894`, final checkpoint `ckpt_iter0374.pt` `d355af59d5370ad4f5734f9a87bac3b0e35ab843c5903c981e29110d1ffa8062` |
+| Primary comparator | semantic-action actor-only R1 (§10), measured SHA `d4e9f3721e6d151c00be3fe93c3d149df9d31965`, evidence PR #71 @ `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; its trajectory was reproduced from its run artifacts and cross-checked against PR #71 |
+
+**Comparison boundary.** The resolved training configuration differs from the comparator only in
+`training_mode` (`actor_only` → `ctde`) and `output_dir`. `d4e9f37 → 8056266` is PR #72, a
+documentation-only change, so **no training-code semantic difference between the two arms is
+claimed**. Same frozen development population and manifest; the attempted training seed stream
+(3000000–3003007) is identical to the comparator in iteration, attempt ordinal and status for all
+3008 seeds. Actor initialization identity (actor state identical under the actor-only and CTDE
+initialization sequences) was explicitly checked by the run's preflight. Per-episode physical
+trajectories across the arms are nevertheless not bit-identical (§16.3). This is a same-population
+**development** comparison, not a randomized trial.
+
+### 16.3 Validity facts
+
+- **Completion:** native exit code `0`; 375 / 375 productive updates; final checkpoint present.
+- **Training accounting:** 3000 successful training episodes of 3008 attempted; **8 failed and
+  replaced**, all `FuelDamageError` (`no_fd_eligible_ego`) at phase `train`, stage `setup` —
+  exactly the eight failed seeds of the semantic actor-only comparator (§10.3).
+  `accounting_reconciled = true`.
+- **Evaluation:** 16 rounds; 960 / 960 evaluation episodes successful.
+- **Endpoint eligibility:** final round `post_update` @ 375; 10 / 10 base cells defined;
+  20 / 20 groups metric-eligible.
+- **Credit coverage:** 9058 credit rows = `run_summary.total_transitions` =
+  Σ `train_records.n_transitions`; every productive update's row count equals its transition
+  count.
+- **Package integrity:** extraction is deterministic (two runs byte-identical); all 47 source
+  artifacts' hashes were verified unchanged; negative tamper tests (hash, dropped credit row,
+  representation mix, malformed pair identity, evaluation macro, GAE / TD residual) all fail loud;
+  every credit row's GAE advantage, TD residual and value target reconstructs exactly.
+
+**Non-blocking limitations and anomalies** (recorded, not repaired):
+
+1. `v2_behaviour.metric` keeps the retained historical label
+   `severe_minus_mild_aggregate_abort_mass`; the value is the semantic ABORT leaf (as §10.3).
+2. Small BLADE run-to-run timing nondeterminism: at update 0 the aggregate pre-update endpoint and
+   all 40 immediate-FD wakes (tick, P(ABORT), selected action) are identical to the comparator,
+   but 18 / 60 pre-update episodes differ after normalization (ordinary-wake ticks by ≤ 1, episode
+   length by ≤ 2 ticks).
+3. The eight expected certified-FD eligibility setup failures above.
+
+### 16.4 Primary endpoint
+
+Final round, update 375, ten-cell equal-weight macro `SEVERE − MILD P(SELF_PRESERVATION_ABORT)`:
+
+| Arm | Macro | Directional switches | Reverse switches |
+|---|---:|---:|---:|
+| semantic CTDE R1 | `+1.4603137969970704e-07` | 0 / 20 | 0 / 20 |
+| semantic actor-only R1 (§10.4) | `+0.000888290349394083` | 0 / 20 | 0 / 20 |
+
+Both final endpoints are effectively zero.
+
+### 16.5 Trajectory — the more important finding
+
+| Updates | CTDE macro, switches | Actor-only macro, switches |
+|---:|---|---|
+| 75 | `+4.57e-5`, 0 / 20 | `+0.296`, 4 / 20 |
+| 100 | `+4.23e-5`, 0 / 20 | `+0.611`, 19 / 20 |
+| 125 | `+5.9e-7`, 0 / 20 | `+0.650`, 20 / 20 |
+| 150 | `+8.4e-7`, 0 / 20 | `+0.576`, 19 / 20 |
+| 175 | `−3.0e-5`, 0 / 20 | `+0.003`, 0 / 20 |
+
+**The semantic CTDE arm has 0 directional switches in every one of the 16 rounds**, and 0 reverse
+switches; its largest macro is about `4.57e-5`, at update 75. On the training side, CTDE's MILD and
+SEVERE mean P(ABORT) at the certified ego's immediate-FD wake differ by ≤ 0.0253 in every
+25-iteration window, while actor-only diverged in windows 50–174. The actor-only transient of
+§10.5 has no CTDE counterpart: **CTDE did not lose a learned separation — it never acquired one.**
+
+### 16.6 Credit findings
+
+Population: the 1526 training credit rows with `wake_kind = immediate_fuel_damage` and
+`is_fd_selected_ego = true` (774 MILD, 752 SEVERE).
+
+- **Finer credit than actor-only.** Under GAE over the episode's global decision order, raw
+  advantage varies within **all 1192 / 1192** multi-transition ego chains and **all
+  2417 / 2417** multi-transition episodes checked; actor-only's structural `gamma = 1`,
+  terminal-only credit is constant within every chain and episode (0 / 1222 and 0 / 2415, §10.7).
+  This establishes finer state- and time-dependent credit, **not** its causal correctness.
+- **The severity gap sits in the targets, not in `value_old`.** `value_old` has mean `−0.1915` in
+  both severities, while the value target is MILD `−0.114`, SEVERE `−0.525`. Matched within update
+  batch (309 batches with both severities; not counterfactual pairs): `SEVERE − MILD` value target
+  mean `−0.408` (289 negative / 20 positive) and raw advantage mean `−0.408` (287 / 22), but
+  `value_old` `+0.0001` (194 / 115) and P(ABORT) `+0.0004` (145 / 164).
+- **The finer credit did not yield severity-conditioned selected-action behaviour** (§16.5). The
+  per-window same-batch raw-advantage gap is of similar size to actor-only's pooled gap.
+
+ABORT-vs-not gaps in the package are observational associations, **never action values**.
+
+### 16.7 Development interpretation
+
+1. **The original symmetric semantic CTDE path did not retain the actor-only transient because it
+   did not reproduce or acquire that strong transient in the first place.**
+2. **No CTDE benefit is established.**
+3. CTDE supplied finer state / time-dependent GAE credit than actor-only, with a strong severity
+   difference in value targets and advantages, but `value_old` remained nearly
+   severity-insensitive and no severity-conditioned selected-action behaviour followed.
+4. This is consistent with, and historically precedes, the actor-gradient and critic-locality
+   investigation of §11–§15 — whose diagnostics found a similar near-insensitivity of
+   `value_old` at the immediate-FD decision (§11.6) — but **§11–§15 did not use this run**, and nothing
+   here claims they did.
+
+### 16.8 Limitations and non-claims
+
+- **Not proof that CTDE is generally worse**, and no causal attribution to the critic, GAE or any
+  other component.
+- **Not a randomized trial:** one training seed stream, one run per arm, physical trajectories not
+  bit-identical across arms (§16.3).
+- Repeated evaluation rounds re-measure the same 20 frozen development worlds; no variance across
+  training seeds is estimated.
+- The run used the symmetric central state that §12 later replaced; it says nothing directly about
+  the current role-only acting-ego critic.
+- No confirmatory evidence exists; the confirmatory profile is untouched.
