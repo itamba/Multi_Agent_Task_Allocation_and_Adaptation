@@ -1,0 +1,841 @@
+{
+ "acting_ego": {
+  "actor_gradient": {
+   "denominator_note": "windows and signed counts use only updates whose separation_contrast is defined (both MILD and SEVERE immediate-FD transitions present)",
+   "entropy_sign_flip": {
+    "denominator_n_defined": 99,
+    "min_cosine_surrogate_vs_actor_loss_over_all_rows": 0.8783113440789433,
+    "n_defined_where_actor_loss_pressure_sign_differs_from_surrogate": 1
+   },
+   "max_reconstruction_relative_error": 5.875633584586682e-07,
+   "n_defined_contrast": 99,
+   "n_distinct_iterations": 100,
+   "n_fd_positive": 63,
+   "n_fd_positive_non_fd_negative": 29,
+   "n_fd_positive_total_surrogate_negative": 15,
+   "n_rows": 100,
+   "windows": {
+    "0-24": {
+     "mean_fd": 0.016118729869771392,
+     "median_fd": 0.013654872063063445,
+     "median_non_fd": 0.009716419716479319,
+     "median_total_surrogate": 0.007712598705418136,
+     "n_defined": 24,
+     "n_fd_positive": 16,
+     "n_fd_positive_total_surrogate_negative": 4,
+     "n_non_fd_positive": 14,
+     "n_total_surrogate_positive": 14,
+     "n_updates_in_window": 25
+    },
+    "25-49": {
+     "mean_fd": 0.0003632747681749428,
+     "median_fd": 0.0026404362038754876,
+     "median_non_fd": -0.0010543517986347022,
+     "median_total_surrogate": 0.0021893234311992217,
+     "n_defined": 25,
+     "n_fd_positive": 14,
+     "n_fd_positive_total_surrogate_negative": 3,
+     "n_non_fd_positive": 10,
+     "n_total_surrogate_positive": 14,
+     "n_updates_in_window": 25
+    },
+    "50-74": {
+     "mean_fd": -0.005452315182051488,
+     "median_fd": 0.0021305098774690736,
+     "median_non_fd": 0.0029841530578730226,
+     "median_total_surrogate": 0.005814967277932222,
+     "n_defined": 25,
+     "n_fd_positive": 15,
+     "n_fd_positive_total_surrogate_negative": 2,
+     "n_non_fd_positive": 15,
+     "n_total_surrogate_positive": 15,
+     "n_updates_in_window": 25
+    },
+    "75-99": {
+     "mean_fd": -0.00022779697494649712,
+     "median_fd": 0.001220942581354991,
+     "median_non_fd": -0.001230466061276562,
+     "median_total_surrogate": 0.0005091565765870501,
+     "n_defined": 25,
+     "n_fd_positive": 18,
+     "n_fd_positive_total_surrogate_negative": 6,
+     "n_non_fd_positive": 11,
+     "n_total_surrogate_positive": 13,
+     "n_updates_in_window": 25
+    }
+   }
+  },
+  "authorized_plan_authorization": {
+   "arms_authorized": 1,
+   "authority": "docs/workflows/experiments.md section 2 (authorized bounded plan)",
+   "benchmark_preflight": false,
+   "comparator_reruns": false,
+   "confirmatory_profile_untouched": true,
+   "evidence_branch_or_pr": false,
+   "evidence_class": "cross-version DEVELOPMENT diagnostic; not independent confirmatory evidence",
+   "hyperparameter_sweep_authorized": false,
+   "profile_scope": "DEVELOPMENT ONLY",
+   "repository_documentation_update": false,
+   "resume_or_warm_start": false,
+   "source": "user-authorized bounded DEVELOPMENT diagnostic named in the acting-ego conditioning task packet, released by GPT exact-candidate APPROVE of 68055e39768d5fa601e5960a9f08823b9e65c08f (2026-09-19)"
+  },
+  "benchmark": {
+   "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+   "held_out_against_train_band": {
+    "half_open": true,
+    "start": 3000000,
+    "stop": 3001200
+   },
+   "held_out_checked_over": "entire_manifest_all_profiles",
+   "held_out_overlap_count": 0,
+   "held_out_verified": true,
+   "manifest_file_sha256_at_preflight": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+   "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+   "manifest_path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "n_members": 60,
+   "n_worlds": 20,
+   "profile": "development",
+   "seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184",
+   "world_ordinals": [
+    0,
+    1
+   ]
+  },
+  "completion": {
+   "console": {
+    "last_iteration_line": "[iter  99] R=-0.3469 ok=8/8 trans= 25 wake_eps=8/8 loss=-0.0028 ent=0.287 kl=-0.0007 clip=0.00 gn=0.033   13.6s",
+    "n_lines_containing_Traceback": 0,
+    "summary_block": [
+     "TRAINING SUMMARY (100 iteration(s) recorded, 100 update(s) completed)",
+     "------------------------------------------------------------------------------",
+     "train eps:  attempted=800  ok=800  failed=0  success=1.000",
+     "            transitions=2982  wake-bearing=800  zero-wake eps=0",
+     "            attempt policy=successful_quota_with_deterministic_replacement_v1  replacements=0  iterations at full quota=100/100",
+     "iterations: productive=100  zero-wake=0  all-failed=0   (disjoint: an all-failed iteration measured nothing)",
+     "train R:    first=-0.4899  last=-0.3469  mean=-0.3775   (over SUCCESSFUL episodes; 0 iteration(s) had none)",
+     "meta-acts:  PLAN_COMPLIANCE=903  OPPORTUNISTIC_ENGAGEMENT=1723  SELF_PRESERVATION_ABORT=356",
+     "eval eps:   attempted=300  ok=300  failed=0  success=1.000",
+     "eval R:     pre-update  R=-0.5224 over 60/60 seed(s)  [updates=0]",
+     "eval R:     final       R=-0.2209 over 60/60 seed(s)  [updates=100]",
+     "            rounds=5  best=-0.2209",
+     "eval fd:    pre-update  clean R=-0.3126 (20 ok) | mild R=-0.3539 (20 ok) | severe R=-0.9008 (20 ok) | mild_minus_clean=-0.0414 severe_minus_clean=-0.5882 severe_minus_mild=-0.5468 over 20/20 triad(s)",
+     "eval fd:    final       clean R=-0.0062 (20 ok) | mild R=-0.0062 (20 ok) | severe R=-0.6502 (20 ok) | mild_minus_clean=+0.0000 severe_minus_clean=-0.6440 severe_minus_mild=-0.6440 over 20/20 triad(s)",
+     "fuel dmg:   mode=seeded_variable  penalty_c=2.25  factor=fuel_damage_variable_severity_v1",
+     "            train: clean 0/0 ok, mild 421/421 ok, severe 379/379 ok, events=800 wakes=800 rtb=763 dead=265",
+     "            eval:  clean 100/100 ok, mild 100/100 ok, severe 100/100 ok, events=200 wakes=200 rtb=190 dead=100  triad 100/100",
+     "            severity response [post_update]: mild abort=0.00 over 80 wake(s) | severe abort=0.00 over 80 wake(s)   (rates over FD WAKES)",
+     "            severity response [pre_update]: mild abort=0.00 over 20 wake(s) | severe abort=0.00 over 20 wake(s)   (rates over FD WAKES)",
+     "            severity response [train]: mild abort=0.26 over 421 wake(s) | severe abort=0.27 over 379 wake(s)   (rates over FD WAKES)",
+     "failures:   0 recorded  by phase={}  by stage={}",
+     "timing:     total=2085.0s",
+     "plots:      C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\plots",
+     "records:    C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\train_records.jsonl",
+     "            C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\eval_records.jsonl",
+     "            C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\episode_failures.jsonl",
+     "            C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\episode_outcomes.jsonl  (1100 successful attempt(s))",
+     "            C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\run_summary.json",
+     "------------------------------------------------------------------------------",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\plots\\training_performance.png",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\plots\\policy_diagnostics.png",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\plots\\measurement_health.png",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\plots\\fd_policy_sensitivity.png"
+    ],
+    "summary_block_first_line_number_1_based": 18658
+   },
+   "episode_failures_bytes": 0,
+   "fuel_damage_totals": {
+    "eval_clean_successful": 100,
+    "eval_mild_successful": 100,
+    "eval_severe_successful": 100,
+    "train_clean_successful": 0,
+    "train_damaged_successful": 800,
+    "train_fuel_damage_events_applied": 800,
+    "train_fuel_damage_wakes": 800,
+    "train_mild_successful": 421,
+    "train_severe_successful": 379
+   },
+   "invocation_start_end_local": [
+    "start_local=Sat 09/19/2026 13:34:18.46",
+    "end_local=Sat 09/19/2026 14:09:27.85"
+   ],
+   "native_exit_code": "0",
+   "run_summary": {
+    "accounting_reconciled": true,
+    "eval_episodes_attempted": 300,
+    "eval_episodes_failed": 0,
+    "eval_episodes_successful": 300,
+    "failures_recorded": 0,
+    "n_eval_rounds": 5,
+    "n_productive_iterations": 100,
+    "total_transitions": 2982,
+    "train_episodes_attempted": 800,
+    "train_episodes_failed": 0,
+    "train_episodes_successful": 800,
+    "train_replacement_attempts": 0,
+    "updates_completed": 100
+   },
+   "train_credit_diagnostics_rows": 2982,
+   "train_records_rows": 100,
+   "train_records_sum_n_transitions": 2982
+  },
+  "config_comparison_vs_historical_fd100": {
+   "authorized_train_config_differences": [
+    "/n_iterations",
+    "/output_dir"
+   ],
+   "full_run_config_differing_paths": [
+    "/provenance/collected_at",
+    "/provenance/git/branch",
+    "/provenance/git/commit",
+    "/provenance/invocation/argv/2",
+    "/provenance/invocation/argv/8",
+    "/provenance/seeds/benchmark_evaluation/held_out_against_train_band/stop",
+    "/provenance/seeds/train_attempt_policy/max_possible_training_attempts",
+    "/provenance/seeds/train_attempt_policy/n_iterations",
+    "/provenance/seeds/train_attempt_policy/successful_episode_quota_total",
+    "/provenance/seeds/train_band/count",
+    "/provenance/seeds/train_band/stop",
+    "/train_config/n_iterations",
+    "/train_config/output_dir",
+    "/training/attempt_policy/max_possible_training_attempts",
+    "/training/attempt_policy/successful_episode_quota_total"
+   ],
+   "method": "flatten both run_config.json files; list every differing path",
+   "note": "cross-version: the measured code differs (the acting-ego critic state of PR #75 changes the critic input); the resolved configuration differs only in n_iterations 150 -> 100 and output_dir; every other differing run_config path is either derived from n_iterations (seed-band stop/count, attempt budget, quota) or provenance (git commit, git branch, the argv --iterations / --out values, provenance collected_at)",
+   "train_config_differing_top_level_keys": [
+    "/n_iterations",
+    "/output_dir"
+   ]
+  },
+  "credit": {
+   "by_severity": {
+    "mild": {
+     "mean_normalized_advantage_abort_minus_plan": -1.0391067997535246,
+     "n": 421,
+     "selected_action_counts": {
+      "PLAN_COMPLIANCE": 311,
+      "SELF_PRESERVATION_ABORT": 110
+     }
+    },
+    "severe": {
+     "mean_normalized_advantage_abort_minus_plan": 0.339945517118415,
+     "n": 379,
+     "selected_action_counts": {
+      "OPPORTUNISTIC_ENGAGEMENT": 1,
+      "PLAN_COMPLIANCE": 275,
+      "SELF_PRESERVATION_ABORT": 103
+     }
+    }
+   },
+   "nonterminal_local_vs_future_gae": {
+    "fraction_abs_future_gt_abs_local": 0.9206798866855525,
+    "mean_abs_local_over_mean_abs_future": 0.1229575889493806,
+    "median_abs_future_gamma_lambda_A_next": 0.18766052290736313,
+    "median_abs_local_td_residual": 0.006796777248382568,
+    "within_update_future_0_99": {
+     "mean_severe_minus_mild": -0.355115103680334,
+     "median_severe_minus_mild": -0.3109443046422584,
+     "n_updates_with_both_severities": 98
+    },
+    "within_update_future_50_99": {
+     "mean_severe_minus_mild": -0.40371204942234995,
+     "median_severe_minus_mild": -0.36619843289185444,
+     "n_updates_with_both_severities": 49
+    },
+    "within_update_local_0_99": {
+     "mean_severe_minus_mild": 0.004553545711619058,
+     "median_severe_minus_mild": -0.0006119658549626668,
+     "n_updates_with_both_severities": 98
+    },
+    "within_update_local_50_99": {
+     "mean_severe_minus_mild": 0.0011745499459659165,
+     "median_severe_minus_mild": -0.0011301040649414062,
+     "n_updates_with_both_severities": 49
+    }
+   },
+   "nonterminal_n": 706,
+   "nonterminal_td_ratio": {
+    "median_abs_td_residual_over_abs_raw_advantage": 0.047006043349891356,
+    "n_nonterminal_rows_excluded_raw_advantage_zero": 0,
+    "n_rows_in_ratio": 706
+   },
+   "population": "immediate_fuel_damage credit rows with measurement_join.is_fd_selected_ego = true, iterations 0..99",
+   "population_n": 800,
+   "terminal_n": 94,
+   "value_old_within_update_by_window": {
+    "0-24": {
+     "mean_severe_minus_mild": -0.0053858521313125615,
+     "median_severe_minus_mild": -0.002445748945077264,
+     "n_updates_with_both_severities": 24
+    },
+    "25-49": {
+     "mean_severe_minus_mild": -0.06896703428030014,
+     "median_severe_minus_mild": -0.05486709972222645,
+     "n_updates_with_both_severities": 25
+    },
+    "50-74": {
+     "mean_severe_minus_mild": -0.02671753069971289,
+     "median_severe_minus_mild": -0.013238988816738129,
+     "n_updates_with_both_severities": 25
+    },
+    "75-99": {
+     "mean_severe_minus_mild": -0.06611876294868332,
+     "median_severe_minus_mild": -0.058318336804707854,
+     "n_updates_with_both_severities": 25
+    }
+   },
+   "within_update_severe_minus_mild_0_99": {
+    "raw_advantage": {
+     "mean_severe_minus_mild": -0.3272009722018703,
+     "median_severe_minus_mild": -0.31946099327107097,
+     "n_updates_with_both_severities": 99
+    },
+    "td_residual": {
+     "mean_severe_minus_mild": -0.011407615425141036,
+     "median_severe_minus_mild": -0.0017806291580200195,
+     "n_updates_with_both_severities": 99
+    },
+    "value_old": {
+     "mean_severe_minus_mild": -0.042165087367362734,
+     "median_severe_minus_mild": -0.020490830143292754,
+     "n_updates_with_both_severities": 99
+    },
+    "value_target": {
+     "mean_severe_minus_mild": -0.369366059569233,
+     "median_severe_minus_mild": -0.32956127716611083,
+     "n_updates_with_both_severities": 99
+    }
+   },
+   "within_update_severe_minus_mild_50_99": {
+    "raw_advantage": {
+     "mean_severe_minus_mild": -0.37620175594262945,
+     "median_severe_minus_mild": -0.35703000085371717,
+     "n_updates_with_both_severities": 50
+    },
+    "td_residual": {
+     "mean_severe_minus_mild": -0.006112251541180678,
+     "median_severe_minus_mild": -0.0030630454421043396,
+     "n_updates_with_both_severities": 50
+    },
+    "value_old": {
+     "mean_severe_minus_mild": -0.04641814682419811,
+     "median_severe_minus_mild": -0.023623831570148482,
+     "n_updates_with_both_severities": 50
+    },
+    "value_target": {
+     "mean_severe_minus_mild": -0.42261990276682754,
+     "median_severe_minus_mild": -0.36925328223768644,
+     "n_updates_with_both_severities": 50
+    }
+   }
+  },
+  "evaluation_trajectory": [
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "pre_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": -0.0005158036947250366,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 0
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": -3.570020198822022e-05,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 25
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": 3.2563507556915286e-05,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 50
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": 0.007641426846385002,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 75
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": -0.0010905589908361435,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 100
+   }
+  ],
+  "invocation_argv": [
+   "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\rl\\training\\graph_train.py",
+   "--iterations",
+   "100",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "ctde",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--fuel-damage-probability",
+   "1.0",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development",
+   "--actor-gradient-diagnostics"
+  ],
+  "launch_record_has_utf8_bom": true,
+  "preflight_code": {
+   "branch": "task/ctde-acting-ego-conditioning",
+   "checkout_head": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "matches_required": true,
+   "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "measured_code_sha_required_by_plan": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "merged_into_main": false,
+   "no_modification_before_run": true,
+   "origin_branch_head": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "origin_main": "adc213670ce4844a7cf60943ecf50150318e40b1",
+   "porcelain_untracked_all": "",
+   "pr75_head": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+   "working_tree_clean": true
+  },
+  "resolved_train_config": {
+   "actor_gradient_diagnostics": true,
+   "aircraft_penalty_coeff": 2.25,
+   "base_seed": 3000000,
+   "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "benchmark_profile": "development",
+   "checkpoint_every": 25,
+   "ctde": {
+    "critic_lr": 0.0003,
+    "gae_lambda": 0.95,
+    "value_coeff": 0.5
+   },
+   "early_stopping": false,
+   "early_stopping_min_delta": 0.01,
+   "early_stopping_min_iterations": 100,
+   "early_stopping_patience_windows": 3,
+   "early_stopping_window_iterations": 25,
+   "episode_design": "generalized_v2",
+   "episodes_per_iteration": 8,
+   "eval_base_seed": 1000000,
+   "eval_episodes": 8,
+   "eval_every": 25,
+   "fuel_damage_leg_progress": 0.3,
+   "fuel_damage_mild_probability": 0.5,
+   "fuel_damage_mode": "seeded_variable",
+   "fuel_damage_probability": 1.0,
+   "fuel_damage_rtb_margin": 1.1,
+   "generalized_max_attempts_per_iteration": 12,
+   "include_sams": false,
+   "match_aou_backend": "p1_milp_v1",
+   "max_ticks": null,
+   "min_known_separation_km": 100.0,
+   "min_target_distance_km": 200.0,
+   "n_hidden": 3,
+   "n_iterations": 100,
+   "n_known": 3,
+   "num_agents": 3,
+   "num_red_airbases": [
+    6,
+    6
+   ],
+   "output_dir": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+   "partial_ratio": 0.5,
+   "ppo": {
+    "adv_norm_eps": 1e-08,
+    "clip_ratio": 0.2,
+    "entropy_coeff": 0.01,
+    "gamma": 1.0,
+    "lr": 0.0003,
+    "max_grad_norm": 0.5,
+    "n_epochs": 4
+   },
+   "randomize_red_airbase_positions": true,
+   "stretch_target_ratio": 0.5,
+   "training_mode": "ctde",
+   "visual_artifacts": false
+  },
+  "run_config_provenance_git": {
+   "available": true,
+   "branch": "task/ctde-acting-ego-conditioning",
+   "commit": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "dirty": false,
+   "dirty_path_count": 0,
+   "reason": null,
+   "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation"
+  }
+ },
+ "common_range": "training iterations 0..99 (updates 1..100); evaluation rounds with updates_completed in {0,25,50,75,100}",
+ "definitions": {
+  "descriptive_only": "all quantities are descriptive and non-counterfactual",
+  "future": "raw_advantage - td_residual = gamma * gae_lambda * A_{t+1}",
+  "gradient_windows": "updates are training iterations; windows are half-open [lo, hi) over the iteration index",
+  "local": "td_residual = r_t + gamma * V_next - V_old (the one-step TD term of GAE)",
+  "nonterminal": "row is not its episode's last decision over all wake kinds (its GAE V_next is not the terminal zero)",
+  "td_ratio": "per-row |td_residual| / |raw_advantage| over nonterminal rows with raw_advantage != 0; median",
+  "within_update": "per update holding both severities: mean(severe) - mean(mild) over the population rows; median / mean over those updates"
+ },
+ "formal_status": {
+  "confirmatory_profile_used": false,
+  "evidence_class": "DEVELOPMENT diagnostic, cross-version relative to the historical FD100 comparator; not confirmatory",
+  "implementation_candidate": "68055e39768d5fa601e5960a9f08823b9e65c08f GPT-approved for measurement (PR #75)",
+  "merge_authorized": false,
+  "new_scientific_execution_authorized_by_preservation": false,
+  "run": "completed",
+  "scientific_measurement_verdict": "PENDING GPT review of this evidence package"
+ },
+ "historical_fd100": {
+  "actor_gradient": {
+   "denominator_note": "windows and signed counts use only updates whose separation_contrast is defined (both MILD and SEVERE immediate-FD transitions present)",
+   "entropy_sign_flip": {
+    "denominator_n_defined": 99,
+    "min_cosine_surrogate_vs_actor_loss_over_all_rows": 0.9881783922654203,
+    "n_defined_where_actor_loss_pressure_sign_differs_from_surrogate": 0
+   },
+   "max_reconstruction_relative_error": 4.696504150008184e-07,
+   "n_defined_contrast": 99,
+   "n_distinct_iterations": 100,
+   "n_fd_positive": 64,
+   "n_fd_positive_non_fd_negative": 22,
+   "n_fd_positive_total_surrogate_negative": 11,
+   "n_rows": 100,
+   "windows": {
+    "0-24": {
+     "mean_fd": 0.017236586663127385,
+     "median_fd": 0.014278093720640199,
+     "median_non_fd": 0.00940820903597553,
+     "median_total_surrogate": 0.013295012061896106,
+     "n_defined": 24,
+     "n_fd_positive": 18,
+     "n_fd_positive_total_surrogate_negative": 3,
+     "n_non_fd_positive": 14,
+     "n_total_surrogate_positive": 17,
+     "n_updates_in_window": 25
+    },
+    "25-49": {
+     "mean_fd": -0.009792081545398297,
+     "median_fd": 0.0006555114746381674,
+     "median_non_fd": 0.0020838473491086745,
+     "median_total_surrogate": -0.0004369221591113768,
+     "n_defined": 25,
+     "n_fd_positive": 13,
+     "n_fd_positive_total_surrogate_negative": 3,
+     "n_non_fd_positive": 14,
+     "n_total_surrogate_positive": 12,
+     "n_updates_in_window": 25
+    },
+    "50-74": {
+     "mean_fd": 0.0068266591259413326,
+     "median_fd": 0.019473494808124776,
+     "median_non_fd": 0.018951683142736535,
+     "median_total_surrogate": 0.053334045076547446,
+     "n_defined": 25,
+     "n_fd_positive": 20,
+     "n_fd_positive_total_surrogate_negative": 3,
+     "n_non_fd_positive": 21,
+     "n_total_surrogate_positive": 18,
+     "n_updates_in_window": 25
+    },
+    "75-99": {
+     "mean_fd": -0.012822369740913768,
+     "median_fd": 0.0002566117850857297,
+     "median_non_fd": -0.000663021731379459,
+     "median_total_surrogate": -0.0006790294366817433,
+     "n_defined": 25,
+     "n_fd_positive": 13,
+     "n_fd_positive_total_surrogate_negative": 2,
+     "n_non_fd_positive": 9,
+     "n_total_surrogate_positive": 12,
+     "n_updates_in_window": 25
+    }
+   }
+  },
+  "credit": {
+   "by_severity": {
+    "mild": {
+     "mean_normalized_advantage_abort_minus_plan": -1.0896829287954226,
+     "n": 421,
+     "selected_action_counts": {
+      "PLAN_COMPLIANCE": 301,
+      "SELF_PRESERVATION_ABORT": 120
+     }
+    },
+    "severe": {
+     "mean_normalized_advantage_abort_minus_plan": 0.36875141417863533,
+     "n": 379,
+     "selected_action_counts": {
+      "OPPORTUNISTIC_ENGAGEMENT": 1,
+      "PLAN_COMPLIANCE": 269,
+      "SELF_PRESERVATION_ABORT": 109
+     }
+    }
+   },
+   "nonterminal_local_vs_future_gae": {
+    "fraction_abs_future_gt_abs_local": 0.9799713876967096,
+    "mean_abs_local_over_mean_abs_future": 0.05469061760795778,
+    "median_abs_future_gamma_lambda_A_next": 0.19826846377806745,
+    "median_abs_local_td_residual": 0.0005178153514862061,
+    "within_update_future_0_99": {
+     "mean_severe_minus_mild": -0.3833496417329705,
+     "median_severe_minus_mild": -0.3188593533721742,
+     "n_updates_with_both_severities": 97
+    },
+    "within_update_future_50_99": {
+     "mean_severe_minus_mild": -0.42022674017508355,
+     "median_severe_minus_mild": -0.34597229032313737,
+     "n_updates_with_both_severities": 48
+    },
+    "within_update_local_0_99": {
+     "mean_severe_minus_mild": 0.00080035911488018,
+     "median_severe_minus_mild": 7.654229799906413e-05,
+     "n_updates_with_both_severities": 97
+    },
+    "within_update_local_50_99": {
+     "mean_severe_minus_mild": -0.0033848583849797414,
+     "median_severe_minus_mild": -5.487104256947835e-06,
+     "n_updates_with_both_severities": 48
+    }
+   },
+   "nonterminal_n": 699,
+   "nonterminal_td_ratio": {
+    "median_abs_td_residual_over_abs_raw_advantage": 0.0030718586881130212,
+    "n_nonterminal_rows_excluded_raw_advantage_zero": 0,
+    "n_rows_in_ratio": 699
+   },
+   "population": "immediate_fuel_damage credit rows with measurement_join.is_fd_selected_ego = true, iterations 0..99",
+   "population_n": 800,
+   "terminal_n": 101,
+   "value_old_within_update_by_window": {
+    "0-24": {
+     "mean_severe_minus_mild": 0.00915646089743527,
+     "median_severe_minus_mild": -0.000617273896932613,
+     "n_updates_with_both_severities": 24
+    },
+    "25-49": {
+     "mean_severe_minus_mild": -0.0008709857903775675,
+     "median_severe_minus_mild": 0.00011169910430908203,
+     "n_updates_with_both_severities": 25
+    },
+    "50-74": {
+     "mean_severe_minus_mild": -6.17666386422619e-05,
+     "median_severe_minus_mild": -2.7932723363210954e-05,
+     "n_updates_with_both_severities": 25
+    },
+    "75-99": {
+     "mean_severe_minus_mild": -0.004391830327964969,
+     "median_severe_minus_mild": 7.085005442220016e-06,
+     "n_updates_with_both_severities": 25
+    }
+   },
+   "within_update_severe_minus_mild_0_99": {
+    "raw_advantage": {
+     "mean_severe_minus_mild": -0.3523902601203202,
+     "median_severe_minus_mild": -0.31562774785598713,
+     "n_updates_with_both_severities": 99
+    },
+    "td_residual": {
+     "mean_severe_minus_mild": -0.016758055128773146,
+     "median_severe_minus_mild": -8.862217267354329e-05,
+     "n_updates_with_both_severities": 99
+    },
+    "value_old": {
+     "mean_severe_minus_mild": 0.0008751564910487529,
+     "median_severe_minus_mild": -2.7932723363210954e-05,
+     "n_updates_with_both_severities": 99
+    },
+    "value_target": {
+     "mean_severe_minus_mild": -0.3515151036292714,
+     "median_severe_minus_mild": -0.3168375241976586,
+     "n_updates_with_both_severities": 99
+    }
+   },
+   "within_update_severe_minus_mild_50_99": {
+    "raw_advantage": {
+     "mean_severe_minus_mild": -0.38851996231440766,
+     "median_severe_minus_mild": -0.36026318322364964,
+     "n_updates_with_both_severities": 50
+    },
+    "td_residual": {
+     "mean_severe_minus_mild": -0.01322234704975929,
+     "median_severe_minus_mild": -0.00010893493890762329,
+     "n_updates_with_both_severities": 50
+    },
+    "value_old": {
+     "mean_severe_minus_mild": -0.0022267984833036153,
+     "median_severe_minus_mild": -1.8596649170310453e-06,
+     "n_updates_with_both_severities": 50
+    },
+    "value_target": {
+     "mean_severe_minus_mild": -0.39074676079771126,
+     "median_severe_minus_mild": -0.3608161983086682,
+     "n_updates_with_both_severities": 50
+    }
+   }
+  },
+  "evaluation_trajectory": [
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "pre_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": -0.0005158036947250366,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 0
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": 9.06825065612793e-05,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 25
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": 0.002078361064195633,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 50
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": 0.042798121273517606,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 75
+   },
+   {
+    "directional_switch_count": 0,
+    "evaluation_stage": "post_update",
+    "macro_n_base_cells_defined": 10,
+    "macro_severe_minus_mild_p_abort": -8.649006485939025e-06,
+    "n_attempted": 60,
+    "n_groups_complete": 20,
+    "n_groups_metric_eligible": 20,
+    "n_successful": 60,
+    "reverse_switch_count": 0,
+    "switch_denominator_matched_groups": 20,
+    "updates_completed": 100
+   }
+  ],
+  "unchanged_since_pr74_index": {
+   "all_top_level_files_equal": true,
+   "all_tree_digests_equal": true,
+   "pr74_manifest": "research_evidence/generalized_v2/semantic_ctde_grad_diag_r1/artifact_manifest.json"
+  }
+ },
+ "integrity_checks": {
+  "accounting_reconciled": true,
+  "attempts_within_1200": true,
+  "benchmark_manifest_file_sha256_now": true,
+  "clean_tree_recorded_in_run_config": true,
+  "credit_population_new_equals_fd_wakes": true,
+  "development_profile_only": true,
+  "eval_points_historical_common_range": true,
+  "eval_points_new": true,
+  "fd100_every_training_episode_damaged": true,
+  "five_eval_rounds": true,
+  "gradient_rows_hist_one_per_update_0_99": true,
+  "gradient_rows_new_one_per_update": true,
+  "held_out_verified_zero_overlap": true,
+  "historical_fd100_bytes_equal_pr74_index": true,
+  "launch_record_hashes_match_files": true,
+  "manifest_file_sha256_at_preflight": true,
+  "manifest_id_in_run_config": true,
+  "measured_sha_recorded_in_run_config": true,
+  "native_exit_code_zero": true,
+  "no_failures": true,
+  "plan_measured_sha_equals": true,
+  "preflight_checkout_head_equals_measured_sha": true,
+  "preflight_working_tree_clean": true,
+  "run_config_train_config_equals_preflight": true,
+  "successful_quota_800": true,
+  "train_config_differs_from_historical_fd100_only_in_authorized_keys": true,
+  "transitions_reconcile": true,
+  "updates_100_of_100": true
+ },
+ "measured_code_sha": {
+  "acting_ego": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "historical_fd100": "6ed964a1abd09de2130aee3d0d314c8f32165056"
+ },
+ "package": "acting-ego CTDE FD100 DEVELOPMENT diagnostic -- compact evidence package",
+ "runs": {
+  "acting_ego": {
+   "run_dir": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+   "run_id": "graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3"
+  },
+  "historical_fd100": {
+   "run_dir": "C:\\gruns\\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+   "run_id": "graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a"
+  }
+ }
+}
