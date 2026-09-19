@@ -36,7 +36,8 @@
   `graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` at measured code SHA
   `8056266cff89f677911462b29970346bed0a57c1`, symmetric central state
   ([measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure)).
-  It never acquired the semantic actor-only transient; no CTDE benefit is established. Its evidence
+  No comparable semantic actor-only transient was observed at any of its 16 evaluation rounds; no
+  CTDE benefit is established. Its evidence
   is draft PR #73 at `ad9b545034670a7c7a9d8ff98012d56c0be07f46`, **read-only and not for merge**.
 - **The CTDE actor-gradient diagnostic instrumentation is integrated** (PR #74, approved
   implementation head `6ed964a1abd09de2130aee3d0d314c8f32165056`, merged as
@@ -208,9 +209,10 @@ directories are also **not indexed** there; they sit at their original locations
   that CTDE will succeed.
 - **Semantic CTDE R1 (symmetric central state, 375 updates; reviewed retrospectively):** 0
   directional switches in every one of 16 rounds (maximum macro ≈ `4.57e-5`, final ≈ `+1.46e-7`)
-  — it **never acquired** the actor-only transient rather than failing to retain it. Its GAE credit
+  — it **did not reproduce the strong actor-only transient in the measured evaluation trajectory**;
+  the evidence does not show acquisition of that transient, rather than its loss. Its GAE credit
   varied within every multi-transition chain and episode, unlike actor-only, but `value_old` stayed
-  nearly severity-insensitive and no severity-conditioned selected-action behaviour followed. **No
+  nearly severity-insensitive and no severity-conditioned selected-action behaviour was observed. **No
   CTDE benefit is established**; not proof that CTDE is generally worse.
 - **CTDE actor-gradient diagnostics (150 updates each, same measured SHA):**
   - at `p = 0.5`, no meaningful severity-conditioned behaviour appears; FD separation pressure is

@@ -210,13 +210,15 @@ identical identities. Their roles are distinct and never interchangeable.
 
 **Open now** (observed 2026-09-19 against `origin`, live `main`
 `ed33b7e24a652fa00b13c708517012f8b3302496`; each branch exists on `origin` and locally at the same
-head). Neither is cleanup-eligible yet: under §4.1 its source run must first be archived with its
-key identities reverified. Neither may be modified or closed without explicit authorization.
+head). Neither is cleanup-eligible yet: under §4.1 its reviewed conclusions must be durable on
+`main` and its source run archived with its key identities reverified, and its closing and branch
+deletion need separate explicit authorization naming it. Neither may be modified or closed without
+explicit authorization.
 
-| PR | Branch | Head | Durable record on `main` | Source run (original location, not archived) | Status |
+| PR | Branch | Head | Record of its conclusions | Source run (original location, not archived) | Status |
 |---|---|---|---|---|---|
-| #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` | [`measurements.md` §10](../history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1) | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | open draft; verdict durable on `main`; **not cleanup-eligible** until the source run is archived |
-| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | `ad9b545034670a7c7a9d8ff98012d56c0be07f46` | [`measurements.md` §16](../history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure), made durable by the 2026-09-19 closure documentation | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | open draft; **not cleanup-eligible** until that documentation is integrated and the source run is archived |
+| #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` | [`measurements.md` §10](../history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1), durable on `main` | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | open draft; verdict durable on `main`; **not cleanup-eligible** until the source run is archived |
+| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | `ad9b545034670a7c7a9d8ff98012d56c0be07f46` | [`measurements.md` §16](../history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure) — the **candidate** durable record, introduced by closure documentation PR #76; it becomes durable on `main` only when PR #76 is integrated | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | open draft; **not cleanup-eligible** until (1) PR #76 is approved and integrated, (2) the source run is archived and indexed under §4.4, and (3) separate explicit cleanup authorization names this PR and branch |
 
 **Closed on 2026-09-15.** Under explicit authorization and after the §4.1 gates, each PR
 below was closed without merge at its verified head and its branch deleted from `origin` and
