@@ -1,0 +1,650 @@
+{
+ "record": "preflight",
+ "record_version": 1,
+ "preflight_timestamp": "2026-09-19T17:56:45.900253+03:00",
+ "written_before_any_training_episode": true,
+ "development_only": true,
+ "confirmatory_profile_untouched": true,
+ "run_id": "graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3",
+ "passed": true,
+ "failed_checks": [],
+ "checks": {
+  "output_dir_fresh": {
+   "passed": true,
+   "detail": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3"
+  },
+  "head_is_measured_sha": {
+   "passed": true,
+   "detail": "68055e39768d5fa601e5960a9f08823b9e65c08f"
+  },
+  "working_tree_clean_incl_untracked": {
+   "passed": true,
+   "detail": ""
+  },
+  "detached_head": {
+   "passed": true,
+   "detail": "HEAD"
+  },
+  "match_aou_from_worktree": {
+   "passed": true,
+   "detail": "C:\\grolelambda1\\src\\match_aou\\__init__.py"
+  },
+  "blade_vendored_engine_identical_to_measured_tree": {
+   "passed": true,
+   "detail": {
+    "blade_path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py",
+    "measured_tree": "6474d3de3871e64ab9abfa7492d65f7c2ee2a815",
+    "loaded_checkout_head": "adc213670ce4844a7cf60943ecf50150318e40b1",
+    "loaded_checkout_tree": "6474d3de3871e64ab9abfa7492d65f7c2ee2a815",
+    "loaded_checkout_blade_dirty": ""
+   }
+  },
+  "comparator_config_loaded": {
+   "passed": true,
+   "detail": {
+    "path": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\run_config.json",
+    "sha256": "a982aea152192c0f1d2fb8cf96058362d0d8288a3bd5677e8440b07a4f008b43",
+    "comparator_commit": "68055e39768d5fa601e5960a9f08823b9e65c08f"
+   }
+  },
+  "config_diff_only_authorized": {
+   "passed": true,
+   "detail": {
+    "differences": [
+     {
+      "path": "/ctde/gae_lambda",
+      "comparator": 0.95,
+      "this_run": 1.0
+     },
+     {
+      "path": "/output_dir",
+      "comparator": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+      "this_run": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3"
+     }
+    ],
+    "unauthorized": []
+   }
+  },
+  "config_source_is_preset_unmodified": {
+   "passed": true,
+   "detail": {
+    "path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+    "absolute_path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+    "format": "json",
+    "config_fields": [
+     "actor_gradient_diagnostics",
+     "aircraft_penalty_coeff",
+     "base_seed",
+     "benchmark_manifest",
+     "benchmark_profile",
+     "checkpoint_every",
+     "ctde.critic_lr",
+     "ctde.gae_lambda",
+     "ctde.value_coeff",
+     "early_stopping",
+     "early_stopping_min_delta",
+     "early_stopping_min_iterations",
+     "early_stopping_patience_windows",
+     "early_stopping_window_iterations",
+     "episode_design",
+     "episodes_per_iteration",
+     "eval_base_seed",
+     "eval_episodes",
+     "eval_every",
+     "fuel_damage_leg_progress",
+     "fuel_damage_mild_probability",
+     "fuel_damage_mode",
+     "fuel_damage_probability",
+     "fuel_damage_rtb_margin",
+     "generalized_max_attempts_per_iteration",
+     "include_sams",
+     "match_aou_backend",
+     "max_ticks",
+     "min_known_separation_km",
+     "min_target_distance_km",
+     "n_hidden",
+     "n_iterations",
+     "n_known",
+     "num_agents",
+     "num_red_airbases",
+     "output_dir",
+     "partial_ratio",
+     "ppo.adv_norm_eps",
+     "ppo.clip_ratio",
+     "ppo.entropy_coeff",
+     "ppo.gamma",
+     "ppo.lr",
+     "ppo.max_grad_norm",
+     "ppo.n_epochs",
+     "randomize_red_airbase_positions",
+     "stretch_target_ratio",
+     "training_mode",
+     "visual_artifacts"
+    ],
+    "cli_overrides": [],
+    "resolved_from": "config_file"
+   }
+  },
+  "role_only_acting_ego_present": {
+   "passed": true,
+   "detail": "tick loop passes acting_agent_id; central builder marks the decision owner EGO"
+  },
+  "explicit_readout_absent": {
+   "passed": true,
+   "detail": "no pool_with_ego / CRITIC_READOUT_ID; ValueHead reads the mean pool"
+  },
+  "benchmark_identity": {
+   "passed": true,
+   "detail": {
+    "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+    "file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+    "profile": "development"
+   }
+  },
+  "held_out_entire_manifest": {
+   "passed": true,
+   "detail": {
+    "train_band": [
+     3000000,
+     3001200
+    ],
+    "n_manifest_seeds": 120,
+    "overlap": []
+   }
+  },
+  "development_profile_matches_comparator": {
+   "passed": true,
+   "detail": {
+    "n_worlds": 20,
+    "n_members": 60,
+    "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde"
+   }
+  },
+  "solver_environment": {
+   "passed": true,
+   "detail": {
+    "python": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+    "bonmin": {
+     "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Library\\bin\\bonmin.EXE",
+     "available": true,
+     "probe": "ok",
+     "probe_output": "bonmin (Microsoft cl 15.00.21022.08 f\ufffdr 80x86), ASL(20100130)"
+    },
+    "torch": "2.7.1+cpu",
+    "git": {
+     "repo_root": "C:\\grolelambda1",
+     "available": true,
+     "commit": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+     "branch": "HEAD",
+     "dirty": false,
+     "dirty_path_count": 0,
+     "reason": null
+    }
+   }
+  },
+  "seed_schedule_matches_comparator": {
+   "passed": true,
+   "detail": "provenance seeds block equality"
+  }
+ },
+ "code": {
+  "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "checkout_head": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "worktree": "C:\\grolelambda1",
+  "detached": true,
+  "porcelain_untracked_all": "",
+  "origin_main": "adc213670ce4844a7cf60943ecf50150318e40b1",
+  "pr75_observed": {
+   "headRefName": "task/ctde-acting-ego-conditioning",
+   "headRefOid": "557e072b94884bef37ece82a064ad877a5a2f636",
+   "isDraft": true,
+   "state": "OPEN"
+  }
+ },
+ "primary_comparator": {
+  "run_config": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\run_config.json",
+  "run_config_sha256": "a982aea152192c0f1d2fb8cf96058362d0d8288a3bd5677e8440b07a4f008b43"
+ },
+ "resolved_configuration": {
+  "train_config": {
+   "n_iterations": 100,
+   "episodes_per_iteration": 8,
+   "base_seed": 3000000,
+   "output_dir": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3",
+   "ppo": {
+    "clip_ratio": 0.2,
+    "entropy_coeff": 0.01,
+    "lr": 0.0003,
+    "n_epochs": 4,
+    "gamma": 1.0,
+    "max_grad_norm": 0.5,
+    "adv_norm_eps": 1e-08
+   },
+   "training_mode": "ctde",
+   "ctde": {
+    "critic_lr": 0.0003,
+    "value_coeff": 0.5,
+    "gae_lambda": 1.0
+   },
+   "checkpoint_every": 25,
+   "eval_every": 25,
+   "eval_episodes": 8,
+   "eval_base_seed": 1000000,
+   "max_ticks": null,
+   "episode_design": "generalized_v2",
+   "match_aou_backend": "p1_milp_v1",
+   "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "benchmark_profile": "development",
+   "generalized_max_attempts_per_iteration": 12,
+   "early_stopping": false,
+   "early_stopping_min_iterations": 100,
+   "early_stopping_window_iterations": 25,
+   "early_stopping_patience_windows": 3,
+   "early_stopping_min_delta": 0.01,
+   "num_agents": 3,
+   "n_known": 3,
+   "n_hidden": 3,
+   "min_target_distance_km": 200.0,
+   "min_known_separation_km": 100.0,
+   "include_sams": false,
+   "randomize_red_airbase_positions": true,
+   "stretch_target_ratio": 0.5,
+   "fuel_damage_mode": "seeded_variable",
+   "fuel_damage_probability": 1.0,
+   "fuel_damage_leg_progress": 0.3,
+   "fuel_damage_rtb_margin": 1.1,
+   "fuel_damage_mild_probability": 0.5,
+   "aircraft_penalty_coeff": 2.25,
+   "visual_artifacts": false,
+   "actor_gradient_diagnostics": true,
+   "num_red_airbases": [
+    6,
+    6
+   ],
+   "partial_ratio": 0.5
+  },
+  "config_source": {
+   "path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+   "absolute_path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+   "format": "json",
+   "config_fields": [
+    "actor_gradient_diagnostics",
+    "aircraft_penalty_coeff",
+    "base_seed",
+    "benchmark_manifest",
+    "benchmark_profile",
+    "checkpoint_every",
+    "ctde.critic_lr",
+    "ctde.gae_lambda",
+    "ctde.value_coeff",
+    "early_stopping",
+    "early_stopping_min_delta",
+    "early_stopping_min_iterations",
+    "early_stopping_patience_windows",
+    "early_stopping_window_iterations",
+    "episode_design",
+    "episodes_per_iteration",
+    "eval_base_seed",
+    "eval_episodes",
+    "eval_every",
+    "fuel_damage_leg_progress",
+    "fuel_damage_mild_probability",
+    "fuel_damage_mode",
+    "fuel_damage_probability",
+    "fuel_damage_rtb_margin",
+    "generalized_max_attempts_per_iteration",
+    "include_sams",
+    "match_aou_backend",
+    "max_ticks",
+    "min_known_separation_km",
+    "min_target_distance_km",
+    "n_hidden",
+    "n_iterations",
+    "n_known",
+    "num_agents",
+    "num_red_airbases",
+    "output_dir",
+    "partial_ratio",
+    "ppo.adv_norm_eps",
+    "ppo.clip_ratio",
+    "ppo.entropy_coeff",
+    "ppo.gamma",
+    "ppo.lr",
+    "ppo.max_grad_norm",
+    "ppo.n_epochs",
+    "randomize_red_airbase_positions",
+    "stretch_target_ratio",
+    "training_mode",
+    "visual_artifacts"
+   ],
+   "cli_overrides": [],
+   "resolved_from": "config_file"
+  },
+  "preset_path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+  "preset_sha256": "eb082c9809c2cc3b1b19bf126db897d68d4347dc149ce29c2928e31ab0370c96"
+ },
+ "config_comparison_vs_primary_comparator": {
+  "method": "trainer's own _build_arg_parser + load_config_file + resolve_train_config + validate on the exact argv, compared key-by-key with comparator run_config.json:/train_config",
+  "differences": [
+   {
+    "path": "/ctde/gae_lambda",
+    "comparator": 0.95,
+    "this_run": 1.0
+   },
+   {
+    "path": "/output_dir",
+    "comparator": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+    "this_run": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3"
+   }
+  ],
+  "authorized_differences": [
+   "/ctde/gae_lambda",
+   "/output_dir"
+  ],
+  "unauthorized_differences": []
+ },
+ "manifest_check": {
+  "path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8"
+ },
+ "trainer_provenance_preview": {
+  "provenance_version": 1,
+  "collected_at": "2026-09-19T17:56:45",
+  "exact_cardinality_policy": "skip_and_account_v1",
+  "git": {
+   "repo_root": "C:\\grolelambda1",
+   "available": true,
+   "commit": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "branch": "HEAD",
+   "dirty": false,
+   "dirty_path_count": 0,
+   "reason": null
+  },
+  "invocation": {
+   "argv": [
+    "C:\\grolelambda1\\src\\match_aou\\rl\\training\\graph_train.py",
+    "--config",
+    "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json"
+   ],
+   "cwd": "C:\\grolelambda1",
+   "python_executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe"
+  },
+  "python": {
+   "version": "3.12.3 | packaged by conda-forge | (main, Apr 15 2024, 18:20:11) [MSC v.1938 64 bit (AMD64)]",
+   "version_info": [
+    3,
+    12,
+    3
+   ],
+   "implementation": "CPython"
+  },
+  "platform": {
+   "system": "Windows",
+   "release": "10",
+   "version": "10.0.19045",
+   "machine": "AMD64",
+   "node": "Itamars-Lenovo-Yoga"
+  },
+  "packages": {
+   "torch": {
+    "available": true,
+    "version": "2.7.1+cpu",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\torch\\__init__.py",
+    "error": null
+   },
+   "gymnasium": {
+    "available": true,
+    "version": "1.0.0",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\gymnasium\\__init__.py",
+    "error": null
+   },
+   "blade": {
+    "available": true,
+    "version": "1.0.0",
+    "path": "c:\\users\\itama\\pycharmprojects\\multi_agent_task_allocation_and_adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py",
+    "error": null
+   },
+   "match_aou": {
+    "available": true,
+    "version": null,
+    "path": "C:\\grolelambda1\\src\\match_aou\\__init__.py",
+    "error": null
+   }
+  },
+  "solver": {
+   "bonmin": {
+    "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Library\\bin\\bonmin.EXE",
+    "available": true,
+    "probe": "ok",
+    "probe_output": "bonmin (Microsoft cl 15.00.21022.08 f\ufffdr 80x86), ASL(20100130)"
+   },
+   "match_aou_backend": "p1_milp_v1"
+  },
+  "seeds": {
+   "train_band": {
+    "start": 3000000,
+    "stop": 3001200,
+    "half_open": true,
+    "count": 1200
+   },
+   "train_seed_formula": "train_seed = base_seed + global_attempt_ordinal (monotone over the whole run; every attempt spends one, successful or not)",
+   "eval_enabled": true,
+   "eval_band": null,
+   "eval_seed_formula": null,
+   "eval_band_is_fixed_across_rounds": true,
+   "train_attempt_policy": {
+    "policy": "successful_quota_with_deterministic_replacement_v1",
+    "successful_episodes_required_per_iteration": 8,
+    "max_attempts_per_iteration": 12,
+    "n_iterations": 100,
+    "successful_episode_quota_total": 800,
+    "max_possible_training_attempts": 1200,
+    "train_band_counts": "maximum_possible_attempts",
+    "note": "episodes_per_iteration is a quota of SUCCESSFUL episodes; ordinary attrition is replaced by the next deterministic attempt seed, so the run may consume up to max_possible_training_attempts seeds"
+   },
+   "eval_seed_source": "benchmark_manifest",
+   "benchmark_evaluation": {
+    "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+    "n_world_seeds": 120,
+    "n_member_episodes_per_round": 60,
+    "seed_list_sha256": "6d65318a5d44046b58bf44882d435c87172145d3cb4d3d21f1f31fe93fe88518",
+    "seeds": [
+     2000000,
+     2000001,
+     2000002,
+     2000003,
+     2000004,
+     2000005,
+     2000006,
+     2000007,
+     2000008,
+     2000009,
+     2000010,
+     2000011,
+     2000064,
+     2000065,
+     2000066,
+     2000067,
+     2000068,
+     2000069,
+     2000070,
+     2000071,
+     2000072,
+     2000073,
+     2000074,
+     2000075,
+     2000128,
+     2000129,
+     2000130,
+     2000131,
+     2000132,
+     2000133,
+     2000134,
+     2000135,
+     2000136,
+     2000137,
+     2000138,
+     2000139,
+     2000192,
+     2000193,
+     2000194,
+     2000195,
+     2000196,
+     2000197,
+     2000198,
+     2000199,
+     2000200,
+     2000201,
+     2000202,
+     2000203,
+     2000256,
+     2000257,
+     2000258,
+     2000259,
+     2000260,
+     2000261,
+     2000262,
+     2000263,
+     2000264,
+     2000265,
+     2000266,
+     2000267,
+     2000320,
+     2000321,
+     2000322,
+     2000323,
+     2000324,
+     2000325,
+     2000326,
+     2000327,
+     2000328,
+     2000329,
+     2000330,
+     2000331,
+     2000384,
+     2000385,
+     2000386,
+     2000387,
+     2000388,
+     2000389,
+     2000390,
+     2000391,
+     2000392,
+     2000393,
+     2000394,
+     2000395,
+     2000448,
+     2000449,
+     2000450,
+     2000451,
+     2000452,
+     2000453,
+     2000454,
+     2000455,
+     2000456,
+     2000457,
+     2000458,
+     2000459,
+     2000512,
+     2000513,
+     2000514,
+     2000515,
+     2000516,
+     2000517,
+     2000518,
+     2000519,
+     2000520,
+     2000521,
+     2000522,
+     2000523,
+     2000576,
+     2000577,
+     2000578,
+     2000579,
+     2000580,
+     2000581,
+     2000582,
+     2000583,
+     2000584,
+     2000585,
+     2000586,
+     2000587
+    ],
+    "held_out_against_train_band": {
+     "start": 3000000,
+     "stop": 3001200,
+     "half_open": true
+    },
+    "held_out_overlap_count": 0,
+    "held_out_verified": true,
+    "held_out_checked_over": "entire_manifest_all_profiles",
+    "evaluation_profile": {
+     "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+     "profile": "development",
+     "world_ordinals": [
+      0,
+      1
+     ],
+     "n_worlds": 20,
+     "n_members": 60,
+     "group_keys": [
+      "A2-D0-w000",
+      "A2-D0-w001",
+      "A2-D2-w000",
+      "A2-D2-w001",
+      "A3-D0-w000",
+      "A3-D0-w001",
+      "A3-D2-w000",
+      "A3-D2-w001",
+      "A4-D0-w000",
+      "A4-D0-w001",
+      "A4-D2-w000",
+      "A4-D2-w001",
+      "A5-D0-w000",
+      "A5-D0-w001",
+      "A5-D2-w000",
+      "A5-D2-w001",
+      "A6-D0-w000",
+      "A6-D0-w001",
+      "A6-D2-w000",
+      "A6-D2-w001"
+     ],
+     "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+     "seeds": [
+      2000000,
+      2000001,
+      2000064,
+      2000065,
+      2000128,
+      2000129,
+      2000192,
+      2000193,
+      2000256,
+      2000257,
+      2000320,
+      2000321,
+      2000384,
+      2000385,
+      2000448,
+      2000449,
+      2000512,
+      2000513,
+      2000576,
+      2000577
+     ],
+     "seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184"
+    }
+   },
+   "unused_legacy_eval_band": {
+    "start": 1000000,
+    "stop": 1000008,
+    "half_open": true,
+    "count": 8,
+    "executed": false,
+    "note": "configured but NOT executed: this run's evaluation seeds come from the frozen benchmark manifest"
+   }
+  },
+  "train_config_location": "run_config.json:/train_config"
+ }
+}

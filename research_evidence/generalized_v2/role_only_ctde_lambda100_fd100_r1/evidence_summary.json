@@ -1,0 +1,3558 @@
+{
+ "arms": {
+  "explicit_readout": {
+   "action_credit": {
+    "0-99": {
+     "mild": {
+      "abort_minus_plan": -1.0886974099304334,
+      "mean_normalized_advantage_abort": -0.4024256134625403,
+      "mean_normalized_advantage_plan": 0.6862717964678932,
+      "n_abort": 109,
+      "n_other": 0,
+      "n_plan": 312,
+      "n_rows": 421,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 312,
+       "SELF_PRESERVATION_ABORT": 109
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.39435474410981297,
+      "mean_normalized_advantage_abort": -0.32961427382361097,
+      "mean_normalized_advantage_plan": -0.7239690179334239,
+      "n_abort": 99,
+      "n_other": 2,
+      "n_plan": 278,
+      "n_rows": 379,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 2,
+       "PLAN_COMPLIANCE": 278,
+       "SELF_PRESERVATION_ABORT": 99
+      }
+     }
+    },
+    "50-74": {
+     "mild": {
+      "abort_minus_plan": -1.3348297077677818,
+      "mean_normalized_advantage_abort": -0.6637356269726982,
+      "mean_normalized_advantage_plan": 0.6710940807950837,
+      "n_abort": 19,
+      "n_other": 0,
+      "n_plan": 88,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 88,
+       "SELF_PRESERVATION_ABORT": 19
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.8606003518678641,
+      "mean_normalized_advantage_abort": 0.08676106911844984,
+      "mean_normalized_advantage_plan": -0.7738392827494143,
+      "n_abort": 16,
+      "n_other": 2,
+      "n_plan": 75,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 2,
+       "PLAN_COMPLIANCE": 75,
+       "SELF_PRESERVATION_ABORT": 16
+      }
+     }
+    },
+    "75-99": {
+     "mild": {
+      "abort_minus_plan": -1.0277686405216937,
+      "mean_normalized_advantage_abort": -0.36653764566305025,
+      "mean_normalized_advantage_plan": 0.6612309948586435,
+      "n_abort": 12,
+      "n_other": 0,
+      "n_plan": 95,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 95,
+       "SELF_PRESERVATION_ABORT": 12
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.2992731209014611,
+      "mean_normalized_advantage_abort": -0.5696915295397911,
+      "mean_normalized_advantage_plan": -0.8689646504412522,
+      "n_abort": 14,
+      "n_other": 0,
+      "n_plan": 79,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 79,
+       "SELF_PRESERVATION_ABORT": 14
+      }
+     }
+    },
+    "definition": "mean normalized_advantage over sampled ABORT rows minus mean over sampled PLAN rows, per severity and window; descriptive sampled-action association, NOT a counterfactual Q value"
+   },
+   "actor_gradient": {
+    "denominator_note": "windows and signed counts use only updates whose separation_contrast is defined (both MILD and SEVERE immediate-FD transitions present)",
+    "entropy_sign_flip": {
+     "denominator_n_defined": 99,
+     "min_cosine_surrogate_vs_actor_loss_over_all_rows": 0.8922508536528433,
+     "n_defined_where_actor_loss_pressure_sign_differs_from_surrogate": 0
+    },
+    "max_reconstruction_relative_error": 5.431384827691595e-07,
+    "n_defined_contrast": 99,
+    "n_distinct_iterations": 100,
+    "n_fd_positive": 57,
+    "n_fd_positive_non_fd_negative": 27,
+    "n_fd_positive_total_surrogate_negative": 12,
+    "n_rows": 100,
+    "windows": {
+     "0-24": {
+      "mean_fd": 0.018889937366737667,
+      "median_fd": 0.01167628740769523,
+      "median_non_fd": 0.02884681742564721,
+      "median_total_surrogate": 0.02974038781799855,
+      "n_defined": 24,
+      "n_fd_positive": 16,
+      "n_fd_positive_total_surrogate_negative": 3,
+      "n_non_fd_positive": 17,
+      "n_total_surrogate_positive": 16,
+      "n_updates_in_window": 25
+     },
+     "25-49": {
+      "mean_fd": -0.002092747821071077,
+      "median_fd": 0.008838513188888411,
+      "median_non_fd": -0.0003808542823706038,
+      "median_total_surrogate": 0.006565218807306839,
+      "n_defined": 25,
+      "n_fd_positive": 14,
+      "n_fd_positive_total_surrogate_negative": 2,
+      "n_non_fd_positive": 12,
+      "n_total_surrogate_positive": 14,
+      "n_updates_in_window": 25
+     },
+     "50-74": {
+      "mean_fd": -0.0016320102981631395,
+      "median_fd": -0.0012761444763088638,
+      "median_non_fd": -0.0013923434870407605,
+      "median_total_surrogate": -0.0022937385223499424,
+      "n_defined": 25,
+      "n_fd_positive": 12,
+      "n_fd_positive_total_surrogate_negative": 4,
+      "n_non_fd_positive": 7,
+      "n_total_surrogate_positive": 10,
+      "n_updates_in_window": 25
+     },
+     "75-99": {
+      "mean_fd": 0.00309694151991169,
+      "median_fd": 0.001984310457902595,
+      "median_non_fd": 0.000171065367038257,
+      "median_total_surrogate": 0.00041792968896972246,
+      "n_defined": 25,
+      "n_fd_positive": 15,
+      "n_fd_positive_total_surrogate_negative": 3,
+      "n_non_fd_positive": 14,
+      "n_total_surrogate_positive": 13,
+      "n_updates_in_window": 25
+     }
+    }
+   },
+   "benchmark": {
+    "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+    "held_out_against_train_band": {
+     "half_open": true,
+     "start": 3000000,
+     "stop": 3001200
+    },
+    "held_out_checked_over": "entire_manifest_all_profiles",
+    "held_out_overlap_count": 0,
+    "held_out_verified": true,
+    "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+    "n_members": 60,
+    "n_worlds": 20,
+    "profile": "development"
+   },
+   "checkout": "branch task/ctde-acting-ego-conditioning",
+   "config_source": {
+    "absolute_path": null,
+    "cli_overrides": [],
+    "config_fields": [],
+    "format": null,
+    "path": null,
+    "resolved_from": "cli_defaults"
+   },
+   "credit": {
+    "nonterminal_local_vs_total": {
+     "fraction_abs_future_gt_abs_local": 0.9590395480225988,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4915254237288136,
+     "mean_abs_local_over_mean_abs_future": 0.06239448463351403,
+     "median_abs_future_gamma_lambda_A_next": 0.19334404628790453,
+     "median_abs_local_td_residual": 0.0021631568670272827,
+     "median_abs_td_residual_over_abs_raw_advantage": 0.012547895740472251,
+     "n_nonterminal_rows_excluded_raw_advantage_zero": 0,
+     "n_rows_in_ratio": 708,
+     "within_update_future_0_99": {
+      "mean_severe_minus_mild": -0.39639553459885407,
+      "median_severe_minus_mild": -0.34857552800400504,
+      "n_updates_with_both_severities": 98
+     },
+     "within_update_future_50_99": {
+      "mean_severe_minus_mild": -0.42668866633502384,
+      "median_severe_minus_mild": -0.3720533374759661,
+      "n_updates_with_both_severities": 49
+     },
+     "within_update_local_0_99": {
+      "mean_severe_minus_mild": -3.56416581936208e-05,
+      "median_severe_minus_mild": -0.00019111931324005129,
+      "n_updates_with_both_severities": 98
+     },
+     "within_update_local_50_99": {
+      "mean_severe_minus_mild": -0.0007744844173840573,
+      "median_severe_minus_mild": -0.00032746990521748863,
+      "n_updates_with_both_severities": 49
+     }
+    },
+    "nonterminal_n": 708,
+    "population": "immediate_fuel_damage credit rows with measurement_join.is_fd_selected_ego = true, iterations 0..99",
+    "population_n": 800,
+    "severity_counts": {
+     "mild": 421,
+     "severe": 379
+    },
+    "terminal_n": 92,
+    "value_old_within_update_by_window": {
+     "0-24": {
+      "mean_severe_minus_mild": 0.037649063202589456,
+      "median_severe_minus_mild": 0.004969809949398052,
+      "n_updates_with_both_severities": 24
+     },
+     "25-49": {
+      "mean_severe_minus_mild": -0.020338305619500938,
+      "median_severe_minus_mild": -0.0025130073229471805,
+      "n_updates_with_both_severities": 25
+     },
+     "50-74": {
+      "mean_severe_minus_mild": -0.04247244172880337,
+      "median_severe_minus_mild": -0.036089746157328295,
+      "n_updates_with_both_severities": 25
+     },
+     "75-99": {
+      "mean_severe_minus_mild": -0.007804393981184279,
+      "median_severe_minus_mild": -0.0016442686319351196,
+      "n_updates_with_both_severities": 25
+     }
+    },
+    "within_update_severe_minus_mild_0_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.3652746948734987,
+      "median_severe_minus_mild": -0.32420717302998125,
+      "n_updates_with_both_severities": 99
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": -0.004486411482009727,
+      "median_severe_minus_mild": -0.002145995696385701,
+      "n_updates_with_both_severities": 99
+     },
+     "value_old": {
+      "mean_severe_minus_mild": -0.008705060771465331,
+      "median_severe_minus_mild": -0.002373572438955307,
+      "n_updates_with_both_severities": 99
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.373979755644964,
+      "median_severe_minus_mild": -0.3267201803529285,
+      "n_updates_with_both_severities": 99
+     }
+    },
+    "within_update_severe_minus_mild_50_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.39279836417435077,
+      "median_severe_minus_mild": -0.3558471645031054,
+      "n_updates_with_both_severities": 50
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": 0.0006156009584381712,
+      "median_severe_minus_mild": -0.0012515410165919254,
+      "n_updates_with_both_severities": 50
+     },
+     "value_old": {
+      "mean_severe_minus_mild": -0.025138417854993825,
+      "median_severe_minus_mild": -0.012547262811235027,
+      "n_updates_with_both_severities": 50
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.4179367820293446,
+      "median_severe_minus_mild": -0.37206217004497577,
+      "n_updates_with_both_severities": 50
+     }
+    }
+   },
+   "critic": "role-only acting-ego central state + explicit readout [mean pool ; acting-ego embedding]",
+   "evaluation_trajectory": [
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "pre_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -0.0005158036947250366,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 0
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -1.99928879737854e-05,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 25
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 9.365379810333252e-07,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 50
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 5.155801773071289e-07,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 75
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 4.254281520843506e-07,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 100
+    }
+   ],
+   "fuel_damage_totals": {
+    "train_clean_successful": 0,
+    "train_damaged_successful": 800,
+    "train_fuel_damage_events_applied": 800,
+    "train_fuel_damage_wakes": 800,
+    "train_mild_successful": 421,
+    "train_severe_successful": 379
+   },
+   "gae_lambda": 0.95,
+   "measured_code_sha": "1a1e0c953c54e9d3f46c871158d5ab6bdd881f24",
+   "native_exit_code": "0",
+   "owner_transition_audit": {
+    "all_nonterminal": {
+     "fraction_abs_future_gt_abs_local": 0.9590395480225988,
+     "fraction_of_nonterminal": 1.0,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4915254237288136,
+     "iqr_delta_value": 0.00583634153008461,
+     "mean_abs_td_residual": 0.01684679664634589,
+     "mean_delta_value": 0.008933611194429508,
+     "median_abs_delta_value": 0.0021631568670272827,
+     "median_abs_deviation_delta_value": 0.0020302236080169678,
+     "median_abs_td_over_abs_raw_advantage": 0.012547895740472251,
+     "median_abs_td_residual": 0.0021631568670272827,
+     "median_delta_value": 0.00014263391494750977,
+     "n": 708,
+     "n_rows_in_td_ratio": 708,
+     "pstdev_delta_value": 0.04587331987113291
+    },
+    "by_iteration_window": {
+     "0-49": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9302325581395349,
+       "fraction_of_nonterminal": 0.24293785310734464,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.46511627906976744,
+       "iqr_delta_value": 0.01915820688009262,
+       "mean_abs_td_residual": 0.027444780728411534,
+       "mean_delta_value": 0.01563697281228595,
+       "median_abs_delta_value": 0.008708000183105469,
+       "median_abs_deviation_delta_value": 0.007188037037849426,
+       "median_abs_td_over_abs_raw_advantage": 0.04844663077887155,
+       "median_abs_td_residual": 0.008708000183105469,
+       "median_delta_value": 0.002433210611343384,
+       "n": 172,
+       "n_rows_in_td_ratio": 172,
+       "pstdev_delta_value": 0.05469865130645539
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9883720930232558,
+       "fraction_of_nonterminal": 0.24293785310734464,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.47093023255813954,
+       "iqr_delta_value": 0.00561542809009552,
+       "mean_abs_td_residual": 0.015543205270998527,
+       "mean_delta_value": 0.006487736865596542,
+       "median_abs_delta_value": 0.0021728575229644775,
+       "median_abs_deviation_delta_value": 0.002051427960395813,
+       "median_abs_td_over_abs_raw_advantage": 0.009879212908152144,
+       "median_abs_td_residual": 0.0021728575229644775,
+       "median_delta_value": 0.00012142956256866455,
+       "n": 172,
+       "n_rows_in_td_ratio": 172,
+       "pstdev_delta_value": 0.0473428569133634
+      }
+     },
+     "50-99": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9266666666666666,
+       "fraction_of_nonterminal": 0.211864406779661,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.52,
+       "iqr_delta_value": 0.007779829204082489,
+       "mean_abs_td_residual": 0.0204529154052337,
+       "mean_delta_value": 0.013376676912109057,
+       "median_abs_delta_value": 0.0020155534148216248,
+       "median_abs_deviation_delta_value": 0.0018723979592323303,
+       "median_abs_td_over_abs_raw_advantage": 0.01314475658880522,
+       "median_abs_td_residual": 0.0020155534148216248,
+       "median_delta_value": 0.0005075782537460327,
+       "n": 150,
+       "n_rows_in_td_ratio": 150,
+       "pstdev_delta_value": 0.05219394429364765
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9813084112149533,
+       "fraction_of_nonterminal": 0.3022598870056497,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.5093457943925234,
+       "iqr_delta_value": 0.0016105584800243378,
+       "mean_abs_td_residual": 0.006848883752006097,
+       "mean_delta_value": 0.0023974071226352564,
+       "median_abs_delta_value": 0.0007941722869873047,
+       "median_abs_deviation_delta_value": 0.0008167475461959839,
+       "median_abs_td_over_abs_raw_advantage": 0.004538830092821085,
+       "median_abs_td_residual": 0.0007941722869873047,
+       "median_delta_value": -3.030151128768921e-05,
+       "n": 214,
+       "n_rows_in_td_ratio": 214,
+       "pstdev_delta_value": 0.027366473583184184
+      }
+     }
+    },
+    "by_owner_and_next_wake_kind": {
+     "different_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.9285714285714286,
+      "fraction_of_nonterminal": 0.4548022598870056,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.4906832298136646,
+      "iqr_delta_value": 0.013761833310127258,
+      "mean_abs_td_residual": 0.024187700608918755,
+      "mean_delta_value": 0.01458403993953274,
+      "median_abs_delta_value": 0.003900878131389618,
+      "median_abs_deviation_delta_value": 0.0030807629227638245,
+      "median_abs_td_over_abs_raw_advantage": 0.030976406782183337,
+      "median_abs_td_residual": 0.003900878131389618,
+      "median_delta_value": 0.0016082674264907837,
+      "n": 322,
+      "n_rows_in_td_ratio": 322,
+      "pstdev_delta_value": 0.05355831050599361
+     },
+     "same_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.9946236559139785,
+      "fraction_of_nonterminal": 0.2627118644067797,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.521505376344086,
+      "iqr_delta_value": 0.0011121593415737152,
+      "mean_abs_td_residual": 0.004062247712926198,
+      "mean_delta_value": 0.0008840212217902624,
+      "median_abs_delta_value": 0.0005631521344184875,
+      "median_abs_deviation_delta_value": 0.0005578547716140747,
+      "median_abs_td_over_abs_raw_advantage": 0.00420046608222313,
+      "median_abs_td_residual": 0.0005631521344184875,
+      "median_delta_value": -1.2934207916259766e-05,
+      "n": 186,
+      "n_rows_in_td_ratio": 186,
+      "pstdev_delta_value": 0.011981022873907385
+     },
+     "same_ego_next|post_fd_boundary": {
+      "fraction_abs_future_gt_abs_local": 0.975,
+      "fraction_of_nonterminal": 0.2824858757062147,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.465,
+      "iqr_delta_value": 0.00617377832531929,
+      "mean_abs_td_residual": 0.016917571774683893,
+      "mean_delta_value": 0.007322539589367807,
+      "median_abs_delta_value": 0.0027966946363449097,
+      "median_abs_deviation_delta_value": 0.002903752028942108,
+      "median_abs_td_over_abs_raw_advantage": 0.012921600083678566,
+      "median_abs_td_residual": 0.0027966946363449097,
+      "median_delta_value": 0.00010705739259719849,
+      "n": 200,
+      "n_rows_in_td_ratio": 200,
+      "pstdev_delta_value": 0.050827266024525926
+     }
+    },
+    "different_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.9285714285714286,
+     "fraction_of_nonterminal": 0.4548022598870056,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4906832298136646,
+     "iqr_delta_value": 0.013761833310127258,
+     "mean_abs_td_residual": 0.024187700608918755,
+     "mean_delta_value": 0.01458403993953274,
+     "median_abs_delta_value": 0.003900878131389618,
+     "median_abs_deviation_delta_value": 0.0030807629227638245,
+     "median_abs_td_over_abs_raw_advantage": 0.030976406782183337,
+     "median_abs_td_residual": 0.003900878131389618,
+     "median_delta_value": 0.0016082674264907837,
+     "n": 322,
+     "n_rows_in_td_ratio": 322,
+     "pstdev_delta_value": 0.05355831050599361
+    },
+    "next_wake_kind_counts": {
+     "ordinary": 508,
+     "post_fd_boundary": 200
+    },
+    "nonterminal_n": 708,
+    "note": "only observed (owner, next-wake) cells are listed; no empty category is created",
+    "population": "NONTERMINAL immediate_fuel_damage rows of the FD-selected ego, iterations 0..99, joined to the next global decision of the same episode",
+    "same_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.9844559585492227,
+     "fraction_of_nonterminal": 0.5451977401129944,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.49222797927461137,
+     "iqr_delta_value": 0.0028428584337234497,
+     "mean_abs_td_residual": 0.010723037382230703,
+     "mean_delta_value": 0.004220041101364119,
+     "median_abs_delta_value": 0.0011789798736572266,
+     "median_abs_deviation_delta_value": 0.0011789798736572266,
+     "median_abs_td_over_abs_raw_advantage": 0.006284454853944094,
+     "median_abs_td_residual": 0.0011789798736572266,
+     "median_delta_value": -3.5241246223449707e-06,
+     "n": 386,
+     "n_rows_in_td_ratio": 386,
+     "pstdev_delta_value": 0.0376573261490013
+    },
+    "severity_by_owner": {
+     "different_ego_next": {
+      "mild": 177,
+      "severe": 145
+     },
+     "same_ego_next": {
+      "mild": 194,
+      "severe": 192
+     }
+    },
+    "structure": {
+     "gae_lambda_values": [
+      0.95
+     ],
+     "gamma_values": [
+      1.0
+     ],
+     "n_nonzero_transition_reward": 0,
+     "n_td_residual_not_equal_delta_value": 0,
+     "note": "with a terminal-only reward and gamma = 1, a nonterminal td_residual is exactly V_{t+1} - V_t. Under lambda = 1 it remains a DIAGNOSTIC of consecutive values but is NOT the actor's total advantage: raw_advantage telescopes to R - V_t, and future_component = A_{t+1} = R - V_{t+1}"
+    },
+    "within_update_severe_minus_mild": {
+     "all_nonterminal": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.010496288853680731,
+       "median_severe_minus_mild": -0.0022702410817146274,
+       "n_updates_with_both_severities": 98
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.010460647195487114,
+       "median_severe_minus_mild": -0.0024410714705785097,
+       "n_updates_with_both_severities": 98
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": -3.56416581936208e-05,
+       "median_severe_minus_mild": -0.00019111931324005129,
+       "n_updates_with_both_severities": 98
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.39639553459885407,
+       "median_severe_minus_mild": -0.34857552800400504,
+       "n_updates_with_both_severities": 98
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": -3.56416581936208e-05,
+       "median_severe_minus_mild": -0.00019111931324005129,
+       "n_updates_with_both_severities": 98
+      }
+     },
+     "different_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": 0.0029648016348029654,
+       "median_severe_minus_mild": 0.00011335810025533966,
+       "n_updates_with_both_severities": 66
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.004846459339288148,
+       "median_severe_minus_mild": -0.0006978064775466919,
+       "n_updates_with_both_severities": 66
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": 0.00781126097409111,
+       "median_severe_minus_mild": 0.0009787753224372864,
+       "n_updates_with_both_severities": 66
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.20014835138663664,
+       "median_severe_minus_mild": -0.21854655322454988,
+       "n_updates_with_both_severities": 66
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": 0.00781126097409111,
+       "median_severe_minus_mild": 0.0009787753224372864,
+       "n_updates_with_both_severities": 66
+      }
+     },
+     "same_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.012015235233382436,
+       "median_severe_minus_mild": -0.0014925599098205566,
+       "n_updates_with_both_severities": 83
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.007211642060054833,
+       "median_severe_minus_mild": -0.0011803805828094482,
+       "n_updates_with_both_severities": 83
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": -0.004803593173327605,
+       "median_severe_minus_mild": -0.00018107891082763672,
+       "n_updates_with_both_severities": 83
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.5354796255972258,
+       "median_severe_minus_mild": -0.42633491955719227,
+       "n_updates_with_both_severities": 83
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": -0.004803593173327605,
+       "median_severe_minus_mild": -0.00018107891082763672,
+       "n_updates_with_both_severities": 83
+      }
+     }
+    }
+   },
+   "provenance_git": {
+    "available": true,
+    "branch": "task/ctde-acting-ego-conditioning",
+    "commit": "1a1e0c953c54e9d3f46c871158d5ab6bdd881f24",
+    "dirty": false,
+    "dirty_path_count": 0,
+    "reason": null,
+    "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation"
+   },
+   "role": "SECONDARY context, cross-version",
+   "run_dir": "C:\\gruns\\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9",
+   "run_id": "graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9",
+   "run_summary": {
+    "accounting_reconciled": true,
+    "eval_episodes_attempted": 300,
+    "eval_episodes_failed": 0,
+    "eval_episodes_successful": 300,
+    "failures_recorded": 0,
+    "n_eval_rounds": 5,
+    "n_productive_iterations": 100,
+    "total_transitions": 3003,
+    "train_episodes_attempted": 800,
+    "train_episodes_failed": 0,
+    "train_episodes_successful": 800,
+    "train_replacement_attempts": 0,
+    "updates_completed": 100
+   },
+   "train_credit_diagnostics_rows": 3003
+  },
+  "lambda100": {
+   "action_credit": {
+    "0-99": {
+     "mild": {
+      "abort_minus_plan": -1.0594756131929637,
+      "mean_normalized_advantage_abort": -0.38384696069312985,
+      "mean_normalized_advantage_plan": 0.6756286524998338,
+      "n_abort": 109,
+      "n_other": 0,
+      "n_plan": 312,
+      "n_rows": 421,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 312,
+       "SELF_PRESERVATION_ABORT": 109
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.3503964075985577,
+      "mean_normalized_advantage_abort": -0.27515885078485114,
+      "mean_normalized_advantage_plan": -0.6255552583834089,
+      "n_abort": 99,
+      "n_other": 1,
+      "n_plan": 279,
+      "n_rows": 379,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 1,
+       "PLAN_COMPLIANCE": 279,
+       "SELF_PRESERVATION_ABORT": 99
+      }
+     }
+    },
+    "50-74": {
+     "mild": {
+      "abort_minus_plan": -1.4653213407319836,
+      "mean_normalized_advantage_abort": -0.747998665970811,
+      "mean_normalized_advantage_plan": 0.7173226747611726,
+      "n_abort": 18,
+      "n_other": 0,
+      "n_plan": 89,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 89,
+       "SELF_PRESERVATION_ABORT": 18
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.9019963090918619,
+      "mean_normalized_advantage_abort": 0.14994654319904788,
+      "mean_normalized_advantage_plan": -0.752049765892814,
+      "n_abort": 14,
+      "n_other": 1,
+      "n_plan": 78,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 1,
+       "PLAN_COMPLIANCE": 78,
+       "SELF_PRESERVATION_ABORT": 14
+      }
+     }
+    },
+    "75-99": {
+     "mild": {
+      "abort_minus_plan": -0.6743119326990454,
+      "mean_normalized_advantage_abort": -0.047422747439868414,
+      "mean_normalized_advantage_plan": 0.626889185259177,
+      "n_abort": 13,
+      "n_other": 0,
+      "n_plan": 94,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 94,
+       "SELF_PRESERVATION_ABORT": 13
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.0744858210093754,
+      "mean_normalized_advantage_abort": -0.4946223580505362,
+      "mean_normalized_advantage_plan": -0.5691081790599116,
+      "n_abort": 15,
+      "n_other": 0,
+      "n_plan": 78,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 78,
+       "SELF_PRESERVATION_ABORT": 15
+      }
+     }
+    },
+    "definition": "mean normalized_advantage over sampled ABORT rows minus mean over sampled PLAN rows, per severity and window; descriptive sampled-action association, NOT a counterfactual Q value"
+   },
+   "actor_gradient": {
+    "denominator_note": "windows and signed counts use only updates whose separation_contrast is defined (both MILD and SEVERE immediate-FD transitions present)",
+    "entropy_sign_flip": {
+     "denominator_n_defined": 99,
+     "min_cosine_surrogate_vs_actor_loss_over_all_rows": 0.9947795297644536,
+     "n_defined_where_actor_loss_pressure_sign_differs_from_surrogate": 0
+    },
+    "max_reconstruction_relative_error": 6.434666990731341e-07,
+    "n_defined_contrast": 99,
+    "n_distinct_iterations": 100,
+    "n_fd_positive": 64,
+    "n_fd_positive_non_fd_negative": 35,
+    "n_fd_positive_total_surrogate_negative": 19,
+    "n_rows": 100,
+    "windows": {
+     "0-24": {
+      "mean_fd": 0.014954480091015314,
+      "median_fd": 0.012216813335031981,
+      "median_non_fd": 0.01001350817482759,
+      "median_total_surrogate": 0.009778381657588923,
+      "n_defined": 24,
+      "n_fd_positive": 17,
+      "n_fd_positive_total_surrogate_negative": 4,
+      "n_non_fd_positive": 14,
+      "n_total_surrogate_positive": 15,
+      "n_updates_in_window": 25
+     },
+     "25-49": {
+      "mean_fd": -0.0036586000313607115,
+      "median_fd": 0.003572926418820679,
+      "median_non_fd": -0.0003346335789676513,
+      "median_total_surrogate": 0.0004102026062272813,
+      "n_defined": 25,
+      "n_fd_positive": 15,
+      "n_fd_positive_total_surrogate_negative": 4,
+      "n_non_fd_positive": 11,
+      "n_total_surrogate_positive": 13,
+      "n_updates_in_window": 25
+     },
+     "50-74": {
+      "mean_fd": 0.0074176894968266275,
+      "median_fd": 4.71930097170406e-05,
+      "median_non_fd": -0.00033339819333410084,
+      "median_total_surrogate": -6.0315378410173335e-05,
+      "n_defined": 25,
+      "n_fd_positive": 14,
+      "n_fd_positive_total_surrogate_negative": 4,
+      "n_non_fd_positive": 11,
+      "n_total_surrogate_positive": 12,
+      "n_updates_in_window": 25
+     },
+     "75-99": {
+      "mean_fd": 0.0008018899373438342,
+      "median_fd": 0.0005250295725214357,
+      "median_non_fd": -0.00038674928303880684,
+      "median_total_surrogate": -0.00013683856457181637,
+      "n_defined": 25,
+      "n_fd_positive": 18,
+      "n_fd_positive_total_surrogate_negative": 7,
+      "n_non_fd_positive": 10,
+      "n_total_surrogate_positive": 12,
+      "n_updates_in_window": 25
+     }
+    }
+   },
+   "benchmark": {
+    "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+    "held_out_against_train_band": {
+     "half_open": true,
+     "start": 3000000,
+     "stop": 3001200
+    },
+    "held_out_checked_over": "entire_manifest_all_profiles",
+    "held_out_overlap_count": 0,
+    "held_out_verified": true,
+    "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+    "n_members": 60,
+    "n_worlds": 20,
+    "profile": "development"
+   },
+   "checkout": "isolated detached worktree C:\\grolelambda1 (no branch)",
+   "config_source": {
+    "absolute_path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+    "cli_overrides": [],
+    "config_fields": [
+     "actor_gradient_diagnostics",
+     "aircraft_penalty_coeff",
+     "base_seed",
+     "benchmark_manifest",
+     "benchmark_profile",
+     "checkpoint_every",
+     "ctde.critic_lr",
+     "ctde.gae_lambda",
+     "ctde.value_coeff",
+     "early_stopping",
+     "early_stopping_min_delta",
+     "early_stopping_min_iterations",
+     "early_stopping_patience_windows",
+     "early_stopping_window_iterations",
+     "episode_design",
+     "episodes_per_iteration",
+     "eval_base_seed",
+     "eval_episodes",
+     "eval_every",
+     "fuel_damage_leg_progress",
+     "fuel_damage_mild_probability",
+     "fuel_damage_mode",
+     "fuel_damage_probability",
+     "fuel_damage_rtb_margin",
+     "generalized_max_attempts_per_iteration",
+     "include_sams",
+     "match_aou_backend",
+     "max_ticks",
+     "min_known_separation_km",
+     "min_target_distance_km",
+     "n_hidden",
+     "n_iterations",
+     "n_known",
+     "num_agents",
+     "num_red_airbases",
+     "output_dir",
+     "partial_ratio",
+     "ppo.adv_norm_eps",
+     "ppo.clip_ratio",
+     "ppo.entropy_coeff",
+     "ppo.gamma",
+     "ppo.lr",
+     "ppo.max_grad_norm",
+     "ppo.n_epochs",
+     "randomize_red_airbase_positions",
+     "stretch_target_ratio",
+     "training_mode",
+     "visual_artifacts"
+    ],
+    "format": "json",
+    "path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+    "resolved_from": "config_file"
+   },
+   "credit": {
+    "nonterminal_local_vs_total": {
+     "fraction_abs_future_gt_abs_local": 0.9191489361702128,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4794326241134752,
+     "mean_abs_local_over_mean_abs_future": 0.11666166191427482,
+     "median_abs_future_gamma_lambda_A_next": 0.20638351851272602,
+     "median_abs_local_td_residual": 0.007227182388305664,
+     "median_abs_td_residual_over_abs_raw_advantage": 0.039753876279495455,
+     "n_nonterminal_rows_excluded_raw_advantage_zero": 0,
+     "n_rows_in_ratio": 705,
+     "within_update_future_0_99": {
+      "mean_severe_minus_mild": -0.39892502319259576,
+      "median_severe_minus_mild": -0.3377460040058491,
+      "n_updates_with_both_severities": 98
+     },
+     "within_update_future_50_99": {
+      "mean_severe_minus_mild": -0.4144640507648094,
+      "median_severe_minus_mild": -0.3621709440461094,
+      "n_updates_with_both_severities": 49
+     },
+     "within_update_local_0_99": {
+      "mean_severe_minus_mild": 0.013945434533446065,
+      "median_severe_minus_mild": 0.003709332086145878,
+      "n_updates_with_both_severities": 98
+     },
+     "within_update_local_50_99": {
+      "mean_severe_minus_mild": 0.01596196805678156,
+      "median_severe_minus_mild": 0.004234675318002701,
+      "n_updates_with_both_severities": 49
+     }
+    },
+    "nonterminal_n": 705,
+    "population": "immediate_fuel_damage credit rows with measurement_join.is_fd_selected_ego = true, iterations 0..99",
+    "population_n": 800,
+    "severity_counts": {
+     "mild": 421,
+     "severe": 379
+    },
+    "terminal_n": 95,
+    "value_old_within_update_by_window": {
+     "0-24": {
+      "mean_severe_minus_mild": -0.0118962976830228,
+      "median_severe_minus_mild": -0.008505487814545631,
+      "n_updates_with_both_severities": 24
+     },
+     "25-49": {
+      "mean_severe_minus_mild": -0.03805948275469598,
+      "median_severe_minus_mild": -0.017861872911453247,
+      "n_updates_with_both_severities": 25
+     },
+     "50-74": {
+      "mean_severe_minus_mild": -0.07617314097569103,
+      "median_severe_minus_mild": -0.07130378782749175,
+      "n_updates_with_both_severities": 25
+     },
+     "75-99": {
+      "mean_severe_minus_mild": -0.1540833232761139,
+      "median_severe_minus_mild": -0.12453381220499676,
+      "n_updates_with_both_severities": 25
+     }
+    },
+    "within_update_severe_minus_mild_0_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.346287949890408,
+      "median_severe_minus_mild": -0.31744922085362415,
+      "n_updates_with_both_severities": 99
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": 0.004038025348047768,
+      "median_severe_minus_mild": 0.004234675318002701,
+      "n_updates_with_both_severities": 99
+     },
+     "value_old": {
+      "mean_severe_minus_mild": -0.07064050322782899,
+      "median_severe_minus_mild": -0.038989202181498206,
+      "n_updates_with_both_severities": 99
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.416928453118237,
+      "median_severe_minus_mild": -0.36741298589014,
+      "n_updates_with_both_severities": 99
+     }
+    },
+    "within_update_severe_minus_mild_50_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.36075152575001745,
+      "median_severe_minus_mild": -0.3280487950347409,
+      "n_updates_with_both_severities": 50
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": 0.012521772967634374,
+      "median_severe_minus_mild": 0.001042309403419494,
+      "n_updates_with_both_severities": 50
+     },
+     "value_old": {
+      "mean_severe_minus_mild": -0.11512823212590247,
+      "median_severe_minus_mild": -0.08920063450932503,
+      "n_updates_with_both_severities": 50
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.4758797578759199,
+      "median_severe_minus_mild": -0.42101933746633535,
+      "n_updates_with_both_severities": 50
+     }
+    }
+   },
+   "critic": "role-only acting-ego central state, mean-pool readout",
+   "evaluation_trajectory": [
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "pre_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -0.0005158036947250366,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 0
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 1.375824213027954e-05,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 25
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 4.601478576660156e-06,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 50
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 1.6840919852256774e-05,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 75
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 1.4234334230422974e-06,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 100
+    }
+   ],
+   "fuel_damage_totals": {
+    "train_clean_successful": 0,
+    "train_damaged_successful": 800,
+    "train_fuel_damage_events_applied": 800,
+    "train_fuel_damage_wakes": 800,
+    "train_mild_successful": 421,
+    "train_severe_successful": 379
+   },
+   "gae_lambda": 1.0,
+   "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "native_exit_code": "0",
+   "new_run_specifics": {
+    "authorized_plan_authorization": {
+     "arms_authorized": 1,
+     "authority": "docs/workflows/experiments.md section 2 (authorized bounded plan)",
+     "benchmark_preflight": false,
+     "comparator_reruns": false,
+     "confirmatory_profile_untouched": true,
+     "evidence_branch_or_pr": false,
+     "evidence_class": "same-code DEVELOPMENT diagnostic intervention; one seed stream; not confirmatory",
+     "hyperparameter_sweep_authorized": false,
+     "profile_scope": "DEVELOPMENT ONLY",
+     "repository_documentation_update": false,
+     "resume_or_warm_start": false,
+     "source": "user-authorized bounded DEVELOPMENT diagnostic, task packet 2026-09-19 (role-only CTDE gae_lambda 0.95 -> 1.0)"
+    },
+    "authorized_plan_budget": {
+     "early_stopping": false,
+     "max_attempts_per_iteration": 12,
+     "max_training_attempts": 1200,
+     "n_iterations": 100,
+     "runs": 1,
+     "successful_episodes_per_iteration": 8,
+     "successful_training_quota": 800,
+     "wall_clock_ceiling_hours": 8
+    },
+    "comparator_config_source": {
+     "absolute_path": null,
+     "cli_overrides": [],
+     "config_fields": [],
+     "format": null,
+     "path": null,
+     "resolved_from": "cli_defaults"
+    },
+    "config_source": {
+     "absolute_path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+     "cli_overrides": [],
+     "config_fields": [
+      "actor_gradient_diagnostics",
+      "aircraft_penalty_coeff",
+      "base_seed",
+      "benchmark_manifest",
+      "benchmark_profile",
+      "checkpoint_every",
+      "ctde.critic_lr",
+      "ctde.gae_lambda",
+      "ctde.value_coeff",
+      "early_stopping",
+      "early_stopping_min_delta",
+      "early_stopping_min_iterations",
+      "early_stopping_patience_windows",
+      "early_stopping_window_iterations",
+      "episode_design",
+      "episodes_per_iteration",
+      "eval_base_seed",
+      "eval_episodes",
+      "eval_every",
+      "fuel_damage_leg_progress",
+      "fuel_damage_mild_probability",
+      "fuel_damage_mode",
+      "fuel_damage_probability",
+      "fuel_damage_rtb_margin",
+      "generalized_max_attempts_per_iteration",
+      "include_sams",
+      "match_aou_backend",
+      "max_ticks",
+      "min_known_separation_km",
+      "min_target_distance_km",
+      "n_hidden",
+      "n_iterations",
+      "n_known",
+      "num_agents",
+      "num_red_airbases",
+      "output_dir",
+      "partial_ratio",
+      "ppo.adv_norm_eps",
+      "ppo.clip_ratio",
+      "ppo.entropy_coeff",
+      "ppo.gamma",
+      "ppo.lr",
+      "ppo.max_grad_norm",
+      "ppo.n_epochs",
+      "randomize_red_airbase_positions",
+      "stretch_target_ratio",
+      "training_mode",
+      "visual_artifacts"
+     ],
+     "format": "json",
+     "path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+     "resolved_from": "config_file"
+    },
+    "console_n_lines_containing_CRASH": 0,
+    "console_n_lines_containing_Traceback": 0,
+    "console_summary_block": [
+     "TRAINING SUMMARY (100 iteration(s) recorded, 100 update(s) completed)",
+     "------------------------------------------------------------------------------",
+     "train eps:  attempted=800  ok=800  failed=0  success=1.000",
+     "            transitions=2981  wake-bearing=800  zero-wake eps=0",
+     "            attempt policy=successful_quota_with_deterministic_replacement_v1  replacements=0  iterations at full quota=100/100",
+     "iterations: productive=100  zero-wake=0  all-failed=0   (disjoint: an all-failed iteration measured nothing)",
+     "train R:    first=-0.4899  last=-0.2948  mean=-0.3831   (over SUCCESSFUL episodes; 0 iteration(s) had none)",
+     "meta-acts:  PLAN_COMPLIANCE=938  OPPORTUNISTIC_ENGAGEMENT=1690  SELF_PRESERVATION_ABORT=353",
+     "eval eps:   attempted=300  ok=300  failed=0  success=1.000",
+     "eval R:     pre-update  R=-0.5224 over 60/60 seed(s)  [updates=0]",
+     "eval R:     final       R=-0.2209 over 60/60 seed(s)  [updates=100]",
+     "            rounds=5  best=-0.2209",
+     "eval fd:    pre-update  clean R=-0.3126 (20 ok) | mild R=-0.3539 (20 ok) | severe R=-0.9008 (20 ok) | mild_minus_clean=-0.0414 severe_minus_clean=-0.5882 severe_minus_mild=-0.5468 over 20/20 triad(s)",
+     "eval fd:    final       clean R=-0.0062 (20 ok) | mild R=-0.0062 (20 ok) | severe R=-0.6502 (20 ok) | mild_minus_clean=+0.0000 severe_minus_clean=-0.6440 severe_minus_mild=-0.6440 over 20/20 triad(s)",
+     "fuel dmg:   mode=seeded_variable  penalty_c=2.25  factor=fuel_damage_variable_severity_v1",
+     "            train: clean 0/0 ok, mild 421/421 ok, severe 379/379 ok, events=800 wakes=800 rtb=764 dead=269",
+     "            eval:  clean 100/100 ok, mild 100/100 ok, severe 100/100 ok, events=200 wakes=200 rtb=190 dead=100  triad 100/100",
+     "            severity response [post_update]: mild abort=0.00 over 80 wake(s) | severe abort=0.00 over 80 wake(s)   (rates over FD WAKES)",
+     "            severity response [pre_update]: mild abort=0.00 over 20 wake(s) | severe abort=0.00 over 20 wake(s)   (rates over FD WAKES)",
+     "            severity response [train]: mild abort=0.26 over 421 wake(s) | severe abort=0.26 over 379 wake(s)   (rates over FD WAKES)",
+     "failures:   0 recorded  by phase={}  by stage={}",
+     "timing:     total=2581.9s",
+     "plots:      C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\plots",
+     "records:    C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_records.jsonl",
+     "            C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\eval_records.jsonl",
+     "            C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\episode_failures.jsonl",
+     "            C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\episode_outcomes.jsonl  (1100 successful attempt(s))",
+     "            C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\run_summary.json",
+     "------------------------------------------------------------------------------",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\plots\\training_performance.png",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\plots\\policy_diagnostics.png",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\plots\\measurement_health.png",
+     "  plot_training: wrote C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\plots\\fd_policy_sensitivity.png"
+    ],
+    "invocation_argv": [
+     "C:\\grolelambda1\\src\\match_aou\\rl\\training\\graph_train.py",
+     "--config",
+     "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json"
+    ],
+    "invocation_cwd": "C:\\grolelambda1",
+    "invocation_start_end_local": [
+     "start_local=Sat 09/19/2026 17:56:51.92",
+     "end_local=Sat 09/19/2026 18:40:16.79"
+    ],
+    "launch_record_process_tree": [
+     {
+      "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+      "name": "cmd.exe",
+      "parent": 10456,
+      "pid": 31424
+     },
+     {
+      "executable": "C:\\Users\\Itama\\anaconda3\\Scripts\\conda.exe",
+      "name": "conda.exe",
+      "parent": 31424,
+      "pid": 17384
+     },
+     {
+      "executable": "C:\\Users\\Itama\\anaconda3\\python.exe",
+      "name": "python.exe",
+      "parent": 17384,
+      "pid": 15160
+     },
+     {
+      "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+      "name": "python.exe",
+      "parent": 17996,
+      "pid": 15460
+     }
+    ],
+    "preflight_checks": {
+     "benchmark_identity": {
+      "detail": {
+       "file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+       "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+       "profile": "development"
+      },
+      "passed": true
+     },
+     "blade_vendored_engine_identical_to_measured_tree": {
+      "detail": {
+       "blade_path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py",
+       "loaded_checkout_blade_dirty": "",
+       "loaded_checkout_head": "adc213670ce4844a7cf60943ecf50150318e40b1",
+       "loaded_checkout_tree": "6474d3de3871e64ab9abfa7492d65f7c2ee2a815",
+       "measured_tree": "6474d3de3871e64ab9abfa7492d65f7c2ee2a815"
+      },
+      "passed": true
+     },
+     "comparator_config_loaded": {
+      "detail": {
+       "comparator_commit": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+       "path": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3\\run_config.json",
+       "sha256": "a982aea152192c0f1d2fb8cf96058362d0d8288a3bd5677e8440b07a4f008b43"
+      },
+      "passed": true
+     },
+     "config_diff_only_authorized": {
+      "detail": {
+       "differences": [
+        {
+         "comparator": 0.95,
+         "path": "/ctde/gae_lambda",
+         "this_run": 1.0
+        },
+        {
+         "comparator": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+         "path": "/output_dir",
+         "this_run": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3"
+        }
+       ],
+       "unauthorized": []
+      },
+      "passed": true
+     },
+     "config_source_is_preset_unmodified": {
+      "detail": {
+       "absolute_path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+       "cli_overrides": [],
+       "config_fields": [
+        "actor_gradient_diagnostics",
+        "aircraft_penalty_coeff",
+        "base_seed",
+        "benchmark_manifest",
+        "benchmark_profile",
+        "checkpoint_every",
+        "ctde.critic_lr",
+        "ctde.gae_lambda",
+        "ctde.value_coeff",
+        "early_stopping",
+        "early_stopping_min_delta",
+        "early_stopping_min_iterations",
+        "early_stopping_patience_windows",
+        "early_stopping_window_iterations",
+        "episode_design",
+        "episodes_per_iteration",
+        "eval_base_seed",
+        "eval_episodes",
+        "eval_every",
+        "fuel_damage_leg_progress",
+        "fuel_damage_mild_probability",
+        "fuel_damage_mode",
+        "fuel_damage_probability",
+        "fuel_damage_rtb_margin",
+        "generalized_max_attempts_per_iteration",
+        "include_sams",
+        "match_aou_backend",
+        "max_ticks",
+        "min_known_separation_km",
+        "min_target_distance_km",
+        "n_hidden",
+        "n_iterations",
+        "n_known",
+        "num_agents",
+        "num_red_airbases",
+        "output_dir",
+        "partial_ratio",
+        "ppo.adv_norm_eps",
+        "ppo.clip_ratio",
+        "ppo.entropy_coeff",
+        "ppo.gamma",
+        "ppo.lr",
+        "ppo.max_grad_norm",
+        "ppo.n_epochs",
+        "randomize_red_airbase_positions",
+        "stretch_target_ratio",
+        "training_mode",
+        "visual_artifacts"
+       ],
+       "format": "json",
+       "path": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3\\train_config_preset.json",
+       "resolved_from": "config_file"
+      },
+      "passed": true
+     },
+     "detached_head": {
+      "detail": "HEAD",
+      "passed": true
+     },
+     "development_profile_matches_comparator": {
+      "detail": {
+       "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+       "n_members": 60,
+       "n_worlds": 20
+      },
+      "passed": true
+     },
+     "explicit_readout_absent": {
+      "detail": "no pool_with_ego / CRITIC_READOUT_ID; ValueHead reads the mean pool",
+      "passed": true
+     },
+     "head_is_measured_sha": {
+      "detail": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+      "passed": true
+     },
+     "held_out_entire_manifest": {
+      "detail": {
+       "n_manifest_seeds": 120,
+       "overlap": [],
+       "train_band": [
+        3000000,
+        3001200
+       ]
+      },
+      "passed": true
+     },
+     "match_aou_from_worktree": {
+      "detail": "C:\\grolelambda1\\src\\match_aou\\__init__.py",
+      "passed": true
+     },
+     "output_dir_fresh": {
+      "detail": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3",
+      "passed": true
+     },
+     "role_only_acting_ego_present": {
+      "detail": "tick loop passes acting_agent_id; central builder marks the decision owner EGO",
+      "passed": true
+     },
+     "seed_schedule_matches_comparator": {
+      "detail": "provenance seeds block equality",
+      "passed": true
+     },
+     "solver_environment": {
+      "detail": {
+       "bonmin": {
+        "available": true,
+        "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Library\\bin\\bonmin.EXE",
+        "probe": "ok",
+        "probe_output": "bonmin (Microsoft cl 15.00.21022.08 f\ufffdr 80x86), ASL(20100130)"
+       },
+       "git": {
+        "available": true,
+        "branch": "HEAD",
+        "commit": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+        "dirty": false,
+        "dirty_path_count": 0,
+        "reason": null,
+        "repo_root": "C:\\grolelambda1"
+       },
+       "python": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+       "torch": "2.7.1+cpu"
+      },
+      "passed": true
+     },
+     "working_tree_clean_incl_untracked": {
+      "detail": "",
+      "passed": true
+     }
+    },
+    "preflight_code": {
+     "checkout_head": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+     "detached": true,
+     "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+     "origin_main": "adc213670ce4844a7cf60943ecf50150318e40b1",
+     "porcelain_untracked_all": "",
+     "pr75_observed": {
+      "headRefName": "task/ctde-acting-ego-conditioning",
+      "headRefOid": "557e072b94884bef37ece82a064ad877a5a2f636",
+      "isDraft": true,
+      "state": "OPEN"
+     },
+     "worktree": "C:\\grolelambda1"
+    },
+    "python_executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+    "resolved_train_config": {
+     "actor_gradient_diagnostics": true,
+     "aircraft_penalty_coeff": 2.25,
+     "base_seed": 3000000,
+     "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+     "benchmark_profile": "development",
+     "checkpoint_every": 25,
+     "ctde": {
+      "critic_lr": 0.0003,
+      "gae_lambda": 1.0,
+      "value_coeff": 0.5
+     },
+     "early_stopping": false,
+     "early_stopping_min_delta": 0.01,
+     "early_stopping_min_iterations": 100,
+     "early_stopping_patience_windows": 3,
+     "early_stopping_window_iterations": 25,
+     "episode_design": "generalized_v2",
+     "episodes_per_iteration": 8,
+     "eval_base_seed": 1000000,
+     "eval_episodes": 8,
+     "eval_every": 25,
+     "fuel_damage_leg_progress": 0.3,
+     "fuel_damage_mild_probability": 0.5,
+     "fuel_damage_mode": "seeded_variable",
+     "fuel_damage_probability": 1.0,
+     "fuel_damage_rtb_margin": 1.1,
+     "generalized_max_attempts_per_iteration": 12,
+     "include_sams": false,
+     "match_aou_backend": "p1_milp_v1",
+     "max_ticks": null,
+     "min_known_separation_km": 100.0,
+     "min_target_distance_km": 200.0,
+     "n_hidden": 3,
+     "n_iterations": 100,
+     "n_known": 3,
+     "num_agents": 3,
+     "num_red_airbases": [
+      6,
+      6
+     ],
+     "output_dir": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3",
+     "partial_ratio": 0.5,
+     "ppo": {
+      "adv_norm_eps": 1e-08,
+      "clip_ratio": 0.2,
+      "entropy_coeff": 0.01,
+      "gamma": 1.0,
+      "lr": 0.0003,
+      "max_grad_norm": 0.5,
+      "n_epochs": 4
+     },
+     "randomize_red_airbase_positions": true,
+     "stretch_target_ratio": 0.5,
+     "training_mode": "ctde",
+     "visual_artifacts": false
+    }
+   },
+   "owner_transition_audit": {
+    "all_nonterminal": {
+     "fraction_abs_future_gt_abs_local": 0.9191489361702128,
+     "fraction_of_nonterminal": 1.0,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4794326241134752,
+     "iqr_delta_value": 0.020577937364578247,
+     "mean_abs_td_residual": 0.03246515147414402,
+     "mean_delta_value": 0.015856770921419277,
+     "median_abs_delta_value": 0.007227182388305664,
+     "median_abs_deviation_delta_value": 0.007122814655303955,
+     "median_abs_td_over_abs_raw_advantage": 0.039753876279495455,
+     "median_abs_td_residual": 0.007227182388305664,
+     "median_delta_value": 0.0005327463150024414,
+     "n": 705,
+     "n_rows_in_td_ratio": 705,
+     "pstdev_delta_value": 0.06347861323425152
+    },
+    "by_iteration_window": {
+     "0-49": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.8959537572254336,
+       "fraction_of_nonterminal": 0.2453900709219858,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.4913294797687861,
+       "iqr_delta_value": 0.03366813063621521,
+       "mean_abs_td_residual": 0.03843805826985078,
+       "mean_delta_value": 0.021639667279113924,
+       "median_abs_delta_value": 0.012755036354064941,
+       "median_abs_deviation_delta_value": 0.012474209070205688,
+       "median_abs_td_over_abs_raw_advantage": 0.06989069906469983,
+       "median_abs_td_residual": 0.012755036354064941,
+       "median_delta_value": 0.0030999183654785156,
+       "n": 173,
+       "n_rows_in_td_ratio": 173,
+       "pstdev_delta_value": 0.06368904628247975
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9764705882352941,
+       "fraction_of_nonterminal": 0.24113475177304963,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.5294117647058824,
+       "iqr_delta_value": 0.008471794426441193,
+       "mean_abs_td_residual": 0.018905377177083318,
+       "mean_delta_value": 0.006451319648391183,
+       "median_abs_delta_value": 0.0034417659044265747,
+       "median_abs_deviation_delta_value": 0.003438994288444519,
+       "median_abs_td_over_abs_raw_advantage": 0.014395856252242345,
+       "median_abs_td_residual": 0.0034417659044265747,
+       "median_delta_value": -0.0002524852752685547,
+       "n": 170,
+       "n_rows_in_td_ratio": 170,
+       "pstdev_delta_value": 0.04461827112976527
+      }
+     },
+     "50-99": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.8421052631578947,
+       "fraction_of_nonterminal": 0.21560283687943263,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.42105263157894735,
+       "iqr_delta_value": 0.06619764305651188,
+       "mean_abs_td_residual": 0.05084570807000426,
+       "mean_delta_value": 0.044320298220937776,
+       "median_abs_delta_value": 0.010031215846538544,
+       "median_abs_deviation_delta_value": 0.011111989617347717,
+       "median_abs_td_over_abs_raw_advantage": 0.08320990477450621,
+       "median_abs_td_residual": 0.010031215846538544,
+       "median_delta_value": 0.006540171802043915,
+       "n": 152,
+       "n_rows_in_td_ratio": 152,
+       "pstdev_delta_value": 0.08405627040823757
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9476190476190476,
+       "fraction_of_nonterminal": 0.2978723404255319,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.4714285714285714,
+       "iqr_delta_value": 0.012013528496026993,
+       "mean_abs_td_residual": 0.025217552199250176,
+       "mean_delta_value": -0.0018954695690245856,
+       "median_abs_delta_value": 0.006087318062782288,
+       "median_abs_deviation_delta_value": 0.006052687764167786,
+       "median_abs_td_over_abs_raw_advantage": 0.03045810534758451,
+       "median_abs_td_residual": 0.006087318062782288,
+       "median_delta_value": -0.00018312036991119385,
+       "n": 210,
+       "n_rows_in_td_ratio": 210,
+       "pstdev_delta_value": 0.049595934510419125
+      }
+     }
+    },
+    "by_owner_and_next_wake_kind": {
+     "different_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.8707692307692307,
+      "fraction_of_nonterminal": 0.46099290780141844,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.4584615384615385,
+      "iqr_delta_value": 0.04977878928184509,
+      "mean_abs_td_residual": 0.04424102063792256,
+      "mean_delta_value": 0.03224722390421308,
+      "median_abs_delta_value": 0.011714756488800049,
+      "median_abs_deviation_delta_value": 0.012199550867080688,
+      "median_abs_td_over_abs_raw_advantage": 0.07847262073006137,
+      "median_abs_td_residual": 0.011714756488800049,
+      "median_delta_value": 0.004607200622558594,
+      "n": 325,
+      "n_rows_in_td_ratio": 325,
+      "pstdev_delta_value": 0.0747778198786466
+     },
+     "same_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.9619565217391305,
+      "fraction_of_nonterminal": 0.26099290780141843,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.5108695652173914,
+      "iqr_delta_value": 0.00759410485625267,
+      "mean_abs_td_residual": 0.015269309160825998,
+      "mean_delta_value": 0.0019754998628859935,
+      "median_abs_delta_value": 0.0024244189262390137,
+      "median_abs_deviation_delta_value": 0.0024625584483146667,
+      "median_abs_td_over_abs_raw_advantage": 0.012140944119140476,
+      "median_abs_td_residual": 0.0024244189262390137,
+      "median_delta_value": 3.8139522075653076e-05,
+      "n": 184,
+      "n_rows_in_td_ratio": 184,
+      "pstdev_delta_value": 0.03864141042024091
+     },
+     "same_ego_next|post_fd_boundary": {
+      "fraction_abs_future_gt_abs_local": 0.9591836734693877,
+      "fraction_of_nonterminal": 0.27801418439716313,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.4846938775510204,
+      "iqr_delta_value": 0.017111994326114655,
+      "mean_abs_td_residual": 0.029081873450789372,
+      "mean_delta_value": 0.0017101212038791605,
+      "median_abs_delta_value": 0.008631311357021332,
+      "median_abs_deviation_delta_value": 0.00894135981798172,
+      "median_abs_td_over_abs_raw_advantage": 0.03661130359671215,
+      "median_abs_td_residual": 0.008631311357021332,
+      "median_delta_value": -0.0012545064091682434,
+      "n": 196,
+      "n_rows_in_td_ratio": 196,
+      "pstdev_delta_value": 0.05471543145981335
+     }
+    },
+    "different_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.8707692307692307,
+     "fraction_of_nonterminal": 0.46099290780141844,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4584615384615385,
+     "iqr_delta_value": 0.04977878928184509,
+     "mean_abs_td_residual": 0.04424102063792256,
+     "mean_delta_value": 0.03224722390421308,
+     "median_abs_delta_value": 0.011714756488800049,
+     "median_abs_deviation_delta_value": 0.012199550867080688,
+     "median_abs_td_over_abs_raw_advantage": 0.07847262073006137,
+     "median_abs_td_residual": 0.011714756488800049,
+     "median_delta_value": 0.004607200622558594,
+     "n": 325,
+     "n_rows_in_td_ratio": 325,
+     "pstdev_delta_value": 0.0747778198786466
+    },
+    "next_wake_kind_counts": {
+     "ordinary": 509,
+     "post_fd_boundary": 196
+    },
+    "nonterminal_n": 705,
+    "note": "only observed (owner, next-wake) cells are listed; no empty category is created",
+    "population": "NONTERMINAL immediate_fuel_damage rows of the FD-selected ego, iterations 0..99, joined to the next global decision of the same episode",
+    "same_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.9605263157894737,
+     "fraction_of_nonterminal": 0.5390070921985816,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.49736842105263157,
+     "iqr_delta_value": 0.010401144623756409,
+     "mean_abs_td_residual": 0.02239368442617553,
+     "mean_delta_value": 0.0018386203440298376,
+     "median_abs_delta_value": 0.005272090435028076,
+     "median_abs_deviation_delta_value": 0.005272090435028076,
+     "median_abs_td_over_abs_raw_advantage": 0.023841011055784168,
+     "median_abs_td_residual": 0.005272090435028076,
+     "median_delta_value": -0.00020581483840942383,
+     "n": 380,
+     "n_rows_in_td_ratio": 380,
+     "pstdev_delta_value": 0.04761491474246959
+    },
+    "severity_by_owner": {
+     "different_ego_next": {
+      "mild": 178,
+      "severe": 147
+     },
+     "same_ego_next": {
+      "mild": 191,
+      "severe": 189
+     }
+    },
+    "structure": {
+     "gae_lambda_values": [
+      1.0
+     ],
+     "gamma_values": [
+      1.0
+     ],
+     "n_nonzero_transition_reward": 0,
+     "n_td_residual_not_equal_delta_value": 0,
+     "note": "with a terminal-only reward and gamma = 1, a nonterminal td_residual is exactly V_{t+1} - V_t. Under lambda = 1 it remains a DIAGNOSTIC of consecutive values but is NOT the actor's total advantage: raw_advantage telescopes to R - V_t, and future_component = A_{t+1} = R - V_{t+1}"
+    },
+    "within_update_severe_minus_mild": {
+     "all_nonterminal": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.05513356918373133,
+       "median_severe_minus_mild": -0.033321242779493304,
+       "n_updates_with_both_severities": 98
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.0690790037171774,
+       "median_severe_minus_mild": -0.03755440115928649,
+       "n_updates_with_both_severities": 98
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": 0.013945434533446065,
+       "median_severe_minus_mild": 0.003709332086145878,
+       "n_updates_with_both_severities": 98
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.39892502319259576,
+       "median_severe_minus_mild": -0.3377460040058491,
+       "n_updates_with_both_severities": 98
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": 0.013945434533446065,
+       "median_severe_minus_mild": 0.003709332086145878,
+       "n_updates_with_both_severities": 98
+      }
+     },
+     "different_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": 0.0012912701060115092,
+       "median_severe_minus_mild": -0.0002850443124771118,
+       "n_updates_with_both_severities": 67
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.04082161101943521,
+       "median_severe_minus_mild": -0.02027173340320587,
+       "n_updates_with_both_severities": 67
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": 0.04211288112544673,
+       "median_severe_minus_mild": 0.018280625343322754,
+       "n_updates_with_both_severities": 67
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.23450022259472703,
+       "median_severe_minus_mild": -0.2734716027134163,
+       "n_updates_with_both_severities": 67
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": 0.04211288112544673,
+       "median_severe_minus_mild": 0.018280625343322754,
+       "n_updates_with_both_severities": 67
+      }
+     },
+     "same_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.08497415866181561,
+       "median_severe_minus_mild": -0.06209380924701691,
+       "n_updates_with_both_severities": 81
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.07670657513049957,
+       "median_severe_minus_mild": -0.04497900605201721,
+       "n_updates_with_both_severities": 81
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": -0.008267583531316047,
+       "median_severe_minus_mild": -0.0035087019205093384,
+       "n_updates_with_both_severities": 81
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.5300659257694574,
+       "median_severe_minus_mild": -0.43292195827293456,
+       "n_updates_with_both_severities": 81
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": -0.008267583531316047,
+       "median_severe_minus_mild": -0.0035087019205093384,
+       "n_updates_with_both_severities": 81
+      }
+     }
+    }
+   },
+   "provenance_git": {
+    "available": true,
+    "branch": "HEAD",
+    "commit": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+    "dirty": false,
+    "dirty_path_count": 0,
+    "reason": null,
+    "repo_root": "C:\\grolelambda1"
+   },
+   "role": "NEW run (intervention: ctde.gae_lambda 0.95 -> 1.0)",
+   "run_dir": "C:\\gruns\\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3",
+   "run_id": "graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3",
+   "run_summary": {
+    "accounting_reconciled": true,
+    "eval_episodes_attempted": 300,
+    "eval_episodes_failed": 0,
+    "eval_episodes_successful": 300,
+    "failures_recorded": 0,
+    "n_eval_rounds": 5,
+    "n_productive_iterations": 100,
+    "total_transitions": 2981,
+    "train_episodes_attempted": 800,
+    "train_episodes_failed": 0,
+    "train_episodes_successful": 800,
+    "train_replacement_attempts": 0,
+    "updates_completed": 100
+   },
+   "structural_identity": {
+    "gae_lambda_values": [
+     1.0
+    ],
+    "gae_recurrence": {
+     "max_abs_err_nonterminal_A_minus_td_minus_gamma_lambda_A_next": 5.551115123125783e-17,
+     "max_abs_err_terminal_A_minus_td": 0.0
+    },
+    "gamma_values": [
+     1.0
+    ],
+    "n_episodes": 800,
+    "n_nonterminal": 2181,
+    "n_terminal": 800,
+    "n_transitions": 2981,
+    "population": "EVERY CTDE transition (all wake kinds), iterations 0..99",
+    "reward_structure": {
+     "max_abs_nonterminal_transition_reward": 0.0,
+     "max_abs_terminal_transition_reward_minus_episode_reward": 0.0,
+     "n_episodes_with_nonconstant_episode_reward": 0
+    },
+    "td_recurrence": {
+     "denominators": {
+      "nonterminal": 2181,
+      "terminal": 800
+     },
+     "max_abs_err_nonterminal_td_minus_r_plus_gamma_Vnext_minus_V": 0.0,
+     "max_abs_err_terminal_td_minus_r_minus_V": 0.0
+    },
+    "telescoping_identities": {
+     "identity_tol": 1e-09,
+     "max_abs_err_raw_advantage_minus_episode_reward_minus_value_old": 5.551115123125783e-17,
+     "max_abs_err_value_target_minus_episode_reward": 5.551115123125783e-17,
+     "median_abs_err_raw_advantage_minus_episode_reward_minus_value_old": 0.0,
+     "median_abs_err_value_target_minus_episode_reward": 0.0,
+     "n_rows_err_gt_identity_tol_raw_advantage": 0,
+     "n_rows_err_gt_identity_tol_value_target": 0,
+     "note": "the identities hold by construction only when gamma = 1, lambda = 1 and reward is terminal-only; for a lambda = 0.95 arm the errors are reported as the size of the retained intermediate bootstrap, not as a check"
+    },
+    "value_target_definition": {
+     "max_abs_err_value_target_minus_raw_advantage_minus_value_old": 0.0
+    }
+   },
+   "train_credit_diagnostics_rows": 2981
+  },
+  "role_only_lambda095": {
+   "action_credit": {
+    "0-99": {
+     "mild": {
+      "abort_minus_plan": -1.0391067997535246,
+      "mean_normalized_advantage_abort": -0.3858894512284309,
+      "mean_normalized_advantage_plan": 0.6532173485250938,
+      "n_abort": 110,
+      "n_other": 0,
+      "n_plan": 311,
+      "n_rows": 421,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 311,
+       "SELF_PRESERVATION_ABORT": 110
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.339945517118415,
+      "mean_normalized_advantage_abort": -0.3096706389128692,
+      "mean_normalized_advantage_plan": -0.6496161560312842,
+      "n_abort": 103,
+      "n_other": 1,
+      "n_plan": 275,
+      "n_rows": 379,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 1,
+       "PLAN_COMPLIANCE": 275,
+       "SELF_PRESERVATION_ABORT": 103
+      }
+     }
+    },
+    "50-74": {
+     "mild": {
+      "abort_minus_plan": -1.3988325365638188,
+      "mean_normalized_advantage_abort": -0.7314510223775826,
+      "mean_normalized_advantage_plan": 0.6673815141862363,
+      "n_abort": 18,
+      "n_other": 0,
+      "n_plan": 89,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 89,
+       "SELF_PRESERVATION_ABORT": 18
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.6752423618020352,
+      "mean_normalized_advantage_abort": -0.07920395954576902,
+      "mean_normalized_advantage_plan": -0.7544463213478042,
+      "n_abort": 16,
+      "n_other": 1,
+      "n_plan": 76,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 1,
+       "PLAN_COMPLIANCE": 76,
+       "SELF_PRESERVATION_ABORT": 16
+      }
+     }
+    },
+    "75-99": {
+     "mild": {
+      "abort_minus_plan": -0.947460884435299,
+      "mean_normalized_advantage_abort": -0.3138799750616425,
+      "mean_normalized_advantage_plan": 0.6335809093736565,
+      "n_abort": 11,
+      "n_other": 0,
+      "n_plan": 96,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 96,
+       "SELF_PRESERVATION_ABORT": 11
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.37488162141321574,
+      "mean_normalized_advantage_abort": -0.3586194284841741,
+      "mean_normalized_advantage_plan": -0.7335010498973898,
+      "n_abort": 13,
+      "n_other": 0,
+      "n_plan": 80,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 80,
+       "SELF_PRESERVATION_ABORT": 13
+      }
+     }
+    },
+    "definition": "mean normalized_advantage over sampled ABORT rows minus mean over sampled PLAN rows, per severity and window; descriptive sampled-action association, NOT a counterfactual Q value"
+   },
+   "actor_gradient": {
+    "denominator_note": "windows and signed counts use only updates whose separation_contrast is defined (both MILD and SEVERE immediate-FD transitions present)",
+    "entropy_sign_flip": {
+     "denominator_n_defined": 99,
+     "min_cosine_surrogate_vs_actor_loss_over_all_rows": 0.8783113440789433,
+     "n_defined_where_actor_loss_pressure_sign_differs_from_surrogate": 1
+    },
+    "max_reconstruction_relative_error": 5.875633584586682e-07,
+    "n_defined_contrast": 99,
+    "n_distinct_iterations": 100,
+    "n_fd_positive": 63,
+    "n_fd_positive_non_fd_negative": 29,
+    "n_fd_positive_total_surrogate_negative": 15,
+    "n_rows": 100,
+    "windows": {
+     "0-24": {
+      "mean_fd": 0.016118729869771392,
+      "median_fd": 0.013654872063063445,
+      "median_non_fd": 0.009716419716479319,
+      "median_total_surrogate": 0.007712598705418136,
+      "n_defined": 24,
+      "n_fd_positive": 16,
+      "n_fd_positive_total_surrogate_negative": 4,
+      "n_non_fd_positive": 14,
+      "n_total_surrogate_positive": 14,
+      "n_updates_in_window": 25
+     },
+     "25-49": {
+      "mean_fd": 0.0003632747681749428,
+      "median_fd": 0.0026404362038754876,
+      "median_non_fd": -0.0010543517986347022,
+      "median_total_surrogate": 0.0021893234311992217,
+      "n_defined": 25,
+      "n_fd_positive": 14,
+      "n_fd_positive_total_surrogate_negative": 3,
+      "n_non_fd_positive": 10,
+      "n_total_surrogate_positive": 14,
+      "n_updates_in_window": 25
+     },
+     "50-74": {
+      "mean_fd": -0.005452315182051488,
+      "median_fd": 0.0021305098774690736,
+      "median_non_fd": 0.0029841530578730226,
+      "median_total_surrogate": 0.005814967277932222,
+      "n_defined": 25,
+      "n_fd_positive": 15,
+      "n_fd_positive_total_surrogate_negative": 2,
+      "n_non_fd_positive": 15,
+      "n_total_surrogate_positive": 15,
+      "n_updates_in_window": 25
+     },
+     "75-99": {
+      "mean_fd": -0.00022779697494649712,
+      "median_fd": 0.001220942581354991,
+      "median_non_fd": -0.001230466061276562,
+      "median_total_surrogate": 0.0005091565765870501,
+      "n_defined": 25,
+      "n_fd_positive": 18,
+      "n_fd_positive_total_surrogate_negative": 6,
+      "n_non_fd_positive": 11,
+      "n_total_surrogate_positive": 13,
+      "n_updates_in_window": 25
+     }
+    }
+   },
+   "benchmark": {
+    "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+    "held_out_against_train_band": {
+     "half_open": true,
+     "start": 3000000,
+     "stop": 3001200
+    },
+    "held_out_checked_over": "entire_manifest_all_profiles",
+    "held_out_overlap_count": 0,
+    "held_out_verified": true,
+    "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+    "n_members": 60,
+    "n_worlds": 20,
+    "profile": "development"
+   },
+   "checkout": "branch task/ctde-acting-ego-conditioning",
+   "config_source": {
+    "absolute_path": null,
+    "cli_overrides": [],
+    "config_fields": [],
+    "format": null,
+    "path": null,
+    "resolved_from": "cli_defaults"
+   },
+   "credit": {
+    "nonterminal_local_vs_total": {
+     "fraction_abs_future_gt_abs_local": 0.9206798866855525,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4235127478753541,
+     "mean_abs_local_over_mean_abs_future": 0.1229575889493806,
+     "median_abs_future_gamma_lambda_A_next": 0.18766052290736313,
+     "median_abs_local_td_residual": 0.006796777248382568,
+     "median_abs_td_residual_over_abs_raw_advantage": 0.047006043349891356,
+     "n_nonterminal_rows_excluded_raw_advantage_zero": 0,
+     "n_rows_in_ratio": 706,
+     "within_update_future_0_99": {
+      "mean_severe_minus_mild": -0.355115103680334,
+      "median_severe_minus_mild": -0.3109443046422584,
+      "n_updates_with_both_severities": 98
+     },
+     "within_update_future_50_99": {
+      "mean_severe_minus_mild": -0.40371204942234995,
+      "median_severe_minus_mild": -0.36619843289185444,
+      "n_updates_with_both_severities": 49
+     },
+     "within_update_local_0_99": {
+      "mean_severe_minus_mild": 0.004553545711619058,
+      "median_severe_minus_mild": -0.0006119658549626668,
+      "n_updates_with_both_severities": 98
+     },
+     "within_update_local_50_99": {
+      "mean_severe_minus_mild": 0.0011745499459659165,
+      "median_severe_minus_mild": -0.0011301040649414062,
+      "n_updates_with_both_severities": 49
+     }
+    },
+    "nonterminal_n": 706,
+    "population": "immediate_fuel_damage credit rows with measurement_join.is_fd_selected_ego = true, iterations 0..99",
+    "population_n": 800,
+    "severity_counts": {
+     "mild": 421,
+     "severe": 379
+    },
+    "terminal_n": 94,
+    "value_old_within_update_by_window": {
+     "0-24": {
+      "mean_severe_minus_mild": -0.0053858521313125615,
+      "median_severe_minus_mild": -0.002445748945077264,
+      "n_updates_with_both_severities": 24
+     },
+     "25-49": {
+      "mean_severe_minus_mild": -0.06896703428030014,
+      "median_severe_minus_mild": -0.05486709972222645,
+      "n_updates_with_both_severities": 25
+     },
+     "50-74": {
+      "mean_severe_minus_mild": -0.02671753069971289,
+      "median_severe_minus_mild": -0.013238988816738129,
+      "n_updates_with_both_severities": 25
+     },
+     "75-99": {
+      "mean_severe_minus_mild": -0.06611876294868332,
+      "median_severe_minus_mild": -0.058318336804707854,
+      "n_updates_with_both_severities": 25
+     }
+    },
+    "within_update_severe_minus_mild_0_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.3272009722018703,
+      "median_severe_minus_mild": -0.31946099327107097,
+      "n_updates_with_both_severities": 99
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": -0.011407615425141036,
+      "median_severe_minus_mild": -0.0017806291580200195,
+      "n_updates_with_both_severities": 99
+     },
+     "value_old": {
+      "mean_severe_minus_mild": -0.042165087367362734,
+      "median_severe_minus_mild": -0.020490830143292754,
+      "n_updates_with_both_severities": 99
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.369366059569233,
+      "median_severe_minus_mild": -0.32956127716611083,
+      "n_updates_with_both_severities": 99
+     }
+    },
+    "within_update_severe_minus_mild_50_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.37620175594262945,
+      "median_severe_minus_mild": -0.35703000085371717,
+      "n_updates_with_both_severities": 50
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": -0.006112251541180678,
+      "median_severe_minus_mild": -0.0030630454421043396,
+      "n_updates_with_both_severities": 50
+     },
+     "value_old": {
+      "mean_severe_minus_mild": -0.04641814682419811,
+      "median_severe_minus_mild": -0.023623831570148482,
+      "n_updates_with_both_severities": 50
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.42261990276682754,
+      "median_severe_minus_mild": -0.36925328223768644,
+      "n_updates_with_both_severities": 50
+     }
+    }
+   },
+   "critic": "role-only acting-ego central state, mean-pool readout",
+   "evaluation_trajectory": [
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "pre_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -0.0005158036947250366,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 0
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -3.570020198822022e-05,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 25
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 3.2563507556915286e-05,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 50
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 0.007641426846385002,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 75
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -0.0010905589908361435,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 100
+    }
+   ],
+   "fuel_damage_totals": {
+    "train_clean_successful": 0,
+    "train_damaged_successful": 800,
+    "train_fuel_damage_events_applied": 800,
+    "train_fuel_damage_wakes": 800,
+    "train_mild_successful": 421,
+    "train_severe_successful": 379
+   },
+   "gae_lambda": 0.95,
+   "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "native_exit_code": "0",
+   "owner_transition_audit": {
+    "all_nonterminal": {
+     "fraction_abs_future_gt_abs_local": 0.9206798866855525,
+     "fraction_of_nonterminal": 1.0,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.4235127478753541,
+     "iqr_delta_value": 0.01782238483428955,
+     "mean_abs_td_residual": 0.029251908405259167,
+     "mean_delta_value": 0.010718610815086505,
+     "median_abs_delta_value": 0.006796777248382568,
+     "median_abs_deviation_delta_value": 0.006634697318077087,
+     "median_abs_td_over_abs_raw_advantage": 0.047006043349891356,
+     "median_abs_td_residual": 0.006796777248382568,
+     "median_delta_value": 0.001626819372177124,
+     "n": 706,
+     "n_rows_in_td_ratio": 706,
+     "pstdev_delta_value": 0.05835096396759686
+    },
+    "by_iteration_window": {
+     "0-49": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.8876404494382022,
+       "fraction_of_nonterminal": 0.2521246458923513,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.449438202247191,
+       "iqr_delta_value": 0.04970533400774002,
+       "mean_abs_td_residual": 0.048478270671592,
+       "mean_delta_value": 0.023162610441697446,
+       "median_abs_delta_value": 0.022330641746520996,
+       "median_abs_deviation_delta_value": 0.02134774625301361,
+       "median_abs_td_over_abs_raw_advantage": 0.14765736942502064,
+       "median_abs_td_residual": 0.022330641746520996,
+       "median_delta_value": 0.00810590386390686,
+       "n": 178,
+       "n_rows_in_td_ratio": 178,
+       "pstdev_delta_value": 0.07458058917029382
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.926829268292683,
+       "fraction_of_nonterminal": 0.23229461756373937,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.42073170731707316,
+       "iqr_delta_value": 0.01580347865819931,
+       "mean_abs_td_residual": 0.024094898159979138,
+       "mean_delta_value": 0.0048766335126058,
+       "median_abs_delta_value": 0.007569864392280579,
+       "median_abs_deviation_delta_value": 0.007452026009559631,
+       "median_abs_td_over_abs_raw_advantage": 0.03485218533094129,
+       "median_abs_td_residual": 0.007569864392280579,
+       "median_delta_value": 0.00011783838272094727,
+       "n": 164,
+       "n_rows_in_td_ratio": 164,
+       "pstdev_delta_value": 0.048770073007514535
+      }
+     },
+     "50-99": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9006622516556292,
+       "fraction_of_nonterminal": 0.21388101983002833,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.48344370860927155,
+       "iqr_delta_value": 0.0271526537835598,
+       "mean_abs_td_residual": 0.03070819784967315,
+       "mean_delta_value": 0.023384462745971238,
+       "median_abs_delta_value": 0.005033254623413086,
+       "median_abs_deviation_delta_value": 0.004271328449249268,
+       "median_abs_td_over_abs_raw_advantage": 0.037209979194929584,
+       "median_abs_td_residual": 0.005033254623413086,
+       "median_delta_value": 0.003806471824645996,
+       "n": 151,
+       "n_rows_in_td_ratio": 151,
+       "pstdev_delta_value": 0.058133611636851906
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9577464788732394,
+       "fraction_of_nonterminal": 0.301699716713881,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.3615023474178404,
+       "iqr_delta_value": 0.007456302642822266,
+       "mean_abs_td_residual": 0.016123070333485312,
+       "mean_delta_value": -0.004161630018216344,
+       "median_abs_delta_value": 0.0037208199501037598,
+       "median_abs_deviation_delta_value": 0.0037482380867004395,
+       "median_abs_td_over_abs_raw_advantage": 0.02472420905690704,
+       "median_abs_td_residual": 0.0037208199501037598,
+       "median_delta_value": 0.0001398921012878418,
+       "n": 213,
+       "n_rows_in_td_ratio": 213,
+       "pstdev_delta_value": 0.04380914609639143
+      }
+     }
+    },
+    "by_owner_and_next_wake_kind": {
+     "different_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.8936170212765957,
+      "fraction_of_nonterminal": 0.4660056657223796,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.46504559270516715,
+      "iqr_delta_value": 0.03954249620437622,
+      "mean_abs_td_residual": 0.040322401382504626,
+      "mean_delta_value": 0.02326443323180487,
+      "median_abs_delta_value": 0.013085126876831055,
+      "median_abs_deviation_delta_value": 0.010662287473678589,
+      "median_abs_td_over_abs_raw_advantage": 0.08623433457048241,
+      "median_abs_td_residual": 0.013085126876831055,
+      "median_delta_value": 0.004821330308914185,
+      "n": 329,
+      "n_rows_in_td_ratio": 329,
+      "pstdev_delta_value": 0.06753124009853555
+     },
+     "same_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.9562841530054644,
+      "fraction_of_nonterminal": 0.25920679886685555,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.40437158469945356,
+      "iqr_delta_value": 0.00574396550655365,
+      "mean_abs_td_residual": 0.009072877100256622,
+      "mean_delta_value": 0.0008273896623830326,
+      "median_abs_delta_value": 0.0027524828910827637,
+      "median_abs_deviation_delta_value": 0.0028121471405029297,
+      "median_abs_td_over_abs_raw_advantage": 0.016015294022015653,
+      "median_abs_td_residual": 0.0027524828910827637,
+      "median_delta_value": 0.0003464818000793457,
+      "n": 183,
+      "n_rows_in_td_ratio": 183,
+      "pstdev_delta_value": 0.01955104175699234
+     },
+     "same_ego_next|post_fd_boundary": {
+      "fraction_abs_future_gt_abs_local": 0.9329896907216495,
+      "fraction_of_nonterminal": 0.2747875354107649,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.3711340206185567,
+      "iqr_delta_value": 0.018923185765743256,
+      "mean_abs_td_residual": 0.02951258128825767,
+      "mean_delta_value": -0.0012271732269527064,
+      "median_abs_delta_value": 0.008553534746170044,
+      "median_abs_deviation_delta_value": 0.008594557642936707,
+      "median_abs_td_over_abs_raw_advantage": 0.05083020351253773,
+      "median_abs_td_residual": 0.008553534746170044,
+      "median_delta_value": -0.00037354230880737305,
+      "n": 194,
+      "n_rows_in_td_ratio": 194,
+      "pstdev_delta_value": 0.06159800210779161
+     }
+    },
+    "different_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.8936170212765957,
+     "fraction_of_nonterminal": 0.4660056657223796,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.46504559270516715,
+     "iqr_delta_value": 0.03954249620437622,
+     "mean_abs_td_residual": 0.040322401382504626,
+     "mean_delta_value": 0.02326443323180487,
+     "median_abs_delta_value": 0.013085126876831055,
+     "median_abs_deviation_delta_value": 0.010662287473678589,
+     "median_abs_td_over_abs_raw_advantage": 0.08623433457048241,
+     "median_abs_td_residual": 0.013085126876831055,
+     "median_delta_value": 0.004821330308914185,
+     "n": 329,
+     "n_rows_in_td_ratio": 329,
+     "pstdev_delta_value": 0.06753124009853555
+    },
+    "next_wake_kind_counts": {
+     "ordinary": 512,
+     "post_fd_boundary": 194
+    },
+    "nonterminal_n": 706,
+    "note": "only observed (owner, next-wake) cells are listed; no empty category is created",
+    "population": "NONTERMINAL immediate_fuel_damage rows of the FD-selected ego, iterations 0..99, joined to the next global decision of the same episode",
+    "same_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.9442970822281167,
+     "fraction_of_nonterminal": 0.5339943342776204,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.38726790450928383,
+     "iqr_delta_value": 0.009779274463653564,
+     "mean_abs_td_residual": 0.01959092116516963,
+     "mean_delta_value": -0.0002298655114396023,
+     "median_abs_delta_value": 0.005046844482421875,
+     "median_abs_deviation_delta_value": 0.004989907145500183,
+     "median_abs_td_over_abs_raw_advantage": 0.027519746855020358,
+     "median_abs_td_residual": 0.005046844482421875,
+     "median_delta_value": 0.0001398921012878418,
+     "n": 377,
+     "n_rows_in_td_ratio": 377,
+     "pstdev_delta_value": 0.04625052622628325
+    },
+    "severity_by_owner": {
+     "different_ego_next": {
+      "mild": 180,
+      "severe": 149
+     },
+     "same_ego_next": {
+      "mild": 190,
+      "severe": 187
+     }
+    },
+    "structure": {
+     "gae_lambda_values": [
+      0.95
+     ],
+     "gamma_values": [
+      1.0
+     ],
+     "n_nonzero_transition_reward": 0,
+     "n_td_residual_not_equal_delta_value": 0,
+     "note": "with a terminal-only reward and gamma = 1, a nonterminal td_residual is exactly V_{t+1} - V_t. Under lambda = 1 it remains a DIAGNOSTIC of consecutive values but is NOT the actor's total advantage: raw_advantage telescopes to R - V_t, and future_component = A_{t+1} = R - V_{t+1}"
+    },
+    "within_update_severe_minus_mild": {
+     "all_nonterminal": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.04568523468485462,
+       "median_severe_minus_mild": -0.01829421023527779,
+       "n_updates_with_both_severities": 98
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.05023878039647368,
+       "median_severe_minus_mild": -0.02301778569817542,
+       "n_updates_with_both_severities": 98
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": 0.004553545711619058,
+       "median_severe_minus_mild": -0.0006119658549626668,
+       "n_updates_with_both_severities": 98
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.355115103680334,
+       "median_severe_minus_mild": -0.3109443046422584,
+       "n_updates_with_both_severities": 98
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": 0.004553545711619058,
+       "median_severe_minus_mild": -0.0006119658549626668,
+       "n_updates_with_both_severities": 98
+      }
+     },
+     "different_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": 0.004051775018225854,
+       "median_severe_minus_mild": 0.00052681565284729,
+       "n_updates_with_both_severities": 67
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.01914051845113733,
+       "median_severe_minus_mild": -0.008884946505228697,
+       "n_updates_with_both_severities": 67
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": 0.023192293469363183,
+       "median_severe_minus_mild": 0.022281433145205178,
+       "n_updates_with_both_severities": 67
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.19917243038736934,
+       "median_severe_minus_mild": -0.2052558640931323,
+       "n_updates_with_both_severities": 67
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": 0.023192293469363183,
+       "median_severe_minus_mild": 0.022281433145205178,
+       "n_updates_with_both_severities": 67
+      }
+     },
+     "same_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.07462961781731185,
+       "median_severe_minus_mild": -0.030764585981766387,
+       "n_updates_with_both_severities": 80
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.06444439500647907,
+       "median_severe_minus_mild": -0.019569531083106995,
+       "n_updates_with_both_severities": 80
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": -0.010185222810832784,
+       "median_severe_minus_mild": -0.0033569782972335815,
+       "n_updates_with_both_severities": 80
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.47842096349518126,
+       "median_severe_minus_mild": -0.39165935008560837,
+       "n_updates_with_both_severities": 80
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": -0.010185222810832784,
+       "median_severe_minus_mild": -0.0033569782972335815,
+       "n_updates_with_both_severities": 80
+      }
+     }
+    }
+   },
+   "provenance_git": {
+    "available": true,
+    "branch": "task/ctde-acting-ego-conditioning",
+    "commit": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+    "dirty": false,
+    "dirty_path_count": 0,
+    "reason": null,
+    "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation"
+   },
+   "role": "PRIMARY comparator (same measured code SHA)",
+   "run_dir": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+   "run_id": "graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+   "run_summary": {
+    "accounting_reconciled": true,
+    "eval_episodes_attempted": 300,
+    "eval_episodes_failed": 0,
+    "eval_episodes_successful": 300,
+    "failures_recorded": 0,
+    "n_eval_rounds": 5,
+    "n_productive_iterations": 100,
+    "total_transitions": 2982,
+    "train_episodes_attempted": 800,
+    "train_episodes_failed": 0,
+    "train_episodes_successful": 800,
+    "train_replacement_attempts": 0,
+    "updates_completed": 100
+   },
+   "structural_identity": {
+    "gae_lambda_values": [
+     0.95
+    ],
+    "gae_recurrence": {
+     "max_abs_err_nonterminal_A_minus_td_minus_gamma_lambda_A_next": 1.1102230246251565e-16,
+     "max_abs_err_terminal_A_minus_td": 0.0
+    },
+    "gamma_values": [
+     1.0
+    ],
+    "n_episodes": 800,
+    "n_nonterminal": 2182,
+    "n_terminal": 800,
+    "n_transitions": 2982,
+    "population": "EVERY CTDE transition (all wake kinds), iterations 0..99",
+    "reward_structure": {
+     "max_abs_nonterminal_transition_reward": 0.0,
+     "max_abs_terminal_transition_reward_minus_episode_reward": 0.0,
+     "n_episodes_with_nonconstant_episode_reward": 0
+    },
+    "td_recurrence": {
+     "denominators": {
+      "nonterminal": 2182,
+      "terminal": 800
+     },
+     "max_abs_err_nonterminal_td_minus_r_plus_gamma_Vnext_minus_V": 0.0,
+     "max_abs_err_terminal_td_minus_r_minus_V": 0.0
+    },
+    "telescoping_identities": {
+     "identity_tol": 1e-09,
+     "max_abs_err_raw_advantage_minus_episode_reward_minus_value_old": 0.34865698512678067,
+     "max_abs_err_value_target_minus_episode_reward": 0.34865698512678067,
+     "median_abs_err_raw_advantage_minus_episode_reward_minus_value_old": 0.010742786374524776,
+     "median_abs_err_value_target_minus_episode_reward": 0.010742786374524804,
+     "n_rows_err_gt_identity_tol_raw_advantage": 2182,
+     "n_rows_err_gt_identity_tol_value_target": 2182,
+     "note": "the identities hold by construction only when gamma = 1, lambda = 1 and reward is terminal-only; for a lambda = 0.95 arm the errors are reported as the size of the retained intermediate bootstrap, not as a check"
+    },
+    "value_target_definition": {
+     "max_abs_err_value_target_minus_raw_advantage_minus_value_old": 0.0
+    }
+   },
+   "train_credit_diagnostics_rows": 2982
+  },
+  "symmetric": {
+   "action_credit": {
+    "0-99": {
+     "mild": {
+      "abort_minus_plan": -1.0896829287954226,
+      "mean_normalized_advantage_abort": -0.4147234602654503,
+      "mean_normalized_advantage_plan": 0.6749594685299722,
+      "n_abort": 120,
+      "n_other": 0,
+      "n_plan": 301,
+      "n_rows": 421,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 301,
+       "SELF_PRESERVATION_ABORT": 120
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.36875141417863533,
+      "mean_normalized_advantage_abort": -0.3649031489852571,
+      "mean_normalized_advantage_plan": -0.7336545631638924,
+      "n_abort": 109,
+      "n_other": 1,
+      "n_plan": 269,
+      "n_rows": 379,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 1,
+       "PLAN_COMPLIANCE": 269,
+       "SELF_PRESERVATION_ABORT": 109
+      }
+     }
+    },
+    "50-74": {
+     "mild": {
+      "abort_minus_plan": -1.3561171955394644,
+      "mean_normalized_advantage_abort": -0.6656201812817086,
+      "mean_normalized_advantage_plan": 0.6904970142577559,
+      "n_abort": 22,
+      "n_other": 0,
+      "n_plan": 85,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 85,
+       "SELF_PRESERVATION_ABORT": 22
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.6909030807569925,
+      "mean_normalized_advantage_abort": -0.13219788259968254,
+      "mean_normalized_advantage_plan": -0.823100963356675,
+      "n_abort": 19,
+      "n_other": 1,
+      "n_plan": 73,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "OPPORTUNISTIC_ENGAGEMENT": 1,
+       "PLAN_COMPLIANCE": 73,
+       "SELF_PRESERVATION_ABORT": 19
+      }
+     }
+    },
+    "75-99": {
+     "mild": {
+      "abort_minus_plan": -1.021406146408342,
+      "mean_normalized_advantage_abort": -0.3216010453218628,
+      "mean_normalized_advantage_plan": 0.6998051010864791,
+      "n_abort": 21,
+      "n_other": 0,
+      "n_plan": 86,
+      "n_rows": 107,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 86,
+       "SELF_PRESERVATION_ABORT": 21
+      }
+     },
+     "severe": {
+      "abort_minus_plan": 0.23154628630232588,
+      "mean_normalized_advantage_abort": -0.6339919289796637,
+      "mean_normalized_advantage_plan": -0.8655382152819896,
+      "n_abort": 21,
+      "n_other": 0,
+      "n_plan": 72,
+      "n_rows": 93,
+      "selected_action_counts": {
+       "PLAN_COMPLIANCE": 72,
+       "SELF_PRESERVATION_ABORT": 21
+      }
+     }
+    },
+    "definition": "mean normalized_advantage over sampled ABORT rows minus mean over sampled PLAN rows, per severity and window; descriptive sampled-action association, NOT a counterfactual Q value"
+   },
+   "actor_gradient": {
+    "denominator_note": "windows and signed counts use only updates whose separation_contrast is defined (both MILD and SEVERE immediate-FD transitions present)",
+    "entropy_sign_flip": {
+     "denominator_n_defined": 99,
+     "min_cosine_surrogate_vs_actor_loss_over_all_rows": 0.9881783922654203,
+     "n_defined_where_actor_loss_pressure_sign_differs_from_surrogate": 0
+    },
+    "max_reconstruction_relative_error": 4.696504150008184e-07,
+    "n_defined_contrast": 99,
+    "n_distinct_iterations": 100,
+    "n_fd_positive": 64,
+    "n_fd_positive_non_fd_negative": 22,
+    "n_fd_positive_total_surrogate_negative": 11,
+    "n_rows": 100,
+    "windows": {
+     "0-24": {
+      "mean_fd": 0.017236586663127385,
+      "median_fd": 0.014278093720640199,
+      "median_non_fd": 0.00940820903597553,
+      "median_total_surrogate": 0.013295012061896106,
+      "n_defined": 24,
+      "n_fd_positive": 18,
+      "n_fd_positive_total_surrogate_negative": 3,
+      "n_non_fd_positive": 14,
+      "n_total_surrogate_positive": 17,
+      "n_updates_in_window": 25
+     },
+     "25-49": {
+      "mean_fd": -0.009792081545398297,
+      "median_fd": 0.0006555114746381674,
+      "median_non_fd": 0.0020838473491086745,
+      "median_total_surrogate": -0.0004369221591113768,
+      "n_defined": 25,
+      "n_fd_positive": 13,
+      "n_fd_positive_total_surrogate_negative": 3,
+      "n_non_fd_positive": 14,
+      "n_total_surrogate_positive": 12,
+      "n_updates_in_window": 25
+     },
+     "50-74": {
+      "mean_fd": 0.0068266591259413326,
+      "median_fd": 0.019473494808124776,
+      "median_non_fd": 0.018951683142736535,
+      "median_total_surrogate": 0.053334045076547446,
+      "n_defined": 25,
+      "n_fd_positive": 20,
+      "n_fd_positive_total_surrogate_negative": 3,
+      "n_non_fd_positive": 21,
+      "n_total_surrogate_positive": 18,
+      "n_updates_in_window": 25
+     },
+     "75-99": {
+      "mean_fd": -0.012822369740913768,
+      "median_fd": 0.0002566117850857297,
+      "median_non_fd": -0.000663021731379459,
+      "median_total_surrogate": -0.0006790294366817433,
+      "n_defined": 25,
+      "n_fd_positive": 13,
+      "n_fd_positive_total_surrogate_negative": 2,
+      "n_non_fd_positive": 9,
+      "n_total_surrogate_positive": 12,
+      "n_updates_in_window": 25
+     }
+    }
+   },
+   "benchmark": {
+    "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+    "held_out_against_train_band": {
+     "half_open": true,
+     "start": 3000000,
+     "stop": 3001800
+    },
+    "held_out_checked_over": "entire_manifest_all_profiles",
+    "held_out_overlap_count": 0,
+    "held_out_verified": true,
+    "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+    "n_members": 60,
+    "n_worlds": 20,
+    "profile": "development"
+   },
+   "checkout": "branch task/v2-ctde-gradient-pressure-diagnostics",
+   "config_source": {
+    "absolute_path": null,
+    "cli_overrides": [],
+    "config_fields": [],
+    "format": null,
+    "path": null,
+    "resolved_from": "cli_defaults"
+   },
+   "credit": {
+    "nonterminal_local_vs_total": {
+     "fraction_abs_future_gt_abs_local": 0.9799713876967096,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.5092989985693849,
+     "mean_abs_local_over_mean_abs_future": 0.05469061760795778,
+     "median_abs_future_gamma_lambda_A_next": 0.19826846377806745,
+     "median_abs_local_td_residual": 0.0005178153514862061,
+     "median_abs_td_residual_over_abs_raw_advantage": 0.0030718586881130212,
+     "n_nonterminal_rows_excluded_raw_advantage_zero": 0,
+     "n_rows_in_ratio": 699,
+     "within_update_future_0_99": {
+      "mean_severe_minus_mild": -0.3833496417329705,
+      "median_severe_minus_mild": -0.3188593533721742,
+      "n_updates_with_both_severities": 97
+     },
+     "within_update_future_50_99": {
+      "mean_severe_minus_mild": -0.42022674017508355,
+      "median_severe_minus_mild": -0.34597229032313737,
+      "n_updates_with_both_severities": 48
+     },
+     "within_update_local_0_99": {
+      "mean_severe_minus_mild": 0.00080035911488018,
+      "median_severe_minus_mild": 7.654229799906413e-05,
+      "n_updates_with_both_severities": 97
+     },
+     "within_update_local_50_99": {
+      "mean_severe_minus_mild": -0.0033848583849797414,
+      "median_severe_minus_mild": -5.487104256947835e-06,
+      "n_updates_with_both_severities": 48
+     }
+    },
+    "nonterminal_n": 699,
+    "population": "immediate_fuel_damage credit rows with measurement_join.is_fd_selected_ego = true, iterations 0..99",
+    "population_n": 800,
+    "severity_counts": {
+     "mild": 421,
+     "severe": 379
+    },
+    "terminal_n": 101,
+    "value_old_within_update_by_window": {
+     "0-24": {
+      "mean_severe_minus_mild": 0.00915646089743527,
+      "median_severe_minus_mild": -0.000617273896932613,
+      "n_updates_with_both_severities": 24
+     },
+     "25-49": {
+      "mean_severe_minus_mild": -0.0008709857903775675,
+      "median_severe_minus_mild": 0.00011169910430908203,
+      "n_updates_with_both_severities": 25
+     },
+     "50-74": {
+      "mean_severe_minus_mild": -6.17666386422619e-05,
+      "median_severe_minus_mild": -2.7932723363210954e-05,
+      "n_updates_with_both_severities": 25
+     },
+     "75-99": {
+      "mean_severe_minus_mild": -0.004391830327964969,
+      "median_severe_minus_mild": 7.085005442220016e-06,
+      "n_updates_with_both_severities": 25
+     }
+    },
+    "within_update_severe_minus_mild_0_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.3523902601203202,
+      "median_severe_minus_mild": -0.31562774785598713,
+      "n_updates_with_both_severities": 99
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": -0.016758055128773146,
+      "median_severe_minus_mild": -8.862217267354329e-05,
+      "n_updates_with_both_severities": 99
+     },
+     "value_old": {
+      "mean_severe_minus_mild": 0.0008751564910487529,
+      "median_severe_minus_mild": -2.7932723363210954e-05,
+      "n_updates_with_both_severities": 99
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.3515151036292714,
+      "median_severe_minus_mild": -0.3168375241976586,
+      "n_updates_with_both_severities": 99
+     }
+    },
+    "within_update_severe_minus_mild_50_99": {
+     "raw_advantage": {
+      "mean_severe_minus_mild": -0.38851996231440766,
+      "median_severe_minus_mild": -0.36026318322364964,
+      "n_updates_with_both_severities": 50
+     },
+     "td_residual": {
+      "mean_severe_minus_mild": -0.01322234704975929,
+      "median_severe_minus_mild": -0.00010893493890762329,
+      "n_updates_with_both_severities": 50
+     },
+     "value_old": {
+      "mean_severe_minus_mild": -0.0022267984833036153,
+      "median_severe_minus_mild": -1.8596649170310453e-06,
+      "n_updates_with_both_severities": 50
+     },
+     "value_target": {
+      "mean_severe_minus_mild": -0.39074676079771126,
+      "median_severe_minus_mild": -0.3608161983086682,
+      "n_updates_with_both_severities": 50
+     }
+    }
+   },
+   "critic": "symmetric central state (no distinguished agent), mean-pool readout",
+   "evaluation_trajectory": [
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "pre_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -0.0005158036947250366,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 0
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 9.06825065612793e-05,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 25
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 0.002078361064195633,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 50
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": 0.042798121273517606,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 75
+    },
+    {
+     "directional_switch_count": 0,
+     "evaluation_stage": "post_update",
+     "macro_n_base_cells_defined": 10,
+     "macro_severe_minus_mild_p_abort": -8.649006485939025e-06,
+     "n_attempted": 60,
+     "n_groups_complete": 20,
+     "n_groups_metric_eligible": 20,
+     "n_successful": 60,
+     "reverse_switch_count": 0,
+     "switch_denominator_matched_groups": 20,
+     "updates_completed": 100
+    }
+   ],
+   "fuel_damage_totals": {
+    "train_clean_successful": 0,
+    "train_damaged_successful": 1200,
+    "train_fuel_damage_events_applied": 1200,
+    "train_fuel_damage_wakes": 1200,
+    "train_mild_successful": 625,
+    "train_severe_successful": 575
+   },
+   "gae_lambda": 0.95,
+   "measured_code_sha": "6ed964a1abd09de2130aee3d0d314c8f32165056",
+   "native_exit_code": "0",
+   "owner_transition_audit": {
+    "all_nonterminal": {
+     "fraction_abs_future_gt_abs_local": 0.9799713876967096,
+     "fraction_of_nonterminal": 1.0,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.5092989985693849,
+     "iqr_delta_value": 0.0010197348892688751,
+     "mean_abs_td_residual": 0.014647871021378534,
+     "mean_delta_value": -0.0014586786556994285,
+     "median_abs_delta_value": 0.0005178153514862061,
+     "median_abs_deviation_delta_value": 0.0005204379558563232,
+     "median_abs_td_over_abs_raw_advantage": 0.0030718586881130212,
+     "median_abs_td_residual": 0.0005178153514862061,
+     "median_delta_value": -2.6226043701171875e-06,
+     "n": 699,
+     "n_rows_in_td_ratio": 699,
+     "pstdev_delta_value": 0.061076702153803966
+    },
+    "by_iteration_window": {
+     "0-49": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9534883720930233,
+       "fraction_of_nonterminal": 0.24606580829756797,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.47674418604651164,
+       "iqr_delta_value": 0.003661118447780609,
+       "mean_abs_td_residual": 0.021446275719723035,
+       "mean_delta_value": 0.0017784391638151435,
+       "median_abs_delta_value": 0.0018033981323242188,
+       "median_abs_deviation_delta_value": 0.0018119215965270996,
+       "median_abs_td_over_abs_raw_advantage": 0.014599785320749674,
+       "median_abs_td_residual": 0.0018033981323242188,
+       "median_delta_value": 8.52346420288086e-06,
+       "n": 172,
+       "n_rows_in_td_ratio": 172,
+       "pstdev_delta_value": 0.05703447450909228
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9705882352941176,
+       "fraction_of_nonterminal": 0.24320457796852646,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.5117647058823529,
+       "iqr_delta_value": 0.0016853958368301392,
+       "mean_abs_td_residual": 0.027400171537609663,
+       "mean_delta_value": -0.011006817528430154,
+       "median_abs_delta_value": 0.0009206533432006836,
+       "median_abs_deviation_delta_value": 0.0009150207042694092,
+       "median_abs_td_over_abs_raw_advantage": 0.003348639204266251,
+       "median_abs_td_residual": 0.0009206533432006836,
+       "median_delta_value": 4.494190216064453e-05,
+       "n": 170,
+       "n_rows_in_td_ratio": 170,
+       "pstdev_delta_value": 0.10318157691398369
+      }
+     },
+     "50-99": {
+      "different_ego_next": {
+       "fraction_abs_future_gt_abs_local": 1.0,
+       "fraction_of_nonterminal": 0.22746781115879827,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.5408805031446541,
+       "iqr_delta_value": 0.0003355294466018677,
+       "mean_abs_td_residual": 0.0024280321298155395,
+       "mean_delta_value": -1.4760115611478218e-05,
+       "median_abs_delta_value": 0.00016248226165771484,
+       "median_abs_deviation_delta_value": 0.00015047192573547363,
+       "median_abs_td_over_abs_raw_advantage": 0.0010861129140936675,
+       "median_abs_td_residual": 0.00016248226165771484,
+       "median_delta_value": -1.2010335922241211e-05,
+       "n": 159,
+       "n_rows_in_td_ratio": 159,
+       "pstdev_delta_value": 0.007127567836765726
+      },
+      "same_ego_next": {
+       "fraction_abs_future_gt_abs_local": 0.9949494949494949,
+       "fraction_of_nonterminal": 0.2832618025751073,
+       "fraction_sign_td_differs_from_sign_raw_advantage": 0.51010101010101,
+       "iqr_delta_value": 0.0006357990205287933,
+       "mean_abs_td_residual": 0.007606142172307679,
+       "mean_delta_value": 0.002767666271238616,
+       "median_abs_delta_value": 0.00029022619128227234,
+       "median_abs_deviation_delta_value": 0.00029022619128227234,
+       "median_abs_td_over_abs_raw_advantage": 0.001518228596080742,
+       "median_abs_td_residual": 0.00029022619128227234,
+       "median_delta_value": -7.927417755126953e-06,
+       "n": 198,
+       "n_rows_in_td_ratio": 198,
+       "pstdev_delta_value": 0.03247991016931216
+      }
+     }
+    },
+    "by_owner_and_next_wake_kind": {
+     "different_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.9758308157099698,
+      "fraction_of_nonterminal": 0.47353361945636624,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.5075528700906344,
+      "iqr_delta_value": 0.000966876745223999,
+      "mean_abs_td_residual": 0.01231062396505448,
+      "mean_delta_value": 0.0009170534072325669,
+      "median_abs_delta_value": 0.000506281852722168,
+      "median_abs_deviation_delta_value": 0.0005106627941131592,
+      "median_abs_td_over_abs_raw_advantage": 0.0041773936708767515,
+      "median_abs_td_residual": 0.000506281852722168,
+      "median_delta_value": -5.245208740234375e-06,
+      "n": 331,
+      "n_rows_in_td_ratio": 331,
+      "pstdev_delta_value": 0.0414192116326382
+     },
+     "same_ego_next|ordinary": {
+      "fraction_abs_future_gt_abs_local": 0.9945054945054945,
+      "fraction_of_nonterminal": 0.2603719599427754,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.5384615384615384,
+      "iqr_delta_value": 0.0003002732992172241,
+      "mean_abs_td_residual": 0.005665034587894168,
+      "mean_delta_value": -0.003759161988784979,
+      "median_abs_delta_value": 9.898841381072998e-05,
+      "median_abs_deviation_delta_value": 8.04513692855835e-05,
+      "median_abs_td_over_abs_raw_advantage": 0.0005683383679273461,
+      "median_abs_td_residual": 9.898841381072998e-05,
+      "median_delta_value": -2.2292137145996094e-05,
+      "n": 182,
+      "n_rows_in_td_ratio": 182,
+      "pstdev_delta_value": 0.04522710895238337
+     },
+     "same_ego_next|post_fd_boundary": {
+      "fraction_abs_future_gt_abs_local": 0.9731182795698925,
+      "fraction_of_nonterminal": 0.26609442060085836,
+      "fraction_sign_td_differs_from_sign_raw_advantage": 0.4838709677419355,
+      "iqr_delta_value": 0.002280093729496002,
+      "mean_abs_td_residual": 0.027596822669429165,
+      "mean_delta_value": -0.0034354493342420105,
+      "median_abs_delta_value": 0.0013918876647949219,
+      "median_abs_deviation_delta_value": 0.0012469887733459473,
+      "median_abs_td_over_abs_raw_advantage": 0.0051457979669429915,
+      "median_abs_td_residual": 0.0013918876647949219,
+      "median_delta_value": 0.0003028064966201782,
+      "n": 186,
+      "n_rows_in_td_ratio": 186,
+      "pstdev_delta_value": 0.09457997340537719
+     }
+    },
+    "different_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.9758308157099698,
+     "fraction_of_nonterminal": 0.47353361945636624,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.5075528700906344,
+     "iqr_delta_value": 0.000966876745223999,
+     "mean_abs_td_residual": 0.01231062396505448,
+     "mean_delta_value": 0.0009170534072325669,
+     "median_abs_delta_value": 0.000506281852722168,
+     "median_abs_deviation_delta_value": 0.0005106627941131592,
+     "median_abs_td_over_abs_raw_advantage": 0.0041773936708767515,
+     "median_abs_td_residual": 0.000506281852722168,
+     "median_delta_value": -5.245208740234375e-06,
+     "n": 331,
+     "n_rows_in_td_ratio": 331,
+     "pstdev_delta_value": 0.0414192116326382
+    },
+    "next_wake_kind_counts": {
+     "ordinary": 513,
+     "post_fd_boundary": 186
+    },
+    "nonterminal_n": 699,
+    "note": "only observed (owner, next-wake) cells are listed; no empty category is created",
+    "population": "NONTERMINAL immediate_fuel_damage rows of the FD-selected ego, iterations 0..99, joined to the next global decision of the same episode",
+    "same_ego_next": {
+     "fraction_abs_future_gt_abs_local": 0.9836956521739131,
+     "fraction_of_nonterminal": 0.5264663805436338,
+     "fraction_sign_td_differs_from_sign_raw_advantage": 0.5108695652173914,
+     "iqr_delta_value": 0.0010705143213272095,
+     "mean_abs_td_residual": 0.01675012312910479,
+     "mean_delta_value": -0.00359554635360837,
+     "median_abs_delta_value": 0.0005288273096084595,
+     "median_abs_deviation_delta_value": 0.0005288273096084595,
+     "median_abs_td_over_abs_raw_advantage": 0.002277123310334331,
+     "median_abs_td_residual": 0.0005288273096084595,
+     "median_delta_value": -8.493661880493164e-07,
+     "n": 368,
+     "n_rows_in_td_ratio": 368,
+     "pstdev_delta_value": 0.07438384850824348
+    },
+    "severity_by_owner": {
+     "different_ego_next": {
+      "mild": 184,
+      "severe": 147
+     },
+     "same_ego_next": {
+      "mild": 183,
+      "severe": 185
+     }
+    },
+    "structure": {
+     "gae_lambda_values": [
+      0.95
+     ],
+     "gamma_values": [
+      1.0
+     ],
+     "n_nonzero_transition_reward": 0,
+     "n_td_residual_not_equal_delta_value": 0,
+     "note": "with a terminal-only reward and gamma = 1, a nonterminal td_residual is exactly V_{t+1} - V_t. Under lambda = 1 it remains a DIAGNOSTIC of consecutive values but is NOT the actor's total advantage: raw_advantage telescopes to R - V_t, and future_component = A_{t+1} = R - V_{t+1}"
+    },
+    "within_update_severe_minus_mild": {
+     "all_nonterminal": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.0013122224564873024,
+       "median_severe_minus_mild": -4.607240358989184e-05,
+       "n_updates_with_both_severities": 97
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.00211258157136748,
+       "median_severe_minus_mild": -0.00011259317398071289,
+       "n_updates_with_both_severities": 97
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": 0.00080035911488018,
+       "median_severe_minus_mild": 7.654229799906413e-05,
+       "n_updates_with_both_severities": 97
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.3833496417329705,
+       "median_severe_minus_mild": -0.3188593533721742,
+       "n_updates_with_both_severities": 97
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": 0.00080035911488018,
+       "median_severe_minus_mild": 7.654229799906413e-05,
+       "n_updates_with_both_severities": 97
+      }
+     },
+     "different_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.005958788060382301,
+       "median_severe_minus_mild": -2.9583772023514254e-05,
+       "n_updates_with_both_severities": 68
+      },
+      "V_t": {
+       "mean_severe_minus_mild": -0.015096817110829493,
+       "median_severe_minus_mild": -0.000236136217912037,
+       "n_updates_with_both_severities": 68
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": 0.009138029050447192,
+       "median_severe_minus_mild": 8.991609017054239e-05,
+       "n_updates_with_both_severities": 68
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.19325922076219898,
+       "median_severe_minus_mild": -0.213888490439824,
+       "n_updates_with_both_severities": 68
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": 0.009138029050447192,
+       "median_severe_minus_mild": 8.991609017054239e-05,
+       "n_updates_with_both_severities": 68
+      }
+     },
+     "same_ego_next": {
+      "V_next": {
+       "mean_severe_minus_mild": -0.001027843515332948,
+       "median_severe_minus_mild": -1.1462966601066826e-05,
+       "n_updates_with_both_severities": 78
+      },
+      "V_t": {
+       "mean_severe_minus_mild": 0.004293665108390346,
+       "median_severe_minus_mild": -4.2323023080825806e-05,
+       "n_updates_with_both_severities": 78
+      },
+      "delta_value": {
+       "mean_severe_minus_mild": -0.005321508623723291,
+       "median_severe_minus_mild": 3.590558966000933e-05,
+       "n_updates_with_both_severities": 78
+      },
+      "future_component": {
+       "mean_severe_minus_mild": -0.5213228859451329,
+       "median_severe_minus_mild": -0.3816989859247689,
+       "n_updates_with_both_severities": 78
+      },
+      "td_residual": {
+       "mean_severe_minus_mild": -0.005321508623723291,
+       "median_severe_minus_mild": 3.590558966000933e-05,
+       "n_updates_with_both_severities": 78
+      }
+     }
+    }
+   },
+   "provenance_git": {
+    "available": true,
+    "branch": "task/v2-ctde-gradient-pressure-diagnostics",
+    "commit": "6ed964a1abd09de2130aee3d0d314c8f32165056",
+    "dirty": false,
+    "dirty_path_count": 0,
+    "reason": null,
+    "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation"
+   },
+   "role": "SECONDARY context, cross-version; 150 updates, compared through update 100",
+   "run_dir": "C:\\gruns\\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+   "run_id": "graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+   "run_summary": {
+    "accounting_reconciled": true,
+    "eval_episodes_attempted": 420,
+    "eval_episodes_failed": 0,
+    "eval_episodes_successful": 420,
+    "failures_recorded": 0,
+    "n_eval_rounds": 7,
+    "n_productive_iterations": 150,
+    "total_transitions": 4514,
+    "train_episodes_attempted": 1200,
+    "train_episodes_failed": 0,
+    "train_episodes_successful": 1200,
+    "train_replacement_attempts": 0,
+    "updates_completed": 150
+   },
+   "train_credit_diagnostics_rows": 4514
+  }
+ },
+ "common_range": "training iterations 0..99; evaluation rounds updates_completed in {0,25,50,75,100}",
+ "comparator_bytes_unchanged_since_prior_index": {
+  "explicit_readout": {
+   "entry": "explicit_readout",
+   "equal": true,
+   "index": "research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/artifact_manifest.json"
+  },
+  "role_only_lambda095": {
+   "entry": "acting_ego",
+   "equal": true,
+   "index": "research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/artifact_manifest.json"
+  },
+  "symmetric": {
+   "entry": "B_fd100",
+   "equal": true,
+   "index": "research_evidence/generalized_v2/semantic_ctde_grad_diag_r1/artifact_manifest.json"
+  }
+ },
+ "config_boundaries": {
+  "authorized_vs_role_only": [
+   "/ctde/gae_lambda",
+   "/output_dir"
+  ],
+  "code_note": "lambda arms share measured code; symmetric and explicit-readout differ at code level (critic state / readout), stated per arm under 'critic'",
+  "config_source_note": "config_source.resolved_from differs (lambda100: config_file, the run-local train_config_preset.json with no CLI overrides; role_only_lambda095: cli_defaults). That is PROVENANCE of how the identical train_config was resolved, not a scientific train_config difference; every other differing run_config path outside /train_config is provenance (git repo_root / branch, invocation argv / cwd, collected_at) or the mirrored /training/ctde/gae_lambda",
+  "full_run_config_differing_paths_vs_role_only": [
+   "/config_source/absolute_path",
+   "/config_source/config_fields/0",
+   "/config_source/config_fields/1",
+   "/config_source/config_fields/10",
+   "/config_source/config_fields/11",
+   "/config_source/config_fields/12",
+   "/config_source/config_fields/13",
+   "/config_source/config_fields/14",
+   "/config_source/config_fields/15",
+   "/config_source/config_fields/16",
+   "/config_source/config_fields/17",
+   "/config_source/config_fields/18",
+   "/config_source/config_fields/19",
+   "/config_source/config_fields/2",
+   "/config_source/config_fields/20",
+   "/config_source/config_fields/21",
+   "/config_source/config_fields/22",
+   "/config_source/config_fields/23",
+   "/config_source/config_fields/24",
+   "/config_source/config_fields/25",
+   "/config_source/config_fields/26",
+   "/config_source/config_fields/27",
+   "/config_source/config_fields/28",
+   "/config_source/config_fields/29",
+   "/config_source/config_fields/3",
+   "/config_source/config_fields/30",
+   "/config_source/config_fields/31",
+   "/config_source/config_fields/32",
+   "/config_source/config_fields/33",
+   "/config_source/config_fields/34",
+   "/config_source/config_fields/35",
+   "/config_source/config_fields/36",
+   "/config_source/config_fields/37",
+   "/config_source/config_fields/38",
+   "/config_source/config_fields/39",
+   "/config_source/config_fields/4",
+   "/config_source/config_fields/40",
+   "/config_source/config_fields/41",
+   "/config_source/config_fields/42",
+   "/config_source/config_fields/43",
+   "/config_source/config_fields/44",
+   "/config_source/config_fields/45",
+   "/config_source/config_fields/46",
+   "/config_source/config_fields/47",
+   "/config_source/config_fields/5",
+   "/config_source/config_fields/6",
+   "/config_source/config_fields/7",
+   "/config_source/config_fields/8",
+   "/config_source/config_fields/9",
+   "/config_source/format",
+   "/config_source/path",
+   "/config_source/resolved_from",
+   "/provenance/collected_at",
+   "/provenance/git/branch",
+   "/provenance/git/repo_root",
+   "/provenance/invocation/argv/0",
+   "/provenance/invocation/argv/1",
+   "/provenance/invocation/argv/10",
+   "/provenance/invocation/argv/11",
+   "/provenance/invocation/argv/12",
+   "/provenance/invocation/argv/13",
+   "/provenance/invocation/argv/14",
+   "/provenance/invocation/argv/15",
+   "/provenance/invocation/argv/16",
+   "/provenance/invocation/argv/17",
+   "/provenance/invocation/argv/18",
+   "/provenance/invocation/argv/19",
+   "/provenance/invocation/argv/2",
+   "/provenance/invocation/argv/20",
+   "/provenance/invocation/argv/21",
+   "/provenance/invocation/argv/22",
+   "/provenance/invocation/argv/23",
+   "/provenance/invocation/argv/24",
+   "/provenance/invocation/argv/25",
+   "/provenance/invocation/argv/26",
+   "/provenance/invocation/argv/27",
+   "/provenance/invocation/argv/28",
+   "/provenance/invocation/argv/29",
+   "/provenance/invocation/argv/3",
+   "/provenance/invocation/argv/30",
+   "/provenance/invocation/argv/31",
+   "/provenance/invocation/argv/4",
+   "/provenance/invocation/argv/5",
+   "/provenance/invocation/argv/6",
+   "/provenance/invocation/argv/7",
+   "/provenance/invocation/argv/8",
+   "/provenance/invocation/argv/9",
+   "/provenance/invocation/cwd",
+   "/provenance/packages/match_aou/path",
+   "/train_config/ctde/gae_lambda",
+   "/train_config/output_dir",
+   "/training/ctde/gae_lambda"
+  ],
+  "method": "flatten both run_config.json:/train_config objects; list every differing JSON path",
+  "vs_explicit_readout": [
+   "/ctde/gae_lambda",
+   "/output_dir"
+  ],
+  "vs_role_only_lambda095": [
+   "/ctde/gae_lambda",
+   "/output_dir"
+  ],
+  "vs_symmetric": [
+   "/ctde/gae_lambda",
+   "/n_iterations",
+   "/output_dir"
+  ]
+ },
+ "definitions": {
+  "action_credit": "descriptive sampled-action association of normalized advantage, NOT a counterfactual Q value",
+  "delta_value": "V_{t+1} - V_t with V = value_old of the respective rows (same update, same V_old evaluation)",
+  "descriptive_only": "all quantities are descriptive and non-counterfactual",
+  "future": "future_component = raw_advantage - td_residual = gamma * gae_lambda * A_{t+1}; with lambda = 1 this is A_{t+1} = R - V_{t+1}",
+  "lambda1_telescoping": "with gamma = 1, lambda = 1 and terminal-only reward, A_t = sum of TD residuals = R_episode - V_t and value_target = A_t + V_t = R_episode: no intermediate V_{t+k} (including a value conditioned on a different acting ego) survives in the actor's total advantage; one-step TD residuals still exist and are reported only as diagnostics",
+  "local": "td_residual = transition_reward + gamma * V_next - V_t (terminal: transition_reward - V_t)",
+  "next_decision": "the row with episode_decision_ordinal + 1 in the same (iteration, episode_index) global decision sequence",
+  "nonterminal": "row is not its episode's last global decision (over all wake kinds)",
+  "sign": "sign(x) in {-1, 0, +1}; 'differs' compares these three-valued signs",
+  "spread": "pstdev (population), IQR (statistics.quantiles n=4, inclusive), and median absolute deviation about the median",
+  "within_update": "per update holding both severities: mean(severe) - mean(mild); median / mean over those updates"
+ },
+ "formal_status": {
+  "bitwise_identity": "not claimed: BLADE run-to-run timing nondeterminism; the two lambda arms are separate executions",
+  "confirmatory_profile_used": false,
+  "evidence_class": "DEVELOPMENT only; one seed stream; repeated evaluation on the same frozen development worlds; not randomized; not confirmatory",
+  "intervention": "ctde.gae_lambda 0.95 -> 1.0 (plus a fresh output_dir); nothing else in the resolved train_config",
+  "measured_code_note": "the role-only acting-ego implementation measured by the primary comparator; run from an isolated detached worktree, NOT from PR #75's later explicit-readout head",
+  "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "merge_authorized": false,
+  "new_run_authorized": false,
+  "primary_comparison": "same-code role-only lambda = 0.95 (graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3) vs lambda = 1.0",
+  "run": "completed",
+  "scientific_measurement_verdict": "PENDING GPT review",
+  "secondary_context": "symmetric FD100 (6ed964a) and explicit readout (1a1e0c9): CROSS-VERSION context only, compared through update 100"
+ },
+ "integrity_checks": {
+  "benchmark_manifest_file_sha256_now": true,
+  "config_vs_explicit_readout_differs_only_in_gae_lambda_and_output_dir": true,
+  "config_vs_role_only_lambda095_differs_only_in_gae_lambda_and_output_dir": true,
+  "config_vs_role_only_values": true,
+  "config_vs_symmetric_differs_only_in_gae_lambda_n_iterations_output_dir": true,
+  "explicit_readout_accounting_reconciled": true,
+  "explicit_readout_attempts_within_budget": true,
+  "explicit_readout_bytes_equal_prior_committed_index": true,
+  "explicit_readout_clean_tree": true,
+  "explicit_readout_decision_ordinals_contiguous_no_duplicates_no_gaps": true,
+  "explicit_readout_development_profile_only": true,
+  "explicit_readout_eval_points_common_range": true,
+  "explicit_readout_eval_rounds": true,
+  "explicit_readout_eval_rounds_complete_denominators": true,
+  "explicit_readout_fd100_all_training_damaged": true,
+  "explicit_readout_gradient_one_row_per_update_0_99": true,
+  "explicit_readout_held_out_zero_overlap_entire_manifest": true,
+  "explicit_readout_manifest_id": true,
+  "explicit_readout_measured_sha": true,
+  "explicit_readout_native_exit_code_zero": true,
+  "explicit_readout_no_failures": true,
+  "explicit_readout_one_seed_per_episode": true,
+  "explicit_readout_successful_quota": true,
+  "explicit_readout_train_config_gae_lambda": true,
+  "explicit_readout_transitions_reconcile": true,
+  "explicit_readout_updates": true,
+  "full_run_config_differences_vs_role_only_outside_train_config_are_provenance_or_derived": true,
+  "lambda100_accounting_reconciled": true,
+  "lambda100_attempts_within_budget": true,
+  "lambda100_blade_engine_tree_equals_measured_tree": true,
+  "lambda100_clean_tree": true,
+  "lambda100_comparator_config_source_cli_defaults": true,
+  "lambda100_config_source_config_file_no_cli_overrides": true,
+  "lambda100_console_no_traceback_no_crash": true,
+  "lambda100_credit_population_800": true,
+  "lambda100_decision_ordinals_contiguous_no_duplicates_no_gaps": true,
+  "lambda100_development_profile_only": true,
+  "lambda100_eval_points_common_range": true,
+  "lambda100_eval_rounds": true,
+  "lambda100_eval_rounds_complete_denominators": true,
+  "lambda100_fd100_all_training_damaged": true,
+  "lambda100_gae_lambda_as_configured": true,
+  "lambda100_gae_recurrence_all_transitions": true,
+  "lambda100_gamma_is_one": true,
+  "lambda100_gradient_one_row_per_update_0_99": true,
+  "lambda100_held_out_zero_overlap_entire_manifest": true,
+  "lambda100_invocation_argv_is_config_only": true,
+  "lambda100_lambda1_credit_rows_raw_advantage_equals_R_minus_V": true,
+  "lambda100_lambda1_raw_advantage_equals_R_minus_V_every_transition": true,
+  "lambda100_lambda1_value_target_equals_R_every_transition": true,
+  "lambda100_launch_cmd_runs_worktree_nlp_env_preset_only": true,
+  "lambda100_launch_record_hashes_match": true,
+  "lambda100_manifest_id": true,
+  "lambda100_match_aou_imported_from_worktree": true,
+  "lambda100_measured_sha": true,
+  "lambda100_native_exit_code_zero": true,
+  "lambda100_no_failures": true,
+  "lambda100_one_seed_per_episode": true,
+  "lambda100_one_terminal_per_episode": true,
+  "lambda100_owner_next_ordinal_is_current_plus_one": true,
+  "lambda100_owner_td_equals_delta_value": true,
+  "lambda100_owner_transition_n_equals_credit_nonterminal_n": true,
+  "lambda100_plan_measured_sha": true,
+  "lambda100_preflight_bonmin_probe_ok": true,
+  "lambda100_preflight_comparator_run_config_sha256": true,
+  "lambda100_preflight_detached_worktree": true,
+  "lambda100_preflight_head_equals_measured_sha": true,
+  "lambda100_preflight_manifest_sha256_and_id": true,
+  "lambda100_preflight_passed_all_checks": true,
+  "lambda100_preflight_preset_sha256": true,
+  "lambda100_preflight_role_only_present_explicit_absent": true,
+  "lambda100_preflight_tree_clean_incl_untracked": true,
+  "lambda100_preflight_unauthorized_differences_empty": true,
+  "lambda100_preset_equals_comparator_train_config_with_two_paths_replaced": true,
+  "lambda100_run_config_repo_root_is_worktree": true,
+  "lambda100_run_config_train_config_equals_preflight": true,
+  "lambda100_run_config_train_config_equals_preset": true,
+  "lambda100_seed_schedule_equals_comparator": true,
+  "lambda100_successful_quota": true,
+  "lambda100_td_recurrence_nonterminal": true,
+  "lambda100_td_recurrence_terminal": true,
+  "lambda100_terminal_only_reward": true,
+  "lambda100_train_config_gae_lambda": true,
+  "lambda100_transitions_reconcile": true,
+  "lambda100_updates": true,
+  "role_only_lambda095_accounting_reconciled": true,
+  "role_only_lambda095_attempts_within_budget": true,
+  "role_only_lambda095_bytes_equal_prior_committed_index": true,
+  "role_only_lambda095_clean_tree": true,
+  "role_only_lambda095_credit_population_800": true,
+  "role_only_lambda095_decision_ordinals_contiguous_no_duplicates_no_gaps": true,
+  "role_only_lambda095_development_profile_only": true,
+  "role_only_lambda095_eval_points_common_range": true,
+  "role_only_lambda095_eval_rounds": true,
+  "role_only_lambda095_eval_rounds_complete_denominators": true,
+  "role_only_lambda095_fd100_all_training_damaged": true,
+  "role_only_lambda095_gae_lambda_as_configured": true,
+  "role_only_lambda095_gae_recurrence_all_transitions": true,
+  "role_only_lambda095_gamma_is_one": true,
+  "role_only_lambda095_gradient_one_row_per_update_0_99": true,
+  "role_only_lambda095_held_out_zero_overlap_entire_manifest": true,
+  "role_only_lambda095_manifest_id": true,
+  "role_only_lambda095_measured_sha": true,
+  "role_only_lambda095_native_exit_code_zero": true,
+  "role_only_lambda095_no_failures": true,
+  "role_only_lambda095_one_seed_per_episode": true,
+  "role_only_lambda095_one_terminal_per_episode": true,
+  "role_only_lambda095_owner_next_ordinal_is_current_plus_one": true,
+  "role_only_lambda095_owner_td_equals_delta_value": true,
+  "role_only_lambda095_owner_transition_n_equals_credit_nonterminal_n": true,
+  "role_only_lambda095_successful_quota": true,
+  "role_only_lambda095_td_recurrence_nonterminal": true,
+  "role_only_lambda095_td_recurrence_terminal": true,
+  "role_only_lambda095_terminal_only_reward": true,
+  "role_only_lambda095_train_config_gae_lambda": true,
+  "role_only_lambda095_transitions_reconcile": true,
+  "role_only_lambda095_updates": true,
+  "symmetric_accounting_reconciled": true,
+  "symmetric_attempts_within_budget": true,
+  "symmetric_bytes_equal_prior_committed_index": true,
+  "symmetric_clean_tree": true,
+  "symmetric_decision_ordinals_contiguous_no_duplicates_no_gaps": true,
+  "symmetric_development_profile_only": true,
+  "symmetric_eval_points_common_range": true,
+  "symmetric_eval_rounds": true,
+  "symmetric_eval_rounds_complete_denominators": true,
+  "symmetric_fd100_all_training_damaged": true,
+  "symmetric_gradient_one_row_per_update_0_99": true,
+  "symmetric_held_out_zero_overlap_entire_manifest": true,
+  "symmetric_manifest_id": true,
+  "symmetric_measured_sha": true,
+  "symmetric_native_exit_code_zero": true,
+  "symmetric_no_failures": true,
+  "symmetric_one_seed_per_episode": true,
+  "symmetric_successful_quota": true,
+  "symmetric_train_config_gae_lambda": true,
+  "symmetric_transitions_reconcile": true,
+  "symmetric_updates": true
+ },
+ "measured_code_sha": {
+  "explicit_readout": "1a1e0c953c54e9d3f46c871158d5ab6bdd881f24",
+  "lambda100": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "role_only_lambda095": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "symmetric": "6ed964a1abd09de2130aee3d0d314c8f32165056"
+ },
+ "package": "role-only acting-ego CTDE gae_lambda = 1.0 FD100 DEVELOPMENT diagnostic -- compact evidence package"
+}

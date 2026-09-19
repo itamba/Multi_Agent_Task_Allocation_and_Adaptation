@@ -1,0 +1,45 @@
+{
+ "record": "launch_record",
+ "written_after_launch": true,
+ "launched_at_local": "2026-09-19T17:56:51.8408126+03:00",
+ "detach_method": "PowerShell Start-Process -FilePath cmd.exe -ArgumentList '/c \"<run_dir>/launch.cmd\"' -WindowStyle Hidden -PassThru",
+ "launcher_pid": 31424,
+ "launch_cmd_sha256": "ced64b9b096339d6edcd2846fa87c0c305562e4a745fac4dd38241eff0f32464",
+ "authorized_plan_json_sha256": "f47ffcd31874b685effd1ccbc5c5cd2d29eedcbd9a6847dff706ca84cb091731",
+ "preflight_json_sha256": "e3a4e1e53424326514dfe050b00e3b115fc15002d737736aa0c5ca89d46b2745",
+ "train_config_preset_json_sha256": "eb082c9809c2cc3b1b19bf126db897d68d4347dc149ce29c2928e31ab0370c96",
+ "process_tree": [
+  {
+   "pid": 31424,
+   "parent": 10456,
+   "name": "cmd.exe",
+   "executable": "C:\\WINDOWS\\system32\\cmd.exe"
+  },
+  {
+   "pid": 17384,
+   "parent": 31424,
+   "name": "conda.exe",
+   "executable": "C:\\Users\\Itama\\anaconda3\\Scripts\\conda.exe"
+  },
+  {
+   "pid": 15160,
+   "parent": 17384,
+   "name": "python.exe",
+   "executable": "C:\\Users\\Itama\\anaconda3\\python.exe"
+  },
+  {
+   "pid": 15460,
+   "parent": 17996,
+   "name": "python.exe",
+   "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe"
+  }
+ ],
+ "logs": {
+  "console": "training_console.log",
+  "start_end": "invocation_start_local.txt",
+  "native_exit_code": "native_exit_code.txt (prefix redirect)"
+ },
+ "pre_run_records_written_before_run_config": true,
+ "run_config_check": "run_config.json:/train_config equals preflight.json:/resolved_configuration/train_config: True; provenance commit 68055e39768d5fa601e5960a9f08823b9e65c08f, repo_root C:\\grolelambda1, dirty=False; config_source resolved_from=config_file, cli_overrides=[]; ctde.gae_lambda=1.0",
+ "wall_clock_ceiling": "8 h from launch (2026-09-19T17:56 local)"
+}
