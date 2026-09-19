@@ -129,7 +129,7 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   state and **NOT zero everywhere** — nothing relies on it being zero, because a uniform
   offset cancels in the batch-mean subtraction of `compute_ctde_advantages`.
 - **THE CENTRAL GRAPH IS THE LIVE WORLD, AND PRESENCE IS LIVENESS.**
-  `build_central_graph_observation(scenario, *, agent_ids, executor, current_time, config)`
+  `build_central_graph_observation(scenario, *, agent_ids, executor, current_time, config, acting_agent_id)`
   is STATELESS, like the actor builder, and returns a `CentralGraphObservation` —
   a DISTINCT type, not a `GraphObservation` and not a subclass of one, carrying NO
   `agent_id` field, so a central state can never be mistaken for an actor state.
@@ -144,10 +144,28 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
     inventory) is LIVE; absent from both is dead and loses its node. **RTB ISSUANCE AND
     LANDING ARE NOT DEATH** — an ego ordered home keeps its node even though Phase 1 stops
     processing it.
-  - **THERE IS NO DISTINGUISHED EGO.** `ego_index` is `NO_EGO_INDEX` (`-1`), and the shared
-    encoder marks a node EGO only for `0 <= ego_index < N`, so every agent node keeps the
-    same role and the graph is SYMMETRIC over live agents. No encoder change was needed and
-    none was made.
+  - **THE CENTRAL STATE IS DECISION-CONDITIONED, BY ROLE ONLY.** Every actual decision
+    capture names the agent that OWNS the current decision (`acting_agent_id`, the tick
+    loop's waking `ego_id`); the builder locates it by IDENTITY among the live agent nodes
+    and sets `ego_index` to its GLOBAL node index `k + row`, so the shared encoder's
+    EXISTING role mechanism marks that node EGO and every other live agent PEER. The critic
+    therefore values `V(global_state, acting_ego)` rather than `V(global_state)`. **This is
+    the only conditioning:** the physical features, edges, node set and feature widths are
+    identical whichever agent acts; no numeric or string agent identity, agent order,
+    severity, condition label, wake kind, selected action, reward or future information is
+    added; and the encoder, `pool()` (mean pooling), `CentralCritic` / `ValueHead`, the
+    critic optimizer, PPO, GAE and the reward are unchanged. The conditioning follows the
+    physical agent, not a fixed row or the scheduled order. **It FAILS CLOSED:** a capture
+    whose acting agent has no live node (never scheduled, or physically dead) raises and
+    records nothing — there is no silent fallback. `CentralStateRecorder.capture` requires
+    `acting_agent_id`; only a NON-decision projection (`build_central_graph_observation`
+    with `acting_agent_id=None`) carries the `NO_EGO_INDEX` (`-1`) sentinel, under which
+    every agent node keeps the same role. It is training-only privileged conditioning: the
+    actor's observation, mask and selection are untouched and never see the central state.
+    Every CTDE run measured before this conditioning was introduced — including both
+    actor-gradient diagnostics at `6ed964a1abd09de2130aee3d0d314c8f32165056` — used the
+    earlier SYMMETRIC central state (`ego_index` always `NO_EGO_INDEX`, no distinguished
+    agent) and remains a description of that critic.
   - **FEATURES, exactly as implemented.** `task_features[k, 2]` = `[utility_norm,
     probability]` (`CENTRAL_TASK_FEATURE_DIM`). `agent_features[a, 1]` = `[fuel_norm]`
     (`CENTRAL_AGENT_FEATURE_DIM`) — **REAL for EVERY live agent**, which is the exact
@@ -185,9 +203,10 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
     state**.
 - **MULTI-AGENT TEMPORAL SEMANTICS — ONE CENTRAL STATE PER ACTUAL DECISION.**
   `run_episode(..., central=CentralStateRecorder())` calls `capture` INSIDE the `if wake`
-  branch and IMMEDIATELY BEFORE `_wake_decision`, and nowhere else — so sample `i` is the
-  global state the team was in when decision `i` was made, BEFORE that decision changed
-  anything, and `recorder.samples` is aligned 1:1 and index-for-index with
+  branch and IMMEDIATELY BEFORE `_wake_decision`, and nowhere else, naming the loop's
+  waking `ego_id` as `acting_agent_id` — so sample `i` is the global state the team was in
+  when decision `i` was made, BEFORE that decision changed anything, with decision `i`'s
+  owner in the EGO role, and `recorder.samples` is aligned 1:1 and index-for-index with
   `EpisodeResult.trajectory`. `CTDEEpisodeRecord` VALIDATES that alignment on construction,
   so a drifted capture seam fails LOUD rather than mispairing a value with a decision.
   **WAKE ORDERING IS STILL SEQUENTIAL, NOT A JOINT SAME-TICK ACTION.** With two egos waking
