@@ -1,0 +1,347 @@
+{
+ "external_benchmark_manifest": {
+  "file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json"
+ },
+ "runs": {
+  "explicit_readout": {
+   "branch": "task/ctde-acting-ego-conditioning",
+   "critic": "role-only acting-ego central state + explicit readout [mean pool ; acting-ego embedding]",
+   "files": {
+    "authorized_plan.json": {
+     "bytes": 7302,
+     "sha256": "691cccc5189686f312830afe9154dbe32279a4bf4e213b1f98777cfc00f37d3c"
+    },
+    "episode_failures.jsonl": {
+     "bytes": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "episode_outcomes.jsonl": {
+     "bytes": 26216982,
+     "sha256": "20f9467e234d7a4a00829107abb826d672ad2daa5f48adf8386a3354c65b3ab7"
+    },
+    "eval_records.jsonl": {
+     "bytes": 128440,
+     "sha256": "3d52605ade0df3aa4e79b167e885392c69f4d60d9d0e3817c090aedca3fdde05"
+    },
+    "invocation_start_local.txt": {
+     "bytes": 78,
+     "sha256": "41d87a65d64182e480fd68a628cba6408096122fa72cd0d497e5bf4cd83fd86d"
+    },
+    "launch.cmd": {
+     "bytes": 1696,
+     "sha256": "a287452472ef2a8f1380be7ac404d16747ffe0d793a7ad260fd1a65fd00b93a9"
+    },
+    "launch_record.json": {
+     "bytes": 2003,
+     "sha256": "c9a9f43d4f22eb9fe746f4efa630b3e9faa0b7fead312593e5780912927d50d2"
+    },
+    "native_exit_code.txt": {
+     "bytes": 3,
+     "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    "preflight.json": {
+     "bytes": 10049,
+     "sha256": "a49b08ea106a8ec65d401d615b5c7414d4052fc7451a45cb4b4833812f88ab59"
+    },
+    "run_config.json": {
+     "bytes": 20748,
+     "sha256": "01ca81eefad6bc2b04934315d36948e2162d5cde06b0881f429e1e6e334a9935"
+    },
+    "run_summary.json": {
+     "bytes": 115972,
+     "sha256": "0431218da967dd3af00721e9274d714bd92c00a9c3b4144248ecd4d5b1ba6bc3"
+    },
+    "train_actor_gradient_diagnostics.jsonl": {
+     "bytes": 302601,
+     "sha256": "aa76b84772f3c4e01dd389ae5ac7e74e759654fef1615349bf1fbad8cc1a9f09"
+    },
+    "train_credit_diagnostics.jsonl": {
+     "bytes": 4004974,
+     "sha256": "a9a96dceccfdb150b70e5763ca3d0008763eb25d8e99856d4259032b719018c0"
+    },
+    "train_records.jsonl": {
+     "bytes": 291088,
+     "sha256": "eab5e8c9fe56b32fe77f8b3cc1c205d5b491507482e20da1712a0aaa81addb44"
+    },
+    "training_console.log": {
+     "bytes": 1877370,
+     "sha256": "374e2c13c39c5a1e7aa5f188fed6993fa4cccdee882ad2a327b5b257efd2739f"
+    }
+   },
+   "measured_code_sha": "1a1e0c953c54e9d3f46c871158d5ab6bdd881f24",
+   "n_eval_rounds": 5,
+   "n_iterations": 100,
+   "n_successful": 800,
+   "run_dir": "C:\\gruns\\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9",
+   "run_id": "graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9",
+   "trees": {
+    "checkpoints": {
+     "files": {
+      "checkpoints/ckpt_iter0024.pt": {
+       "bytes": 2781835,
+       "sha256": "0bb2c8cc9fecbb0d14170fe83391aec663734d75e478ef110771fea3994723f7"
+      },
+      "checkpoints/ckpt_iter0049.pt": {
+       "bytes": 2781835,
+       "sha256": "352e2d24c552aea5048656bb36943d6a4b2d6d4a6810a94687a8da1d24004785"
+      },
+      "checkpoints/ckpt_iter0074.pt": {
+       "bytes": 2781835,
+       "sha256": "68ac5308e30fe1cf2786f578702df7e5c8dd92a992fd2efa6a1d47a3b4f140e8"
+      },
+      "checkpoints/ckpt_iter0099.pt": {
+       "bytes": 2781835,
+       "sha256": "344894b6332fd2753176954b22ccec0e08411fcac7aa2860d9bc7571ea44d437"
+      }
+     },
+     "n_files": 4,
+     "total_bytes": 11127340,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "555100a44e2bb8dc3c21bd0e1838b249cde7e29828e5b4d9c648eb0365fe1b44"
+    },
+    "plots": {
+     "n_files": 4,
+     "total_bytes": 882919,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "1f7af6fb5811edd0dc4cbb8864eb00ac1e03e7bb3e5f5ff13bc4d020b098d224"
+    },
+    "scenarios": {
+     "n_files": 1100,
+     "total_bytes": 18588004,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "77e1b7b381c9926a63eddf314692d025af9330ad77f8001e0241552d99440fc7"
+    }
+   }
+  },
+  "role_only": {
+   "branch": "task/ctde-acting-ego-conditioning",
+   "critic": "role-only acting-ego central state, mean-pool readout",
+   "files": {
+    "authorized_plan.json": {
+     "bytes": 6378,
+     "sha256": "ea6752304682a4300b3a5ffd50819a566d6da239fbf7de20e68b9356175f7a19"
+    },
+    "episode_failures.jsonl": {
+     "bytes": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "episode_outcomes.jsonl": {
+     "bytes": 26134027,
+     "sha256": "8a2063af04a4659a959c0e2c5c8dbf7904900bf8f41ae77faf3bb50bcc5a3014"
+    },
+    "eval_records.jsonl": {
+     "bytes": 128408,
+     "sha256": "437591688f5b8b94cb63c0002a6d4670c24d1fa4c4db99c0d0cd67cf51db916a"
+    },
+    "invocation_start_local.txt": {
+     "bytes": 78,
+     "sha256": "0bb229d3305e574fb5dd3174f81e3b15ce65fb6236977bb257ac057725960c3c"
+    },
+    "launch.cmd": {
+     "bytes": 1658,
+     "sha256": "b5126c1fa24f2dff42eb15fd7ac359841683cd245a68c6c5253682540ba574b3"
+    },
+    "launch_record.json": {
+     "bytes": 2841,
+     "sha256": "4376bbdd8037064a39b2b4ad9a4ec8365344cbfdf650bd347abb9aa89ac10746"
+    },
+    "native_exit_code.txt": {
+     "bytes": 3,
+     "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    "preflight.json": {
+     "bytes": 9604,
+     "sha256": "ac51eaef83b631e5c7ac75d54d7163965f0d6a73c29711ee7b1ec0dbb2595705"
+    },
+    "run_config.json": {
+     "bytes": 20728,
+     "sha256": "a982aea152192c0f1d2fb8cf96058362d0d8288a3bd5677e8440b07a4f008b43"
+    },
+    "run_summary.json": {
+     "bytes": 115911,
+     "sha256": "451ce3161c2e1eb338534f50d2c98031d98d1e2e258d4dca1a78325d2c5472f6"
+    },
+    "train_actor_gradient_diagnostics.jsonl": {
+     "bytes": 302472,
+     "sha256": "c6aea118db33522e2ff0fb5edcf7dc7711327828fa0b6cae92e7705acc1afa69"
+    },
+    "train_credit_diagnostics.jsonl": {
+     "bytes": 3977235,
+     "sha256": "9396551e4a52a86f7fd1ae07ddc379641a4285b78256329d0fc2b3df496bf7c2"
+    },
+    "train_records.jsonl": {
+     "bytes": 290806,
+     "sha256": "3d64ce22eeeb6c49b6bf20ebba0afe260dcf56ad157b67d44db7407f3b1d00c4"
+    },
+    "training_console.log": {
+     "bytes": 1876443,
+     "sha256": "aaa34c2c87e505b6dedc2c631e69275bca3e321806ae9dd8e2521e2f5dff414a"
+    }
+   },
+   "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+   "n_eval_rounds": 5,
+   "n_iterations": 100,
+   "n_successful": 800,
+   "run_dir": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+   "run_id": "graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+   "trees": {
+    "checkpoints": {
+     "files": {
+      "checkpoints/ckpt_iter0024.pt": {
+       "bytes": 2732619,
+       "sha256": "6ff23608a61c100bf1210d731eb835cdcb43f46dfdd672efb833999657248d74"
+      },
+      "checkpoints/ckpt_iter0049.pt": {
+       "bytes": 2732619,
+       "sha256": "11c704334bd27f33acc05c5bbe705cc815f56829959a8b30e840e7380a10eafe"
+      },
+      "checkpoints/ckpt_iter0074.pt": {
+       "bytes": 2732619,
+       "sha256": "7163a0b74d79187fdcd4e5e500e506bf490cd65ffc1cd1df938ea44d738d5707"
+      },
+      "checkpoints/ckpt_iter0099.pt": {
+       "bytes": 2732619,
+       "sha256": "32f8ab2749b98d1e893abc40eac1726e6cd2168232bc7399cbe28ba0fdca87c7"
+      }
+     },
+     "n_files": 4,
+     "total_bytes": 10930476,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "e64fd76ed68f615730df6fe22d9d46a224937b6db6aa72a8045841da8fbc7717"
+    },
+    "plots": {
+     "n_files": 4,
+     "total_bytes": 888141,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "cc2fca9420793c9a582a81c5818fe3001883e70e3376d349326825af1cd4464c"
+    },
+    "scenarios": {
+     "n_files": 1100,
+     "total_bytes": 18588004,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "ae6c45004f599a8dc4cc7c674391616fc1d340f86baf0dfc51c12cc350f5ae7f"
+    }
+   }
+  },
+  "symmetric": {
+   "branch": "task/v2-ctde-gradient-pressure-diagnostics",
+   "critic": "symmetric central state (no distinguished agent), mean-pool readout",
+   "files": {
+    "authorized_plan.json": {
+     "bytes": 7818,
+     "sha256": "99571b95b09bc93021234d4675915720dbe9ec12b692ee3f94b816ffa3320cf0"
+    },
+    "episode_failures.jsonl": {
+     "bytes": 0,
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "episode_outcomes.jsonl": {
+     "bytes": 38599031,
+     "sha256": "8858b36f6aed19537b9c714c8e20390b7fd8c69a42cb9619671a73fc93caedc1"
+    },
+    "eval_records.jsonl": {
+     "bytes": 179604,
+     "sha256": "1117e44a0c92896f3338253f0e2a37a8fdf8b8504ff9660cdefa42daf2a54b82"
+    },
+    "invocation_start_local.txt": {
+     "bytes": 78,
+     "sha256": "23e00dd4f9fd2f4e047fe016775c1f4b4a54a8866788b5e91829de7c2458f839"
+    },
+    "launch.cmd": {
+     "bytes": 1855,
+     "sha256": "dc6415c90628a0f3cfe1ce5e46b2537e5489209164b08f572f0d62ab48eabce7"
+    },
+    "launch_record.json": {
+     "bytes": 1949,
+     "sha256": "287c916068d6c4f8e18dfedd22b3c187a8aa85f53ef4887490cae3517f6c64db"
+    },
+    "native_exit_code.txt": {
+     "bytes": 3,
+     "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    "preflight.json": {
+     "bytes": 17911,
+     "sha256": "eb830d3b373847b84396d2da7579cb247eae2ddf43772b4581fefcfe07e000bd"
+    },
+    "run_config.json": {
+     "bytes": 20755,
+     "sha256": "1ddeb5ed080a6af03dc8e71a3d5dba042258c580665d075b02a7d86d1ec0c38f"
+    },
+    "run_summary.json": {
+     "bytes": 116987,
+     "sha256": "dbfa3e9134ad93cd36e65f8409d74e7962540796341cf82e5d4b76ee2feb0bd1"
+    },
+    "train_actor_gradient_diagnostics.jsonl": {
+     "bytes": 453685,
+     "sha256": "c29bbf8b4ac319f3091d906d6928a8559ec34a49ae7220e71e1c819a3ca39aec"
+    },
+    "train_credit_diagnostics.jsonl": {
+     "bytes": 6026746,
+     "sha256": "87c0c3acadc08ea33fa33fb9f008df43de08bfc2307955b400a5177d60567a6b"
+    },
+    "train_records.jsonl": {
+     "bytes": 435616,
+     "sha256": "d7637750081351cc55cb4505d28045f6fd7738cb2afbd841e08a342fb02d67ea"
+    },
+    "training_console.log": {
+     "bytes": 2765133,
+     "sha256": "d03a2d2c91ec0691c9a527c0ba5fc8f1864de0de21c1292346122f48fe8a8a3b"
+    }
+   },
+   "measured_code_sha": "6ed964a1abd09de2130aee3d0d314c8f32165056",
+   "n_eval_rounds": 7,
+   "n_iterations": 150,
+   "n_successful": 1200,
+   "run_dir": "C:\\gruns\\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+   "run_id": "graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+   "trees": {
+    "checkpoints": {
+     "files": {
+      "checkpoints/ckpt_iter0024.pt": {
+       "bytes": 2732619,
+       "sha256": "3f4cf23301c5abdbf4cf0f10af0fc6fcfac3424a968b624b0dcf257d2172aabd"
+      },
+      "checkpoints/ckpt_iter0049.pt": {
+       "bytes": 2732619,
+       "sha256": "a9f2a3da88724344cda03a77f709bf0c6d274ad03eda1c7cca8607f1dec36fcb"
+      },
+      "checkpoints/ckpt_iter0074.pt": {
+       "bytes": 2732619,
+       "sha256": "a05a1678ffd5ebaad27e2c00f0978d96558665ed2ecc4f5a67b562faeafb0e09"
+      },
+      "checkpoints/ckpt_iter0099.pt": {
+       "bytes": 2732619,
+       "sha256": "c383d8211aa407bbda9d6096e35b6108e26980ea934c080c214ea16b7fea2c66"
+      },
+      "checkpoints/ckpt_iter0124.pt": {
+       "bytes": 2732619,
+       "sha256": "9640ed671b971a33376e89f72006080e479a6aa709b2d0d595289531a6b7c1ad"
+      },
+      "checkpoints/ckpt_iter0149.pt": {
+       "bytes": 2732619,
+       "sha256": "0230928ed5daf4774a38a9a97d7a070d20ddb2db9acced6092427f4d6c3b2454"
+      }
+     },
+     "n_files": 6,
+     "total_bytes": 16395714,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "aa974408147736818fe471acd823ec5a1cd7793c43f030740d096fb2cb78f691"
+    },
+    "plots": {
+     "n_files": 4,
+     "total_bytes": 907767,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "24100a3b006dc8a968f4794ba72a04adc5913f2022093168c2e1d999e0f4c1de"
+    },
+    "scenarios": {
+     "n_files": 1620,
+     "total_bytes": 27584931,
+     "tree_digest_definition": "sha256 over sorted lines '<relpath> <sha256> <bytes>\\n'",
+     "tree_digest_sha256": "088c22cfb286d9232019c4161b3f959734e10322c5aa09e6dc3c4482512c922c"
+    }
+   }
+  }
+ }
+}

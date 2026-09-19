@@ -24,12 +24,19 @@ That separation is structural, not a convention:
     ``GraphObservation`` and is not a subclass of one, so ``isinstance`` separates
     them and a central state can never be mistaken for an actor state;
   * it deliberately carries NO ``agent_id`` field. The actor's observation is *for*
-    an ego; the central state has no ego at all, and omitting the field means the
-    actor's ego-keyed code cannot even accept one of these by accident;
-  * ``ego_index`` is :data:`NO_EGO_INDEX` (``-1``), which the shared encoder already
-    handles: its role assignment marks a node EGO only for ``0 <= ego_index < N``, so
-    with ``-1`` every agent node keeps the same (PEER) role and the graph is SYMMETRIC
-    over live agents. No encoder change was needed, and none was made;
+    an ego and built FROM that ego's private view; the central state is the GLOBAL view,
+    and omitting the field means the actor's ego-keyed code cannot even accept one of
+    these by accident;
+  * it is DECISION-CONDITIONED through the encoder's EXISTING role mechanism and
+    nothing else. At a decision capture ``ego_index`` is the GLOBAL node index
+    ``k + row`` of the live agent that OWNS THE CURRENT DECISION (``acting_agent_id``),
+    so the shared encoder marks that one node EGO and every other live agent node PEER.
+    No agent id, agent order, severity, condition, wake kind, action or outcome is
+    added as a feature, the physical features are identical whichever agent acts, and
+    no encoder change was needed or made. The critic therefore values
+    ``V(global_state, acting_ego)`` -- WHOSE decision it is -- not ``V(global_state)``.
+    Without an acting agent (a non-decision projection) ``ego_index`` is
+    :data:`NO_EGO_INDEX` (``-1``) and the graph is symmetric over live agents;
   * ``build_action_mask`` / ``ActionHead`` are never reachable from here -- a central
     state does not carry the columns the mask reads, so feeding one to the actor path
     fails loudly rather than silently training on privileged information.
@@ -159,8 +166,9 @@ CENTRAL_AGENT_FEATURE_DIM = 1
 CENTRAL_EDGE_ATTR_DIM = 5
 
 # The encoder marks a node EGO only when ``0 <= ego_index < N``; -1 therefore leaves
-# every agent node in the SAME role, which is what makes the critic graph symmetric
-# over live agents. It is a sentinel, not an index.
+# every agent node in the SAME role. It is the sentinel for a NON-decision projection
+# (``acting_agent_id=None``); an actual decision capture never produces it -- it names
+# the acting agent's node, and fails loud when that agent has no live node.
 NO_EGO_INDEX = -1
 
 # The one relation code the central graph uses. SPATIAL is RESERVED / unused in the
@@ -177,8 +185,8 @@ class CentralGraphObservation:
     """The global training-only state at ONE decision point.
 
     Structurally distinct from the actor's ``GraphObservation`` (see the module
-    docstring): different type, different feature widths, no ``agent_id``, and
-    ``ego_index == NO_EGO_INDEX``. It exposes exactly the attribute names
+    docstring): different type, different feature widths and no ``agent_id``;
+    ``ego_index`` marks the decision owner's node, not an actor ego. It exposes exactly the attribute names
     :class:`~match_aou.rl.agent.graph_encoder.GraphEncoder` reads, which is why the
     SAME encoder class can be instantiated a second time for the critic with no change
     to the encoder itself.
@@ -186,7 +194,9 @@ class CentralGraphObservation:
     Attributes:
         task_features: ``[k, CENTRAL_TASK_FEATURE_DIM]`` float32.
         agent_features: ``[a, CENTRAL_AGENT_FEATURE_DIM]`` float32.
-        ego_index: always :data:`NO_EGO_INDEX` -- there is no distinguished ego.
+        ego_index: the GLOBAL node index (``n_tasks + row``) of the live agent that
+            owns the decision this state was captured for -- the encoder's EGO role;
+            :data:`NO_EGO_INDEX` only for a non-decision projection.
         edge_index: ``[2, E]`` int64 COO over GLOBAL node indices (agent -> task).
         edge_type: ``[E]`` int64, every entry :data:`CENTRAL_EDGE_TYPE`.
         edge_attr: ``[E, CENTRAL_EDGE_ATTR_DIM]`` float32, aligned with ``edge_index``.
@@ -333,6 +343,7 @@ def build_central_graph_observation(
     executor: Any,
     current_time: int = 0,
     config: Optional[GraphObservationConfig] = None,
+    acting_agent_id: Optional[str] = None,
 ) -> CentralGraphObservation:
     """Project the CURRENT global physical / execution state into a central graph.
 
@@ -354,11 +365,24 @@ def build_central_graph_observation(
         config: the SAME :class:`GraphObservationConfig` the actor builder uses, so the
             detection radius, theater scale, risk margin and tick cap can never drift
             between the two views. Defaults are used when ``None``.
+        acting_agent_id: the agent that OWNS the decision this state is captured for.
+            Its live node becomes ``ego_index`` (the encoder's EGO role); every other
+            live agent stays PEER. It is located by IDENTITY among the live agents, so
+            the conditioning follows the physical agent, not a fixed row or the
+            scheduled order. ``None`` means a non-decision projection
+            (``ego_index == NO_EGO_INDEX``). It changes the node ROLE only -- never a
+            feature, an edge or the node set.
 
     Returns:
         The :class:`CentralGraphObservation`. ``k`` and ``a`` are both variable and may
         legitimately be 0 (every target destroyed, or every agent lost); the encoder is
         size-agnostic and its self-loops keep an empty edge set safe.
+
+    Raises:
+        ValueError: if ``acting_agent_id`` is given but has no LIVE agent node (never
+            scheduled, or physically dead). A decision owner without a node is a broken
+            capture, so it fails closed rather than silently falling back to
+            :data:`NO_EGO_INDEX`.
     """
     if config is None:
         config = GraphObservationConfig()
@@ -407,6 +431,21 @@ def build_central_graph_observation(
 
     a = len(live_agent_ids)
     k = len(live_tasks)
+
+    # --- DECISION OWNER: the existing EGO role, located by identity ----------------
+    if acting_agent_id is None:
+        ego_index = NO_EGO_INDEX
+    else:
+        acting = str(acting_agent_id)
+        if acting not in live_agent_ids:
+            scheduled = acting in {str(aid) for aid in agent_ids}
+            raise ValueError(
+                "central decision capture names acting agent %r, which has no live "
+                "agent node (%s); live agents: %r"
+                % (acting, "scheduled but not physically live" if scheduled
+                   else "not among the scheduled agent ids", live_agent_ids)
+            )
+        ego_index = k + live_agent_ids.index(acting)
     agent_features = np.zeros((a, CENTRAL_AGENT_FEATURE_DIM), dtype=np.float32)
     for i, airframe in enumerate(live_airframes):
         # EVERY live agent carries its OWN real fuel -- no featureless peers here.
@@ -480,7 +519,7 @@ def build_central_graph_observation(
     return CentralGraphObservation(
         task_features=task_features,
         agent_features=agent_features,
-        ego_index=NO_EGO_INDEX,
+        ego_index=ego_index,
         edge_index=edge_index,
         edge_type=edge_type,
         edge_attr=edge_attr,
@@ -505,9 +544,10 @@ class CentralStateRecorder:
     SEPARATE object, aligned 1:1 and index-for-index with ``EpisodeResult.trajectory``.
 
     ALIGNMENT IS THE CONTRACT. ``run_episode`` calls :meth:`capture` immediately BEFORE
-    the actor action of a wake it has already decided to take, and never anywhere else.
-    So sample ``i`` is the global state the team was in when decision ``i`` was made,
-    before that decision changed anything. With two egos waking on the same tick the
+    the actor action of a wake it has already decided to take, and never anywhere else,
+    naming the waking ego as ``acting_agent_id``. So sample ``i`` is the global state the
+    team was in when decision ``i`` was made, before that decision changed anything,
+    with decision ``i``'s owner in the EGO role. With two egos waking on the same tick the
     order is::
 
         capture(A) -> act(A) + resync(A) -> capture(B) -> act(B) + resync(B) -> env.step
@@ -530,11 +570,14 @@ class CentralStateRecorder:
         agent_ids: Sequence[str],
         executor: Any,
         current_time: int,
+        acting_agent_id: str,
         config: Optional[GraphObservationConfig] = None,
     ) -> CentralGraphObservation:
         """Build and record the central state for the decision about to be taken.
 
-        ``config`` overrides :attr:`config` for this capture. ``run_episode`` passes
+        ``acting_agent_id`` is REQUIRED: every capture is a decision capture, so it
+        always names the decision owner, and the builder fails loud (nothing is
+        recorded) if that agent has no live node. ``config`` overrides :attr:`config` for this capture. ``run_episode`` passes
         the SAME :class:`GraphObservationConfig` the actor builder is using on that
         episode, so the critic's detection radius / theater scale / tick cap are the
         actor's by construction rather than by two defaults agreeing.
@@ -545,6 +588,7 @@ class CentralStateRecorder:
             executor=executor,
             current_time=current_time,
             config=config if config is not None else self.config,
+            acting_agent_id=acting_agent_id,
         )
         self.samples.append(sample)
         return sample

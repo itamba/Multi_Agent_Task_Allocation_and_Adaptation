@@ -1,0 +1,76 @@
+{
+ "record": "authorized_plan",
+ "record_version": 1,
+ "written_at": "2026-09-19T17:56:41.309617+03:00",
+ "written_before_any_training_episode": true,
+ "run_id": "graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3",
+ "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+ "measured_code_checkout": "isolated detached git worktree C:\\grolelambda1 (no branch)",
+ "measured_code_note": "role-only acting-ego critic = the reviewed PR #75 head measured by the primary comparator; NOT the current PR #75 head (557e072b94884bef37ece82a064ad877a5a2f636, explicit readout); unmerged; not main",
+ "authorization": {
+  "source": "user-authorized bounded DEVELOPMENT diagnostic, task packet 2026-09-19 (role-only CTDE gae_lambda 0.95 -> 1.0)",
+  "authority": "docs/workflows/experiments.md section 2 (authorized bounded plan)",
+  "profile_scope": "DEVELOPMENT ONLY",
+  "arms_authorized": 1,
+  "comparator_reruns": false,
+  "hyperparameter_sweep_authorized": false,
+  "resume_or_warm_start": false,
+  "benchmark_preflight": false,
+  "evidence_branch_or_pr": false,
+  "repository_documentation_update": false,
+  "confirmatory_profile_untouched": true,
+  "evidence_class": "same-code DEVELOPMENT diagnostic intervention; one seed stream; not confirmatory"
+ },
+ "scientific_question": "Does changing ONLY ctde.gae_lambda 0.95 -> 1.0 under the role-only acting-ego critic improve acquisition / retention by removing partial bootstrapping through values of subsequent decision owners?",
+ "intervention": "ctde.gae_lambda 0.95 -> 1.0 (plus a fresh output_dir); nothing else",
+ "population": {
+  "episode_design": "generalized_v2",
+  "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "profile": "development",
+  "regenerate_or_mutate_manifest": false
+ },
+ "primary_comparator": {
+  "run_id": "graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+  "run_dir": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+  "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "gae_lambda": 0.95,
+  "n_iterations": 100,
+  "rerun_or_modified": false,
+  "comparison_limitation": "same code SHA and train_config except gae_lambda and output_dir; BLADE run-to-run timing nondeterminism, bitwise trajectory identity not claimed"
+ },
+ "secondary_context_only": {
+  "symmetric_fd100": "6ed964a1abd09de2130aee3d0d314c8f32165056",
+  "explicit_readout": "1a1e0c953c54e9d3f46c871158d5ab6bdd881f24",
+  "note": "cross-version context only"
+ },
+ "configuration_route": "run-local JSON preset = comparator run_config.json:/train_config with /ctde/gae_lambda and /output_dir replaced, resolved by the trainer's own --config loader (load_config_file + resolve_train_config)",
+ "budget": {
+  "n_iterations": 100,
+  "successful_episodes_per_iteration": 8,
+  "successful_training_quota": 800,
+  "max_attempts_per_iteration": 12,
+  "max_training_attempts": 1200,
+  "wall_clock_ceiling_hours": 8,
+  "early_stopping": false,
+  "runs": 1
+ },
+ "primary_endpoint": "held-out DEVELOPMENT macro SEVERE - MILD P(SELF_PRESERVATION_ABORT) at the certified ego's immediate-FD wake at post-update 100; trajectory at 0/25/50/75/100",
+ "mechanism_analysis": "read-only after completion, scratch outputs outside the run dir (blocks A-F of the task packet)",
+ "stop_rules": [
+  "measured SHA mismatch",
+  "dirty tree",
+  "config differs beyond the two authorized paths",
+  "benchmark mismatch or held-out overlap",
+  "solver/environment failure",
+  "integrity abort",
+  "crash",
+  "unexpected quota attrition",
+  "missing required diagnostics",
+  "accounting mismatch",
+  "output collision",
+  "8-hour ceiling"
+ ],
+ "no_repair_resume_or_rerun": true
+}

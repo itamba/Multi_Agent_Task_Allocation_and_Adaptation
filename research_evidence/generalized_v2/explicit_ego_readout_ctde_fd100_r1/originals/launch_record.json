@@ -1,0 +1,51 @@
+{
+ "record": "launch_record",
+ "written_after_launch": true,
+ "launched_at_local": "2026-09-19T16:24:52.3322739+03:00",
+ "detach_method": "PowerShell Start-Process -FilePath cmd.exe -ArgumentList '/c \"<run_dir>/launch.cmd\"' -WindowStyle Hidden -PassThru",
+ "launcher_pid": 25352,
+ "launch_cmd_sha256": "a287452472ef2a8f1380be7ac404d16747ffe0d793a7ad260fd1a65fd00b93a9",
+ "authorized_plan_json_sha256": "691cccc5189686f312830afe9154dbe32279a4bf4e213b1f98777cfc00f37d3c",
+ "preflight_json_sha256": "a49b08ea106a8ec65d401d615b5c7414d4052fc7451a45cb4b4833812f88ab59",
+ "process_tree": [
+  {
+   "ProcessId": 25352,
+   "ParentProcessId": 16428,
+   "Name": "cmd.exe",
+   "ExecutablePath": "C:\\WINDOWS\\system32\\cmd.exe"
+  },
+  {
+   "ProcessId": 24244,
+   "ParentProcessId": 25352,
+   "Name": "conda.exe",
+   "ExecutablePath": "C:\\Users\\Itama\\anaconda3\\Scripts\\conda.exe"
+  },
+  {
+   "ProcessId": 15464,
+   "ParentProcessId": 24244,
+   "Name": "python.exe",
+   "ExecutablePath": "C:\\Users\\Itama\\anaconda3\\python.exe"
+  },
+  {
+   "ProcessId": 31888,
+   "ParentProcessId": 19952,
+   "Name": "python.exe",
+   "ExecutablePath": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe"
+  }
+ ],
+ "logs": {
+  "console": "training_console.log",
+  "start_end": "invocation_start_local.txt",
+  "native_exit_code": "native_exit_code.txt (prefix redirect)"
+ },
+ "pre_run_records_written_before_run_config": true,
+ "mtime_ns": {
+  "launch.cmd": 1789824287211339300,
+  "authorized_plan.json": 1789824287208981800,
+  "preflight.json": 1789824287209982100,
+  "run_config.json": 1789824298144428800
+ },
+ "run_config_check": "run_config.json:/train_config equals preflight.json:/resolved_configuration/train_config: True; provenance commit 1a1e0c953c54e9d3f46c871158d5ab6bdd881f24, branch task/ctde-acting-ego-conditioning, dirty=False; critic_readout_id mean_pool_plus_acting_ego_v1 (checked in preflight)",
+ "wall_clock_ceiling": "8 h from launch (2026-09-19T16:24 local)",
+ "encoding_note": "UTF-8 without BOM"
+}

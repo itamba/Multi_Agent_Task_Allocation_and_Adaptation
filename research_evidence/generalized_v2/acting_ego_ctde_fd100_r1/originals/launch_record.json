@@ -1,0 +1,50 @@
+﻿{
+    "record":  "launch_record",
+    "written_after_launch":  true,
+    "launched_at_local":  "2026-09-19T13:34:18.3949099+03:00",
+    "detach_method":  "PowerShell Start-Process -FilePath cmd.exe -ArgumentList \u0027/c \"\u003crun_dir\u003e/launch.cmd\"\u0027 -WindowStyle Hidden -PassThru",
+    "launcher_pid":  9212,
+    "launch_cmd_sha256":  "b5126c1fa24f2dff42eb15fd7ac359841683cd245a68c6c5253682540ba574b3",
+    "authorized_plan_json_sha256":  "ea6752304682a4300b3a5ffd50819a566d6da239fbf7de20e68b9356175f7a19",
+    "preflight_json_sha256":  "ac51eaef83b631e5c7ac75d54d7163965f0d6a73c29711ee7b1ec0dbb2595705",
+    "process_tree":  [
+                         {
+                             "pid":  9212,
+                             "parent":  12324,
+                             "name":  "cmd.exe",
+                             "executable":  "C:\\WINDOWS\\system32\\cmd.exe"
+                         },
+                         {
+                             "pid":  1812,
+                             "parent":  9212,
+                             "name":  "conda.exe",
+                             "executable":  "C:\\Users\\Itama\\anaconda3\\Scripts\\conda.exe"
+                         },
+                         {
+                             "pid":  1084,
+                             "parent":  1812,
+                             "name":  "python.exe",
+                             "executable":  "C:\\Users\\Itama\\anaconda3\\python.exe"
+                         },
+                         {
+                             "pid":  4132,
+                             "parent":  6732,
+                             "name":  "python.exe",
+                             "executable":  "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe"
+                         }
+                     ],
+    "logs":  {
+                 "console":  "training_console.log",
+                 "start_end":  "invocation_start_local.txt",
+                 "native_exit_code":  "native_exit_code.txt (prefix redirect)"
+             },
+    "pre_run_records_written_before_run_config":  true,
+    "filetime_utc":  {
+                         "launch.cmd":  "134342876514525257",
+                         "authorized_plan.json":  "134342876514484663",
+                         "preflight.json":  "134342876514494819",
+                         "run_config.json":  "134342876673252267"
+                     },
+    "run_config_check":  "run_config.json:/train_config equals preflight.json:/resolved_configuration/train_config: True; provenance commit 68055e39768d5fa601e5960a9f08823b9e65c08f, branch task/ctde-acting-ego-conditioning, dirty=False; fuel_damage_probability 1.0; n_iterations 100; actor_gradient_diagnostics enabled",
+    "wall_clock_ceiling":  "8 h from launch (2026-09-19T13:34 local)"
+}

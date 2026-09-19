@@ -963,11 +963,12 @@ class CentralCritic(torch.nn.Module):
     already constructor parameters, which is why no encoder change was needed. Its
     parameters are disjoint from the actor's; nothing is shared, tied or copied.
 
-    THE GRAPH HAS NO DISTINGUISHED EGO. ``CentralGraphObservation.ego_index`` is
-    ``-1``, and the encoder marks a node EGO only for ``0 <= ego_index < N``, so every
-    live agent node keeps the same role and the critic is SYMMETRIC over agents. No
-    agent-identity or agent-order feature is invented, and the encoder's role semantics
-    are untouched.
+    THE STATE IS DECISION-CONDITIONED BY ROLE ONLY. At a decision capture
+    ``CentralGraphObservation.ego_index`` is the node of the live agent that owns the
+    current decision, so the encoder's EXISTING role mechanism marks that node EGO and
+    every other live agent PEER: the critic values ``V(s, acting_ego)``. No
+    agent-identity or agent-order feature is invented, the architecture and pooling are
+    unchanged, and the encoder's role semantics are untouched.
     """
 
     def __init__(

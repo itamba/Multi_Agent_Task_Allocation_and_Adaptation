@@ -22,7 +22,8 @@ Three proof obligations, in three sections:
        an unallocated-but-live target still present; ``assigned`` following the CURRENT
        executor plans; hand-computed GAE with ``V_next = 0`` at the end; fixed value
        targets; zero-wake episodes contributing nothing; and variable graph sizes staying
-       finite.
+       finite. Each decision capture marks exactly its live decision owner in the EGO
+       role -- by identity, not row -- changes nothing else, and fails loud without one.
 
 Solver-free and BLADE-free: every fixture is a hand-built stub, so this file runs under
 the base-env ``pytest`` AND standalone under ``nlp_env``.
@@ -282,10 +283,10 @@ def _world(*, n_targets=3, agents=("ego0", "ego1"), plans=None, base_lat=32.0):
     return scen, ex, list(agents), tasks
 
 
-def _central(scen, ex, agent_ids, *, t=0, config=None):
+def _central(scen, ex, agent_ids, *, t=0, config=None, acting=None):
     return build_central_graph_observation(
         scen, agent_ids=agent_ids, executor=ex, current_time=t,
-        config=config or GraphObservationConfig(),
+        config=config or GraphObservationConfig(), acting_agent_id=acting,
     )
 
 
@@ -822,7 +823,7 @@ def test_a_central_state_is_not_an_actor_observation():
     central = _synthetic_central()
     assert not isinstance(central, GraphObservation)
     assert not isinstance(central, type(_actor_obs()))
-    # No `agent_id`: the actor's observation is FOR an ego; this one has no ego.
+    # No `agent_id`: the actor's observation is FOR an ego; this one is the global view.
     assert not hasattr(central, "agent_id")
     assert central.ego_index == NO_EGO_INDEX
     # It cannot be fed to the actor's mask -- it lacks the columns the mask reads.
@@ -1285,6 +1286,132 @@ def test_time_norm_uses_the_actor_normalization():
     assert _central(scen, ex, ids, t=999999, config=cfg).time_norm == 1.0
 
 
+# --- DECISION-OWNER conditioning (acting ego by ROLE only) ---------------------
+
+def test_a_decision_capture_marks_exactly_the_acting_ego():
+    """The named live acting agent -- and only it -- holds the encoder's EGO role."""
+    scen, ex, ids, _ = _world(n_targets=2, agents=("ego0", "ego1", "ego2"))
+    for acting in ids:
+        c = _central(scen, ex, ids, acting=acting)
+        k = c.n_tasks
+        assert k <= c.ego_index < k + c.n_agents
+        assert c.agent_ids[c.ego_index - k] == acting
+        # Exactly one agent node is EGO: the encoder's own role rule over [k, k + a).
+        ego_nodes = [n for n in range(k, k + c.n_agents) if n == c.ego_index]
+        assert len(ego_nodes) == 1
+    # The widths are the historical ones; the role is not a new feature column.
+    assert (CENTRAL_TASK_FEATURE_DIM, CENTRAL_AGENT_FEATURE_DIM,
+            CENTRAL_EDGE_ATTR_DIM) == (2, 1, 5)
+    assert c.task_features.shape[1] == 2 and c.agent_features.shape[1] == 1
+    assert c.edge_attr.shape[1] == 5
+
+
+def test_a_different_acting_ego_changes_only_the_role_not_the_physics():
+    """Same physical / execution state, two decision owners: only `ego_index` differs.
+
+    And the difference is REAL to the critic: with distinguishable agents the critic's
+    value changes with the owner, through the existing role embedding alone.
+    """
+    scen, ex, ids, _ = _world(n_targets=3, agents=("ego0", "ego1"),
+                              plans={"ego0": [(0, 0, 0)], "ego1": [(2, 0, 0)]})
+    scen.aircraft[1].current_fuel = 4000.0
+    c0 = _central(scen, ex, ids, acting="ego0")
+    c1 = _central(scen, ex, ids, acting="ego1")
+    assert c0.ego_index != c1.ego_index
+    for name in ("task_features", "agent_features", "edge_index", "edge_type", "edge_attr"):
+        assert np.array_equal(getattr(c0, name), getattr(c1, name)), name
+    assert (c0.task_target_ids, c0.agent_ids, c0.current_time, c0.time_norm) == \
+        (c1.task_target_ids, c1.agent_ids, c1.current_time, c1.time_norm)
+
+    torch.manual_seed(0)
+    critic = build_central_critic()
+    with torch.no_grad():
+        assert not torch.allclose(critic(c0), critic(c1)), \
+            "the EGO role did not reach the critic's value"
+
+
+def test_the_acting_ego_is_bound_by_identity_not_by_scheduled_row():
+    """Reordering the scheduled list moves the node, not the meaning.
+
+    The same physical acting ego under two scheduled orders keeps the EGO role on ITS
+    node, and the critic -- permutation-invariant over nodes -- values both the same.
+    """
+    scen, ex, ids, _ = _world(n_targets=2, agents=("ego0", "ego1", "ego2"))
+    scen.aircraft[0].current_fuel = 9000.0
+    scen.aircraft[2].current_fuel = 3000.0
+    forward = _central(scen, ex, ["ego0", "ego1", "ego2"], acting="ego2")
+    reverse = _central(scen, ex, ["ego2", "ego1", "ego0"], acting="ego2")
+    k = forward.n_tasks
+    assert forward.ego_index == k + 2 and reverse.ego_index == k + 0
+    assert forward.agent_ids[forward.ego_index - k] == "ego2"
+    assert reverse.agent_ids[reverse.ego_index - k] == "ego2"
+    assert np.array_equal(forward.agent_features[forward.ego_index - k],
+                          reverse.agent_features[reverse.ego_index - k])
+
+    torch.manual_seed(0)
+    critic = build_central_critic()
+    with torch.no_grad():
+        assert torch.allclose(critic(forward), critic(reverse), atol=1e-6)
+        other = _central(scen, ex, ["ego2", "ego1", "ego0"], acting="ego0")
+        assert not torch.allclose(critic(reverse), critic(other)), \
+            "a fixed row, not the named agent, carried the conditioning"
+
+
+def test_a_missing_or_dead_acting_ego_fails_loud():
+    """No silent `NO_EGO_INDEX` fallback at a decision capture, and nothing recorded."""
+    import inspect
+    scen, ex, ids, _ = _world(n_targets=2, agents=("ego0", "ego1"))
+    scen.aircraft = [a for a in scen.aircraft if a.id != "ego1"]   # remove_aircraft
+    for bad in ("ego1", "ghost"):
+        try:
+            _central(scen, ex, ids, acting=bad)
+            raised = False
+        except ValueError:
+            raised = True
+        assert raised, "acting agent %r without a live node was accepted" % bad
+
+        recorder = CentralStateRecorder()
+        try:
+            recorder.capture(scenario=scen, agent_ids=ids, executor=ex,
+                             current_time=0, acting_agent_id=bad)
+        except ValueError:
+            pass
+        assert recorder.samples == [], "a failed capture was still recorded"
+
+    # A capture cannot omit its owner: the parameter is required, with no default.
+    param = inspect.signature(CentralStateRecorder.capture).parameters["acting_agent_id"]
+    assert param.default is inspect.Parameter.empty
+    # The non-decision projection keeps the sentinel.
+    assert _central(scen, ex, ids).ego_index == NO_EGO_INDEX
+
+
+def test_the_critic_learns_no_agent_identity():
+    """The conditioning is the EXISTING 4-slot role table; no id / order parameter exists.
+
+    The observation's field set is the historical one, the critic encoder's parameter
+    shapes do not depend on the number or names of agents, and its role table is the
+    unchanged {TASK, EGO, PEER, MISSION} embedding.
+    """
+    import dataclasses
+    assert [f.name for f in dataclasses.fields(CentralGraphObservation)] == [
+        "task_features", "agent_features", "ego_index", "edge_index", "edge_type",
+        "edge_attr", "task_target_ids", "agent_ids", "current_time", "time_norm",
+    ]
+    torch.manual_seed(0)
+    critic = build_central_critic()
+    assert critic.encoder.role_embed.num_embeddings == 4
+    shapes = {n: tuple(p.shape) for n, p in critic.named_parameters()}
+    torch.manual_seed(0)
+    assert shapes == {n: tuple(p.shape) for n, p in build_central_critic().named_parameters()}
+    # Finite for every owner position across sizes, with no padding or id lookup.
+    for a in (1, 2, 5):
+        c = _synthetic_central(k=3, a=a, seed=a)
+        for row in range(a):
+            c.ego_index = 3 + row
+            with torch.no_grad():
+                assert bool(torch.isfinite(critic(c)).all())
+
+
 # --- the CAPTURE seam ------------------------------------------------------------
 
 class _TickCtx:
@@ -1414,6 +1541,72 @@ def test_the_second_same_tick_sample_sees_the_first_egos_resync():
     assert assigned_b[0].sum() == 0.0, "sample B did not see ego0's applied resync"
     # ego1's own row is untouched between the two samples.
     assert np.allclose(assigned_a[1], assigned_b[1])
+    # Each sample names ITS decision's owner: capture(A) -> act(A) -> capture(B) -> act(B).
+    assert a_s.agent_ids[a_s.ego_index - k] == "ego0"
+    assert b_s.agent_ids[b_s.ego_index - k] == "ego1"
+
+
+def test_same_tick_captures_name_their_own_decision_owner_in_causal_order():
+    """PO3: capture(A) -> act(A) -> capture(B) -> act(B), each capture owned by its ego.
+
+    The interleaving is observed directly: a recording spy logs every capture with the
+    ``ego_index`` it produced, and the wake stub logs every action. A is ego1 and B is
+    ego0 here (scheduled order reversed), so the owner is the LOOP's ego, not row 0.
+    """
+    from match_aou.rl.training import graph_tick_loop as tl
+
+    scen, ex, ids, tasks = _world(n_targets=2, agents=("ego1", "ego0"),
+                                  plans={"ego0": [(0, 0, 0)], "ego1": [(1, 0, 0)]})
+
+    class _Env:
+        def step(self, _commands):
+            events.append(("env.step",))
+            return scen, 0.0, False, False, {}
+
+    class _Belief:
+        def __init__(self):
+            self.tasks = list(tasks)
+            self.solution = {}
+
+    events = []
+
+    class _OrderRecorder(CentralStateRecorder):
+        def capture(self, **kw):
+            sample = super().capture(**kw)
+            events.append(("capture", kw["acting_agent_id"],
+                           sample.agent_ids[sample.ego_index - sample.n_tasks]))
+            return sample
+
+    ctx = _TickCtx(scen, ex, ids, {a: _Belief() for a in ids}, _Env())
+
+    def fake_triggers(btasks, bsol, sensed, eta=None, *, ego_id, clock, fuel_damage=False):
+        return btasks, bsol, clock == 0, []
+
+    def fake_wake(policy, ego_id, obs, belief, executor, cfg, tick, *, deterministic=False):
+        events.append(("act", str(ego_id)))
+        return _transition(_actor_obs(), meta=2)
+
+    saved_t, saved_w = tl.decide_triggers, tl._wake_decision
+    tl.decide_triggers = fake_triggers
+    tl._wake_decision = fake_wake
+    recorder = _OrderRecorder()
+    try:
+        result = tl.run_episode(policy=None, ctx=ctx, max_ticks=1, central=recorder,
+                                cfg=GraphObservationConfig(detection_range_km=50.0))
+    finally:
+        tl.decide_triggers, tl._wake_decision = saved_t, saved_w
+
+    assert events[:4] == [
+        ("capture", "ego1", "ego1"), ("act", "ego1"),
+        ("capture", "ego0", "ego0"), ("act", "ego0"),
+    ], events
+    assert ("env.step",) not in events[:4]
+    assert len(recorder.samples) == len(result.trajectory) == 2
+    # Same physical world for both: only the ROLE differs between the two samples.
+    a_s, b_s = recorder.samples
+    assert a_s.ego_index != b_s.ego_index
+    assert np.array_equal(a_s.agent_features, b_s.agent_features)
+    assert np.array_equal(a_s.task_features, b_s.task_features)
 
 
 def _boundary_ctx():
@@ -1474,11 +1667,12 @@ class _PlanSpyRecorder(CentralStateRecorder):
         super().__init__()
         self.plans_at_capture = []
 
-    def capture(self, *, scenario, agent_ids, executor, current_time, config=None):
+    def capture(self, *, scenario, agent_ids, executor, current_time, acting_agent_id,
+                config=None):
         self.plans_at_capture.append(plan_target_ids(executor, "ego0"))
         return super().capture(
             scenario=scenario, agent_ids=agent_ids, executor=executor,
-            current_time=current_time, config=config,
+            current_time=current_time, acting_agent_id=acting_agent_id, config=config,
         )
 
 
