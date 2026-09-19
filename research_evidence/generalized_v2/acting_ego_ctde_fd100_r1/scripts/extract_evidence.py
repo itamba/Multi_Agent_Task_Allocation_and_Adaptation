@@ -519,7 +519,7 @@ def build(runs_root):
         "formal_status": {
             "implementation_candidate": "68055e39768d5fa601e5960a9f08823b9e65c08f GPT-approved for measurement (PR #75)",
             "run": "completed",
-            "scientific_measurement_verdict": "PENDING GPT review of this evidence package",
+            "scientific_measurement_verdict": "APPROVE -- VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT (GPT review of this evidence package, 2026-09-19; recorded in docs/history/measurements.md section 12)",
             "merge_authorized": False,
             "confirmatory_profile_used": False,
             "new_scientific_execution_authorized_by_preservation": False,

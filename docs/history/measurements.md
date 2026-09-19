@@ -39,6 +39,7 @@
 | GENERALIZED-V2 semantic-action actor-only development R1 (`semantic_k_plus_2_logmeanexp_v1`) | `d4e9f3721e6d151c00be3fe93c3d149df9d31965` | evidence PR #71, exact candidate `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT` (2026-09-16, as transferred in the user-approved documentation packet); **development only**; final primary endpoint effectively zero, transient separation at updates 75–150 (§10) |
 | GENERALIZED-V2 semantic-action CTDE actor-gradient diagnostic A — `p = 0.5` (150 updates) | `6ed964a1abd09de2130aee3d0d314c8f32165056` — PR #74 approved head, **unmerged when measured** | local original `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a`; compact index `research_evidence/generalized_v2/semantic_ctde_grad_diag_r1/` (PR #74) | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-17, as transferred in the user-approved documentation packet); **development diagnostic only**; no meaningful severity-conditioned behaviour (§11) |
 | GENERALIZED-V2 semantic-action CTDE actor-gradient diagnostic B — FD100 intervention (150 updates) | `6ed964a1abd09de2130aee3d0d314c8f32165056` — PR #74 approved head, **unmerged when measured** | local original `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a`; compact index as above | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-17, as transferred in the user-approved documentation packet); **development diagnostic only**; probability-level separation acquired at update 75, not retained (§11) |
+| GENERALIZED-V2 role-only acting-ego CTDE development diagnostic — FD100 configuration (100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` — PR #75 approved implementation head, **unmerged when measured** | local original `C:\gruns\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3`; compact package `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` on PR #75 | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only, cross-version** against diagnostic B; critic localization improved, held-out acquisition / retention not improved (§12) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. Since 2026-09-15 the
 local artifacts live in the local archive under `C:\gra\`, and PRs #61, #62, #64, #65 and #67 are
@@ -2367,3 +2368,150 @@ No new run or code change is authorized by this record.
 - The measured SHA was an unmerged candidate; the semantic-action CTDE R1 (evidence PR #73) remains
   unreviewed and is not used here.
 - No confirmatory evidence exists; the confirmatory profile is untouched.
+
+## 12. GENERALIZED-V2 role-only acting-ego CTDE development diagnostic
+
+Recorded on 2026-09-19. The decisions taken on this record are the 2026-09-19 rows of
+[`decisions.md` §1](decisions.md#1-decision-log). §11 stays as the record it was; this record
+describes measured SHA `68055e39768d5fa601e5960a9f08823b9e65c08f` only.
+
+### 12.1 Scope and epistemic status
+
+| Layer | What it is | Status |
+|---|---|---|
+| measurement validity | the run executed its recorded authorized plan, completed and reconciled | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** — GPT orchestrator review of 2026-09-19 of the compact evidence package, as transferred in the user-approved packet (§12.2–§12.3) |
+| observed findings | critic / credit, held-out behaviour and actor-gradient quantities | reproduced from the original artifacts by the package's extractor (§12.4–§12.6) |
+| development interpretation | what the findings are consistent with | **development only**; no causal attribution (§12.7) |
+| confirmatory evidence | — | **none**. The confirmatory profile was not selected, inspected or executed |
+
+**Cross-version, not a one-key intervention.** The intervention is a code change — the central
+critic state marks the current decision owner's live node with the encoder's existing EGO role
+([policy and CTDE §4](../contracts/policy_ctde.md#4-phase-b-ctde)); the comparator is §11's Run B
+(FD100) measured at `6ed964a1abd09de2130aee3d0d314c8f32165056`. Comparisons use the common range
+through update 100. Every evaluation round re-measures the same 20 frozen development worlds.
+
+### 12.2 Identity and evidence provenance
+
+| Item | Value |
+|---|---|
+| Run id | `graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3` |
+| Local original (authoritative, external, untouched) | `C:\gruns\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3` |
+| Measured code SHA | `68055e39768d5fa601e5960a9f08823b9e65c08f`, branch `task/ctde-acting-ego-conditioning` — the GPT-approved implementation head of PR #75, **unmerged when measured**; `run_config.json:/provenance/git` records `dirty = false`, 0 dirty paths |
+| Comparator | `graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a` at `6ed964a1abd09de2130aee3d0d314c8f32165056` (§11, Run B); its original bytes equal the PR #74 index |
+| Wall clock (local, 2026-09-19) | 13:34:18 – 14:09:27 |
+| Design | GENERALIZED-V2, `ctde`, `p1_milp_v1`, `semantic_k_plus_2_logmeanexp_v1`, DEVELOPMENT profile of manifest `ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8` (file SHA-256 `dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103`), base seed `3000000`, `fuel_damage_mode = seeded_variable`, `fuel_damage_probability = 1.0`, `--actor-gradient-diagnostics` on |
+| Budget | 100 updates × 8 successful episodes; at most 12 attempts per update; `eval_every = checkpoint_every = 25`; early stopping disabled |
+| PPO / CTDE | unchanged from §11: `gamma = 1.0`, `lr = 0.0003`, `clip_ratio = 0.2`, `entropy_coeff = 0.01`, `n_epochs = 4`, `max_grad_norm = 0.5`; `critic_lr = 0.0003`, `value_coeff = 0.5`, `gae_lambda = 0.95` |
+| Configuration boundary | the resolved `train_config` equals the comparator's except `n_iterations 150 → 100` and `output_dir`; every other differing `run_config.json` path derives from `n_iterations` or is provenance |
+| Authorized plan / preflight / run config SHA-256 | `ea6752304682a4300b3a5ffd50819a566d6da239fbf7de20e68b9356175f7a19` / `ac51eaef83b631e5c7ac75d54d7163965f0d6a73c29711ee7b1ec0dbb2595705` / `a982aea152192c0f1d2fb8cf96058362d0d8288a3bd5677e8440b07a4f008b43` |
+| Compact evidence package | `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` on PR #75: byte-identical copies of the small identity, configuration, summary and record files, per-row derived projections of both runs, a two-run `artifact_manifest.json` and a standard-library extractor (`--check`, `--from-derived`). The credit stream, `episode_outcomes.jsonl`, console log, checkpoints, scenarios and plots are identified by SHA-256 only |
+
+### 12.3 Validity facts
+
+| Fact | Value |
+|---|---|
+| Productive updates | 100 / 100 |
+| Training episodes successful | 800 / 800 over 800 attempts (budget 1200); 0 failures, 0 replacements |
+| Trained transitions (`run_summary` = Σ `train_records.n_transitions` = credit rows) | 2982 |
+| Training clean / damaged successful; FD events / immediate-FD wakes | 0 / 800; 800 / 800 |
+| MILD / SEVERE training episodes | 421 / 379 |
+| Evaluation rounds; episodes successful | 5; 300 / 300 |
+| Every round: base cells defined / groups metric-eligible | 10 / 10; 20 / 20 |
+| Held-out check | overlap 0 against `[3000000, 3001200)`, entire manifest |
+| Gradient diagnostic rows; defined contrast | 100, one per update; 99 / 100 |
+| `accounting_reconciled`; `native_exit_code.txt`; Traceback lines in console | `true`; `0`; 0 |
+
+### 12.4 Critic / credit findings
+
+Immediate-FD rows of the FD-selected ego (800 per run over iterations 0–99). Within-update
+`SEVERE − MILD` is `mean(severe) − mean(mild)` per update holding both severities, median over
+those updates (99 over 0–99; 50 over 50–99).
+
+| Quantity | Acting-ego 0–99 | 50–99 | Historical FD100 0–99 | 50–99 |
+|---|---|---|---|---|
+| `value_old` | **`-0.02049`** | **`-0.02362`** | `-0.0000279` | `-0.00000186` |
+| `value_target` | `-0.330` | `-0.369` | `-0.317` | `-0.361` |
+| `raw_advantage` | `-0.319` | `-0.357` | `-0.316` | `-0.360` |
+| `td_residual` | `-0.00178` | `-0.00306` | `-0.0000886` | `-0.000109` |
+
+`value_old` by 25-update window (median): acting-ego `-0.0024` / `-0.0549` / `-0.0132` /
+`-0.0583`; historical `-0.0006` / `+0.0001` / `-0.00003` / `+0.000007`.
+
+Nonterminal immediate-FD decisions (not the episode's last decision; acting-ego 706, historical
+699; local = `td_residual`, future = `raw_advantage − td_residual = γλ·A_{t+1}`):
+
+| Quantity | Acting-ego | Historical FD100 |
+|---|---|---|
+| median `|td_residual| / |raw_advantage|` | **`0.047006`** | `0.0030719` |
+| mean `|local|` / mean `|future|` | `0.123` | `0.0547` |
+| fraction `|future| > |local|` | **`0.92068`** | `0.97997` |
+| within-update `SEVERE − MILD` future, median (0–99) | `-0.311` | `-0.319` |
+| within-update `SEVERE − MILD` local, median (0–99) | `-0.00061` | `+0.000077` |
+
+### 12.5 Behavioural findings
+
+Held-out DEVELOPMENT macro `SEVERE − MILD P(SELF_PRESERVATION_ABORT)` at the certified ego's
+immediate-FD wake; directional switches out of 20 matched groups, reverse switches 0 throughout.
+
+| Update | Acting-ego | Switches | Historical FD100 | Switches |
+|---|---|---|---|---|
+| 0 | `-0.000516` | 0 / 20 | `-0.000516` | 0 / 20 |
+| 25 | `-0.0000357` | 0 / 20 | `+0.0000907` | 0 / 20 |
+| 50 | `+0.0000326` | 0 / 20 | `+0.00208` | 0 / 20 |
+| 75 | `+0.007641` | 0 / 20 | `+0.042798` | 0 / 20 |
+| **100** (primary endpoint) | **`-0.001091`** | 0 / 20 | `-0.00000865` | 0 / 20 |
+
+### 12.6 Actor-gradient context
+
+Updates with a defined contrast (25 / 25 in each window); counts are positive-pressure updates.
+
+| Window | Run | FD + | non-FD + | total + | FD + ∧ total − | FD median | FD mean |
+|---|---|---|---|---|---|---|---|
+| 50–74 | acting-ego | 15 / 25 | 15 | 15 | 2 | `+0.00213` | `-0.00545` |
+| 50–74 | historical | 20 / 25 | 21 | 18 | 3 | `+0.0195` | `+0.00683` |
+| 75–99 | acting-ego | 18 / 25 | 11 | 13 | 6 | `+0.00122` | `-0.00023` |
+| 75–99 | historical | 13 / 25 | 9 | 12 | 2 | `+0.00026` | `-0.0128` |
+
+The entropy term flips the sign of separation pressure in 1 / 99 defined updates (historical
+0 / 99 over the same range); the minimum surrogate-versus-actor-loss cosine is `0.878`.
+
+### 12.7 Development interpretation
+
+- **Role-only acting-ego conditioning materially improved critic / credit localization:**
+  `value_old` now separates severities at the immediate-FD decision (median `-0.02049` versus
+  `-0.0000279`), and the local TD share of the advantage rose about fifteen-fold (`0.047006`
+  versus `0.0030719`). **The absence of acting-ego context was a real critic-conditioning
+  defect.**
+- **That mechanism improvement did not improve held-out acquisition or retention:** the update-75
+  macro is lower than the historical FD100 run (`+0.007641` versus `+0.042798`), the update-100
+  macro is effectively zero (`-0.001091`), and directional switches stay `0 / 20` at every
+  evaluation point. **Role-only conditioning is insufficient to solve policy acquisition /
+  retention.**
+- **Severity-specific GAE credit is still mostly future-dominated** (`|future| > |local|` in
+  `92.1 %` of nonterminal immediate-FD decisions; the within-update severity gap sits almost
+  entirely in the future term).
+- **Actor-gradient context:** the role-only intervention does not produce stronger pre-collapse FD
+  pressure than historical FD100 (50–74: `15 / 25` versus `20 / 25` positive; 75–99: `18 / 25`
+  versus `13 / 25`). This does **not** establish a simple monotonic relationship between improved
+  locality and separation pressure.
+- **No claim** that critic conditioning is the sole cause of collapse.
+
+### 12.8 Next hypothesis
+
+The value head still reads the acting ego only through a mean pool over all node embeddings, so
+the decision owner's signal may be diluted. The next minimal mechanism test is an **explicit
+acting-ego readout**: `V = ValueHead([global mean pool ; acting-ego post-message-passing
+embedding])`, adding no new information — a dedicated readout channel only
+([`decisions.md` §1](decisions.md#1-decision-log), 2026-09-19). Its implementation needs its own
+exact-candidate review and any run its own authorized bounded plan.
+
+### 12.9 Limitations and non-claims
+
+- **One development diagnostic run, one seed stream, 100 updates**; no variance across training
+  seeds is estimated; the same 20 frozen worlds are re-measured each round.
+- **Cross-version** against a historical run (different measured code); not bit-identical
+  physical execution (BLADE timing nondeterminism); not a randomized control.
+- Credit quantities are descriptive associations, **never action values**; separation pressure is
+  a local first-order epoch-0 quantity.
+- **No confirmatory claim**; the confirmatory profile is untouched. The measured SHA was an
+  unmerged candidate.

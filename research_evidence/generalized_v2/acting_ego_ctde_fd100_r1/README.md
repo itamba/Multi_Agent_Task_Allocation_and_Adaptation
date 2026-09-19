@@ -9,8 +9,10 @@ completed 100-update role-only acting-ego CTDE DEVELOPMENT diagnostic for indepe
   **GPT-approved for measurement**, and the run was executed under the user-authorized bounded
   plan recorded in `originals/authorized_plan.json`.
 - The run **has completed**.
-- The **scientific measurement verdict is PENDING** GPT review of this evidence package. Nothing
-  here is an interpretation or a verdict.
+- **Measurement verdict:** `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (GPT review of
+  this evidence package, 2026-09-19). The interpretation is recorded in
+  [`docs/history/measurements.md` §12](../../../docs/history/measurements.md#12-generalized-v2-role-only-acting-ego-ctde-development-diagnostic),
+  not here.
 - **No merge is authorized.** **No confirmatory profile was used.** Preserving this evidence
   **authorizes no new scientific execution**.
 

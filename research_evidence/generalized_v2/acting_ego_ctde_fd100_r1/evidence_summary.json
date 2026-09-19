@@ -530,7 +530,7 @@
   "merge_authorized": false,
   "new_scientific_execution_authorized_by_preservation": false,
   "run": "completed",
-  "scientific_measurement_verdict": "PENDING GPT review of this evidence package"
+  "scientific_measurement_verdict": "APPROVE -- VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT (GPT review of this evidence package, 2026-09-19; recorded in docs/history/measurements.md section 12)"
  },
  "historical_fd100": {
   "actor_gradient": {
