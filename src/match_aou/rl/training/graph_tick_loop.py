@@ -658,7 +658,8 @@ def run_episode(
             default, and what ``actor_only`` training passes) leaves the loop
             byte-identical to the pre-CTDE behaviour -- no central state is built and
             nothing privileged is computed. When supplied it collects ONE central state
-            per actor decision, captured immediately BEFORE that decision, so its
+            per actor decision, captured immediately BEFORE that decision with the
+            waking ego named as its decision owner (``acting_agent_id``), so its
             ``samples`` are aligned 1:1 with the returned ``trajectory``. It is a
             TRAINING-ONLY companion structure: the actor's ``Transition.gobs`` stays the
             ego's private observation, and evaluation / inference never construct one.
@@ -787,12 +788,15 @@ def run_episode(
                     # samples with NO env.step between them; the later one legitimately
                     # sees the earlier one's resynced plan (the critic is centralized).
                     # Nothing captured here reaches the actor -- see
-                    # `central_graph_builder`.
+                    # `central_graph_builder`. `acting_agent_id` is THIS loop's ego:
+                    # the critic values the state with the decision owner in the EGO
+                    # role (training-only; the actor's own input is unchanged).
                     central.capture(
                         scenario=obs,
                         agent_ids=ctx.agent_ids,
                         executor=ctx.executor,
                         current_time=tick,
+                        acting_agent_id=str(ego_id),
                         # The ACTOR's own config, so the critic's detection radius /
                         # theater scale / tick cap are the same values by construction.
                         config=cfg,
