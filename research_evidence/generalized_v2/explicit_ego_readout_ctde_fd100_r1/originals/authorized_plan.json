@@ -1,0 +1,149 @@
+{
+ "record": "authorized_plan",
+ "record_version": 1,
+ "written_at": "2026-09-19T16:24:47.206982+03:00",
+ "written_before_any_training_episode": true,
+ "run_id": "graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9",
+ "measured_code_sha": "1a1e0c953c54e9d3f46c871158d5ab6bdd881f24",
+ "measured_code_branch": "task/ctde-acting-ego-conditioning",
+ "measured_code_note": "UNMERGED reviewed candidate: draft PR #75 exact head, GPT APPROVE; base adc213670ce4844a7cf60943ecf50150318e40b1; not main",
+ "authorization": {
+  "source": "user-authorized bounded DEVELOPMENT diagnostic (explicit acting-ego readout arm) transferred via the GPT orchestrator packet, after GPT exact-candidate APPROVE of 1a1e0c953c54e9d3f46c871158d5ab6bdd881f24",
+  "authority": "docs/workflows/experiments.md section 2 (authorized bounded plan)",
+  "profile_scope": "DEVELOPMENT ONLY",
+  "arms_authorized": 1,
+  "comparator_reruns": false,
+  "hyperparameter_sweep_authorized": false,
+  "resume_or_warm_start": false,
+  "benchmark_preflight": false,
+  "evidence_branch_or_pr": false,
+  "repository_documentation_update": false,
+  "confirmatory_profile_untouched": true,
+  "evidence_class": "DEVELOPMENT diagnostic; primary comparison to the role-only arm is code-level (critic readout), not randomized and not confirmatory",
+  "no_warm_start_or_checkpoint_load": true
+ },
+ "scientific_question": "Does an explicit acting-ego readout improve critic credit localization and policy acquisition / retention beyond the already-reviewed ROLE-ONLY acting-ego critic?",
+ "intervention": "V(global_state, acting_ego) = ValueHead([global_mean_pool ; acting_ego_embedding]) (critic_readout_id mean_pool_plus_acting_ego_v1, value_head input 2*embed_dim); no new observation information; role-only central state, actor, reward, GAE, PPO unchanged",
+ "population": {
+  "episode_design": "generalized_v2",
+  "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "profile": "development",
+  "regenerate_or_mutate_manifest": false
+ },
+ "primary_comparator": {
+  "run_id": "graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+  "run_dir": "C:\\gruns\\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3",
+  "measured_code_sha": "68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "verdict": "APPROVE - VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT",
+  "n_iterations": 100,
+  "rerun_or_modified": false,
+  "code_level_difference": "critic readout: mean pool (role-only, 68055e3) -> [mean pool ; acting-ego embedding] (1a1e0c9)",
+  "comparison_limitation": "BLADE run-to-run timing nondeterminism; bitwise trajectory identity not required; not randomized"
+ },
+ "secondary_context": {
+  "run_id": "graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+  "run_dir": "C:\\gruns\\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a",
+  "measured_code_sha": "6ed964a1abd09de2130aee3d0d314c8f32165056",
+  "n_iterations": 150,
+  "compared_at": "common range through update 100 only",
+  "note": "historical symmetric central state; context only"
+ },
+ "frozen_design": {
+  "training_mode": "ctde",
+  "match_aou_backend": "p1_milp_v1",
+  "action_representation_id": "semantic_k_plus_2_logmeanexp_v1",
+  "base_seed": 3000000,
+  "n_iterations": 100,
+  "successful_episodes_per_iteration": 8,
+  "generalized_max_attempts_per_iteration": 12,
+  "successful_training_quota": 800,
+  "max_training_attempts": 1200,
+  "fuel_damage_mode": "seeded_variable",
+  "fuel_damage_probability": 1.0,
+  "fuel_damage_mild_probability": 0.5,
+  "eval_every": 25,
+  "eval_episodes": 8,
+  "checkpoint_every": 25,
+  "expected_evaluation_rounds": [
+   "pre_update",
+   25,
+   50,
+   75,
+   100
+  ],
+  "early_stopping": false,
+  "ppo": {
+   "clip_ratio": 0.2,
+   "entropy_coeff": 0.01,
+   "lr": 0.0003,
+   "n_epochs": 4,
+   "gamma": 1.0,
+   "max_grad_norm": 0.5,
+   "adv_norm_eps": 1e-08
+  },
+  "ctde": {
+   "critic_lr": 0.0003,
+   "value_coeff": 0.5,
+   "gae_lambda": 0.95
+  },
+  "actor_gradient_diagnostics": true,
+  "credit_diagnostics": "normal CTDE path",
+  "critic_readout_id": "mean_pool_plus_acting_ego_v1",
+  "critic_value_head_first_layer_shape": [
+   64,
+   128
+  ]
+ },
+ "only_changes_vs_primary_comparator": [
+  "code-level: measured code 1a1e0c953c54e9d3f46c871158d5ab6bdd881f24 (explicit acting-ego critic readout) vs 68055e39768d5fa601e5960a9f08823b9e65c08f",
+  "configuration: fresh output directory only"
+ ],
+ "primary_endpoint": "held-out DEVELOPMENT macro SEVERE - MILD P(SELF_PRESERVATION_ABORT) at the certified ego's immediate-FD wake at post-update 100 (frozen GENERALIZED-V2 matched benchmark definition)",
+ "mechanism_endpoints": [
+  "within-update SEVERE - MILD value_old for immediate-FD rows (esp. updates 50-99)",
+  "within-update SEVERE - MILD value_target, raw advantage, TD residual",
+  "median |td_residual| / |raw_advantage| for nonterminal immediate-FD decisions",
+  "local vs future GAE contribution",
+  "FD actor-gradient separation pressure, windows 50-74 and 75-99",
+  "total vs FD / non-FD separation pressure",
+  "held-out trajectory at updates 0,25,50,75,100",
+  "selected-action switches with denominator"
+ ],
+ "cc_scientific_classification": "FORBIDDEN",
+ "execution": {
+  "context": "LOCAL Windows / nlp_env",
+  "output_dir": "C:\\gruns\\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9",
+  "env": {
+   "PYTHONPATH": "src"
+  },
+  "full_command": "conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 100 --episodes 8 --seed 3000000 --out C:\\gruns\\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9 --checkpoint-every 25 --eval-every 25 --eval-episodes 8 --training-mode ctde --episode-design generalized_v2 --match-aou-backend p1_milp_v1 --fuel-damage-mode seeded_variable --fuel-damage-probability 1.0 --generalized-max-attempts-per-iteration 12 --benchmark-manifest C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json --benchmark-profile development --actor-gradient-diagnostics",
+  "wall_clock_ceiling_hours": 8
+ },
+ "completion_requirements": [
+  "100 / 100 productive updates",
+  "800 successful training episodes",
+  "attempts <= 1200",
+  "accounting reconciled",
+  "all failures classified",
+  "5 evaluation rounds",
+  "one actor-gradient diagnostic record per productive update",
+  "credit artifact covers every trained transition",
+  "no integrity/infrastructure abort",
+  "FD100 check: train_clean_successful = 0, damaged = 800, events applied = 800, FD wakes = 800 (else report anomaly)"
+ ],
+ "stop_rules": [
+  "manifest/profile mismatch",
+  "dirty or wrong measured checkout",
+  "configuration outside this plan",
+  "confirmatory-profile access",
+  "diagnostic persistence/integrity failure",
+  "measurement-integrity or infrastructure abort",
+  "training quota failure / unexpected attrition",
+  "attempt budget exhaustion",
+  "crash",
+  "8-hour ceiling reached"
+ ],
+ "no_repair_resume_or_rerun": true
+}
