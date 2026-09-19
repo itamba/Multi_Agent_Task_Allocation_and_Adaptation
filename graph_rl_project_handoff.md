@@ -56,7 +56,13 @@
   so the critic values `V(global_state, acting_ego)`
   ([policy and CTDE §4](docs/contracts/policy_ctde.md#4-phase-b-ctde)). Nothing else in the
   critic, PPO, GAE, reward, action representation or actor changes. Every CTDE measurement listed
-  below used the earlier symmetric central state (no distinguished acting agent).
+  below used the earlier symmetric central state (no distinguished acting agent). The
+  implementation was GPT-approved at `68055e39768d5fa601e5960a9f08823b9e65c08f` (PR #75) and its
+  one authorized 100-update development diagnostic
+  (`graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3`) **has completed**; its evidence is
+  preserved in `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` on PR #75 and **awaits
+  the GPT measurement verdict** — no result is claimed here. No further implementation (including
+  an explicit acting-ego readout) has started.
 - **The V2 benchmark-preflight provenance evidence is reviewed and durable**
   ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
 - **Closure and cleanup of the historical V2 chapter are complete** (2026-09-15): the local
@@ -74,8 +80,8 @@
 - **No scientific run is in progress, and this snapshot authorizes none.** Both actor-gradient
   diagnostic authorizations were single-run and are spent; further tuning is stopped
   ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17). The acting-ego
-  task packet names one bounded development diagnostic, executable only after GPT approves the
-  exact implementation candidate (§2). **The confirmatory profile has not been used.**
+  task's single authorized development diagnostic is complete and spent. **The confirmatory
+  profile has not been used.**
 - **Closed:** Phase A (fixed cell, FD-BASELINE-v1); the FD-VARIABLE-SEVERITY-v1 actor-only
   baseline; the Phase-B CTDE implementation; GENERALIZED-V1 Tasks 1–5, early stopping and the
   per-wake diagnostics; the deterministic-P1 backend and the certified-FD physical-state repair;
@@ -93,17 +99,17 @@
 | Writable repository task | **sole owner:** the CTDE acting-ego critic-conditioning task (branch `task/ctde-acting-ego-conditioning`, one draft PR to `main`, base `adc213670ce4844a7cf60943ecf50150318e40b1`) — until it is integrated or closed |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | **#71** (`evidence/generalized-v2-semantic-action-actor-only-dev-r1`), draft, read-only at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; **#73** (`evidence/generalized-v2-semantic-action-ctde-dev-r1`), draft, read-only at `ad9b545034670a7c7a9d8ff98012d56c0be07f46`, no verdict recorded. Both **not for merge** |
-| Candidates | the acting-ego conditioning draft PR — its exact head is for GPT exact-candidate review; no merge is authorized |
-| Scientific runs in progress | none. The task packet names ONE bounded development diagnostic run (acting-ego critic, FD100 comparator configuration, 100 updates), executable only after GPT approves the exact implementation candidate |
+| Candidates | draft PR #75 — implementation approved at `68055e39768d5fa601e5960a9f08823b9e65c08f`, followed by an evidence-preservation commit for GPT review; no merge is authorized |
+| Scientific runs in progress | none. The one authorized acting-ego development diagnostic has completed (measured at `68055e3…`); its measurement verdict is pending GPT review; no further run is authorized |
 
 ## 3. Candidates and PRs
 
-Open PRs: the acting-ego conditioning draft PR and evidence PRs #71 and #73. Resolve live PR
-state and exact heads on GitHub.
+Open PRs: draft PR #75 and evidence PRs #71 and #73. Resolve live PR state and exact heads on
+GitHub.
 
 | PR | Branch | State |
 |---|---|---|
-| (this task) | `task/ctde-acting-ego-conditioning` | open draft; **the sole writable repository task**; code, tests and contract for acting-ego critic conditioning; awaiting GPT exact-candidate review; not authorized to merge |
+| #75 | `task/ctde-acting-ego-conditioning` | open draft; **the sole writable repository task**; code, tests and contract for acting-ego critic conditioning, GPT-approved and measured at `68055e39768d5fa601e5960a9f08823b9e65c08f`; followed by the compact evidence package of its development diagnostic, awaiting GPT review; not authorized to merge |
 | #74 | `task/v2-ctde-gradient-pressure-diagnostics` | merged as `adc213670ce4844a7cf60943ecf50150318e40b1`; implementation approved at `6ed964a1abd09de2130aee3d0d314c8f32165056`, the measured SHA of both actor-gradient diagnostics |
 | #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | open draft; head `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; **read-only evidence, not for merge**; no validity or scientific verdict recorded; its review and lifecycle need their own authorization |
 | #72 | `docs/v2-semantic-action-dev-r1-verdict` | merged as `8056266cff89f677911462b29970346bed0a57c1` |
@@ -199,10 +205,11 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: GPT exact-candidate review** of the acting-ego conditioning draft PR's full head SHA
-(branch `task/ctde-acting-ego-conditioning`, `GPT_GITHUB`; fixes are append-only commits on the
-same branch and PR). Only after an `APPROVE` on that exact head may the one development
-diagnostic the packet names run; no merge is authorized.
+**Now: GPT review of the acting-ego diagnostic's evidence package** on draft PR #75 (branch
+`task/ctde-acting-ego-conditioning`, `GPT_GITHUB`; fixes are append-only commits on the same
+branch and PR) and the measurement verdict. Nothing is interpreted until then; no merge is
+authorized, and no explicit acting-ego readout or other implementation starts before that
+review.
 
 **The user's 2026-09-19 decision takes up priority question 2 below directly** as a bounded
 intervention (acting-ego critic conditioning), in place of first opening a separate read-only
