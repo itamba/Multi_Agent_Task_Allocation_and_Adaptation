@@ -1,0 +1,29 @@
+{
+ "record": "launch_record",
+ "written_after_launch": true,
+ "launched_at_local": "2026-09-16T16:32:40+03:00",
+ "detach_method": "PowerShell Start-Process -FilePath cmd.exe -ArgumentList '/c \"<run_dir>\\launch.cmd\"' -WindowStyle Hidden -PassThru",
+ "launch_cmd_sha256": "a07be5ca127f7de2457b2d6c272c57829d08bbd3f9c2cab9b6d701a5090c06a6",
+ "authorized_plan_json_sha256": "fa82114cb07aef23895e57b79783d819a315b853d025179b3fa0af43ea0c02e6",
+ "preflight_json_sha256": "b210f44b2f6f8e7a86a2a5f562e95bb8670354e07d8920ca14ea272435c2097e",
+ "process_tree": [
+  {"pid": 7208, "role": "launcher: cmd.exe /c launch.cmd"},
+  {"pid": 16180, "parent": 7208, "role": "conda.exe run -n nlp_env --no-capture-output"},
+  {"pid": 25188, "parent": 16180, "role": "base-env python conda-script.py (conda run)"},
+  {"pid": 26004, "parent": 25188, "role": "cmd.exe running conda run's temporary .bat"},
+  {"pid": 26980, "parent": 26004, "role": "WORKER: nlp_env python.exe -m match_aou.rl.training.graph_train", "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe"}
+ ],
+ "logs": {
+  "console": "training_console.log",
+  "start_end": "invocation_start_local.txt",
+  "native_exit_code": "native_exit_code.txt (written at exit with the corrected prefix redirect)"
+ },
+ "pre_run_records_written_before_run_config": true,
+ "mtime_ns": {
+  "launch.cmd": 1789565554823449000,
+  "authorized_plan.json": 1789565554898453900,
+  "preflight.json": 1789565554900499200,
+  "run_config.json": 1789565568607644400
+ },
+ "run_config_check": "run_config.json:/train_config equals preflight.json:/resolved_configuration/train_config; provenance git commit 8056266cff89f677911462b29970346bed0a57c1, branch main, dirty=false; diff vs comparator run_config limited to provenance timestamp/commit/argv, output_dir, training_mode and the now-active training.ctde block"
+}

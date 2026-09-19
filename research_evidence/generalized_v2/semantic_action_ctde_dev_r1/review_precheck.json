@@ -1,0 +1,627 @@
+{
+ "accounting_reconciled": true,
+ "action_representation": {
+  "credit_rows_observed": [
+   "semantic_k_plus_2_logmeanexp_v1"
+  ],
+  "episode_outcomes_observed": [
+   "semantic_k_plus_2_logmeanexp_v1"
+  ],
+  "run_config_training": "semantic_k_plus_2_logmeanexp_v1"
+ },
+ "actor_initialization_identity_check_recorded_by_preflight": {
+  "actor_state_identical_actor_only_vs_ctde": true,
+  "ctde_init_deterministic": true,
+  "post_episode_reseed_draws_identical": true,
+  "result": "PASS \u2014 actor state identical under actor_only and ctde initialization sequences",
+  "run_one_episode_reseeds_first": true
+ },
+ "anomalies": [
+  {
+   "context": "same block defines P(ABORT) as the semantic ABORT leaf and sets aggregate_mass_is_not_selected_action_probability = false",
+   "handling": "reporting-label only; values preserved unnormalized (same as PR #71)",
+   "id": "legacy_metric_label_in_v2_behaviour",
+   "observed": "v2_behaviour.metric = 'severe_minus_mild_aggregate_abort_mass'"
+  },
+  {
+   "context": "same difference class appeared between historical actor-only R1 and CTDE R1 at one code SHA (pre_update_comparability_observation.json); actor weights at update 0 proven identical by preflight",
+   "handling": "recorded limitation; per-episode trajectories across arms are NOT bit-identical; aggregate pre-update endpoint identical",
+   "id": "pre_update_run_to_run_timing_nondeterminism",
+   "observed": "18/60 pre-update episodes differ from actor-only after normalization; max |wake tick difference| 1; max |episode length difference| 2 ticks; immediate-FD wakes with identical tick 40/40; selected-action sequences differ in 0; rewards differ in 0; pre-update eval record normalized differences 0"
+  },
+  {
+   "context": "failed seeds identical to semantic actor-only: True",
+   "handling": "expected certified-FD eligibility attrition, accounted and replaced",
+   "id": "expected_setup_failures",
+   "observed": "8 training failures (['FuelDamageError'])"
+  }
+ ],
+ "authorized_plan": {
+  "launch_record_mtime_ns": {
+   "authorized_plan.json": 1789565554898453900,
+   "launch.cmd": 1789565554823449000,
+   "preflight.json": 1789565554900499200,
+   "run_config.json": 1789565568607644400
+  },
+  "plan_written_before_run_config": true,
+  "preflight_sha256": "b210f44b2f6f8e7a86a2a5f562e95bb8670354e07d8920ca14ea272435c2097e",
+  "preflight_timestamp": "2026-09-16T16:32:34.898423+03:00",
+  "run_config_collected_at": "2026-09-16T16:32:46",
+  "sha256": "fa82114cb07aef23895e57b79783d819a315b853d025179b3fa0af43ea0c02e6",
+  "written_at": "2026-09-16T16:32:34.898423+03:00"
+ },
+ "comparator": {
+  "evidence_head": "0d136fa89286c4bbd9e89dfb6bd0a3326c70b670",
+  "evidence_pr": 71,
+  "measured_code_sha": "d4e9f3721e6d151c00be3fe93c3d149df9d31965",
+  "run_id": "graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37"
+ },
+ "completion": {
+  "console_scan": {
+   "classification": "each expected setup failure prints a chained FuelDamageError -> EpisodeAttemptError traceback pair ending in no_fd_eligible_ego; all tracebacks are explained only if every block ends that way and every ledger failure is that class",
+   "console_failed_lines_match_ledger": true,
+   "console_failed_seeds": [
+    3001255,
+    3001265,
+    3001741,
+    3001807,
+    3001879,
+    3002177,
+    3002296,
+    3002868
+   ],
+   "crash_lines": 0,
+   "gymnasium_userwarning_lines": 11888,
+   "ledger_failed_seeds": [
+    3001255,
+    3001265,
+    3001741,
+    3001807,
+    3001879,
+    3002177,
+    3002296,
+    3002868
+   ],
+   "traceback_blocks_ending_in_no_fd_eligible_ego": 16,
+   "traceback_lines": 16,
+   "unexplained_traceback_line_numbers": [],
+   "unexplained_traceback_lines": 0
+  },
+  "early_stopping": {
+   "enabled": false,
+   "termination_reason": "disabled_fixed_budget"
+  },
+  "final_checkpoint": {
+   "bytes": 2732619,
+   "path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266\\checkpoints\\ckpt_iter0374.pt",
+   "sha256": "d355af59d5370ad4f5734f9a87bac3b0e35ab843c5903c981e29110d1ffa8062"
+  },
+  "n_productive_iterations": 375,
+  "native_exit_code": 0,
+  "run_seconds": 7003.507506800001,
+  "train_records_rows": 375,
+  "updates_completed": 375
+ },
+ "config_source": {
+  "absolute_path": null,
+  "cli_overrides": [],
+  "config_fields": [],
+  "format": null,
+  "path": null,
+  "resolved_from": "cli_defaults"
+ },
+ "confirmatory_profile_used": false,
+ "credit_coverage": {
+  "every_productive_update_rows_equal_n_transitions": true,
+  "rows": 9058,
+  "summary_total_transitions": 9058
+ },
+ "ctde_resolved": {
+  "critic_lr": 0.0003,
+  "gae_lambda": 0.95,
+  "value_coeff": 0.5
+ },
+ "environment_provenance_identical_to_actor_only": {
+  "packages": true,
+  "platform": true,
+  "python": true
+ },
+ "evaluation_counts": {
+  "attempted": 960,
+  "failed": 0,
+  "rounds": 16,
+  "successful": 960
+ },
+ "evidence_class": "DEVELOPMENT (not confirmatory)",
+ "failures": {
+  "by_error_type": {
+   "FuelDamageError": 8
+  },
+  "by_phase": {
+   "train": 8
+  },
+  "by_pipeline_stage": {
+   "setup": 8
+  },
+  "rows": [
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 156,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3001255
+   },
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 158,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3001265
+   },
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 217,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3001741
+   },
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 225,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3001807
+   },
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 234,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3001879
+   },
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 271,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3002177
+   },
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 286,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3002296
+   },
+   {
+    "error_message_head": "no_fd_eligible_ego: no ego could be certified for BOTH sever",
+    "error_type": "FuelDamageError",
+    "iteration": 357,
+    "phase": "train",
+    "pipeline_stage": "setup",
+    "seed": 3002868
+   }
+  ]
+ },
+ "final_round_identity": {
+  "eval_round_ordinal": 15,
+  "evaluation_stage": "post_update",
+  "updates_completed": 375
+ },
+ "invocation_argv_matches_plan": true,
+ "is_scientific_verdict": false,
+ "manifest": {
+  "development_group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+  "development_seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184",
+  "file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "held_out_verified": true,
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "path_consumed": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "profile": "development",
+  "same_development_population_as_actor_only": true,
+  "world_ordinals": [
+   0,
+   1
+  ]
+ },
+ "measured_code_sha": "8056266cff89f677911462b29970346bed0a57c1",
+ "ppo_resolved": {
+  "adv_norm_eps": 1e-08,
+  "clip_ratio": 0.2,
+  "entropy_coeff": 0.01,
+  "gamma": 1.0,
+  "lr": 0.0003,
+  "max_grad_norm": 0.5,
+  "n_epochs": 4
+ },
+ "pre_update_comparability_recomputed": {
+  "difference_paths_count_by_class": {
+   "/construction_audit/backoff/candidates[]/detail": 6,
+   "/fd_eligibility_audit/candidates[]/detail": 9,
+   "/post_fd_adaptation/boundaries[]/tick": 1,
+   "/post_fd_adaptation/boundary_ticks[]": 1,
+   "/post_fd_boundary_ticks[]": 1,
+   "/ticks": 7,
+   "/wake_decisions[]/deterministic_argmax_leaf/probability": 10,
+   "/wake_decisions[]/selected_action_probability": 10,
+   "/wake_decisions[]/semantic_entropy_normalized": 7,
+   "/wake_decisions[]/semantic_entropy_raw": 7,
+   "/wake_decisions[]/semantic_leaves[]/probability": 33,
+   "/wake_decisions[]/semantic_leaves[]/score": 27,
+   "/wake_decisions[]/semantic_probabilities[]": 33,
+   "/wake_decisions[]/semantic_probability_per_meta_action/OPPORTUNISTIC_ENGAGEMENT": 11,
+   "/wake_decisions[]/semantic_probability_per_meta_action/PLAN_COMPLIANCE": 10,
+   "/wake_decisions[]/semantic_probability_per_meta_action/SELF_PRESERVATION_ABORT": 12,
+   "/wake_decisions[]/source_scores[][]": 307,
+   "/wake_decisions[]/tick": 12,
+   "/wake_decisions[]/time_norm": 12,
+   "/wake_decisions[]/top_two_probability_margin": 12,
+   "/wake_decisions[]/top_two_semantic_leaves[]/probability": 22
+  },
+  "episode_tick_difference_tags": [
+   900042,
+   900044,
+   900046,
+   900047,
+   900050,
+   900057,
+   900059
+  ],
+  "episodes_with_episode_tick_difference": 7,
+  "episodes_with_identical_fd_event_tick": 60,
+  "episodes_with_reward_difference": 0,
+  "episodes_with_seed_difference": 0,
+  "episodes_with_selected_action_sequence_difference": 0,
+  "episodes_with_wake_count_difference": 0,
+  "identical_normalized_rows": 42,
+  "identical_normalized_wake_decisions": 50,
+  "immediate_fd_wakes": {
+   "bit_identical_p_abort": 40,
+   "identical_selected_action_and_node": 40,
+   "identical_tick": 40,
+   "max_abs_p_abort_difference": 0.0,
+   "n": 40
+  },
+  "launch_time_note_correction": "the launch-time observation described episode/wake timing as shifted by exactly +/-1 tick; recomputation shows wake ticks differ by at most 1 and episode length by at most 2",
+  "max_abs_episode_length_tick_difference": 2,
+  "max_abs_tick_difference_episode_or_wake": 2,
+  "max_abs_wake_tick_difference": 1,
+  "normalization": "timing keys dropped; UUID-valued strings replaced; UUIDs inside free-text strings not normalized",
+  "observation_file_consistent": {
+   "eval_record_differences": true,
+   "identical_normalized_rows": true,
+   "identical_wake_decisions": true,
+   "rewards_differ": true,
+   "selected_actions_differ": true
+  },
+  "pre_update_eval_record_normalized_differences": 0,
+  "pre_update_v2_behaviour_identical": true,
+  "rows": 60
+ },
+ "primary_endpoint_coverage": {
+  "macro_n_base_cells_defined": 10,
+  "macro_n_base_cells_required": 10,
+  "macro_undefined_base_cells": [],
+  "n_groups_attempted": 20,
+  "n_groups_complete": 20,
+  "n_groups_metric_eligible": 20
+ },
+ "repository_state_recorded_by_run": {
+  "branch": "main",
+  "dirty": false,
+  "dirty_path_count": 0
+ },
+ "resolved_config_vs_authorized_plan": {
+  "action_representation_id": {
+   "match": true,
+   "plan": "semantic_k_plus_2_logmeanexp_v1",
+   "resolved": "semantic_k_plus_2_logmeanexp_v1"
+  },
+  "actor_only_second_arm": {
+   "match": true,
+   "plan": false,
+   "resolved": false
+  },
+  "base_seed": {
+   "match": true,
+   "plan": 3000000,
+   "resolved": 3000000
+  },
+  "benchmark_profile": {
+   "match": true,
+   "plan": "development",
+   "resolved": "development"
+  },
+  "checkpoint_every": {
+   "match": true,
+   "plan": 25,
+   "resolved": 25
+  },
+  "ctde": {
+   "match": true,
+   "plan": {
+    "critic_lr": 0.0003,
+    "gae_lambda": 0.95,
+    "value_coeff": 0.5
+   },
+   "resolved": {
+    "critic_lr": 0.0003,
+    "gae_lambda": 0.95,
+    "value_coeff": 0.5
+   }
+  },
+  "early_stopping": {
+   "match": true,
+   "plan": false,
+   "resolved": false
+  },
+  "episode_design": {
+   "match": true,
+   "plan": "generalized_v2",
+   "resolved": "generalized_v2"
+  },
+  "eval_every": {
+   "match": true,
+   "plan": 25,
+   "resolved": 25
+  },
+  "expected_evaluation_rounds": {
+   "match": true,
+   "plan": 16,
+   "resolved": 16
+  },
+  "fuel_damage_mild_probability": {
+   "match": true,
+   "plan": 0.5,
+   "resolved": 0.5
+  },
+  "fuel_damage_mode": {
+   "match": true,
+   "plan": "seeded_variable",
+   "resolved": "seeded_variable"
+  },
+  "fuel_damage_probability": {
+   "match": true,
+   "plan": 0.5,
+   "resolved": 0.5
+  },
+  "generalized_max_attempts_per_iteration": {
+   "match": true,
+   "plan": 12,
+   "resolved": 12
+  },
+  "hyperparameter_sweep": {
+   "match": true,
+   "plan": false,
+   "resolved": false
+  },
+  "match_aou_backend": {
+   "match": true,
+   "plan": "p1_milp_v1",
+   "resolved": "p1_milp_v1"
+  },
+  "max_possible_training_attempts": {
+   "match": true,
+   "plan": 4500,
+   "resolved": 4500
+  },
+  "n_iterations": {
+   "match": true,
+   "plan": 375,
+   "resolved": 375
+  },
+  "ppo": {
+   "match": true,
+   "plan": {
+    "adv_norm_eps": 1e-08,
+    "clip_ratio": 0.2,
+    "entropy_coeff": 0.01,
+    "gamma": 1.0,
+    "lr": 0.0003,
+    "max_grad_norm": 0.5,
+    "n_epochs": 4
+   },
+   "resolved": {
+    "adv_norm_eps": 1e-08,
+    "clip_ratio": 0.2,
+    "entropy_coeff": 0.01,
+    "gamma": 1.0,
+    "lr": 0.0003,
+    "max_grad_norm": 0.5,
+    "n_epochs": 4
+   }
+  },
+  "resume_or_warm_start": {
+   "match": true,
+   "plan": false,
+   "resolved": false
+  },
+  "solver_timeout": {
+   "match": true,
+   "plan": null,
+   "resolved": null
+  },
+  "successful_episode_quota_total": {
+   "match": true,
+   "plan": 3000,
+   "resolved": 3000
+  },
+  "successful_episodes_per_iteration": {
+   "match": true,
+   "plan": 8,
+   "resolved": 8
+  },
+  "training_mode": {
+   "match": true,
+   "plan": "ctde",
+   "resolved": "ctde"
+  },
+  "unchanged": {
+   "match": true,
+   "plan": [
+    "batch size",
+    "FD exposure",
+    "reward",
+    "observation features",
+    "action representation",
+    "population",
+    "solver",
+    "training length",
+    "early stopping"
+   ],
+   "resolved": [
+    "batch size",
+    "FD exposure",
+    "reward",
+    "observation features",
+    "action representation",
+    "population",
+    "solver",
+    "training length",
+    "early stopping"
+   ]
+  }
+ },
+ "run_id": "graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+ "schema": "semantic_action_ctde_dev_r1_review_precheck",
+ "schema_version": 1,
+ "schema_versions_observed": {
+  "credit_diagnostics": [
+   1
+  ],
+  "episode_outcome": [
+   4
+  ],
+  "wake_diagnostics": [
+   2
+  ]
+ },
+ "train_config_keys_differing_from_actor_only": [
+  "output_dir",
+  "training_mode"
+ ],
+ "training_counts": {
+  "actor_only_attempted": 3008,
+  "actor_only_failed": 8,
+  "attempted": 3008,
+  "failed": 8,
+  "iterations_at_full_quota": 375,
+  "max_possible_attempts": 4500,
+  "replacement_attempts": 8,
+  "successful": 3000,
+  "zero_wake_episodes": 1
+ },
+ "training_modes_observed_in_credit_rows": [
+  "ctde"
+ ],
+ "training_seed_comparison_vs_actor_only": {
+  "actor_only_attempted_seed_count": 3008,
+  "actor_only_failed_seeds": [
+   3001255,
+   3001265,
+   3001741,
+   3001807,
+   3001879,
+   3002177,
+   3002296,
+   3002868
+  ],
+  "actor_only_seed_range": [
+   3000000,
+   3003007
+  ],
+  "attempted_seed_sets_identical": true,
+  "ctde_attempted_seed_count": 3008,
+  "ctde_failed_seeds": [
+   3001255,
+   3001265,
+   3001741,
+   3001807,
+   3001879,
+   3002177,
+   3002296,
+   3002868
+  ],
+  "ctde_failures": [
+   {
+    "attempt_ordinal": 7,
+    "error_type": "FuelDamageError",
+    "iteration": 156,
+    "pipeline_stage": "setup",
+    "seed": 3001255,
+    "status": "failed"
+   },
+   {
+    "attempt_ordinal": 0,
+    "error_type": "FuelDamageError",
+    "iteration": 158,
+    "pipeline_stage": "setup",
+    "seed": 3001265,
+    "status": "failed"
+   },
+   {
+    "attempt_ordinal": 3,
+    "error_type": "FuelDamageError",
+    "iteration": 217,
+    "pipeline_stage": "setup",
+    "seed": 3001741,
+    "status": "failed"
+   },
+   {
+    "attempt_ordinal": 4,
+    "error_type": "FuelDamageError",
+    "iteration": 225,
+    "pipeline_stage": "setup",
+    "seed": 3001807,
+    "status": "failed"
+   },
+   {
+    "attempt_ordinal": 3,
+    "error_type": "FuelDamageError",
+    "iteration": 234,
+    "pipeline_stage": "setup",
+    "seed": 3001879,
+    "status": "failed"
+   },
+   {
+    "attempt_ordinal": 4,
+    "error_type": "FuelDamageError",
+    "iteration": 271,
+    "pipeline_stage": "setup",
+    "seed": 3002177,
+    "status": "failed"
+   },
+   {
+    "attempt_ordinal": 2,
+    "error_type": "FuelDamageError",
+    "iteration": 286,
+    "pipeline_stage": "setup",
+    "seed": 3002296,
+    "status": "failed"
+   },
+   {
+    "attempt_ordinal": 5,
+    "error_type": "FuelDamageError",
+    "iteration": 357,
+    "pipeline_stage": "setup",
+    "seed": 3002868,
+    "status": "failed"
+   }
+  ],
+  "ctde_seed_range": [
+   3000000,
+   3003007
+  ],
+  "ctde_seeds_contiguous_from_base": true,
+  "failed_seed_sets_identical": true,
+  "first_difference": null,
+  "seeds_with_identical_iteration_attempt_and_status": 3008
+ }
+}

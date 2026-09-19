@@ -1,0 +1,5803 @@
+{
+ "endpoint": "SEVERE - MILD P(SELF_PRESERVATION_ABORT) at the certified ego's immediate_fuel_damage wake; pair within frozen world group, mean per base cell, equal-weight macro over ten base cells",
+ "final_round": {
+  "by_base_cell": {
+   "A2-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 2.1420419216156006e-07
+   },
+   "A2-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.601874828338623e-07
+   },
+   "A3-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.4156103134155273e-07
+   },
+   "A3-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.0803341865539551e-07
+   },
+   "A4-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.7136335372924805e-07
+   },
+   "A4-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.3597309589385986e-07
+   },
+   "A5-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.7695128917694092e-07
+   },
+   "A5-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.1362135410308838e-07
+   },
+   "A6-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.2293457984924316e-07
+   },
+   "A6-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 1.1548399925231934e-07
+   }
+  },
+  "directional_switches": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "identity": {
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "updates_completed": 375
+  },
+  "macro_n_base_cells_defined": 10,
+  "macro_over_base_cells": 1.4603137969970704e-07,
+  "n_groups_metric_eligible": 20,
+  "pooled_mean_over_groups": 1.4603137969970704e-07,
+  "reverse_switches": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  }
+ },
+ "is_scientific_verdict": false,
+ "measured_code_sha": "8056266cff89f677911462b29970346bed0a57c1",
+ "n_rounds": 16,
+ "p_abort_definition": "the one semantic SELF_PRESERVATION_ABORT leaf (semantic_k_plus_2_logmeanexp_v1)",
+ "repeated_measures_note": "every round re-measures the SAME 20 frozen development worlds (60 members); rounds are repeated measures, not independent samples",
+ "retention_descriptors": {
+  "any_directional_switch_after_175": false,
+  "any_directional_switch_at_final_round": false,
+  "directional_switches_at_150": 0,
+  "directional_switches_at_175": 0,
+  "final_directional_switches": 0,
+  "final_macro": 1.4603137969970704e-07,
+  "final_reverse_switches": 0,
+  "final_update": 375,
+  "first_update_with_any_directional_switch": null,
+  "label": "DESCRIPTIVE repeated-measures quantities over the same 20 development worlds; no success threshold; not the primary endpoint",
+  "longest_consecutive_rounds_with_nonzero_directional_switches": 0,
+  "longest_consecutive_run_updates": [],
+  "max_directional_switch_count": 0,
+  "max_macro": 4.572272300720215e-05,
+  "max_macro_update_first_occurrence": 75,
+  "max_switch_update_first_occurrence": 0,
+  "min_macro": -0.0005158036947250366,
+  "separation_present_at_150_persists_at_175": false,
+  "updates_with_nonzero_directional_switches": [],
+  "updates_with_reverse_switches": []
+ },
+ "round_identities": [
+  {
+   "eval_round_ordinal": 0,
+   "evaluation_stage": "pre_update",
+   "updates_completed": 0
+  },
+  {
+   "eval_round_ordinal": 1,
+   "evaluation_stage": "post_update",
+   "updates_completed": 25
+  },
+  {
+   "eval_round_ordinal": 2,
+   "evaluation_stage": "post_update",
+   "updates_completed": 50
+  },
+  {
+   "eval_round_ordinal": 3,
+   "evaluation_stage": "post_update",
+   "updates_completed": 75
+  },
+  {
+   "eval_round_ordinal": 4,
+   "evaluation_stage": "post_update",
+   "updates_completed": 100
+  },
+  {
+   "eval_round_ordinal": 5,
+   "evaluation_stage": "post_update",
+   "updates_completed": 125
+  },
+  {
+   "eval_round_ordinal": 6,
+   "evaluation_stage": "post_update",
+   "updates_completed": 150
+  },
+  {
+   "eval_round_ordinal": 7,
+   "evaluation_stage": "post_update",
+   "updates_completed": 175
+  },
+  {
+   "eval_round_ordinal": 8,
+   "evaluation_stage": "post_update",
+   "updates_completed": 200
+  },
+  {
+   "eval_round_ordinal": 9,
+   "evaluation_stage": "post_update",
+   "updates_completed": 225
+  },
+  {
+   "eval_round_ordinal": 10,
+   "evaluation_stage": "post_update",
+   "updates_completed": 250
+  },
+  {
+   "eval_round_ordinal": 11,
+   "evaluation_stage": "post_update",
+   "updates_completed": 275
+  },
+  {
+   "eval_round_ordinal": 12,
+   "evaluation_stage": "post_update",
+   "updates_completed": 300
+  },
+  {
+   "eval_round_ordinal": 13,
+   "evaluation_stage": "post_update",
+   "updates_completed": 325
+  },
+  {
+   "eval_round_ordinal": 14,
+   "evaluation_stage": "post_update",
+   "updates_completed": 350
+  },
+  {
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "updates_completed": 375
+  }
+ ],
+ "rounds": [
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -9.046494960784912e-05
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.00028845667839050293
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0013073384761810303
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0007837563753128052
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0005012452602386475
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0006608814001083374
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.00015281140804290771
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0005920827388763428
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.00022108852863311768
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0005599111318588257
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 0,
+   "evaluation_stage": "pre_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49995073676109314,
+     "p_abort_severe": 0.49984315037727356,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": -0.00010758638381958008,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49991726875305176,
+     "p_abort_severe": 0.49984392523765564,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": -7.334351539611816e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4995381236076355,
+     "p_abort_severe": 0.49957752227783203,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 3.93986701965332e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4991888403892517,
+     "p_abort_severe": 0.49857252836227417,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": -0.0006163120269775391,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4995200037956238,
+     "p_abort_severe": 0.4982895255088806,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": -0.001230478286743164,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49912363290786743,
+     "p_abort_severe": 0.49773943424224854,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": -0.0013841986656188965,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4991370439529419,
+     "p_abort_severe": 0.4983581602573395,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": -0.000778883695602417,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4990488290786743,
+     "p_abort_severe": 0.4982602000236511,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": -0.0007886290550231934,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49834778904914856,
+     "p_abort_severe": 0.49746254086494446,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": -0.0008852481842041016,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4986885190010071,
+     "p_abort_severe": 0.4985712766647339,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": -0.00011724233627319336,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49844011664390564,
+     "p_abort_severe": 0.49804824590682983,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": -0.00039187073707580566,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49883711338043213,
+     "p_abort_severe": 0.49790722131729126,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": -0.0009298920631408691,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49867668747901917,
+     "p_abort_severe": 0.4987878203392029,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 0.00011113286018371582,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4985092878341675,
+     "p_abort_severe": 0.49809253215789795,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": -0.00041675567626953125,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4986848533153534,
+     "p_abort_severe": 0.4974893033504486,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": -0.0011955499649047852,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4983244836330414,
+     "p_abort_severe": 0.4983358681201935,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 1.138448715209961e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49832892417907715,
+     "p_abort_severe": 0.4982379674911499,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": -9.09566879272461e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.4988057315349579,
+     "p_abort_severe": 0.4984545111656189,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": -0.00035122036933898926,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49819880723953247,
+     "p_abort_severe": 0.49839773774147034,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 0.0001989305019378662,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.49876868724823,
+     "p_abort_severe": 0.49744993448257446,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": -0.0013187527656555176,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.4989017739892006,
+   "p_abort_severe_mean": 0.49838597029447557,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -0.0005158036947250366,
+   "severe_minus_mild_pooled_mean": -0.0005158036947250366,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 0
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.3958425521850586e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.854534149169922e-06
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.125037670135498e-06
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.3165175914764404e-05
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.534159183502197e-06
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.5390257835388184e-06
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.868473529815674e-06
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.652538776397705e-05
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.061528205871582e-06
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -7.696449756622314e-06
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 1,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1570589542388916,
+     "p_abort_severe": 0.15705937147140503,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 4.172325134277344e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.15705890953540802,
+     "p_abort_severe": 0.15705937147140503,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 4.6193599700927734e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16375046968460083,
+     "p_abort_severe": 0.16374407708644867,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": -6.3925981521606445e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17899027466773987,
+     "p_abort_severe": 0.1789829581975937,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": -7.316470146179199e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17624343931674957,
+     "p_abort_severe": 0.17624467611312866,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 1.2367963790893555e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17625731229782104,
+     "p_abort_severe": 0.17625832557678223,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 1.0132789611816406e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1806754171848297,
+     "p_abort_severe": 0.18066100776195526,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": -1.4409422874450684e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18067002296447754,
+     "p_abort_severe": 0.18065810203552246,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": -1.1920928955078125e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17899993062019348,
+     "p_abort_severe": 0.17899543046951294,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": -4.500150680541992e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1710352599620819,
+     "p_abort_severe": 0.17102669179439545,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": -8.568167686462402e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17626363039016724,
+     "p_abort_severe": 0.17626450955867767,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 8.791685104370117e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1818213015794754,
+     "p_abort_severe": 0.1818133443593979,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": -7.957220077514648e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1741342395544052,
+     "p_abort_severe": 0.17412808537483215,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": -6.154179573059082e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17413464188575745,
+     "p_abort_severe": 0.17413505911827087,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 4.172325134277344e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18264256417751312,
+     "p_abort_severe": 0.1826341450214386,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": -8.419156074523926e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1826447695493698,
+     "p_abort_severe": 0.18262013792991638,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": -2.4631619453430176e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1762637495994568,
+     "p_abort_severe": 0.17625145614147186,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": -1.2293457984924316e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17626231908798218,
+     "p_abort_severe": 0.17625848948955536,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": -3.829598426818848e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1789996325969696,
+     "p_abort_severe": 0.1789863407611847,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": -1.329183578491211e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18326131999492645,
+     "p_abort_severe": 0.18325921893119812,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": -2.1010637283325195e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.17535840794444085,
+   "p_abort_severe_mean": 0.17535203993320464,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -6.368011236190796e-06,
+   "severe_minus_mild_pooled_mean": -6.368011236190796e-06,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 25
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.863126039505005e-06
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.62518835067749e-06
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.854534149169922e-06
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.468245267868042e-06
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.187226295471191e-06
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.209578037261963e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.659196853637695e-06
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.688037395477295e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.4943222999572754e-06
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 2,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.07801134139299393,
+     "p_abort_severe": 0.07801134139299393,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 0.0,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.07801132649183273,
+     "p_abort_severe": 0.07801132649183273,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 0.0,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08946304023265839,
+     "p_abort_severe": 0.08946328610181808,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 2.4586915969848633e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.12664690613746643,
+     "p_abort_severe": 0.12665438652038574,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 7.4803829193115234e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11844298988580704,
+     "p_abort_severe": 0.11844906210899353,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 6.07222318649292e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11844273656606674,
+     "p_abort_severe": 0.1184479147195816,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 5.1781535148620605e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.13213880360126495,
+     "p_abort_severe": 0.1321454495191574,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 6.645917892456055e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.13213865458965302,
+     "p_abort_severe": 0.1321457177400589,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 7.063150405883789e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.12664596736431122,
+     "p_abort_severe": 0.12665259838104248,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 6.631016731262207e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10485520213842392,
+     "p_abort_severe": 0.1048555076122284,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 3.0547380447387695e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11844022572040558,
+     "p_abort_severe": 0.11844158172607422,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 1.3560056686401367e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.13607150316238403,
+     "p_abort_severe": 0.13607852160930634,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 7.018446922302246e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11260445415973663,
+     "p_abort_severe": 0.1126052737236023,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 8.195638656616211e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11260467022657394,
+     "p_abort_severe": 0.11260469257831573,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 2.2351741790771484e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1390283703804016,
+     "p_abort_severe": 0.13903439044952393,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 6.020069122314453e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1390274167060852,
+     "p_abort_severe": 0.13903671503067017,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 9.298324584960938e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11844035238027573,
+     "p_abort_severe": 0.1184408962726593,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 5.438923835754395e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11844082921743393,
+     "p_abort_severe": 0.11844102293252945,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 1.9371509552001953e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.12664437294006348,
+     "p_abort_severe": 0.12664543092250824,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 1.0579824447631836e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1413310021162033,
+     "p_abort_severe": 0.14133693277835846,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 5.930662155151367e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.1183715082705021,
+   "p_abort_severe_mean": 0.11837510243058205,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 3.5941600799560545e-06,
+   "severe_minus_mild_pooled_mean": 3.5941600799560545e-06,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 50
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.6391277313232422e-06
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.239380359649658e-05
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.996755599975586e-06
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.809698581695557e-05
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.2051076889038086e-05
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.54634428024292e-05
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.2648444175720215e-05
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00011108815670013428
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.404783248901367e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.780160427093506e-05
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 3,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2930041551589966,
+     "p_abort_severe": 0.29300570487976074,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 1.5497207641601562e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29300421476364136,
+     "p_abort_severe": 0.29300594329833984,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 1.7285346984863281e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3133554458618164,
+     "p_abort_severe": 0.313390851020813,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 3.540515899658203e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.36399930715560913,
+     "p_abort_severe": 0.36404868960380554,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 4.938244819641113e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.35449349880218506,
+     "p_abort_severe": 0.3544956147670746,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 2.115964889526367e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.35443568229675293,
+     "p_abort_severe": 0.35443755984306335,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 1.8775463104248047e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3699492812156677,
+     "p_abort_severe": 0.37002813816070557,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 7.88569450378418e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3699491620063782,
+     "p_abort_severe": 0.37002649903297424,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 7.733702659606934e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.36391475796699524,
+     "p_abort_severe": 0.3639582097530365,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 4.3451786041259766e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.33674338459968567,
+     "p_abort_severe": 0.3367840349674225,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 4.0650367736816406e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3543875515460968,
+     "p_abort_severe": 0.35441455245018005,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 2.7000904083251953e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3740016520023346,
+     "p_abort_severe": 0.3740655779838562,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 6.392598152160645e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.34711429476737976,
+     "p_abort_severe": 0.34717831015586853,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 6.401538848876953e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.34711217880249023,
+     "p_abort_severe": 0.3471134603023529,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 1.2814998626708984e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3769666850566864,
+     "p_abort_severe": 0.3770224153995514,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 5.5730342864990234e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3769424855709076,
+     "p_abort_severe": 0.37710893154144287,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 0.00016644597053527832,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.35437893867492676,
+     "p_abort_severe": 0.3544381856918335,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 5.924701690673828e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.35440942645072937,
+     "p_abort_severe": 0.35443827509880066,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 2.8848648071289062e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3639101982116699,
+     "p_abort_severe": 0.3640005588531494,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 9.036064147949219e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.37925195693969727,
+     "p_abort_severe": 0.37927719950675964,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 2.524256706237793e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.35206621289253237,
+   "p_abort_severe_mean": 0.35211193561553955,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 4.572272300720215e-05,
+   "severe_minus_mild_pooled_mean": 4.572272300720215e-05,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 75
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -5.3688883781433105e-05
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.7552247047424316e-05
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00012680143117904663
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00013877451419830322
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.147738218307495e-05
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.834021329879761e-05
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.685405969619751e-05
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0001473352313041687
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.70403242111206e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.003329038619995e-05
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 4,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16967366635799408,
+     "p_abort_severe": 0.16962052881717682,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": -5.313754081726074e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16966485977172852,
+     "p_abort_severe": 0.1696106195449829,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": -5.424022674560547e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18167515099048615,
+     "p_abort_severe": 0.18157635629177094,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": -9.879469871520996e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21119412779808044,
+     "p_abort_severe": 0.2113480269908905,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 0.0001538991928100586,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2056248039007187,
+     "p_abort_severe": 0.20575952529907227,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 0.00013472139835357666,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20566987991333008,
+     "p_abort_severe": 0.2057887613773346,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 0.0001188814640045166,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2147795706987381,
+     "p_abort_severe": 0.21491508185863495,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 0.00013551115989685059,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21476024389266968,
+     "p_abort_severe": 0.21490228176116943,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 0.00014203786849975586,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21120098233222961,
+     "p_abort_severe": 0.2113538533449173,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 0.0001528710126876831,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.19534911215305328,
+     "p_abort_severe": 0.19527919590473175,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": -6.99162483215332e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20572327077388763,
+     "p_abort_severe": 0.20577609539031982,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 5.282461643218994e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21717311441898346,
+     "p_abort_severe": 0.21731697022914886,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 0.00014385581016540527,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2014269381761551,
+     "p_abort_severe": 0.20135922729969025,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": -6.771087646484375e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20145241916179657,
+     "p_abort_severe": 0.20138642191886902,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": -6.599724292755127e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21897703409194946,
+     "p_abort_severe": 0.2191050797700882,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 0.0001280456781387329,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2188625931739807,
+     "p_abort_severe": 0.21902921795845032,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 0.0001666247844696045,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20571394264698029,
+     "p_abort_severe": 0.20564255118370056,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": -7.139146327972412e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20578362047672272,
+     "p_abort_severe": 0.2057209312915802,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": -6.268918514251709e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21133074164390564,
+     "p_abort_severe": 0.2112569808959961,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": -7.37607479095459e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.22029976546764374,
+     "p_abort_severe": 0.22043359279632568,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 0.0001338273286819458,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.2043167918920517,
+   "p_abort_severe_mean": 0.2043590649962425,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 4.227310419082642e-05,
+   "severe_minus_mild_pooled_mean": 4.227310419082642e-05,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 100
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.76837158203125e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.470348358154297e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.631016731262207e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.599592208862305e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.364418029785156e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.525086402893066e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.023313522338867e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.046627044677734e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.544854164123535e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.258487701416016e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 5,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1448269933462143,
+     "p_abort_severe": 0.1448274701833725,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 4.76837158203125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1448270082473755,
+     "p_abort_severe": 0.1448274850845337,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 4.76837158203125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16176274418830872,
+     "p_abort_severe": 0.16176317632198334,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 4.3213367462158203e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21114453673362732,
+     "p_abort_severe": 0.21114499866962433,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 4.6193599700927734e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20092187821865082,
+     "p_abort_severe": 0.20092244446277618,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 5.662441253662109e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.200921893119812,
+     "p_abort_severe": 0.2009226530790329,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 7.599592208862305e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21779312193393707,
+     "p_abort_severe": 0.21779391169548035,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 7.897615432739258e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21779301762580872,
+     "p_abort_severe": 0.21779374778270721,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 7.301568984985352e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2111443281173706,
+     "p_abort_severe": 0.21114495396614075,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 6.258487701416016e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18318381905555725,
+     "p_abort_severe": 0.18318426609039307,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 4.470348358154297e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20092178881168365,
+     "p_abort_severe": 0.20092251896858215,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 7.301568984985352e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.22246311604976654,
+     "p_abort_severe": 0.22246389091014862,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 7.748603820800781e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.19342978298664093,
+     "p_abort_severe": 0.19343023002147675,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 4.470348358154297e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.19342978298664093,
+     "p_abort_severe": 0.19343014061450958,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 3.5762786865234375e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.22592325508594513,
+     "p_abort_severe": 0.22592419385910034,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 9.387731552124023e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.225923091173172,
+     "p_abort_severe": 0.22592376172542572,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 6.705522537231445e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20092159509658813,
+     "p_abort_severe": 0.20092204213142395,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 4.470348358154297e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20092186331748962,
+     "p_abort_severe": 0.20092232525348663,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 4.6193599700927734e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.21114419400691986,
+     "p_abort_severe": 0.21114465594291687,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 4.6193599700927734e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2285899668931961,
+     "p_abort_severe": 0.22859075665473938,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 7.897615432739258e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.19989938884973527,
+   "p_abort_severe_mean": 0.19989998117089272,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 5.923211574554443e-07,
+   "severe_minus_mild_pooled_mean": 5.923211574554443e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 125
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.556510925292969e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.891787052154541e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.387731552124023e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.834766387939453e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.270144462585449e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.98377799987793e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.92903995513916e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.0132789611816406e-06
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.780028343200684e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.866190910339355e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 6,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09924208372831345,
+     "p_abort_severe": 0.09924273937940598,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 6.556510925292969e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09924208372831345,
+     "p_abort_severe": 0.09924273937940598,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 6.556510925292969e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1136586144566536,
+     "p_abort_severe": 0.11365918815135956,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 5.736947059631348e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16020257771015167,
+     "p_abort_severe": 0.16020338237285614,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 8.046627044677734e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.14996713399887085,
+     "p_abort_severe": 0.1499679833650589,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 8.493661880493164e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.14996714890003204,
+     "p_abort_severe": 0.14996817708015442,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 1.0281801223754883e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16704308986663818,
+     "p_abort_severe": 0.16704410314559937,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 1.0132789611816406e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1670430451631546,
+     "p_abort_severe": 0.167043998837471,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 9.5367431640625e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16020247340202332,
+     "p_abort_severe": 0.16020336747169495,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 8.940696716308594e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.13297529518604279,
+     "p_abort_severe": 0.13297605514526367,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 7.599592208862305e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.14996708929538727,
+     "p_abort_severe": 0.14996810257434845,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 1.0132789611816406e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1719374656677246,
+     "p_abort_severe": 0.1719384491443634,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 9.834766387939453e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.14267466962337494,
+     "p_abort_severe": 0.14267539978027344,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 7.301568984985352e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.14267462491989136,
+     "p_abort_severe": 0.1426752805709839,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 6.556510925292969e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17561279237270355,
+     "p_abort_severe": 0.17561393976211548,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 1.1473894119262695e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.175612673163414,
+     "p_abort_severe": 0.17561355233192444,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 8.791685104370117e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1499669998884201,
+     "p_abort_severe": 0.1499677151441574,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 7.152557373046875e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.14996714890003204,
+     "p_abort_severe": 0.14996778964996338,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 6.407499313354492e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16020242869853973,
+     "p_abort_severe": 0.16020314395427704,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 7.152557373046875e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17847409844398499,
+     "p_abort_severe": 0.17847515642642975,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 1.0579824447631836e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.14983167685568333,
+   "p_abort_severe_mean": 0.14983251318335533,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 8.363276720046997e-07,
+   "severe_minus_mild_pooled_mean": 8.363276720046997e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 150
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.034008502960205e-06
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.2411346435546875e-05
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.1532177925109863e-06
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -5.5536627769470215e-05
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.4303793907165527e-05
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.19555401802063e-05
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.897662878036499e-05
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.651614189147949e-05
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.720952033996582e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -4.087388515472412e-05
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 7,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11689942330121994,
+     "p_abort_severe": 0.11690140515565872,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 1.9818544387817383e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.11689944565296173,
+     "p_abort_severe": 0.11690153181552887,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 2.086162567138672e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1333940625190735,
+     "p_abort_severe": 0.1333789974451065,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": -1.506507396697998e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18576879799365997,
+     "p_abort_severe": 0.18573904037475586,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": -2.975761890411377e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17432935535907745,
+     "p_abort_severe": 0.1743316948413849,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 2.339482307434082e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1743713915348053,
+     "p_abort_severe": 0.17437335848808289,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 1.9669532775878906e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1933828592300415,
+     "p_abort_severe": 0.19332784414291382,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": -5.501508712768555e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.19338275492191315,
+     "p_abort_severe": 0.1933266967535019,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": -5.605816841125488e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18584172427654266,
+     "p_abort_severe": 0.18581387400627136,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": -2.785027027130127e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.155308336019516,
+     "p_abort_severe": 0.15528757870197296,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": -2.0757317543029785e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1744111180305481,
+     "p_abort_severe": 0.17439506947994232,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": -1.6048550605773926e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.19884227216243744,
+     "p_abort_severe": 0.1987944096326828,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": -4.786252975463867e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1662311553955078,
+     "p_abort_severe": 0.16619129478931427,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": -3.986060619354248e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.16623298823833466,
+     "p_abort_severe": 0.16623489558696747,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 1.9073486328125e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20291294157505035,
+     "p_abort_severe": 0.2028706967830658,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": -4.2244791984558105e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20293359458446503,
+     "p_abort_severe": 0.20280280709266663,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": -0.00013078749179840088,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17440950870513916,
+     "p_abort_severe": 0.17437295615673065,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": -3.65525484085083e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.17438864707946777,
+     "p_abort_severe": 0.17437078058719635,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": -1.786649227142334e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18583747744560242,
+     "p_abort_severe": 0.1857740581035614,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": -6.341934204101562e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.20605404675006866,
+     "p_abort_severe": 0.20603571832180023,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": -1.8328428268432617e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.17409159503877164,
+   "p_abort_severe_mean": 0.1740612354129553,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -3.0359625816345216e-05,
+   "severe_minus_mild_pooled_mean": -3.0359625816345216e-05,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 175
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.00024393200874328613
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.573298454284668e-05
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0002503395080566406
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.0117888450622559e-05
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.5331974029541016e-06
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -4.634261131286621e-05
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.2067298889160156e-05
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00018076598644256592
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.1113624572753906e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.383393287658691e-05
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 8,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.28220388293266296,
+     "p_abort_severe": 0.28196439146995544,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": -0.00023949146270751953,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2822449207305908,
+     "p_abort_severe": 0.28199654817581177,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": -0.00024837255477905273,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2871413230895996,
+     "p_abort_severe": 0.2871430814266205,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 1.7583370208740234e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2977031469345093,
+     "p_abort_severe": 0.2976299226284027,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": -7.322430610656738e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29590868949890137,
+     "p_abort_severe": 0.29566285014152527,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": -0.00024583935737609863,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29579153656959534,
+     "p_abort_severe": 0.29553669691085815,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": -0.0002548396587371826,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29867467284202576,
+     "p_abort_severe": 0.2986823320388794,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 7.659196853637695e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29862600564956665,
+     "p_abort_severe": 0.29863858222961426,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 1.2576580047607422e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2974399924278259,
+     "p_abort_severe": 0.29745611548423767,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 1.6123056411743164e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2921466529369354,
+     "p_abort_severe": 0.2921254634857178,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": -2.1189451217651367e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29566726088523865,
+     "p_abort_severe": 0.2955378293991089,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": -0.00012943148612976074,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2993110716342926,
+     "p_abort_severe": 0.29934781789779663,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 3.674626350402832e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2942415475845337,
+     "p_abort_severe": 0.2944278419017792,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 0.0001862943172454834,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2942599356174469,
+     "p_abort_severe": 0.29413777589797974,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": -0.00012215971946716309,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2997494339942932,
+     "p_abort_severe": 0.2997465431690216,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": -2.8908252716064453e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2997058033943176,
+     "p_abort_severe": 0.30007022619247437,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 0.0003644227981567383,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29562902450561523,
+     "p_abort_severe": 0.29568159580230713,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 5.257129669189453e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.2956894338130951,
+     "p_abort_severe": 0.2956990897655487,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 9.655952453613281e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.29739558696746826,
+     "p_abort_severe": 0.2976439297199249,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 0.00024834275245666504,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.30022314190864563,
+     "p_abort_severe": 0.30014246702194214,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": -8.067488670349121e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.294987653195858,
+   "p_abort_severe_mean": 0.29496355503797533,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -2.409815788269043e-05,
+   "severe_minus_mild_pooled_mean": -2.409815788269043e-05,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 200
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1682510375976562e-05
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -9.648501873016357e-06
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -9.959191083908081e-05
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.846819400787354e-05
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.427267074584961e-05
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -9.631365537643433e-05
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.104043960571289e-05
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.34539532661438e-05
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.6637146472930908e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.329664468765259e-05
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 9,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18447469174861908,
+     "p_abort_severe": 0.18448489904403687,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 1.0207295417785645e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18448570370674133,
+     "p_abort_severe": 0.1844988614320755,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 1.315772533416748e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18568409979343414,
+     "p_abort_severe": 0.1857498288154602,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 6.572902202606201e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18809866905212402,
+     "p_abort_severe": 0.18801364302635193,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": -8.502602577209473e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18767163157463074,
+     "p_abort_severe": 0.18757517635822296,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": -9.645521640777588e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18764467537403107,
+     "p_abort_severe": 0.18754194676876068,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": -0.00010272860527038574,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18830619752407074,
+     "p_abort_severe": 0.18821699917316437,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": -8.919835090637207e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18831534683704376,
+     "p_abort_severe": 0.1882276087999344,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": -8.7738037109375e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1880989670753479,
+     "p_abort_severe": 0.18800435960292816,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": -9.460747241973877e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1868760734796524,
+     "p_abort_severe": 0.18690213561058044,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 2.606213092803955e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.187704399228096,
+     "p_abort_severe": 0.18760298192501068,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": -0.00010141730308532715,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1884758621454239,
+     "p_abort_severe": 0.18838465213775635,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": -9.12100076675415e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18737946450710297,
+     "p_abort_severe": 0.18741057813167572,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 3.1113624572753906e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.187369242310524,
+     "p_abort_severe": 0.18738020956516266,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 1.0967254638671875e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1885707527399063,
+     "p_abort_severe": 0.1884734332561493,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": -9.731948375701904e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18862184882164001,
+     "p_abort_severe": 0.18855226039886475,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": -6.958842277526855e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18770012259483337,
+     "p_abort_severe": 0.18772953748703003,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 2.9414892196655273e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1876542717218399,
+     "p_abort_severe": 0.1876581311225891,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 3.859400749206543e-06,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18810835480690002,
+     "p_abort_severe": 0.1881425976753235,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 3.4242868423461914e-05,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.18866819143295288,
+     "p_abort_severe": 0.1885673552751541,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": -0.00010083615779876709,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.18749542832374572,
+   "p_abort_severe_mean": 0.1874558597803116,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -3.956854343414307e-05,
+   "severe_minus_mild_pooled_mean": -3.956854343414307e-05,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 225
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.6193599700927734e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.21540641784668e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.960464477539062e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.811452865600586e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.109476089477539e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.960464477539062e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.917383193969727e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.003545761108398e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.427267074584961e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.21540641784668e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 10,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.34089985489845276,
+     "p_abort_severe": 0.3409003019332886,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 4.470348358154297e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.34089991450309753,
+     "p_abort_severe": 0.34090039134025574,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 4.76837158203125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3403715193271637,
+     "p_abort_severe": 0.34037184715270996,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 3.2782554626464844e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3393203914165497,
+     "p_abort_severe": 0.339321106672287,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 7.152557373046875e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.33949512243270874,
+     "p_abort_severe": 0.33949577808380127,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 6.556510925292969e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3394952416419983,
+     "p_abort_severe": 0.33949577808380127,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 5.364418029785156e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.33921554684638977,
+     "p_abort_severe": 0.33921608328819275,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 5.364418029785156e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3392155170440674,
+     "p_abort_severe": 0.3392161428928375,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 6.258487701416016e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.33932074904441833,
+     "p_abort_severe": 0.3393215239048004,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 7.748603820800781e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3398449718952179,
+     "p_abort_severe": 0.3398454189300537,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 4.470348358154297e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3394950032234192,
+     "p_abort_severe": 0.33949553966522217,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 5.364418029785156e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3391457498073578,
+     "p_abort_severe": 0.3391464054584503,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 6.556510925292969e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.33963480591773987,
+     "p_abort_severe": 0.33963537216186523,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 5.662441253662109e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3396349549293518,
+     "p_abort_severe": 0.33963537216186523,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 4.172325134277344e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3390958905220032,
+     "p_abort_severe": 0.33909645676612854,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 5.662441253662109e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3390958905220032,
+     "p_abort_severe": 0.33909672498703003,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 8.344650268554688e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.33949482440948486,
+     "p_abort_severe": 0.3394952416419983,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 4.172325134277344e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3394947648048401,
+     "p_abort_severe": 0.3394950330257416,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 2.682209014892578e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.33932003378868103,
+     "p_abort_severe": 0.33932048082351685,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 4.470348358154297e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.3390584886074066,
+     "p_abort_severe": 0.33905908465385437,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 5.960464477539062e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.3395774617791176,
+   "p_abort_severe_mean": 0.33957800418138506,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 5.424022674560547e-07,
+   "severe_minus_mild_pooled_mean": 5.424022674560547e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 250
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.195638656616211e-08
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.332993507385254e-08
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.587935447692871e-08
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.7881393432617188e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.3527612686157227e-08
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -5.960464477539063e-08
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.2351741790771484e-08
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.4959444999694824e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -7.078051567077637e-08
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.1175870895385742e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 11,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0888347253203392,
+     "p_abort_severe": 0.08883480727672577,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 8.195638656616211e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0888347253203392,
+     "p_abort_severe": 0.08883480727672577,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 8.195638656616211e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08841970562934875,
+     "p_abort_severe": 0.088419608771801,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": -9.685754776000977e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08760079741477966,
+     "p_abort_severe": 0.08760076761245728,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": -2.9802322387695312e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08773606270551682,
+     "p_abort_severe": 0.08773612976074219,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 6.705522537231445e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08773627132177353,
+     "p_abort_severe": 0.08773631602525711,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 4.470348358154297e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0875198245048523,
+     "p_abort_severe": 0.08751963078975677,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": -1.9371509552001953e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0875198245048523,
+     "p_abort_severe": 0.08751966059207916,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": -1.6391277313232422e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08760101348161697,
+     "p_abort_severe": 0.08760099112987518,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": -2.2351741790771484e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08800844848155975,
+     "p_abort_severe": 0.08800840377807617,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": -4.470348358154297e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08773641288280487,
+     "p_abort_severe": 0.08773641288280487,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 0.0,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08746601641178131,
+     "p_abort_severe": 0.08746589720249176,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": -1.1920928955078125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08784504234790802,
+     "p_abort_severe": 0.08784494549036026,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": -9.685754776000977e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08784503489732742,
+     "p_abort_severe": 0.0878450870513916,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 5.21540641784668e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08742750436067581,
+     "p_abort_severe": 0.08742738515138626,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": -1.1920928955078125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08742762356996536,
+     "p_abort_severe": 0.08742724359035492,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": -3.7997961044311523e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08773644268512726,
+     "p_abort_severe": 0.0877363458275795,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": -9.685754776000977e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08773636072874069,
+     "p_abort_severe": 0.08773631602525711,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": -4.470348358154297e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08760107308626175,
+     "p_abort_severe": 0.08760089427232742,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": -1.7881393432617188e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.08739867806434631,
+     "p_abort_severe": 0.08739863336086273,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": -4.470348358154297e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.08780157938599586,
+   "p_abort_severe_mean": 0.08780151419341564,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -6.51925802230835e-08,
+   "severe_minus_mild_pooled_mean": -6.51925802230835e-08,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 275
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.450580596923828e-08
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -5.587935447692871e-08
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.0978193283081055e-08
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.2665987014770508e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.2351741790771484e-08
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -4.842877388000488e-08
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.4901161193847656e-08
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.564621925354004e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -4.470348358154297e-08
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.940696716308594e-08
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 12,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06413337588310242,
+     "p_abort_severe": 0.06413345783948898,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 8.195638656616211e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06413339078426361,
+     "p_abort_severe": 0.06413345783948898,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 6.705522537231445e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06379873305559158,
+     "p_abort_severe": 0.06379865109920502,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": -8.195638656616211e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06313948333263397,
+     "p_abort_severe": 0.06313945353031158,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": -2.9802322387695312e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06324829161167145,
+     "p_abort_severe": 0.06324834376573563,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 5.21540641784668e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0632484182715416,
+     "p_abort_severe": 0.06324844807386398,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 2.9802322387695312e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06307436525821686,
+     "p_abort_severe": 0.06307422369718552,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": -1.4156103134155273e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06307435035705566,
+     "p_abort_severe": 0.06307423859834671,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": -1.1175870895385742e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0631396472454071,
+     "p_abort_severe": 0.06313963234424591,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": -1.4901161193847656e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06346746534109116,
+     "p_abort_severe": 0.06346743553876877,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": -2.9802322387695312e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06324855238199234,
+     "p_abort_severe": 0.06324854493141174,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": -7.450580596923828e-09,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06303109973669052,
+     "p_abort_severe": 0.06303101032972336,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": -8.940696716308594e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06333595514297485,
+     "p_abort_severe": 0.06333588063716888,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": -7.450580596923828e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06333595514297485,
+     "p_abort_severe": 0.06333599984645844,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 4.470348358154297e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0630001351237297,
+     "p_abort_severe": 0.06300006061792374,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": -7.450580596923828e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06300021708011627,
+     "p_abort_severe": 0.06299997866153717,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": -2.384185791015625e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06324856728315353,
+     "p_abort_severe": 0.06324852257966995,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": -4.470348358154297e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06324850767850876,
+     "p_abort_severe": 0.06324846297502518,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": -4.470348358154297e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06313969939947128,
+     "p_abort_severe": 0.06313955038785934,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": -1.4901161193847656e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.06297697126865387,
+     "p_abort_severe": 0.06297694146633148,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": -2.9802322387695312e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.06330115906894207,
+   "p_abort_severe_mean": 0.06330111473798752,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -4.433095455169678e-08,
+   "severe_minus_mild_pooled_mean": -4.433095455169678e-08,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 300
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.4959444999694824e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.6391277313232422e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.0489096641540527e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.82310962677002e-08
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.123415470123291e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.5273690223693848e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.7881393432617188e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.2293457984924316e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.078051567077637e-08
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.30385160446167e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 13,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09921854734420776,
+     "p_abort_severe": 0.09921879321336746,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 2.4586915969848633e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09921857714653015,
+     "p_abort_severe": 0.09921883046627045,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 2.5331974029541016e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09852579236030579,
+     "p_abort_severe": 0.09852591156959534,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 1.1920928955078125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0971686914563179,
+     "p_abort_severe": 0.09716890007257462,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 2.086162567138672e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09739216417074203,
+     "p_abort_severe": 0.09739236533641815,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 2.0116567611694336e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.0973922461271286,
+     "p_abort_severe": 0.09739245474338531,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 2.086162567138672e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09703505039215088,
+     "p_abort_severe": 0.09703510254621506,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 5.21540641784668e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09703502804040909,
+     "p_abort_severe": 0.09703513234853745,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 1.043081283569336e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09716884791851044,
+     "p_abort_severe": 0.09716909378767014,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 2.4586915969848633e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09784253686666489,
+     "p_abort_severe": 0.09784271568059921,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 1.7881393432617188e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09739234298467636,
+     "p_abort_severe": 0.09739253669977188,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 1.9371509552001953e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09694623202085495,
+     "p_abort_severe": 0.0969463437795639,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 1.1175870895385742e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09757192432880402,
+     "p_abort_severe": 0.09757208824157715,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 1.6391277313232422e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09757192432880402,
+     "p_abort_severe": 0.09757211804389954,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 1.9371509552001953e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09688280522823334,
+     "p_abort_severe": 0.09688291698694229,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 1.1175870895385742e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09688285738229752,
+     "p_abort_severe": 0.09688299149274826,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 1.341104507446289e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09739232808351517,
+     "p_abort_severe": 0.09739245474338531,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 1.2665987014770508e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09739228338003159,
+     "p_abort_severe": 0.09739229828119278,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 1.4901161193847656e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09716875851154327,
+     "p_abort_severe": 0.09716884791851044,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 8.940696716308594e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.09683530777692795,
+     "p_abort_severe": 0.09683547914028168,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 1.7136335372924805e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.09750171229243279,
+   "p_abort_severe_mean": 0.09750186875462533,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 1.564621925354004e-07,
+   "severe_minus_mild_pooled_mean": 1.564621925354004e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 325
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.977949619293213e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.92903995513916e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.103647708892822e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.5821070671081543e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.636845111846924e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.997717380523682e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.338821887969971e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.550682544708252e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.811452865600586e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.364418029785156e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 14,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10239747166633606,
+     "p_abort_severe": 0.1023983284831047,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 8.568167686462402e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10239752382040024,
+     "p_abort_severe": 0.10239846259355545,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 9.387731552124023e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10177233070135117,
+     "p_abort_severe": 0.1017729640007019,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 6.332993507385254e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10054401308298111,
+     "p_abort_severe": 0.1005447655916214,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 7.525086402893066e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1007465049624443,
+     "p_abort_severe": 0.10074711591005325,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 6.109476089477539e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10074654966592789,
+     "p_abort_severe": 0.10074695944786072,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 4.0978193283081055e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10042274743318558,
+     "p_abort_severe": 0.100423164665699,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 4.172325134277344e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10042274743318558,
+     "p_abort_severe": 0.10042324662208557,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 4.991888999938965e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10054414719343185,
+     "p_abort_severe": 0.10054492205381393,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 7.748603820800781e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1011543720960617,
+     "p_abort_severe": 0.101155124604702,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 7.525086402893066e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10074680298566818,
+     "p_abort_severe": 0.1007475033402443,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 7.003545761108398e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10034220665693283,
+     "p_abort_severe": 0.10034270584583282,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 4.991888999938965e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10090941935777664,
+     "p_abort_severe": 0.10091019421815872,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 7.748603820800781e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10090939700603485,
+     "p_abort_severe": 0.10091008991003036,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 6.92903995513916e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.1002846509218216,
+     "p_abort_severe": 0.10028499364852905,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 3.427267074584961e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10028474777936935,
+     "p_abort_severe": 0.10028551518917084,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 7.674098014831543e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10074673593044281,
+     "p_abort_severe": 0.10074745863676071,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 7.227063179016113e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10074658691883087,
+     "p_abort_severe": 0.10074702650308609,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 4.3958425521850586e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10054409503936768,
+     "p_abort_severe": 0.10054478794336319,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 6.92903995513916e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.10024159401655197,
+     "p_abort_severe": 0.10024197399616241,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 3.7997961044311523e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.10084523223340511,
+   "p_abort_severe_mean": 0.10084586516022682,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 6.329268217086792e-07,
+   "severe_minus_mild_pooled_mean": 6.329268217086792e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 350
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.1420419216156006e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.601874828338623e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.4156103134155273e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.0803341865539551e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.7136335372924805e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.3597309589385986e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.7695128917694092e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1362135410308838e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.2293457984924316e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1548399925231934e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "groups": [
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04413019120693207,
+     "p_abort_severe": 0.044130388647317886,
+     "reverse_switch": false,
+     "seed": 2000000,
+     "severe_minus_mild": 1.9744038581848145e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04413019120693207,
+     "p_abort_severe": 0.04413042217493057,
+     "reverse_switch": false,
+     "seed": 2000001,
+     "severe_minus_mild": 2.3096799850463867e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04391425475478172,
+     "p_abort_severe": 0.043914396315813065,
+     "reverse_switch": false,
+     "seed": 2000064,
+     "severe_minus_mild": 1.4156103134155273e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A2-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A2-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.043488502502441406,
+     "p_abort_severe": 0.04348868131637573,
+     "reverse_switch": false,
+     "seed": 2000065,
+     "severe_minus_mild": 1.7881393432617188e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04355882108211517,
+     "p_abort_severe": 0.043558984994888306,
+     "reverse_switch": false,
+     "seed": 2000128,
+     "severe_minus_mild": 1.6391277313232422e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.043558865785598755,
+     "p_abort_severe": 0.043558984994888306,
+     "reverse_switch": false,
+     "seed": 2000129,
+     "severe_minus_mild": 1.1920928955078125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.043446362018585205,
+     "p_abort_severe": 0.043446458876132965,
+     "reverse_switch": false,
+     "seed": 2000192,
+     "severe_minus_mild": 9.685754776000977e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A3-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A3-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.043446362018585205,
+     "p_abort_severe": 0.043446481227874756,
+     "reverse_switch": false,
+     "seed": 2000193,
+     "severe_minus_mild": 1.1920928955078125e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04348857328295708,
+     "p_abort_severe": 0.043488748371601105,
+     "reverse_switch": false,
+     "seed": 2000256,
+     "severe_minus_mild": 1.7508864402770996e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04370034486055374,
+     "p_abort_severe": 0.04370051249861717,
+     "reverse_switch": false,
+     "seed": 2000257,
+     "severe_minus_mild": 1.6763806343078613e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04355893284082413,
+     "p_abort_severe": 0.043559107929468155,
+     "reverse_switch": false,
+     "seed": 2000320,
+     "severe_minus_mild": 1.7508864402770996e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A4-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A4-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04341839253902435,
+     "p_abort_severe": 0.04341848939657211,
+     "reverse_switch": false,
+     "seed": 2000321,
+     "severe_minus_mild": 9.685754776000977e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04361538589000702,
+     "p_abort_severe": 0.043615568429231644,
+     "reverse_switch": false,
+     "seed": 2000384,
+     "severe_minus_mild": 1.825392246246338e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.043615397065877914,
+     "p_abort_severe": 0.043615568429231644,
+     "reverse_switch": false,
+     "seed": 2000385,
+     "severe_minus_mild": 1.7136335372924805e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04339835047721863,
+     "p_abort_severe": 0.043398432433605194,
+     "reverse_switch": false,
+     "seed": 2000448,
+     "severe_minus_mild": 8.195638656616211e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A5-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A5-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04339839145541191,
+     "p_abort_severe": 0.04339853674173355,
+     "reverse_switch": false,
+     "seed": 2000449,
+     "severe_minus_mild": 1.4528632164001465e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.043558910489082336,
+     "p_abort_severe": 0.04355906322598457,
+     "reverse_switch": false,
+     "seed": 2000512,
+     "severe_minus_mild": 1.5273690223693848e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D0",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D0-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04355888441205025,
+     "p_abort_severe": 0.04355897754430771,
+     "reverse_switch": false,
+     "seed": 2000513,
+     "severe_minus_mild": 9.313225746154785e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w000",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.043488550931215286,
+     "p_abort_severe": 0.04348869249224663,
+     "reverse_switch": false,
+     "seed": 2000576,
+     "severe_minus_mild": 1.4156103134155273e-07,
+     "severe_selected": "PLAN_COMPLIANCE"
+    },
+    {
+     "base_cell": "A6-D2",
+     "complete": true,
+     "directional_switch": false,
+     "group_key": "A6-D2-w001",
+     "metric_eligible": true,
+     "mild_selected": "PLAN_COMPLIANCE",
+     "p_abort_mild": 0.04338337853550911,
+     "p_abort_severe": 0.04338346794247627,
+     "reverse_switch": false,
+     "seed": 2000577,
+     "severe_minus_mild": 8.940696716308594e-08,
+     "severe_selected": "PLAN_COMPLIANCE"
+    }
+   ],
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.04359285216778517,
+   "p_abort_severe_mean": 0.043592998199164866,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 1.4603137969970704e-07,
+   "severe_minus_mild_pooled_mean": 1.4603137969970704e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 375
+  }
+ ],
+ "run_id": "graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266",
+ "schema": "semantic_action_ctde_dev_r1_behaviour_summary",
+ "schema_version": 1,
+ "verifications": [
+  "representation uniformly semantic_k_plus_2_logmeanexp_v1 on every outcome and wake",
+  "every MILD / SEVERE member has exactly one immediate-FD wake",
+  "group keys, base cells, profile, world ordinals and manifest id well-formed",
+  "per-round macro, pooled mean, per-cell means, per-group P(ABORT) and selected actions equal the trainer's persisted v2_behaviour",
+  "final macro and switch counts equal run_summary final_round_behaviour"
+ ]
+}

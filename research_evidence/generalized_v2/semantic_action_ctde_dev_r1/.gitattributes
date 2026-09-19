@@ -1,0 +1,2 @@
+# Evidence files must stay byte-identical to their sources (CRLF launcher files, LF JSON).
+* -text

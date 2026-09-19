@@ -1,0 +1,43 @@
+{
+ "schema": "semantic_action_ctde_dev_r1_package_checks",
+ "schema_version": 1,
+ "is_scientific_verdict": false,
+ "performed_on": "2026-09-16, after worker exit, before pushing the evidence branch",
+ "determinism": {
+  "method": "scripts/extract_evidence.py run twice into separate scratch directories (out1, out2); the second run used --verify-against out1/artifact_sha256.txt",
+  "second_run_verify_against_exit": 0,
+  "outputs_byte_identical": true,
+  "check": "diff -r out1 out2 (no differences) and identical sorted sha256 lists"
+ },
+ "source_hashes": {
+  "n_source_artifacts": 47,
+  "verified_unchanged_before_and_after_each_extraction": true,
+  "pr71_files_verified_by_git_blob_id_at": "0d136fa89286c4bbd9e89dfb6bd0a3326c70b670",
+  "comparator_run_files_verified_against_pr71_artifact_sha256": true,
+  "historical_ctde_files_verified_against_archive_index": true,
+  "historical_ctde_run_config_blob_equals_evidence_commit_b2bbe7a": true
+ },
+ "parse_back": "every .json / .jsonl output parsed after writing (inside the extractor)",
+ "trainer_cross_checks": "per-round macro, pooled mean, per-cell means, per-group P(ABORT), selected actions and switch counts equal eval_records v2_behaviour for BOTH arms; final round equals run_summary; actor-only rounds equal PR #71 behaviour_summary.json",
+ "credit_counts": "9058 credit rows == run_summary.total_transitions == sum(train_records.n_transitions); every iteration's rows == its n_transitions",
+ "import_audit": {
+  "method": "scripts/package_checks.py: AST import/identifier scan + in-process runpy execution with sys.modules audit",
+  "static_imports": ["__future__", "argparse", "collections", "hashlib", "json", "math", "pathlib", "re", "shutil", "statistics", "sys"],
+  "static_forbidden_imports": [],
+  "static_forbidden_code_identifiers": [],
+  "torch_loaded": false,
+  "match_aou_loaded": false,
+  "subprocess_loaded_by_extractor": false
+ },
+ "negative_tests": {
+  "note": "each case run on a scratch COPY of the run directory; the original run directory was never modified",
+  "hash_tamper": {"exit": 2, "message": "HASH MISMATCH for run_summary.json"},
+  "dropped_credit_row": {"exit": 2, "wrote_output": false, "message": "credit rows 9057 vs summary"},
+  "representation_mix": {"exit": 2, "wrote_output": false, "message": "ctde: outcome representation 'legacy_node_indexed_joint_k_x_3'"},
+  "malformed_pair_identity": {"exit": 2, "wrote_output": false, "message": "ctde: base cell 'A2-D0' inconsistent with group A3-D0-w000"},
+  "eval_macro_tamper": {"exit": 2, "wrote_output": false, "message": "ctde r15 macro 0.0100001460313797 vs 1.4603137969970704e-07"},
+  "gae_td_residual_tamper_1e-6": {"exit": 2, "wrote_output": false, "message": "iteration 23 episode (3000184, 184) ordinal 0 td_residual: persisted vs reconstructed mismatch"}
+ },
+ "branch_contents": "evidence files only under research_evidence/generalized_v2/semantic_action_ctde_dev_r1/; no source, test, config, contract, history or handoff change",
+ "no_scientific_execution_during_preservation": true
+}
