@@ -1,2 +1,4 @@
 # Evidence package: store every file byte-exact (originals/ are byte-identical copies).
 * -text
+# originals/ keep their CRLF bytes; CR at end of line is not a whitespace error there.
+originals/** whitespace=cr-at-eol
