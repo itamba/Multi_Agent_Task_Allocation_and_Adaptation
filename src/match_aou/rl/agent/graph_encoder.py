@@ -73,8 +73,9 @@ Architecture (locked defaults: model_dim=64, embed_dim=64, num_heads=4, num_laye
    final layer we slice the task rows ``[0:k]`` and apply a final
    ``Linear(model_dim -> embed_dim)`` (so ``embed_dim`` may differ from
    ``model_dim``).
-7. POOLING HOOK :meth:`GraphEncoder.pool` (mean over ALL node embeddings) for the
-   future centralized critic. NO value head is built now.
+7. POOLING HOOK :meth:`GraphEncoder.pool` (mean over ALL node embeddings), and
+   :meth:`GraphEncoder.pool_with_ego` (that mean plus the projected ``ego_index`` row,
+   from one pass) for the training-only centralized critic. NO value head lives here.
 
 Dependencies: ``torch`` + ``numpy`` only (no PyG/DGL — only torch/numpy are
 installed). The body imports ONLY :class:`GraphObservation` / :class:`EdgeType`
@@ -85,7 +86,7 @@ from __future__ import annotations
 
 import math
 from enum import IntEnum
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -426,6 +427,31 @@ class GraphEncoder(nn.Module):
         """
         node_emb = self._encode(obs, edge_attr)
         return self.out_proj(node_emb).mean(dim=0)
+
+    def pool_with_ego(
+        self, obs: GraphObservation, edge_attr: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """``(pooled, ego_embedding)``, both ``[embed_dim]``, from ONE encoder pass.
+
+        ``pooled`` is exactly :meth:`pool` (mean over ALL projected nodes, the ego
+        included); ``ego_embedding`` is the projected POST-message-passing row
+        ``obs.ego_index``. The stack runs once and ``out_proj`` is applied once to every
+        node, so the two readouts share one computation.
+
+        The ego row must be a real AGENT node: ``k <= ego_index < N``. Anything else --
+        the ``-1`` sentinel, a task row, an out-of-range or non-integer index -- raises
+        ``ValueError`` rather than reading an arbitrary row.
+        """
+        k = int(obs.task_features.shape[0])
+        n = k + int(obs.agent_features.shape[0])
+        ego_index = obs.ego_index
+        if isinstance(ego_index, bool) or not isinstance(ego_index, (int, np.integer)) \
+                or not (k <= int(ego_index) < n):
+            raise ValueError(
+                "pool_with_ego needs ego_index to name an agent node in [%d, %d); got %r"
+                % (k, n, ego_index))
+        projected = self.out_proj(self._encode(obs, edge_attr))
+        return projected.mean(dim=0), projected[int(ego_index)]
 
 
 # =============================================================================

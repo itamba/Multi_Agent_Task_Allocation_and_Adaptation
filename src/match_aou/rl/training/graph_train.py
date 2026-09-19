@@ -343,6 +343,7 @@ from .graph_fuel_damage import (
     resolve_severity,
 )
 from .graph_ppo import (
+    CRITIC_READOUT_ID,
     CTDEBuffer,
     CTDEConfig,
     CTDEEpisodeRecord,
@@ -7896,7 +7897,13 @@ def save_checkpoint(
     A CTDE run saves the ACTUAL CTDE training state, which is strictly more: the same
     six keys (``encoder`` / ``head`` / ``optimizer`` are the ACTOR's), plus
     ``training_mode`` and the critic's own ``critic_encoder`` / ``value_head`` /
-    ``critic_optimizer`` / ``ctde_config``. There is deliberately NO second
+    ``critic_optimizer`` / ``ctde_config``, plus ``critic_readout_id``
+    (:data:`~match_aou.rl.training.graph_ppo.CRITIC_READOUT_ID`). The explicit
+    acting-ego readout made the ``value_head`` input ``2 * embed_dim``: a CTDE
+    checkpoint saved before it (``embed_dim``-wide ``value_head``, no readout id) does
+    NOT fit the current critic: a strict ``load_state_dict`` raises on it (after PyTorch
+    has copied the same-shaped tensors, so a refused critic must be discarded), and
+    nothing here pads or adapts old critic weights. There is deliberately NO second
     "actor export" file -- the actor portion of this one payload is already sufficient
     for later inference, precisely because the actor's keys did not move.
 
@@ -7918,6 +7925,7 @@ def save_checkpoint(
         payload["training_mode"] = TRAINING_MODE_CTDE
         payload["critic_encoder"] = critic.encoder.state_dict()
         payload["value_head"] = critic.value_head.state_dict()
+        payload["critic_readout_id"] = CRITIC_READOUT_ID
         payload["critic_optimizer"] = updater.critic_optimizer.state_dict()
         payload["ctde_config"] = asdict(updater.ctde_cfg)
     torch.save(payload, path)

@@ -290,8 +290,13 @@ def _central(scen, ex, agent_ids, *, t=0, config=None, acting=None):
     )
 
 
-def _synthetic_central(k=3, a=2, *, seed=0):
-    """A hand-built central state (no scenario), for shape / numeric tests."""
+def _synthetic_central(k=3, a=2, *, seed=0, ego_row=0):
+    """A hand-built central DECISION state (no scenario), for shape / numeric tests.
+
+    ``ego_row`` names the acting agent's row, so ``ego_index = k + ego_row`` -- the
+    explicit-readout critic refuses anything else. ``a == 0`` has no acting agent and
+    carries the non-decision sentinel.
+    """
     rng = np.random.default_rng(seed)
     src, dst = [], []
     for i in range(a):
@@ -302,7 +307,7 @@ def _synthetic_central(k=3, a=2, *, seed=0):
     return CentralGraphObservation(
         task_features=rng.random((k, CENTRAL_TASK_FEATURE_DIM)).astype(np.float32),
         agent_features=rng.random((a, CENTRAL_AGENT_FEATURE_DIM)).astype(np.float32),
-        ego_index=NO_EGO_INDEX,
+        ego_index=k + ego_row if a else NO_EGO_INDEX,
         edge_index=np.array([src, dst], dtype=np.int64) if e else np.zeros((2, 0), np.int64),
         edge_type=np.full((e,), CENTRAL_EDGE_TYPE, dtype=np.int64),
         edge_attr=rng.random((e, CENTRAL_EDGE_ATTR_DIM)).astype(np.float32),
@@ -564,9 +569,10 @@ def test_ctde_checkpoint_carries_the_actual_ctde_training_state(tmp_path):
         "iteration", "encoder", "head", "optimizer", "ppo_config",
         "action_representation_id",
         "training_mode", "critic_encoder", "value_head", "critic_optimizer",
-        "ctde_config",
+        "ctde_config", "critic_readout_id",
     }
     assert payload["action_representation_id"] == "semantic_k_plus_2_logmeanexp_v1"
+    assert payload["critic_readout_id"] == graph_ppo.CRITIC_READOUT_ID
     assert payload["training_mode"] == graph_train.TRAINING_MODE_CTDE
     assert payload["ctde_config"] == {
         "critic_lr": 3e-4, "value_coeff": 0.5, "gae_lambda": 0.95,
@@ -577,6 +583,29 @@ def test_ctde_checkpoint_carries_the_actual_ctde_training_state(tmp_path):
     fresh.value_head.load_state_dict(payload["value_head"])
     obs = _synthetic_central()
     assert torch.allclose(fresh(obs), critic(obs))
+    assert payload["value_head"]["mlp.0.weight"].shape == (64, 128)
+
+
+def test_a_pre_readout_critic_value_head_cannot_load_silently():
+    """A mean-pool-only critic head (`embed_dim` wide) does not fit the new critic.
+
+    The strict load RAISES on the first-layer shape mismatch -- it is never silent, and
+    nothing pads or adapts the old weights. PyTorch has already copied the same-shaped
+    tensors when it raises, so a critic whose load was refused is partially overwritten
+    and must be DISCARDED, never used; the old head also carries no `critic_readout_id`.
+    """
+    torch.manual_seed(0)
+    old_head = graph_ppo.ValueHead(64, 64)          # the pre-readout shape
+    critic = build_central_critic()
+    try:
+        critic.value_head.load_state_dict(old_head.state_dict())
+        raised, message = False, ""
+    except RuntimeError as exc:
+        raised, message = True, str(exc)
+    assert raised, "an embed_dim-wide value head loaded into the explicit-readout critic"
+    assert "mlp.0.weight" in message and "size mismatch" in message
+    # The mismatched tensor itself was not loaded or reshaped.
+    assert tuple(critic.value_head.mlp[0].weight.shape) == (64, 128)
 
 
 def test_ctde_credit_does_not_call_the_actor_only_credit_function():
@@ -825,7 +854,8 @@ def test_a_central_state_is_not_an_actor_observation():
     assert not isinstance(central, type(_actor_obs()))
     # No `agent_id`: the actor's observation is FOR an ego; this one is the global view.
     assert not hasattr(central, "agent_id")
-    assert central.ego_index == NO_EGO_INDEX
+    # Its ego_index names the decision owner's node -- a role, not an identity field.
+    assert central.n_tasks <= central.ego_index < central.n_tasks + central.n_agents
     # It cannot be fed to the actor's mask -- it lacks the columns the mask reads.
     try:
         build_action_mask(central)
@@ -836,14 +866,17 @@ def test_a_central_state_is_not_an_actor_observation():
 
 
 def test_actor_encoder_marks_no_ego_when_ego_index_is_the_sentinel():
-    """PO2/3: `ego_index = -1` really leaves every agent node symmetric.
+    """PO2/3: `ego_index = -1` really leaves every agent node symmetric in the ENCODER.
 
     Permuting the two agent rows of an otherwise symmetric central state must not change
-    the pooled summary -- which is what "no distinguished ego" means operationally.
+    the encoder's pooled summary -- which is what "no distinguished ego" means
+    operationally. Such a non-decision state is NOT a valid input to the
+    explicit-readout critic, which refuses it (see the fail-closed test).
     """
     torch.manual_seed(0)
     critic = build_central_critic()
     base = _synthetic_central(k=2, a=2, seed=5)
+    base.ego_index = NO_EGO_INDEX
     # Make the two agents identical so a permutation is a true relabeling.
     base.agent_features[:] = base.agent_features[0]
     swapped = CentralGraphObservation(
@@ -858,7 +891,10 @@ def test_actor_encoder_marks_no_ego_when_ego_index_is_the_sentinel():
         current_time=base.current_time,
         time_norm=base.time_norm,
     )
-    assert torch.allclose(critic(base), critic(swapped), atol=1e-6)
+    with torch.no_grad():
+        assert torch.allclose(critic.encoder.pool(base, edge_attr=base.edge_attr),
+                              critic.encoder.pool(swapped, edge_attr=swapped.edge_attr),
+                              atol=1e-6)
 
 
 def test_evaluation_never_constructs_a_critic_or_a_recorder():
@@ -1082,10 +1118,11 @@ def test_variable_graph_sizes_stay_finite_without_padding():
     """PO3: the critic is size-agnostic -- no padding, no NaN, including k = 0."""
     torch.manual_seed(0)
     critic = build_central_critic()
-    for k, a in ((1, 1), (3, 2), (6, 4), (0, 3), (4, 1)):
-        v = critic(_synthetic_central(k=k, a=a, seed=k * 10 + a))
-        assert v.shape == (), f"V(s) must be a scalar, got {tuple(v.shape)}"
-        assert bool(torch.isfinite(v)), f"non-finite V(s) at k={k}, a={a}"
+    for k, a in ((1, 1), (3, 2), (6, 4), (0, 3), (4, 1), (2, 6)):
+        for row in range(a):
+            v = critic(_synthetic_central(k=k, a=a, seed=k * 10 + a, ego_row=row))
+            assert v.shape == (), f"V(s) must be a scalar, got {tuple(v.shape)}"
+            assert bool(torch.isfinite(v)), f"non-finite V(s) at k={k}, a={a}, row={row}"
 
 
 def test_ctde_update_moves_both_parameter_sets():
@@ -1410,6 +1447,133 @@ def test_the_critic_learns_no_agent_identity():
             c.ego_index = 3 + row
             with torch.no_grad():
                 assert bool(torch.isfinite(critic(c)).all())
+
+
+# --- EXPLICIT acting-ego READOUT ---------------------------------------------------
+
+def test_the_ego_readout_is_the_projected_post_message_passing_ego_row():
+    """`pool_with_ego` = (mean of the projected nodes, projected row `ego_index`)."""
+    torch.manual_seed(0)
+    enc = build_central_critic().encoder
+    obs = _synthetic_central(k=3, a=3, seed=4, ego_row=2)
+    with torch.no_grad():
+        pooled, ego = enc.pool_with_ego(obs, edge_attr=obs.edge_attr)
+        projected = enc.out_proj(enc._encode(obs, obs.edge_attr))
+        assert torch.allclose(pooled, projected.mean(dim=0), atol=1e-6)
+        assert torch.allclose(pooled, enc.pool(obs, edge_attr=obs.edge_attr), atol=1e-6)
+        assert torch.allclose(ego, projected[obs.ego_index], atol=1e-6)
+        # POST-message-passing: not the pre-attention input projection of that node.
+        pre = enc.out_proj(enc._node_inputs(obs))[obs.ego_index]
+        assert not torch.allclose(ego, pre)
+    assert pooled.shape == ego.shape == (enc.embed_dim,)
+
+
+def test_the_encoder_stack_runs_once_per_value():
+    """One `_encode` and one `out_proj` call per critic forward, not one per readout."""
+    torch.manual_seed(0)
+    critic = build_central_critic()
+    calls = {"encode": 0, "out_proj": 0}
+    real_encode = critic.encoder._encode
+
+    def counting_encode(*a, **kw):
+        calls["encode"] += 1
+        return real_encode(*a, **kw)
+
+    critic.encoder._encode = counting_encode
+    hook = critic.encoder.out_proj.register_forward_hook(
+        lambda *_: calls.__setitem__("out_proj", calls["out_proj"] + 1))
+    try:
+        with torch.no_grad():
+            critic(_synthetic_central(k=3, a=2, seed=1))
+    finally:
+        hook.remove()
+        del critic.encoder._encode
+    assert calls == {"encode": 1, "out_proj": 1}, calls
+
+
+def test_the_value_head_consumes_twice_the_embedding_width():
+    """`ValueHead` reads `[mean pool ; ego embedding]` -- `2 * embed_dim`, hidden unchanged."""
+    for embed in (64, 32):
+        torch.manual_seed(0)
+        critic = build_central_critic(embed_dim=embed)
+        first = critic.value_head.mlp[0]
+        assert critic.value_head.input_dim == 2 * embed == first.in_features
+        assert first.out_features == critic.value_head.hidden_dim == 64
+        assert critic.value_head.mlp[2].out_features == 1
+        seen = {}
+        hook = critic.value_head.register_forward_hook(
+            lambda _m, inp, _o: seen.__setitem__("shape", tuple(inp[0].shape)))
+        try:
+            with torch.no_grad():
+                critic(_synthetic_central(k=2, a=2, seed=3))
+        finally:
+            hook.remove()
+        assert seen["shape"] == (2 * embed,)
+
+
+def test_the_readout_critic_refuses_a_state_without_a_valid_acting_ego():
+    """Sentinel, task row, out-of-range, non-integer and agentless states all raise."""
+    torch.manual_seed(0)
+    critic = build_central_critic()
+    for bad in (NO_EGO_INDEX, 0, 2, 5, 99, 3.0, True, None):
+        obs = _synthetic_central(k=3, a=2, seed=2)
+        obs.ego_index = bad
+        try:
+            critic(obs)
+            raised = False
+        except ValueError:
+            raised = True
+        assert raised, "the explicit-readout critic valued ego_index=%r" % (bad,)
+    for k in (0, 3):                        # no agent node at all
+        try:
+            critic(_synthetic_central(k=k, a=0, seed=1))
+            raised = False
+        except ValueError:
+            raised = True
+        assert raised, "an agentless state (k=%d) was valued" % k
+    # A real decision projection from the builder is accepted.
+    scen, ex, ids, _ = _world(n_targets=2, agents=("ego0", "ego1"))
+    assert bool(torch.isfinite(critic(_central(scen, ex, ids, acting="ego1"))))
+    with_sentinel = _central(scen, ex, ids)          # non-decision projection
+    try:
+        critic(with_sentinel)
+        raised = False
+    except ValueError:
+        raised = True
+    assert raised, "a non-decision central projection was valued"
+
+
+def test_readout_values_follow_the_owner_and_ignore_the_scheduled_order():
+    """Same physical acting ego under any scheduled order -> same value; owner matters."""
+    scen, ex, ids, _ = _world(n_targets=3, agents=("ego0", "ego1", "ego2"),
+                              plans={"ego0": [(0, 0, 0)], "ego2": [(2, 0, 0)]})
+    scen.aircraft[0].current_fuel = 10000.0
+    scen.aircraft[1].current_fuel = 5000.0
+    scen.aircraft[2].current_fuel = 2500.0
+    torch.manual_seed(0)
+    critic = build_central_critic()
+    orders = (["ego0", "ego1", "ego2"], ["ego2", "ego0", "ego1"], ["ego1", "ego2", "ego0"])
+    with torch.no_grad():
+        for owner in ("ego0", "ego1", "ego2"):
+            values = [critic(_central(scen, ex, o, acting=owner)) for o in orders]
+            assert all(torch.allclose(values[0], v, atol=1e-5) for v in values), owner
+        per_owner = [critic(_central(scen, ex, ids, acting=o)) for o in ids]
+    assert not torch.allclose(per_owner[0], per_owner[1])
+    assert not torch.allclose(per_owner[1], per_owner[2])
+
+
+def test_the_readout_adds_no_feature_width_and_no_identity_parameter():
+    """Widths stay 2 / 1 / 5; the only new parameter shape is the wider value-head input."""
+    assert (CENTRAL_TASK_FEATURE_DIM, CENTRAL_AGENT_FEATURE_DIM,
+            CENTRAL_EDGE_ATTR_DIM) == (2, 1, 5)
+    torch.manual_seed(0)
+    critic = build_central_critic()
+    enc = critic.encoder
+    assert enc.task_proj.in_features == 2 and enc.agent_proj.in_features == 1
+    assert enc.role_embed.num_embeddings == 4
+    encoder_shapes = {n: tuple(p.shape) for n, p in enc.named_parameters()}
+    fresh = GraphEncoder(task_feat_dim=2, agent_feat_dim=1, edge_attr_dim=5)
+    assert encoder_shapes == {n: tuple(p.shape) for n, p in fresh.named_parameters()}
 
 
 # --- the CAPTURE seam ------------------------------------------------------------
