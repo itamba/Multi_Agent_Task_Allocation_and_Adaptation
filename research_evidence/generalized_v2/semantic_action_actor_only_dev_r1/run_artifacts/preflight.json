@@ -1,0 +1,528 @@
+{
+ "record": "preflight",
+ "record_version": 1,
+ "preflight_timestamp": "2026-09-16T05:23:18.477616+03:00",
+ "written_before_any_training_episode": true,
+ "development_only": true,
+ "confirmatory_profile_untouched": true,
+ "code": {
+  "measured_code_sha": "d4e9f3721e6d151c00be3fe93c3d149df9d31965",
+  "measured_code_sha_required_by_plan": "d4e9f3721e6d151c00be3fe93c3d149df9d31965",
+  "matches_required": true,
+  "branch": "main",
+  "working_tree_clean": true,
+  "dirty_paths": [],
+  "repo_root": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+  "origin_main_resolved_to": "d4e9f3721e6d151c00be3fe93c3d149df9d31965"
+ },
+ "comparator": {
+  "historical_measured_code_sha": "ae42cb01677f94868b2873008d87be677e31f0c8",
+  "historical_run_config_path": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\run_config.json",
+  "historical_run_config_sha256": "8e104fc012eb1b69543b2d9145ceaf40d3bbe722d74404389b3028f7c2935801",
+  "historical_config_source_resolved_from": "cli_defaults",
+  "historical_config_source_cli_overrides": [],
+  "historical_invocation_argv": [
+   "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\rl\\training\\graph_train.py",
+   "--iterations",
+   "375",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "actor_only",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development"
+  ]
+ },
+ "source_difference_classification": {
+  "method": "git diff ae42cb01677f..d4e9f3721e6d restricted to src/",
+  "source_files_changed": [
+   "src/match_aou/rl/action/graph_action.py",
+   "src/match_aou/rl/action/graph_effect.py",
+   "src/match_aou/rl/training/graph_ppo.py",
+   "src/match_aou/rl/training/graph_tick_loop.py",
+   "src/match_aou/rl/training/graph_train.py"
+  ],
+  "source_commits_in_range": [
+   {
+    "sha": "468740f",
+    "subject": "feat(action): semantic k+2 logmeanexp action representation"
+   },
+   {
+    "sha": "3b57a25",
+    "subject": "feat(training): observational credit diagnostics, versioned wake schema, representation provenance"
+   }
+  ],
+  "all_source_commits_belong_to_the_approved_intervention": true,
+  "approved_intervention": [
+   "semantic action representation semantic_k_plus_2_logmeanexp_v1",
+   "observational train_credit_diagnostics.jsonl"
+  ],
+  "consequential_differences_outside_the_intervention": [],
+  "documentation_only_commits_in_range": 35,
+  "verified_unchanged": {
+   "cli_and_config_defaults": "no 'default=' / add_argument / config-dataclass default line changed in the src diff, so replaying the historical argv resolves the SAME train_config",
+   "ppo_learning_rule": "returns, episode baseline, advantage normalization and the clipped surrogate are unchanged; the credit path only records identity arrays and hands the ALREADY computed batch to an optional observational sink",
+   "not_touched": [
+    "population sampler",
+    "reward",
+    "observation features",
+    "solver / backend",
+    "quota and attempt accounting",
+    "seed derivation",
+    "PPO hyperparameters",
+    "early stopping",
+    "CTDE architecture",
+    "FD physics",
+    "BLADE engine"
+   ]
+  },
+  "in_scope_artifact_schema_moves": {
+   "episode_outcome_version": "3 -> 4",
+   "wake_diagnostics_version": "1 -> 2",
+   "checkpoint_payload": "actor_only adds action_representation_id (no migration, no warm start)",
+   "reason": "the MEANING of a recorded action changed with the representation"
+  }
+ },
+ "action_representation": {
+  "id": "semantic_k_plus_2_logmeanexp_v1",
+  "source": "match_aou.rl.action.graph_action.ACTION_REPRESENTATION_ID",
+  "historical": "node-indexed joint k x 3 (no id recorded in historical artifacts)"
+ },
+ "training_mode": "actor_only",
+ "resolved_training_configuration_intended": {
+  "aircraft_penalty_coeff": 2.25,
+  "base_seed": 3000000,
+  "benchmark_profile": "development",
+  "checkpoint_every": 25,
+  "early_stopping": false,
+  "early_stopping_min_delta": 0.01,
+  "early_stopping_min_iterations": 100,
+  "early_stopping_patience_windows": 3,
+  "early_stopping_window_iterations": 25,
+  "episode_design": "generalized_v2",
+  "episodes_per_iteration": 8,
+  "eval_base_seed": 1000000,
+  "eval_episodes": 8,
+  "eval_every": 25,
+  "fuel_damage_leg_progress": 0.3,
+  "fuel_damage_mild_probability": 0.5,
+  "fuel_damage_mode": "seeded_variable",
+  "fuel_damage_probability": 0.5,
+  "fuel_damage_rtb_margin": 1.1,
+  "generalized_max_attempts_per_iteration": 12,
+  "include_sams": false,
+  "match_aou_backend": "p1_milp_v1",
+  "max_ticks": null,
+  "min_known_separation_km": 100.0,
+  "min_target_distance_km": 200.0,
+  "n_hidden": 3,
+  "n_iterations": 375,
+  "n_known": 3,
+  "num_agents": 3,
+  "num_red_airbases": [
+   6,
+   6
+  ],
+  "partial_ratio": 0.5,
+  "randomize_red_airbase_positions": true,
+  "stretch_target_ratio": 0.5,
+  "training_mode": "actor_only",
+  "visual_artifacts": false
+ },
+ "ppo_configuration": {
+  "clip_ratio": 0.2,
+  "entropy_coeff": 0.01,
+  "lr": 0.0003,
+  "n_epochs": 4,
+  "gamma": 1.0,
+  "max_grad_norm": 0.5,
+  "adv_norm_eps": 1e-08
+ },
+ "ctde_configuration_present_but_unused_on_actor_only": {
+  "critic_lr": 0.0003,
+  "value_coeff": 0.5,
+  "gae_lambda": 0.95
+ },
+ "configuration_recovery": {
+  "authoritative_source": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0\\run_config.json",
+  "all_values_recovered": true,
+  "values_guessed_from_defaults": [],
+  "note": "the historical run resolved from cli_defaults with an EMPTY cli_overrides list; no CLI or config default changed between ae42cb01677f and d4e9f3721e6d, so replaying the historical flags reproduces the historical resolved configuration exactly, apart from output_dir and the archived manifest path",
+  "interface_expressibility": "every historical knob is still expressible; no scientific meaning changed by the current interface"
+ },
+ "training_budget": {
+  "n_iterations": 375,
+  "successful_episodes_per_iteration": 8,
+  "successful_episode_quota_total": 3000,
+  "generalized_max_attempts_per_iteration": 12,
+  "max_possible_training_attempts": 4500
+ },
+ "seed_schedule": {
+  "training_base_seed": 3000000,
+  "training_seed_band_half_open": [
+   3000000,
+   3004500
+  ],
+  "training_seed_band_note": "max_possible_training_attempts = 375 x 12 = 4500 seeds",
+  "evaluation_seed_source": "benchmark_manifest (development profile), FIXED across rounds",
+  "evaluation_seeds": [
+   2000000,
+   2000001,
+   2000064,
+   2000065,
+   2000128,
+   2000129,
+   2000192,
+   2000193,
+   2000256,
+   2000257,
+   2000320,
+   2000321,
+   2000384,
+   2000385,
+   2000448,
+   2000449,
+   2000512,
+   2000513,
+   2000576,
+   2000577
+  ],
+  "held_out_expectation": "manifest seeds lie in [2000000, 2000588); disjoint from [3000000, 3004500)"
+ },
+ "benchmark_profile": "development",
+ "benchmark_manifest": {
+  "path_actually_consumed": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "historical_path_recorded_by_comparator": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_benchmark_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "historical_path_still_exists": false,
+  "relocation_note": "the manifest was relocated by the 2026-09-15 authorized archival cleanup; the archived file is byte-identical, verified by SHA-256",
+  "file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "file_sha256_required_by_plan": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "manifest_id_required_by_plan": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "design": "generalized_v2",
+  "label": "generalized_v2_scientific_benchmark_v1",
+  "n_worlds": 120,
+  "n_members": 360,
+  "required_match_aou_backend": "p1_milp_v1",
+  "profiles_in_file": {
+   "confirmatory": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+   ],
+   "development": [
+    0,
+    1
+   ]
+  },
+  "development_world_ordinals_from_code": [
+   0,
+   1
+  ],
+  "full_seed_list_sha256": "6d65318a5d44046b58bf44882d435c87172145d3cb4d3d21f1f31fe93fe88518",
+  "development_profile_identity": {
+   "profile": "development",
+   "world_ordinals": [
+    0,
+    1
+   ],
+   "n_worlds": 20,
+   "n_members": 60,
+   "group_keys": [
+    "A2-D0-w000",
+    "A2-D0-w001",
+    "A2-D2-w000",
+    "A2-D2-w001",
+    "A3-D0-w000",
+    "A3-D0-w001",
+    "A3-D2-w000",
+    "A3-D2-w001",
+    "A4-D0-w000",
+    "A4-D0-w001",
+    "A4-D2-w000",
+    "A4-D2-w001",
+    "A5-D0-w000",
+    "A5-D0-w001",
+    "A5-D2-w000",
+    "A5-D2-w001",
+    "A6-D0-w000",
+    "A6-D0-w001",
+    "A6-D2-w000",
+    "A6-D2-w001"
+   ],
+   "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+   "seeds": [
+    2000000,
+    2000001,
+    2000064,
+    2000065,
+    2000128,
+    2000129,
+    2000192,
+    2000193,
+    2000256,
+    2000257,
+    2000320,
+    2000321,
+    2000384,
+    2000385,
+    2000448,
+    2000449,
+    2000512,
+    2000513,
+    2000576,
+    2000577
+   ],
+   "seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184"
+  },
+  "comparator_recorded_identity": {
+   "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+   "full_seed_list_sha256": "6d65318a5d44046b58bf44882d435c87172145d3cb4d3d21f1f31fe93fe88518",
+   "development_profile": {
+    "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+    "profile": "development",
+    "world_ordinals": [
+     0,
+     1
+    ],
+    "n_worlds": 20,
+    "n_members": 60,
+    "group_keys": [
+     "A2-D0-w000",
+     "A2-D0-w001",
+     "A2-D2-w000",
+     "A2-D2-w001",
+     "A3-D0-w000",
+     "A3-D0-w001",
+     "A3-D2-w000",
+     "A3-D2-w001",
+     "A4-D0-w000",
+     "A4-D0-w001",
+     "A4-D2-w000",
+     "A4-D2-w001",
+     "A5-D0-w000",
+     "A5-D0-w001",
+     "A5-D2-w000",
+     "A5-D2-w001",
+     "A6-D0-w000",
+     "A6-D0-w001",
+     "A6-D2-w000",
+     "A6-D2-w001"
+    ],
+    "group_keys_sha256": "1ac42f5084b0597adac77e8028cd22477384ea8ae478d19427bc9454c2775dde",
+    "seeds": [
+     2000000,
+     2000001,
+     2000064,
+     2000065,
+     2000128,
+     2000129,
+     2000192,
+     2000193,
+     2000256,
+     2000257,
+     2000320,
+     2000321,
+     2000384,
+     2000385,
+     2000448,
+     2000449,
+     2000512,
+     2000513,
+     2000576,
+     2000577
+    ],
+    "seed_list_sha256": "6b4df544706ad96e65a29feb631f988bf7b866e431d3f0d9f3b04f2eaaa7b184"
+   }
+  },
+  "checks": {
+   "file_sha256_matches_plan": true,
+   "manifest_id_matches_plan": true,
+   "manifest_id_matches_comparator": true,
+   "full_seed_list_sha256_matches_comparator": true,
+   "development_seed_list_sha256_matches_comparator": true,
+   "development_group_keys_sha256_matches_comparator": true,
+   "development_profile_selected": true,
+   "same_frozen_population_as_comparator": true,
+   "manifest_not_regenerated_replaced_repaired_or_mutated": true,
+   "confirmatory_profile_not_selected_or_inspected": true
+  }
+ },
+ "invocation": {
+  "argv": [
+   "python",
+   "-m",
+   "match_aou.rl.training.graph_train",
+   "--iterations",
+   "375",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "actor_only",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development"
+  ],
+  "full_command": "conda run -n nlp_env --no-capture-output python -m match_aou.rl.training.graph_train --iterations 375 --episodes 8 --seed 3000000 --out C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37 --checkpoint-every 25 --eval-every 25 --eval-episodes 8 --training-mode actor_only --episode-design generalized_v2 --match-aou-backend p1_milp_v1 --fuel-damage-mode seeded_variable --generalized-max-attempts-per-iteration 12 --benchmark-manifest C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json --benchmark-profile development",
+  "cwd": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+  "env": {
+   "PYTHONPATH": "src"
+  },
+  "module": "match_aou.rl.training.graph_train"
+ },
+ "execution_environment": {
+  "execution_context": "LOCAL Windows / nlp_env (the historical scientific execution context)",
+  "conda_env": "nlp_env",
+  "python_executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+  "python_version": "3.12.3 | packaged by conda-forge | (main, Apr 15 2024, 18:20:11) [MSC v.1938 64 bit (AMD64)]",
+  "platform": {
+   "system": "Windows",
+   "release": "10",
+   "version": "10.0.19045",
+   "machine": "AMD64",
+   "node": "Itamars-Lenovo-Yoga"
+  },
+  "cwd_for_launch": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation",
+  "PYTHONPATH": "src",
+  "packages": {
+   "torch": {
+    "available": true,
+    "version": "2.7.1+cpu",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\torch\\__init__.py"
+   },
+   "numpy": {
+    "available": true,
+    "version": "2.2.4",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\numpy\\__init__.py"
+   },
+   "scipy": {
+    "available": true,
+    "version": "1.13.1",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\scipy\\__init__.py"
+   },
+   "pyomo": {
+    "available": true,
+    "version": "6.9.1",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\pyomo\\__init__.py"
+   },
+   "gymnasium": {
+    "available": true,
+    "version": "1.0.0",
+    "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\gymnasium\\__init__.py"
+   },
+   "blade": {
+    "available": true,
+    "version": null,
+    "path": "c:\\users\\itama\\pycharmprojects\\multi_agent_task_allocation_and_adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py"
+   },
+   "match_aou": {
+    "available": true,
+    "version": null,
+    "path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\__init__.py"
+   }
+  },
+  "bonmin_on_path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Library\\bin\\bonmin.EXE",
+  "bonmin_note": "generalized_v2 uses the p1_milp_v1 backend (SciPy HiGHS); BONMIN is not invoked"
+ },
+ "run_directory": {
+  "path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+  "created_fresh": true,
+  "reuses_or_overwrites_a_historical_run": false
+ },
+ "open_writable_repository_task": {
+  "checked": "gh pr list --state open",
+  "open_prs": [],
+  "conflicting_writable_task": false,
+  "note": "PR #70 is MERGED (merge commit d4e9f3721e6d151c00be3fe93c3d149df9d31965); the handoff snapshot at this SHA still describes it as in flight because it was written inside that task"
+ },
+ "scientific_question": {
+  "primary": "Does replacing the historical duplicated node-indexed PLAN / ABORT selection identities with the semantic k + 2 representation produce stable severity-conditioned behaviour at the certified ego's immediate-fuel-damage wake?",
+  "secondary": "Using the newly integrated per-transition credit diagnostics, does the immediate-FD transition receive different actor-only credit under MILD versus SEVERE?",
+  "evidence_class": "DEVELOPMENT evidence only; not confirmatory evidence."
+ },
+ "primary_endpoint": {
+  "statistic": "SEVERE - MILD  P(SELF_PRESERVATION_ABORT)",
+  "wake": "immediate_fuel_damage wake of the certified (FD-selected) ego",
+  "p_abort_definition_under_this_representation": "directly the ONE semantic SELF_PRESERVATION_ABORT leaf",
+  "aggregation": [
+   "pair MILD and SEVERE within the same frozen world group",
+   "summarize per ten V2 base cells",
+   "equal-weight macro mean over all ten base cells"
+  ],
+  "required_final_round_validity": "all ten base cells must have metric-eligible groups, or the macro is UNDEFINED",
+  "redefinition_after_observation": "FORBIDDEN"
+ },
+ "secondary_behavioural_endpoints": [
+  "MILD -> SEVERE directional switches (MILD != ABORT and SEVERE == ABORT)",
+  "reverse switches (MILD == ABORT and SEVERE != ABORT)",
+  "evaluation-round trajectory of semantic P(ABORT)"
+ ],
+ "credit_endpoint": {
+  "artifact": "train_credit_diagnostics.jsonl",
+  "filter": {
+   "wake_kind": "immediate_fuel_damage",
+   "acting_ego": "the FD-selected ego (measurement_join.is_fd_selected_ego)"
+  },
+  "compare_mild_vs_severe_on": [
+   "raw_advantage",
+   "normalized_advantage"
+  ],
+  "preserve_batch_normalization_context": [
+   "batch_raw_advantage_mean",
+   "batch_raw_advantage_std",
+   "adv_norm_eps",
+   "batch_n_transitions",
+   "batch_n_episodes",
+   "batch_n_episodes_with_wakes"
+  ],
+  "coverage_requirement": "every transition of every productive training update",
+  "integrity_rule": "a productive update missing its credit report, a row-count mismatch or a persistence failure is an instrumentation-integrity failure and ABORTS the run (CreditDiagnosticsError)",
+  "learning_rule_change_from_these_observations": "FORBIDDEN during this run"
+ }
+}

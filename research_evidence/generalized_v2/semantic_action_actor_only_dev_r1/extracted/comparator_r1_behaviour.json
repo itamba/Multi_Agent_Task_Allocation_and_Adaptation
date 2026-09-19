@@ -1,0 +1,1130 @@
+{
+ "comparator": {
+  "archive_current_path": "C:\\gra\\runs\\development\\v2_actor_only_r1_seed3000000_ae42cb0",
+  "archive_evidence_ref_status_text": "evidence ref: branch evidence/generalized-v2-actor-only-dev-r1 / open draft PR #61 @ 1375a881637a9a32721a1630f598adc571422a47 (temporary; not planned for merge; pending authorized cleanup)",
+  "archive_key": "v2_actor_only_r1_seed3000000_ae42cb0",
+  "archive_original_path": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0",
+  "measured_code_sha": "ae42cb01677f94868b2873008d87be677e31f0c8",
+  "run_config_sha256": "8e104fc012eb1b69543b2d9145ceaf40d3bbe722d74404389b3028f7c2935801"
+ },
+ "cross_version_note": "different measured code SHA and action representation; same frozen development population and training seed stream",
+ "final_round_macro": 2.0936131477355958e-07,
+ "is_scientific_verdict": false,
+ "max_over_rounds": {
+  "abs_severe_minus_mild_pooled_mean": 0.006876615434885025,
+  "directional_switch_count": 0,
+  "reverse_switch_count": 0,
+  "severe_minus_mild_macro_over_base_cells": 0.006876615434885025,
+  "severe_minus_mild_pooled_mean": 0.006876615434885025
+ },
+ "p_abort_definition": "aggregate mass over the node-indexed abort cells (historical representation; no representation id recorded)",
+ "rounds": [
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -9.046494960784912e-05
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0001773834228515625
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0009778812527656555
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0004339367151260376
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.00033386796712875366
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0003731176257133484
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.00012430548667907715
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0002575777471065521
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.0001653730869293213
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -0.00019560754299163818
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 0,
+   "evaluation_stage": "pre_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.2503085270524025,
+   "p_abort_severe_mean": 0.2499955754727125,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -0.00031295157968997956,
+   "severe_minus_mild_pooled_mean": -0.00031295157968997956,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 0
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.3440847396850586e-05
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.4449080228805542e-05
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.667097866535187e-05
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.970786929130554e-05
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.1299347281455994e-05
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.4246051907539368e-05
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1121854186058044e-05
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.03611159324646e-05
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.3902783393859863e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.078898251056671e-05
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 1,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.05640569608658552,
+   "p_abort_severe_mean": 0.05643129497766495,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 2.559889107942581e-05,
+   "severe_minus_mild_pooled_mean": 2.559889107942581e-05,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 25
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.507120370864868e-05
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00014823675155639648
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0006054453551769257
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0003795456141233444
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00015690922737121582
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00028245337307453156
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.065253496170044e-06
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0002610832452774048
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.5400350093841553e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00013427622616291046
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 2,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.09720233976840972,
+   "p_abort_severe_mean": 0.09739929530769587,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 0.00019695553928613662,
+   "severe_minus_mild_pooled_mean": 0.00019695553928613662,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 50
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.241002559661865e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.2742897272109985e-06
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.644956111907959e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.280568540096283e-06
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.991167664527893e-06
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.1765008568763733e-06
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.6337802410125732e-06
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.1141022443771362e-06
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.3709068298339844e-06
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.8132850527763367e-06
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 3,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.04721911707893014,
+   "p_abort_severe_mean": 0.047220741398632526,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 1.624319702386856e-06,
+   "severe_minus_mild_pooled_mean": 1.624319702386856e-06,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 75
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00023146718740463257
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00039315782487392426
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0006598774343729019
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00043751858174800873
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.000460037961602211
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0003753677010536194
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00014108046889305115
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0003665648400783539
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.915791451931e-05
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00017553474754095078
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 4,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.0655843692831695,
+   "p_abort_severe_mean": 0.0659183457493782,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 0.00033397646620869637,
+   "severe_minus_mild_pooled_mean": 0.00033397646620869637,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 100
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.5704503059387207e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.776543498039246e-06
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.6673078536987305e-06
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.0050833225250244e-05
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.325302481651306e-06
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.059665560722351e-06
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.594244718551636e-06
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1485069990158081e-05
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.386769771575928e-06
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.60355794429779e-06
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 5,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.06675326861441136,
+   "p_abort_severe_mean": 0.06676008924841881,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 6.820634007453919e-06,
+   "severe_minus_mild_pooled_mean": 6.820634007453919e-06,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 125
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.980232238769531e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.183981895446777e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.6763806343078613e-06
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.646578311920166e-06
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -7.115304470062256e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.0209699869155884e-06
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.7865171432495117e-06
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.9206275939941406e-06
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.8142163753509521e-06
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.639368176460266e-06
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 6,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.0944191861897707,
+   "p_abort_severe_mean": 0.09441786780953407,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -1.3183802366256713e-06,
+   "severe_minus_mild_pooled_mean": -1.3183802366256713e-06,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 150
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.008768737316131592
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.009537383913993835
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.008447490632534027
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0064738839864730835
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.006713360548019409
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.007523011416196823
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.005625441670417786
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.005210448056459427
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.00591442734003067
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.004551969468593597
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 7,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.15809514075517656,
+   "p_abort_severe_mean": 0.16497175619006157,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 0.006876615434885025,
+   "severe_minus_mild_pooled_mean": 0.006876615434885025,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 175
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.238719940185547e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.513429641723633e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.3155083656311035e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1920928955078125e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.731118679046631e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.825392246246338e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 8.344650268554688e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.029141902923584e-08
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.109476089477539e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.7066638469696045e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 8,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.11577438488602639,
+   "p_abort_severe_mean": 0.11577482968568802,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 4.4479966163635256e-07,
+   "severe_minus_mild_pooled_mean": 4.4479966163635256e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 200
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.91155481338501e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.66129994392395e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -4.0978193283081055e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.21426510810852e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -7.860362529754639e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -7.35744833946228e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.426125764846802e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -8.167698979377747e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.295740604400635e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -6.076879799365997e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 9,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.03256974923424423,
+   "p_abort_severe_mean": 0.032569078542292115,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -6.706919521093368e-07,
+   "severe_minus_mild_pooled_mean": -6.706919521093368e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 225
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.905726432800293e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1548399925231934e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1548399925231934e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.313225746154785e-09
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.0244548320770264e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.470348358154297e-08
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.5459954738616943e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.3969838619232178e-08
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.872019290924072e-08
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.681067705154419e-08
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 10,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.04376062471419573,
+   "p_abort_severe_mean": 0.043760722130537034,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 9.741634130477905e-08,
+   "severe_minus_mild_pooled_mean": 9.741634130477905e-08,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 250
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.6731362342834473e-06
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.857297658920288e-06
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -4.459172487258911e-06
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -3.039836883544922e-06
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.5480985641479492e-06
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -4.237517714500427e-06
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.7024576663970947e-06
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -2.130866050720215e-06
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.6689300537109375e-06
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": -1.426786184310913e-06
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 11,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.07475409181788564,
+   "p_abort_severe_mean": 0.07475131740793586,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": -2.7744099497795105e-06,
+   "severe_minus_mild_pooled_mean": -2.7744099497795105e-06,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 275
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.972121238708496e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.76837158203125e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.086162567138672e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.587935447692871e-08
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.842877388000488e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.82310962677002e-08
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 7.636845111846924e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.4901161193847656e-08
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.221234798431396e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.557652235031128e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 12,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.09262725114822387,
+   "p_abort_severe_mean": 0.09262763690203428,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 3.857538104057312e-07,
+   "severe_minus_mild_pooled_mean": 3.857538104057312e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 300
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.364418029785156e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.6938657760620117e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.438923835754395e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.8312206268310547e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.029141902923584e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.942979335784912e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.587935447692871e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.421438694000244e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.470348358154297e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.3155083656311035e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 13,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.1271935010328889,
+   "p_abort_severe_mean": 0.12719392199069263,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 4.209578037261963e-07,
+   "severe_minus_mild_pooled_mean": 4.209578037261963e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 325
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.513429641723633e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.948807716369629e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.942979335784912e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.4901161193847656e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.172325134277344e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.862645149230957e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 5.476176738739014e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1734664440155029e-07
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.507601261138916e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.0174851417541504e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 14,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.08705799654126167,
+   "p_abort_severe_mean": 0.0870583375915885,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 3.410503268241882e-07,
+   "severe_minus_mild_pooled_mean": 3.410503268241882e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 350
+  },
+  {
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.6135315895080566e-07
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.3469328880310059e-07
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.4586915969848633e-07
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.3783574104309082e-07
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.3655593395233154e-07
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.257285475730896e-07
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.812594175338745e-07
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 9.12696123123169e-08
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.2351741790771484e-07
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.555308699607849e-07
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups": 20,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "n_members": 60,
+   "n_mild_members": 20,
+   "n_severe_members": 20,
+   "p_abort_mild_mean": 0.05056951455771923,
+   "p_abort_severe_mean": 0.050569723919034006,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 2.0936131477355958e-07,
+   "severe_minus_mild_pooled_mean": 2.0936131477355958e-07,
+   "trainer_cross_check": "passed (macro, pooled, per-cell, per-group, switch counts)",
+   "updates_completed": 375
+  }
+ ],
+ "schema": "semantic_action_actor_only_dev_r1_comparator_r1_behaviour",
+ "schema_version": 1,
+ "source": "recomputed from the archived comparator episode_outcomes.jsonl and cross-checked against its eval_records.jsonl v2_behaviour and run_summary.json; no prose used"
+}
