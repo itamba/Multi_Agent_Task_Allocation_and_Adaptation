@@ -63,8 +63,12 @@
   `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (GPT, 2026-09-19;
   [measurements §12](docs/history/measurements.md#12-generalized-v2-role-only-acting-ego-ctde-development-diagnostic)),
   evidence in `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` on PR #75. It **improved
-  critic / credit localization** but **not held-out acquisition or retention**. The next writable
-  stage is an **explicit acting-ego critic readout** on the same branch / PR.
+  critic / credit localization** but **not held-out acquisition or retention**.
+- **The explicit acting-ego critic readout is implemented and awaits GPT exact-candidate
+  review** on the same branch / PR #75: `V = ValueHead([global mean pool ; acting-ego
+  embedding])` from one encoder pass, readout only, no new information, fail-closed without a
+  valid acting ego ([policy and CTDE §4](docs/contracts/policy_ctde.md#4-phase-b-ctde)). No run
+  of it is authorized.
 - **The V2 benchmark-preflight provenance evidence is reviewed and durable**
   ([measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review)).
 - **Closure and cleanup of the historical V2 chapter are complete** (2026-09-15): the local
@@ -101,7 +105,7 @@
 | Writable repository task | **sole owner:** the CTDE acting-ego critic-conditioning task (branch `task/ctde-acting-ego-conditioning`, one draft PR to `main`, base `adc213670ce4844a7cf60943ecf50150318e40b1`) — until it is integrated or closed |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | **#71** (`evidence/generalized-v2-semantic-action-actor-only-dev-r1`), draft, read-only at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; **#73** (`evidence/generalized-v2-semantic-action-ctde-dev-r1`), draft, read-only at `ad9b545034670a7c7a9d8ff98012d56c0be07f46`, no verdict recorded. Both **not for merge** |
-| Candidates | draft PR #75 — role-only implementation approved and measured at `68055e39768d5fa601e5960a9f08823b9e65c08f`, its evidence package and verdict documentation; the next writable stage is the explicit acting-ego readout; no merge is authorized |
+| Candidates | draft PR #75 — role-only implementation approved and measured at `68055e39768d5fa601e5960a9f08823b9e65c08f`, its evidence package and verdict documentation, then the **explicit acting-ego readout implementation, awaiting GPT exact-candidate review**; no merge is authorized |
 | Scientific runs in progress | none; none authorized. The role-only acting-ego diagnostic authorization is spent |
 
 ## 3. Candidates and PRs
@@ -111,7 +115,7 @@ GitHub.
 
 | PR | Branch | State |
 |---|---|---|
-| #75 | `task/ctde-acting-ego-conditioning` | open draft; **the sole writable repository task**; role-only acting-ego critic conditioning, GPT-approved and measured at `68055e39768d5fa601e5960a9f08823b9e65c08f` (verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`, measurements §12), its compact evidence package, and next the explicit acting-ego readout; not authorized to merge |
+| #75 | `task/ctde-acting-ego-conditioning` | open draft; **the sole writable repository task**; role-only acting-ego critic conditioning, GPT-approved and measured at `68055e39768d5fa601e5960a9f08823b9e65c08f` (verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`, measurements §12), its compact evidence package and verdict documentation, then the explicit acting-ego readout implementation awaiting GPT exact-candidate review; not authorized to merge |
 | #74 | `task/v2-ctde-gradient-pressure-diagnostics` | merged as `adc213670ce4844a7cf60943ecf50150318e40b1`; implementation approved at `6ed964a1abd09de2130aee3d0d314c8f32165056`, the measured SHA of both actor-gradient diagnostics |
 | #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | open draft; head `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; **read-only evidence, not for merge**; no validity or scientific verdict recorded; its review and lifecycle need their own authorization |
 | #72 | `docs/v2-semantic-action-dev-r1-verdict` | merged as `8056266cff89f677911462b29970346bed0a57c1` |
@@ -207,12 +211,11 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Next writable stage: the explicit acting-ego critic readout** on draft PR #75 (branch
-`task/ctde-acting-ego-conditioning`, `GPT_GITHUB`, append-only): `V = ValueHead([global mean pool ;
-acting-ego embedding])`, readout only, no new information
-([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-19). It needs GPT
-exact-candidate review; no scientific run is authorized until that review and a separate bounded
-plan; no merge is authorized.
+**Now: GPT exact-candidate review of the explicit acting-ego critic readout** on draft PR #75
+(branch `task/ctde-acting-ego-conditioning`, `GPT_GITHUB`, append-only): `V = ValueHead([global
+mean pool ; acting-ego embedding])`, readout only, no new information
+([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-19). No scientific run is
+authorized until that review and a separate bounded plan; no merge is authorized.
 
 **The user's 2026-09-19 decision takes up priority question 2 below directly** as a bounded
 intervention (acting-ego critic conditioning), in place of first opening a separate read-only
