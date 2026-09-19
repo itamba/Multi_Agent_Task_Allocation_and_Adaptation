@@ -407,6 +407,18 @@ protected either way.
     Two first rename attempts were refused by Windows because three orphaned read-only `tail -f`
     watchers, left from those runs' launch-time monitoring, held console logs open. Nothing moved
     on those attempts. The watchers were stopped and the renames then succeeded.
+  - **Metadata write rolled back.** The first attempt to extend the archive metadata contained a
+    wrong provenance statement: it said PR #71's ledger listed the CTDE credit file. The three
+    metadata files were restored from the pre-write backup before that version was cited, relied
+    on or used for any later cleanup gate. The extension was then regenerated from the restored
+    state with the correct mapping: actor-only credit stream in the #71 and #73 ledgers, CTDE
+    credit stream in the #73 ledger only. The rolled-back write is not an archived state or a
+    historical identity. The 28-row historical prefix was unchanged. The final identities in §4.4
+    and [`measurements.md` §9.5](../history/measurements.md#95-archival-extension-of-2026-09-19)
+    are the hashes of the corrected metadata:
+    - `ARTIFACT_INDEX.jsonl` `9f31e34652b2b72ad3992289393312dcceee9c68dbbb2931b82553230c76a756`
+    - `ARCHIVE_MOVE_LEDGER.jsonl` `322d821f088ccb0a6b90241253412cadc0b76307224bd1becb251acc2f3bfae3`
+    - `ARTIFACT_INDEX.md` `ec12587c27c4c4c4ad58f12189c932f09638f51821b74e29bc9e429606546e14`
   - **Git refs.** Evidence PRs #71 and #73 were closed without merge and their branches deleted
     (§4.3). The merged branches of PRs #74 and #76 were deleted (§4.5). The protected refs of §4.2
     were unchanged.
