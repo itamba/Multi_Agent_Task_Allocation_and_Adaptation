@@ -1,9 +1,9 @@
 # Graph RL project handoff — current snapshot
 
 > **Status: current state only — not a contract and not a history.** This snapshot was refreshed
-> on 2026-09-19, after PR #75 was merged and before a separate archival / cleanup task, on branch
-> `docs/recent-research-cleanup-closure`; live `main` was
-> `ed33b7e24a652fa00b13c708517012f8b3302496` (PR #75 merged).
+> on 2026-09-19, after PR #76 was merged and the authorized recent-research archival / Git cleanup
+> was performed, on branch `docs/recent-archive-cleanup-closure`; live `main` was
+> `67cd12a438452aadf61f312e68484f26dfa1e7c7` (PR #76 merged).
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -28,8 +28,8 @@
   `APPROVE — VALID DEVELOPMENT MEASUREMENT` at measured code SHA
   `d4e9f3721e6d151c00be3fe93c3d149df9d31965`
   ([measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1)).
-  Its evidence is draft PR #71 at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`, **read-only and not
-  for merge**. The verdict documentation (PR #72) is merged as
+  Its evidence PR #71 (`0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`) was closed without merge on
+  2026-09-19, after the run was archived; the verdict documentation (PR #72) is merged as
   `8056266cff89f677911462b29970346bed0a57c1`.
 - **The semantic-action CTDE development R1 is complete and reviewed (retrospectively, 2026-09-19):**
   `APPROVE — VALID DEVELOPMENT MEASUREMENT`, run
@@ -37,8 +37,9 @@
   `8056266cff89f677911462b29970346bed0a57c1`, symmetric central state
   ([measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure)).
   No comparable semantic actor-only transient was observed at any of its 16 evaluation rounds; no
-  CTDE benefit is established. Its evidence
-  is draft PR #73 at `ad9b545034670a7c7a9d8ff98012d56c0be07f46`, **read-only and not for merge**.
+  CTDE benefit is established. Its evidence PR #73 (`ad9b545034670a7c7a9d8ff98012d56c0be07f46`)
+  was closed without merge on 2026-09-19, after the run was archived; the record is merged with
+  PR #76.
 - **The CTDE actor-gradient diagnostic instrumentation is integrated** (PR #74, approved
   implementation head `6ed964a1abd09de2130aee3d0d314c8f32165056`, merged as
   `adc213670ce4844a7cf60943ecf50150318e40b1`): an opt-in,
@@ -51,7 +52,8 @@
   `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (GPT, 2026-09-17)
   ([measurements §11](docs/history/measurements.md#11-generalized-v2-semantic-action-ctde-actor-gradient-development-diagnostics)).
   Their compact Git index is `research_evidence/generalized_v2/semantic_ctde_grad_diag_r1/`
-  (merged with PR #74); the original run directories are authoritative and external.
+  (merged with PR #74); the original run directories are authoritative and are archived under
+  `C:\gra\diagnostics\` (2026-09-19).
 - **CTDE role-only acting-ego critic conditioning is integrated** (PR #75, final candidate
   reviewed at `b3a2350f437afee1c66d4fd5a5efa7cb7a353787`, merged as
   `ed33b7e24a652fa00b13c708517012f8b3302496`;
@@ -88,12 +90,19 @@
   `C:/Users/Itama/ct1s`, `C:/Users/Itama/PycharmProjects/fd_variable_severity_v1_bf1e045f_snapshot`)
   are removed; the protected refs remain
   ([`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup)).
-- **After PR #75, the local state was observed on 2026-09-19** (not a cleanup action): the λ = 1
-  source worktree `C:/grolelambda1` and the scratch directory `C:\tmp\l1v` are already absent, with
-  no stale worktree metadata; who removed them, and when, is unknown. Evidence PRs #71 and #73, their
-  source run directories, the five diagnostic run directories under `C:\gruns\` and the merged
-  PR #74 branch remain, awaiting a separately authorized archival / cleanup task
-  ([`environments_cleanup.md` §4.3–§4.6](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs)).
+- **The recent-research archival and Git cleanup is complete** (2026-09-19, explicitly authorized):
+  - **Archive.** The two semantic-action R1 run directories and the five CTDE development
+    diagnostic run directories were archived into `C:\gra\` by identity-verified same-volume
+    rename. The archive index now has 35 rows
+    ([measurements §9.5](docs/history/measurements.md#95-archival-extension-of-2026-09-19)).
+  - **Evidence PRs.** #71 and #73 were closed without merge at their exact heads, and their
+    branches were deleted.
+  - **Merged branches.** The PR #74 and PR #76 branches were deleted.
+  - **Local scratch.** The authorized main-checkout scratch was removed; the protected refs are
+    unchanged
+    ([`environments_cleanup.md` §4.3–§4.7](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs)).
+  - **Prior observation.** The λ = 1 source worktree `C:/grolelambda1` was already found absent
+    and unregistered; that is an observation, not an action of this cleanup.
 - **`C:/Users/Itama/PycharmProjects/flat-baseline` is intentionally retained** as a safety
   exception, not an incomplete Graph-RL cleanup: it carries protected branch `flat-final`, and its
   ignored files hold about 5.2 GB of flat-RL training outputs that are not archived under
@@ -116,51 +125,52 @@
   diagnostics — role-only, explicit readout, owner-transition audit, λ = 1 — and their review
   (2026-09-19; [measurements §15](docs/history/measurements.md#15-acting-ego--critic-locality-development-investigation--closing-interpretation));
   the integration of PR #75 (2026-09-19); the retrospective review of the semantic-action CTDE
-  development R1 (2026-09-19; [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure)).
+  development R1 (2026-09-19; [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure))
+  and its record alignment (PR #76, merged as `67cd12a438452aadf61f312e68484f26dfa1e7c7`); the
+  recent-research archival and Git cleanup (2026-09-19).
 
 ## 2. Active owner and task
 
 | Item | State |
 |---|---|
-| Writable repository task | **sole owner:** the recent-research closure documentation task (branch `docs/recent-research-cleanup-closure`, one draft PR to `main`, base `ed33b7e24a652fa00b13c708517012f8b3302496`) — documentation only, until it is integrated or closed |
+| Writable repository task | **sole owner:** the archive-cleanup closure documentation task (branch `docs/recent-archive-cleanup-closure`, one draft PR to `main`, base `67cd12a438452aadf61f312e68484f26dfa1e7c7`) — documentation only, until it is integrated or closed |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
-| Evidence PRs | **#71** (`evidence/generalized-v2-semantic-action-actor-only-dev-r1`), draft, read-only at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`, reviewed; **#73** (`evidence/generalized-v2-semantic-action-ctde-dev-r1`), draft, read-only at `ad9b545034670a7c7a9d8ff98012d56c0be07f46`, reviewed retrospectively on 2026-09-19. Both **not for merge**; both await archival lifecycle closure under separate authorization |
-| Candidates | the closure documentation draft PR only; no merge is authorized |
+| Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
+| Candidates | the archive-cleanup closure documentation draft PR only; no merge is authorized |
 | Scientific runs in progress | none; none authorized. All three acting-ego diagnostic authorizations are spent |
 
 ## 3. Candidates and PRs
 
-Open PRs: evidence PRs #71 and #73, and the closure documentation draft PR of §2. Resolve live PR
-state and exact heads on GitHub.
+Open PRs: the archive-cleanup closure documentation draft PR of §2 only. Resolve live PR state and
+exact heads on GitHub.
 
 | PR | Branch | State |
 |---|---|---|
+| #76 | `docs/recent-research-cleanup-closure` | merged as `67cd12a438452aadf61f312e68484f26dfa1e7c7` (2026-09-19) from reviewed head `c414ec12a708338690fbf6e1317d93f804b2b22f`; branch deleted after ancestry verification (2026-09-19) |
 | #75 | `task/ctde-acting-ego-conditioning` | merged as `ed33b7e24a652fa00b13c708517012f8b3302496` (2026-09-19) from reviewed final head `b3a2350f437afee1c66d4fd5a5efa7cb7a353787`; branch absent; final code = role-only acting-ego critic conditioning, mean-pool readout, `gae_lambda = 0.95`; the explicit readout (measured at `1a1e0c9…`) survives only in history and evidence; the role-only, explicit-readout and λ = 1 evidence packages (measurements §12–§14) are on `main` |
-| #74 | `task/v2-ctde-gradient-pressure-diagnostics` | merged as `adc213670ce4844a7cf60943ecf50150318e40b1`; implementation approved at `6ed964a1abd09de2130aee3d0d314c8f32165056`, the measured SHA of both actor-gradient diagnostics; **branch still present** at `3e29a57dac54361c1a71f43f9487a6860fcae7c3`, an ancestor of `main` — cleanup-eligible only under separate named authorization ([`environments_cleanup.md` §4.5](docs/workflows/environments_cleanup.md#45-retired-merged-branches)) |
-| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | open draft; head `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; **read-only evidence, not for merge**; GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT` (retrospective, 2026-09-19), conclusions in [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure); stays open until its source run is archived and the cleanup gates are satisfied under separate authorization |
+| #74 | `task/v2-ctde-gradient-pressure-diagnostics` | merged as `adc213670ce4844a7cf60943ecf50150318e40b1`; implementation approved at `6ed964a1abd09de2130aee3d0d314c8f32165056`, the measured SHA of both actor-gradient diagnostics; branch (tip `3e29a57dac54361c1a71f43f9487a6860fcae7c3`) deleted after ancestry verification (2026-09-19) |
+| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | **closed without merge** (2026-09-19) at `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; branch deleted; GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT` (retrospective, 2026-09-19), conclusions in [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure); source archived |
 | #72 | `docs/v2-semantic-action-dev-r1-verdict` | merged as `8056266cff89f677911462b29970346bed0a57c1` |
-| #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | open draft; exact reviewed candidate `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; **read-only, not for merge**; conclusions in [measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1); awaits archival lifecycle closure (close, archive), which needs its own explicit authorization |
+| #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | **closed without merge** (2026-09-19) at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; branch deleted; conclusions in [measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1); source archived |
 | #70 | `task/v2-semantic-action-credit-instrumentation` | merged as `d4e9f3721e6d151c00be3fe93c3d149df9d31965` |
 | #59, #60, #63, #66, #68 | task and documentation branches | merged; branches deleted after ancestry verification (2026-09-15) |
 | #61, #62, #64 | `evidence/…` | closed without merge; branches deleted; conclusions in [measurements §7–§8](docs/history/measurements.md#7-generalized-v2-development-r1-arms); sources archived |
 | #65 | `review/v2-wake-pair-diagnostics` | closed without merge; branch deleted; conclusions in [measurements §8.6](docs/history/measurements.md#86-matched-immediate-fd-wake-analysis) |
 | #67 | `review/v2-benchmark-preflight-provenance` | closed without merge; branch deleted; conclusions in [measurements §8.11](docs/history/measurements.md#811-generalized-v2-benchmark-preflight-provenance-review) |
 
-Heads, gates and archive paths of the 2026-09-15 cleanup, and the refs currently awaiting
-cleanup: [`environments_cleanup.md` §4.3–§4.5](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs).
+Heads, gates and archive paths of the 2026-09-15 and 2026-09-19 cleanups (no ref currently
+awaits cleanup): [`environments_cleanup.md` §4.3–§4.5](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs).
 
 ## 4. Runs and evidence — current references
 
 **Local archive:** machine-readable index `C:\gra\metadata\ARTIFACT_INDEX.jsonl` (authoritative)
 and human-readable projection `C:\gra\metadata\ARTIFACT_INDEX.md`; identities in
-[measurements §9](docs/history/measurements.md#9-local-artifact-archive-closure). The
-semantic-action development R1 run directory is **not yet indexed** there; its original location
-and key hashes are in [measurements §10.2](docs/history/measurements.md#102-identity-and-evidence-provenance).
-The two actor-gradient diagnostic run directories and the three acting-ego diagnostic run
-directories are also **not indexed** there; they sit at their original locations under
-`C:\gruns\`, identified in
-[measurements §11.2](docs/history/measurements.md#112-identity-and-evidence-provenance),
-§12.2, §13.2 and §14.2.
+[measurements §9](docs/history/measurements.md#9-local-artifact-archive-closure). It holds
+**35 items**, including, since 2026-09-19, both semantic-action R1 run directories (under
+`runs\development\`) and the two actor-gradient and three acting-ego diagnostic run directories
+(under `diagnostics\`); their original → archive paths and identities are in
+[measurements §9.5](docs/history/measurements.md#95-archival-extension-of-2026-09-19). The
+original locations recorded in measurements §10.2–§16.2 are historical and no longer exist.
 
 | Measurement | Measured code SHA | Verdict, with its provenance | Record |
 |---|---|---|---|
@@ -173,8 +183,8 @@ directories are also **not indexed** there; they sit at their original locations
 | GENERALIZED-V2 development R1 — actor-only and CTDE (historical node-indexed action representation) | `ae42cb01677f94868b2873008d87be677e31f0c8` | CTDE: prior GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT` as recorded in PR #62; actor-only: no standalone verdict string recorded. Both are inputs to the closed development interpretation | [measurements §7](docs/history/measurements.md#7-generalized-v2-development-r1-arms), [§8](docs/history/measurements.md#8-generalized-v2-development-closure) |
 | GENERALIZED-V2 CTDE diagnostics — `smallbatch`, `largebatch`, `fd80` | `ae42cb01677f94868b2873008d87be677e31f0c8` | **development diagnostic runs, not confirmatory**; accounting `PASS` | [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure) |
 | GENERALIZED-V2 matched immediate-FD wake analysis (PR #65) | — (read-only extraction) | extraction integrity `APPROVE`; not a measurement | [measurements §8.6](docs/history/measurements.md#86-matched-immediate-fd-wake-analysis) |
-| **GENERALIZED-V2 semantic-action actor-only development R1** (`semantic_k_plus_2_logmeanexp_v1`) | `d4e9f3721e6d151c00be3fe93c3d149df9d31965` | **`APPROVE — VALID DEVELOPMENT MEASUREMENT`** (GPT, 2026-09-16) on evidence PR #71 @ `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670`; development only | [measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1) |
-| **GENERALIZED-V2 semantic-action CTDE development R1** (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state) | `8056266cff89f677911462b29970346bed0a57c1` | **`APPROVE — VALID DEVELOPMENT MEASUREMENT`** (GPT, retrospective, 2026-09-19) on evidence PR #73 @ `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; development only | [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure) |
+| **GENERALIZED-V2 semantic-action actor-only development R1** (`semantic_k_plus_2_logmeanexp_v1`) | `d4e9f3721e6d151c00be3fe93c3d149df9d31965` | **`APPROVE — VALID DEVELOPMENT MEASUREMENT`** (GPT, 2026-09-16) on evidence PR #71 @ `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` (closed without merge); development only | [measurements §10](docs/history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1) |
+| **GENERALIZED-V2 semantic-action CTDE development R1** (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state) | `8056266cff89f677911462b29970346bed0a57c1` | **`APPROVE — VALID DEVELOPMENT MEASUREMENT`** (GPT, retrospective, 2026-09-19) on evidence PR #73 @ `ad9b545034670a7c7a9d8ff98012d56c0be07f46` (closed without merge); development only | [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure) |
 | **GENERALIZED-V2 semantic-action CTDE actor-gradient diagnostic — `p = 0.5`** (150 updates) | `6ed964a1abd09de2130aee3d0d314c8f32165056` (PR #74 approved head, unmerged when measured) | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-17); development diagnostic only | [measurements §11](docs/history/measurements.md#11-generalized-v2-semantic-action-ctde-actor-gradient-development-diagnostics) |
 | **GENERALIZED-V2 semantic-action CTDE actor-gradient diagnostic — FD100 intervention** (150 updates) | `6ed964a1abd09de2130aee3d0d314c8f32165056` (PR #74 approved head, unmerged when measured) | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-17); development diagnostic only | [measurements §11](docs/history/measurements.md#11-generalized-v2-semantic-action-ctde-actor-gradient-development-diagnostics) |
 | **Role-only acting-ego CTDE diagnostic** (FD100, 100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` (merged with PR #75) | [measurements §12](docs/history/measurements.md#12-generalized-v2-role-only-acting-ego-ctde-development-diagnostic) |
@@ -255,17 +265,9 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: GPT exact-candidate review of the closure documentation draft PR** (branch
-`docs/recent-research-cleanup-closure`, `GPT_GITHUB`, append-only), then a user merge decision. No
-merge is authorized, and no scientific run is active or authorized.
-
-**Next cleanup action, after that PR is approved and integrated:** a **separate, explicitly
-authorized archival / cleanup operation** — archiving and indexing the two semantic-action R1 run
-directories (original locations under `C:\Users\Itama\PycharmProjects\`) and the five diagnostic
-run directories (under `C:\gruns\`), then the lifecycles of
-evidence PRs #71 and #73, and deletion of the merged PR #74 branch
-([`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup)).
-Nothing may be deleted, moved or closed in the meantime.
+**Now: GPT exact-candidate review of the archive-cleanup closure documentation draft PR** (branch
+`docs/recent-archive-cleanup-closure`, `GPT_GITHUB`, append-only), then a user merge decision. No
+merge is authorized, and no scientific run is active or authorized. No cleanup action is pending.
 
 **Next research area — for a future orchestrator, not scheduled here:** actor-side optimization /
 stability, gradient-to-policy mapping and retention mechanics
@@ -301,10 +303,10 @@ are unaffected. Fixing it needs its own small code task.
   ([policy and CTDE §6](docs/contracts/policy_ctde.md#6-known-limitations-and-open-items));
 - local causal credit at the immediate-FD decision: actor-only instrumentation cannot provide it
   (measurements §10.7); any change to reward or credit structure would need its own decision;
-- the lifecycles of evidence PRs #71 and #73 (closing them, archiving their run directories under
-  `C:\gra\` and indexing them) require their own explicit authorization, as do archiving and
-  indexing the two actor-gradient and three acting-ego diagnostic run directories under
-  `C:\gruns\` and deleting the merged PR #74 branch;
+- undecided local items left untouched by the 2026-09-19 cleanup, each needing its own decision:
+  `src/match_aou/rl.zip`, `legacy/run_capture.log`, `src/match_aou/rl/observation/rollouts/` and
+  the now-empty directory `C:\gruns\`
+  ([`environments_cleanup.md` §4.7](docs/workflows/environments_cleanup.md#47-cleanup-already-performed));
 - a separate code task to correct the V2 `generalized.cardinality_sampler` summary label in
   `graph_train._generalized_summary`, without touching archived artifacts;
 - the launcher `cmd` exit-code redirect defect (`echo %RC%> file` writes an empty file for a
@@ -318,15 +320,15 @@ are unaffected. Fixing it needs its own small code task.
 
 ## 6. Blocked or unauthorized now
 
-- modifying, merging or closing evidence PR #71 or #73, or modifying, deleting or relocating
-  either semantic-action R1 run directory, either actor-gradient diagnostic run directory, any
-  acting-ego diagnostic run directory, or deleting branch
-  `task/v2-ctde-gradient-pressure-diagnostics`, without explicit authorization;
-- modifying, deleting, pruning, regenerating or rewriting anything under `C:\gra\`, or relocating
+- reopening closed evidence PRs #71 or #73, or deleting the undecided local items of §5, without
+  explicit authorization;
+- modifying, deleting, pruning, regenerating or rewriting anything under `C:\gra\` — including the
+  seven run directories archived on 2026-09-19 — or relocating
   it except under
   [`environments_cleanup.md` §4.4](docs/workflows/environments_cleanup.md#44-preserved-run-directories-and-external-artifacts);
   moving or deleting protected refs;
-- any code, test or configuration change in the current documentation task; any implementation
+- any code, test or configuration change, archive move, ref deletion or other cleanup in the
+  current documentation task; any implementation
   not separately authorized — including re-introducing the explicit critic readout or changing
   the default `gae_lambda` — and in particular training semantics,
   action-conditioned gradient subgroups, actor-only gradient instrumentation, reachability,
@@ -362,21 +364,18 @@ Protected refs: `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and tag 
 Remaining local worktrees: the main checkout and `C:/Users/Itama/PycharmProjects/flat-baseline`
 (branch `flat-final`) only; `C:/grolelambda1` is absent and unregistered
 ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
-Refs awaiting cleanup: evidence branches of PRs #71 and #73 and the merged PR #74 branch
+Refs awaiting cleanup: none. The Git refs are `main`, the protected refs and, while its PR is
+open, `docs/recent-archive-cleanup-closure`
 ([§4.3, §4.5](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs)).
-Preserved artifacts: the `C:\gra\` archive and its index; the
-semantic-action R1 run directory at its original location
-(`C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37`)
-with its evidence package on PR #71; the semantic-action CTDE R1 run directory at its original
-location (`C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266`)
-with its evidence package on PR #73; the two actor-gradient
-diagnostic run directories at `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a`
-and `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a` (authoritative),
-indexed compactly by `research_evidence/generalized_v2/semantic_ctde_grad_diag_r1/` (merged with PR #74);
-the three acting-ego diagnostic run directories under `C:\gruns\` (authoritative; identified in
-measurements §12.2–§14.2), with their compact packages `acting_ego_ctde_fd100_r1/`,
-`explicit_ego_readout_ctde_fd100_r1/` and `role_only_ctde_lambda100_fd100_r1/` under
-`research_evidence/generalized_v2/` (merged with PR #75).
+Preserved artifacts: the `C:\gra\` archive and its 35-row index. It includes both semantic-action
+R1 run directories (their evidence packages survive through GitHub's `refs/pull/71/head` and
+`refs/pull/73/head` after the PRs were closed; their conclusions are in measurements §10 and §16),
+and the two actor-gradient and three acting-ego diagnostic run directories (authoritative). Those
+five runs are indexed compactly by `semantic_ctde_grad_diag_r1/` (merged with PR #74) and by
+`acting_ego_ctde_fd100_r1/`, `explicit_ego_readout_ctde_fd100_r1/` and
+`role_only_ctde_lambda100_fd100_r1/` (merged with PR #75), all under
+`research_evidence/generalized_v2/`. Archive paths:
+[measurements §9.5](docs/history/measurements.md#95-archival-extension-of-2026-09-19).
 
 **Known gaps in this snapshot:**
 
@@ -385,8 +384,13 @@ measurements §12.2–§14.2), with their compact packages `acting_ego_ctde_fd10
   representation has it, and under actor-only it is episode / chain-level, not local FD-action
   credit (measurements §10.7). `train_actor_gradient_diagnostics.jsonl` exists only for those five
   CTDE diagnostics, and decomposes PPO epoch 0 only.
-- Neither semantic-action R1 run directory, nor either actor-gradient diagnostic run directory,
-  nor any acting-ego diagnostic run directory is in the `C:\gra\` archive index; the diagnostics' record streams and checkpoints are not in Git.
+- The diagnostics' record streams and checkpoints are not in Git; they are identified by SHA-256
+  in the evidence manifests and held only in the `C:\gra\` archive.
+- The two semantic-action R1 credit streams were renamed after their evidence commits
+  (`train_credit_diagnostics_actor_only.jsonl`, `train_credit_diagnostics_CTDE.jsonl`, both
+  recorded as `train_credit_diagnostics.jsonl`). The bytes are identical; the files were archived
+  as found, and who renamed them is not recorded
+  ([measurements §9.5](docs/history/measurements.md#95-archival-extension-of-2026-09-19)).
 - The semantic-action R1's `native_exit_code.txt` is empty (launcher defect); completion rests on
   the run's own summary, train records and final checkpoint.
 - The PR #65 reachability comparison is positional; task-node identity across paired members is
@@ -400,4 +404,5 @@ measurements §12.2–§14.2), with their compact packages `acting_ego_ctde_fd10
 - The derived PR #65 extraction package (wake rows and matched pairs) was not copied into the
   local archive; the five runs it read are archived.
 - The archive index's `evidence_ref_status` strings are archive-time text and still describe the
-  closed PRs as open; the index is deliberately not rewritten.
+  closed PRs (#61, #62, #64, #67, and since 2026-09-19 #71 and #73) as open; the index is
+  deliberately not rewritten.

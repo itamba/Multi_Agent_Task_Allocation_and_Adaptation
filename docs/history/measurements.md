@@ -1775,7 +1775,8 @@ Recorded on 2026-09-15 at the research-chapter Git and worktree cleanup
 The archive was organized earlier the same day by authorized same-volume directory renames (move
 timestamps in the ledger); the cleanup task re-verified it read-only — file reads and SHA-256
 hashing only, no project code executed. **The dated records above keep their locations as
-recorded**; this section adds current locations without rewriting them.
+recorded**; this section adds current locations without rewriting them. The 2026-09-19 extension
+of the archive by seven runs is recorded separately in §9.5.
 
 ### 9.1 Archive identity
 
@@ -1899,6 +1900,73 @@ classification in §1–§8 is changed; no invalid, aborted, engineering or uncl
 upgraded; the B4 engineering smokes, `rollouts` and `generated_scenarios` stay uninterpreted;
 closing the evidence PRs and deleting their branches removes no conclusion recorded in this
 document.
+
+### 9.5 Archival extension of 2026-09-19
+
+Recorded on 2026-09-19, at the recent-research archival closure
+([`environments_cleanup.md` §4.7](../workflows/environments_cleanup.md#47-cleanup-already-performed)).
+§9.1–§9.4 stay as recorded on 2026-09-15; this sub-section extends them. **The dated records of
+§10–§16 keep their "local original" locations as recorded**; the locations below are added
+without rewriting them.
+
+- **Method.** Under explicit user authorization, seven run directories were moved into `C:\gra\`
+  by same-volume directory rename. No bytes were copied or rewritten. The two semantic-action R1
+  arms went under `runs\development\` and the five CTDE development diagnostics under
+  `diagnostics\`, next to the 2026-09-15 V2 arms. Before each move the source existed, the
+  destination did not, and both were on volume `C:`.
+- **Identity.** Every file of every run was hashed before and after its move: file count, total
+  bytes, each file's SHA-256 and a full-tree digest (SHA-256 over the sorted lines
+  `'<relpath> <sha256> <bytes>\n'`) all match. **No embedded historical path was rewritten.**
+  `output_dir`, launcher, preflight and evidence-ledger paths still name the original locations;
+  the index resolves them.
+- **Cross-check against Git evidence, before the move.** Each source was cross-checked against
+  every Git evidence ledger that lists it: the `artifact_sha256.txt` ledgers of PR #71 @
+  `0d136fa…` and PR #73 @ `ad9b545…`, and the `artifact_manifest.json` files of
+  `semantic_ctde_grad_diag_r1/`, `acting_ego_ctde_fd100_r1/`,
+  `explicit_ego_readout_ctde_fd100_r1/` and `role_only_ctde_lambda100_fd100_r1/` on `main`,
+  including their tree digests. All 291 listed identities matched.
+- **Credit-stream file names.** The #71 and #73 ledgers name the semantic R1 credit streams
+  `train_credit_diagnostics.jsonl`. In the runs they are now
+  `train_credit_diagnostics_actor_only.jsonl` (SHA-256 `6f04ff38…6b72e`, as recorded in §10.2)
+  and `train_credit_diagnostics_CTDE.jsonl` (SHA-256 `479f17a6…d894`, as recorded in §16.2).
+  The bytes are identical. The filesystem dates both renames to about 20:35 local on 2026-09-16,
+  after both evidence commits; who renamed them is not recorded. They were archived as found and
+  not reverted, and each index row records the mapping.
+
+Paths relative to `C:\gra\`; measured SHA as recorded by each run's own
+`run_config.json:/provenance/git` (all `dirty = false`); key hashes are the indexed top-level,
+checkpoint and plot files.
+
+| Artifact id | Original location | Current path | Measured SHA | Files | Bytes | Key hashes | Full-tree digest |
+|---|---|---|---|---|---|---|---|
+| `v2_semantic_actor_only_r1_seed3000000_d4e9f37` | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | `runs\development\v2_semantic_actor_only_r1_seed3000000_d4e9f37` | `d4e9f37` | 4000 | 195371294 | 32 | `ddd7a114fd5c4372b0626f8de1c413bcd893c572fe667b34e04b9229b03c2a03` |
+| `v2_semantic_ctde_r1_seed3000000_8056266` | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | `runs\development\v2_semantic_ctde_r1_seed3000000_8056266` | `8056266` | 4002 | 215900390 | 34 | `53f85165a9667dafab946dbd47e69ff1cce9a414bced44ca66da7ce082eab617` |
+| `v2_semantic_ctde_grad_diag_p050_seed3000000_6ed964a` | `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a` | `diagnostics\v2_semantic_ctde_grad_diag_p050_seed3000000_6ed964a` | `6ed964a` | 1645 | 88628769 | 25 | `08b306dc2196830e79cf6cda90e5ab3ef714db2d397493537c0e484688710954` |
+| `v2_semantic_ctde_grad_diag_fd100_seed3000000_6ed964a` | `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a` | `diagnostics\v2_semantic_ctde_grad_diag_fd100_seed3000000_6ed964a` | `6ed964a` | 1645 | 93515583 | 25 | `78e3029e6006ad71029555267b9a6b77cfb1df3648f90af9a8ac235445b8ec6f` |
+| `v2_role_only_acting_ego_ctde_fd100_seed3000000_68055e3` | `C:\gruns\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3` | `diagnostics\v2_role_only_acting_ego_ctde_fd100_seed3000000_68055e3` | `68055e3` | 1123 | 63273213 | 23 | `3e31cc49b6998275c14a5e8fbf20736b2c22c1dd3840d51348c678ff6f4dde42` |
+| `v2_explicit_ego_readout_ctde_fd100_seed3000000_1a1e0c9` | `C:\gruns\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9` | `diagnostics\v2_explicit_ego_readout_ctde_fd100_seed3000000_1a1e0c9` | `1a1e0c9` | 1123 | 63577569 | 23 | `f00cf34df28f87deb0856ba42a305d59da92a171983b68d6377be4d005881b55` |
+| `v2_role_only_ctde_lambda100_fd100_seed3000000_68055e3` | `C:\gruns\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3` | `diagnostics\v2_role_only_ctde_lambda100_fd100_seed3000000_68055e3` | `68055e3` | 1124 | 63262338 | 24 | `3c10f354e186d94bd59af6c2a0e46e3441636552168eb7827ac0af24f13158f3` |
+
+**Archive identity after the extension** (35 indexed items, all `MOVED_VERIFIED`):
+
+- `ARTIFACT_INDEX.jsonl` — 35 rows, SHA-256
+  `9f31e34652b2b72ad3992289393312dcceee9c68dbbb2931b82553230c76a756`; its first 28 rows are the
+  §9.1 file (`de96d9ba…0552`) as an unchanged byte prefix.
+- `ARCHIVE_MOVE_LEDGER.jsonl` — 35 rows, SHA-256
+  `322d821f088ccb0a6b90241253412cadc0b76307224bd1becb251acc2f3bfae3`; its first 28 rows are the
+  §9.1 file (`15287e8f…eb7`) as an unchanged byte prefix.
+- `ARTIFACT_INDEX.md` — SHA-256 `ec12587c27c4c4c4ad58f12189c932f09638f51821b74e29bc9e429606546e14`;
+  the seven rows were inserted into its existing Development and Diagnostics sections plus one
+  header line, and no earlier line changed.
+- After the extension, all 575 indexed key-file SHA-256 values of all 35 rows matched the bytes
+  at their current paths. The index, ledger and projection agree on every new row's paths, counts
+  and key hashes.
+
+**Non-claims.** No verdict, measured SHA, classification or finding of §10–§16 is changed. The
+new rows' `evidence_ref_status` strings are archive-time text and still describe PRs #71 and #73
+as open drafts; both were closed without merge later the same day
+([`environments_cleanup.md` §4.3](../workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs)).
+Closing them removes no conclusion recorded in this document.
 
 ## 10. GENERALIZED-V2 semantic-action actor-only development R1
 
