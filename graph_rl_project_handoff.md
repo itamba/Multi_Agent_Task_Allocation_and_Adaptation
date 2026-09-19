@@ -1,9 +1,12 @@
 # Graph RL project handoff — current snapshot
 
-> **Status: current state only — not a contract and not a history.** This snapshot was refreshed
-> on 2026-09-19, after PR #76 was merged and the authorized recent-research archival / Git cleanup
-> was performed, on branch `docs/recent-archive-cleanup-closure`; live `main` was
-> `67cd12a438452aadf61f312e68484f26dfa1e7c7` (PR #76 merged).
+> **Status: current state only — not a contract and not a history.** This snapshot describes the
+> repository after the authorized recent-research archival and Git cleanup was completed and its
+> closure record was integrated: PR #77 is merged as
+> `7273be2ab563cc70de82651ec62bfa719f4f2758`, and its branch was deleted after merge
+> verification. **The intended durable branch state is `main` plus the three protected historical
+> branches only** (§7); a transient documentation-maintenance branch and PR may exist briefly
+> while this file itself is corrected, and leaves nothing behind once integrated.
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -98,6 +101,12 @@
   - **Evidence PRs.** #71 and #73 were closed without merge at their exact heads, and their
     branches were deleted.
   - **Merged branches.** The PR #74 and PR #76 branches were deleted.
+  - **Closure record integrated.** The cleanup record was merged as PR #77
+    (`7273be2ab563cc70de82651ec62bfa719f4f2758`, from reviewed head
+    `840d00e3e558f771cf6eb90e439ffacafa27a2ff`), and its branch
+    `docs/recent-archive-cleanup-closure` was deleted on 2026-09-20 after its merge,
+    exact tip and `main`-reachability were verified. **No research, evidence or task ref
+    awaits cleanup.**
   - **Local scratch.** The authorized main-checkout scratch was removed; the protected refs are
     unchanged
     ([`environments_cleanup.md` §4.3–§4.7](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs)).
@@ -127,25 +136,28 @@
   the integration of PR #75 (2026-09-19); the retrospective review of the semantic-action CTDE
   development R1 (2026-09-19; [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure))
   and its record alignment (PR #76, merged as `67cd12a438452aadf61f312e68484f26dfa1e7c7`); the
-  recent-research archival and Git cleanup (2026-09-19).
+  recent-research archival and Git cleanup (2026-09-19) and its closure record (PR #77, merged as
+  `7273be2ab563cc70de82651ec62bfa719f4f2758`, branch deleted 2026-09-20).
 
 ## 2. Active owner and task
 
 | Item | State |
 |---|---|
-| Writable repository task | **sole owner:** the archive-cleanup closure documentation task (branch `docs/recent-archive-cleanup-closure`, one draft PR to `main`, base `67cd12a438452aadf61f312e68484f26dfa1e7c7`) — documentation only, until it is integrated or closed |
+| Writable repository task | **no scientific or research writable task is active or authorized.** Transient documentation maintenance of this snapshot may hold a short-lived branch and draft PR; it authorizes no research, code, test, configuration, archive or ref work, and no task branch is intended to remain after it is integrated |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
-| Candidates | the archive-cleanup closure documentation draft PR only; no merge is authorized |
+| Candidates | no research or evidence candidate is active; no merge is authorized. **Resolve GitHub for any transient documentation-maintenance PR** |
 | Scientific runs in progress | none; none authorized. All three acting-ego diagnostic authorizations are spent |
 
 ## 3. Candidates and PRs
 
-Open PRs: the archive-cleanup closure documentation draft PR of §2 only. Resolve live PR state and
-exact heads on GitHub.
+**No research or evidence candidate is active.** The closure PRs #71 / #73 / #74 / #75 / #76 / #77
+below are historical states, not open work. **Resolve GitHub for any transient
+documentation-maintenance PR and for live exact heads.**
 
 | PR | Branch | State |
 |---|---|---|
+| #77 | `docs/recent-archive-cleanup-closure` | merged as `7273be2ab563cc70de82651ec62bfa719f4f2758` (2026-09-19) from reviewed head `840d00e3e558f771cf6eb90e439ffacafa27a2ff` (its second parent); branch deleted after merge verification (2026-09-20) |
 | #76 | `docs/recent-research-cleanup-closure` | merged as `67cd12a438452aadf61f312e68484f26dfa1e7c7` (2026-09-19) from reviewed head `c414ec12a708338690fbf6e1317d93f804b2b22f`; branch deleted after ancestry verification (2026-09-19) |
 | #75 | `task/ctde-acting-ego-conditioning` | merged as `ed33b7e24a652fa00b13c708517012f8b3302496` (2026-09-19) from reviewed final head `b3a2350f437afee1c66d4fd5a5efa7cb7a353787`; branch absent; final code = role-only acting-ego critic conditioning, mean-pool readout, `gae_lambda = 0.95`; the explicit readout (measured at `1a1e0c9…`) survives only in history and evidence; the role-only, explicit-readout and λ = 1 evidence packages (measurements §12–§14) are on `main` |
 | #74 | `task/v2-ctde-gradient-pressure-diagnostics` | merged as `adc213670ce4844a7cf60943ecf50150318e40b1`; implementation approved at `6ed964a1abd09de2130aee3d0d314c8f32165056`, the measured SHA of both actor-gradient diagnostics; branch (tip `3e29a57dac54361c1a71f43f9487a6860fcae7c3`) deleted after ancestry verification (2026-09-19) |
@@ -265,9 +277,11 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: GPT exact-candidate review of the archive-cleanup closure documentation draft PR** (branch
-`docs/recent-archive-cleanup-closure`, `GPT_GITHUB`, append-only), then a user merge decision. No
-merge is authorized, and no scientific run is active or authorized. No cleanup action is pending.
+**Now: nothing is scheduled.** The recent-research archival and Git cleanup is complete and its
+closure record is integrated (§1, §3); **no research, evidence or task ref awaits cleanup**, and
+**no scientific run is active or authorized**. The next research task starts from the area below
+and needs its own authorized bounded plan
+([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)).
 
 **Next research area — for a future orchestrator, not scheduled here:** actor-side optimization /
 stability, gradient-to-policy mapping and retention mechanics
@@ -327,8 +341,8 @@ are unaffected. Fixing it needs its own small code task.
   it except under
   [`environments_cleanup.md` §4.4](docs/workflows/environments_cleanup.md#44-preserved-run-directories-and-external-artifacts);
   moving or deleting protected refs;
-- any code, test or configuration change, archive move, ref deletion or other cleanup in the
-  current documentation task; any implementation
+- any code, test or configuration change, archive move, ref deletion or other cleanup in a
+  documentation-maintenance task; any implementation
   not separately authorized — including re-introducing the explicit critic readout or changing
   the default `gae_lambda` — and in particular training semantics,
   action-conditioned gradient subgroups, actor-only gradient instrumentation, reachability,
@@ -364,8 +378,10 @@ Protected refs: `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and tag 
 Remaining local worktrees: the main checkout and `C:/Users/Itama/PycharmProjects/flat-baseline`
 (branch `flat-final`) only; `C:/grolelambda1` is absent and unregistered
 ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
-Refs awaiting cleanup: none. The Git refs are `main`, the protected refs and, while its PR is
-open, `docs/recent-archive-cleanup-closure`
+Refs awaiting cleanup: none. **The intended durable remote branches are `main`,
+`phase-a-baseline`, `pre-ctde-actor-only` and `flat-final`, with the protected tag
+`pre-cleanup`** — no evidence, task or documentation cleanup branch is pending. A transient
+documentation-maintenance branch may exist while its own PR is open and is deleted on integration
 ([§4.3, §4.5](docs/workflows/environments_cleanup.md#43-temporary-evidence-and-review-refs)).
 Preserved artifacts: the `C:\gra\` archive and its 35-row index. It includes both semantic-action
 R1 run directories (their evidence packages survive through GitHub's `refs/pull/71/head` and
