@@ -195,8 +195,9 @@ it has since been reviewed — see [`measurements.md`](../history/measurements.m
 
 ### 4.2 Protected refs
 
-Verified against `origin` on 2026-09-15, before and after that day's cleanup (§4.7), with
-identical identities. Their roles are distinct and never interchangeable.
+Verified against `origin` on 2026-09-15 and again on 2026-09-19, each time before and after that
+day's cleanup (§4.7), with identical identities. Their roles are distinct and never
+interchangeable.
 
 | Ref | Commit | Role |
 |---|---|---|
@@ -208,17 +209,30 @@ identical identities. Their roles are distinct and never interchangeable.
 
 ### 4.3 Temporary evidence and review refs
 
-**Open now** (observed 2026-09-19 against `origin`, live `main`
-`ed33b7e24a652fa00b13c708517012f8b3302496`; each branch exists on `origin` and locally at the same
-head). Neither is cleanup-eligible yet: under §4.1 its reviewed conclusions must be durable on
-`main` and its source run archived with its key identities reverified, and its closing and branch
-deletion need separate explicit authorization naming it. Neither may be modified or closed without
-explicit authorization.
+**Open now:** none (observed 2026-09-19 against `origin` after that day's cleanup, live `main`
+`67cd12a438452aadf61f312e68484f26dfa1e7c7`).
 
-| PR | Branch | Head | Record of its conclusions | Source run (original location, not archived) | Status |
-|---|---|---|---|---|---|
-| #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` | [`measurements.md` §10](../history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1), durable on `main` | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | open draft; verdict durable on `main`; **not cleanup-eligible** until the source run is archived |
-| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | `ad9b545034670a7c7a9d8ff98012d56c0be07f46` | [`measurements.md` §16](../history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure) — the **candidate** durable record, introduced by closure documentation PR #76; it becomes durable on `main` only when PR #76 is integrated | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | open draft; **not cleanup-eligible** until (1) PR #76 is approved and integrated, (2) the source run is archived and indexed under §4.4, and (3) separate explicit cleanup authorization names this PR and branch |
+**Closed on 2026-09-19.** Under explicit authorization naming each PR and branch, and after the
+§4.1 gates (open draft and unmerged at the verified head; checked out in no worktree; no
+local-only commits; source run archived, indexed and its key identities reverified under §4.4;
+conclusions durable on `main`), each PR below was closed without merge at its verified head and
+its branch deleted from `origin` and locally. GitHub's `refs/pull/<n>/head` still resolved to the
+verified head immediately afterwards; nothing further is claimed about GitHub's retention of
+pull-request refs.
+
+| PR | Branch | Verified head | Durable record on `main` | Archived source (under `C:\gra\`) |
+|---|---|---|---|---|
+| #71 | `evidence/generalized-v2-semantic-action-actor-only-dev-r1` | `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` | [`measurements.md` §10](../history/measurements.md#10-generalized-v2-semantic-action-actor-only-development-r1) | `runs\development\v2_semantic_actor_only_r1_seed3000000_d4e9f37` |
+| #73 | `evidence/generalized-v2-semantic-action-ctde-dev-r1` | `ad9b545034670a7c7a9d8ff98012d56c0be07f46` | [`measurements.md` §16](../history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure) (merged with PR #76) | `runs\development\v2_semantic_ctde_r1_seed3000000_8056266` |
+
+**Ledger check before closing.** Every source file listed in the `artifact_sha256.txt` ledgers of
+#71 and #73 matched the original run's bytes and size before the move, and the whole run was
+byte-identical after it ([`measurements.md` §9.5](../history/measurements.md#95-archival-extension-of-2026-09-19)).
+One naming difference was found and **not reverted**: both ledgers record the credit stream as
+`train_credit_diagnostics.jsonl`, but in each run it is now named
+`train_credit_diagnostics_actor_only.jsonl` (#71's run) or `train_credit_diagnostics_CTDE.jsonl`
+(#73's run), with identical bytes; the filesystem dates both renames to about 20:35 local on
+2026-09-16, after both evidence commits. Who renamed them is not recorded.
 
 **Closed on 2026-09-15.** Under explicit authorization and after the §4.1 gates, each PR
 below was closed without merge at its verified head and its branch deleted from `origin` and
@@ -251,29 +265,37 @@ committed `episode_outcomes` shards and shard index of #61 and #62, whose record
   key-file SHA-256 values are verified before and after the move; and the historical paths
   embedded inside it (`output_dir`, `repo_root`, ledger and script paths) are **not** rewritten.
   Those embedded paths are stale by design; the index resolves them.
-- **Current local archive** (closure identities reviewed 2026-09-15):
+- **Current local archive** (created and reviewed 2026-09-15; extended by seven rows and
+  re-verified 2026-09-19):
 
   | Item | Path | SHA-256 |
   |---|---|---|
   | archive root | `C:\gra\` | — |
-  | machine-readable index (authoritative; 28 rows) | `C:\gra\metadata\ARTIFACT_INDEX.jsonl` | `de96d9ba4c04e10c075549d37a1b445a6e513d133ef55591a1849bd0b0b80552` |
-  | human-readable projection (not independent) | `C:\gra\metadata\ARTIFACT_INDEX.md` | `a34d69a52c7f99f93abf402e516345f6c2c9eca0fa213f7bf6efb8c8a5f211c6` |
-  | archive move ledger (28 rows) | `C:\gra\metadata\ARCHIVE_MOVE_LEDGER.jsonl` | `15287e8fa7b1051f48cd2b4d1d629f61d687c567d0c4858c5248569d8b6f9eb7` |
+  | machine-readable index (authoritative; 35 rows) | `C:\gra\metadata\ARTIFACT_INDEX.jsonl` | `9f31e34652b2b72ad3992289393312dcceee9c68dbbb2931b82553230c76a756` |
+  | human-readable projection (not independent) | `C:\gra\metadata\ARTIFACT_INDEX.md` | `ec12587c27c4c4c4ad58f12189c932f09638f51821b74e29bc9e429606546e14` |
+  | archive move ledger (35 rows) | `C:\gra\metadata\ARCHIVE_MOVE_LEDGER.jsonl` | `322d821f088ccb0a6b90241253412cadc0b76307224bd1becb251acc2f3bfae3` |
 
-  Per-artifact identities and recovered provenance:
-  [`measurements.md` §9](../history/measurements.md#9-local-artifact-archive-closure).
+  The 2026-09-19 extension appended seven rows to each JSONL file (the 28 earlier rows are an
+  unchanged byte prefix) and inserted their projection rows into the existing sections of
+  `ARTIFACT_INDEX.md` without changing any earlier line. Per-artifact identities and recovered
+  provenance: [`measurements.md` §9](../history/measurements.md#9-local-artifact-archive-closure).
 - **Reading the index.** Its `evidence_ref_status` strings and caveats are archive-time text:
   they still describe PRs #61, #62, #64 and #67 as open and several source worktrees as left in
   place. Since 2026-09-15 those PRs are closed, their branches deleted and those worktrees removed
-  (§4.3, §4.6); the index is deliberately not rewritten. For `v2_ctde_r1_seed3000000_ae42cb0` and
+  (§4.3, §4.6); the index is deliberately not rewritten. Likewise the two 2026-09-19 semantic R1
+  rows describe PRs #71 and #73 as open drafts at archive time; both were closed later that day
+  (§4.3). For `v2_ctde_r1_seed3000000_ae42cb0` and
   the three diagnostic arms, `file_count` and `total_bytes` exclude the added `sidecars/` child,
-  whose file hashes are listed in each row's caveats.
+  whose file hashes are listed in each row's caveats. The seven 2026-09-19 rows have no sidecars;
+  their counts cover the whole directory.
+- **Emptied source directory.** `C:\gruns\` held only the five diagnostic runs and is now empty.
+  It is left in place because its removal was not authorized.
 - **Retention.** Nothing under `C:\gra\` is cleanup-eligible under this registry — including the
   B4 engineering smokes, invalid precursor runs, the aborted P1 arm, the Task 5 engineering
   artifacts, the unclassified `ct1`, `rollouts` and `generated_scenarios`, and the review bundles.
   Pruning any of them requires its own separate authorization.
 
-Principal artifacts, original location → current location (the index lists all 28):
+Principal artifacts, original location → current location (the index lists all 35):
 
 | Artifact | Original location | Current location (under `C:\gra\`) |
 |---|---|---|
@@ -291,17 +313,30 @@ Principal artifacts, original location → current location (the index lists all
 | GENERALIZED-V2 development R1 — actor-only | `C:\Users\Itama\PycharmProjects\graph_rl_v2_actor_only_dev_r1_seed3000000_ae42cb0` | `runs\development\v2_actor_only_r1_seed3000000_ae42cb0` |
 | GENERALIZED-V2 development R1 — CTDE | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_r1_seed3000000_ae42cb0` | `runs\development\v2_ctde_r1_seed3000000_ae42cb0` |
 | GENERALIZED-V2 CTDE diagnostic arms and sweep driver | `C:\Users\Itama\PycharmProjects\graph_rl_v2_ctde_dev_diag_{smallbatch,largebatch,fd80}_seed3000000_ae42cb0`, `…\graph_rl_v2_ctde_dev_diag_sweep_ae42cb0` | `diagnostics\v2_ctde_{smallbatch,largebatch,fd80}_seed3000000_ae42cb0`, `diagnostics\v2_ctde_sweep_driver_ae42cb0` |
+| GENERALIZED-V2 semantic-action R1 — actor-only (archived 2026-09-19) | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37` | `runs\development\v2_semantic_actor_only_r1_seed3000000_d4e9f37` |
+| GENERALIZED-V2 semantic-action R1 — CTDE (archived 2026-09-19) | `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | `runs\development\v2_semantic_ctde_r1_seed3000000_8056266` |
+| actor-gradient diagnostic, `p = 0.5` (archived 2026-09-19) | `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_r1_seed3000000_6ed964a` | `diagnostics\v2_semantic_ctde_grad_diag_p050_seed3000000_6ed964a` |
+| actor-gradient diagnostic, FD100 (archived 2026-09-19) | `C:\gruns\graph_rl_v2_semantic_ctde_grad_diag_fd100_r1_seed3000000_6ed964a` | `diagnostics\v2_semantic_ctde_grad_diag_fd100_seed3000000_6ed964a` |
+| role-only acting-ego diagnostic (archived 2026-09-19) | `C:\gruns\graph_rl_v2_acting_ego_ctde_fd100_r1_seed3000000_68055e3` | `diagnostics\v2_role_only_acting_ego_ctde_fd100_seed3000000_68055e3` |
+| explicit acting-ego readout diagnostic (archived 2026-09-19) | `C:\gruns\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9` | `diagnostics\v2_explicit_ego_readout_ctde_fd100_seed3000000_1a1e0c9` |
+| role-only `gae_lambda = 1.0` diagnostic (archived 2026-09-19) | `C:\gruns\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3` | `diagnostics\v2_role_only_ctde_lambda100_fd100_seed3000000_68055e3` |
 
 ### 4.5 Retired merged branches
 
-**Merged branch awaiting cleanup** (observed 2026-09-19):
+**Merged branches awaiting cleanup:** none (observed 2026-09-19 after that day's cleanup).
 
-| Branch | Head | Merged by | Status |
-|---|---|---|---|
-| `task/v2-ctde-gradient-pressure-diagnostics` | `3e29a57dac54361c1a71f43f9487a6860fcae7c3` | PR #74 (merge `adc213670ce4844a7cf60943ecf50150318e40b1`) | present on `origin` and locally; verified ancestor of live `main`; not checked out in any worktree; the §4.1 safe-deletion gates are otherwise satisfied, but deletion **requires separate explicit authorization naming this branch** |
+**Deleted on 2026-09-19.** Under explicit authorization naming each branch, each was deleted from
+`origin` and locally after its PR was verified `MERGED` at the listed head, the head was verified
+an ancestor of live `main` `67cd12a438452aadf61f312e68484f26dfa1e7c7`, and the branch was verified
+checked out in no worktree with no local-only commits.
 
-The branch of PR #75, `task/ctde-acting-ego-conditioning`, is already absent from `origin` and
-locally.
+| Branch | Head | Merged by |
+|---|---|---|
+| `task/v2-ctde-gradient-pressure-diagnostics` | `3e29a57dac54361c1a71f43f9487a6860fcae7c3` | PR #74 (merge `adc213670ce4844a7cf60943ecf50150318e40b1`) |
+| `docs/recent-research-cleanup-closure` | `c414ec12a708338690fbf6e1317d93f804b2b22f` | PR #76 (merge `67cd12a438452aadf61f312e68484f26dfa1e7c7`; the head is its second parent) |
+
+The branch of PR #75, `task/ctde-acting-ego-conditioning`, was already absent from `origin` and
+locally before that cleanup.
 
 **Deleted on 2026-09-15.** Each branch below was deleted from `origin` and locally after its
 PR was verified `MERGED` at the listed head and that head was verified an ancestor of live `main`.
@@ -333,7 +368,10 @@ commit stays reachable from `main`; no branch was deleted by these removals):
 role-only `gae_lambda = 1.0` diagnostic) is absent from disk and not registered, and no stale
 worktree metadata remains for it. The local scratch directory `C:\tmp\l1v` (λ = 1 evidence
 verification; scratch, never a Git worktree) is also absent. Who removed them, and when, is
-unknown. The only registered worktrees are the main checkout and `flat-baseline`.
+unknown. The only registered worktrees are the main checkout and `flat-baseline`. This was
+observed again after the 2026-09-19 cleanup, and `git worktree prune --dry-run` reported nothing,
+so no prune was run. The empty, unregistered directory `.claude/worktrees/` in the main checkout
+was removed under that day's authorization (§4.7); it held no worktree.
 
 **Retained:** `C:/Users/Itama/PycharmProjects/flat-baseline`, carrying protected branch
 `flat-final` at `4d44c3454a5561a6cb9d7aed593d59a40068d6d7`. Its tracked tree is clean, but its
@@ -359,3 +397,39 @@ protected either way.
   their branches deleted (§4.3); the five merged branches of §4.5 were deleted; four worktrees
   were removed and `flat-baseline` retained (§4.6); the protected refs of §4.2 were unchanged.
   Nothing under `C:\gra\` was modified or deleted.
+- **2026-09-19, recent-research archival closure** (live `main`
+  `67cd12a438452aadf61f312e68484f26dfa1e7c7` before and after):
+  - **Archive.** Seven run directories — the two semantic-action R1 arms and the five CTDE
+    development diagnostics — were moved into `C:\gra\` by same-volume rename and indexed. Before
+    and after each move, every file matched by SHA-256, and file counts and total bytes matched.
+    Embedded historical paths were not rewritten. The archive metadata was extended from 28 to 35
+    rows (§4.4; [`measurements.md` §9.5](../history/measurements.md#95-archival-extension-of-2026-09-19)).
+    Two first rename attempts were refused by Windows because three orphaned read-only `tail -f`
+    watchers, left from those runs' launch-time monitoring, held console logs open. Nothing moved
+    on those attempts. The watchers were stopped and the renames then succeeded.
+  - **Metadata write rolled back.** The first attempt to extend the archive metadata contained a
+    wrong provenance statement: it said PR #71's ledger listed the CTDE credit file. The three
+    metadata files were restored from the pre-write backup before that version was cited, relied
+    on or used for any later cleanup gate. The extension was then regenerated from the restored
+    state with the correct mapping: actor-only credit stream in the #71 and #73 ledgers, CTDE
+    credit stream in the #73 ledger only. The rolled-back write is not an archived state or a
+    historical identity. The 28-row historical prefix was unchanged. The final identities in §4.4
+    and [`measurements.md` §9.5](../history/measurements.md#95-archival-extension-of-2026-09-19)
+    are the hashes of the corrected metadata:
+    - `ARTIFACT_INDEX.jsonl` `9f31e34652b2b72ad3992289393312dcceee9c68dbbb2931b82553230c76a756`
+    - `ARCHIVE_MOVE_LEDGER.jsonl` `322d821f088ccb0a6b90241253412cadc0b76307224bd1becb251acc2f3bfae3`
+    - `ARTIFACT_INDEX.md` `ec12587c27c4c4c4ad58f12189c932f09638f51821b74e29bc9e429606546e14`
+  - **Git refs.** Evidence PRs #71 and #73 were closed without merge and their branches deleted
+    (§4.3). The merged branches of PRs #74 and #76 were deleted (§4.5). The protected refs of §4.2
+    were unchanged.
+  - **Main-checkout scratch.** Removed after checking that each item was untracked and unchanged
+    since the read-only inventory: the repository-root `__pycache__/` (stale bytecode of the
+    deleted scratch sources `tmp_triage.py` and `train_full.py`), the throwaway
+    `src/match_aou/rl/training/_reward_diag.py` (its now-inert `.git/info/exclude` line is left
+    as is), `tools/smoke7.log`, `tools/smoke8.log`, `.pytest_cache/` and the empty
+    `.claude/worktrees/`. The tracked tree was clean afterwards.
+  - **Deliberately untouched, each needing its own decision:** `src/match_aou/rl.zip`,
+    `legacy/run_capture.log`, `src/match_aou/rl/observation/rollouts/`, the `flat-baseline`
+    worktree and its ignored flat-RL outputs (§4.6), `.idea/`, `.claude/settings.local.json`,
+    `BLADE.egg-info/` and the now-empty `C:\gruns\`. Nothing already under `C:\gra\` was moved,
+    modified or deleted, except for the metadata extension above.
