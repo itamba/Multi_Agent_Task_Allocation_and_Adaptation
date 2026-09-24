@@ -44,6 +44,7 @@
 | GENERALIZED-V2 role-only acting-ego CTDE `gae_lambda = 1.0` development diagnostic — FD100 configuration (100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` — the role-only implementation, run from the isolated detached worktree `C:\grolelambda1` | local original `C:\gruns\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3`; evidence package `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` on PR #75, reviewed at evidence commit `1076208b68ee9abd76f159535c5f38fe98970ce5` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; same-code comparator role-only λ0.95; exact λ = 1 telescoping, held-out separation effectively zero; **negative intervention, not the final configuration** (§14) |
 | GENERALIZED-V2 semantic-action CTDE development R1 (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state, 375 updates; executed 2026-09-16) | `8056266cff89f677911462b29970346bed0a57c1` (the PR #72 merge; run-recorded clean `main`) | evidence PR #73, exact candidate `ad9b545034670a7c7a9d8ff98012d56c0be07f46` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`, assigned **retrospectively on 2026-09-19** (as transferred in the user-approved documentation packet); **development only**; primary comparator semantic actor-only R1 (§10); 0 / 20 directional switches at every one of the 16 evaluation rounds; no comparable actor-only transient observed at any evaluation round; no CTDE benefit established (§16) |
 | GENERALIZED-V2 actor mission-fuel-slack development R1 (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates; executed 2026-09-24) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch `task/actor-mission-fuel-slack-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gms1src`) | local original `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441`; evidence package `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (PR #79, merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4`) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at exact head `26f8bff97b1cbbca64d18626625d2321545080af`); development only; final macro effectively zero, no transient (§17) |
+| GENERALIZED-V2 actor-only credit-to-update diagnostic R1 (mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`; executed 2026-09-25) | `644883b89c208255f5808432462be64be5d7589f` (task branch `task/actor-credit-update-diagnostic-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gcud1src`) | local original `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b`; evidence package `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on draft PR #80 | **EXECUTED / UNREVIEWED** — no verdict; development diagnostic only (§18) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. The local artifacts
 archived in the authorized 2026-09-15 closure now live in the local archive under `C:\gra\`, and
@@ -3175,3 +3176,60 @@ comparator's transient did not occur**, and no stable final severity-conditioned
   measured source worktree `C:/gms1src` (detached at `3bc9441…`) and the original run directory
   `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` are retained; no
   archival or removal of either is authorized.
+
+## 18. GENERALIZED-V2 actor-only credit-to-update diagnostic R1 — executed, unreviewed
+
+Recorded on 2026-09-25 by the executing task. **Status: EXECUTED / UNREVIEWED.** No verdict
+exists; this is the executing task's reading of its evidence, for GPT review. PR #79's approval
+is not inherited. The authorizing decision is the 2026-09-25 row of
+[`decisions.md` §1](decisions.md#1-decision-log); the full record is the package README.
+
+### 18.1 Identity
+
+| Item | Value |
+|---|---|
+| Run id | `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` |
+| Measured code SHA | `644883b89c208255f5808432462be64be5d7589f` (task branch, draft PR #80, unmerged when measured), run-recorded clean, from the detached worktree `C:\gcud1src`; the imported BLADE engine is Git-blob-identical to the measured tree (byte differences EOL-only, as for §17) |
+| Instrumentation | opt-in `train_actor_step_diagnostics.jsonl` ([artifacts and metrics §5.3](../contracts/artifacts_metrics.md#53-actor-only-step-diagnostics)), vectors at iterations 0 / 24 / 49 / 74 / 99 |
+| Population, budget | `generalized_v2`, `p1_milp_v1`, `actor_only`, mission-slack observation, semantic actions, base seed 3000000, 100 × 8 successful episodes, ≤ 12 attempts per update, 5 evaluation rounds on the development profile of manifest `ef17a68a…46ea8`, no early stopping |
+| Comparator | the first 100 updates and rounds 0–100 of §17's run, read only and pinned; resolved `train_config` differs only in `n_iterations`, `output_dir` and the two diagnostic keys |
+| Evidence | `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on PR #80 |
+
+### 18.2 Validity facts (the task's pre-check; not a verdict)
+
+- Complete: exit code 0, walltime 2139 s (cap 4 h), 100 / 100 updates, 400 optimizer steps;
+  800 / 800 training episodes, 0 failures; 300 / 300 evaluation episodes, 20 / 20 groups and
+  10 / 10 cells in every round; `accounting_reconciled = true`.
+- One diagnostic record per productive update, four epochs each; telescoping and epoch-boundary
+  residuals 0.0; group-sum relative residual ≤ 3.6e-7; the vector files recompute the recorded
+  scalars to ≤ 1.4e-16 relative.
+- **Same-seed prefix:** the declared first divergence is input-side (a pre-update evaluation wake
+  tick, the known BLADE class), so the declared stop rule did not fire. Descriptively, all training
+  seeds and cells match and iteration 0 is fully identical, but **from iteration 1 the actor
+  outputs differ at float32-ulp level from identical recorded inputs** — update 0 produced
+  ulp-different parameters; the trajectories then drift (checkpoint 99 max parameter difference
+  0.045). Synthetic probes show base == OFF == ON bit-identically in one process and across
+  processes, and a thread-count (not allocation) sensitivity of the update's float result; neither
+  run records its thread configuration. **This remains an unresolved discrepancy**; no trajectory
+  reproduction is claimed.
+
+### 18.3 Observed results (descriptive)
+
+- 83 / 100 updates hold both severities. The per-update actual change of the batch contrast is
+  tiny and sign-balanced: median `−4.6e-5`, mean |ΔC_B| `2.8e-3`, 39 positive / 43 negative
+  (1 negligible); `C_B` itself stays near zero (median `+1.6e-3`).
+- Epoch-0 FD raw pressure is positive in 49 / 83 updates and coherent only in 75–99 (14 / 18);
+  non-FD pressure is mostly aligned (positive 55 / 83), opposing FD in 15 / 83 (9 of them in
+  50–74); the entropy component is ~100× smaller and flips the total's sign in 1 / 83.
+- The actual Adam displacement is nearly orthogonal to the contrast gradient (median
+  cos(Δθ, h) `+0.008`); raw-total pressure and the actual-step prediction agree in sign in
+  220 / 332 epochs; 205 / 332 epochs are gradient-norm clipped. Predictions match observed epoch
+  changes closely through update 74; in 75–99 they overstate the change (residual mean `−0.012`).
+- Evaluation: no severity-conditioned behaviour in any round (max macro `+6.9e-3` at update 100,
+  0 / 20 switches from update 25); round 0 identical to §17's.
+
+### 18.4 Limitations and non-claims
+
+- **Unreviewed.** One seed, 100 updates, development worlds re-measured each round; no causal
+  attribution, no claim of a defective critic, reward or optimizer; `C_B` is a training-batch
+  contrast, not the matched-world endpoint; no confirmatory evidence.
