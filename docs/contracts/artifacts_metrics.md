@@ -674,13 +674,109 @@ truncates the file at run start and writes ONE record per productive update.
 - **COST AND SCOPE.** Up to seven extra `autograd.grad` passes per productive update, at epoch 0
   only (one per non-empty group, the two totals and the contrast), plus re-applying the semantic
   construction to the immediate-FD transitions' existing logits, over the retained epoch-0 graph;
-  nothing on actor-only runs. Epochs 1+ are not decomposed, and version 1 has no
-  action-conditioned subgroups.
+  this CTDE artifact is never written on actor-only runs (their every-epoch counterpart is §5.3).
+  Epochs 1+ are not decomposed, and version 1 has no action-conditioned subgroups.
 - **NO CONTROL PATH READS IT BACK, AND IT MEASURES NOTHING BY ITSELF.** No stopping, evaluation,
   checkpoint, reward or selection path references it. It is engineering instrumentation: no
   gradient-pressure, separation-pressure or cancellation result exists until a future authorized
   run records it and a
   review reads it.
+
+### 5.3 Actor-only step diagnostics
+
+**`train_actor_step_diagnostics.jsonl` — OPT-IN, OFF BY DEFAULT, ACTOR_ONLY ONLY, TRAINING-ONLY,
+APPEND-ONLY, OBSERVATIONAL (added 2026-09-25).** Enabled by `TrainConfig.actor_step_diagnostics` /
+`--actor-step-diagnostics`; `TrainConfig.validate` refuses it under `training_mode = ctde`, and
+refuses `actor_step_vector_iterations` / `--actor-step-vector-iterations` without it or unless
+they are strictly increasing non-negative ints. Schema `graph_train_actor_step_diagnostics`,
+`_ACTOR_STEP_DIAGNOSTICS_VERSION = 1`. `run_config.json:/training/actor_step_diagnostics` always
+records `enabled`, the artifact, schema and version, the scope
+(`actor_only_ppo_updater_every_epoch`), the gradient, group-loss, entropy-component, contrast
+and displacement definitions, the four group names and the vector iterations. Off: no file, no
+vector directory, and `PPOUpdater.update` receives no ids. On: `train` truncates the file at run
+start and writes ONE record per productive update. The §5.2 CTDE artifact, its schema and its
+behaviour are unchanged.
+
+- **WHAT IS MEASURED — EVERY EPOCH, AROUND THE ONE REAL STEP.** In each PPO epoch of
+  `PPOUpdater.update`, after the per-transition losses and `total_loss` exist and before the real
+  `backward()`, the updater takes `torch.autograd.grad` on the retained graph (no `.grad` write) of
+  each group's `sum(policy_loss_i) / n_transitions` (the real batch denominator, never the group's
+  own size), of the actual mean surrogate (`policy_loss`) and of the actual `total_loss`; the
+  entropy component is `total_loss_grad − policy_surrogate_grad`. It then READS the real `.grad`
+  after the backward (before clipping) and after `clip_grad_norm_`, and the parameters before and
+  after the ONE existing `optimizer.step()`: `delta_theta = theta_after − theta_before` is the
+  actual Adam displacement (moments and clipping included). No hypothetical step, perturbation or
+  alternative optimizer is taken.
+- **THE CONTRAST.** When the batch holds at least one `immediate_fd_severe` and one
+  `immediate_fd_mild` transition, each epoch forms
+  `C_B = mean P(ABORT | immediate_fd_severe rows) − mean P(ABORT | immediate_fd_mild rows)` — the
+  masked semantic global ABORT leaf of `_semantic_dist`, each mean over its own rows whatever
+  action was stored — from that epoch's own pre-step logits, and its gradient `h`; after the step
+  it re-reads `C_B` on the SAME stored observations under `torch.no_grad`. The encoder and head
+  have no dropout, RNG draw or mutable buffer, and nothing changes train / eval mode, so the
+  re-read cannot affect later actions. `C_B` compares TRAINING populations inside one batch; it is
+  **not** the benchmark's matched-world macro endpoint.
+- **RECORD.** Update-level: identity (`iteration`, `updates_completed_before`), batch shape,
+  `n_actor_parameters`, `clip_ratio`, `entropy_coeff`, `max_grad_norm`, and per group
+  `n_transitions`, `batch_fraction`, `selected_meta_action_counts` and the normalized / raw
+  advantage distributions (`n`, mean, min, q10, median, q90, max, sign counts; `null` for an empty
+  group). Per epoch: losses and entropy; ratio statistics overall, per group and per derived group
+  (`fraction_outside_clip_band`, `fraction_clip_binding` — the clamped branch binds);
+  `gradient.groups.<g>` / `gradient.derived.fd|non_fd` norms and cosines, surrogate / entropy /
+  total norms, `cosine_fd_vs_non_fd`, the group-sum residual, the `total_loss`-vs-backward residual
+  and the groups-plus-entropy-vs-backward residual; `step` with the real `pre_clip_grad_norm`,
+  `post_clip_grad_norm`, `clipped`, `clip_scale`, `delta_theta_norm` / `_max_abs` and the cosines
+  of `delta_theta` with the negative clipped and total gradients; and `contrast` — `before`, both
+  mean probabilities, `grad_norm` (of `h`), `pressure.<component> = {pressure = −dot(h, g),
+  alignment = cosine(−g, h)}` for each group, `fd`, `non_fd`, `policy_surrogate`,
+  `entropy_component` and `total_loss`, `predicted_delta_from_displacement = dot(h, delta_theta)`,
+  `cosine_delta_vs_contrast_grad`, `after`, both after-probabilities, `actual_delta` and
+  `linearization_residual = actual_delta − predicted`. `update_summary`: the counts, contrast
+  before / after the whole update, `full_update_delta`, the four `epoch_deltas`, their sum, the
+  telescoping residual, the largest epoch-boundary mismatch, the per-epoch first-order predictions
+  and their sum, the summed linearization residual, `epoch0_contrast_grad_dot_full_displacement`,
+  `full_displacement_norm` and `path_length`.
+- **INTERPRETATION LIMITS.** A raw descent step `−lr · g` changes `C_B` by `lr · pressure` to first
+  order; pressures are raw-loss-gradient components and are additive, but **no additive Adam effect
+  is attributed to a group** — only the whole step's `dot(h, delta_theta)` concerns the actual
+  update, and a non-linear finite step need not equal it (`linearization_residual`). Near-zero
+  values are recorded as they are; a sign alone is not a movement.
+- **UNDEFINED IS `null`, NEVER `0`.** If either severity is absent, every contrast field is `null`
+  with `contrast_undefined_reason` and the counts; the decomposition and the step are still written.
+  An empty group has `n_transitions = 0`, zero gradient and `null` cosines; a zero-norm `h` keeps
+  `pressure = 0.0` but `null` alignments. Written with `allow_nan = False`; vector arithmetic is
+  elementwise numpy only (§5.2).
+- **ATTRIBUTION FROM THE ACTUAL BATCH.** `_actor_step_group_ids` resolves the §5.2 groups
+  trainer-side in `compute_returns_and_advantages`' order (records, then each record's ego chains —
+  not the tick-interleaved trajectory); only opaque ints (`step_group_ids`, `step_contrast_ids`)
+  cross into `PPOUpdater.update`, and `graph_ppo` sees no group name, severity or tag.
+  `_actor_step_record` re-verifies, for every transition, that it IS
+  `records[record_positions[i]].chains[ego][chain_ordinals[i]]`, that every record transition
+  occurs once, and that the re-derived ids equal the ids used.
+- **FAIL LOUD — A RUN-INTEGRITY FAILURE, NEVER ATTRITION.** `_persist_actor_step_diagnostics`
+  raises `ActorStepDiagnosticsError` and the run stops when a productive update hands over no
+  report or several; when attribution, counts or contrast ids fail; when any vector or value is
+  non-finite; when the epoch count, losses, entropy or clip-norm returns differ from the update's
+  own `per_epoch` diagnostics; when the group-sum, `total_loss`-vs-backward or clipped-vs-scaled
+  backward residual exceeds `1e-4 × reference norm + 1e-10` (`_ACTOR_STEP_RESIDUAL_REL_TOL`,
+  `_ACTOR_STEP_RESIDUAL_ABS_TOL`); or when a file cannot be written. `PPOUpdater.update` raises
+  `ValueError` on half wiring, a wrong id count or a bad contrast pair.
+- **VECTOR FILES (optional).** For each iteration in `actor_step_vector_iterations`, the epoch-0
+  vectors are written once to `train_actor_step_vectors/iter_NNNN_epoch0.npz` (compressed, float64,
+  loadable without pickle): `group_<group>` (zeros for an empty group), `policy_surrogate_grad`,
+  `total_loss_grad`, `backward_grad`, `clipped_grad`, `delta_theta`, `contrast_grad` (ABSENT when
+  undefined, with the reason in the record) and `layout_json` (parameter `name`, `shape`, `dtype` in
+  `PPOUpdater.parameters` order). The record's `vector_file` gives the path, SHA-256 and size. A
+  non-empty vector directory or an existing file refuses rather than overwrites.
+- **OBSERVATIONAL GUARANTEES (tested against the BASE updater).** With the diagnostic off and on,
+  and against the `PPOUpdater` class compiled from the task's verified base commit, two
+  consecutive updates with both advantage signs and later-epoch clipping leave identical parameters,
+  Adam state, updater outputs and torch / numpy RNG; any id labelling gives the same update; an
+  end-to-end stub run gives identical training records, credit rows, outcomes and checkpoints. The
+  ON path adds only no-grad forwards of the contrast rows after each step; the updater's learning
+  semantics are unchanged, but its source is not byte-identical.
+- **NO CONTROL PATH READS IT BACK, AND IT MEASURES NOTHING BY ITSELF.** No stopping, evaluation,
+  checkpoint, reward, sampler, loss weight, clip or selection path references it.
 
 ## 6. Reading preserved artifacts
 
@@ -750,6 +846,7 @@ single parent is the measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8
 | record or read per-wake actor diagnostics | `rl/action/graph_action.py`: `summarize_decision`, `_semantic_dist`, `ACTION_REPRESENTATION_ID`; `rl/training/graph_tick_loop.py`: `WAKE_KINDS`, `_decision_record`, `_node_ownership`, `Transition.wake_kind` / `.decision`; `rl/observation/graph_builder.py`: `MissionSlackEstimate.as_record`, `ACTOR_OBSERVATION_ID`; `graph_train.py`: `_EPISODE_OUTCOME_VERSION`, `_WAKE_DIAGNOSTICS_VERSION`, `LEGACY_ACTION_REPRESENTATION_LABEL`, `_wake_action_representation`, `_wake_meta_probability`, `_wake_decision_records`, `_wake_diag_digest`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema` | §5 |
 | record or read training credit diagnostics | `graph_train.py`: `_CREDIT_DIAGNOSTICS_FILENAME`, `_CREDIT_DIAGNOSTICS_SCHEMA`, `_CREDIT_DIAGNOSTICS_VERSION`, `CreditDiagnosticsError`, `_credit_measurement_tags`, `_credit_rows`, `_persist_credit_diagnostics`, `_observed_credit_diagnostics`; `rl/training/graph_ppo.py`: `CreditReport`; tests `tests/test_graph_semantic_action_credit.py` | §5.1 |
 | record or read CTDE actor-gradient diagnostics | `graph_train.py`: `TrainConfig.actor_gradient_diagnostics`, `_ACTOR_GRADIENT_DIAGNOSTICS_FILENAME`, `_ACTOR_GRADIENT_DIAGNOSTICS_SCHEMA`, `_ACTOR_GRADIENT_DIAGNOSTICS_VERSION`, `_ACTOR_GRADIENT_GROUPS`, `ActorGradientDiagnosticsError`, `_actor_gradient_group`, `_actor_gradient_group_ids`, `_ACTOR_GRADIENT_CONTRAST`, `_actor_gradient_contrast_ids`, `_actor_gradient_record`, `_persist_actor_gradient_diagnostics`; `rl/training/graph_ppo.py`: `ActorGradientReport`, `GradientSink`, `_flat_actor_grad`; tests `tests/test_graph_ctde_actor_gradient_diagnostics.py` | §5.2 |
+| record or read actor-only step diagnostics | `graph_train.py`: `TrainConfig.actor_step_diagnostics`, `TrainConfig.actor_step_vector_iterations`, `_ACTOR_STEP_DIAGNOSTICS_FILENAME`, `_ACTOR_STEP_DIAGNOSTICS_SCHEMA`, `_ACTOR_STEP_DIAGNOSTICS_VERSION`, `_ACTOR_STEP_VECTORS_DIRNAME`, `ActorStepDiagnosticsError`, `_actor_step_group`, `_actor_step_group_ids`, `_actor_step_record`, `_actor_step_vectors`, `_persist_actor_step_diagnostics`, `_ACTOR_STEP_RESIDUAL_REL_TOL`; `rl/training/graph_ppo.py`: `ActorStepReport`, `ActorStepEpoch`, `StepSink`, `_flat_tensors`, the `step_group_ids` / `step_sink` / `step_contrast_ids` parameters of `PPOUpdater.update`; tests `tests/test_graph_actor_step_diagnostics.py` | §5.3 |
 | select the final evaluation round (never `eval_records[-1]`) | `graph_train.py`: `_FINAL_EVAL_IDENTITY_FIELDS`, `_final_eval_identity`, `_select_final_eval_record`, `_select_final_matched_round`, `_round_identity`; `run_summary.json:/final_eval_selection` | §5 |
 | persist or aggregate generalized per-episode data | `graph_train.py`: `_episode_outcome_record`, `_reward_breakdown_record`, `_failure_record`, `_EMPTY_BENCHMARK_KEYS`, `_generalized_summary`, `_construction_record`, `seed_bands`, `write_run_config` | §4; known label defect in [§6.1](#61-known-summary-label-defect-run_summaryjsongeneralizedcardinality_sampler) |
 | read why or how a run stopped | `train_records.jsonl:/early_stopping_check`; `run_summary.json:/early_stopping`; `graph_train.py`: `_early_stopping_summary`, `TERMINATION_REASONS` | [training and benchmarks §7](training_benchmarks.md#7-early-stopping) |

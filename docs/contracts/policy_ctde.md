@@ -155,7 +155,10 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   keyword, so `_run_one_episode` and `run_episode` are called with EXACTLY their pre-CTDE
   arguments — the stronger invariance claim, and the same pattern `_artifact_kwargs`
   already used. `graph_ppo`'s actor-only half (`EpisodeRecord` / `PPOBuffer` /
-  `compute_returns_and_advantages` / `PPOUpdater`) is BYTE-UNCHANGED. This is proven by a
+  `compute_returns_and_advantages` / `PPOUpdater`) keeps its exact learning semantics: its one
+  later addition, the opt-in observational step instrumentation of `PPOUpdater.update` (below),
+  is proven against the base updater to change no parameter, optimizer state, output or RNG
+  state, although the source is no longer byte-identical. Actor-only preservation is proven by a
   POISON test: every central-CTDE construction site is replaced by a raiser and an
   `actor_only` run still completes, with a companion CONTROL that flips the mode and shows
   the poison really fires.
@@ -326,8 +329,21 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
   `mean P(ABORT | positive) - mean P(ABORT | negative)` from the SAME epoch-0 logits through
   `_semantic_dist`, and reports its value and gradient. No forward, GAE pass, RNG draw, `.grad` write or
   optimizer change is added, and the real backward, both clips and both steps are unchanged;
-  the updater attaches no meaning to the ids. `PPOUpdater` is not instrumented
+  the updater attaches no meaning to the ids
   ([artifacts and metrics §5.2](artifacts_metrics.md#52-ctde-actor-gradient-diagnostics)).
+- **OBSERVATIONAL EVERY-EPOCH ACTOR-STEP REPORT (actor_only only, opt-in).** `PPOUpdater.update`
+  takes `step_group_ids` (one opaque integer per transition, in `compute_returns_and_advantages`'
+  order) together with `step_sink`, and optionally a `(positive, negative)` `step_contrast_ids`
+  pair. In EVERY epoch it differentiates each id's summed policy loss over the full batch size,
+  the actual mean surrogate and the actual `total_loss` with `torch.autograd.grad(…,
+  retain_graph=True)` before the real backward; it reads the real `.grad` before and after
+  `clip_grad_norm_` and the parameters before and after the ONE existing `optimizer.step()`; when
+  both contrast ids occur it forms `mean P(ABORT | positive) − mean P(ABORT | negative)` from the
+  epoch's own logits, its gradient, and its value after the step from a `torch.no_grad` re-read of
+  the same stored observations. After a productive update it hands the sink ONE `ActorStepReport`.
+  No `.grad` write, RNG draw, train / eval switch or optimizer change is added, the ids reach no
+  advantage, loss, clip or step, and the learning semantics are unchanged (tested against the base
+  updater) ([artifacts and metrics §5.3](artifacts_metrics.md#53-actor-only-step-diagnostics)).
 - **CHECKPOINTS.** `save_checkpoint(policy, updater, iteration, ckpt_dir, critic=None)`.
   **THE ACTOR-ONLY PAYLOAD** — with `critic is None` (every `actor_only` run) — holds the five
   historical keys (`iteration` / `encoder` / `head` / `optimizer` / `ppo_config`) PLUS
@@ -385,6 +401,7 @@ actor-only preservation) follow [`cc_review.md` §4](../workflows/cc_review.md#4
 | change the actor/critic boundary or GAE / value semantics | `rl/training/graph_ppo.py`: `CTDEConfig`, `ValueHead`, `CentralCritic`, `build_central_critic`, `CTDEEpisodeRecord`, `CTDEBuffer`, `compute_gae`, `_gae_pass`, `compute_ctde_advantages`, `CTDEUpdater`, `episode_rewards_sequence`; tests `tests/test_graph_ctde.py`, `tests/test_graph_ppo.py` | §4 |
 | change what an update reports about its credit | `rl/training/graph_ppo.py`: `CreditReport`, `CreditSink`, the `credit_sink` parameter of `PPOUpdater.update` / `CTDEUpdater.update`, `AdvantageBatch.record_positions` / `chain_ordinals`, `CTDEAdvantageBatch.rewards` / `td_residuals` / `record_positions` / `decision_ordinals`; tests `tests/test_graph_semantic_action_credit.py` | §4; [artifacts and metrics §5.1](artifacts_metrics.md#51-training-credit-diagnostics) |
 | change the epoch-0 actor-gradient report | `rl/training/graph_ppo.py`: `ActorGradientReport`, `GradientSink`, `_flat_actor_grad`, the `gradient_group_ids` / `gradient_sink` / `gradient_contrast_ids` parameters of `CTDEUpdater.update`; tests `tests/test_graph_ctde_actor_gradient_diagnostics.py` | §4; [artifacts and metrics §5.2](artifacts_metrics.md#52-ctde-actor-gradient-diagnostics) |
+| change the every-epoch actor-only step report | `rl/training/graph_ppo.py`: `ActorStepReport`, `ActorStepEpoch`, `StepSink`, `_flat_tensors`, `PPOUpdater._abort_contrast` / `_abort_contrast_now` / `_parameter_layout`, the `step_group_ids` / `step_sink` / `step_contrast_ids` parameters of `PPOUpdater.update`; tests `tests/test_graph_actor_step_diagnostics.py` | §4; [artifacts and metrics §5.3](artifacts_metrics.md#53-actor-only-step-diagnostics) |
 | change when the central state is captured | `rl/training/graph_tick_loop.py`: `run_episode(central=...)` and its `capture` call immediately before `_wake_decision` | §4; [runtime §5](runtime.md#5-resync-stage-6-and-the-two-phase-tick-loop) |
 | change actor-only preservation or checkpoints | `rl/training/graph_train.py`: `_ctde_kwargs`, `_central_kwargs`, `save_checkpoint(..., critic=None)`, the critic diagnostics on training records, `run_config.json:/training`; poison test and control in `tests/test_graph_ctde.py` | §4 |
 | change the graph representation | `rl/observation/graph_builder.py`: `GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`, `AGENT_FEATURE_DIM`, `AGENT_FEATURE_COLUMNS`, `ACTOR_OBSERVATION_ID`, `actor_observation_definition` | §1 |

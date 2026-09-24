@@ -344,6 +344,8 @@ Selected options (`--help` is authoritative):
 | `--fuel-damage-mode`, `--fuel-damage-probability` | `seeded_mixture`, 0.5 | fuel-damage scheduling; the generalized designs require `seeded_variable` |
 | `--visual-artifacts` | off | opt-in per-attempt inspection bundles |
 | `--actor-gradient-diagnostics` | off | `ctde` only: opt-in observational epoch-0 actor-gradient decomposition per update |
+| `--actor-step-diagnostics` | off | `actor_only` only: opt-in observational every-epoch gradient decomposition and actual Adam displacement per update |
+| `--actor-step-vector-iterations` | none | with `--actor-step-diagnostics`: comma-separated iterations whose epoch-0 vectors are saved unrounded |
 | `--plot RUN_DIR` | — | re-draw an existing run directory's figures into `<RUN_DIR>/plots/` and exit |
 
 Training refuses to start unless Git provenance is complete — both the full commit SHA and
@@ -394,6 +396,7 @@ A run directory is the record of the run. `graph_train` writes:
 | `episode_outcomes.jsonl` | one durable record per successful attempt, including per-wake actor diagnostics |
 | `episode_failures.jsonl` | append-only: every failed episode attempt with its pipeline stage, exact seed and traceback |
 | `train_actor_gradient_diagnostics.jsonl` | only with `--actor-gradient-diagnostics` (`ctde`): one observational epoch-0 policy-gradient decomposition per update |
+| `train_actor_step_diagnostics.jsonl` | only with `--actor-step-diagnostics` (`actor_only`): one observational record per update covering every PPO epoch's grouped gradient, contrast pressure and actual Adam displacement; optional epoch-0 vectors under `train_actor_step_vectors/` |
 | `run_summary.json` | derived from the jsonl files, with an accounting reconciliation flag |
 | `plots/` | figures drawn from the jsonl files alone (below) |
 | `scenarios/` | the generated scenario JSON for each attempt |
