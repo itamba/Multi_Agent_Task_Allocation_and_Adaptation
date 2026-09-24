@@ -198,6 +198,13 @@ a console scrollback:
                                  gradient by measurement group
                                  (``_actor_gradient_record``). Observational; read back
                                  by nothing.
+  * ``train_actor_step_diagnostics.jsonl`` -- OPT-IN (``--actor-step-diagnostics``),
+                                 ACTOR_ONLY only, append-only: one record per productive
+                                 update holding every PPO epoch's grouped surrogate
+                                 gradient, contrast pressure and ACTUAL Adam
+                                 displacement (``_actor_step_record``), plus optional
+                                 epoch-0 vector files under ``train_actor_step_vectors/``.
+                                 Observational; read back by nothing.
   * ``run_summary.json``       -- derived from the three jsonl files at completion.
   * ``plots/``                 -- the three figures, derived from the jsonl files alone:
                                  ``training_performance.png`` (train reward, held-out
@@ -295,6 +302,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import importlib.metadata
+import hashlib
 import json
 import math
 import os
@@ -348,6 +356,7 @@ from .graph_ppo import (
     CTDEEpisodeRecord,
     CTDEUpdater,
     ActorGradientReport,
+    ActorStepReport,
     CreditReport,
     EpisodeRecord,
     PPOBuffer,
@@ -672,6 +681,29 @@ class ActorGradientDiagnosticsError(RuntimeError):
     misattributed a record would be scientifically incomplete, so the run stops.
     """
 
+# ACTOR-STEP DIAGNOSTICS -- `train_actor_step_diagnostics.jsonl`. OPT-IN, OFF by default,
+# ACTOR_ONLY only. One record per productive update holding EVERY PPO epoch of
+# `PPOUpdater.update`: the raw clipped-surrogate gradient decomposed over the SAME four
+# measurement groups as the CTDE diagnostic above (resolved here, trainer-side, from the
+# `credit_tags` join; the updater sees only opaque integer ids), the entropy component,
+# the local SEVERE-minus-MILD ABORT contrast and its gradient at the pre-step parameters,
+# the real pre / post-clip gradient, the ACTUAL parameter displacement of the one
+# existing Adam step, and the contrast re-read after that step on the same stored
+# observations. Optionally, `actor_step_vector_iterations` names updates whose epoch-0
+# vectors are also saved unrounded under `train_actor_step_vectors/`.
+_ACTOR_STEP_DIAGNOSTICS_FILENAME = "train_actor_step_diagnostics.jsonl"
+_ACTOR_STEP_DIAGNOSTICS_SCHEMA = "graph_train_actor_step_diagnostics"
+_ACTOR_STEP_DIAGNOSTICS_VERSION = 1
+_ACTOR_STEP_VECTORS_DIRNAME = "train_actor_step_vectors"
+
+
+class ActorStepDiagnosticsError(RuntimeError):
+    """The actor-step diagnostic could not be produced, verified or persisted.
+
+    A RUN-INTEGRITY failure, never attrition: a missing, misaligned or non-finite record
+    of an enabled diagnostic stops the run.
+    """
+
 # Keys holding the full record lists inside a run summary. They are returned in-process
 # but NOT persisted to run_summary.json -- the jsonl files are the record, and copying
 # them into the summary would create a second, divergeable metric path.
@@ -897,6 +929,8 @@ _CLI_FIELD_BY_DEST = {
     "aircraft_penalty_coeff": "aircraft_penalty_coeff",
     "visual_artifacts": "visual_artifacts",
     "actor_gradient_diagnostics": "actor_gradient_diagnostics",
+    "actor_step_diagnostics": "actor_step_diagnostics",
+    "actor_step_vector_iterations": "actor_step_vector_iterations",
     "training_mode": "training_mode",
     "episode_design": "episode_design",
     "match_aou_backend": "match_aou_backend",
@@ -1054,6 +1088,11 @@ class TrainConfig:
             epoch-0 actor-gradient decomposition artifact
             ``train_actor_gradient_diagnostics.jsonl``. Observational; it changes no
             update.
+        actor_step_diagnostics: opt in (OFF by default, ``actor_only`` only) to the
+            every-epoch actor-step artifact ``train_actor_step_diagnostics.jsonl``.
+            Observational; it changes no update.
+        actor_step_vector_iterations: iterations whose epoch-0 diagnostic vectors are
+            also saved unrounded (requires ``actor_step_diagnostics``; empty by default).
         num_red_airbases: LEGACY, like ``partial_ratio`` -- the construction path emits
             ``n_known`` targets and never reads this.
     """
@@ -1286,6 +1325,13 @@ class TrainConfig:
     # Observational: extra `autograd.grad` calls on the epoch-0 graph of each productive
     # update (cost), no change to what the update does. See `_actor_gradient_record`.
     actor_gradient_diagnostics: bool = False
+
+    # --- ACTOR-STEP DIAGNOSTICS: opt-in, OFF by default, ACTOR_ONLY only -----------
+    # Observational: extra `autograd.grad` calls on every epoch's graph, reads of the real
+    # `.grad` / parameters around the one step, and a no-grad re-read of the contrast
+    # rows after it (cost), no change to what the update does. See `_actor_step_record`.
+    actor_step_diagnostics: bool = False
+    actor_step_vector_iterations: Tuple[int, ...] = ()
 
     # --- LEGACY split surface (see `derived_split`) -------------------------------
     # The Phase-A baseline cell, kept so `derived_split` / `split_preview` / the
@@ -1626,6 +1672,20 @@ class TrainConfig:
             raise ValueError(
                 "actor_gradient_diagnostics requires training_mode='ctde', got %r"
                 % (self.training_mode,))
+        # The actor-step diagnostic instruments `PPOUpdater` only, symmetrically.
+        if self.actor_step_diagnostics and self.ctde_enabled:
+            raise ValueError(
+                "actor_step_diagnostics requires training_mode='actor_only', got %r"
+                % (self.training_mode,))
+        vector_iterations = list(self.actor_step_vector_iterations)
+        if vector_iterations and not self.actor_step_diagnostics:
+            raise ValueError("actor_step_vector_iterations requires actor_step_diagnostics")
+        if any(isinstance(v, bool) or not isinstance(v, int) or v < 0
+               for v in vector_iterations) or vector_iterations != sorted(
+                   set(vector_iterations)):
+            raise ValueError(
+                "actor_step_vector_iterations must be strictly increasing non-negative "
+                "ints, got %r" % (self.actor_step_vector_iterations,))
 
         # --- THE DESIGN SELECTOR, checked before anything reads it -----------------
         # An UNRECOGNIZED design raises rather than falling back on the historical
@@ -4130,6 +4190,22 @@ def write_run_config(
                 "group_loss": "sum_over_group_div_total_batch_transitions",
                 "groups": list(_ACTOR_GRADIENT_GROUPS),
                 "separation_contrast": _ACTOR_GRADIENT_CONTRAST_DEFINITION,
+            },
+            # The OPT-IN actor-only step diagnostic, stated whether or not it is on.
+            "actor_step_diagnostics": {
+                "enabled": bool(cfg.actor_step_diagnostics),
+                "artifact": _ACTOR_STEP_DIAGNOSTICS_FILENAME,
+                "schema": _ACTOR_STEP_DIAGNOSTICS_SCHEMA,
+                "schema_version": _ACTOR_STEP_DIAGNOSTICS_VERSION,
+                "scope": "actor_only_ppo_updater_every_epoch",
+                "gradient": "ppo_policy_surrogate_before_entropy",
+                "group_loss": "sum_over_group_div_total_batch_transitions",
+                "entropy_component": "total_loss_grad_minus_policy_surrogate_grad",
+                "groups": list(_ACTOR_GRADIENT_GROUPS),
+                "contrast": _ACTOR_GRADIENT_CONTRAST_DEFINITION,
+                "displacement": "parameters_after_minus_before_the_one_optimizer_step",
+                "vector_iterations": [int(v) for v in cfg.actor_step_vector_iterations],
+                "vector_directory": _ACTOR_STEP_VECTORS_DIRNAME,
             },
             # GENERALIZED-V1 Task 5C: WHAT `episodes_per_iteration` COUNTS, and the
             # bounded budget behind it. Recorded on BOTH designs and stated positively:
@@ -8354,6 +8430,503 @@ def _persist_actor_gradient_diagnostics(
     return 1
 
 
+def _actor_step_group(tr: Any, tags: Optional[Mapping[str, Any]]) -> str:
+    """The measurement group of one actor-only transition (the CTDE diagnostic's rule)."""
+    try:
+        return _actor_gradient_group(tr, tags)
+    except ActorGradientDiagnosticsError as exc:
+        raise ActorStepDiagnosticsError(str(exc)) from exc
+
+
+def _actor_step_group_ids(
+    records: Sequence[EpisodeRecord],
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+) -> List[int]:
+    """OPAQUE group ids, one per transition, in the order ``compute_returns_and_advantages``
+    flattens ``records``: record order, then each record's ``transitions()`` (ego chain by
+    ego chain, NOT the tick-interleaved trajectory order). Only these integers cross into
+    the updater; `_actor_step_record` re-verifies them against the batch's own identities."""
+    return [
+        _ACTOR_GRADIENT_GROUPS.index(_actor_step_group(
+            tr, measurement_tags.get((int(rec.episode_index), int(rec.seed)))))
+        for rec in records for tr in rec.transitions()
+    ]
+
+
+def _quantile(sorted_values: Sequence[float], q: float) -> float:
+    """Linear-interpolation quantile of an already sorted, non-empty sequence."""
+    pos = (len(sorted_values) - 1) * float(q)
+    lo = int(math.floor(pos))
+    hi = min(lo + 1, len(sorted_values) - 1)
+    return float(sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (pos - lo))
+
+
+def _distribution(values: Sequence[float]) -> Optional[Dict[str, Any]]:
+    """Count, mean, quantiles and signs of a group's values; ``None`` when it is empty."""
+    if not values:
+        return None
+    s = sorted(float(v) for v in values)
+    return {
+        "n": len(s), "mean": math.fsum(s) / len(s), "min": s[0],
+        "q10": _quantile(s, 0.1), "median": _quantile(s, 0.5), "q90": _quantile(s, 0.9),
+        "max": s[-1], "n_positive": sum(1 for v in s if v > 0.0),
+        "n_negative": sum(1 for v in s if v < 0.0), "n_zero": sum(1 for v in s if v == 0.0),
+    }
+
+
+def _all_finite(v: np.ndarray) -> bool:
+    return bool(np.isfinite(v).all())
+
+
+# Declared integrity tolerances of the actor-step record: a residual above
+# `rel * reference_norm + abs` is a misattribution or wiring fault, not round-off
+# (the float32 autograd round-off observed on the CTDE diagnostic is ~1e-6 relative).
+_ACTOR_STEP_RESIDUAL_REL_TOL = 1e-4
+_ACTOR_STEP_RESIDUAL_ABS_TOL = 1e-10
+
+
+def _actor_step_record(
+    report: ActorStepReport,
+    diag: Mapping[str, Any],
+    *,
+    iteration: int,
+    updates_completed_before: int,
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+) -> Dict[str, Any]:
+    """ONE JSON record from ONE :class:`ActorStepReport`. REPORTING-ONLY; fails LOUD.
+
+    ATTRIBUTION comes from the batch the update ACTUALLY consumed: transition ``i`` must
+    be, by object identity, ``records[record_positions[i]].chains[ego][chain_ordinals[i]]``,
+    every record transition must occur exactly once, and the group ids re-derived from
+    those identities must equal the ids the update used. The record must also agree with
+    the update's own diagnostics (epoch count, losses, clip-norm returns), its group
+    gradients must sum to the surrogate gradient, its ``total_loss`` gradient must equal
+    the real backward gradient and its clipped gradient must be the scaled backward one,
+    all within the declared tolerances; everything must be finite.
+
+    DEFINITIONS, per epoch (``h`` = the contrast gradient at the pre-step parameters,
+    ``g`` a raw loss-gradient component, ``delta`` the actual displacement of the ONE
+    Adam step): ``pressure = -dot(h, g)`` (a raw descent step ``-lr * g`` changes the
+    contrast by ``lr * pressure`` to first order; positive pushes toward LARGER
+    SEVERE-minus-MILD ABORT separation), ``alignment = cosine(-g, h)``;
+    ``predicted_delta_from_displacement = dot(h, delta)`` is the first-order prediction
+    for the ACTUAL step; ``actual_delta = after - before`` on the same stored rows and
+    ``linearization_residual = actual_delta - predicted``. Group pressures are raw-loss
+    gradient components: no additive Adam effect is attributed to a group. The entropy
+    component is ``total_loss_grad - policy_surrogate_grad``. When either FD severity is
+    absent every contrast field is ``null`` with a reason; the decomposition and the step
+    are still recorded.
+    """
+    batch = report.batch
+    records = list(report.records)
+    n = int(batch.n_transitions)
+    if n <= 0 or len(batch.transitions) != n or len(batch.record_positions) != n \
+            or len(batch.chain_ordinals) != n:
+        raise ActorStepDiagnosticsError("the step report's batch identity arrays are malformed")
+    expected: List[int] = []
+    seen = set()
+    for i, tr in enumerate(batch.transitions):
+        pos = int(batch.record_positions[i])
+        if not 0 <= pos < len(records):
+            raise ActorStepDiagnosticsError("transition %d names no record" % i)
+        rec = records[pos]
+        chain = rec.chains.get(str(tr.ego_id))
+        ordinal = int(batch.chain_ordinals[i])
+        if chain is None or not 0 <= ordinal < len(chain) or chain[ordinal] is not tr:
+            raise ActorStepDiagnosticsError(
+                "transition %d is not its record's chain entry by identity" % i)
+        seen.add(id(tr))
+        expected.append(_ACTOR_GRADIENT_GROUPS.index(_actor_step_group(
+            tr, measurement_tags.get((int(rec.episode_index), int(rec.seed))))))
+    if len(seen) != n or sum(rec.n_transitions for rec in records) != n:
+        raise ActorStepDiagnosticsError(
+            "the batch does not hold every record transition exactly once")
+    if report.group_ids is None or list(report.group_ids) != expected:
+        raise ActorStepDiagnosticsError(
+            "the update's step group ids are not aligned with its batch transitions")
+    counts = {name: int(report.group_counts.get(gid, 0))
+              for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS)}
+    if (set(report.group_counts) - set(range(len(_ACTOR_GRADIENT_GROUPS)))
+            or sum(counts.values()) != n):
+        raise ActorStepDiagnosticsError(
+            "step group counts do not partition the batch's %d transitions" % n)
+    if tuple(report.contrast_ids or ()) != _actor_gradient_contrast_ids():
+        raise ActorStepDiagnosticsError(
+            "the update's contrast ids %r are not the trainer's %r"
+            % (report.contrast_ids, _actor_gradient_contrast_ids()))
+    pos_name, neg_name = _ACTOR_GRADIENT_CONTRAST
+    if tuple(report.contrast_counts or ()) != (counts[pos_name], counts[neg_name]):
+        raise ActorStepDiagnosticsError("the contrast row counts disagree with the groups")
+    contrast_defined = counts[pos_name] > 0 and counts[neg_name] > 0
+    undefined_reason = (None if contrast_defined else
+                        "no_%s_and_no_%s_transition" % (pos_name, neg_name)
+                        if counts[pos_name] == 0 and counts[neg_name] == 0 else
+                        "no_%s_transition" % (pos_name if counts[pos_name] == 0 else neg_name))
+
+    epochs = list(report.epochs)
+    per_epoch = diag.get("per_epoch", {})
+    if len(epochs) != int(diag.get("n_epochs_run", -1)) or [e.epoch for e in epochs] != list(
+            range(len(epochs))):
+        raise ActorStepDiagnosticsError(
+            "the step report holds %d epoch(s), the update ran %s"
+            % (len(epochs), diag.get("n_epochs_run")))
+    for e in epochs:
+        if (e.pre_clip_grad_norm != per_epoch["grad_norm"][e.epoch]
+                or e.policy_loss != per_epoch["policy_loss"][e.epoch]
+                or e.total_loss != per_epoch["total_loss"][e.epoch]
+                or e.entropy != per_epoch["entropy"][e.epoch]):
+            raise ActorStepDiagnosticsError(
+                "epoch %d of the step report disagrees with the update's diagnostics"
+                % e.epoch)
+
+    def check_residual(what: str, residual: float, reference: float) -> None:
+        if not residual <= (_ACTOR_STEP_RESIDUAL_REL_TOL * reference
+                            + _ACTOR_STEP_RESIDUAL_ABS_TOL):
+            raise ActorStepDiagnosticsError(
+                "%s residual %r exceeds the declared tolerance (reference norm %r)"
+                % (what, residual, reference))
+
+    advantages = [float(a) for a in batch.advantages]
+    raw_advantages = [float(a) for a in batch.raw_advantages]
+    members = {name: [i for i, g in enumerate(expected) if g == gid]
+               for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS)}
+    derived_members = {name: sorted(i for m in parts for i in members[m])
+                       for name, parts in _ACTOR_GRADIENT_DERIVED.items()}
+
+    def action_counts(idx: Sequence[int]) -> Dict[str, int]:
+        out: Dict[str, int] = {}
+        for i in idx:
+            name = MetaAction(int(batch.transitions[i].meta_action)).name
+            out[name] = out.get(name, 0) + 1
+        return dict(sorted(out.items()))
+
+    groups_block = {
+        name: {
+            "n_transitions": counts[name],
+            "batch_fraction": float(counts[name]) / n,
+            "selected_meta_action_counts": action_counts(members[name]),
+            "normalized_advantage": _distribution([advantages[i] for i in members[name]]),
+            "raw_advantage": _distribution([raw_advantages[i] for i in members[name]]),
+        }
+        for name in _ACTOR_GRADIENT_GROUPS
+    }
+
+    def ratio_block(ratios: Sequence[float], idx: Sequence[int]) -> Optional[Dict[str, Any]]:
+        if not idx:
+            return None
+        eps = float(report.clip_ratio)
+        outside = sum(1 for i in idx if abs(ratios[i] - 1.0) > eps)
+        # the CLAMPED branch of `clipped_surrogate` binds (zero policy gradient):
+        binding = sum(1 for i in idx
+                      if (advantages[i] > 0.0 and ratios[i] > 1.0 + eps)
+                      or (advantages[i] < 0.0 and ratios[i] < 1.0 - eps))
+        return {"mean_ratio": math.fsum(ratios[i] for i in idx) / len(idx),
+                "max_abs_ratio_deviation": max(abs(ratios[i] - 1.0) for i in idx),
+                "fraction_outside_clip_band": outside / len(idx),
+                "fraction_clip_binding": binding / len(idx)}
+
+    zero = np.zeros(sum(int(np.prod(shape)) for _, shape, _ in report.parameter_layout),
+                    dtype=np.float64)
+    epoch_records: List[Dict[str, Any]] = []
+    for e in epochs:
+        vecs = {
+            "policy_surrogate_grad": e.policy_surrogate_grad,
+            "total_loss_grad": e.total_loss_grad,
+            "backward_grad": e.backward_grad,
+            "clipped_grad": e.clipped_grad,
+            "delta_theta": e.delta_theta,
+        }
+        grads = {name: e.group_policy_surrogate_grads.get(gid, zero)
+                 for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS)}
+        if set(e.group_policy_surrogate_grads) != {
+                gid for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS) if counts[name] > 0}:
+            raise ActorStepDiagnosticsError(
+                "epoch %d group gradients do not match the non-empty groups" % e.epoch)
+        for key, v in list(vecs.items()) + [("group_" + k, v) for k, v in grads.items()]:
+            if v.shape != zero.shape or not _all_finite(v):
+                raise ActorStepDiagnosticsError(
+                    "epoch %d vector %s is misshapen or non-finite" % (e.epoch, key))
+        derived = {name: sum((grads[m] for m in parts), zero)
+                   for name, parts in _ACTOR_GRADIENT_DERIVED.items()}
+        policy_g, total_g = e.policy_surrogate_grad, e.total_loss_grad
+        entropy_g = total_g - policy_g
+        group_sum = sum(grads.values(), zero)
+        policy_norm, total_norm = _norm(policy_g), _norm(total_g)
+        backward_norm = _norm(e.backward_grad)
+        group_residual = _norm(policy_g - group_sum)
+        backward_residual = _norm(total_g - e.backward_grad)
+        plus_entropy_residual = _norm(group_sum + entropy_g - e.backward_grad)
+        check_residual("epoch %d group-sum" % e.epoch, group_residual, policy_norm)
+        check_residual("epoch %d total-loss vs backward" % e.epoch, backward_residual,
+                       backward_norm)
+        post_clip_norm = _norm(e.clipped_grad)
+        scale = 1.0 if e.pre_clip_grad_norm == 0.0 else post_clip_norm / e.pre_clip_grad_norm
+        clip_scale_residual = _norm(e.clipped_grad - scale * e.backward_grad)
+        check_residual("epoch %d clipped vs scaled backward" % e.epoch,
+                       clip_scale_residual, post_clip_norm)
+        check_residual("epoch %d clip-norm return vs backward norm" % e.epoch,
+                       abs(e.pre_clip_grad_norm - backward_norm), backward_norm)
+        delta = e.delta_theta
+        delta_norm = _norm(delta)
+
+        def gblock(v: np.ndarray, count: int) -> Dict[str, Any]:
+            defined = count > 0
+            return {"n_transitions": int(count), "grad_norm": _norm(v),
+                    "cosine_vs_policy_surrogate": _cosine(v, policy_g) if defined else None,
+                    "cosine_vs_total_loss": _cosine(v, total_g) if defined else None}
+
+        record: Dict[str, Any] = {
+            "epoch": int(e.epoch),
+            "policy_loss": e.policy_loss,
+            "total_loss": e.total_loss,
+            "entropy": e.entropy,
+            "ratio": {
+                "all": ratio_block(e.ratios, list(range(n))),
+                "groups": {name: ratio_block(e.ratios, members[name])
+                           for name in _ACTOR_GRADIENT_GROUPS},
+                "derived": {name: ratio_block(e.ratios, idx)
+                            for name, idx in derived_members.items()},
+            },
+            "gradient": {
+                "groups": {name: gblock(grads[name], counts[name])
+                           for name in _ACTOR_GRADIENT_GROUPS},
+                "derived": {name: gblock(derived[name], len(derived_members[name]))
+                            for name in _ACTOR_GRADIENT_DERIVED},
+                "policy_surrogate_grad_norm": policy_norm,
+                "entropy_component_grad_norm": _norm(entropy_g),
+                "total_loss_grad_norm": total_norm,
+                "cosine_fd_vs_non_fd": (
+                    _cosine(derived["fd"], derived["non_fd"])
+                    if derived_members["fd"] and derived_members["non_fd"] else None),
+                "cosine_entropy_vs_policy_surrogate": _cosine(entropy_g, policy_g),
+                "group_sum_residual_norm": group_residual,
+                "group_sum_relative_residual": (
+                    None if policy_norm == 0.0 else group_residual / policy_norm),
+                "total_loss_vs_backward_residual_norm": backward_residual,
+                "total_loss_vs_backward_relative_residual": (
+                    None if backward_norm == 0.0 else backward_residual / backward_norm),
+                "groups_plus_entropy_vs_backward_relative_residual": (
+                    None if backward_norm == 0.0 else plus_entropy_residual / backward_norm),
+            },
+            "step": {
+                "pre_clip_grad_norm": e.pre_clip_grad_norm,
+                "backward_grad_norm": backward_norm,
+                "post_clip_grad_norm": post_clip_norm,
+                "max_grad_norm": float(report.max_grad_norm),
+                "clipped": e.pre_clip_grad_norm > float(report.max_grad_norm),
+                "clip_scale": scale,
+                "clipped_vs_scaled_backward_residual_norm": clip_scale_residual,
+                "delta_theta_norm": delta_norm,
+                "delta_theta_max_abs": float(np.max(np.abs(delta))),
+                "cosine_delta_vs_neg_clipped_grad": _cosine(delta, -e.clipped_grad),
+                "cosine_delta_vs_neg_total_loss_grad": _cosine(delta, -total_g),
+            },
+        }
+        h = e.contrast_grad
+        present = (h is not None, e.contrast_before is not None, e.contrast_after is not None,
+                   e.contrast_side_means_before is not None,
+                   e.contrast_side_means_after is not None)
+        consistent = all(present) if contrast_defined else not any(present)
+        if not consistent:
+            raise ActorStepDiagnosticsError(
+                "epoch %d contrast is %s but its two groups are %s"
+                % (e.epoch, "present" if any(present) else "absent",
+                   "both present" if contrast_defined else "not both present"))
+        if contrast_defined:
+            if h.shape != zero.shape or not _all_finite(h):
+                raise ActorStepDiagnosticsError(
+                    "epoch %d contrast gradient is misshapen or non-finite" % e.epoch)
+
+            def pressure(v: np.ndarray, defined: bool = True) -> Dict[str, Any]:
+                if not defined:
+                    return {"pressure": None, "alignment": None}
+                return {"pressure": -_dot(h, v), "alignment": _cosine(-v, h)}
+
+            predicted = _dot(h, delta)
+            actual = float(e.contrast_after) - float(e.contrast_before)
+            record["contrast"] = {
+                "before": float(e.contrast_before),
+                "p_abort_mean_%s_before" % pos_name: float(e.contrast_side_means_before[0]),
+                "p_abort_mean_%s_before" % neg_name: float(e.contrast_side_means_before[1]),
+                "grad_norm": _norm(h),
+                "pressure": {
+                    "groups": {name: pressure(grads[name], counts[name] > 0)
+                               for name in _ACTOR_GRADIENT_GROUPS},
+                    "derived": {name: pressure(derived[name], bool(derived_members[name]))
+                                for name in _ACTOR_GRADIENT_DERIVED},
+                    "policy_surrogate": pressure(policy_g),
+                    "entropy_component": pressure(entropy_g),
+                    "total_loss": pressure(total_g),
+                },
+                "predicted_delta_from_displacement": predicted,
+                "cosine_delta_vs_contrast_grad": _cosine(delta, h),
+                "after": float(e.contrast_after),
+                "p_abort_mean_%s_after" % pos_name: float(e.contrast_side_means_after[0]),
+                "p_abort_mean_%s_after" % neg_name: float(e.contrast_side_means_after[1]),
+                "actual_delta": actual,
+                "linearization_residual": actual - predicted,
+            }
+            record["contrast_undefined_reason"] = None
+        else:
+            record["contrast"] = None
+            record["contrast_undefined_reason"] = undefined_reason
+        epoch_records.append(record)
+
+    summary: Dict[str, Any] = {
+        "contrast_defined": contrast_defined,
+        "contrast_undefined_reason": undefined_reason,
+        "n_%s" % pos_name: counts[pos_name],
+        "n_%s" % neg_name: counts[neg_name],
+        "full_displacement_norm": _norm(sum((e.delta_theta for e in epochs), zero)),
+        "path_length": math.fsum(_norm(e.delta_theta) for e in epochs),
+    }
+    if contrast_defined:
+        cs = [r["contrast"] for r in epoch_records]
+        full = cs[-1]["after"] - cs[0]["before"]
+        summed = math.fsum(c["actual_delta"] for c in cs)
+        summary.update({
+            "contrast_before_update": cs[0]["before"],
+            "contrast_after_update": cs[-1]["after"],
+            "full_update_delta": full,
+            "epoch_deltas": [c["actual_delta"] for c in cs],
+            "sum_epoch_deltas": summed,
+            "telescoping_residual": full - summed,
+            "max_epoch_boundary_mismatch": max(
+                [abs(cs[k]["after"] - cs[k + 1]["before"]) for k in range(len(cs) - 1)],
+                default=0.0),
+            "epoch_first_order_predictions": [c["predicted_delta_from_displacement"]
+                                              for c in cs],
+            "sum_first_order_predictions": math.fsum(
+                c["predicted_delta_from_displacement"] for c in cs),
+            "sum_linearization_residuals": math.fsum(c["linearization_residual"] for c in cs),
+            "epoch0_contrast_grad_dot_full_displacement": _dot(
+                epochs[0].contrast_grad, sum((e.delta_theta for e in epochs), zero)),
+        })
+    else:
+        for key in ("contrast_before_update", "contrast_after_update", "full_update_delta",
+                    "epoch_deltas", "sum_epoch_deltas", "telescoping_residual",
+                    "max_epoch_boundary_mismatch", "epoch_first_order_predictions",
+                    "sum_first_order_predictions", "sum_linearization_residuals",
+                    "epoch0_contrast_grad_dot_full_displacement"):
+            summary[key] = None
+
+    out = {
+        "schema": _ACTOR_STEP_DIAGNOSTICS_SCHEMA,
+        "schema_version": _ACTOR_STEP_DIAGNOSTICS_VERSION,
+        "action_representation_id": ACTION_REPRESENTATION_ID,
+        "training_mode": TRAINING_MODE_ACTOR_ONLY,
+        "iteration": int(iteration),
+        "updates_completed_before": int(updates_completed_before),
+        "gradient": "ppo_policy_surrogate_before_entropy",
+        "group_loss": "sum_over_group_div_total_batch_transitions",
+        "contrast_definition": _ACTOR_GRADIENT_CONTRAST_DEFINITION,
+        "n_actor_parameters": int(zero.size),
+        "batch_n_transitions": n,
+        "batch_n_episodes": int(batch.n_episodes),
+        "n_epochs": len(epochs),
+        "clip_ratio": float(report.clip_ratio),
+        "entropy_coeff": float(report.entropy_coeff),
+        "max_grad_norm": float(report.max_grad_norm),
+        "groups": groups_block,
+        "derived_groups": {name: list(parts) for name, parts in _ACTOR_GRADIENT_DERIVED.items()},
+        "epochs": epoch_records,
+        "update_summary": summary,
+        "vector_file": None,
+    }
+    return out
+
+
+def _actor_step_vectors(report: ActorStepReport, epoch: int = 0) -> Dict[str, np.ndarray]:
+    """The unrounded vectors of one epoch, by array name (a missing group is zeros; an
+    undefined contrast gradient is ABSENT). Called only after `_actor_step_record`
+    verified them."""
+    e = report.epochs[epoch]
+    size = sum(int(np.prod(shape)) for _, shape, _ in report.parameter_layout)
+    out = {
+        "policy_surrogate_grad": e.policy_surrogate_grad,
+        "total_loss_grad": e.total_loss_grad,
+        "backward_grad": e.backward_grad,
+        "clipped_grad": e.clipped_grad,
+        "delta_theta": e.delta_theta,
+    }
+    for gid, name in enumerate(_ACTOR_GRADIENT_GROUPS):
+        out["group_" + name] = e.group_policy_surrogate_grads.get(
+            gid, np.zeros(size, dtype=np.float64))
+    if e.contrast_grad is not None:
+        out["contrast_grad"] = e.contrast_grad
+    return out
+
+
+def _persist_actor_step_diagnostics(
+    path: Path,
+    reports: Sequence[ActorStepReport],
+    diag: Mapping[str, Any],
+    *,
+    iteration: int,
+    updates_completed_before: int,
+    measurement_tags: Mapping[Tuple[int, int], Mapping[str, Any]],
+    vector_dir: Optional[Path] = None,
+) -> int:
+    """Write one update's step record (and, if asked, its epoch-0 vectors), or STOP the run.
+
+    Fails LOUD (:class:`ActorStepDiagnosticsError`) when a productive update handed over
+    no report or several, when the record fails any check of `_actor_step_record`, when
+    it does not cover the update's transitions, or when a file cannot be written. Vector
+    files are write-once. Returns the record count.
+    """
+    productive = (int(diag.get("n_epochs_run", 0)) > 0
+                  and int(diag.get("n_transitions", 0)) > 0)
+    if len(reports) > 1:
+        raise ActorStepDiagnosticsError(
+            "an update handed %d step reports; exactly one is expected" % len(reports))
+    if not reports:
+        if productive:
+            raise ActorStepDiagnosticsError(
+                "a productive update (%d transition(s)) produced no step report"
+                % int(diag["n_transitions"]))
+        return 0
+    record = _actor_step_record(reports[0], diag, iteration=iteration,
+                                updates_completed_before=updates_completed_before,
+                                measurement_tags=measurement_tags)
+    if record["batch_n_transitions"] != int(diag.get("n_transitions", -1)):
+        raise ActorStepDiagnosticsError(
+            "the step record covers %d transition(s), the update %s"
+            % (record["batch_n_transitions"], diag.get("n_transitions")))
+    try:
+        if vector_dir is not None:
+            name = "iter_%04d_epoch0.npz" % int(iteration)
+            vpath = Path(vector_dir) / name
+            if vpath.exists():
+                raise ActorStepDiagnosticsError("%s already exists" % vpath)
+            layout = [{"name": pname, "shape": list(shape), "dtype": dtype}
+                      for pname, shape, dtype in reports[0].parameter_layout]
+            arrays = dict(sorted(_actor_step_vectors(reports[0], 0).items()))
+            with open(vpath, "xb") as fh:
+                np.savez_compressed(fh, layout_json=np.array(json.dumps(layout)), **arrays)
+            data = vpath.read_bytes()
+            record["vector_file"] = {
+                "path": "%s/%s" % (_ACTOR_STEP_VECTORS_DIRNAME, name),
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "bytes": len(data),
+                "epoch": 0,
+                "arrays": sorted(arrays),
+                "dtype": "float64",
+                "parameter_order": "PPOUpdater.parameters (encoder then head)",
+                "contrast_grad_absent_reason": (
+                    None if "contrast_grad" in arrays
+                    else record["epochs"][0]["contrast_undefined_reason"]),
+            }
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, allow_nan=False) + "\n")
+            fh.flush()
+    except ActorStepDiagnosticsError:
+        raise
+    except (OSError, TypeError, ValueError) as exc:
+        raise ActorStepDiagnosticsError(
+            "could not persist %s: %s" % (_ACTOR_STEP_DIAGNOSTICS_FILENAME, exc)) from exc
+    return 1
+
+
 def _observed_credit_diagnostics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """What the credit artifact actually carries -- OBSERVED, never asserted."""
     versions = sorted({int(r["schema_version"]) for r in rows
@@ -8660,6 +9233,11 @@ def train(
     # The OPT-IN actor-gradient stream; `None` (no file at all) when it is off.
     gradient_path = (run_dir / _ACTOR_GRADIENT_DIAGNOSTICS_FILENAME
                      if cfg.actor_gradient_diagnostics else None)
+    # The OPT-IN actor-only step stream and its optional vector directory; `None` when off.
+    step_path = (run_dir / _ACTOR_STEP_DIAGNOSTICS_FILENAME
+                 if cfg.actor_step_diagnostics else None)
+    step_vector_dir = (run_dir / _ACTOR_STEP_VECTORS_DIRNAME
+                       if cfg.actor_step_vector_iterations else None)
 
     # Written BEFORE the completeness gate below, so a refused run still leaves an
     # inspectable record of what was attempted and why it was refused.
@@ -8686,11 +9264,20 @@ def train(
     # Truncate the ledger and the outcome stream: they describe THIS run, and appending
     # to a previous run's records in a reused directory would silently corrupt the
     # accounting. After the gate, so a refused run never destroys an earlier run's files.
-    for append_only_path in (failures_path, outcomes_path, credit_path, gradient_path):
+    for append_only_path in (failures_path, outcomes_path, credit_path, gradient_path,
+                             step_path):
         if append_only_path is None:
             continue
         with open(append_only_path, "w", encoding="utf-8"):
             pass
+    # Vector files are write-once: a reused directory's earlier files are never deleted
+    # or overwritten, so their presence refuses the run instead.
+    if step_vector_dir is not None:
+        if step_vector_dir.exists() and any(step_vector_dir.iterdir()):
+            raise ActorStepDiagnosticsError(
+                "%s already holds files; vector files are never overwritten"
+                % step_vector_dir)
+        step_vector_dir.mkdir(parents=True, exist_ok=True)
 
     # Match the rollout/selftest PlaybackRecorder override (harmless when recording is
     # off, which it always is here). Lazy import: engine boundary.
@@ -9285,8 +9872,16 @@ def train(
                  "gradient_contrast_ids": _actor_gradient_contrast_ids()}
                 if gradient_path is not None else {}
             )
+            # OPT-IN actor-only step diagnostic: the same opaque-id boundary.
+            step_reports: List[ActorStepReport] = []
+            step_kwargs: Dict[str, Any] = (
+                {"step_group_ids": _actor_step_group_ids(buf.records, credit_tags),
+                 "step_sink": step_reports.append,
+                 "step_contrast_ids": _actor_gradient_contrast_ids()}
+                if step_path is not None else {}
+            )
             diag = updater.update(buf, credit_sink=credit_reports.append,
-                                  **gradient_kwargs)
+                                  **gradient_kwargs, **step_kwargs)
             update_seconds = time.perf_counter() - t_upd
             _persist_credit_diagnostics(
                 credit_path, credit_reports, diag,
@@ -9300,6 +9895,15 @@ def train(
                     iteration=int(iteration),
                     updates_completed_before=int(updates_before),
                     measurement_tags=credit_tags,
+                )
+            if step_path is not None:
+                _persist_actor_step_diagnostics(
+                    step_path, step_reports, diag,
+                    iteration=int(iteration),
+                    updates_completed_before=int(updates_before),
+                    measurement_tags=credit_tags,
+                    vector_dir=(step_vector_dir if int(iteration)
+                                in cfg.actor_step_vector_iterations else None),
                 )
             buf.clear()
             if int(diag["n_epochs_run"]) > 0:
@@ -12411,6 +13015,14 @@ def _bounded_type(cast: Any, minimum: float, *, inclusive: bool, what: str) -> A
     return _parse
 
 
+def _int_tuple_arg(text: str) -> Tuple[int, ...]:
+    """``"0,24,49"`` -> ``(0, 24, 49)``; an empty string is the empty tuple."""
+    try:
+        return tuple(int(part) for part in text.split(",") if part.strip())
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected comma-separated ints, got %r" % text) from exc
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     d_ppo = PPOConfig()
     # Scenario defaults are READ OFF a default TrainConfig, never restated as literals,
@@ -12639,6 +13251,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "decomposition per productive update (observational; costs "
                         "extra autograd passes) (default: %%(default)s)"
                         % _ACTOR_GRADIENT_DIAGNOSTICS_FILENAME)
+    p.add_argument("--actor-step-diagnostics", action="store_true",
+                   default=d_cfg.actor_step_diagnostics,
+                   help="actor_only only: write %s, one record per productive update "
+                        "decomposing every PPO epoch's surrogate gradient and its actual "
+                        "Adam displacement (observational; costs extra autograd passes) "
+                        "(default: %%(default)s)" % _ACTOR_STEP_DIAGNOSTICS_FILENAME)
+    p.add_argument("--actor-step-vector-iterations", type=_int_tuple_arg,
+                   default=d_cfg.actor_step_vector_iterations, metavar="I,J,...",
+                   help="with --actor-step-diagnostics: comma-separated iterations whose "
+                        "epoch-0 vectors are saved unrounded under <run_dir>/%s "
+                        "(default: none)" % _ACTOR_STEP_VECTORS_DIRNAME)
     p.add_argument("--config", type=str, default=None, metavar="PATH",
                    help="JSON preset of TrainConfig fields (see configs/graph_train/); "
                         "any flag given EXPLICITLY on the command line overrides it")

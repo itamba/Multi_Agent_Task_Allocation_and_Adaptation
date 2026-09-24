@@ -43,6 +43,15 @@ advantages / TD residuals / targets, plus the normalized advantages -- never a
 recomputation. The sink adds no forward, no GAE pass, no RNG draw and no gradient, and
 nothing in this module reads anything back from it.
 
+OBSERVATIONAL STEP INSTRUMENTATION (actor-only, opt-in). ``PPOUpdater.update`` also
+takes ``step_group_ids`` / ``step_sink`` / ``step_contrast_ids``: every epoch's group
+gradients, contrast gradient, pre- / post-clip ``.grad`` and the actual parameter
+displacement of the ONE existing ``optimizer.step()``, handed to the sink as ONE
+:class:`ActorStepReport`. It is the only addition to sections 1-6; with it off the
+update runs exactly the historical operations, and with it on the learning semantics
+(losses, backward, clip, step, RNG) are unchanged -- proven against the base updater by
+``tests/test_graph_actor_step_diagnostics.py``, not asserted as byte-identity.
+
 THE CREDIT STRUCTURE (locked in planning — read before changing anything)
 -------------------------------------------------------------------------
 1. **Per-ego grouping.** An :class:`EpisodeRecord` stores the episode's transitions
@@ -113,7 +122,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import (
-    TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union,
+    TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple,
+    Union,
 )
 
 import numpy as np
@@ -595,6 +605,94 @@ def _flat_actor_grad(
     ])
 
 
+def _flat_tensors(
+    tensors: Sequence[Optional[torch.Tensor]], params: Sequence[torch.nn.Parameter],
+) -> np.ndarray:
+    """Detached float64 copies of per-parameter tensors, concatenated in parameter order.
+
+    ``None`` (an unreached parameter's ``.grad``) contributes zeros. Reading a tensor this
+    way writes nothing back to it.
+    """
+    return np.concatenate([
+        np.zeros(p.numel(), dtype=np.float64) if t is None
+        else t.detach().reshape(-1).to(torch.float64).cpu().numpy()
+        for t, p in zip(tensors, params)
+    ])
+
+
+@dataclass(frozen=True)
+class ActorStepEpoch:
+    """ONE epoch of an instrumented actor-only update -- OBSERVATIONAL, all numpy / float.
+
+    Built by :meth:`PPOUpdater.update` around the epoch's ONE real ``backward()`` /
+    clip / ``optimizer.step()``. Every vector is flat float64 over
+    ``PPOUpdater.parameters`` in its own order:
+
+      * ``group_policy_surrogate_grads[g]`` -- ``d(sum(policy_loss_i, i in g) / n)``, the
+        group's REAL share of this epoch's mean clipped surrogate (``n`` = the full batch);
+      * ``policy_surrogate_grad`` / ``total_loss_grad`` -- the gradients of this epoch's
+        actual ``policy_loss`` and ``total_loss``, by ``autograd.grad`` before the backward;
+      * ``backward_grad`` -- the ``.grad`` the real backward left, BEFORE clipping;
+      * ``clipped_grad`` -- the ``.grad`` after the real clip, i.e. what Adam consumed;
+      * ``delta_theta`` -- the parameters after the ONE real ``optimizer.step()`` minus
+        the parameters before it.
+
+    CONTRAST (only when the caller named two opaque contrast ids and both occur in the
+    batch; otherwise every contrast field is ``None``): ``contrast_before`` is ``mean
+    P(ABORT)`` over the positive-id transitions minus that over the negative-id ones --
+    the semantic ABORT leaf of :func:`_semantic_dist` on THIS epoch's pre-step logits --
+    with ``contrast_side_means_before = (positive mean, negative mean)`` and
+    ``contrast_grad`` its gradient at the pre-step parameters. ``contrast_after`` /
+    ``contrast_side_means_after`` re-read the SAME stored observations after the step,
+    under ``torch.no_grad``.
+    """
+
+    epoch: int
+    policy_loss: float
+    total_loss: float
+    entropy: float
+    ratios: Tuple[float, ...]
+    group_policy_surrogate_grads: Dict[int, np.ndarray]
+    policy_surrogate_grad: np.ndarray
+    total_loss_grad: np.ndarray
+    backward_grad: np.ndarray
+    clipped_grad: np.ndarray
+    pre_clip_grad_norm: float
+    delta_theta: np.ndarray
+    contrast_before: Optional[float] = None
+    contrast_side_means_before: Optional[Tuple[float, float]] = None
+    contrast_grad: Optional[np.ndarray] = None
+    contrast_after: Optional[float] = None
+    contrast_side_means_after: Optional[Tuple[float, float]] = None
+
+
+@dataclass(frozen=True)
+class ActorStepReport:
+    """Every epoch of ONE productive, instrumented actor-only update -- OBSERVATIONAL.
+
+    ``batch`` / ``records`` are the objects the update consumed (as on
+    :class:`CreditReport`); ``group_ids`` are the OPAQUE integers the caller supplied,
+    index-aligned with ``batch.transitions``, and this module attaches no meaning to
+    them. ``parameter_layout`` names every flat-vector slice: ``(name, shape, dtype)`` in
+    ``PPOUpdater.parameters`` order. Nothing here is a tensor.
+    """
+
+    records: Sequence[Any]
+    batch: Any
+    group_ids: Tuple[int, ...]
+    group_counts: Dict[int, int]
+    contrast_ids: Optional[Tuple[int, int]]
+    contrast_counts: Optional[Tuple[int, int]]
+    parameter_layout: Tuple[Tuple[str, Tuple[int, ...], str], ...]
+    max_grad_norm: float
+    clip_ratio: float
+    entropy_coeff: float
+    epochs: Tuple[ActorStepEpoch, ...]
+
+
+StepSink = Callable[[ActorStepReport], None]
+
+
 # =============================================================================
 # 5. The clipped surrogate (factored out so it is hand-checkable in isolation)
 # =============================================================================
@@ -683,6 +781,9 @@ class PPOUpdater:
         self,
         source: RecordSource,
         credit_sink: Optional[CreditSink] = None,
+        step_group_ids: Optional[Sequence[int]] = None,
+        step_sink: Optional[StepSink] = None,
+        step_contrast_ids: Optional[Tuple[int, int]] = None,
     ) -> Dict[str, Any]:
         """Run ``cfg.n_epochs`` clipped-PPO epochs over ``source`` and step the optimizer.
 
@@ -690,6 +791,22 @@ class PPOUpdater:
         epoch of a PRODUCTIVE update (``n_epochs_run > 0``) and nothing otherwise. It is
         observational: it is handed the already-computed batch, and nothing in this
         method reads anything back from it.
+
+        ``step_group_ids`` / ``step_sink`` (OBSERVATIONAL, both or neither; OFF by
+        default): one OPAQUE integer per transition, in the batch's transition order
+        (records in order, each record's ``transitions()``). In EVERY epoch, after the
+        per-transition losses and ``total_loss`` exist and BEFORE the real backward, the
+        updater differentiates each id's summed policy loss over the FULL batch size and
+        both totals with ``torch.autograd.grad`` on the retained graph; around the real
+        backward / clip / step it reads (never writes) the pre- and post-clip ``.grad``
+        and the parameters, and after a productive update hands the sink ONE
+        :class:`ActorStepReport`. ``step_contrast_ids`` (optional, requires the two
+        above) names a ``(positive, negative)`` id pair: when both occur, each epoch
+        also forms ``mean P(ABORT | positive) - mean P(ABORT | negative)`` from that
+        epoch's own logits, its gradient, and its value after the step from a
+        ``torch.no_grad`` re-read of the same stored observations (the encoder and head
+        hold no dropout, no RNG and no mutable buffer, and nothing changes train / eval
+        mode). The ids never reach an advantage, a loss weight, the clip or the step.
 
         Per epoch, per transition (the encoder is SINGLE-GRAPH, so this is a python
         loop over transitions — see the module docstring):
@@ -759,6 +876,25 @@ class PPOUpdater:
             "per_epoch": per_epoch,
         }
 
+        if (step_group_ids is None) != (step_sink is None):
+            raise ValueError("step_group_ids and step_sink must be given together")
+        step_ids: Optional[Tuple[int, ...]] = None
+        if step_group_ids is not None:
+            step_ids = tuple(int(g) for g in step_group_ids)
+            if len(step_ids) != batch.n_transitions:
+                raise ValueError(
+                    "step_group_ids has %d entries but the batch has %d transitions"
+                    % (len(step_ids), batch.n_transitions))
+        step_contrast: Optional[Tuple[int, int]] = None
+        if step_contrast_ids is not None:
+            if step_ids is None:
+                raise ValueError("step_contrast_ids requires step_group_ids")
+            if len(step_contrast_ids) != 2:
+                raise ValueError("step_contrast_ids must be two distinct ids")
+            step_contrast = (int(step_contrast_ids[0]), int(step_contrast_ids[1]))
+            if step_contrast[0] == step_contrast[1]:
+                raise ValueError("step_contrast_ids must be two distinct ids")
+
         if batch.n_transitions == 0:
             # Clean no-op (documented above): nothing to learn from.
             for key in ("policy_loss", "total_loss", "entropy", "mean_ratio",
@@ -768,12 +904,24 @@ class PPOUpdater:
 
         advantages = batch.advantages
         n = batch.n_transitions
+        step_epochs: List[ActorStepEpoch] = []
+        step_members: Dict[int, List[int]] = {}
+        contrast_rows: Tuple[List[int], List[int]] = ([], [])
+        if step_ids is not None:
+            for i, g in enumerate(step_ids):
+                step_members.setdefault(g, []).append(i)
+            if step_contrast is not None:
+                for side, cid in enumerate(step_contrast):
+                    contrast_rows[side].extend(step_members.get(cid, []))
+        contrast_on = bool(contrast_rows[0]) and bool(contrast_rows[1])
 
         for _epoch in range(cfg.n_epochs):
             policy_losses: List[torch.Tensor] = []
             entropies: List[torch.Tensor] = []
             ratios_detached: List[float] = []
             kl_terms: List[float] = []
+            # (row -> this epoch's grad-attached logits, mask) -- kept only when requested.
+            contrast_inputs: Dict[int, Tuple[torch.Tensor, np.ndarray]] = {}
 
             for i, tr in enumerate(batch.transitions):
                 logits = self._forward_logits(tr.gobs)
@@ -789,6 +937,8 @@ class PPOUpdater:
                     clipped_surrogate(ratio, float(advantages[i]), cfg.clip_ratio)
                 )
                 entropies.append(entropy)
+                if contrast_on:
+                    contrast_inputs[i] = (logits, mask)
 
                 r = float(ratio.detach().item())
                 ratios_detached.append(r)
@@ -802,12 +952,69 @@ class PPOUpdater:
             # PHASE-B SEAM: the critic's value loss is ADDED here.
             total_loss = policy_loss - cfg.entropy_coeff * entropy_mean
 
+            # OBSERVATIONAL step instrumentation, part 1: gradients over the graph built
+            # above. `autograd.grad` writes no `.grad` and retains the graph, so the real
+            # backward below runs exactly as it would without this block.
+            if step_ids is not None:
+                step_group_grads = {
+                    g: _flat_actor_grad(
+                        torch.stack([policy_losses[i] for i in idx]).sum() / n,
+                        self.parameters)
+                    for g, idx in step_members.items()
+                }
+                step_policy_grad = _flat_actor_grad(policy_loss, self.parameters)
+                step_total_grad = _flat_actor_grad(total_loss, self.parameters)
+                step_contrast_grad: Optional[np.ndarray] = None
+                step_before: Optional[Tuple[float, float, float]] = None
+                if contrast_on:
+                    contrast_t, means_t = self._abort_contrast(
+                        contrast_inputs, contrast_rows)
+                    step_before = (float(contrast_t.detach().item()),) + means_t
+                    step_contrast_grad = _flat_actor_grad(contrast_t, self.parameters)
+                contrast_inputs.clear()
+                theta_before = _flat_tensors(list(self.parameters), self.parameters)
+
             self.optimizer.zero_grad(set_to_none=True)
             total_loss.backward()
+            if step_ids is not None:
+                step_backward_grad = _flat_tensors(
+                    [p.grad for p in self.parameters], self.parameters)
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 self.parameters, cfg.max_grad_norm
             )
+            if step_ids is not None:
+                step_clipped_grad = _flat_tensors(
+                    [p.grad for p in self.parameters], self.parameters)
             self.optimizer.step()
+
+            # OBSERVATIONAL step instrumentation, part 2: the actual displacement of the
+            # ONE step above, and the contrast re-read on the same stored observations.
+            if step_ids is not None:
+                step_after: Optional[Tuple[float, float, float]] = None
+                if contrast_on:
+                    step_after = self._abort_contrast_now(batch, contrast_rows)
+                step_epochs.append(ActorStepEpoch(
+                    epoch=int(_epoch),
+                    policy_loss=float(policy_loss.detach().item()),
+                    total_loss=float(total_loss.detach().item()),
+                    entropy=float(entropy_mean.detach().item()),
+                    ratios=tuple(ratios_detached),
+                    group_policy_surrogate_grads=step_group_grads,
+                    policy_surrogate_grad=step_policy_grad,
+                    total_loss_grad=step_total_grad,
+                    backward_grad=step_backward_grad,
+                    clipped_grad=step_clipped_grad,
+                    pre_clip_grad_norm=float(grad_norm),
+                    delta_theta=(_flat_tensors(list(self.parameters), self.parameters)
+                                 - theta_before),
+                    contrast_before=None if step_before is None else step_before[0],
+                    contrast_side_means_before=(
+                        None if step_before is None else step_before[1:]),
+                    contrast_grad=step_contrast_grad,
+                    contrast_after=None if step_after is None else step_after[0],
+                    contrast_side_means_after=(
+                        None if step_after is None else step_after[1:]),
+                ))
 
             ratios_arr = np.asarray(ratios_detached, dtype=np.float64)
             per_epoch["policy_loss"].append(float(policy_loss.detach().item()))
@@ -829,7 +1036,63 @@ class PPOUpdater:
             credit_sink(CreditReport(
                 training_mode="actor_only", records=records, batch=batch, cfg=cfg,
             ))
+        if step_sink is not None and cfg.n_epochs > 0:
+            step_sink(ActorStepReport(
+                records=records,
+                batch=batch,
+                group_ids=step_ids,
+                group_counts={g: len(idx) for g, idx in step_members.items()},
+                contrast_ids=step_contrast,
+                contrast_counts=(None if step_contrast is None
+                                 else (len(contrast_rows[0]), len(contrast_rows[1]))),
+                parameter_layout=self._parameter_layout(),
+                max_grad_norm=float(cfg.max_grad_norm),
+                clip_ratio=float(cfg.clip_ratio),
+                entropy_coeff=float(cfg.entropy_coeff),
+                epochs=tuple(step_epochs),
+            ))
         return diagnostics
+
+    # ------------------------------------------------------------------
+    # Observational helpers of the opt-in step instrumentation (never on the OFF path).
+    @staticmethod
+    def _abort_contrast(
+        inputs: Mapping[int, Tuple[torch.Tensor, np.ndarray]],
+        rows: Tuple[Sequence[int], Sequence[int]],
+    ) -> Tuple[torch.Tensor, Tuple[float, float]]:
+        """``mean P(ABORT | rows[0]) - mean P(ABORT | rows[1])`` from given logits.
+
+        The semantic ABORT leaf of the same masked ``_semantic_dist`` the losses use;
+        each mean is over its own rows, whichever action was stored.
+        """
+        means = []
+        for side in rows:
+            probs = [_semantic_dist(inputs[i][0], inputs[i][1])[1].probs[SEMANTIC_ABORT_LEAF]
+                     for i in side]
+            means.append(torch.stack(probs).mean())
+        return means[0] - means[1], (float(means[0].detach().item()),
+                                     float(means[1].detach().item()))
+
+    def _abort_contrast_now(
+        self, batch: AdvantageBatch, rows: Tuple[Sequence[int], Sequence[int]],
+    ) -> Tuple[float, float, float]:
+        """The contrast at the CURRENT parameters, re-read under ``torch.no_grad``."""
+        with torch.no_grad():
+            inputs = {i: (self._forward_logits(batch.transitions[i].gobs),
+                          build_action_mask(batch.transitions[i].gobs))
+                      for side in rows for i in side}
+            value, means = self._abort_contrast(inputs, rows)
+        return (float(value.item()),) + means
+
+    def _parameter_layout(self) -> Tuple[Tuple[str, Tuple[int, ...], str], ...]:
+        """``(name, shape, dtype)`` for every entry of :attr:`parameters`, in order."""
+        named = ([("encoder." + k, p) for k, p in self.policy.encoder.named_parameters()]
+                 + [("head." + k, p) for k, p in self.policy.head.named_parameters()])
+        if len(named) != len(self.parameters) or any(
+                p is not q for (_, p), q in zip(named, self.parameters)):
+            raise RuntimeError("the named parameters do not match the optimized parameters")
+        return tuple((name, tuple(int(s) for s in p.shape), str(p.dtype))
+                     for name, p in named)
 
 
 # =============================================================================
@@ -837,9 +1100,10 @@ class PPOUpdater:
 # =============================================================================
 #
 # Everything from here down is TRAINING-ONLY and is reached ONLY when the run's
-# ``training_mode`` is ``ctde``. Sections 1-6 above are the actor-only Phase-A path and
-# are BYTE-UNCHANGED: ``EpisodeRecord`` / ``PPOBuffer`` /
-# ``compute_returns_and_advantages`` / ``PPOUpdater`` keep their exact semantics, and an
+# ``training_mode`` is ``ctde``. Sections 1-6 above are the actor-only Phase-A path:
+# ``EpisodeRecord`` / ``PPOBuffer`` / ``compute_returns_and_advantages`` / ``PPOUpdater``
+# keep their exact learning semantics (the one later addition, the opt-in observational
+# step instrumentation of ``PPOUpdater.update``, changes no number it trains on), and an
 # ``actor_only`` run never constructs a single object defined below. That separation is
 # deliberate -- emulating actor-only by running the CTDE path with ``value_coeff = 0``
 # would still build a critic, still sample central states, still replace the
@@ -1412,8 +1676,8 @@ class CTDEUpdater:
     """Clipped-PPO actor update + centralized value regression, on SEPARATE optimizers.
 
     The CTDE sibling of :class:`PPOUpdater`. It is a separate class on purpose: the
-    actor-only updater is part of the locked Phase-A contract and is left byte-unchanged,
-    so an ``actor_only`` run cannot be affected by anything here. The actor half of the
+    actor-only updater is part of the locked Phase-A contract and its learning semantics
+    are left unchanged, so an ``actor_only`` run cannot be affected by anything here. The actor half of the
     loss is identical in form to the actor-only one and reuses the SAME factored
     :func:`clipped_surrogate`, the SAME rebuilt-never-stored mask and the SAME
     ``evaluate_action`` distribution site, so the ratio semantics do not fork.
