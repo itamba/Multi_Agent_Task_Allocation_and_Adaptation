@@ -1,0 +1,296 @@
+{
+ "measured_code_sha": "3bc944119da08af8e25268c9ee83fc63a8d1e533",
+ "run_id": "graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441",
+ "sources": [
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\run_config.json",
+   "bytes": 22740,
+   "disposition": "copied",
+   "git_path": "run_artifacts/run_config.json",
+   "group": "run",
+   "name": "run_config.json",
+   "role": "trainer-resolved configuration and provenance",
+   "sha256": "2c5d42cb0eb9b956d2c21dc5e2a215839317541c05bff9a6ab84048bb0d86545"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\run_summary.json",
+   "bytes": 122675,
+   "disposition": "copied",
+   "git_path": "run_artifacts/run_summary.json",
+   "group": "run",
+   "name": "run_summary.json",
+   "role": "trainer run summary: accounting, final round, schema observation",
+   "sha256": "dcf1e18d40224ffc04cd71eed7b734ec9c525ebd722c568fe41fd334bd8dc687"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_records.jsonl",
+   "bytes": 1027772,
+   "disposition": "copied",
+   "git_path": "run_artifacts/train_records.jsonl",
+   "group": "run",
+   "name": "train_records.jsonl",
+   "role": "one record per training update",
+   "sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\eval_records.jsonl",
+   "bytes": 406530,
+   "disposition": "copied",
+   "git_path": "run_artifacts/eval_records.jsonl",
+   "group": "run",
+   "name": "eval_records.jsonl",
+   "role": "one record per evaluation round, incl. per-round v2_behaviour",
+   "sha256": "1f2d0142398b299bd6675697843b9c5f15cd61d4a8476cb13c4645fce8682d56"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_failures.jsonl",
+   "bytes": 30169,
+   "disposition": "copied",
+   "git_path": "run_artifacts/episode_failures.jsonl",
+   "group": "run",
+   "name": "episode_failures.jsonl",
+   "role": "failure ledger (taxonomy, failed seeds)",
+   "sha256": "80c9ceb7e88de3e1025d65da2916adfddf986236648b76103fbd63e2d714817e"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_outcomes.jsonl",
+   "bytes": 106129593,
+   "disposition": "external_only; eval wakes, train FD wakes and summaries extracted",
+   "git_path": null,
+   "group": "run",
+   "name": "episode_outcomes.jsonl",
+   "role": "per-episode outcomes incl. wake diagnostics and mission-slack audits (train + eval)",
+   "sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_credit_diagnostics.jsonl",
+   "bytes": 12003603,
+   "disposition": "external_only; FD-selected-ego immediate-FD rows extracted",
+   "git_path": null,
+   "group": "run",
+   "name": "train_credit_diagnostics.jsonl",
+   "role": "per-transition credit of every productive update",
+   "sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\checkpoints\\ckpt_iter0374.pt",
+   "bytes": 1371147,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "run",
+   "name": "checkpoints/ckpt_iter0374.pt",
+   "role": "final actor checkpoint (not loaded or executed)",
+   "sha256": "4b57cf44df2e79e3c38ad0667866cde448c16eda300394a5dcf2d26a3cd62619"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\launcher_record.json",
+   "bytes": 1528,
+   "disposition": "copied",
+   "git_path": "run_artifacts/launcher/launcher_record.json",
+   "group": "launcher",
+   "name": "launcher_record.json",
+   "role": "launcher / watchdog record: process ids, start / end, walltime, exit code, termination reason",
+   "sha256": "f567860b1368ff25992a4785c52d3d69115e0e4b073a744828a53b809770b451"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\native_exit_code.txt",
+   "bytes": 3,
+   "disposition": "copied",
+   "git_path": "run_artifacts/launcher/native_exit_code.txt",
+   "group": "launcher",
+   "name": "native_exit_code.txt",
+   "role": "exit code written by the Python launcher",
+   "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\invocation_start_local.txt",
+   "bytes": 34,
+   "disposition": "copied",
+   "git_path": "run_artifacts/launcher/invocation_start_local.txt",
+   "group": "launcher",
+   "name": "invocation_start_local.txt",
+   "role": "launcher start timestamp",
+   "sha256": "6c653c134f73608e21a0eb3b7e5cfab75ca9020da39767f5d37acf9229932747"
+  },
+  {
+   "absolute_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\training_console.log",
+   "bytes": 6344404,
+   "disposition": "external_only; hash reference; scanned for Traceback / CRASH",
+   "git_path": null,
+   "group": "launcher",
+   "name": "training_console.log",
+   "role": "trainer console output (*.log is git-ignored)",
+   "sha256": "9c5438dc38bf37c79c487bf78d48059de7546becba5c2d846101bae6c721d9a9"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37\\run_config.json",
+   "bytes": 19952,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator",
+   "name": "run_config.json",
+   "role": "comparator resolved configuration",
+   "sha256": "8f2f9893175d4a1166f9cedfb1bc85aeb4c9de0fd1c4b8779054479a02ce35be"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37\\run_summary.json",
+   "bytes": 123817,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator",
+   "name": "run_summary.json",
+   "role": "comparator final-round behaviour",
+   "sha256": "d9a9ede5a08bd16d33feada46af3b9dcfaf2917706056fd636b72c536e71b989"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37\\eval_records.jsonl",
+   "bytes": 409905,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator",
+   "name": "eval_records.jsonl",
+   "role": "comparator per-round v2_behaviour",
+   "sha256": "2f3e4f7d475e82c56c39ad3416a72b8acb055c0d4a5c3158b4ee65f8f884687b"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37\\episode_outcomes.jsonl",
+   "bytes": 86330277,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator",
+   "name": "episode_outcomes.jsonl",
+   "role": "comparator eval immediate-FD wakes (trajectory recomputation)",
+   "sha256": "3011a163b3b341d5ab25881dae2394e45d7a5ae8ec66854a3f5088d147198740"
+  },
+  {
+   "absolute_path": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37\\episode_failures.jsonl",
+   "bytes": 33865,
+   "disposition": "external_only; read for comparator recomputation",
+   "git_path": null,
+   "group": "comparator",
+   "name": "episode_failures.jsonl",
+   "role": "comparator failure ledger (failed-seed comparison)",
+   "sha256": "a5812b4a26c118882526f8f29d5722258a7c04ccbeccbfc37c5be352586b1567"
+  },
+  {
+   "absolute_path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "bytes": 204244,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "benchmark",
+   "name": "benchmark_manifest.json",
+   "role": "frozen GENERALIZED-V2 benchmark manifest consumed by the run",
+   "sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103"
+  },
+  {
+   "absolute_path": "C:\\gra\\metadata\\ARTIFACT_INDEX.jsonl",
+   "bytes": 110821,
+   "disposition": "external_only",
+   "git_path": null,
+   "group": "archive",
+   "name": "ARTIFACT_INDEX.jsonl",
+   "role": "archive index: comparator location and key hashes",
+   "sha256": "9f31e34652b2b72ad3992289393312dcceee9c68dbbb2931b82553230c76a756"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\legacy_equivalence_measured_tree.json",
+   "bytes": 2695,
+   "disposition": "committed",
+   "git_path": "prelaunch/legacy_equivalence_measured_tree.json",
+   "group": "prelaunch",
+   "name": "legacy_equivalence_measured_tree.json",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "146a97f4683df42f70953e768c132e81887554ac9d90ab128b7d25568c5458b0"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\legacy_equivalence_pre_commit_trial.json",
+   "bytes": 2695,
+   "disposition": "committed",
+   "git_path": "prelaunch/legacy_equivalence_pre_commit_trial.json",
+   "group": "prelaunch",
+   "name": "legacy_equivalence_pre_commit_trial.json",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "146a97f4683df42f70953e768c132e81887554ac9d90ab128b7d25568c5458b0"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\nlp_builder_selftest.log",
+   "bytes": 1603,
+   "disposition": "committed",
+   "git_path": "prelaunch/nlp_builder_selftest.log",
+   "group": "prelaunch",
+   "name": "nlp_builder_selftest.log",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "2c54cda3021950b49764f2aa472cfa748eca8e9d0851d4e172a14e6a313e2579"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\nlp_p1.log",
+   "bytes": 2784,
+   "disposition": "committed",
+   "git_path": "prelaunch/nlp_p1.log",
+   "group": "prelaunch",
+   "name": "nlp_p1.log",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "9718bd9803a7243f2b2fb2a31ed78c4451a4d7b51b4096485ee17e3713f35571"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\nlp_setup_seam.log",
+   "bytes": 4602,
+   "disposition": "committed",
+   "git_path": "prelaunch/nlp_setup_seam.log",
+   "group": "prelaunch",
+   "name": "nlp_setup_seam.log",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "85b843fa8170d18d5b8ded6778bdfb57a7550576d74ed94ca169a1422390351a"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\nlp_tickloop_selftest.log",
+   "bytes": 1458,
+   "disposition": "committed",
+   "git_path": "prelaunch/nlp_tickloop_selftest.log",
+   "group": "prelaunch",
+   "name": "nlp_tickloop_selftest.log",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "4c656c14b1665a1bd155f6d9581ad9d6848d6db28d5cc40295a23a5bcc8852c2"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\preflight.json",
+   "bytes": 6984,
+   "disposition": "committed",
+   "git_path": "prelaunch/preflight.json",
+   "group": "prelaunch",
+   "name": "preflight.json",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "88e24d82b6c7ad02996d3460743fd627fe9cf201ca8c764b9b3cfc441b2092f8"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\preflight_blade_blob_identity.json",
+   "bytes": 708,
+   "disposition": "committed",
+   "git_path": "prelaunch/preflight_blade_blob_identity.json",
+   "group": "prelaunch",
+   "name": "preflight_blade_blob_identity.json",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "fe4a0b29dc156f0b3b5186c71fac35a244266f9b17e8c24b64b57303ea8cbad0"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\prelaunch\\pytest_full_base_env_summary.txt",
+   "bytes": 137,
+   "disposition": "committed",
+   "git_path": "prelaunch/pytest_full_base_env_summary.txt",
+   "group": "prelaunch",
+   "name": "pytest_full_base_env_summary.txt",
+   "role": "pre-launch engineering check / verification record",
+   "sha256": "236432e5281370d993ffe84f80272759d3e2b847c2d1cd812e57f12800399ca4"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\actor_mission_slack_dev_r1\\authorized_plan.json",
+   "bytes": 8401,
+   "disposition": "committed",
+   "git_path": "authorized_plan.json",
+   "group": "plan",
+   "name": "authorized_plan.json",
+   "role": "exact bounded plan, committed before launch",
+   "sha256": "4126d81d142ca186094de4beea5dec992248a5a5ba2f557063125d643a543a1b"
+  }
+ ]
+}

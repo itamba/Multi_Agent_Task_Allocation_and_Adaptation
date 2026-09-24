@@ -1,0 +1,11 @@
+{
+ "check": "blade_engine_git_blob_identity",
+ "measured_sha": "3bc944119da08af8e25268c9ee83fc63a8d1e533",
+ "n_tree_files": 25,
+ "imported_copy": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade",
+ "imported_matches_measured_blobs": true,
+ "worktree_matches_measured_blobs": true,
+ "mismatches_imported": [],
+ "note": "git hash-object applies the repository's clean filter (core.autocrlf=true), so a CRLF working copy and an LF working copy of the same committed blob hash identically; the byte-level tree digest of prelaunch_verify.py differed only by line endings (25 files, all EOL-only).",
+ "pass": true
+}

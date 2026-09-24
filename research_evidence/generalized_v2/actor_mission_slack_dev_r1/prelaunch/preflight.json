@@ -1,0 +1,269 @@
+{
+ "record": "preflight",
+ "record_version": 1,
+ "development_only": true,
+ "confirmatory_profile_untouched": true,
+ "code": {
+  "measured_code_sha": "3bc944119da08af8e25268c9ee83fc63a8d1e533",
+  "head": "3bc944119da08af8e25268c9ee83fc63a8d1e533",
+  "working_tree_clean": true,
+  "worktree": "C:\\gms1src",
+  "match_aou_path": "C:\\gms1src\\src\\match_aou\\__init__.py",
+  "blade_path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade"
+ },
+ "benchmark": {
+  "manifest_path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "profile": "development",
+  "development_worlds": [
+   {
+    "world_ordinal": 0,
+    "seed": 2000000,
+    "key": "A2-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000001,
+    "key": "A2-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000064,
+    "key": "A2-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000065,
+    "key": "A2-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000128,
+    "key": "A3-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000129,
+    "key": "A3-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000192,
+    "key": "A3-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000193,
+    "key": "A3-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000256,
+    "key": "A4-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000257,
+    "key": "A4-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000320,
+    "key": "A4-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000321,
+    "key": "A4-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000384,
+    "key": "A5-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000385,
+    "key": "A5-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000448,
+    "key": "A5-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000449,
+    "key": "A5-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000512,
+    "key": "A6-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000513,
+    "key": "A6-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000576,
+    "key": "A6-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000577,
+    "key": "A6-D2-w001"
+   }
+  ],
+  "regenerated_or_mutated": false
+ },
+ "comparator": {
+  "run_id": "graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+  "archive_path": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37",
+  "run_config_sha256": "8f2f9893175d4a1166f9cedfb1bc85aeb4c9de0fd1c4b8779054479a02ce35be",
+  "archive_index_sha256": "9f31e34652b2b72ad3992289393312dcceee9c68dbbb2931b82553230c76a756",
+  "train_config": {
+   "n_iterations": 375,
+   "episodes_per_iteration": 8,
+   "base_seed": 3000000,
+   "output_dir": "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+   "ppo": {
+    "clip_ratio": 0.2,
+    "entropy_coeff": 0.01,
+    "lr": 0.0003,
+    "n_epochs": 4,
+    "gamma": 1.0,
+    "max_grad_norm": 0.5,
+    "adv_norm_eps": 1e-08
+   },
+   "training_mode": "actor_only",
+   "ctde": {
+    "critic_lr": 0.0003,
+    "value_coeff": 0.5,
+    "gae_lambda": 0.95
+   },
+   "checkpoint_every": 25,
+   "eval_every": 25,
+   "eval_episodes": 8,
+   "eval_base_seed": 1000000,
+   "max_ticks": null,
+   "episode_design": "generalized_v2",
+   "match_aou_backend": "p1_milp_v1",
+   "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "benchmark_profile": "development",
+   "generalized_max_attempts_per_iteration": 12,
+   "early_stopping": false,
+   "early_stopping_min_iterations": 100,
+   "early_stopping_window_iterations": 25,
+   "early_stopping_patience_windows": 3,
+   "early_stopping_min_delta": 0.01,
+   "num_agents": 3,
+   "n_known": 3,
+   "n_hidden": 3,
+   "min_target_distance_km": 200.0,
+   "min_known_separation_km": 100.0,
+   "include_sams": false,
+   "randomize_red_airbase_positions": true,
+   "stretch_target_ratio": 0.5,
+   "fuel_damage_mode": "seeded_variable",
+   "fuel_damage_probability": 0.5,
+   "fuel_damage_leg_progress": 0.3,
+   "fuel_damage_rtb_margin": 1.1,
+   "fuel_damage_mild_probability": 0.5,
+   "aircraft_penalty_coeff": 2.25,
+   "visual_artifacts": false,
+   "num_red_airbases": [
+    6,
+    6
+   ],
+   "partial_ratio": 0.5
+  },
+  "config_source": {
+   "path": null,
+   "absolute_path": null,
+   "format": null,
+   "config_fields": [],
+   "cli_overrides": [],
+   "resolved_from": "cli_defaults"
+  }
+ },
+ "checks": [
+  {
+   "check": "head_is_measured_sha",
+   "pass": true,
+   "detail": "3bc944119da08af8e25268c9ee83fc63a8d1e533"
+  },
+  {
+   "check": "worktree_clean",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "match_aou_imports_from_worktree",
+   "pass": true,
+   "detail": "C:\\gms1src\\src\\match_aou\\__init__.py"
+  },
+  {
+   "check": "blade_engine_identical_to_measured_tree",
+   "pass": false,
+   "detail": {
+    "imported_from": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade",
+    "imported_tree_digest": "73f326d78f1ad65a9d546b55fdf43be29be8a0e74fdebce659d8d497ed8da5f6",
+    "measured_tree_digest": "18c416b11776194e945ef40d5215945b702b0728888da575f2d24d22ba5afef5"
+   }
+  },
+  {
+   "check": "actor_observation_id",
+   "pass": true,
+   "detail": "actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1"
+  },
+  {
+   "check": "manifest_file_sha256",
+   "pass": true,
+   "detail": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103"
+  },
+  {
+   "check": "manifest_id",
+   "pass": true,
+   "detail": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8"
+  },
+  {
+   "check": "development_profile_worlds",
+   "pass": true,
+   "detail": 20
+  },
+  {
+   "check": "held_out_full_manifest",
+   "pass": true,
+   "detail": {
+    "train_band_half_open": [
+     3000000,
+     3004500
+    ],
+    "manifest_n_worlds": 120,
+    "manifest_seed_min": 2000000,
+    "manifest_seed_max": 2000587,
+    "overlap": []
+   }
+  },
+  {
+   "check": "comparator_index_row",
+   "pass": true,
+   "detail": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37"
+  },
+  {
+   "check": "comparator_measured_sha",
+   "pass": true,
+   "detail": "d4e9f3721e6d151c00be3fe93c3d149df9d31965"
+  },
+  {
+   "check": "output_dir_absent",
+   "pass": true,
+   "detail": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441"
+  }
+ ],
+ "pass": false
+}
