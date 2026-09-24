@@ -43,6 +43,7 @@
 | GENERALIZED-V2 explicit acting-ego readout CTDE development diagnostic — FD100 configuration (100 updates) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` — PR #75 explicit-readout candidate, **unmerged when measured, later retired from the code** | local original `C:\gruns\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9`; evidence package `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` on PR #75, reviewed at evidence commit `557e072b94884bef37ece82a064ad877a5a2f636` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; primary comparator the role-only run; no locality or behavioural improvement over role-only; includes the read-only owner-transition audit (§13) |
 | GENERALIZED-V2 role-only acting-ego CTDE `gae_lambda = 1.0` development diagnostic — FD100 configuration (100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` — the role-only implementation, run from the isolated detached worktree `C:\grolelambda1` | local original `C:\gruns\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3`; evidence package `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` on PR #75, reviewed at evidence commit `1076208b68ee9abd76f159535c5f38fe98970ce5` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; same-code comparator role-only λ0.95; exact λ = 1 telescoping, held-out separation effectively zero; **negative intervention, not the final configuration** (§14) |
 | GENERALIZED-V2 semantic-action CTDE development R1 (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state, 375 updates; executed 2026-09-16) | `8056266cff89f677911462b29970346bed0a57c1` (the PR #72 merge; run-recorded clean `main`) | evidence PR #73, exact candidate `ad9b545034670a7c7a9d8ff98012d56c0be07f46` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`, assigned **retrospectively on 2026-09-19** (as transferred in the user-approved documentation packet); **development only**; primary comparator semantic actor-only R1 (§10); 0 / 20 directional switches at every one of the 16 evaluation rounds; no comparable actor-only transient observed at any evaluation round; no CTDE benefit established (§16) |
+| GENERALIZED-V2 actor mission-fuel-slack development R1 (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates; executed 2026-09-24) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch `task/actor-mission-fuel-slack-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gms1src`) | local original `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441`; evidence package `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` on draft PR #79 | **EXECUTED / UNREVIEWED** — no verdict; development only; final macro effectively zero, no transient (§17) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. The local artifacts
 archived in the authorized 2026-09-15 closure now live in the local archive under `C:\gra\`, and
@@ -3072,3 +3073,66 @@ ABORT-vs-not gaps in the package are observational associations, **never action 
 - The run used the symmetric central state that §12 later replaced; it says nothing directly about
   the current role-only acting-ego critic.
 - No confirmatory evidence exists; the confirmatory profile is untouched.
+
+## 17. GENERALIZED-V2 actor mission-fuel-slack development R1 — executed, unreviewed
+
+Recorded on 2026-09-24 by the executing task. **Status: EXECUTED / UNREVIEWED.** No verdict exists;
+everything below is the executing task's own reading of its evidence, for GPT review. The decision
+that authorized it is the 2026-09-24 row of [`decisions.md` §1](decisions.md#1-decision-log).
+
+### 17.1 Identity
+
+| Item | Value |
+|---|---|
+| Run id | `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` |
+| Measured code SHA | `3bc944119da08af8e25268c9ee83fc63a8d1e533`, run-recorded clean (`dirty = false`), `match_aou` from the detached worktree `C:\gms1src`; the imported BLADE engine is Git-blob-identical to that tree |
+| Intervention | one actor input, `mission_fuel_slack_norm` on the ego agent row ([policy and CTDE §1](../contracts/policy_ctde.md#1-graph-observation-stage-3)); agent width 1 → 2; nothing else changed |
+| Population, budget | `generalized_v2`, `p1_milp_v1`, `actor_only`, `semantic_k_plus_2_logmeanexp_v1`, base seed 3000000, 375 × 8 successful episodes, ≤ 12 attempts per update, no early stopping; manifest `ef17a68a…46ea8`, development profile |
+| Comparator | semantic actor-only R1 (§10), read from its archive, not rerun; resolved `train_config` differs only in `output_dir` (and the later-added default `actor_gradient_diagnostics = false`) |
+| Evidence | `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` on draft PR #79 (evidence commit on that branch; large originals identified by SHA-256 in its `artifact_sha256.txt`) |
+
+### 17.2 Validity facts (the task's pre-check; not a verdict)
+
+- Complete: 375 / 375 updates, final checkpoint present, launcher exit code 0, walltime 7015 s.
+- 3000 successful of 3008 training attempts; the 8 failures are accounted
+  `no_fd_eligible_ego` setup attrition on **the same eight seeds as the comparator**;
+  `accounting_reconciled = true`; no integrity abort; the console's tracebacks are exactly those
+  eight chained failure prints.
+- 16 evaluation rounds, 960 / 960 episodes successful; final round `post_update`, 375 updates;
+  10 / 10 base cells and 20 / 20 groups metric-eligible.
+- The actor input re-checks from its captured audit on all 12 750 recorded wakes; no non-finite
+  value.
+
+### 17.3 Observed results (descriptive)
+
+| Updates | Macro SEVERE − MILD P(ABORT) — this run | Directional switches — this run | Comparator (§10) macro | Comparator switches |
+|---:|---:|---:|---:|---:|
+| 0 | `+0.000262` | 3 / 20 | `−0.000516` | 0 / 20 |
+| 75 | `+0.000110` | 0 / 20 | `+0.2955` | 4 / 20 |
+| 125 | `+3.8e−07` | 0 / 20 | `+0.6503` | 20 / 20 |
+| 375 (final) | **`−7.45e−10`** | **0 / 20** (0 reverse) | `+0.000888` | 0 / 20 |
+
+All 16 rounds are in the package's `extracted/trajectory_comparison.md`. Every round after update 0
+has |macro| ≤ 1.1e−4 and 0 switches: **the comparator's transient did not occur**, and no stable
+final severity-conditioned behaviour exists.
+
+- **The input carried the signal.** At evaluation immediate-FD wakes the certified ego's
+  `mission_fuel_slack_norm` was positive in 300 / 300 MILD wakes and negative in 300 / 300 SEVERE
+  wakes.
+- **The actor did not use it.** From update 100 the actor's P(ABORT) is essentially the same at
+  all 40 immediate-FD wakes of a round (spread < 1e−6; exactly 0 at updates 250–275), against a
+  comparator spread ≥ 9e−3 in every round — a state-independent output at these wakes. Inspected
+  per-node source scores agree across nodes and worlds.
+- Training (stochastic actor) immediate-FD ABORT: 93 / 774 MILD, 105 / 752 SEVERE; credit stays
+  episode / chain-level (§10.7).
+- Final-round reward, utility and deaths equal the comparator's (both select PLAN at every FD wake).
+
+### 17.4 Limitations and non-claims
+
+- **Unreviewed.** Nothing here is a verdict or an approval.
+- One run, one training seed, cross-version against §10; a matched seed number does not give
+  identical initial weights or RNG trajectories after the input width changed. No robustness claim.
+- **No causal attribution** — neither of the absent transient nor of the output collapse — to the
+  feature, the width change, initialization or optimization.
+- Repeated evaluation rounds re-measure the same 20 frozen development worlds. No confirmatory
+  evidence; the confirmatory profile is untouched.

@@ -133,6 +133,10 @@
   review only at the end; the intermediate review stop of
   [`cc_review.md` §3](docs/workflows/cc_review.md#3-transport-gpt_github) is waived for THIS
   task only. **Implementation and measurement are UNREVIEWED**; no merge is authorized.
+  **The run has EXECUTED (2026-09-24)** at measured SHA `3bc944119da08af8e25268c9ee83fc63a8d1e533`
+  and is awaiting GPT review
+  ([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed));
+  the task's return to GPT is the next step.
 - Earlier single-run authorizations are spent: both actor-gradient diagnostics (further tuning
   stopped, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17) and the
   three acting-ego diagnostics (role-only, explicit readout, role-only λ = 1). **The confirmatory
@@ -162,7 +166,7 @@
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
 | Candidates | no research or evidence candidate is active; no merge is authorized. **Resolve GitHub for any transient documentation-maintenance PR** |
-| Scientific runs in progress | the ONE authorized mission-slack development run of the active task (`graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_<measured-short-sha>`, output under `C:\gruns\`); its measured SHA, path and status are recorded in the task's evidence package. No other run is authorized |
+| Scientific runs in progress | none. The ONE authorized mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 (exit code 0) and is EXECUTED / UNREVIEWED; its original directory is `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` (not archived; any move needs its own authorization). No other run is authorized; this authorization is spent |
 
 ## 3. Candidates and PRs
 
@@ -218,6 +222,7 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
 | **Role-only acting-ego CTDE diagnostic** (FD100, 100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` (merged with PR #75) | [measurements §12](docs/history/measurements.md#12-generalized-v2-role-only-acting-ego-ctde-development-diagnostic) |
 | **Explicit acting-ego readout CTDE diagnostic** (FD100, 100 updates; implementation retired) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` (merged with PR #75), reviewed at `557e072b94884bef37ece82a064ad877a5a2f636`; includes the owner-transition audit | [measurements §13](docs/history/measurements.md#13-generalized-v2-explicit-acting-ego-readout-ctde-development-diagnostic-and-owner-transition-audit) |
 | **Role-only `gae_lambda = 1.0` CTDE diagnostic** (FD100, 100 updates; negative, not the final configuration) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` (merged with PR #75), reviewed at `1076208b68ee9abd76f159535c5f38fe98970ce5` | [measurements §14](docs/history/measurements.md#14-generalized-v2-role-only-acting-ego-ctde-gae_lambda--10-development-diagnostic) |
+| **GENERALIZED-V2 actor mission-fuel-slack development R1** (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch, unmerged when measured) | **EXECUTED / UNREVIEWED** — no verdict; evidence `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` on draft PR #79 | [measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed) |
 
 **Current research interpretation (development only; numbers in
 [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure),
@@ -293,8 +298,12 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: the active mission-fuel-slack task (§1, §2)** — implementation, engineering validation,
-the ONE authorized development run and its evidence, returned to GPT for review at the end.
+**Now: GPT review of the mission-fuel-slack task (§1, §2)** — the implementation, engineering
+validation, the ONE authorized development run and its evidence are complete on draft PR #79 and
+UNREVIEWED. The executing task's own reading (not a verdict): the final endpoint is effectively
+zero, the semantic actor-only transient did not recur, and the actor's immediate-FD output became
+state-independent although the new input separated MILD from SEVERE
+([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed)).
 Nothing else is scheduled or authorized; any further step (review verdict, merge, a further
 arm or run) needs its own decision
 ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)).
