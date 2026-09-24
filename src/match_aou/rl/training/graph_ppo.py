@@ -1755,7 +1755,8 @@ def _make_obs(
         [0.70 + seed_shift, 0.50, 1.0, 1.0, 1.0, 1.0 if sensed_all else 0.0],
     ][:k]
     task_features = np.asarray(rows, dtype=np.float32)
-    agent_features = np.array([[0.90], [0.00], [0.00]], dtype=np.float32)
+    # ego row [fuel_norm, mission_fuel_slack_norm]; peers featureless
+    agent_features = np.array([[0.90, 0.10], [0.00, 0.00], [0.00, 0.00]], dtype=np.float32)
     return GraphObservation(
         task_features=task_features,
         agent_features=agent_features,

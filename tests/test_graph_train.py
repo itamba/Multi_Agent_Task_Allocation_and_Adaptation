@@ -5370,9 +5370,11 @@ def test_gen_the_outcome_record_states_the_design_and_the_cardinality(
     assert len(rows) == 3
     for row in rows:
         # VERSION 3 added the per-wake actor diagnostics (`wake_decisions`); VERSION 4
-        # adds the action-representation id beside them.
-        assert row["schema_version"] == graph_train._EPISODE_OUTCOME_VERSION == 4
+        # adds the action-representation id beside them; VERSION 5 the actor-observation id.
+        assert row["schema_version"] == graph_train._EPISODE_OUTCOME_VERSION == 5
         assert row["action_representation_id"] == "semantic_k_plus_2_logmeanexp_v1"
+        assert row["actor_observation_id"] == (
+            "actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1")
         assert row["episode_design"] == EPISODE_DESIGN_GENERALIZED_V1
         assert row["generalized"] is True
         assert row["hidden_policy"] == gen.design.hidden_policy
@@ -7253,7 +7255,8 @@ def test_es_checkpoints_stay_save_only(tmp_path: Path) -> None:
     payload = torch.load(Path(cfg.output_dir) / "checkpoints" / names[0],
                          weights_only=False)
     assert set(payload) == {"iteration", "encoder", "head", "optimizer", "ppo_config",
-                            "action_representation_id"}
+                            "action_representation_id",
+                            "actor_observation_id", "actor_observation"}
     assert payload["iteration"] == 7
 
     # No loader, and none hiding inside `save_checkpoint`.

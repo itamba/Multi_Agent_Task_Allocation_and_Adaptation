@@ -108,6 +108,9 @@ import torch
 
 from ..observation.central_graph_builder import CentralStateRecorder
 from ..observation.graph_builder import (
+    ACTOR_OBSERVATION_ID,
+    EgoMissionInputs,
+    MissionSlackIntegrityError,
     build_graph_observation,
     GraphObservation,
     GraphObservationConfig,
@@ -357,6 +360,7 @@ def _decision_record(
     dist = tf[:, 1] if k else np.zeros((0,), dtype=np.float64)
     n_clipped = int((dist >= 1.0).sum())
 
+    slack = getattr(gobs, "mission_slack", None)
     record: Dict[str, Any] = {
         "wake_kind": str(wake_kind),
         "ego_id": str(ego_key),
@@ -369,6 +373,13 @@ def _decision_record(
         "n_task_nodes": k,
         "n_agent_nodes": int(af.shape[0]),
         "ego_fuel_norm": (float(af[ego_row, 0]) if 0 <= ego_row < af.shape[0] else None),
+        # The actor input column 1 AS THE ENCODER RECEIVED IT (float32 -> float), and the
+        # immutable pre-action audit of how it was computed. Reporting only.
+        "actor_observation_id": ACTOR_OBSERVATION_ID,
+        "ego_mission_fuel_slack_norm": (
+            float(af[ego_row, 1])
+            if 0 <= ego_row < af.shape[0] and af.shape[1] > 1 else None),
+        "mission_slack_audit": None if slack is None else slack.as_record(),
         "reachable_by_ego": tf[:, 3].tolist() if k else [],
         "task_distance_norm": dist.tolist(),
         "n_task_distance_clipped": n_clipped,
@@ -377,6 +388,33 @@ def _decision_record(
     }
     record.update(summarize_decision(logits, mask, int(meta_action), node_v))
     return record
+
+
+def _ego_mission_inputs(executor: Any, ego_key: str) -> EgoMissionInputs:
+    """The ONLY executor facts the actor observation reads: THIS ego's own two.
+
+    * its home-base coordinates -- the setup ``Agent.return_location`` of this ego;
+    * the targets THIS ego itself proximity-confirmed -- the ``executor.done`` pairs whose
+      ego is this ego (the executor's single confirmation site; nothing is reconciled
+      here, and a peer's confirmation never matches).
+
+    Nothing else crosses: no peer plan, peer position, peer ``done`` entry or central
+    state reaches the builder. A missing executor surface is an instrument fault and
+    raises :class:`MissionSlackIntegrityError` rather than defaulting to "no
+    completions" or "no home".
+    """
+    agent_by_id = getattr(executor, "agent_by_id", None)
+    done = getattr(executor, "done", None)
+    if agent_by_id is None or done is None:
+        raise MissionSlackIntegrityError(
+            "executor exposes no agent_by_id / done; the ego's home base and own "
+            "confirmed completions cannot be read")
+    agent = agent_by_id.get(ego_key)
+    home = None if agent is None else getattr(agent, "return_location", None)
+    confirmed = frozenset(
+        str(pair[1]) for pair in done if str(pair[0]) == ego_key
+    )
+    return EgoMissionInputs(home_base=home, confirmed_target_ids=confirmed)
 
 
 def _wake_decision(
@@ -398,7 +436,8 @@ def _wake_decision(
     which is exactly ``build_graph_observation``'s airborne precondition.
 
     The chain (all under ``torch.no_grad`` — inference only):
-      1. build the graph observation from the ego's POST-trigger belief,
+      1. build the graph observation from the ego's POST-trigger belief (plus THIS ego's
+         own home base and own confirmed completions, :func:`_ego_mission_inputs`),
       2. encode -> per-node logits,
       3. build the additive action mask,
       4. sample a SEMANTIC ``(meta_action, node_v)`` (``node_v`` None for PLAN / ABORT),
@@ -434,6 +473,9 @@ def _wake_decision(
             solution=belief.solution,
             precedence_relations=[],
             config=cfg,
+            # THIS ego's own home base + own confirmed completions, read BEFORE the
+            # action below edits anything (pre-action capture).
+            mission=_ego_mission_inputs(executor, ego_key),
         )
         emb = policy.encoder(gobs)
         logits = policy.head(emb)
@@ -1131,6 +1173,7 @@ def _selftest() -> None:
     probe = build_graph_observation(
         scenario=obs, agent_id=ego_id, current_plan=None, current_time=tick,
         tasks=belief.tasks, solution=belief.solution, precedence_relations=[], config=cfg2,
+        mission=_ego_mission_inputs(ctx2.executor, ego_id),
     )
     probe_mask = build_action_mask(probe)
     assert probe_mask[0, int(MetaAction.OPPORTUNISTIC_ENGAGEMENT)] == 0.0, (

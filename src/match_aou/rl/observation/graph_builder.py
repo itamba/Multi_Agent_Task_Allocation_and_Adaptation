@@ -40,7 +40,8 @@ The graph has two node types and (currently) ONE constructed edge type:
                          Emitted only if precedence_relations is non-empty (current
                          scenarios produce none — expected).
 
-Feature column layouts (every value normalized to [0, 1]):
+Feature column layouts (every value normalized to [0, 1], EXCEPT the signed, unclipped agent
+column [1] ``mission_fuel_slack_norm``):
 
     TASK feature columns  -> task_features[k, 6]
         [0] utility_norm     = Task.utility / 100.0                         (clipped)
@@ -59,7 +60,8 @@ Feature column layouts (every value normalized to [0, 1]):
                                edge (a peer->task edge would have leaked peer runtime
                                sensing under no-communication).
 
-    AGENT feature columns -> agent_features[a, 1]
+    AGENT feature columns -> agent_features[a, AGENT_FEATURE_DIM = 2]
+                             (actor observation ``ACTOR_OBSERVATION_ID``)
         [0] fuel_norm        = current_fuel / max_fuel (_compute_fuel_norm, local)
                                for the EGO row only; 0.0 for every peer row. Peers are
                                featureless on purpose: peer fuel is unsensable (a true
@@ -74,6 +76,53 @@ Feature column layouts (every value normalized to [0, 1]):
                                added here — node-typing is deferred to the (not-yet-built)
                                encoder so the builder stays a pure projection of
                                ``(world, solution)``.
+        [1] mission_fuel_slack_norm
+                             = (current_fuel - estimated_remaining_mission_and_return_fuel)
+                               / max_fuel, for the EGO row only; 0.0 for every peer row.
+                               SIGNED and NOT clipped: positive is an estimated surplus,
+                               negative an estimated deficit. An ESTIMATE, not a
+                               feasibility guarantee and not a forced ABORT rule. Computed
+                               by :func:`estimate_mission_fuel_slack` from ego-private
+                               inputs ONLY (see "Mission fuel slack" below).
+
+Mission fuel slack (``mission_fuel_slack_norm``)
+------------------------------------------------
+The ego's own estimate of the fuel its REMAINING mission and the return home cost, relative
+to what it holds, at the moment it is asked to decide (before its action). Inputs, all
+ego-private:
+
+  * its own live aircraft: position, ``current_fuel``, ``max_fuel``, ``speed`` (knots),
+    ``fuel_rate`` (lbs/hr);
+  * its own home-base coordinates and its own PROXIMITY-CONFIRMED completions, passed
+    explicitly as :class:`EgoMissionInputs` (the tick loop extracts exactly those two
+    ego-local facts from the executor; the builder is never handed peer or central state);
+  * its private task list and its own assignment slice of its private belief solution.
+
+Remaining mission = every assignment in the ego's own slice whose resolved step's target the
+ego has NOT itself confirmed. A confirmed target is excluded even if a stale tuple still
+lists it; an unconfirmed target stays even if a peer has actually destroyed it elsewhere
+(the ego cannot know). A discovered but UNASSIGNED pop-up is not part of the mission.
+
+Route (``MISSION_SLACK_ROUTE_MODEL_ID``): a deterministic TARGET-CENTRE POLYLINE starting at
+the ego's CURRENT position, visiting remaining assignments level by ascending level, within a
+level by greedy nearest neighbour from the chained position, ties broken by EGO-VISIBLE
+GEOMETRY (target latitude, longitude, target id, step index) — never by task index, so the
+estimate does not depend on graph row order — then the leg to the ego's own home base. With
+no remaining assignment the route is the direct return leg. Distance is
+``Location.distance_to`` (haversine), fuel is the engine's physical
+``Game.get_fuel_needed_to_return_to_base`` arithmetic (km -> nautical miles at 1852 m, /
+knots, x lbs/hr) with factor 1.0 (NO reserve margin), transcribed locally.
+
+APPROXIMATIONS, deliberate and recorded: target centres rather than the executor's 50-km
+stand-off arrival and attack geometry; no future confirmation waits, loiter burn, policy
+choices or peer actions; the executor re-orders a level from its LIVE position every tick
+and breaks exact distance ties by task index, while this estimate chains nearest neighbour
+once from the current position and breaks exact ties geometrically. Identical-location
+targets cost the same whichever order they are listed in.
+
+FAILURE: a non-finite / non-positive physical input, a missing home base or an assignment
+that does not resolve to a located step raises :class:`MissionSlackIntegrityError` — no
+plausible value is fabricated and no unresolved work is dropped silently.
 
 Detection range
 ---------------
@@ -95,9 +144,10 @@ constraint.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -112,6 +162,338 @@ logger = logging.getLogger(__name__)
 # Single source of truth for the task-feature vector width. The encoder imports
 # this constant for its ``task_feat_dim`` default so the two never desync.
 TASK_FEATURE_DIM = 6
+
+# agent_features width: fuel_norm, mission_fuel_slack_norm (ego row real; peers 0.0).
+# Single source of truth for the ACTOR agent-feature width; the encoder imports it for
+# its ``agent_feat_dim`` default exactly as it imports TASK_FEATURE_DIM. The CTDE
+# critic's central graph has its OWN width (``CENTRAL_AGENT_FEATURE_DIM``) and passes
+# it explicitly, so it does not move with this constant.
+AGENT_FEATURE_DIM = 2
+AGENT_FEATURE_COLUMNS: Tuple[str, ...] = ("fuel_norm", "mission_fuel_slack_norm")
+
+# The stable identity of the ACTOR observation this builder produces. Persisted in run
+# provenance, checkpoints, episode outcomes and every wake record, so an artifact states
+# which actor input it was trained / evaluated on. Every run and checkpoint before this
+# id existed used the historical one-column agent row (`fuel_norm` only).
+ACTOR_OBSERVATION_ID = "actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1"
+LEGACY_ACTOR_OBSERVATION_LABEL = "actor_graph_task6_agent1_fuel_norm"  # reader label only
+MISSION_SLACK_ROUTE_MODEL_ID = "private_target_centre_polyline_levels_nn_geometric_ties_v1"
+MISSION_SLACK_FUEL_CONVENTION_ID = "blade_get_fuel_needed_to_return_to_base_physical_x1"
+_MISSION_SLACK_AUDIT_VERSION = 1
+
+
+def actor_observation_definition() -> Dict[str, Any]:
+    """The JSON-ready definition of :data:`ACTOR_OBSERVATION_ID` (run config, checkpoints)."""
+    return {
+        "actor_observation_id": ACTOR_OBSERVATION_ID,
+        "task_feature_dim": int(TASK_FEATURE_DIM),
+        "task_feature_columns": [
+            "utility_norm", "dist_to_ego_norm", "capable_by_ego", "reachable_by_ego",
+            "probability", "sensed",
+        ],
+        "agent_feature_dim": int(AGENT_FEATURE_DIM),
+        "agent_feature_columns": list(AGENT_FEATURE_COLUMNS),
+        "peer_agent_rows": "all zero (featureless)",
+        "mission_fuel_slack_norm": {
+            "definition": ("(current_fuel - estimated_remaining_mission_and_return_fuel)"
+                           " / max_fuel"),
+            "signed": True,
+            "clipped": False,
+            "denominator": "the ego's own live max_fuel (positive, finite)",
+            "route_model_id": MISSION_SLACK_ROUTE_MODEL_ID,
+            "route": ("current position -> remaining own assignments (ascending level; "
+                      "greedy nearest neighbour within a level from the chained position; "
+                      "ties by target latitude, longitude, target id, step index) -> own "
+                      "home base; empty mission = direct return leg"),
+            "remaining_mission": ("own assignment slice of the private belief, minus "
+                                  "targets the ego itself proximity-confirmed; unassigned "
+                                  "pop-ups excluded; unconfirmed targets kept"),
+            "distance": "haversine target-centre polyline (Location.distance_to)",
+            "fuel_convention_id": MISSION_SLACK_FUEL_CONVENTION_ID,
+            "fuel_factor": 1.0,
+            "fd_rtb_margin_applied": False,
+            "approximations": [
+                "target centres, not the 50-km stand-off arrival / attack geometry",
+                "no future confirmation waits, loiter burn, policy choices or peer actions",
+                "nearest neighbour chained once from the current position; the executor "
+                "re-orders from its live position each tick and breaks exact ties by "
+                "task index",
+            ],
+            "inputs": [
+                "own live aircraft: position, current_fuel, max_fuel, speed, fuel_rate",
+                "own home-base coordinates (executor's setup Agent.return_location)",
+                "own proximity-confirmed completions (executor.done pairs of this ego)",
+                "private task list and own assignment slice",
+            ],
+            "failure": "MissionSlackIntegrityError (aborts the run; never attrition)",
+        },
+    }
+
+
+# =============================================================================
+# Mission fuel slack (ego-private estimate; see the module docstring)
+# =============================================================================
+
+class MissionSlackIntegrityError(RuntimeError):
+    """The mission-fuel-slack feature cannot be computed from valid ego-private inputs.
+
+    An INSTRUMENT fault, never an episode outcome: a feature that silently fell back to a
+    plausible value (or silently dropped unresolved work) would corrupt the actor input of
+    every decision it touched. ``graph_train`` re-raises it as a
+    ``MeasurementIntegrityError`` so it ABORTS the run and can never be accounted as
+    setup / run attrition.
+    """
+
+
+@dataclass(frozen=True)
+class EgoMissionInputs:
+    """The two ego-local facts the builder cannot read off the ego's own aircraft.
+
+    Extracted by the tick loop from the executor for THIS ego only and passed explicitly,
+    so the feature calculator is never handed peer or central state.
+
+    Attributes:
+        home_base: the ego's own home-base coordinates.
+        confirmed_target_ids: target ids this ego ITSELF proximity-confirmed destroyed
+            (the executor's ``done`` pairs whose ego is this ego).
+    """
+
+    home_base: Optional[Location]
+    confirmed_target_ids: FrozenSet[str]
+
+
+@dataclass(frozen=True)
+class MissionSlackEstimate:
+    """The computed estimate and everything needed to re-check it (reporting metadata).
+
+    Immutable, captured pre-action at the wake. ``slack_norm`` is the value placed in the
+    ego row's column 1 (as float32); the rest is audit detail and NEVER a model input.
+    """
+
+    slack_norm: float
+    slack_fuel: float
+    current_fuel: float
+    max_fuel: float
+    speed_knots: float
+    fuel_rate: float
+    position: Tuple[float, float]
+    home_base: Tuple[float, float]
+    confirmed_target_ids: Tuple[str, ...]
+    remaining: Tuple[Dict[str, Any], ...]      # assignments kept, in slice order
+    excluded_confirmed: Tuple[Dict[str, Any], ...]
+    route: Tuple[Dict[str, Any], ...]          # visit order, with leg_km per stop
+    return_leg_km: float
+    route_distance_km: float
+    required_fuel: float
+
+    def as_record(self) -> Dict[str, Any]:
+        """JSON-ready audit record (plain builtins only)."""
+        return {
+            "audit_version": _MISSION_SLACK_AUDIT_VERSION,
+            "actor_observation_id": ACTOR_OBSERVATION_ID,
+            "route_model_id": MISSION_SLACK_ROUTE_MODEL_ID,
+            "fuel_convention_id": MISSION_SLACK_FUEL_CONVENTION_ID,
+            "fuel_factor": 1.0,
+            "mission_fuel_slack_norm": float(self.slack_norm),
+            "slack_fuel": float(self.slack_fuel),
+            "current_fuel": float(self.current_fuel),
+            "max_fuel": float(self.max_fuel),
+            "speed_knots": float(self.speed_knots),
+            "fuel_rate": float(self.fuel_rate),
+            "position": [float(self.position[0]), float(self.position[1])],
+            "home_base": [float(self.home_base[0]), float(self.home_base[1])],
+            "confirmed_target_ids": list(self.confirmed_target_ids),
+            "remaining_assignments": [dict(r) for r in self.remaining],
+            "excluded_confirmed_assignments": [dict(r) for r in self.excluded_confirmed],
+            "route": [dict(r) for r in self.route],
+            "n_route_stops": len(self.route),
+            "return_leg_km": float(self.return_leg_km),
+            "route_distance_km": float(self.route_distance_km),
+            "required_fuel": float(self.required_fuel),
+        }
+
+
+# blade.utils.constants.NAUTICAL_MILES_TO_METERS, the unit the engine's FUEL question
+# (`Game.get_fuel_needed_to_return_to_base`) converts kilometres with. Transcribed, not
+# imported, for the reason every other transcription of an engine constant in this
+# project is: the observation layer stays free of the engine and of the training layers.
+_NAUTICAL_MILES_TO_METERS = 1852.0
+
+
+def _physical_fuel_for_distance_km(distance_km: float, *, speed_knots: float,
+                                   fuel_rate: float) -> float:
+    """Fuel burned flying ``distance_km`` in the engine's own arithmetic, factor 1.0.
+
+    ``km -> m -> nautical miles``, divided by the KNOTS speed for hours, times the lbs/hr
+    ``fuel_rate`` -- a transcription of ``Game.get_fuel_needed_to_return_to_base`` with no
+    reserve multiplier. Deliberately a local transcription rather than an import: the
+    builder depends on no training-layer module (a structural no-label guard), and the
+    equality of this transcription with the training layer's own copy of the SAME engine
+    arithmetic is test-enforced (``tests/test_graph_mission_fuel_slack.py``). Inputs are
+    validated by the caller.
+    """
+    return (float(distance_km) * 1000.0 / _NAUTICAL_MILES_TO_METERS
+            / float(speed_knots) * float(fuel_rate))
+
+
+def _finite(value: Any, what: str, *, positive: bool = False,
+            non_negative: bool = False) -> float:
+    """``float(value)``, refusing non-numeric / non-finite / out-of-domain values loudly."""
+    if value is None or isinstance(value, bool):
+        raise MissionSlackIntegrityError("%s is missing or not numeric: %r" % (what, value))
+    try:
+        out = float(value)
+    except (TypeError, ValueError) as exc:
+        raise MissionSlackIntegrityError(
+            "%s is not numeric: %r" % (what, value)) from exc
+    if not math.isfinite(out):
+        raise MissionSlackIntegrityError("%s is not finite: %r" % (what, value))
+    if positive and out <= 0.0:
+        raise MissionSlackIntegrityError("%s must be > 0, got %r" % (what, value))
+    if non_negative and out < 0.0:
+        raise MissionSlackIntegrityError("%s must be >= 0, got %r" % (what, value))
+    return out
+
+
+def _checked_location(loc: Any, what: str) -> Location:
+    if loc is None:
+        raise MissionSlackIntegrityError("%s is unavailable" % what)
+    lat = _finite(getattr(loc, "latitude", None), "%s latitude" % what)
+    lon = _finite(getattr(loc, "longitude", None), "%s longitude" % what)
+    return Location(lat, lon)
+
+
+def _int_field(value: Any, what: str) -> int:
+    if isinstance(value, bool):
+        raise MissionSlackIntegrityError("%s must be an integer, got %r" % (what, value))
+    try:
+        out = int(value)
+    except (TypeError, ValueError) as exc:
+        raise MissionSlackIntegrityError(
+            "%s must be an integer, got %r" % (what, value)) from exc
+    if out != value:
+        raise MissionSlackIntegrityError("%s must be an integer, got %r" % (what, value))
+    return out
+
+
+def estimate_mission_fuel_slack(
+    *,
+    position: Location,
+    home_base: Optional[Location],
+    current_fuel: Any,
+    max_fuel: Any,
+    speed_knots: Any,
+    fuel_rate: Any,
+    tasks: Sequence[Any],
+    own_assignments: Sequence[Any],
+    confirmed_target_ids: Any,
+) -> MissionSlackEstimate:
+    """PURE ego-private estimate of ``mission_fuel_slack_norm`` (module docstring).
+
+    Reads only what it is given, mutates nothing (the task list, the assignment slice
+    and the confirmed set are only read), draws no randomness.
+
+    Raises:
+        MissionSlackIntegrityError: on any invalid / non-finite physical input, a missing
+            home base, or an assignment that does not resolve to a located step.
+    """
+    here = _checked_location(position, "ego position")
+    home = _checked_location(home_base, "ego home base")
+    fuel = _finite(current_fuel, "ego current_fuel", non_negative=True)
+    cap = _finite(max_fuel, "ego max_fuel", positive=True)
+    speed = _finite(speed_knots, "ego speed (knots)", positive=True)
+    rate = _finite(fuel_rate, "ego fuel_rate", positive=True)
+    confirmed = frozenset(str(t) for t in (confirmed_target_ids or ()))
+
+    remaining: List[Dict[str, Any]] = []
+    excluded: List[Dict[str, Any]] = []
+    stops: List[Tuple[int, Location, Dict[str, Any]]] = []
+    for position_in_slice, assignment in enumerate(own_assignments or ()):
+        try:
+            raw_task, raw_step, raw_level = tuple(assignment)
+        except (TypeError, ValueError) as exc:
+            raise MissionSlackIntegrityError(
+                "own assignment %r is not a (task_idx, step_idx, level) triple"
+                % (assignment,)) from exc
+        task_idx = _int_field(raw_task, "assignment task_idx")
+        step_idx = _int_field(raw_step, "assignment step_idx")
+        level = _int_field(raw_level, "assignment level")
+        if not 0 <= task_idx < len(tasks):
+            raise MissionSlackIntegrityError(
+                "own assignment %r references task %d outside the private task list "
+                "(k=%d)" % (assignment, task_idx, len(tasks)))
+        steps = getattr(tasks[task_idx], "steps", None) or []
+        if not 0 <= step_idx < len(steps):
+            raise MissionSlackIntegrityError(
+                "own assignment %r references step %d outside task %d's %d step(s)"
+                % (assignment, step_idx, task_idx, len(steps)))
+        step = steps[step_idx]
+        raw_target = getattr(step, "target_id", None)
+        if raw_target is None or str(raw_target) == "":
+            raise MissionSlackIntegrityError(
+                "own assignment %r resolves to a step without a target id" % (assignment,))
+        target_id = str(raw_target)
+        loc = _checked_location(getattr(step, "location", None),
+                                "target %s location" % target_id)
+        entry = {
+            "slice_position": position_in_slice,
+            "task_idx": task_idx,
+            "step_idx": step_idx,
+            "level": level,
+            "target_id": target_id,
+            "target": [float(loc.latitude), float(loc.longitude)],
+        }
+        if target_id in confirmed:
+            excluded.append(entry)
+            continue
+        remaining.append(entry)
+        stops.append((level, loc, entry))
+
+    # Levels ascending; greedy nearest neighbour within a level from the chained point.
+    cursor = here
+    route: List[Dict[str, Any]] = []
+    total_km = 0.0
+    for level in sorted({lv for lv, _loc, _e in stops}):
+        pending = [(loc, e) for lv, loc, e in stops if lv == level]
+        while pending:
+            def _key(item: Tuple[Location, Dict[str, Any]]) -> Tuple[Any, ...]:
+                loc_, e_ = item
+                return (cursor.distance_to(loc_), float(loc_.latitude),
+                        float(loc_.longitude), e_["target_id"], int(e_["step_idx"]))
+            best = min(pending, key=_key)
+            pending.remove(best)
+            leg = float(cursor.distance_to(best[0]))
+            total_km += leg
+            route.append({**best[1], "leg_km": leg})
+            cursor = best[0]
+    return_leg = float(cursor.distance_to(home))
+    total_km += return_leg
+
+    required = _physical_fuel_for_distance_km(total_km, speed_knots=speed, fuel_rate=rate)
+    slack_fuel = fuel - required
+    slack_norm = slack_fuel / cap
+    if not (math.isfinite(total_km) and math.isfinite(required)
+            and math.isfinite(slack_norm)):
+        raise MissionSlackIntegrityError(
+            "non-finite mission slack: distance=%r required=%r slack_norm=%r"
+            % (total_km, required, slack_norm))
+    return MissionSlackEstimate(
+        slack_norm=float(slack_norm),
+        slack_fuel=float(slack_fuel),
+        current_fuel=fuel,
+        max_fuel=cap,
+        speed_knots=speed,
+        fuel_rate=rate,
+        position=(float(here.latitude), float(here.longitude)),
+        home_base=(float(home.latitude), float(home.longitude)),
+        confirmed_target_ids=tuple(sorted(confirmed)),
+        remaining=tuple(remaining),
+        excluded_confirmed=tuple(excluded),
+        route=tuple(route),
+        return_leg_km=return_leg,
+        route_distance_km=float(total_km),
+        required_fuel=float(required),
+    )
 
 
 # =============================================================================
@@ -181,7 +563,8 @@ class GraphObservation:
     """
 
     task_features: np.ndarray          # [k, TASK_FEATURE_DIM] float32, all values in [0, 1]
-    agent_features: np.ndarray         # [a, 1] float32: [0] fuel_norm (ego real, peers 0.0)
+    agent_features: np.ndarray         # [a, AGENT_FEATURE_DIM] float32: [0] fuel_norm,
+                                       #   [1] mission_fuel_slack_norm (ego real, peers 0.0)
     ego_index: int                     # global node index of the ego agent (== k)
     edge_index: np.ndarray             # [2, E] int   COO over GLOBAL node indices
     edge_type: np.ndarray              # [E]    int   values from EdgeType
@@ -190,6 +573,9 @@ class GraphObservation:
     agent_id: str                      # the ego agent's id
     current_time: int                  # raw simulation tick
     time_norm: float                   # current_time / max_sim_ticks, clipped to [0, 1]
+    # REPORTING METADATA ONLY -- the audit of the ego row's column 1, captured pre-action.
+    # The encoder reads the feature arrays above and never this field.
+    mission_slack: Optional[MissionSlackEstimate] = None
 
 
 # =============================================================================
@@ -282,12 +668,17 @@ def build_graph_observation(
     solution: Optional[Dict[str, List[Tuple[int, int, int]]]] = None,
     precedence_relations: Optional[List[Tuple[int, int]]] = None,
     config: Optional[GraphObservationConfig] = None,
+    *,
+    mission: Optional[EgoMissionInputs],
 ) -> GraphObservation:
     """Build a :class:`GraphObservation` for ``agent_id``.
 
     Inputs mirror the retired flat ``build_observation_vector`` (scenario,
     agent_id, current_plan, current_time, tasks, solution) plus
-    ``precedence_relations`` (task_idx pairs, may be None/empty).
+    ``precedence_relations`` (task_idx pairs, may be None/empty) and the REQUIRED
+    keyword ``mission`` — the ego's own home base and own confirmed completions, which
+    the ego row's ``mission_fuel_slack_norm`` column needs. There is no default: a
+    missing value would otherwise have to be invented.
 
     Args:
         scenario: BLADE Scenario observation (must expose ``get_aircraft``).
@@ -301,13 +692,20 @@ def build_graph_observation(
         solution: full allocation ``{agent_id: [(task_idx, step_idx, level), ...]}``.
         precedence_relations: list of (a, b) task_idx pairs (a precedes b).
         config: :class:`GraphObservationConfig` (defaults used if None).
+        mission: :class:`EgoMissionInputs` for THIS ego (required keyword).
 
     Returns:
         GraphObservation with variable ``k`` task nodes and ``a`` agent nodes.
 
     Raises:
         ValueError: if the ego aircraft is not found (not airborne) or lacks a side.
+        MissionSlackIntegrityError: if ``mission`` is missing or the mission fuel slack
+            cannot be computed from valid ego-private inputs.
     """
+    if not isinstance(mission, EgoMissionInputs):
+        raise MissionSlackIntegrityError(
+            "build_graph_observation requires the ego's EgoMissionInputs "
+            "(home base + own confirmed completions), got %r" % (mission,))
     if config is None:
         config = GraphObservationConfig()
     if tasks is None:
@@ -389,8 +787,30 @@ def build_graph_observation(
     # every peer row — peers are featureless (no peer runtime state under no-communication).
     # The ego is the only node with a live position now, so the `sensed` column below
     # uses ego_pos directly; peers contribute no sensing.
-    agent_features = np.zeros((a, 1), dtype=np.float32)
+    agent_features = np.zeros((a, AGENT_FEATURE_DIM), dtype=np.float32)
     agent_features[0, 0] = clip_to_01(_compute_fuel_norm(ego_ac))
+
+    # [1] mission_fuel_slack_norm: EGO ROW ONLY, from ego-private inputs only (its own
+    # aircraft, its own home base / confirmed completions, its private tasks and its OWN
+    # assignment slice). Signed and unclipped. Peer rows stay 0.0.
+    mission_slack = estimate_mission_fuel_slack(
+        position=Location(getattr(ego_ac, "latitude", None),
+                          getattr(ego_ac, "longitude", None)),
+        home_base=mission.home_base,
+        current_fuel=getattr(ego_ac, "current_fuel", None),
+        max_fuel=getattr(ego_ac, "max_fuel", None),
+        speed_knots=getattr(ego_ac, "speed", None),
+        fuel_rate=getattr(ego_ac, "fuel_rate", None),
+        tasks=tasks,
+        own_assignments=list(solution.get(str(agent_id), None) or []),
+        confirmed_target_ids=mission.confirmed_target_ids,
+    )
+    slack_value = np.float32(mission_slack.slack_norm)
+    if not np.isfinite(slack_value):
+        raise MissionSlackIntegrityError(
+            "mission_fuel_slack_norm %r is not representable as a finite float32"
+            % (mission_slack.slack_norm,))
+    agent_features[0, 1] = slack_value
 
     # =========================================================================
     # Task nodes: one per Task in `tasks` (stable, NOT restricted to in-range).
@@ -505,6 +925,7 @@ def build_graph_observation(
         agent_id=str(agent_id),
         current_time=int(current_time),
         time_norm=float(time_norm),
+        mission_slack=mission_slack,
     )
 
 
@@ -635,6 +1056,9 @@ def _selftest() -> None:
     # Assigned peers are nodes regardless (anchored by ASSIGNMENT edges) and carry no
     # features, so the radius drives only the ego's `sensed` column, never peer behavior.
     config = GraphObservationConfig(max_sim_ticks=max_sim_ticks, detection_range_km=radius)
+    ego_home = next(
+        (ag.return_location for ag in blue_agents if str(ag.id) == ego_id), None
+    )
     go = build_graph_observation(
         scenario=obs,
         agent_id=ego_id,
@@ -644,6 +1068,7 @@ def _selftest() -> None:
         solution=solution_g,
         precedence_relations=[],
         config=config,
+        mission=EgoMissionInputs(home_base=ego_home, confirmed_target_ids=frozenset()),
     )
 
     n_spatial = int((go.edge_type == int(EdgeType.SPATIAL)).sum())
@@ -655,7 +1080,7 @@ def _selftest() -> None:
     print("=" * 64)
     print(f"ego_id                 : {ego_id}")
     print(f"task_features.shape    : {go.task_features.shape}  (k tasks x 6)")
-    print(f"agent_features.shape   : {go.agent_features.shape}  (a agents x 1)")
+    print(f"agent_features.shape   : {go.agent_features.shape}  (a agents x {AGENT_FEATURE_DIM})")
     print(f"ego_index              : {go.ego_index}  (== k, ego is first agent node)")
     print(f"current_time (raw tick): {go.current_time}")
     print(f"time_norm              : {go.time_norm:.6f}  (= current_time / {max_sim_ticks})")
@@ -670,7 +1095,8 @@ def _selftest() -> None:
     print("-" * 64)
     print("TASK feature index map : "
           "[0]utility [1]dist_to_ego [2]capable [3]reachable [4]probability [5]sensed")
-    print("AGENT feature index map: [0]fuel_norm  (ego real; peers featureless = 0.0)")
+    print("AGENT feature index map: [0]fuel_norm [1]mission_fuel_slack_norm  "
+          "(ego real; peers featureless = 0.0)")
     print("-" * 64)
     print("task_features:")
     print(np.array2string(go.task_features, precision=3, suppress_small=True))
@@ -685,18 +1111,23 @@ def _selftest() -> None:
 
     # Lightweight invariant checks.
     assert go.task_features.shape == (len(tasks_g), TASK_FEATURE_DIM)
-    assert go.agent_features.shape == (len(go.agent_ids), 1)
+    assert go.agent_features.shape == (len(go.agent_ids), AGENT_FEATURE_DIM)
     assert go.ego_index == len(tasks_g)
     assert go.edge_index.shape[0] == 2
     assert go.edge_index.shape[1] == go.edge_type.shape[0]
     assert float(go.task_features.min()) >= 0.0 and float(go.task_features.max()) <= 1.0
-    assert float(go.agent_features.min()) >= 0.0 and float(go.agent_features.max()) <= 1.0
+    # Column 0 (fuel_norm) is normalized; column 1 (mission slack) is SIGNED, unclipped.
+    assert float(go.agent_features[:, 0].min()) >= 0.0
+    assert float(go.agent_features[:, 0].max()) <= 1.0
+    assert np.isfinite(go.agent_features).all()
     assert 0.0 <= go.time_norm <= 1.0
     # Ego is the first agent node; its fuel_norm is a real, normalized value.
     assert 0.0 <= float(go.agent_features[0, 0]) <= 1.0
+    assert go.mission_slack is not None
+    assert float(go.agent_features[0, 1]) == float(np.float32(go.mission_slack.slack_norm))
     # Peers are featureless: every NON-ego row is exactly 0.0 (no peer runtime state).
     for i in range(1, len(go.agent_ids)):
-        assert float(go.agent_features[i, 0]) == 0.0
+        assert not go.agent_features[i].any()
     # Agent-node set == ego UNION assigned same-side peers; no sensed-but-unassigned peer
     # leaked in. (All agents are blue here, so the builder's side filter is a no-op.)
     expected_nodes = {ego_id} | {

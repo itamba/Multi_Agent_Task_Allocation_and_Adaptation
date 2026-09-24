@@ -118,6 +118,7 @@ from .graph_generalized import (
     sample_generalized_v2_pre_solve_cardinality,
 )
 from .graph_tick_loop import build_policy, run_episode
+from ..observation.graph_builder import MissionSlackIntegrityError
 from .graph_reward import RewardConfig, compute_episode_reward
 from ..action.graph_action import MetaAction
 from ...models import StepKind
@@ -772,12 +773,14 @@ def run_rollout(cfg: RolloutConfig) -> Dict[str, Any]:
                                                     fd_out.damage_factor or 0.0),
                          setup_seconds, episode_seconds))
 
-            except MatchAouBackendError:
+            except (MatchAouBackendError, MissionSlackIntegrityError):
                 # BACKEND / CONFIGURATION fault, not an episode outcome: the selected
                 # backend could not be reached, or was handed a problem outside its
                 # contract. Re-raised AHEAD of the broad handler so the rollout STOPS
                 # instead of counting it as ordinary episode attrition -- and so it is
-                # never answered by silently solving the other objective.
+                # never answered by silently solving the other objective. An actor
+                # observation that cannot be computed (mission fuel slack) is an
+                # instrument fault of the same kind and stops the rollout too.
                 raise
             except Exception as exc:  # one failed episode must not abort the loop
                 n_failed += 1

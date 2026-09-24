@@ -425,6 +425,11 @@ from .graph_tick_loop import (
     run_episode,
 )
 from ..observation.central_graph_builder import CentralStateRecorder
+from ..observation.graph_builder import (
+    ACTOR_OBSERVATION_ID,
+    MissionSlackIntegrityError,
+    actor_observation_definition,
+)
 from ..action.graph_action import ACTION_REPRESENTATION_ID, MetaAction
 from ...models import StepKind
 from ...utils.blade_utils.scenario_generator import (
@@ -576,7 +581,7 @@ _EPISODE_OUTCOME_SCHEMA = "graph_train_episode_outcome"
 # path the design is `fixed_cell_v1`, the reference policy is `static_t0_v1`, requested
 # equals realized, and the structures the historical policies do not produce are `null`
 # rather than a fabricated zero.
-_EPISODE_OUTCOME_VERSION = 4
+_EPISODE_OUTCOME_VERSION = 5
 # VERSION 3 adds the PER-WAKE ACTOR DIAGNOSTICS (`wake_decisions`, versioned by
 # `_WAKE_DIAGNOSTICS_VERSION`): for every recorded wake, why it happened, what the actor
 # saw and what the masked distribution actually looked like. It exists because the
@@ -587,13 +592,20 @@ _EPISODE_OUTCOME_VERSION = 4
 # VERSION 4 adds the top-level `action_representation_id` and carries wake diagnostics
 # schema 2. The MEANING of the action a record describes changed (the semantic k + 2
 # representation), so the version moves rather than hiding that change behind v3.
-_WAKE_DIAGNOSTICS_VERSION = 2
+# VERSION 5 adds the top-level `actor_observation_id` and carries wake diagnostics
+# schema 3: the actor's agent row gained `mission_fuel_slack_norm`, so what a wake was
+# decided ON changed and the versions move rather than hiding it.
+_WAKE_DIAGNOSTICS_VERSION = 3
 # WAKE DIAGNOSTICS 1 described the retired node-indexed k x 3 joint distribution
 # (`aggregate_probability_per_meta_action`, `joint_*`, `joint_vs_aggregate_disagree`).
 # WAKE DIAGNOSTICS 2 describes the semantic k + 2 leaf distribution and names its
 # representation on every wake (`action_representation_id`,
 # `semantic_probability_per_meta_action`, `semantic_entropy_*`). The readers below keep
 # BOTH readable and never read one schema's field under the other's meaning.
+# WAKE DIAGNOSTICS 3 is wake diagnostics 2 PLUS the actor-observation identity and the
+# ego's `mission_fuel_slack_norm` as the encoder received it (`actor_observation_id`,
+# `ego_mission_fuel_slack_norm`) and its immutable pre-action audit
+# (`mission_slack_audit`). Every semantic-action field is unchanged in name and meaning.
 
 #: A READER label for historical wake records, which carry no representation id. It is
 #: never written into any artifact.
@@ -2793,6 +2805,8 @@ def _episode_outcome_record(
         "schema_version": _EPISODE_OUTCOME_VERSION,
         # The action semantics every selected action and probability below is stated in.
         "action_representation_id": ACTION_REPRESENTATION_ID,
+        # The ACTOR OBSERVATION every wake of this episode was decided on (version 5).
+        "actor_observation_id": ACTOR_OBSERVATION_ID,
         # --- WHICH POPULATION this episode was drawn from, and under which policies ---
         # Stated on BOTH designs rather than only on the generalized one: "this run was
         # the historical fixed cell" is a fact worth recording, and a reader must never
@@ -4096,6 +4110,9 @@ def write_run_config(
             "execution": "decentralized_actor_only",
             # The action semantics this run samples, stores, re-scores and reports in.
             "action_representation_id": ACTION_REPRESENTATION_ID,
+            # The ACTOR OBSERVATION this run trains and evaluates on, with its definition.
+            "actor_observation_id": ACTOR_OBSERVATION_ID,
+            "actor_observation": actor_observation_definition(),
             # The training-only credit artifact every productive update writes.
             "credit_diagnostics": {
                 "artifact": _CREDIT_DIAGNOSTICS_FILENAME,
@@ -4636,6 +4653,19 @@ class TrainingQuotaError(MeasurementIntegrityError):
     It is NOT a verdict on the worlds: an exhausted budget says the attrition rate is
     higher than the operator planned for, which is a scheduling fact to be inspected --
     never a reason to retry a spent seed.
+    """
+
+
+class ActorObservationIntegrityError(MeasurementIntegrityError):
+    """The actor's own observation could not be computed from valid private inputs.
+
+    Raised in place of the builder's ``MissionSlackIntegrityError`` (chained with
+    ``from``): the mission-fuel-slack column of the ego row needs the ego's own live
+    physics, home base, confirmed completions and resolvable assignments, and a value
+    invented around a missing or invalid one would corrupt the actor input of every
+    decision it touched. A :class:`MeasurementIntegrityError` deliberately, so every
+    existing abort re-raise routes it and it can never be ledgered, tallied or skipped
+    as ``setup`` / ``run`` attrition.
     """
 
 
@@ -6164,6 +6194,11 @@ def _run_one_episode(
             # for the same reason: a defect that silently shrinks a scientific
             # denominator is worse than one that stops the run.
             raise
+        except MissionSlackIntegrityError as exc:
+            # The ACTOR'S OWN OBSERVATION could not be computed (mission fuel slack).
+            # An instrument fault, never attrition: converted to a
+            # MeasurementIntegrityError so every caller's abort re-raise stops the run.
+            raise ActorObservationIntegrityError(str(exc)) from exc
         except Exception as exc:
             raise EpisodeAttemptError("run", exc) from exc
 
@@ -7886,15 +7921,16 @@ def save_checkpoint(
 
     THE ACTOR-ONLY PAYLOAD. With ``critic is None`` -- which is every ``actor_only`` run
     -- the saved object holds the five historical keys (``iteration`` / ``encoder`` /
-    ``head`` / ``optimizer`` / ``ppo_config``) PLUS ``action_representation_id``. The
-    encoder / head tensor shapes did not change, so a historical checkpoint would still
-    LOAD into them -- but its weights were trained under the retired node-indexed action
-    representation, and semantic compatibility is INTENTIONALLY broken. The id is what
-    makes a new checkpoint self-describing; a historical one (no id) remains evidence of
-    the old representation. No migration and no warm-start conversion exist.
+    ``head`` / ``optimizer`` / ``ppo_config``) PLUS ``action_representation_id``,
+    ``actor_observation_id`` and ``actor_observation`` (the definition). The encoder's
+    ``agent_proj`` input width is now ``AGENT_FEATURE_DIM = 2`` (fuel_norm plus
+    mission_fuel_slack_norm), so a checkpoint written before the actor-observation id
+    existed does NOT load into it; and one from before ``action_representation_id`` was
+    trained under the retired node-indexed action representation besides. No migration,
+    loader compatibility or warm-start conversion exist.
 
     A CTDE run saves the ACTUAL CTDE training state, which is strictly more: the same
-    six keys (``encoder`` / ``head`` / ``optimizer`` are the ACTOR's), plus
+    eight keys (``encoder`` / ``head`` / ``optimizer`` are the ACTOR's), plus
     ``training_mode`` and the critic's own ``critic_encoder`` / ``value_head`` /
     ``critic_optimizer`` / ``ctde_config``. There is deliberately NO second
     "actor export" file -- the actor portion of this one payload is already sufficient
@@ -7913,6 +7949,11 @@ def save_checkpoint(
         "optimizer": updater.optimizer.state_dict(),
         "ppo_config": asdict(updater.cfg),
         "action_representation_id": ACTION_REPRESENTATION_ID,
+        # The actor input the encoder weights were trained on (agent width 2). A
+        # checkpoint without these keys was trained on the historical one-column agent
+        # row and is not loadable into this encoder; no conversion exists.
+        "actor_observation_id": ACTOR_OBSERVATION_ID,
+        "actor_observation": actor_observation_definition(),
     }
     if critic is not None:
         payload["training_mode"] = TRAINING_MODE_CTDE
