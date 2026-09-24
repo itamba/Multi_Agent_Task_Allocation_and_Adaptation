@@ -43,7 +43,7 @@
 | GENERALIZED-V2 explicit acting-ego readout CTDE development diagnostic — FD100 configuration (100 updates) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` — PR #75 explicit-readout candidate, **unmerged when measured, later retired from the code** | local original `C:\gruns\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9`; evidence package `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` on PR #75, reviewed at evidence commit `557e072b94884bef37ece82a064ad877a5a2f636` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; primary comparator the role-only run; no locality or behavioural improvement over role-only; includes the read-only owner-transition audit (§13) |
 | GENERALIZED-V2 role-only acting-ego CTDE `gae_lambda = 1.0` development diagnostic — FD100 configuration (100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` — the role-only implementation, run from the isolated detached worktree `C:\grolelambda1` | local original `C:\gruns\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3`; evidence package `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` on PR #75, reviewed at evidence commit `1076208b68ee9abd76f159535c5f38fe98970ce5` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; same-code comparator role-only λ0.95; exact λ = 1 telescoping, held-out separation effectively zero; **negative intervention, not the final configuration** (§14) |
 | GENERALIZED-V2 semantic-action CTDE development R1 (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state, 375 updates; executed 2026-09-16) | `8056266cff89f677911462b29970346bed0a57c1` (the PR #72 merge; run-recorded clean `main`) | evidence PR #73, exact candidate `ad9b545034670a7c7a9d8ff98012d56c0be07f46` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`, assigned **retrospectively on 2026-09-19** (as transferred in the user-approved documentation packet); **development only**; primary comparator semantic actor-only R1 (§10); 0 / 20 directional switches at every one of the 16 evaluation rounds; no comparable actor-only transient observed at any evaluation round; no CTDE benefit established (§16) |
-| GENERALIZED-V2 actor mission-fuel-slack development R1 (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates; executed 2026-09-24) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch `task/actor-mission-fuel-slack-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gms1src`) | local original `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441`; evidence package `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` on draft PR #79 | **EXECUTED / UNREVIEWED** — no verdict; development only; final macro effectively zero, no transient (§17) |
+| GENERALIZED-V2 actor mission-fuel-slack development R1 (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates; executed 2026-09-24) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch `task/actor-mission-fuel-slack-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gms1src`) | local original `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441`; evidence package `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (PR #79, merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4`) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at exact head `26f8bff97b1cbbca64d18626625d2321545080af`); development only; final macro effectively zero, no transient (§17) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. The local artifacts
 archived in the authorized 2026-09-15 closure now live in the local archive under `C:\gra\`, and
@@ -3074,11 +3074,13 @@ ABORT-vs-not gaps in the package are observational associations, **never action 
   the current role-only acting-ego critic.
 - No confirmatory evidence exists; the confirmatory profile is untouched.
 
-## 17. GENERALIZED-V2 actor mission-fuel-slack development R1 — executed, unreviewed
+## 17. GENERALIZED-V2 actor mission-fuel-slack development R1 — reviewed
 
-Recorded on 2026-09-24 by the executing task. **Status: EXECUTED / UNREVIEWED.** No verdict exists;
-everything below is the executing task's own reading of its evidence, for GPT review. The decision
-that authorized it is the 2026-09-24 row of [`decisions.md` §1](decisions.md#1-decision-log).
+Recorded on 2026-09-24 by the executing task, when it was EXECUTED / UNREVIEWED; §17.1–§17.4 are
+that task's own reading of its evidence and are kept as written. **Review status (2026-09-25,
+§17.5): the implementation is APPROVED at exact head `26f8bff97b1cbbca64d18626625d2321545080af`
+and the run is reviewed as valid negative development evidence.** The decisions are the
+2026-09-24 and 2026-09-25 rows of [`decisions.md` §1](decisions.md#1-decision-log).
 
 ### 17.1 Identity
 
@@ -3136,7 +3138,8 @@ comparator's transient did not occur**, and no stable final severity-conditioned
 
 ### 17.4 Limitations and non-claims
 
-- **Unreviewed.** Nothing here is a verdict or an approval.
+- **Unreviewed when written** (2026-09-24). The review outcome is recorded in §17.5 and adds no
+  claim beyond these non-claims.
 - One run, one training seed, cross-version against §10; a matched seed number does not give
   identical initial weights or RNG trajectories after the input width changed. No robustness claim.
 - **No causal attribution** — neither of the absent transient nor of the near-constant outputs —
@@ -3158,3 +3161,17 @@ comparator's transient did not occur**, and no stable final severity-conditioned
 - The corrections (the four pre-launch logs the manifest declared, the narrowed wording above,
   and the final-round per-node score extract) are additive commits on PR #79; the original
   evidence commit `50c13ee9839a822b12e42fbfed76c8ed55e1f901` is unchanged.
+- **2026-09-25 — exact-head re-review of `26f8bff97b1cbbca64d18626625d2321545080af`: the
+  implementation is APPROVED and the run is reviewed as valid negative development evidence**
+  (GPT review outcome, as transferred in the packet `CC_Actor_Credit_Update_Diagnostic_R1`; the
+  CHANGES_REQUESTED review above stays history). Distinct identities: measured SHA
+  `3bc944119da08af8e25268c9ee83fc63a8d1e533`; evidence commit `50c13ee…`; first reviewed head
+  `ea60ce38e9f1b91fb3cb736bb4dba01f88f92523`; approved head `26f8bff…`.
+- **Integration and branch retirement (verified 2026-09-25):** PR #79 was merged normally as
+  `bcb1746fbc677b3109f73b36699ac3b3780c32a4` (parents `3d05a6ca76a0cbaf5c182d35da8677e7c06f6268`
+  and `26f8bff…`), whose tree equals the approved head tree
+  `d3a0306e57b8390952a68c521c02a418252ae613`; no PR is open; the remote branch
+  `task/actor-mission-fuel-slack-dev-r1` is absent and no local branch of that name exists. The
+  measured source worktree `C:/gms1src` (detached at `3bc9441…`) and the original run directory
+  `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` are retained; no
+  archival or removal of either is authorized.
