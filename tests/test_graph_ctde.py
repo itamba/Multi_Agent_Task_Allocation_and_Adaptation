@@ -321,7 +321,8 @@ def _actor_obs(k=3, a=2, *, ego_index=None, seed=0):
     tf[:, 5] = 1.0     # sensed
     return GraphObservation(
         task_features=tf,
-        agent_features=rng.random((a, 1)).astype(np.float32),
+        # the actor's [fuel_norm, mission_fuel_slack_norm] agent columns
+        agent_features=rng.random((a, 2)).astype(np.float32),
         ego_index=k if ego_index is None else ego_index,
         edge_index=np.array([[k], [0]], dtype=np.int64),
         edge_type=np.array([int(EdgeType.ASSIGNMENT)], dtype=np.int64),
@@ -536,10 +537,11 @@ def test_actor_only_is_unaffected_by_unused_ctde_configuration():
 
 
 def test_actor_only_checkpoint_payload_keys_are_the_phase_a_five_plus_representation(tmp_path):
-    """PO1: `critic=None` saves the five pre-CTDE keys plus the action-representation id.
+    """PO1: `critic=None` saves the five pre-CTDE keys plus the representation ids.
 
-    No CTDE key is added; the id is what makes a checkpoint of the semantic action
-    representation distinguishable from a historical (node-indexed) one.
+    No CTDE key is added; the action-representation id is what makes a checkpoint of the
+    semantic action representation distinguishable from a historical (node-indexed) one,
+    and the actor-observation id / definition name the actor input width it was trained on.
     """
     torch.manual_seed(0)
     policy = graph_train.build_policy()
@@ -547,7 +549,8 @@ def test_actor_only_checkpoint_payload_keys_are_the_phase_a_five_plus_representa
     path = graph_train.save_checkpoint(policy, updater, 3, tmp_path)
     payload = torch.load(path, weights_only=False)
     assert set(payload) == {"iteration", "encoder", "head", "optimizer", "ppo_config",
-                            "action_representation_id"}
+                            "action_representation_id",
+                            "actor_observation_id", "actor_observation"}
     assert payload["iteration"] == 3
     assert payload["action_representation_id"] == "semantic_k_plus_2_logmeanexp_v1"
 
@@ -562,7 +565,7 @@ def test_ctde_checkpoint_carries_the_actual_ctde_training_state(tmp_path):
     payload = torch.load(path, weights_only=False)
     assert set(payload) == {
         "iteration", "encoder", "head", "optimizer", "ppo_config",
-        "action_representation_id",
+        "action_representation_id", "actor_observation_id", "actor_observation",
         "training_mode", "critic_encoder", "value_head", "critic_optimizer",
         "ctde_config",
     }

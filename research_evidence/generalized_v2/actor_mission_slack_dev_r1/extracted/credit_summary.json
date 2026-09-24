@@ -1,0 +1,429 @@
+{
+ "by_severity": {
+  "mild": {
+   "mission_fuel_slack_norm": {
+    "max": 0.4611426591873169,
+    "mean": 0.25839403606662453,
+    "median": 0.255569264292717,
+    "min": 0.07934913784265518,
+    "n": 774,
+    "p05": 0.10836889669299125,
+    "p25": 0.18584464490413666,
+    "p75": 0.32689467817544937,
+    "p95": 0.4249883711338041,
+    "std_pop": 0.09473035631946983
+   },
+   "n": 774,
+   "normalized_advantage": {
+    "max": 1.5292119830262567,
+    "mean": 0.3490395015580876,
+    "median": 0.5443669576667791,
+    "min": -4.2426403704526345,
+    "n": 774,
+    "p05": -1.3810161491863029,
+    "p25": 0.3273267966039925,
+    "p75": 0.7416369567570148,
+    "p95": 1.0629318162556287,
+    "std_pop": 0.7534552902157644
+   },
+   "raw_advantage": {
+    "max": 0.6539061783862392,
+    "mean": 0.09516393775051751,
+    "median": 0.10156249709743934,
+    "min": -0.6937499874218751,
+    "n": 774,
+    "p05": -0.22140624536565298,
+    "p25": 0.031249999511718758,
+    "p75": 0.17479876458220056,
+    "p95": 0.3809374697310292,
+    "std_pop": 0.17940553044879337
+   },
+   "selected_abort": {
+    "count": 93,
+    "denominator": 774,
+    "rate": 0.12015503875968993
+   }
+  },
+  "severe": {
+   "mission_fuel_slack_norm": {
+    "max": -0.023280778899788857,
+    "mean": -0.18433997222034143,
+    "median": -0.18517794460058212,
+    "min": -0.3898533284664154,
+    "n": 752,
+    "p05": -0.3199409544467926,
+    "p25": -0.23918896168470383,
+    "p75": -0.12751396745443344,
+    "p95": -0.05276037883013496,
+    "std_pop": 0.07959035362826805
+   },
+   "n": 752,
+   "normalized_advantage": {
+    "max": 1.1658999785714452,
+    "mean": -1.1235464087128464,
+    "median": -1.1151726153225536,
+    "min": -4.582575254955856,
+    "n": 752,
+    "p05": -2.587217675964546,
+    "p25": -1.856645037032763,
+    "p75": -0.31306209548167674,
+    "p95": 0.2367098279133477,
+    "std_pop": 0.9284344555091368
+   },
+   "raw_advantage": {
+    "max": 0.32890618244873915,
+    "mean": -0.35216132438591846,
+    "median": -0.24207590664191753,
+    "min": -2.6796871516113723,
+    "n": 752,
+    "p05": -1.2024217937216306,
+    "p25": -0.4479667377268318,
+    "p75": -0.11336495589022881,
+    "p95": 0.08003720112189422,
+    "std_pop": 0.4164147092587327
+   },
+   "selected_abort": {
+    "count": 105,
+    "denominator": 752,
+    "rate": 0.13962765957446807
+   }
+  }
+ },
+ "coverage": "every productive update's row count equals train_records.n_transitions",
+ "fd_selected_ego_immediate_fd_rows": 1526,
+ "joined_to_wake_feature": 1526,
+ "limitation": "actor-only credit with gamma = 1 and a terminal reward is episode / chain-level; ABORT-vs-not and severity gaps are observational associations between different episodes, never action values",
+ "n_credit_rows": 9244,
+ "training_fd_windows": [
+  {
+   "iterations": [
+    0,
+    24
+   ],
+   "mild": {
+    "n": 52,
+    "selected_abort": {
+     "count": 13,
+     "denominator": 52,
+     "rate": 0.25
+    }
+   },
+   "severe": {
+    "n": 36,
+    "selected_abort": {
+     "count": 14,
+     "denominator": 36,
+     "rate": 0.3888888888888889
+    }
+   }
+  },
+  {
+   "iterations": [
+    25,
+    49
+   ],
+   "mild": {
+    "n": 48,
+    "selected_abort": {
+     "count": 2,
+     "denominator": 48,
+     "rate": 0.041666666666666664
+    }
+   },
+   "severe": {
+    "n": 49,
+    "selected_abort": {
+     "count": 8,
+     "denominator": 49,
+     "rate": 0.16326530612244897
+    }
+   }
+  },
+  {
+   "iterations": [
+    50,
+    74
+   ],
+   "mild": {
+    "n": 55,
+    "selected_abort": {
+     "count": 6,
+     "denominator": 55,
+     "rate": 0.10909090909090909
+    }
+   },
+   "severe": {
+    "n": 45,
+    "selected_abort": {
+     "count": 4,
+     "denominator": 45,
+     "rate": 0.08888888888888889
+    }
+   }
+  },
+  {
+   "iterations": [
+    75,
+    99
+   ],
+   "mild": {
+    "n": 48,
+    "selected_abort": {
+     "count": 14,
+     "denominator": 48,
+     "rate": 0.2916666666666667
+    }
+   },
+   "severe": {
+    "n": 44,
+    "selected_abort": {
+     "count": 13,
+     "denominator": 44,
+     "rate": 0.29545454545454547
+    }
+   }
+  },
+  {
+   "iterations": [
+    100,
+    124
+   ],
+   "mild": {
+    "n": 52,
+    "selected_abort": {
+     "count": 6,
+     "denominator": 52,
+     "rate": 0.11538461538461539
+    }
+   },
+   "severe": {
+    "n": 44,
+    "selected_abort": {
+     "count": 6,
+     "denominator": 44,
+     "rate": 0.13636363636363635
+    }
+   }
+  },
+  {
+   "iterations": [
+    125,
+    149
+   ],
+   "mild": {
+    "n": 47,
+    "selected_abort": {
+     "count": 8,
+     "denominator": 47,
+     "rate": 0.1702127659574468
+    }
+   },
+   "severe": {
+    "n": 68,
+    "selected_abort": {
+     "count": 15,
+     "denominator": 68,
+     "rate": 0.22058823529411764
+    }
+   }
+  },
+  {
+   "iterations": [
+    150,
+    174
+   ],
+   "mild": {
+    "n": 48,
+    "selected_abort": {
+     "count": 16,
+     "denominator": 48,
+     "rate": 0.3333333333333333
+    }
+   },
+   "severe": {
+    "n": 50,
+    "selected_abort": {
+     "count": 12,
+     "denominator": 50,
+     "rate": 0.24
+    }
+   }
+  },
+  {
+   "iterations": [
+    175,
+    199
+   ],
+   "mild": {
+    "n": 48,
+    "selected_abort": {
+     "count": 5,
+     "denominator": 48,
+     "rate": 0.10416666666666667
+    }
+   },
+   "severe": {
+    "n": 44,
+    "selected_abort": {
+     "count": 10,
+     "denominator": 44,
+     "rate": 0.22727272727272727
+    }
+   }
+  },
+  {
+   "iterations": [
+    200,
+    224
+   ],
+   "mild": {
+    "n": 64,
+    "selected_abort": {
+     "count": 5,
+     "denominator": 64,
+     "rate": 0.078125
+    }
+   },
+   "severe": {
+    "n": 46,
+    "selected_abort": {
+     "count": 5,
+     "denominator": 46,
+     "rate": 0.10869565217391304
+    }
+   }
+  },
+  {
+   "iterations": [
+    225,
+    249
+   ],
+   "mild": {
+    "n": 44,
+    "selected_abort": {
+     "count": 6,
+     "denominator": 44,
+     "rate": 0.13636363636363635
+    }
+   },
+   "severe": {
+    "n": 50,
+    "selected_abort": {
+     "count": 1,
+     "denominator": 50,
+     "rate": 0.02
+    }
+   }
+  },
+  {
+   "iterations": [
+    250,
+    274
+   ],
+   "mild": {
+    "n": 54,
+    "selected_abort": {
+     "count": 3,
+     "denominator": 54,
+     "rate": 0.05555555555555555
+    }
+   },
+   "severe": {
+    "n": 49,
+    "selected_abort": {
+     "count": 2,
+     "denominator": 49,
+     "rate": 0.04081632653061224
+    }
+   }
+  },
+  {
+   "iterations": [
+    275,
+    299
+   ],
+   "mild": {
+    "n": 52,
+    "selected_abort": {
+     "count": 2,
+     "denominator": 52,
+     "rate": 0.038461538461538464
+    }
+   },
+   "severe": {
+    "n": 50,
+    "selected_abort": {
+     "count": 3,
+     "denominator": 50,
+     "rate": 0.06
+    }
+   }
+  },
+  {
+   "iterations": [
+    300,
+    324
+   ],
+   "mild": {
+    "n": 51,
+    "selected_abort": {
+     "count": 2,
+     "denominator": 51,
+     "rate": 0.0392156862745098
+    }
+   },
+   "severe": {
+    "n": 67,
+    "selected_abort": {
+     "count": 3,
+     "denominator": 67,
+     "rate": 0.04477611940298507
+    }
+   }
+  },
+  {
+   "iterations": [
+    325,
+    349
+   ],
+   "mild": {
+    "n": 49,
+    "selected_abort": {
+     "count": 2,
+     "denominator": 49,
+     "rate": 0.04081632653061224
+    }
+   },
+   "severe": {
+    "n": 68,
+    "selected_abort": {
+     "count": 5,
+     "denominator": 68,
+     "rate": 0.07352941176470588
+    }
+   }
+  },
+  {
+   "iterations": [
+    350,
+    374
+   ],
+   "mild": {
+    "n": 62,
+    "selected_abort": {
+     "count": 3,
+     "denominator": 62,
+     "rate": 0.04838709677419355
+    }
+   },
+   "severe": {
+    "n": 42,
+    "selected_abort": {
+     "count": 4,
+     "denominator": 42,
+     "rate": 0.09523809523809523
+    }
+   }
+  }
+ ]
+}

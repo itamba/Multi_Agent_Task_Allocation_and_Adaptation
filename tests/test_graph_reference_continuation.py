@@ -507,6 +507,7 @@ def _run(world, controller=None, *, max_ticks=3, central=None, spy=None):
             current_plan=belief.solution.get(str(ego_id)), current_time=tick,
             tasks=belief.tasks, solution=belief.solution,
             precedence_relations=[], config=cfg,
+            mission=graph_tick_loop._ego_mission_inputs(_executor, str(ego_id)),
         )
         return graph_tick_loop.Transition(
             gobs=gobs, ego_id=str(ego_id), tick=int(tick),

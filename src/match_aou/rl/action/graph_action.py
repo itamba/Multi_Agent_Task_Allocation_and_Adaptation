@@ -695,7 +695,8 @@ def _selftest() -> None:
         ],
         dtype=np.float32,
     )
-    agent_features = np.array([[0.90], [0.00], [0.00]], dtype=np.float32)
+    # ego row [fuel_norm, mission_fuel_slack_norm]; peers featureless
+    agent_features = np.array([[0.90, 0.10], [0.00, 0.00], [0.00, 0.00]], dtype=np.float32)
     obs = GraphObservation(
         task_features=task_features,
         agent_features=agent_features,

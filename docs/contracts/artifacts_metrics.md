@@ -320,7 +320,7 @@ reporting readers remain as implemented — they detect diagnostics from a list-
 successful ZERO-WAKE episode records `[]` — a real, legitimate outcome of the
 event-triggered design, and deliberately NOT `null`, which would read as "not recorded".
 
-**CURRENT WRITER: EPISODE OUTCOME VERSION 4, WAKE DIAGNOSTICS VERSION 2 (2026-09-16).** The action
+**EPISODE OUTCOME VERSION 4, WAKE DIAGNOSTICS VERSION 2 (2026-09-16).** The action
 representation changed to `semantic_k_plus_2_logmeanexp_v1`
 ([policy and CTDE §2](policy_ctde.md#2-encoder-action-head-and-selection-stage-4)), so the
 MEANING of every selected action and probability changed and the versions move rather than hide
@@ -330,6 +330,27 @@ of episode-outcome v3) describe the historical node-indexed joint representation
 representation id; readers label them `LEGACY_ACTION_REPRESENTATION_LABEL`
 (`legacy_node_indexed_joint_k_x_3`, a reader label never written to an artifact). **No archived
 artifact is rewritten.**
+
+**CURRENT WRITER: EPISODE OUTCOME VERSION 5, WAKE DIAGNOSTICS VERSION 3 (2026-09-24).** The actor
+observation changed to `actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1` (the ego row
+gained `mission_fuel_slack_norm`,
+[policy and CTDE §1](policy_ctde.md#1-graph-observation-stage-3)), so what a wake was decided ON
+changed and the versions move: `_EPISODE_OUTCOME_VERSION = 5` adds a top-level
+`actor_observation_id`, and `_WAKE_DIAGNOSTICS_VERSION = 3` is wake diagnostics 2 — every
+semantic-action field unchanged in name and meaning — PLUS three per-wake fields:
+`actor_observation_id`; `ego_mission_fuel_slack_norm`, the ego row's column 1 **exactly as the
+encoder received it** (float32, read off the same `GraphObservation`); and
+`mission_slack_audit`, the immutable PRE-ACTION audit the builder computed for that value
+(`MissionSlackEstimate.as_record()`: the ego's position, `current_fuel`, `max_fuel`,
+`speed_knots`, `fuel_rate`, home base, its own confirmed target ids, the remaining assignments
+with levels and private target coordinates, the excluded confirmed assignments, the chosen route
+order with per-leg km, the return leg, total distance, required fuel, the fuel slack and the
+normalized slack). The audit is the SAME object the feature was taken from — never a second
+computation — and it is reporting metadata, never a model input; no severity, condition or other
+privileged label is in it. A hand-built observation with no audit records `null`. Records of
+episode-outcome v4 / wake diagnostics 2 carry the one-column agent row (`fuel_norm` only), which
+`graph_builder.LEGACY_ACTOR_OBSERVATION_LABEL` (`actor_graph_task6_agent1_fuel_norm`) names for
+readers; that label is never written to an artifact.
 
 **`wake_decisions` IS DURABLE AND REPORTING-ONLY, AND THE SECOND HALF IS STRUCTURAL.**
 **THE DURABLE DATA PATH HAS THREE DISTINCT STAGES AND THEY MUST NOT BE COLLAPSED INTO
@@ -707,7 +728,9 @@ single parent is the measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8
   episode-outcome v3 / wake diagnostics 1 — the historical node-indexed action representation
   (`wake_action_representations_observed` = `legacy_node_indexed_joint_k_x_3`) — and no
   `train_credit_diagnostics.jsonl`. Episode-outcome v4 / wake diagnostics 2 is the semantic
-  representation; never read a probability of one under the other's meaning.
+  representation; never read a probability of one under the other's meaning. Episode-outcome v5 /
+  wake diagnostics 3 is the same semantic representation decided on the two-column actor agent
+  row (`actor_observation_id`); a v4 record's actor had no `mission_fuel_slack_norm` input.
 - **Sharded evidence streams**: an evidence commit may split `episode_outcomes.jsonl` into
   line-aligned shards; reconstruct by concatenating the shards in the order given by
   `episode_outcomes.index.json` and check the SHA-256 against `artifact_sha256.txt` before
@@ -724,7 +747,7 @@ single parent is the measured code SHA `ae42cb01677f94868b2873008d87be677e31f0c8
 | change or read the optional FD-policy-sensitivity figure | `graph_train.py`: `_PLOT_FD_SENSITIVITY`, `_PLOT_OPTIONAL_FILENAMES`, `_fd_sensitivity_plot_data`, `_plot_fd_policy_sensitivity` | §5 |
 | capture per-attempt visual artifacts | `graph_train.py`: `TrainConfig.visual_artifacts`, `_AttemptIdentity`, `_AttemptArtifacts` (`sync_recordings`, `finalize`), `_VisualArtifactError`, `_recording_kwargs`, `_artifact_kwargs` | §1 |
 | read what an episode did, per successful attempt | `graph_train.py`: `_episode_outcome_record`, `_append_episode_outcome_record`, `_severity_response_from_outcomes`; `episode_outcomes.jsonl`; `run_summary.json:/severity_response` | §3 |
-| record or read per-wake actor diagnostics | `rl/action/graph_action.py`: `summarize_decision`, `_semantic_dist`, `ACTION_REPRESENTATION_ID`; `rl/training/graph_tick_loop.py`: `WAKE_KINDS`, `_decision_record`, `_node_ownership`, `Transition.wake_kind` / `.decision`; `graph_train.py`: `_EPISODE_OUTCOME_VERSION`, `_WAKE_DIAGNOSTICS_VERSION`, `LEGACY_ACTION_REPRESENTATION_LABEL`, `_wake_action_representation`, `_wake_meta_probability`, `_wake_decision_records`, `_wake_diag_digest`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema` | §5 |
+| record or read per-wake actor diagnostics | `rl/action/graph_action.py`: `summarize_decision`, `_semantic_dist`, `ACTION_REPRESENTATION_ID`; `rl/training/graph_tick_loop.py`: `WAKE_KINDS`, `_decision_record`, `_node_ownership`, `Transition.wake_kind` / `.decision`; `rl/observation/graph_builder.py`: `MissionSlackEstimate.as_record`, `ACTOR_OBSERVATION_ID`; `graph_train.py`: `_EPISODE_OUTCOME_VERSION`, `_WAKE_DIAGNOSTICS_VERSION`, `LEGACY_ACTION_REPRESENTATION_LABEL`, `_wake_action_representation`, `_wake_meta_probability`, `_wake_decision_records`, `_wake_diag_digest`, `_fd_policy_sensitivity_from_outcomes`, `_observed_artifact_schema` | §5 |
 | record or read training credit diagnostics | `graph_train.py`: `_CREDIT_DIAGNOSTICS_FILENAME`, `_CREDIT_DIAGNOSTICS_SCHEMA`, `_CREDIT_DIAGNOSTICS_VERSION`, `CreditDiagnosticsError`, `_credit_measurement_tags`, `_credit_rows`, `_persist_credit_diagnostics`, `_observed_credit_diagnostics`; `rl/training/graph_ppo.py`: `CreditReport`; tests `tests/test_graph_semantic_action_credit.py` | §5.1 |
 | record or read CTDE actor-gradient diagnostics | `graph_train.py`: `TrainConfig.actor_gradient_diagnostics`, `_ACTOR_GRADIENT_DIAGNOSTICS_FILENAME`, `_ACTOR_GRADIENT_DIAGNOSTICS_SCHEMA`, `_ACTOR_GRADIENT_DIAGNOSTICS_VERSION`, `_ACTOR_GRADIENT_GROUPS`, `ActorGradientDiagnosticsError`, `_actor_gradient_group`, `_actor_gradient_group_ids`, `_ACTOR_GRADIENT_CONTRAST`, `_actor_gradient_contrast_ids`, `_actor_gradient_record`, `_persist_actor_gradient_diagnostics`; `rl/training/graph_ppo.py`: `ActorGradientReport`, `GradientSink`, `_flat_actor_grad`; tests `tests/test_graph_ctde_actor_gradient_diagnostics.py` | §5.2 |
 | select the final evaluation round (never `eval_records[-1]`) | `graph_train.py`: `_FINAL_EVAL_IDENTITY_FIELDS`, `_final_eval_identity`, `_select_final_eval_record`, `_select_final_matched_round`, `_round_identity`; `run_summary.json:/final_eval_selection` | §5 |

@@ -1,0 +1,195 @@
+{
+ "node_classes": "ego_assigned = ABORT cell legal; not_ego_assigned = ABORT cell illegal (peer-assigned OR unassigned: the record does not distinguish them)",
+ "ranges": {
+  "comparator": {
+   "all_nodes": {
+    "n_nodes": 200,
+    "n_wakes_with_class": 40,
+    "score_range_across_all_nodes_and_wakes": {
+     "OPPORTUNISTIC_ENGAGEMENT": {
+      "max": 5.256779670715332,
+      "min": 1.4956673383712769,
+      "n": 200,
+      "range": 3.761112332344055
+     },
+     "PLAN_COMPLIANCE": {
+      "max": -0.15625086426734924,
+      "min": -0.870034396648407,
+      "n": 200,
+      "range": 0.7137835323810577
+     },
+     "SELF_PRESERVATION_ABORT": {
+      "max": -1.0462466478347778,
+      "min": -3.728386402130127,
+      "n": 200,
+      "range": 2.682139754295349
+     }
+    }
+   },
+   "ego_assigned": {
+    "n_nodes": 62,
+    "n_wakes_with_class": 40,
+    "score_range_across_all_nodes_and_wakes": {
+     "OPPORTUNISTIC_ENGAGEMENT": {
+      "max": 1.5002182722091675,
+      "min": 1.4956673383712769,
+      "n": 62,
+      "range": 0.004550933837890625
+     },
+     "PLAN_COMPLIANCE": {
+      "max": -0.15625086426734924,
+      "min": -0.15725569427013397,
+      "n": 62,
+      "range": 0.001004830002784729
+     },
+     "SELF_PRESERVATION_ABORT": {
+      "max": -3.7251429557800293,
+      "min": -3.728386402130127,
+      "n": 62,
+      "range": 0.0032434463500976562
+     }
+    }
+   },
+   "max_within_wake_node_score_range": 3.7604223489761353,
+   "n_wakes": 40,
+   "not_ego_assigned": {
+    "n_nodes": 138,
+    "n_wakes_with_class": 36,
+    "score_range_across_all_nodes_and_wakes": {
+     "OPPORTUNISTIC_ENGAGEMENT": {
+      "max": 5.256779670715332,
+      "min": 4.871389389038086,
+      "n": 138,
+      "range": 0.3853902816772461
+     },
+     "PLAN_COMPLIANCE": {
+      "max": -0.7639056444168091,
+      "min": -0.870034396648407,
+      "n": 138,
+      "range": 0.1061287522315979
+     },
+     "SELF_PRESERVATION_ABORT": {
+      "max": -1.0462466478347778,
+      "min": -1.31817626953125,
+      "n": 138,
+      "range": 0.27192962169647217
+     }
+    }
+   },
+   "p_abort_across_wakes": {
+    "max": 0.04770936816930771,
+    "min": 0.027328068390488625,
+    "n": 40,
+    "range": 0.020381299778819084
+   }
+  },
+  "new": {
+   "all_nodes": {
+    "n_nodes": 200,
+    "n_wakes_with_class": 40,
+    "score_range_across_all_nodes_and_wakes": {
+     "OPPORTUNISTIC_ENGAGEMENT": {
+      "max": 5.465554714202881,
+      "min": 5.4655537605285645,
+      "n": 200,
+      "range": 9.5367431640625e-07
+     },
+     "PLAN_COMPLIANCE": {
+      "max": -0.3467728793621063,
+      "min": -0.3467729389667511,
+      "n": 200,
+      "range": 5.960464477539063e-08
+     },
+     "SELF_PRESERVATION_ABORT": {
+      "max": -3.736046075820923,
+      "min": -3.73604679107666,
+      "n": 200,
+      "range": 7.152557373046875e-07
+     }
+    }
+   },
+   "ego_assigned": {
+    "n_nodes": 62,
+    "n_wakes_with_class": 40,
+    "score_range_across_all_nodes_and_wakes": {
+     "OPPORTUNISTIC_ENGAGEMENT": {
+      "max": 5.465554714202881,
+      "min": 5.4655537605285645,
+      "n": 62,
+      "range": 9.5367431640625e-07
+     },
+     "PLAN_COMPLIANCE": {
+      "max": -0.3467728793621063,
+      "min": -0.3467729389667511,
+      "n": 62,
+      "range": 5.960464477539063e-08
+     },
+     "SELF_PRESERVATION_ABORT": {
+      "max": -3.736046552658081,
+      "min": -3.73604679107666,
+      "n": 62,
+      "range": 2.384185791015625e-07
+     }
+    }
+   },
+   "max_within_wake_node_score_range": 9.5367431640625e-07,
+   "n_wakes": 40,
+   "not_ego_assigned": {
+    "n_nodes": 138,
+    "n_wakes_with_class": 36,
+    "score_range_across_all_nodes_and_wakes": {
+     "OPPORTUNISTIC_ENGAGEMENT": {
+      "max": 5.4655537605285645,
+      "min": 5.4655537605285645,
+      "n": 138,
+      "range": 0.0
+     },
+     "PLAN_COMPLIANCE": {
+      "max": -0.3467728793621063,
+      "min": -0.3467728793621063,
+      "n": 138,
+      "range": 0.0
+     },
+     "SELF_PRESERVATION_ABORT": {
+      "max": -3.736046075820923,
+      "min": -3.736046314239502,
+      "n": 138,
+      "range": 2.384185791015625e-07
+     }
+    }
+   },
+   "p_abort_across_wakes": {
+    "max": 0.03263237699866295,
+    "min": 0.03263236954808235,
+    "n": 40,
+    "range": 7.450580596923828e-09
+   }
+  }
+ },
+ "record": "final_round_immediate_fd_source_scores",
+ "review_fix": "F3",
+ "scope_note": "describes the recorded final-round outputs of one training seed per run; not a test of feature dependence and not a causal diagnosis",
+ "score_columns": [
+  "PLAN_COMPLIANCE",
+  "OPPORTUNISTIC_ENGAGEMENT",
+  "SELF_PRESERVATION_ABORT"
+ ],
+ "selection_rule": "post_update, eval_round_ordinal 15, updates_completed 375; mild and severe members; the one immediate_fuel_damage wake of fd_ego_id; 40 wakes per run",
+ "sources": {
+  "comparator": {
+   "bytes": 86330277,
+   "measured_code_sha": "d4e9f3721e6d151c00be3fe93c3d149df9d31965",
+   "path": "C:\\gra\\runs\\development\\v2_semantic_actor_only_r1_seed3000000_d4e9f37\\episode_outcomes.jsonl",
+   "run_id": "graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37",
+   "sha256": "3011a163b3b341d5ab25881dae2394e45d7a5ae8ec66854a3f5088d147198740"
+  },
+  "new": {
+   "bytes": 106129593,
+   "measured_code_sha": "3bc944119da08af8e25268c9ee83fc63a8d1e533",
+   "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_outcomes.jsonl",
+   "run_id": "graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441",
+   "sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe"
+  }
+ },
+ "tolerance": "none: exact max - min over the recorded (unrounded) values"
+}

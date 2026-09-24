@@ -1005,9 +1005,12 @@ def test_no_construction_accounting_reaches_the_actor_observation() -> None:
     from match_aou.rl.observation.graph_builder import GraphObservation
 
     fields = tuple(f.name for f in _dc.fields(GraphObservation))
+    # `mission_slack` is the REPORTING-ONLY audit of the ego row's own mission-fuel-slack
+    # column (ego-private inputs; the encoder never reads it) -- not an accounting field.
     assert fields == (
         "task_features", "agent_features", "ego_index", "edge_index", "edge_type",
         "task_target_ids", "agent_ids", "agent_id", "current_time", "time_norm",
+        "mission_slack",
     ), fields
 
     banned = ("hidden", "policy", "backoff", "realized", "requested", "candidate",

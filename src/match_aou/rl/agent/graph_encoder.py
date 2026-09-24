@@ -91,7 +91,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from ..observation.graph_builder import GraphObservation, EdgeType, TASK_FEATURE_DIM
+from ..observation.graph_builder import (
+    AGENT_FEATURE_DIM,
+    GraphObservation,
+    EdgeType,
+    TASK_FEATURE_DIM,
+)
 
 
 # =============================================================================
@@ -236,7 +241,7 @@ class GraphEncoder(nn.Module):
         num_heads: int = 4,
         num_layers: int = 2,
         task_feat_dim: int = TASK_FEATURE_DIM,
-        agent_feat_dim: int = 1,
+        agent_feat_dim: int = AGENT_FEATURE_DIM,
         edge_attr_dim: int = 1,
         ff_dim: Optional[int] = None,
         num_roles: int = 4,
@@ -251,7 +256,10 @@ class GraphEncoder(nn.Module):
             num_layers: number of attention + FFN layers.
             task_feat_dim: width of ``task_features`` columns (param so a future
                 builder column drops in without reopening the encoder).
-            agent_feat_dim: width of ``agent_features`` columns (same rationale).
+            agent_feat_dim: width of ``agent_features`` columns (same rationale). The
+                default tracks the ACTOR builder's ``AGENT_FEATURE_DIM`` (2: fuel_norm,
+                mission_fuel_slack_norm); the CTDE critic passes its own central width
+                explicitly.
             edge_attr_dim: width of the optional ``edge_attr`` (projected to
                 num_heads). Used only when ``edge_attr`` is passed to ``forward``.
             ff_dim: FFN hidden width; defaults to ``4 * model_dim``.
@@ -484,7 +492,12 @@ def _selftest() -> None:
         f"default task_feat_dim {encoder.task_feat_dim} != builder "
         f"TASK_FEATURE_DIM {TASK_FEATURE_DIM}"
     )
-    print(f"[contract] default task_feat_dim == TASK_FEATURE_DIM == {TASK_FEATURE_DIM}")
+    assert encoder.agent_feat_dim == AGENT_FEATURE_DIM, (
+        f"default agent_feat_dim {encoder.agent_feat_dim} != builder "
+        f"AGENT_FEATURE_DIM {AGENT_FEATURE_DIM}"
+    )
+    print(f"[contract] default task_feat_dim == TASK_FEATURE_DIM == {TASK_FEATURE_DIM}; "
+          f"agent_feat_dim == AGENT_FEATURE_DIM == {AGENT_FEATURE_DIM}")
 
     # -------------------------------------------------------------------------
     # Topology A: k=4 tasks, a=2 agents (ego index 4 + one peer index 5).
@@ -506,7 +519,8 @@ def _selftest() -> None:
         ],
         dtype=np.float32,
     )
-    agent_feats_A = np.array([[0.90], [0.0]], dtype=np.float32)  # ego real fuel, peer featureless
+    # ego real [fuel_norm, mission_fuel_slack_norm], peer featureless
+    agent_feats_A = np.array([[0.90, 0.15], [0.0, 0.0]], dtype=np.float32)
     edge_index_A = np.array([[4, 5],
                              [0, 1]], dtype=np.int64)
     edge_type_A = np.array(
@@ -528,8 +542,10 @@ def _selftest() -> None:
     assert logits_A.shape == (k_A, NUM_META_ACTIONS), logits_A.shape
     mask_A = build_action_mask(obs_A)
     meta, node, log_prob, entropy = sample_action(logits_A, mask_A, deterministic=False)
-    assert isinstance(meta, int) and isinstance(node, int)
-    assert 0 <= node < k_A and 0 <= meta < NUM_META_ACTIONS
+    # Semantic representation: PLAN / ABORT are GLOBAL leaves and carry node None;
+    # only ENGAGE carries a task node.
+    assert isinstance(meta, int) and 0 <= meta < NUM_META_ACTIONS
+    assert node is None or (isinstance(node, int) and 0 <= node < k_A)
     assert torch.isfinite(log_prob).all() and torch.isfinite(entropy).all()
     print(f"[A] ActionHead+mask+sample -> node={node} meta={meta} "
           f"log_prob={log_prob.item():.4f} entropy={entropy.item():.4f}")
@@ -551,7 +567,7 @@ def _selftest() -> None:
          [0.55, 0.70, 1.0, 1.0, 1.0, 0.0]],   # no ASSIGNMENT in-edge, unsensed
         dtype=np.float32,
     )
-    agent_feats_B = np.array([[0.80]], dtype=np.float32)
+    agent_feats_B = np.array([[0.80, -0.05]], dtype=np.float32)  # signed slack
     edge_index_B = np.array([[2],
                              [0]], dtype=np.int64)
     edge_type_B = np.array([int(EdgeType.ASSIGNMENT)], dtype=np.int64)
@@ -585,7 +601,7 @@ def _selftest() -> None:
          [0.50, 0.60, 1.0, 1.0, 1.0, 0.0]],
         dtype=np.float32,
     )
-    agent_feats_R = np.array([[0.75]], dtype=np.float32)
+    agent_feats_R = np.array([[0.75, 0.10]], dtype=np.float32)
     edge_index_R = np.array([[2, 2],
                              [0, 1]], dtype=np.int64)
     edge_type_R = np.array(
@@ -656,7 +672,8 @@ def _selftest() -> None:
              [0.5, 0.7, 1.0, 1.0, 1.0, 1.0]],
             dtype=np.float32,
         )
-        agent_feats_C = np.array([[0.9], [0.0], [0.0]], dtype=np.float32)  # ego + 2 featureless peers
+        # ego + 2 featureless peers
+        agent_feats_C = np.array([[0.9, 0.2], [0.0, 0.0], [0.0, 0.0]], dtype=np.float32)
         # Builder-faithful: ASSIGNMENT only (sensing is the `sensed` column, not an edge).
         # ego=3, peer1=4, peer2=5 ; ASSIGN ego->0, peer1->1, peer2->2
         edge_index_C = np.array([[3, 4, 5],

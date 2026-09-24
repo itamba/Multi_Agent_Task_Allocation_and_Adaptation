@@ -512,9 +512,10 @@ def test_po3_outcome_record_carries_versioned_wake_list_and_is_json_safe():
     recs = GT._wake_decision_records([_Tr(TL.WAKE_KIND_IMMEDIATE_FD, ABORT)])
     assert len(recs) == 1
     json.dumps(recs)
-    # v4 / wake-diagnostics 2: the semantic action representation, named on the record.
-    assert GT._EPISODE_OUTCOME_VERSION == 4
-    assert GT._WAKE_DIAGNOSTICS_VERSION == 2
+    # v5 / wake-diagnostics 3: the semantic action representation (v4 / wake 2) plus the
+    # actor-observation identity and the mission-fuel-slack column and audit.
+    assert GT._EPISODE_OUTCOME_VERSION == 5
+    assert GT._WAKE_DIAGNOSTICS_VERSION == 3
 
 
 def test_po3_fd_sensitivity_splits_by_cell_within_the_fd_population():

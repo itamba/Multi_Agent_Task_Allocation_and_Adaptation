@@ -84,7 +84,8 @@ def _make_obs(*, ego_assigned: bool = True) -> GraphObservation:
         ],
         dtype=np.float32,
     )
-    agent_features = np.array([[0.90], [0.00], [0.00]], dtype=np.float32)
+    # ego row [fuel_norm, mission_fuel_slack_norm]; peers featureless
+    agent_features = np.array([[0.90, 0.10], [0.00, 0.00], [0.00, 0.00]], dtype=np.float32)
     src0 = 4 if ego_assigned else 5
     return GraphObservation(
         task_features=task_features,

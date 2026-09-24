@@ -17,12 +17,66 @@
 ## 1. Graph observation (Stage 3)
 
 **Build (Stage 3) — `rl/observation/graph_builder.py`.**
-`build_graph_observation(scenario, agent_id, current_plan=None, current_time=0, tasks=None, solution=None, precedence_relations=None, config=None) -> GraphObservation`. Stateless projection of `(world, solution)`. `task_features[k, TASK_FEATURE_DIM]` (=6: utility, dist-to-ego, capable, reachable, probability, **sensed**; `TASK_FEATURE_DIM` is the single source of truth the encoder imports), `agent_features[a,1]` (fuel_norm: REAL for ego, `0.0` for peers), COO `edge_index`/`edge_type` over the `EdgeType` IntEnum, `time_norm`. **Relations — builder capability versus current runtime.** The builder CAN construct `PRECEDENCE` edges (task → task, one per `(a, b)` in a non-empty `precedence_relations`), but every current actor-runtime call site in `graph_tick_loop` passes `precedence_relations=[]`, so the actor graphs the current runtime produces carry **`ASSIGNMENT` edges only**. `SPATIAL` is reserved/unused in the actor graph (sensing moved to the `sensed` column). The CTDE central graph's agent → target `SPATIAL` relation is a separate, training-only construct ([§4](#4-phase-b-ctde)). Agent set = `ego ∪ assigned same-side peers`. Requires the ego **airborne** (raises otherwise — always satisfied since build only follows a wake, which requires sensing, which requires airborne).
+`build_graph_observation(scenario, agent_id, current_plan=None, current_time=0, tasks=None, solution=None, precedence_relations=None, config=None, *, mission) -> GraphObservation`. Stateless projection of `(world, solution)`. `task_features[k, TASK_FEATURE_DIM]` (=6: utility, dist-to-ego, capable, reachable, probability, **sensed**; `TASK_FEATURE_DIM` is the single source of truth the encoder imports), `agent_features[a, AGENT_FEATURE_DIM]` (=2: `fuel_norm`, `mission_fuel_slack_norm`; REAL for the ego row, `0.0` in both columns for every peer row; `AGENT_FEATURE_DIM` is the single source of truth the encoder imports), COO `edge_index`/`edge_type` over the `EdgeType` IntEnum, `time_norm`. **Relations — builder capability versus current runtime.** The builder CAN construct `PRECEDENCE` edges (task → task, one per `(a, b)` in a non-empty `precedence_relations`), but every current actor-runtime call site in `graph_tick_loop` passes `precedence_relations=[]`, so the actor graphs the current runtime produces carry **`ASSIGNMENT` edges only**. `SPATIAL` is reserved/unused in the actor graph (sensing moved to the `sensed` column). The CTDE central graph's agent → target `SPATIAL` relation is a separate, training-only construct ([§4](#4-phase-b-ctde)). Agent set = `ego ∪ assigned same-side peers`. Requires the ego **airborne** (raises otherwise — always satisfied since build only follows a wake, which requires sensing, which requires airborne).
+
+**ACTOR OBSERVATION `actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`
+(`graph_builder.ACTOR_OBSERVATION_ID`; user-approved 2026-09-24,
+[`decisions.md` §1](../history/decisions.md#1-decision-log)).** Every run and checkpoint before it
+used the one-column agent row (`fuel_norm` only), which the reader label
+`LEGACY_ACTOR_OBSERVATION_LABEL` names (never written to an artifact). The definition is persisted by
+`graph_builder.actor_observation_definition()` in `run_config.json:/training/actor_observation`
+and in every checkpoint.
+
+- **THE ONE ADDED INPUT: `mission_fuel_slack_norm = (current_fuel −
+  estimated_remaining_mission_and_return_fuel) / max_fuel`, ego row only.** `fuel_norm` is kept
+  unchanged. The value is **SIGNED and NOT clipped** (positive = estimated surplus, negative =
+  estimated deficit), divided by the ego's own positive finite `max_fuel` — never by current
+  fuel. It is an ESTIMATE: not a feasibility guarantee and not a forced ABORT rule; the policy
+  still decides.
+- **EGO-PRIVATE INPUTS ONLY, PASSED EXPLICITLY.** The ego's own live aircraft (position,
+  `current_fuel`, `max_fuel`, `speed` in knots, `fuel_rate`), its private task list and its OWN
+  assignment slice, plus the required keyword `mission` = `EgoMissionInputs(home_base,
+  confirmed_target_ids)`. The tick loop builds it with `graph_tick_loop._ego_mission_inputs`,
+  which reads exactly two ego-local executor facts — the ego's setup `Agent.return_location` and
+  the `executor.done` pairs whose ego is this ego — before the action; nothing is reconciled
+  there, and no peer plan, peer position, peer `done` entry, central state, fuel-damage plan,
+  certificate, severity label, oracle or hidden-target inventory reaches the calculator. The
+  builder does not import the fuel-damage layer (the structural guard in
+  `tests/test_graph_fuel_damage.py` still holds).
+- **REMAINING MISSION.** Every assignment of the ego's own slice whose resolved step's target
+  the ego has NOT itself proximity-confirmed. A confirmed target is excluded even when a stale
+  tuple still lists it; an unconfirmed target stays even if a peer destroyed it elsewhere; a
+  discovered but UNASSIGNED pop-up is not part of the mission.
+- **ROUTE (`MISSION_SLACK_ROUTE_MODEL_ID` = `private_target_centre_polyline_levels_nn_geometric_ties_v1`).**
+  A deterministic target-centre polyline from the CURRENT position: levels ascending; within a
+  level greedy nearest neighbour from the chained position, exact ties broken by ego-visible
+  geometry (target latitude, longitude, target id, step index — never task index, so graph row
+  order cannot move it); then the leg to the ego's own home base. No remaining assignment ⇒ the
+  direct return leg. Distance is `Location.distance_to`; fuel is the engine's physical
+  `Game.get_fuel_needed_to_return_to_base` arithmetic (1852 m per nautical mile, ÷ knots,
+  × lbs/hr) at factor **1.0** — the FD RTB margin is NOT applied — transcribed locally as
+  `graph_builder._physical_fuel_for_distance_km`, whose bit-equality with
+  `graph_fuel_damage.fuel_for_distance_km` is test-enforced.
+- **APPROXIMATIONS (recorded, not executor changes).** Target centres rather than the 50-km
+  stand-off arrival / attack geometry; no future confirmation waits, loiter burn, policy choices
+  or peer actions; the executor re-orders a level from its LIVE position every tick and breaks
+  exact distance ties by `(task_idx, step_idx)`, while the estimate chains nearest neighbour
+  once and breaks exact ties geometrically. Identical-location targets have identical costs.
+- **FAILS CLOSED.** A missing `EgoMissionInputs`, a non-finite or out-of-domain physical input
+  (`current_fuel < 0`, `max_fuel`, speed or rate `≤ 0`), a missing home base or an assignment that
+  does not resolve to a located step raises `graph_builder.MissionSlackIntegrityError`; no value
+  is fabricated and no unresolved work is dropped. `graph_train._run_one_episode` converts it to
+  `ActorObservationIntegrityError` (a `MeasurementIntegrityError`), so it ABORTS the run and is
+  never ledgered as `setup` / `run` attrition.
+- **AUDIT, REPORTING ONLY.** `GraphObservation.mission_slack` holds the immutable pre-action
+  `MissionSlackEstimate` (inputs, exclusions, chosen route and legs, distance, required fuel,
+  slack); the encoder never reads it. It reaches the per-wake record
+  ([artifacts and metrics §5](artifacts_metrics.md#5-per-wake-fd-policy-diagnostics)).
 
 ## 2. Encoder, action head and selection (Stage 4)
 
 **Encode + decide (Stage 4) — `rl/agent/graph_encoder.py` + `rl/action/graph_action.py`.**
-`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM`. Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the size-agnostic **critic hook**, now CONSUMED by the Phase-B `CentralCritic` (its own SECOND `GraphEncoder` instance + `ValueHead`; the ACTOR's encoder and head are unchanged and carry no value head — see the CTDE contract below). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]` emits the per-node SOURCE scores `z[v, m]`. `build_action_mask(obs, ...) -> [k,3]` states per-CELL legality (hard physical/structural: PLAN always; `OPPORTUNISTIC_ENGAGEMENT` iff `unassigned & sensed & capable & reachable`; `SELF_PRESERVATION_ABORT` iff `assigned_to_ego`) and is the SOURCE of semantic-leaf legality, not the action space. **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
+`GraphEncoder.forward(obs, edge_attr=None) -> Tensor[k, embed_dim]` — per-task-node embeddings (NOT pooled), single-graph (no batch dim). Defaults `model_dim=64, embed_dim=64, num_heads=4, num_layers=2, task_feat_dim=TASK_FEATURE_DIM, agent_feat_dim=AGENT_FEATURE_DIM` (the actor's `agent_proj` is `Linear(2 → model_dim)`; the CTDE critic constructs its own encoder with `CENTRAL_AGENT_FEATURE_DIM = 1` explicitly, so its widths do not move). Edge-masked symmetrized multi-head attention (torch/numpy only, no PyG/DGL) over `forward + reversed + SELF_LOOP` edges with a learned per-relation `type_bias`; learned TASK/EGO/PEER role embedding (node-typing done HERE, reserved MISSION 4th role); injected `time_norm`; self-loops guarantee no empty-softmax NaN. `pool()` = mean over nodes → the size-agnostic **critic hook**, now CONSUMED by the Phase-B `CentralCritic` (its own SECOND `GraphEncoder` instance + `ValueHead`; the ACTOR's encoder and head are unchanged and carry no value head — see the CTDE contract below). `edge_attr` accepted but `None` today (reserved for expected-exec-time on ASSIGNMENT edges). — `ActionHead(embed_dim, hidden_dim=64, num_meta_actions=3).forward([k,embed]) -> [k,3]` emits the per-node SOURCE scores `z[v, m]`. `build_action_mask(obs, ...) -> [k,3]` states per-CELL legality (hard physical/structural: PLAN always; `OPPORTUNISTIC_ENGAGEMENT` iff `unassigned & sensed & capable & reachable`; `SELF_PRESERVATION_ABORT` iff `assigned_to_ego`) and is the SOURCE of semantic-leaf legality, not the action space. **Meta-actions (3):** `PLAN_COMPLIANCE`, `OPPORTUNISTIC_ENGAGEMENT`, `SELF_PRESERVATION_ABORT` (Cooperative-Recovery removed — handled upstream by the peer-overdue trigger).
 
 **SELECTION CONTRACT — THE SEMANTIC ACTION REPRESENTATION `semantic_k_plus_2_logmeanexp_v1`
 (`graph_action.ACTION_REPRESENTATION_ID`; user-approved 2026-09-16,
@@ -277,15 +331,16 @@ and none may be pre-claimed from this contract; how CTDE results are reviewed an
 - **CHECKPOINTS.** `save_checkpoint(policy, updater, iteration, ckpt_dir, critic=None)`.
   **THE ACTOR-ONLY PAYLOAD** — with `critic is None` (every `actor_only` run) — holds the five
   historical keys (`iteration` / `encoder` / `head` / `optimizer` / `ppo_config`) PLUS
-  `action_representation_id`. A CTDE run saves strictly MORE: those six keys (`encoder` /
-  `head` / `optimizer` are the ACTOR's) plus `training_mode`, `critic_encoder`, `value_head`,
-  `critic_optimizer` and `ctde_config`. **SEMANTIC COMPATIBILITY IS INTENTIONALLY BROKEN:** the
-  encoder / head tensor shapes did not change, so a historical checkpoint (five keys, no
-  representation id) would still load into them, but its weights were trained under the retired
-  node-indexed action representation and it remains evidence of that representation only. **No
-  migration, warm-start conversion, loader compatibility or resume exists**, in either mode;
-  restoring a run remains a separate deferred task. There is deliberately NO second "actor
-  export" file.
+  `action_representation_id`, `actor_observation_id` and `actor_observation` (the
+  definition, [§1](#1-graph-observation-stage-3)). A CTDE run saves strictly MORE: those eight
+  keys (`encoder` / `head` / `optimizer` are the ACTOR's) plus `training_mode`,
+  `critic_encoder`, `value_head`, `critic_optimizer` and `ctde_config`. **COMPATIBILITY IS
+  INTENTIONALLY BROKEN:** the actor encoder's `agent_proj` input width is now 2, so a checkpoint
+  written before `actor_observation_id` existed does not load into it at all; one written before
+  `action_representation_id` existed was also trained under the retired node-indexed action
+  representation and remains evidence of that representation only. **No migration, warm-start
+  conversion, loader compatibility or resume exists**, in either mode; restoring a run remains a
+  separate deferred task. There is deliberately NO second "actor export" file.
 - **PRESETS.** A preset may set `training_mode` and a nested `"ctde"` block (the sibling of
   `"ppo"`), read only by a `ctde` run. The CTDE block has NO CLI flags of its own — it is
   deliberately a preset-only layer, so there is no second naming scheme to drift from
@@ -332,7 +387,8 @@ actor-only preservation) follow [`cc_review.md` §4](../workflows/cc_review.md#4
 | change the epoch-0 actor-gradient report | `rl/training/graph_ppo.py`: `ActorGradientReport`, `GradientSink`, `_flat_actor_grad`, the `gradient_group_ids` / `gradient_sink` / `gradient_contrast_ids` parameters of `CTDEUpdater.update`; tests `tests/test_graph_ctde_actor_gradient_diagnostics.py` | §4; [artifacts and metrics §5.2](artifacts_metrics.md#52-ctde-actor-gradient-diagnostics) |
 | change when the central state is captured | `rl/training/graph_tick_loop.py`: `run_episode(central=...)` and its `capture` call immediately before `_wake_decision` | §4; [runtime §5](runtime.md#5-resync-stage-6-and-the-two-phase-tick-loop) |
 | change actor-only preservation or checkpoints | `rl/training/graph_train.py`: `_ctde_kwargs`, `_central_kwargs`, `save_checkpoint(..., critic=None)`, the critic diagnostics on training records, `run_config.json:/training`; poison test and control in `tests/test_graph_ctde.py` | §4 |
-| change the graph representation | `rl/observation/graph_builder.py`: `GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM` | §1 |
+| change the graph representation | `rl/observation/graph_builder.py`: `GraphObservation`, `GraphObservationConfig`, `EdgeType`, `TASK_FEATURE_DIM`, `AGENT_FEATURE_DIM`, `AGENT_FEATURE_COLUMNS`, `ACTOR_OBSERVATION_ID`, `actor_observation_definition` | §1 |
+| change the mission fuel slack or its inputs | `rl/observation/graph_builder.py`: `estimate_mission_fuel_slack`, `EgoMissionInputs`, `MissionSlackEstimate`, `MissionSlackIntegrityError`, `_physical_fuel_for_distance_km`; `rl/training/graph_tick_loop.py`: `_ego_mission_inputs`; `rl/training/graph_train.py`: `ActorObservationIntegrityError`; tests `tests/test_graph_mission_fuel_slack.py` | §1 |
 | change the encoder (one class, instantiated by the actor and the critic) | `rl/agent/graph_encoder.py`: `GraphEncoder`, `pool()` | §2, §4 |
 | change actions, mask, sampling or re-scoring | `rl/action/graph_action.py`: `MetaAction`, `ACTION_REPRESENTATION_ID`, `ActionHead`, `build_action_mask`, `_semantic_dist`, `semantic_leaf_index`, `semantic_leaf_identity`, `GLOBAL_META_ACTIONS`, `sample_action`, `evaluate_action`; `rl/training/graph_tick_loop.py`: `Transition.node_v`; tests `tests/test_graph_action_evaluate.py`, `tests/test_graph_semantic_action_credit.py` | §2 |
 | change how a decision edits the plan | `rl/action/graph_effect.py`: `apply_meta_action` (nullable-node guards) | §3 |
@@ -342,3 +398,5 @@ actor-only preservation) follow [`cc_review.md` §4](../workflows/cc_review.md#4
 - **`reachable_by_ego` marginal-detour model:** `graph_builder._reachable_by_ego` is a conservative round-trip placeholder; intended model is marginal detour-cost vs remaining fuel slack (isolated to the builder; the mask reads the column).
 - **Total ENGAGE mass under the semantic representation.** PLAN and ABORT are one leaf each, but the combined probability of OPPORTUNISTIC_ENGAGEMENT still depends on the number and scores of the genuinely distinct `ENGAGE(task_i)` leaves. This is not addressed; a hierarchical meta-action / target factorization is a possible future research intervention and is not authorized by this contract.
 - **`k == 0` acting is unsupported:** the semantic construction fails loud rather than inventing a pooled global score; a decision requires at least one task node.
+- **Mission fuel slack is a target-centre estimate.** It ignores the 50-km stand-off geometry, confirmation waits, loiter burn, future choices and peer actions, and its exact-tie rule differs from the executor's ([§1](#1-graph-observation-stage-3)). It does not replace or repair `reachable_by_ego`, the distance normalization / clipping, or the `sensed` column's lifecycle semantics.
+- **Append-only task nodes and geometric `sensed` do not identify completed work.** A confirmed target keeps its task node, and `sensed` is recomputed from geometry alone, so neither column says the ego finished a target. The mission slack handles this ONLY in its own input selection (confirmed completions excluded); no task-node, `sensed`, mask or lifecycle change was made.

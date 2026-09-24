@@ -1,0 +1,129 @@
+{
+ "accounting": {
+  "accounting_reconciled": true,
+  "eval_episodes_attempted": 960,
+  "eval_episodes_failed": 0,
+  "eval_episodes_successful": 960,
+  "failures_by_error_type": {
+   "FuelDamageError": 8
+  },
+  "failures_by_phase": {
+   "train": 8
+  },
+  "failures_by_pipeline_stage": {
+   "setup": 8
+  },
+  "n_eval_rounds": 16,
+  "train_episodes_attempted": 3008,
+  "train_episodes_failed": 8,
+  "train_episodes_successful": 3000,
+  "train_replacement_attempts": 8
+ },
+ "anomalies": [
+  "train_config key actor_gradient_diagnostics=false is absent from the comparator's run_config (added later by PR #74, default off); not a consequential difference"
+ ],
+ "comparator_failed_training_seeds": [
+  3001255,
+  3001265,
+  3001741,
+  3001807,
+  3001879,
+  3002177,
+  3002296,
+  3002868
+ ],
+ "completion": {
+  "console_crash_count": 0,
+  "console_traceback_count": 16,
+  "console_tracebacks_classification": "all belong to the accounted no_fd_eligible_ego setup failures (two chained tracebacks per ledger row)",
+  "final_checkpoint": "checkpoints/ckpt_iter0374.pt",
+  "launcher": {
+   "child_pid": 6476,
+   "ended_at": "2026-09-24T18:49:54.911585+03:00",
+   "exit_code": 0,
+   "launcher_pid": 2408,
+   "started_at": "2026-09-24T16:53:00.024595+03:00",
+   "termination_reason": "exited",
+   "walltime_seconds": 7014.843999999925
+  },
+  "run_seconds_harness": 6990.762761900085,
+  "train_records": 375,
+  "updates_completed": 375
+ },
+ "failed_seeds_equal_comparator": true,
+ "failed_training_seeds": [
+  3001255,
+  3001265,
+  3001741,
+  3001807,
+  3001879,
+  3002177,
+  3002296,
+  3002868
+ ],
+ "final_eval_selection": {
+  "identity": {
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "updates_completed": 375
+  },
+  "n_eval_records": 16,
+  "ordered_by": "highest eval_round_ordinal, cross-checked against updates_completed",
+  "reason": "selected_by_validated_identity",
+  "selected": true
+ },
+ "note": "Validity pre-check only; NOT a verdict. Review order: experiments.md section 4.1.",
+ "provenance": {
+  "argv_matches_plan": true,
+  "blade_path": "c:\\users\\itama\\pycharmprojects\\multi_agent_task_allocation_and_adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py",
+  "bonmin": true,
+  "config_source": {
+   "absolute_path": null,
+   "cli_overrides": [],
+   "config_fields": [],
+   "format": null,
+   "path": null,
+   "resolved_from": "cli_defaults"
+  },
+  "dirty": false,
+  "match_aou_path": "C:\\gms1src\\src\\match_aou\\__init__.py",
+  "measured_code_sha": "3bc944119da08af8e25268c9ee83fc63a8d1e533",
+  "python": "3.12.3 | packaged by conda-forge | (main, Apr 15 2024, 18:20:11) [MSC v.1938 64 bit (AMD64)]",
+  "repo_root": "C:\\gms1src",
+  "torch": "2.7.1+cpu",
+  "train_config_diff_vs_comparator": {
+   "actor_gradient_diagnostics": [
+    false,
+    null
+   ],
+   "output_dir": [
+    "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441",
+    "C:\\Users\\Itama\\PycharmProjects\\graph_rl_v2_semantic_action_actor_only_dev_r1_seed3000000_d4e9f37"
+   ]
+  }
+ },
+ "record": "review_precheck",
+ "schemas": {
+  "action_representation_id_writer": "semantic_k_plus_2_logmeanexp_v1",
+  "episode_outcome_schema_version_observed": 5,
+  "episode_outcome_schema_version_writer": 5,
+  "episode_outcome_schema_versions_observed": [
+   5
+  ],
+  "n_episode_outcome_records": 3960,
+  "n_records_with_wake_decisions": 3960,
+  "n_records_without_schema_version": 0,
+  "source": "episode_outcomes.jsonl",
+  "state": "uniform",
+  "wake_action_representations_observed": [
+   "semantic_k_plus_2_logmeanexp_v1"
+  ],
+  "wake_diagnostics_recorded": true,
+  "wake_diagnostics_schema_version_observed": 3,
+  "wake_diagnostics_schema_version_writer": 3,
+  "wake_diagnostics_schema_versions_observed": [
+   3
+  ]
+ },
+ "verdict": null
+}

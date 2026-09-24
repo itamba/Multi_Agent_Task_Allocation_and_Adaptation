@@ -1,0 +1,1857 @@
+{
+ "0": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 11,
+  "post_fd_boundary": 2
+ },
+ "1": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 15
+ },
+ "10": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "100": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 12,
+  "post_fd_boundary": 5
+ },
+ "101": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 3
+ },
+ "102": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "103": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 3
+ },
+ "104": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 14,
+  "post_fd_boundary": 3
+ },
+ "105": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 19,
+  "post_fd_boundary": 5
+ },
+ "106": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 11,
+  "post_fd_boundary": 8
+ },
+ "107": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 7
+ },
+ "108": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 5
+ },
+ "109": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "11": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 17,
+  "post_fd_boundary": 1
+ },
+ "110": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 1
+ },
+ "111": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 15,
+  "post_fd_boundary": 1
+ },
+ "112": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "113": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "114": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 14,
+  "post_fd_boundary": 1
+ },
+ "115": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 2
+ },
+ "116": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 5
+ },
+ "117": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 4
+ },
+ "118": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 14,
+  "post_fd_boundary": 4
+ },
+ "119": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 11,
+  "post_fd_boundary": 2
+ },
+ "12": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 12,
+  "post_fd_boundary": 1
+ },
+ "120": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 14
+ },
+ "121": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 20,
+  "post_fd_boundary": 10
+ },
+ "122": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 12,
+  "post_fd_boundary": 3
+ },
+ "123": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 19,
+  "post_fd_boundary": 2
+ },
+ "124": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 11,
+  "post_fd_boundary": 2
+ },
+ "125": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 21,
+  "post_fd_boundary": 4
+ },
+ "126": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 20,
+  "post_fd_boundary": 5
+ },
+ "127": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 3
+ },
+ "128": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 9
+ },
+ "129": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 12,
+  "post_fd_boundary": 2
+ },
+ "13": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 13,
+  "post_fd_boundary": 2
+ },
+ "130": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 17,
+  "post_fd_boundary": 8
+ },
+ "131": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "132": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 11,
+  "post_fd_boundary": 4
+ },
+ "133": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 11,
+  "post_fd_boundary": 3
+ },
+ "134": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 5
+ },
+ "135": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 3
+ },
+ "136": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 6
+ },
+ "137": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 17
+ },
+ "138": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 3
+ },
+ "139": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 4
+ },
+ "14": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 10
+ },
+ "140": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 5
+ },
+ "141": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 5
+ },
+ "142": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 3
+ },
+ "143": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 6
+ },
+ "144": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 4
+ },
+ "145": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 4
+ },
+ "146": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 13,
+  "post_fd_boundary": 6
+ },
+ "147": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "148": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 11,
+  "post_fd_boundary": 9
+ },
+ "149": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 14
+ },
+ "15": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15
+ },
+ "150": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "151": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 21,
+  "post_fd_boundary": 2
+ },
+ "152": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 5
+ },
+ "153": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "154": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 22,
+  "post_fd_boundary": 6
+ },
+ "155": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "156": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 3
+ },
+ "157": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 18,
+  "post_fd_boundary": 4
+ },
+ "158": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 14,
+  "post_fd_boundary": 2
+ },
+ "159": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 17,
+  "post_fd_boundary": 4
+ },
+ "16": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 1
+ },
+ "160": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 1
+ },
+ "161": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 3
+ },
+ "162": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 1
+ },
+ "163": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 2
+ },
+ "164": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 21,
+  "post_fd_boundary": 3
+ },
+ "165": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 5
+ },
+ "166": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 13
+ },
+ "167": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 11,
+  "post_fd_boundary": 10
+ },
+ "168": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 3
+ },
+ "169": {
+  "ordinary": 15
+ },
+ "17": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 3
+ },
+ "170": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "171": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "172": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 12,
+  "post_fd_boundary": 1
+ },
+ "173": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 13,
+  "post_fd_boundary": 2
+ },
+ "174": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 12,
+  "post_fd_boundary": 8
+ },
+ "175": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 8
+ },
+ "176": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 23,
+  "post_fd_boundary": 7
+ },
+ "177": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "178": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 14
+ },
+ "179": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 17,
+  "post_fd_boundary": 3
+ },
+ "18": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 1
+ },
+ "180": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 22,
+  "post_fd_boundary": 5
+ },
+ "181": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "182": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 3
+ },
+ "183": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 18,
+  "post_fd_boundary": 4
+ },
+ "184": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 3
+ },
+ "185": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 12,
+  "post_fd_boundary": 2
+ },
+ "186": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 13,
+  "post_fd_boundary": 5
+ },
+ "187": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 11,
+  "post_fd_boundary": 1
+ },
+ "188": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 19,
+  "post_fd_boundary": 5
+ },
+ "189": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 3
+ },
+ "19": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 4
+ },
+ "190": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 12,
+  "post_fd_boundary": 2
+ },
+ "191": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "192": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 15
+ },
+ "193": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 5
+ },
+ "194": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 11,
+  "post_fd_boundary": 2
+ },
+ "195": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 16,
+  "post_fd_boundary": 1
+ },
+ "196": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 19,
+  "post_fd_boundary": 2
+ },
+ "197": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 5
+ },
+ "198": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 13,
+  "post_fd_boundary": 6
+ },
+ "199": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 1
+ },
+ "2": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 11,
+  "post_fd_boundary": 3
+ },
+ "20": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "200": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 4
+ },
+ "201": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 21,
+  "post_fd_boundary": 4
+ },
+ "202": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 6
+ },
+ "203": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 4
+ },
+ "204": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 12,
+  "post_fd_boundary": 4
+ },
+ "205": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 7
+ },
+ "206": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 19,
+  "post_fd_boundary": 4
+ },
+ "207": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 21,
+  "post_fd_boundary": 3
+ },
+ "208": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 1
+ },
+ "209": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 15,
+  "post_fd_boundary": 1
+ },
+ "21": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 14,
+  "post_fd_boundary": 2
+ },
+ "210": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 23,
+  "post_fd_boundary": 4
+ },
+ "211": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 3
+ },
+ "212": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 20,
+  "post_fd_boundary": 6
+ },
+ "213": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 18,
+  "post_fd_boundary": 3
+ },
+ "214": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "215": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 21,
+  "post_fd_boundary": 7
+ },
+ "216": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 5
+ },
+ "217": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 19,
+  "post_fd_boundary": 4
+ },
+ "218": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 5
+ },
+ "219": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 9
+ },
+ "22": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 13,
+  "post_fd_boundary": 8
+ },
+ "220": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 6
+ },
+ "221": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "222": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 13,
+  "post_fd_boundary": 5
+ },
+ "223": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 16,
+  "post_fd_boundary": 3
+ },
+ "224": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 6
+ },
+ "225": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 2
+ },
+ "226": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "227": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "228": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 16,
+  "post_fd_boundary": 3
+ },
+ "229": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 4
+ },
+ "23": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 12,
+  "post_fd_boundary": 3
+ },
+ "230": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 4
+ },
+ "231": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 3
+ },
+ "232": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 3
+ },
+ "233": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 2
+ },
+ "234": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "235": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "236": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 21,
+  "post_fd_boundary": 2
+ },
+ "237": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 7
+ },
+ "238": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 6
+ },
+ "239": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 1
+ },
+ "24": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 3
+ },
+ "240": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 6
+ },
+ "241": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "242": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 14
+ },
+ "243": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 7
+ },
+ "244": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "245": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 14,
+  "post_fd_boundary": 3
+ },
+ "246": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 13,
+  "post_fd_boundary": 7
+ },
+ "247": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 24,
+  "post_fd_boundary": 5
+ },
+ "248": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 6
+ },
+ "249": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 14,
+  "post_fd_boundary": 6
+ },
+ "25": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 2
+ },
+ "250": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 21,
+  "post_fd_boundary": 9
+ },
+ "251": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 14,
+  "post_fd_boundary": 3
+ },
+ "252": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 5
+ },
+ "253": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 7
+ },
+ "254": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 22,
+  "post_fd_boundary": 1
+ },
+ "255": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 6
+ },
+ "256": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 21,
+  "post_fd_boundary": 7
+ },
+ "257": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "258": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "259": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 18,
+  "post_fd_boundary": 7
+ },
+ "26": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 22
+ },
+ "260": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 25,
+  "post_fd_boundary": 6
+ },
+ "261": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 13,
+  "post_fd_boundary": 3
+ },
+ "262": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 23,
+  "post_fd_boundary": 4
+ },
+ "263": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 19,
+  "post_fd_boundary": 2
+ },
+ "264": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 20,
+  "post_fd_boundary": 7
+ },
+ "265": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 20,
+  "post_fd_boundary": 3
+ },
+ "266": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 17,
+  "post_fd_boundary": 4
+ },
+ "267": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 14,
+  "post_fd_boundary": 3
+ },
+ "268": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 19,
+  "post_fd_boundary": 2
+ },
+ "269": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 13,
+  "post_fd_boundary": 5
+ },
+ "27": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 17,
+  "post_fd_boundary": 3
+ },
+ "270": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 5
+ },
+ "271": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 19,
+  "post_fd_boundary": 6
+ },
+ "272": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "273": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 8
+ },
+ "274": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "275": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "276": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 11,
+  "post_fd_boundary": 4
+ },
+ "277": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 3
+ },
+ "278": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 14,
+  "post_fd_boundary": 1
+ },
+ "279": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 19,
+  "post_fd_boundary": 8
+ },
+ "28": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 12,
+  "post_fd_boundary": 3
+ },
+ "280": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 6
+ },
+ "281": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 20,
+  "post_fd_boundary": 7
+ },
+ "282": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 14,
+  "post_fd_boundary": 5
+ },
+ "283": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "284": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 13,
+  "post_fd_boundary": 1
+ },
+ "285": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 14,
+  "post_fd_boundary": 3
+ },
+ "286": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 2
+ },
+ "287": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 8
+ },
+ "288": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 5
+ },
+ "289": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 9
+ },
+ "29": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 13,
+  "post_fd_boundary": 3
+ },
+ "290": {
+  "immediate_fuel_damage": 8,
+  "ordinary": 11,
+  "post_fd_boundary": 9
+ },
+ "291": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "292": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 17,
+  "post_fd_boundary": 1
+ },
+ "293": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 10,
+  "post_fd_boundary": 5
+ },
+ "294": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 3
+ },
+ "295": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "296": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 4
+ },
+ "297": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 12,
+  "post_fd_boundary": 3
+ },
+ "298": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 4
+ },
+ "299": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 12,
+  "post_fd_boundary": 1
+ },
+ "3": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 6
+ },
+ "30": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 3
+ },
+ "300": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 15,
+  "post_fd_boundary": 9
+ },
+ "301": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 15,
+  "post_fd_boundary": 8
+ },
+ "302": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 13,
+  "post_fd_boundary": 5
+ },
+ "303": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 18,
+  "post_fd_boundary": 7
+ },
+ "304": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 14,
+  "post_fd_boundary": 1
+ },
+ "305": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 21,
+  "post_fd_boundary": 3
+ },
+ "306": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "307": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 5
+ },
+ "308": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 19,
+  "post_fd_boundary": 5
+ },
+ "309": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 5
+ },
+ "31": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 12,
+  "post_fd_boundary": 5
+ },
+ "310": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "311": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 6
+ },
+ "312": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 13,
+  "post_fd_boundary": 5
+ },
+ "313": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 21,
+  "post_fd_boundary": 5
+ },
+ "314": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 19,
+  "post_fd_boundary": 9
+ },
+ "315": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 18,
+  "post_fd_boundary": 1
+ },
+ "316": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 3
+ },
+ "317": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 16,
+  "post_fd_boundary": 12
+ },
+ "318": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 4
+ },
+ "319": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 3
+ },
+ "32": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 13,
+  "post_fd_boundary": 2
+ },
+ "320": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 22,
+  "post_fd_boundary": 4
+ },
+ "321": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 19,
+  "post_fd_boundary": 6
+ },
+ "322": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "323": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "324": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "325": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 12,
+  "post_fd_boundary": 9
+ },
+ "326": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 19,
+  "post_fd_boundary": 8
+ },
+ "327": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 5
+ },
+ "328": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 12,
+  "post_fd_boundary": 3
+ },
+ "329": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 15,
+  "post_fd_boundary": 11
+ },
+ "33": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 22,
+  "post_fd_boundary": 4
+ },
+ "330": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 13,
+  "post_fd_boundary": 5
+ },
+ "331": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 4
+ },
+ "332": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "333": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 5
+ },
+ "334": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 13,
+  "post_fd_boundary": 8
+ },
+ "335": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 19,
+  "post_fd_boundary": 4
+ },
+ "336": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "337": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "338": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "339": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 20,
+  "post_fd_boundary": 8
+ },
+ "34": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 21,
+  "post_fd_boundary": 8
+ },
+ "340": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 17,
+  "post_fd_boundary": 1
+ },
+ "341": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 3
+ },
+ "342": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 7
+ },
+ "343": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "344": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 19,
+  "post_fd_boundary": 5
+ },
+ "345": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "346": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 8
+ },
+ "347": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 7
+ },
+ "348": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 4
+ },
+ "349": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 2
+ },
+ "35": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "350": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 23,
+  "post_fd_boundary": 4
+ },
+ "351": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 10,
+  "post_fd_boundary": 4
+ },
+ "352": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 20,
+  "post_fd_boundary": 7
+ },
+ "353": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 12,
+  "post_fd_boundary": 7
+ },
+ "354": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 6
+ },
+ "355": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 3
+ },
+ "356": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 10,
+  "post_fd_boundary": 6
+ },
+ "357": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 15,
+  "post_fd_boundary": 7
+ },
+ "358": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 4
+ },
+ "359": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 13,
+  "post_fd_boundary": 2
+ },
+ "36": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 13,
+  "post_fd_boundary": 3
+ },
+ "360": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 1
+ },
+ "361": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 4
+ },
+ "362": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 13,
+  "post_fd_boundary": 4
+ },
+ "363": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 22,
+  "post_fd_boundary": 8
+ },
+ "364": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 14,
+  "post_fd_boundary": 5
+ },
+ "365": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 14,
+  "post_fd_boundary": 11
+ },
+ "366": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 13,
+  "post_fd_boundary": 4
+ },
+ "367": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 25,
+  "post_fd_boundary": 1
+ },
+ "368": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 15,
+  "post_fd_boundary": 1
+ },
+ "369": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 8
+ },
+ "37": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 8
+ },
+ "370": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 14,
+  "post_fd_boundary": 2
+ },
+ "371": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 21,
+  "post_fd_boundary": 5
+ },
+ "372": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 5
+ },
+ "373": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "374": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 19,
+  "post_fd_boundary": 5
+ },
+ "38": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 17,
+  "post_fd_boundary": 1
+ },
+ "39": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 22,
+  "post_fd_boundary": 2
+ },
+ "4": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 21,
+  "post_fd_boundary": 3
+ },
+ "40": {
+  "ordinary": 18
+ },
+ "41": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "42": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "43": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 15,
+  "post_fd_boundary": 4
+ },
+ "44": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 3
+ },
+ "45": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 5
+ },
+ "46": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 21,
+  "post_fd_boundary": 1
+ },
+ "47": {
+  "immediate_fuel_damage": 7,
+  "ordinary": 18,
+  "post_fd_boundary": 7
+ },
+ "48": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 3
+ },
+ "49": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 20,
+  "post_fd_boundary": 8
+ },
+ "5": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 17,
+  "post_fd_boundary": 1
+ },
+ "50": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "51": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 18,
+  "post_fd_boundary": 5
+ },
+ "52": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 19,
+  "post_fd_boundary": 4
+ },
+ "53": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 3
+ },
+ "54": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 22,
+  "post_fd_boundary": 4
+ },
+ "55": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 23,
+  "post_fd_boundary": 5
+ },
+ "56": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 14,
+  "post_fd_boundary": 1
+ },
+ "57": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 8
+ },
+ "58": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 17,
+  "post_fd_boundary": 4
+ },
+ "59": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 16
+ },
+ "6": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 12,
+  "post_fd_boundary": 1
+ },
+ "60": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 13,
+  "post_fd_boundary": 3
+ },
+ "61": {
+  "immediate_fuel_damage": 1,
+  "ordinary": 24,
+  "post_fd_boundary": 2
+ },
+ "62": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 3
+ },
+ "63": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 6
+ },
+ "64": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 19,
+  "post_fd_boundary": 2
+ },
+ "65": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 6
+ },
+ "66": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 12,
+  "post_fd_boundary": 5
+ },
+ "67": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 20,
+  "post_fd_boundary": 4
+ },
+ "68": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 18,
+  "post_fd_boundary": 4
+ },
+ "69": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 21,
+  "post_fd_boundary": 1
+ },
+ "7": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 3
+ },
+ "70": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 6
+ },
+ "71": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 3
+ },
+ "72": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 15,
+  "post_fd_boundary": 8
+ },
+ "73": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 23,
+  "post_fd_boundary": 4
+ },
+ "74": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 13,
+  "post_fd_boundary": 3
+ },
+ "75": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 12,
+  "post_fd_boundary": 4
+ },
+ "76": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 6
+ },
+ "77": {
+  "ordinary": 18
+ },
+ "78": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 16,
+  "post_fd_boundary": 13
+ },
+ "79": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 21,
+  "post_fd_boundary": 2
+ },
+ "8": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 15,
+  "post_fd_boundary": 2
+ },
+ "80": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 18,
+  "post_fd_boundary": 2
+ },
+ "81": {
+  "ordinary": 21
+ },
+ "82": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 1
+ },
+ "83": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 15,
+  "post_fd_boundary": 6
+ },
+ "84": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 14,
+  "post_fd_boundary": 1
+ },
+ "85": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 16,
+  "post_fd_boundary": 3
+ },
+ "86": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 5
+ },
+ "87": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 18,
+  "post_fd_boundary": 1
+ },
+ "88": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 19,
+  "post_fd_boundary": 4
+ },
+ "89": {
+  "immediate_fuel_damage": 6,
+  "ordinary": 17,
+  "post_fd_boundary": 6
+ },
+ "9": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 20
+ },
+ "90": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 20,
+  "post_fd_boundary": 2
+ },
+ "91": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "92": {
+  "immediate_fuel_damage": 3,
+  "ordinary": 16,
+  "post_fd_boundary": 1
+ },
+ "93": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "94": {
+  "immediate_fuel_damage": 4,
+  "ordinary": 16,
+  "post_fd_boundary": 4
+ },
+ "95": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 22,
+  "post_fd_boundary": 3
+ },
+ "96": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 16,
+  "post_fd_boundary": 2
+ },
+ "97": {
+  "immediate_fuel_damage": 5,
+  "ordinary": 19,
+  "post_fd_boundary": 3
+ },
+ "98": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 17,
+  "post_fd_boundary": 2
+ },
+ "99": {
+  "immediate_fuel_damage": 2,
+  "ordinary": 13,
+  "post_fd_boundary": 1
+ }
+}

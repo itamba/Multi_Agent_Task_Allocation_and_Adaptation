@@ -1,0 +1,110 @@
+{
+ "comparator_final_round": {
+  "directional_switches": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "macro_n_base_cells_defined": 10,
+  "n_groups_metric_eligible": 20,
+  "p_abort_mild_mean": 0.03912932788953185,
+  "p_abort_severe_mean": 0.04001761823892593,
+  "reverse_switches": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "severe_minus_mild_macro_over_base_cells": 0.000888290349394083
+ },
+ "exploratory_only": {
+  "comparator_max_directional": 20,
+  "comparator_max_macro": 0.6502656679600477,
+  "new_max_directional": 3,
+  "new_max_macro": 0.0002620324492454529,
+  "note": "peak / first-crossing observations are exploratory and never a replacement endpoint"
+ },
+ "final_round": {
+  "by_base_cell": {
+   "A2-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A2-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A3-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A3-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A4-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A4-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A5-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A5-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   },
+   "A6-D0": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": -7.450580596923828e-09
+   },
+   "A6-D2": {
+    "n_metric_eligible_groups": 2,
+    "severe_minus_mild_mean": 0.0
+   }
+  },
+  "directional_switches": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "eval_round_ordinal": 15,
+  "evaluation_stage": "post_update",
+  "macro_n_base_cells_defined": 10,
+  "n_groups_metric_eligible": 20,
+  "p_abort_mild_mean": 0.03263237215578556,
+  "p_abort_severe_mean": 0.0326323714107275,
+  "reverse_switches": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "selected_abort_mild": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "selected_abort_severe": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "severe_minus_mild_macro_over_base_cells": -7.450580596923829e-10,
+  "updates_completed": 375
+ },
+ "primary_endpoint": "ten-base-cell macro P(ABORT|SEVERE) - P(ABORT|MILD), final round",
+ "trainer_final_eval_selection": {
+  "identity": {
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "updates_completed": 375
+  },
+  "n_eval_records": 16,
+  "ordered_by": "highest eval_round_ordinal, cross-checked against updates_completed",
+  "reason": "selected_by_validated_identity",
+  "selected": true
+ }
+}

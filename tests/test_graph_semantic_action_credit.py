@@ -103,7 +103,7 @@ def _obs(rows=None, *, ego_nodes=(0, 1), peer_nodes=()):
     dst = list(ego_nodes) + list(peer_nodes)
     return GraphObservation(
         task_features=np.asarray(rows, dtype=np.float32),
-        agent_features=np.array([[0.9], [0.0]], dtype=np.float32),
+        agent_features=np.array([[0.9, 0.1], [0.0, 0.0]], dtype=np.float32),
         ego_index=k,
         edge_index=(np.array([src, dst], dtype=np.int64) if src
                     else np.zeros((2, 0), dtype=np.int64)),

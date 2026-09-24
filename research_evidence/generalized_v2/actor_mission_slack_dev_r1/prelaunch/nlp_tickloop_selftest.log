@@ -1,0 +1,22 @@
+========================================================================
+graph_tick_loop self-test
+========================================================================
+------------------------------------------------------------------------
+[TEST 1] full-loop drive
+Recording exported to 'C:\Users\Itama\AppData\Local\Temp\graph_tick_loop_selftest_l1vq_sno/episode_0000 Recording 064510 - 072650.jsonl'
+  ended='truncated'  ticks=2500  n_wakes=0  confirmed_kills=4  n_dead=0
+  env.step calls=2500  next_actions calls=2500
+  [1a] run_episode terminated with a set 'ended' and ticks >= 1   OK
+  [1b] exactly one env.step per tick (Phase 1 never stepped)      OK
+  [1c] executor consulted once/tick; commands issued as lists     OK
+  [1d] recording produced: 'episode_0000 Recording 064510 - 072650.jsonl' (252 frames)   OK
+------------------------------------------------------------------------
+[TEST 1b] recording-off purity
+  [1b'] record off: (ended,ticks,n_wakes)=('truncated', 2500, 0) matches TEST 1; no new artifact   OK
+------------------------------------------------------------------------
+[TEST 2] wake helper in isolation
+  wake -> node_v=0 meta=OPPORTUNISTIC_ENGAGEMENT log_prob=0.0000 entropy=0.0000
+  [2a] full chain ran; OE assignment landed in the ego's belief      OK
+  [2b] sibling belief byte-unchanged after ego A's wake edit         OK
+------------------------------------------------------------------------
+All assertions passed.

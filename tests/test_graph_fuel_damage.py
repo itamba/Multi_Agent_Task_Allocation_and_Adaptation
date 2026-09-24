@@ -107,6 +107,8 @@ from match_aou.rl.action.graph_trigger import (  # noqa: E402
     decide_triggers,
 )
 from match_aou.rl.observation.graph_builder import (  # noqa: E402
+    AGENT_FEATURE_DIM,
+    EgoMissionInputs,
     GraphObservationConfig,
     build_graph_observation,
 )
@@ -190,6 +192,9 @@ from match_aou.utils.blade_utils.blade_graph_executor import (  # noqa: E402
 _BLUE_SIDE = "side-blue"
 _RED_SIDE = "side-red"
 _BASE = Location(32.85416264197241, 35.3124013096915)   # the real template's BLUE base
+# The ego-local mission inputs every stub ego shares: home over the BLUE base, nothing
+# confirmed yet (the builder's required `mission` keyword).
+_MISSION = EgoMissionInputs(home_base=_BASE, confirmed_target_ids=frozenset())
 
 
 def _point_at(origin: Location, distance_km: float, bearing_deg: float) -> Location:
@@ -1021,7 +1026,7 @@ def test_p2_4_the_damaged_graph_carries_post_damage_fuel_and_peers_stay_featurel
     gobs = build_graph_observation(
         scenario=ctx.scenario, agent_id=ego, current_plan=belief.solution.get(ego),
         current_time=controller.outcome.event_tick, tasks=belief.tasks,
-        solution=belief.solution, precedence_relations=[], config=cfg,
+        solution=belief.solution, precedence_relations=[], config=cfg, mission=_MISSION,
     )
     aircraft = ctx.scenario.get_aircraft(ego)
     expected = plan.post_damage_fuel / aircraft.max_fuel
@@ -1036,6 +1041,7 @@ def test_p2_4_the_damaged_graph_carries_post_damage_fuel_and_peers_stay_featurel
             current_plan=peer_belief.solution.get(peer),
             current_time=controller.outcome.event_tick, tasks=peer_belief.tasks,
             solution=peer_belief.solution, precedence_relations=[], config=cfg,
+            mission=_MISSION,
         )
         rows = peer_gobs.agent_features
         assert all(abs(float(rows[i, 0])) < 1e-12 for i in range(1, rows.shape[0])), (
@@ -1232,7 +1238,7 @@ def test_p3_1b_abort_is_ego_global_and_every_peer_slice_is_untouched() -> None:
     gobs = build_graph_observation(
         scenario=scenario, agent_id=ego, current_plan=solution[ego], current_time=0,
         tasks=tasks, solution=solution, precedence_relations=[],
-        config=GraphObservationConfig(detection_range_km=50.0),
+        config=GraphObservationConfig(detection_range_km=50.0), mission=_MISSION,
     )
     mask = build_action_mask(gobs)
     assert NUM_META_ACTIONS == 3, NUM_META_ACTIONS
@@ -2670,7 +2676,7 @@ def test_vs_po2_no_severity_label_reaches_the_observation() -> None:
         gobs = build_graph_observation(
             ctx.scenario, ego,
             tasks=ctx.beliefs[ego].tasks, solution=ctx.beliefs[ego].solution,
-            config=GraphObservationConfig(detection_range_km=50.0),
+            config=GraphObservationConfig(detection_range_km=50.0), mission=_MISSION,
         )
         row = gobs.agent_ids.index(ego)
         norms[params.mode] = float(gobs.agent_features[row, 0])
@@ -4888,10 +4894,13 @@ def test_g3_2_no_generalized_v1_quantity_reaches_the_graph_observation() -> None
         current_plan=ctx.a_init[ego], current_time=0,
         tasks=ctx.beliefs[ego].tasks, solution=ctx.a_init,
         precedence_relations=[], config=GraphObservationConfig(detection_range_km=50.0),
+        mission=_MISSION,
     )
     assert TASK_FEATURE_DIM == 6, "the task feature width is a locked contract"
     assert int(gobs.task_features.shape[1]) == TASK_FEATURE_DIM
-    assert int(gobs.agent_features.shape[1]) == 1, "agents carry fuel_norm and nothing else"
+    # agents carry fuel_norm and the ego's own mission fuel slack, and nothing else
+    assert AGENT_FEATURE_DIM == 2
+    assert int(gobs.agent_features.shape[1]) == AGENT_FEATURE_DIM
 
     banned = ("certificate", "severity", "eligibility", "post_fd", "boundary",
               "policy", "hidden", "ordinal")
@@ -4904,7 +4913,7 @@ def test_g3_2_no_generalized_v1_quantity_reaches_the_graph_observation() -> None
     ]
     assert peer_rows, "the fixture must have peers for this to mean anything"
     for row in peer_rows:
-        assert float(gobs.agent_features[row, 0]) == 0.0
+        assert not gobs.agent_features[row].any()
 
 
 def test_g3_3_the_action_set_is_unchanged() -> None:
