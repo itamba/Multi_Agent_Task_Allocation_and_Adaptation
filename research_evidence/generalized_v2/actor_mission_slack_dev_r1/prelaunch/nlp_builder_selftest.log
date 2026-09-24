@@ -1,0 +1,36 @@
+================================================================
+GraphObservation self-test
+================================================================
+ego_id                 : be31019b-75b4-4474-a90b-1b6249d735da
+task_features.shape    : (3, 6)  (k tasks x 6)
+agent_features.shape   : (4, 2)  (a agents x 2)
+ego_index              : 3  (== k, ego is first agent node)
+current_time (raw tick): 80
+time_norm              : 0.005556  (= current_time / 14400)
+edges total            : 6
+  SPATIAL    (type 0)  : 0
+  ASSIGNMENT (type 1)  : 6
+  PRECEDENCE (type 2)  : 0
+task_target_ids (k=3): ['e3626956', '5880c13a', '6c6f7990']
+agent_ids (a=4)         : ['be31019b', '0a14f756', '266942a5', 'a80f591e']
+----------------------------------------------------------------
+TASK feature index map : [0]utility [1]dist_to_ego [2]capable [3]reachable [4]probability [5]sensed
+AGENT feature index map: [0]fuel_norm [1]mission_fuel_slack_norm  (ego real; peers featureless = 0.0)
+----------------------------------------------------------------
+task_features:
+[[0.8 1.  1.  1.  1.  1. ]
+ [0.8 1.  1.  1.  1.  0. ]
+ [0.8 1.  1.  1.  1.  0. ]]
+agent_features:
+[[0.994 0.499]
+ [0.    0.   ]
+ [0.    0.   ]
+ [0.    0.   ]]
+per-agent-node (id | fuel_norm):
+    be31019b  fuel=0.994  [EGO]
+    0a14f756  fuel=0.000  [peer (featureless, A_init anchor)]
+    266942a5  fuel=0.000  [peer (featureless, A_init anchor)]
+    a80f591e  fuel=0.000  [peer (featureless, A_init anchor)]
+probability column     : [1.0, 1.0, 1.0]  (all 1.0 expected — probability is degenerate until low-p targets exist)
+
+All invariants passed.

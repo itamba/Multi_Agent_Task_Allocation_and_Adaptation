@@ -1,0 +1,71 @@
+==============================================================================
+test_graph_setup_seam -- B3 setup seam
+BLADE=True  bonmin=True
+==============================================================================
+[ OK ] test_a_burn_out_on_the_ride_home_is_reconciled_dead
+[ OK ] test_agent_id_drift_across_reload_is_refused
+[ OK ] test_airbase_only_guard_accepts_airbases_and_rejects_anything_else
+[ OK ] test_blade_a_fuelled_ego_flies_home_and_lands_before_the_episode_ends
+[ OK ] test_blade_abort_replaces_a_stale_route_with_the_home_base_route
+[ OK ] test_blade_an_ego_that_burns_out_on_the_ride_home_is_counted_dead
+[ OK ] test_blade_derived_wait_prevents_the_redundant_salvo
+[ OK ] test_blade_generalized_cell_is_enforced_before_the_solve
+[ OK ] test_blade_transcribed_km_to_nm_constant_matches_the_engine
+[ OK ] test_build_env_closes_the_environment_when_reset_fails
+[ OK ] test_confirmation_wait_cannot_be_moved_by_a_peer
+[ OK ] test_confirmation_wait_keeps_the_configured_value_as_floor_and_fallback
+[ OK ] test_confirmation_wait_uses_the_highest_engagement_range_live_weapon
+[ OK ] test_construction_mode_rejects_bad_counts_and_rngs
+[ OK ] test_construction_mode_requires_the_whole_pair
+[ OK ] test_construction_path_snapshots_the_world_not_the_allocation
+[ OK ] test_death_reconciliation_covers_every_ego_before_any_verdict
+[ OK ] test_derived_wait_is_armed_only_on_attack_and_stays_per_ego_and_target
+[ OK ] test_environment_one_is_closed_on_an_injected_failure
+[ OK ] test_exact_construction_path_carries_no_generalized_accounting
+[ OK ] test_finish_context_requires_a_coherent_world_snapshot
+[ OK ] test_generalized_accounting_that_does_not_reconcile_is_refused
+[ OK ] test_generalized_cardinality_cell_is_enforced
+[ OK ] test_generalized_cell_is_judged_before_anything_is_solved
+[ OK ] test_generalized_context_reports_requested_and_realized_cardinality
+[ OK ] test_generalized_full_request_is_reported_as_such
+[ OK ] test_generalized_patch_adds_exactly_the_realized_hidden_targets
+[ OK ] test_hidden_policy_is_explicit_and_defaults_to_the_exact_path
+[ OK ] test_known_task_rematerialization_fails_loudly
+[ OK ] test_known_tasks_rematerialize_as_env2_objects_in_a_init_order
+[ OK ] test_legacy_context_has_an_empty_placement_audit
+[ OK ] test_legacy_path_snapshots_the_world_not_the_allocation
+[ OK ] test_no_construction_accounting_reaches_the_actor_observation
+[ OK ] test_no_return_to_base_contract_is_preserved
+[ OK ] test_p1_cardinality_mismatch_fails_loudly
+  P1 known=3 hidden=3 full=6 U_oracle=480 fingerprint=((36.026923761, 38.695308547), (34.15330177, 34.989376962), (36.830998743, 38.291191417))
+[ OK ] test_p1_construction_patch_reload_and_reproducibility
+[ OK ] test_p1_zero_hidden_is_a_clean_construction_probe
+  P2 ego a80f591e woke on hidden target 1d5b8ffc; 2 peer(s) byte-unchanged
+[ OK ] test_p2_a_hidden_world_target_enters_only_the_sensing_egos_belief
+  P7 seed 2: exact REFUSED, bounded accepted H_realized=2/3 selected=(0, 2)
+[ OK ] test_p7_bounded_backoff_accepts_a_world_the_exact_path_refuses
+  P7 A=3 K=3 H_requested=3 H_realized=3 total=6 selected=(0, 2, 1)
+  P7 A=4 K=4 H_requested=2 H_realized=2 total=6 selected=(2, 0)
+[ OK ] test_p7_generalized_construction_reconciles_requested_and_realized
+[ OK ] test_patch_appends_hidden_airbases_without_touching_the_known_ones
+[ OK ] test_patch_fails_loudly_on_a_malformed_scenario
+[ OK ] test_patch_refuses_a_name_collision
+[ OK ] test_patch_with_no_placements_is_byte_identical
+[ OK ] test_physical_classification_cannot_be_moved_by_a_peer
+[ OK ] test_prototype_selection_picks_a_safe_enemy_airbase
+[ OK ] test_rtb_issuance_is_not_physical_completion
+[ OK ] test_salvo_travel_bound_uses_the_engine_units_and_ceiling
+[ OK ] test_salvo_travel_ticks_refuses_to_guess_on_unusable_data
+[ OK ] test_shared_launch_point_verifies_the_star_origin
+[ OK ] test_v2fix_a_post_stage_two_construction_failure_preserves_the_draw
+[ OK ] test_v2fix_a_pre_stage_two_failure_records_nothing
+[ OK ] test_v2fix_omitting_the_recorder_changes_nothing_about_the_episode
+[ OK ] test_v2fix_the_recorder_holds_the_draw_the_episode_really_used
+[ OK ] test_v2fix_the_recorder_is_refused_where_it_could_only_mislead
+[ OK ] test_v2typed_an_allocation_that_routes_nobody_is_the_same_typed_refusal
+[ OK ] test_v2typed_an_empty_known_only_allocation_is_the_typed_no_routes_refusal
+[ OK ] test_v2typed_the_historical_empty_allocation_keeps_its_plain_runtime_error
+[ OK ] test_world_target_ids_is_raw_ordered_and_strict
+------------------------------------------------------------------------------
+59 passed, 0 skipped
+All assertions passed.
