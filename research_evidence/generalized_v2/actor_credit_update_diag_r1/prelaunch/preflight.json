@@ -1,0 +1,554 @@
+{
+ "record": "preflight",
+ "record_version": 1,
+ "development_only": true,
+ "confirmatory_profile_untouched": true,
+ "code": {
+  "measured_code_sha": "644883b89c208255f5808432462be64be5d7589f",
+  "head": "644883b89c208255f5808432462be64be5d7589f",
+  "working_tree_clean": true,
+  "worktree": "C:\\gcud1src",
+  "module_paths": {
+   "match_aou": "C:\\gcud1src\\src\\match_aou\\__init__.py",
+   "match_aou.rl.training.graph_ppo": "C:\\gcud1src\\src\\match_aou\\rl\\training\\graph_ppo.py",
+   "match_aou.rl.training.graph_train": "C:\\gcud1src\\src\\match_aou\\rl\\training\\graph_train.py"
+  },
+  "blade_path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade",
+  "blade_tree_digest": "73f326d78f1ad65a9d546b55fdf43be29be8a0e74fdebce659d8d497ed8da5f6"
+ },
+ "effective_config": {
+  "argv_after_python": [
+   "-m",
+   "match_aou.rl.training.graph_train",
+   "--iterations",
+   "100",
+   "--episodes",
+   "8",
+   "--seed",
+   "3000000",
+   "--out",
+   "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b",
+   "--checkpoint-every",
+   "25",
+   "--eval-every",
+   "25",
+   "--eval-episodes",
+   "8",
+   "--training-mode",
+   "actor_only",
+   "--episode-design",
+   "generalized_v2",
+   "--match-aou-backend",
+   "p1_milp_v1",
+   "--fuel-damage-mode",
+   "seeded_variable",
+   "--generalized-max-attempts-per-iteration",
+   "12",
+   "--benchmark-manifest",
+   "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "--benchmark-profile",
+   "development",
+   "--actor-step-diagnostics",
+   "--actor-step-vector-iterations",
+   "0,24,49,74,99"
+  ],
+  "train_config": {
+   "n_iterations": 100,
+   "episodes_per_iteration": 8,
+   "base_seed": 3000000,
+   "output_dir": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b",
+   "ppo": {
+    "clip_ratio": 0.2,
+    "entropy_coeff": 0.01,
+    "lr": 0.0003,
+    "n_epochs": 4,
+    "gamma": 1.0,
+    "max_grad_norm": 0.5,
+    "adv_norm_eps": 1e-08
+   },
+   "training_mode": "actor_only",
+   "ctde": {
+    "critic_lr": 0.0003,
+    "value_coeff": 0.5,
+    "gae_lambda": 0.95
+   },
+   "checkpoint_every": 25,
+   "eval_every": 25,
+   "eval_episodes": 8,
+   "eval_base_seed": 1000000,
+   "max_ticks": null,
+   "episode_design": "generalized_v2",
+   "match_aou_backend": "p1_milp_v1",
+   "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "benchmark_profile": "development",
+   "generalized_max_attempts_per_iteration": 12,
+   "early_stopping": false,
+   "early_stopping_min_iterations": 100,
+   "early_stopping_window_iterations": 25,
+   "early_stopping_patience_windows": 3,
+   "early_stopping_min_delta": 0.01,
+   "num_agents": 3,
+   "n_known": 3,
+   "n_hidden": 3,
+   "min_target_distance_km": 200.0,
+   "min_known_separation_km": 100.0,
+   "include_sams": false,
+   "randomize_red_airbase_positions": true,
+   "stretch_target_ratio": 0.5,
+   "fuel_damage_mode": "seeded_variable",
+   "fuel_damage_probability": 0.5,
+   "fuel_damage_leg_progress": 0.3,
+   "fuel_damage_rtb_margin": 1.1,
+   "fuel_damage_mild_probability": 0.5,
+   "aircraft_penalty_coeff": 2.25,
+   "visual_artifacts": false,
+   "actor_gradient_diagnostics": false,
+   "actor_step_diagnostics": true,
+   "actor_step_vector_iterations": [
+    0,
+    24,
+    49,
+    74,
+    99
+   ],
+   "num_red_airbases": [
+    6,
+    6
+   ],
+   "partial_ratio": 0.5
+  },
+  "config_source": {
+   "path": null,
+   "absolute_path": null,
+   "format": null,
+   "config_fields": [],
+   "cli_overrides": [],
+   "resolved_from": "cli_defaults"
+  },
+  "diff_vs_original": [
+   "actor_step_diagnostics",
+   "actor_step_vector_iterations",
+   "n_iterations",
+   "output_dir"
+  ]
+ },
+ "benchmark": {
+  "manifest_path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "profile": "development",
+  "development_worlds": [
+   {
+    "world_ordinal": 0,
+    "seed": 2000000,
+    "key": "A2-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000001,
+    "key": "A2-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000064,
+    "key": "A2-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000065,
+    "key": "A2-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000128,
+    "key": "A3-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000129,
+    "key": "A3-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000192,
+    "key": "A3-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000193,
+    "key": "A3-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000256,
+    "key": "A4-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000257,
+    "key": "A4-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000320,
+    "key": "A4-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000321,
+    "key": "A4-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000384,
+    "key": "A5-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000385,
+    "key": "A5-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000448,
+    "key": "A5-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000449,
+    "key": "A5-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000512,
+    "key": "A6-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000513,
+    "key": "A6-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000576,
+    "key": "A6-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000577,
+    "key": "A6-D2-w001"
+   }
+  ],
+  "regenerated_or_mutated": false
+ },
+ "original": {
+  "run_dir": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441",
+  "measured_code_sha": "3bc944119da08af8e25268c9ee83fc63a8d1e533",
+  "pinned_files": [
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\checkpoints\\ckpt_iter0374.pt",
+    "pinned_sha256": "4b57cf44df2e79e3c38ad0667866cde448c16eda300394a5dcf2d26a3cd62619",
+    "sha256": "4b57cf44df2e79e3c38ad0667866cde448c16eda300394a5dcf2d26a3cd62619",
+    "bytes": 1371147,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_failures.jsonl",
+    "pinned_sha256": "80c9ceb7e88de3e1025d65da2916adfddf986236648b76103fbd63e2d714817e",
+    "sha256": "80c9ceb7e88de3e1025d65da2916adfddf986236648b76103fbd63e2d714817e",
+    "bytes": 30169,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_outcomes.jsonl",
+    "pinned_sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe",
+    "sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe",
+    "bytes": 106129593,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\eval_records.jsonl",
+    "pinned_sha256": "1f2d0142398b299bd6675697843b9c5f15cd61d4a8476cb13c4645fce8682d56",
+    "sha256": "1f2d0142398b299bd6675697843b9c5f15cd61d4a8476cb13c4645fce8682d56",
+    "bytes": 406530,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\run_config.json",
+    "pinned_sha256": "2c5d42cb0eb9b956d2c21dc5e2a215839317541c05bff9a6ab84048bb0d86545",
+    "sha256": "2c5d42cb0eb9b956d2c21dc5e2a215839317541c05bff9a6ab84048bb0d86545",
+    "bytes": 22740,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\run_summary.json",
+    "pinned_sha256": "dcf1e18d40224ffc04cd71eed7b734ec9c525ebd722c568fe41fd334bd8dc687",
+    "sha256": "dcf1e18d40224ffc04cd71eed7b734ec9c525ebd722c568fe41fd334bd8dc687",
+    "bytes": 122675,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_credit_diagnostics.jsonl",
+    "pinned_sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc",
+    "sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc",
+    "bytes": 12003603,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_records.jsonl",
+    "pinned_sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157",
+    "sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157",
+    "bytes": 1027772,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\invocation_start_local.txt",
+    "pinned_sha256": "6c653c134f73608e21a0eb3b7e5cfab75ca9020da39767f5d37acf9229932747",
+    "sha256": "6c653c134f73608e21a0eb3b7e5cfab75ca9020da39767f5d37acf9229932747",
+    "bytes": 34,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\launcher_record.json",
+    "pinned_sha256": "f567860b1368ff25992a4785c52d3d69115e0e4b073a744828a53b809770b451",
+    "sha256": "f567860b1368ff25992a4785c52d3d69115e0e4b073a744828a53b809770b451",
+    "bytes": 1528,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\native_exit_code.txt",
+    "pinned_sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "bytes": 3,
+    "match": true
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441__launcher\\training_console.log",
+    "pinned_sha256": "9c5438dc38bf37c79c487bf78d48059de7546becba5c2d846101bae6c721d9a9",
+    "sha256": "9c5438dc38bf37c79c487bf78d48059de7546becba5c2d846101bae6c721d9a9",
+    "bytes": 6344404,
+    "match": true
+   }
+  ],
+  "prefix_checkpoints": [
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\checkpoints\\ckpt_iter0024.pt",
+    "exists": true,
+    "sha256": "0650296b8141a20d755b011f7a8dcd0253ffbf199c3bb4ede2536c8472633811",
+    "bytes": 1371147
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\checkpoints\\ckpt_iter0049.pt",
+    "exists": true,
+    "sha256": "4196bd0fedfe6c7eb673fa54900b906df72e59d98355ffbc3e0253a2c41e1657",
+    "bytes": 1371147
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\checkpoints\\ckpt_iter0074.pt",
+    "exists": true,
+    "sha256": "3e93d32d2c8f13f44edd236ca918a0ec1c82d04d6deb5eb1906c8176829dce34",
+    "bytes": 1371147
+   },
+   {
+    "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\checkpoints\\ckpt_iter0099.pt",
+    "exists": true,
+    "sha256": "64758832bf00ddd48b9c0c2130650bf61063045c10601e20557b7cc77f406587",
+    "bytes": 1371147
+   }
+  ],
+  "run_config_sha256": "2c5d42cb0eb9b956d2c21dc5e2a215839317541c05bff9a6ab84048bb0d86545",
+  "prefix_successful_training_episodes": 800,
+  "prefix_training_attempts": 800
+ },
+ "checks": [
+  {
+   "check": "head_is_measured_sha",
+   "pass": true,
+   "detail": "644883b89c208255f5808432462be64be5d7589f"
+  },
+  {
+   "check": "worktree_clean",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "modules_import_from_worktree",
+   "pass": true,
+   "detail": {
+    "match_aou": "C:\\gcud1src\\src\\match_aou\\__init__.py",
+    "match_aou.rl.training.graph_ppo": "C:\\gcud1src\\src\\match_aou\\rl\\training\\graph_ppo.py",
+    "match_aou.rl.training.graph_train": "C:\\gcud1src\\src\\match_aou\\rl\\training\\graph_train.py"
+   }
+  },
+  {
+   "check": "blade_engine_identical_to_measured_tree",
+   "pass": false,
+   "detail": {
+    "imported_from": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade",
+    "imported_tree_digest": "73f326d78f1ad65a9d546b55fdf43be29be8a0e74fdebce659d8d497ed8da5f6",
+    "measured_tree_digest": "18c416b11776194e945ef40d5215945b702b0728888da575f2d24d22ba5afef5"
+   }
+  },
+  {
+   "check": "step_diagnostics_present",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "config_diff_is_exactly_the_declared_keys",
+   "pass": true,
+   "detail": {
+    "actor_step_diagnostics": {
+     "new": true,
+     "original": "<absent>"
+    },
+    "actor_step_vector_iterations": {
+     "new": [
+      0,
+      24,
+      49,
+      74,
+      99
+     ],
+     "original": "<absent>"
+    },
+    "n_iterations": {
+     "new": 100,
+     "original": 375
+    },
+    "output_dir": {
+     "new": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b",
+     "original": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441"
+    }
+   }
+  },
+  {
+   "check": "config_source_cli_defaults",
+   "pass": true,
+   "detail": {
+    "path": null,
+    "absolute_path": null,
+    "format": null,
+    "config_fields": [],
+    "cli_overrides": [],
+    "resolved_from": "cli_defaults"
+   }
+  },
+  {
+   "check": "config_n_iterations",
+   "pass": true,
+   "detail": 100
+  },
+  {
+   "check": "config_actor_step_diagnostics",
+   "pass": true,
+   "detail": true
+  },
+  {
+   "check": "config_actor_gradient_diagnostics",
+   "pass": true,
+   "detail": false
+  },
+  {
+   "check": "config_visual_artifacts",
+   "pass": true,
+   "detail": false
+  },
+  {
+   "check": "config_early_stopping",
+   "pass": true,
+   "detail": false
+  },
+  {
+   "check": "config_training_mode",
+   "pass": true,
+   "detail": "actor_only"
+  },
+  {
+   "check": "config_base_seed",
+   "pass": true,
+   "detail": 3000000
+  },
+  {
+   "check": "config_episode_design",
+   "pass": true,
+   "detail": "generalized_v2"
+  },
+  {
+   "check": "config_match_aou_backend",
+   "pass": true,
+   "detail": "p1_milp_v1"
+  },
+  {
+   "check": "config_vector_iterations",
+   "pass": true,
+   "detail": [
+    0,
+    24,
+    49,
+    74,
+    99
+   ]
+  },
+  {
+   "check": "manifest_file_sha256",
+   "pass": true,
+   "detail": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103"
+  },
+  {
+   "check": "manifest_id",
+   "pass": true,
+   "detail": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8"
+  },
+  {
+   "check": "development_profile_worlds",
+   "pass": true,
+   "detail": 20
+  },
+  {
+   "check": "held_out_full_manifest",
+   "pass": true,
+   "detail": {
+    "train_band_half_open": [
+     3000000,
+     3001200
+    ],
+    "manifest_n_worlds": 120,
+    "manifest_seed_min": 2000000,
+    "manifest_seed_max": 2000587,
+    "overlap": []
+   }
+  },
+  {
+   "check": "original_files_match_pr79_pins",
+   "pass": true,
+   "detail": 12
+  },
+  {
+   "check": "original_prefix_checkpoints_present",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "original_measured_sha",
+   "pass": true,
+   "detail": "3bc944119da08af8e25268c9ee83fc63a8d1e533"
+  },
+  {
+   "check": "original_prefix_seeds_inside_band",
+   "pass": true,
+   "detail": {
+    "min": 3000000,
+    "max": 3000799,
+    "n_successful": 800,
+    "n_attempted": 800
+   }
+  },
+  {
+   "check": "output_dir_absent",
+   "pass": true,
+   "detail": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b"
+  }
+ ],
+ "pass": false
+}

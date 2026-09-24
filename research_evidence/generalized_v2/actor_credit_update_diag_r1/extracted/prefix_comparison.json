@@ -1,0 +1,136 @@
+{
+ "checkpoints": [
+  {
+   "checkpoint": "ckpt_iter0024.pt",
+   "identical": {
+    "encoder": false,
+    "head": false,
+    "optimizer_state": false
+   },
+   "max_abs_parameter_diff": 5.1442284529912286e-06
+  },
+  {
+   "checkpoint": "ckpt_iter0049.pt",
+   "identical": {
+    "encoder": false,
+    "head": false,
+    "optimizer_state": false
+   },
+   "max_abs_parameter_diff": 1.919269561767578e-05
+  },
+  {
+   "checkpoint": "ckpt_iter0074.pt",
+   "identical": {
+    "encoder": false,
+    "head": false,
+    "optimizer_state": false
+   },
+   "max_abs_parameter_diff": 0.0027455538511276245
+  },
+  {
+   "checkpoint": "ckpt_iter0099.pt",
+   "identical": {
+    "encoder": false,
+    "head": false,
+    "optimizer_state": false
+   },
+   "max_abs_parameter_diff": 0.04467633366584778
+  }
+ ],
+ "counts_compared_identical": {
+  "credit": {
+   "compared": 2396,
+   "identical": 657
+  },
+  "outcome": {
+   "compared": 1100,
+   "identical": 56
+  },
+  "train_record": {
+   "compared": 100,
+   "identical": 0
+  }
+ },
+ "eval_records": [
+  {
+   "first_difference": null,
+   "identical": true,
+   "round": 0,
+   "updates_completed": 0
+  },
+  {
+   "first_difference": {
+    "abs_diff": 7.450580596923828e-09,
+    "new": 2.175569534301758e-06,
+    "original": 2.1830201148986816e-06,
+    "path": "/v2_behaviour/by_base_cell/A3-D0/severe_minus_mild_abort_mass_mean"
+   },
+   "identical": false,
+   "round": 1,
+   "updates_completed": 25
+  },
+  {
+   "first_difference": {
+    "abs_diff": 3.725290298461914e-09,
+    "new": 3.725290298461914e-07,
+    "original": 3.762543201446533e-07,
+    "path": "/v2_behaviour/by_base_cell/A2-D0/severe_minus_mild_abort_mass_mean"
+   },
+   "identical": false,
+   "round": 2,
+   "updates_completed": 50
+  },
+  {
+   "first_difference": {
+    "abs_diff": 1.714564859867096e-05,
+    "new": 2.232193946838379e-05,
+    "original": 5.17629086971283e-06,
+    "path": "/v2_behaviour/by_base_cell/A2-D0/severe_minus_mild_abort_mass_mean"
+   },
+   "identical": false,
+   "round": 3,
+   "updates_completed": 75
+  },
+  {
+   "first_difference": {
+    "abs_diff": 0.004356779158115387,
+    "new": 0.00435706228017807,
+    "original": 2.8312206268310547e-07,
+    "path": "/v2_behaviour/by_base_cell/A2-D0/severe_minus_mild_abort_mass_mean"
+   },
+   "identical": false,
+   "round": 4,
+   "updates_completed": 100
+  }
+ ],
+ "failures": {
+  "compared": 0,
+  "identical": 0
+ },
+ "final": true,
+ "first_divergence": {
+  "difference": {
+   "abs_diff": 1.0,
+   "new": 1804,
+   "original": 1805,
+   "path": "/wake_decisions[2]/tick"
+  },
+  "key": [
+   "pre_update",
+   null,
+   42,
+   0,
+   14,
+   2000448
+  ],
+  "record_kind": "outcome",
+  "side": "input_side",
+  "tick": 1804,
+  "wake_index": 2,
+  "wake_kind": "ordinary"
+ },
+ "record": "prefix_comparison",
+ "record_version": 1,
+ "stop": false,
+ "tolerance": 0.0
+}

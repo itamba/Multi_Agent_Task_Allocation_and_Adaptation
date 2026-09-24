@@ -1,0 +1,29 @@
+[WARN] episode_design=generalized_v2: num_agents / n_known / n_hidden are NOT read. A training episode's cardinality is SAMPLED in TWO STAGES: A ~ U[2, 3, 4, 5, 6] and K | A ~ U{A + o : o in [0, 2]} BEFORE the known-only solve, then H_requested ~ U{1..R} AFTER it, where R is the number of egos that solve routed. Proceeding.
+PASS  head_is_measured_sha
+PASS  worktree_clean
+PASS  modules_import_from_worktree
+FAIL  blade_engine_identical_to_measured_tree
+PASS  step_diagnostics_present
+PASS  config_diff_is_exactly_the_declared_keys
+PASS  config_source_cli_defaults
+PASS  config_n_iterations
+PASS  config_actor_step_diagnostics
+PASS  config_actor_gradient_diagnostics
+PASS  config_visual_artifacts
+PASS  config_early_stopping
+PASS  config_training_mode
+PASS  config_base_seed
+PASS  config_episode_design
+PASS  config_match_aou_backend
+PASS  config_vector_iterations
+PASS  manifest_file_sha256
+PASS  manifest_id
+PASS  development_profile_worlds
+PASS  held_out_full_manifest
+PASS  original_files_match_pr79_pins
+PASS  original_prefix_checkpoints_present
+PASS  original_measured_sha
+PASS  original_prefix_seeds_inside_band
+PASS  output_dir_absent
+OVERALL FAIL
+ERROR conda.cli.main_run:execute(125): `conda run python research_evidence/generalized_v2/actor_credit_update_diag_r1/scripts/prelaunch_verify.py --measured-sha 644883b89c208255f5808432462be64be5d7589f --manifest C:\gra\benchmarks\v2_preflight_seed2000000_ae42cb0\benchmark_manifest.json --manifest-id ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8 --manifest-sha256 dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103 --original-dir C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441 --original-pins research_evidence/generalized_v2/actor_mission_slack_dev_r1/artifact_sha256.txt --original-measured-sha 3bc944119da08af8e25268c9ee83fc63a8d1e533 --output-dir C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b --plan research_evidence/generalized_v2/actor_credit_update_diag_r1/authorized_plan.json --out C:\Users\Itama\AppData\Local\Temp\claude\C--Users-Itama-PycharmProjects-Multi-Agent-Task-Allocation-and-Adaptation\0a63a364-2510-444c-aebe-c8ad0de45b96\scratchpad\preflight.json` failed. (See above for error)

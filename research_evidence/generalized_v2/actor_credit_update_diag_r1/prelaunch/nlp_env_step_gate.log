@@ -1,0 +1,344 @@
+==============================================================================
+graph_train: 3 iteration(s) x 4 episode(s) = 12 training episodes
+base_seed=0  train seeds [0, 12)
+eval: DISABLED
+ppo: {'clip_ratio': 0.2, 'entropy_coeff': 0.01, 'lr': 0.0003, 'n_epochs': 4, 'gamma': 1.0, 'max_grad_norm': 0.5, 'adv_norm_eps': 1e-08}
+training_mode: actor_only (no critic, no central observation)
+episode_design: fixed_cell_v1  [hidden=exact_v1  fd_eligibility=legacy_selected_ego_v1  post_fd_wake=single_wake_v1  reference=static_t0_v1]
+match_aou_backend: legacy_minlp_v1  (frozen MINLP through BONMIN -- the historical objective; STATED by this run, never inferred. Accepted by fixed_cell_v1 and generalized_v1; generalized_v2 requires p1_milp_v1 and REFUSES this one.)
+scenario (construction): num_agents=3  n_known=3 + n_hidden=3 -> 6 target(s) in the executed world
+          the generator writes the 3 known target(s); setup_episode places the 3 hidden one(s) route-relative and patches them in (split_tasks NOT run)
+          geometry: min_target_distance=200.0 km  min_known_separation=100.0 km  detection=50.0 km  discovery_chain=OFF  strict=ON
+          stretch=0.5  sams=False
+difficulty (fuel_damage_variable_severity_v1): fuel_damage mode=seeded_variable p(damaged)=0.50 leg_progress=0.30 rtb_margin=1.10
+          severity: p(mild|damaged)=0.50 -> clean 0.50 / mild 0.25 / severe 0.25. MILD leaves continuation+RTB feasible; SEVERE does not. The policy is told NEITHER -- only its own live fuel changes.
+          reward aircraft_penalty_coeff=2.25 (graph_reward formula UNCHANGED); eval uses matched triads (forced_clean / forced_mild / forced_severe) on the SAME seed
+legacy split surface (NOT used by the construction path): num_red_airbases=(6, 6) partial_ratio=0.5 -> known/hidden = 3/3   (n=6)
+visual artifacts: DISABLED
+run_dir=C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False
+config:  C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\run_config.json
+code:    0000000000000000000000000000000000000000
+policy:  exact-cardinality failures = skip_and_account_v1 (a failed seed is skipped and accounted, never replaced)
+==============================================================================
+[train iter=0 ep=0 seed=0] OK
+  reward=-0.1000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=0 ep=1 seed=1] OK
+  reward=-0.1500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=0 ep=2 seed=2] OK
+  reward=-0.2000 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=0 ep=3 seed=3] OK
+  reward=-0.2500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[iter   0] R=-0.1750 ok=4/4 trans= 11 wake_eps=4/4 loss=-0.0321 ent=1.386 kl=+0.0076 clip=0.00 gn=2.654    0.8s
+           fd: clean 1/1 R=-0.1000 | mild 3/3 R=-0.2000 | severe 0/0 R=n/a | applied=3 wakes=3 rtb=0 dead=0
+  [ckpt @iter 0] ckpt_iter0000.pt
+[train iter=1 ep=4 seed=4] OK
+  reward=-0.3000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=1 ep=5 seed=5] OK
+  reward=-0.3500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=severe ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=1 ep=6 seed=6] OK
+  reward=-0.4000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=1 ep=7 seed=7] OK
+  reward=-0.4500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=severe ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[iter   1] R=-0.3750 ok=4/4 trans= 10 wake_eps=4/4 loss=-0.0190 ent=1.382 kl=+0.0042 clip=0.00 gn=1.095    0.8s
+           fd: clean 2/2 R=-0.3500 | mild 0/0 R=n/a | severe 2/2 R=-0.4000 | applied=2 wakes=2 rtb=0 dead=0
+  [ckpt @iter 1] ckpt_iter0001.pt
+[train iter=2 ep=8 seed=8] OK
+  reward=-0.5000 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=severe ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=2 ep=9 seed=9] OK
+  reward=-0.1000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=2 ep=10 seed=10] OK
+  reward=-0.1500 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=2 ep=11 seed=11] OK
+  reward=-0.2000 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[iter   2] R=-0.2375 ok=4/4 trans= 10 wake_eps=4/4 loss=-0.0266 ent=1.377 kl=+0.0047 clip=0.00 gn=3.420    0.7s
+           fd: clean 2/2 R=-0.1250 | mild 1/1 R=-0.2000 | severe 1/1 R=-0.5000 | applied=2 wakes=2 rtb=0 dead=0
+  [ckpt @iter 2] ckpt_iter0002.pt
+  [summary] C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\run_summary.json
+------------------------------------------------------------------------------
+TRAINING SUMMARY (3 iteration(s) recorded, 3 update(s) completed)
+------------------------------------------------------------------------------
+train eps:  attempted=12  ok=12  failed=0  success=1.000
+            transitions=31  wake-bearing=12  zero-wake eps=0
+iterations: productive=3  zero-wake=0  all-failed=0   (disjoint: an all-failed iteration measured nothing)
+train R:    first=-0.1750  last=-0.2375  mean=-0.2625   (over SUCCESSFUL episodes; 0 iteration(s) had none)
+meta-acts:  PLAN_COMPLIANCE=6  OPPORTUNISTIC_ENGAGEMENT=15  SELF_PRESERVATION_ABORT=10
+eval R:     (disabled)
+fuel dmg:   mode=seeded_variable  penalty_c=2.25  factor=fuel_damage_variable_severity_v1
+            train: clean 5/5 ok, mild 4/4 ok, severe 3/3 ok, events=7 wakes=7 rtb=0 dead=0
+            eval:  clean 0/0 ok, mild 0/0 ok, severe 0/0 ok, events=0 wakes=0 rtb=0 dead=0  triad 0/0
+            severity response [train]: mild abort=0.00 over 4 wake(s) | severe abort=0.00 over 3 wake(s)   (rates over FD WAKES)
+failures:   0 recorded  by phase={}  by stage={}
+timing:     total=2.3s
+plots:      C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\plots
+records:    C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\train_records.jsonl
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\eval_records.jsonl
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\episode_failures.jsonl
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\episode_outcomes.jsonl  (12 successful attempt(s))
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\False\run_summary.json
+------------------------------------------------------------------------------
+==============================================================================
+graph_train: 3 iteration(s) x 4 episode(s) = 12 training episodes
+base_seed=0  train seeds [0, 12)
+eval: DISABLED
+ppo: {'clip_ratio': 0.2, 'entropy_coeff': 0.01, 'lr': 0.0003, 'n_epochs': 4, 'gamma': 1.0, 'max_grad_norm': 0.5, 'adv_norm_eps': 1e-08}
+training_mode: actor_only (no critic, no central observation)
+episode_design: fixed_cell_v1  [hidden=exact_v1  fd_eligibility=legacy_selected_ego_v1  post_fd_wake=single_wake_v1  reference=static_t0_v1]
+match_aou_backend: legacy_minlp_v1  (frozen MINLP through BONMIN -- the historical objective; STATED by this run, never inferred. Accepted by fixed_cell_v1 and generalized_v1; generalized_v2 requires p1_milp_v1 and REFUSES this one.)
+scenario (construction): num_agents=3  n_known=3 + n_hidden=3 -> 6 target(s) in the executed world
+          the generator writes the 3 known target(s); setup_episode places the 3 hidden one(s) route-relative and patches them in (split_tasks NOT run)
+          geometry: min_target_distance=200.0 km  min_known_separation=100.0 km  detection=50.0 km  discovery_chain=OFF  strict=ON
+          stretch=0.5  sams=False
+difficulty (fuel_damage_variable_severity_v1): fuel_damage mode=seeded_variable p(damaged)=0.50 leg_progress=0.30 rtb_margin=1.10
+          severity: p(mild|damaged)=0.50 -> clean 0.50 / mild 0.25 / severe 0.25. MILD leaves continuation+RTB feasible; SEVERE does not. The policy is told NEITHER -- only its own live fuel changes.
+          reward aircraft_penalty_coeff=2.25 (graph_reward formula UNCHANGED); eval uses matched triads (forced_clean / forced_mild / forced_severe) on the SAME seed
+legacy split surface (NOT used by the construction path): num_red_airbases=(6, 6) partial_ratio=0.5 -> known/hidden = 3/3   (n=6)
+visual artifacts: DISABLED
+run_dir=C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True
+config:  C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\run_config.json
+code:    0000000000000000000000000000000000000000
+policy:  exact-cardinality failures = skip_and_account_v1 (a failed seed is skipped and accounted, never replaced)
+==============================================================================
+[train iter=0 ep=0 seed=0] OK
+  reward=-0.1000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=0 ep=1 seed=1] OK
+  reward=-0.1500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=0 ep=2 seed=2] OK
+  reward=-0.2000 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=0 ep=3 seed=3] OK
+  reward=-0.2500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[iter   0] R=-0.1750 ok=4/4 trans= 11 wake_eps=4/4 loss=-0.0321 ent=1.386 kl=+0.0076 clip=0.00 gn=2.654    3.4s
+           fd: clean 1/1 R=-0.1000 | mild 3/3 R=-0.2000 | severe 0/0 R=n/a | applied=3 wakes=3 rtb=0 dead=0
+  [ckpt @iter 0] ckpt_iter0000.pt
+[train iter=1 ep=4 seed=4] OK
+  reward=-0.3000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=1 ep=5 seed=5] OK
+  reward=-0.3500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=severe ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=1 ep=6 seed=6] OK
+  reward=-0.4000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=1 ep=7 seed=7] OK
+  reward=-0.4500 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=severe ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[iter   1] R=-0.3750 ok=4/4 trans= 10 wake_eps=4/4 loss=-0.0190 ent=1.382 kl=+0.0042 clip=0.00 gn=1.095    1.2s
+           fd: clean 2/2 R=-0.3500 | mild 0/0 R=n/a | severe 2/2 R=-0.4000 | applied=2 wakes=2 rtb=0 dead=0
+  [ckpt @iter 1] ckpt_iter0001.pt
+[train iter=2 ep=8 seed=8] OK
+  reward=-0.5000 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=severe ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=2 ep=9 seed=9] OK
+  reward=-0.1000 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=2 ep=10 seed=10] OK
+  reward=-0.1500 wakes=2 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=clean ego=none
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[train iter=2 ep=11 seed=11] OK
+  reward=-0.2000 wakes=3 targets_confirmed_unique=1/6
+  known_targets=["A"]
+  known_confirmed=["A"]
+  hidden_targets=["B"]
+  hidden_confirmed=[]
+  fuel_damage=mild ego=a0 fired=True tick=2 progress=n/a
+  fuel_before=n/a fuel_after=n/a factor=n/a fuel_after/max=n/a continue_margin=n/a
+  planned_rtb_floor=n/a planned_continue_req=n/a | live_rtb_floor=n/a live_continue_req=n/a
+  fd_wake=True fd_meta=n/a rtb_command=n/a
+  ended=done ticks=10 dead=0 elapsed=0.0s
+[iter   2] R=-0.2375 ok=4/4 trans= 10 wake_eps=4/4 loss=-0.0266 ent=1.377 kl=+0.0047 clip=0.00 gn=3.420    3.7s
+           fd: clean 2/2 R=-0.1250 | mild 1/1 R=-0.2000 | severe 1/1 R=-0.5000 | applied=2 wakes=2 rtb=0 dead=0
+  [ckpt @iter 2] ckpt_iter0002.pt
+  [summary] C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\run_summary.json
+------------------------------------------------------------------------------
+TRAINING SUMMARY (3 iteration(s) recorded, 3 update(s) completed)
+------------------------------------------------------------------------------
+train eps:  attempted=12  ok=12  failed=0  success=1.000
+            transitions=31  wake-bearing=12  zero-wake eps=0
+iterations: productive=3  zero-wake=0  all-failed=0   (disjoint: an all-failed iteration measured nothing)
+train R:    first=-0.1750  last=-0.2375  mean=-0.2625   (over SUCCESSFUL episodes; 0 iteration(s) had none)
+meta-acts:  PLAN_COMPLIANCE=6  OPPORTUNISTIC_ENGAGEMENT=15  SELF_PRESERVATION_ABORT=10
+eval R:     (disabled)
+fuel dmg:   mode=seeded_variable  penalty_c=2.25  factor=fuel_damage_variable_severity_v1
+            train: clean 5/5 ok, mild 4/4 ok, severe 3/3 ok, events=7 wakes=7 rtb=0 dead=0
+            eval:  clean 0/0 ok, mild 0/0 ok, severe 0/0 ok, events=0 wakes=0 rtb=0 dead=0  triad 0/0
+            severity response [train]: mild abort=0.00 over 4 wake(s) | severe abort=0.00 over 3 wake(s)   (rates over FD WAKES)
+failures:   0 recorded  by phase={}  by stage={}
+timing:     total=8.4s
+plots:      C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\plots
+records:    C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\train_records.jsonl
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\eval_records.jsonl
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\episode_failures.jsonl
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\episode_outcomes.jsonl  (12 successful attempt(s))
+            C:\Users\Itama\AppData\Local\Temp\stepgate_h41_acjf\True\run_summary.json
+------------------------------------------------------------------------------
+PASS
+{"G1": true, "G2": true, "G3": true}
