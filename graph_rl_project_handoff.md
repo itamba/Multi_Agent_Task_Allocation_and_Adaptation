@@ -134,9 +134,10 @@
   [`cc_review.md` §3](docs/workflows/cc_review.md#3-transport-gpt_github) is waived for THIS
   task only. **Implementation and measurement are UNREVIEWED**; no merge is authorized.
   **The run has EXECUTED (2026-09-24)** at measured SHA `3bc944119da08af8e25268c9ee83fc63a8d1e533`
-  and is awaiting GPT review
-  ([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed));
-  the task's return to GPT is the next step.
+  ([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed)).
+  GPT's exact-head review of `ea60ce3…` was **CHANGES_REQUESTED** (narrow evidence /
+  documentation fixes, 2026-09-24); the fixes are additive commits on PR #79, which awaits one
+  exact-head re-review.
 - Earlier single-run authorizations are spent: both actor-gradient diagnostics (further tuning
   stopped, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17) and the
   three acting-ego diagnostics (role-only, explicit readout, role-only λ = 1). **The confirmatory
@@ -165,7 +166,7 @@
 | Writable repository task | **`task/actor-mission-fuel-slack-dev-r1`** (CC; one draft PR — resolve on GitHub): the mission-fuel-slack actor input, its tests and contracts, and ONE authorized development run with its evidence. The only writable task |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
-| Candidates | no research or evidence candidate is active; no merge is authorized. **Resolve GitHub for any transient documentation-maintenance PR** |
+| Candidates | **draft PR #79 (`task/actor-mission-fuel-slack-dev-r1`) is the sole active candidate** — implementation plus evidence; review CHANGES_REQUESTED on 2026-09-24, fixes added, awaiting exact-head re-review. No job is running; no merge is authorized. **Resolve GitHub for the live head** |
 | Scientific runs in progress | none. The ONE authorized mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 (exit code 0) and is EXECUTED / UNREVIEWED; its original directory is `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` (not archived; any move needs its own authorization). No other run is authorized; this authorization is spent |
 
 ## 3. Candidates and PRs
@@ -298,11 +299,13 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: GPT review of the mission-fuel-slack task (§1, §2)** — the implementation, engineering
-validation, the ONE authorized development run and its evidence are complete on draft PR #79 and
-UNREVIEWED. The executing task's own reading (not a verdict): the final endpoint is effectively
-zero, the semantic actor-only transient did not recur, and the actor's immediate-FD output became
-state-independent although the new input separated MILD from SEVERE
+**Now: exact-head re-review of PR #79 (§1, §2)** — the implementation, engineering validation, the
+ONE authorized development run and its evidence are on draft PR #79; the first review was
+CHANGES_REQUESTED and its narrow fixes have been added. The executing task's own reading (not a
+verdict): the final endpoint is effectively zero, the semantic actor-only transient did not recur,
+and the measured immediate-FD outputs showed essentially no severity-conditioned separation
+although the new input separated MILD from SEVERE in sign — an observed-population result, not
+proof of zero feature dependence
 ([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed)).
 Nothing else is scheduled or authorized; any further step (review verdict, merge, a further
 arm or run) needs its own decision

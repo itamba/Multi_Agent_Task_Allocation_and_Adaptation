@@ -37,6 +37,7 @@
 | `extracted/fd_selected_ego_credit_rows.jsonl`, `credit_summary.json` | FD-selected-ego immediate-FD credit rows joined to their wake feature; coverage; 25-update training windows |
 | `extracted/secondary_outcomes.json` | reward, utility, deaths, RTB by round and member cell, both runs |
 | `extracted/training_wake_counts_by_iteration.json` | training wake counts by kind per iteration |
+| `extracted/final_round_fd_source_scores.jsonl`, `final_round_fd_source_score_ranges.json` | (review fix F3) the 40 final-round immediate-FD wakes of each run with unrounded per-node scores and legality, and their exact ranges; produced by `scripts/extract_final_round_source_scores.py` from the hash-pinned original outcomes |
 
 Large originals stay outside Git, unchanged, identified in `artifact_sha256.txt`.
 
@@ -46,7 +47,11 @@ Large originals stay outside Git, unchanged, identified in `artifact_sha256.txt`
 python research_evidence/generalized_v2/actor_mission_slack_dev_r1/scripts/extract_evidence.py --out <dir> --copy-run-artifacts --verify-against research_evidence/generalized_v2/actor_mission_slack_dev_r1/artifact_sha256.txt
 ```
 
-Copy `authorized_plan.json` and `prelaunch/` into `<dir>` first. Every file under `extracted/`,
+The F3 extract is regenerated with
+`python research_evidence/generalized_v2/actor_mission_slack_dev_r1/scripts/extract_final_round_source_scores.py --out research_evidence/generalized_v2/actor_mission_slack_dev_r1`
+(it verifies both original outcomes against `artifact_sha256.txt` first).
+
+For the main extractor, copy `authorized_plan.json` and `prelaunch/` into `<dir>` first. Every file under `extracted/`,
 `run_artifacts/` and `review_precheck.json` then reproduces byte-identically (verified); the two
 hash ledgers differ only by the absolute paths of those two inputs. Standard library only;
 `plot_trajectory.py` needs matplotlib.
@@ -63,8 +68,11 @@ hash ledgers differ only by the absolute paths of those two inputs. Standard lib
 - Configuration: `cli_defaults`; the invocation matches the plan; `train_config` differs from the
   comparator only in `output_dir` (and the later-added `actor_gradient_diagnostics = false` key).
 - Schemas: episode outcome v5, wake diagnostics v3, credit v1; one actor observation id throughout.
-- Feature audit: all 12 750 recorded wakes re-check (value = float32 of the audit; legs, fuel
-  convention, slack formula, exclusions, levels and nearest-neighbour order); 0 non-finite values.
+- Feature audit: the executing task's extractor re-checked all 12 750 recorded wakes (value =
+  float32 of the audit; legs, fuel convention, slack formula, exclusions, levels and
+  nearest-neighbour order) with 0 failures and 0 non-finite values — a preserved report over the
+  external originals. The GPT review independently rechecked the 3 506 COMMITTED evaluation-wake
+  audits (a different scope) without discrepancy.
 
 ## Results (descriptive; development only)
 
@@ -73,20 +81,34 @@ hash ledgers differ only by the absolute paths of those two inputs. Standard lib
 switches**; selected ABORT 0 / 20 MILD and 0 / 20 SEVERE. Comparator final: +0.000888, 0 / 20.
 
 **Trajectory:** the new run never shows severity-conditioned selection after initialization —
-round 0 has 3 / 20 directional switches at near-uniform probabilities (macro +0.00026), and every
-later round has |macro| ≤ 1.1e−4 and 0 switches. The comparator's transient (updates 75–150,
+round 0 has 3 / 20 directional switches at near-uniform probabilities (macro +0.00026), and in
+every post-update round the absolute macro is at most about 1.10e−4 (maximum 0.000110 at update
+75) with 0 switches. The comparator's transient (updates 75–150,
 macro up to +0.650, up to 20 / 20 switches) **did not occur** in this run. Table:
 `extracted/trajectory_comparison.md`.
 
-**The input carried the severity signal; the actor did not use it.** At evaluation immediate-FD
-wakes the certified ego's `mission_fuel_slack_norm` is positive in 300 / 300 MILD wakes (median
-+0.258) and negative in 300 / 300 SEVERE wakes (median −0.177). From update 100 the actor's
-P(ABORT) is essentially identical across all 40 immediate-FD wakes of a round (spread < 1e−6,
-exactly 0 at updates 250–275; comparator ≥ 9e−3 in every round) — a state-independent output
-at these wakes. In the round-15 wake records inspected (a sample, from `source_scores` in
-`episode_outcomes.jsonl`), the per-node source scores agree to three decimals across nodes and
-worlds, unassigned nodes included; the comparator's inspected round-15 scores agree across its
-assigned nodes but not its unassigned node. **No cause is established**; this is one training seed.
+**Observed immediate-FD outputs (not a test of feature dependence).** The input separated the
+severities in sign on every recorded immediate-FD wake of the certified ego: post-update evaluation
+300 / 300 MILD positive and 300 / 300 SEVERE negative (15 rounds re-measuring the same 20 frozen
+worlds — 20 distinct values per severity, not 300 independent worlds), pre-update 20 / 20 each,
+and — labelled as TRAINING, a stochastic actor on a sampled population — 774 / 774 MILD positive
+and 752 / 752 SEVERE negative. The measured immediate-FD outputs nevertheless showed essentially
+no severity-conditioned separation: from update 100 the within-round P(ABORT) range across the 40
+recorded immediate-FD wakes was below 1e−6 (at most 8.2e−7; exactly 0 at updates 250 and 275).
+The comparator's range was 0.0025 at its pre-update round and at least 9.2e−3 in every post-update
+round. This is an observed-population result for one training seed: it is **not** proof that the
+policy has zero dependence on the feature, and it is not a causal explanation.
+
+**Final-round per-node source scores (inspectable, review fix F3).**
+`extracted/final_round_fd_source_scores.jsonl` preserves the 40 final-round immediate-FD wake
+records of each run with unrounded per-node scores and legality, and
+`extracted/final_round_fd_source_score_ranges.json` gives exact `max − min` ranges (no tolerance;
+selection rule and pinned source hashes inside). Node classes come from legality only:
+**ego-assigned** (ABORT cell legal) versus **not ego-assigned** (peer-assigned or unassigned — the
+record does not distinguish them). New run: every column's range over all 200 nodes of the 40 wakes
+is ≤ 9.6e−7 (ego-assigned and not-ego-assigned alike), and P(ABORT) spans 7.5e−9. Comparator: ranges
+of 1.0e−3 to 4.6e−3 over its 62 ego-assigned nodes and 0.11 to 0.39 over its 138 not-ego-assigned
+nodes, P(ABORT) spanning 0.020. This describes recorded outputs only; no cause is established.
 
 **Training:** immediate-FD ABORT under the stochastic actor was 93 / 774 MILD and 105 / 752 SEVERE
 (comparator per measurements §10.6: 64 / 774 and 202 / 752). Credit remains episode / chain-level
@@ -97,10 +119,28 @@ values.
 round (both select PLAN at every FD wake): SEVERE episodes average reward −0.650 with an airframe
 lost in every one.
 
+## Review status and corrections
+
+GPT exact-head review of `ea60ce38e9f1b91fb3cb736bb4dba01f88f92523` (2026-09-24):
+**CHANGES_REQUESTED** — narrow evidence / documentation corrections; no blocking implementation
+defect reported, and the review independently reproduced the 16 endpoint values and the committed
+audits. Corrections are ADDITIVE commits on the same PR; the original evidence commit
+`50c13ee9839a822b12e42fbfed76c8ed55e1f901` is unchanged and is not re-described as containing
+them:
+
+- **F1** — the four `prelaunch/nlp_*.log` files that `source_manifest.json` declared committed had
+  been excluded by the repository's `*.log` ignore rule; they are now committed byte-for-byte (the
+  pre-launch files; nothing rerun), with blob SHA-256 equal to the manifest's.
+- **F2** — the scientific wording above was narrowed (observed-population statements, temporal
+  qualifiers, repeated-measures counts, the ≈ 1.10e−4 bound).
+- **F3** — the per-node score remark is now backed by the committed deterministic extract
+  `scripts/extract_final_round_source_scores.py` → `extracted/final_round_fd_source_scores.jsonl`
+  and `extracted/final_round_fd_source_score_ranges.json`.
+
 ## Limits and non-claims
 
 One run, one training seed, 20 frozen development worlds re-measured every round (repeated
 measures). Cross-version comparison: a matched seed number does not give identical initial
-weights or RNG trajectories once the input dimension changed. No claim that the feature helps or
-hurts in general, no robustness claim, no causal attribution of the absent transient or of the
-output collapse, no confirmatory evidence.
+weights or RNG trajectories once the input dimension changed. No claim that the feature caused the
+near-constant outputs, is useless, or harmed learning in general; no robustness claim; no causal
+attribution of the absent transient or of the near-constant outputs; no confirmatory evidence.

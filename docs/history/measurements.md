@@ -3112,17 +3112,24 @@ that authorized it is the 2026-09-24 row of [`decisions.md` §1](decisions.md#1-
 | 125 | `+3.8e−07` | 0 / 20 | `+0.6503` | 20 / 20 |
 | 375 (final) | **`−7.45e−10`** | **0 / 20** (0 reverse) | `+0.000888` | 0 / 20 |
 
-All 16 rounds are in the package's `extracted/trajectory_comparison.md`. Every round after update 0
-has |macro| ≤ 1.1e−4 and 0 switches: **the comparator's transient did not occur**, and no stable
-final severity-conditioned behaviour exists.
+All 16 rounds are in the package's `extracted/trajectory_comparison.md`. In every post-update round
+the absolute macro is at most about 1.10e−4 (maximum 0.000110 at update 75) with 0 switches: **the
+comparator's transient did not occur**, and no stable final severity-conditioned behaviour exists.
 
-- **The input carried the signal.** At evaluation immediate-FD wakes the certified ego's
-  `mission_fuel_slack_norm` was positive in 300 / 300 MILD wakes and negative in 300 / 300 SEVERE
-  wakes.
-- **The actor did not use it.** From update 100 the actor's P(ABORT) is essentially the same at
-  all 40 immediate-FD wakes of a round (spread < 1e−6; exactly 0 at updates 250–275), against a
-  comparator spread ≥ 9e−3 in every round — a state-independent output at these wakes. Inspected
-  per-node source scores agree across nodes and worlds.
+- **The input separated the severities in sign.** Certified-ego immediate-FD wakes: post-update
+  evaluation 300 / 300 MILD positive and 300 / 300 SEVERE negative (15 rounds re-measuring the same
+  20 frozen worlds, not 300 independent worlds); pre-update 20 / 20 each; training (stochastic
+  actor, sampled population) 774 / 774 MILD positive and 752 / 752 SEVERE negative.
+- **The measured immediate-FD outputs showed essentially no severity-conditioned separation.** From
+  update 100 the within-round P(ABORT) range across the 40 recorded immediate-FD wakes was below
+  1e−6 (at most 8.2e−7; exactly 0 at updates 250 and 275). The comparator's range was 0.0025 at its
+  pre-update round and at least 9.2e−3 in every post-update round. This is an observed-population
+  result, not proof of zero feature dependence and not a causal explanation.
+- **Final-round per-node scores** (package `extracted/final_round_fd_source_score_ranges.json`,
+  exact ranges over the 40 final-round FD wakes): new run ≤ 9.6e−7 per score column over all 200
+  nodes, ego-assigned and not-ego-assigned alike; comparator 1.0e−3 to 4.6e−3 over ego-assigned
+  nodes and 0.11 to 0.39 over not-ego-assigned nodes (peer-assigned or unassigned; not
+  distinguished in the record).
 - Training (stochastic actor) immediate-FD ABORT: 93 / 774 MILD, 105 / 752 SEVERE; credit stays
   episode / chain-level (§10.7).
 - Final-round reward, utility and deaths equal the comparator's (both select PLAN at every FD wake).
@@ -3132,7 +3139,22 @@ final severity-conditioned behaviour exists.
 - **Unreviewed.** Nothing here is a verdict or an approval.
 - One run, one training seed, cross-version against §10; a matched seed number does not give
   identical initial weights or RNG trajectories after the input width changed. No robustness claim.
-- **No causal attribution** — neither of the absent transient nor of the output collapse — to the
-  feature, the width change, initialization or optimization.
+- **No causal attribution** — neither of the absent transient nor of the near-constant outputs —
+  to the feature, the width change, initialization or optimization; no claim that the feature is
+  useless or harmed learning in general.
 - Repeated evaluation rounds re-measure the same 20 frozen development worlds. No confirmatory
   evidence; the confirmatory profile is untouched.
+
+### 17.5 Review status
+
+- **2026-09-24 — GPT exact-head review of `ea60ce38e9f1b91fb3cb736bb4dba01f88f92523`:
+  CHANGES_REQUESTED** (narrow evidence / documentation corrections; not an approval). The review
+  reported no blocking implementation defect, independently reproduced all 16 primary-endpoint
+  values from the committed immediate-FD rows, reconciled the 375 training and 16 evaluation
+  records, and rechecked the 3 506 committed evaluation-wake audits. Its limits, as it stated them:
+  no test rerun, no access to the run directories or checkpoints, no full re-extraction against
+  the external originals — so the 12 750-wake audit re-check remains the executing task's
+  preserved report.
+- The corrections (the four pre-launch logs the manifest declared, the narrowed wording above,
+  and the final-round per-node score extract) are additive commits on PR #79; the original
+  evidence commit `50c13ee9839a822b12e42fbfed76c8ed55e1f901` is unchanged.
