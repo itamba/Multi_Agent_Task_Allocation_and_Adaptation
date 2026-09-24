@@ -6,7 +6,9 @@
 > `7273be2ab563cc70de82651ec62bfa719f4f2758`, and its branch was deleted after merge
 > verification. **The intended durable branch state is `main` plus the three protected historical
 > branches only** (§7); a transient documentation-maintenance branch and PR may exist briefly
-> while this file itself is corrected, and leaves nothing behind once integrated.
+> while this file itself is corrected, and leaves nothing behind once integrated. **Since
+> 2026-09-24 the active task branch `task/actor-mission-fuel-slack-dev-r1` and its draft PR also
+> exist** (§2).
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -117,11 +119,24 @@
   ignored files hold about 5.2 GB of flat-RL training outputs that are not archived under
   `C:\gra\` and whose deletion or move was not authorized
   ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
-- **No scientific run is in progress, and this snapshot authorizes none.** Both actor-gradient
-  diagnostic authorizations were single-run and are spent; further tuning is stopped
-  ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17). The three
-  acting-ego diagnostic authorizations (role-only, explicit readout, role-only λ = 1) were
-  single-run and are spent. **The confirmatory profile has not been used.**
+- **ACTIVE (2026-09-24): the actor mission-fuel-slack task** — the first actor-side
+  intervention, owned by CC on branch `task/actor-mission-fuel-slack-dev-r1` (one draft PR; resolve
+  its number and exact head on GitHub). It adds exactly ONE actor input,
+  `mission_fuel_slack_norm` on the ego agent row (actor observation
+  `actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`,
+  [policy and CTDE §1](docs/contracts/policy_ctde.md#1-graph-observation-stage-3)), and executes
+  exactly ONE authorized 375-update actor-only `generalized_v2` development run against the
+  reviewed semantic actor-only R1 (§4) as a cross-version comparator. Plan:
+  `research_evidence/generalized_v2/actor_mission_slack_dev_r1/authorized_plan.json`.
+  **Task-specific workflow exception** (user-requested; [`decisions.md` §1](docs/history/decisions.md#1-decision-log),
+  2026-09-24): implementation, validation, training and evidence proceed as one task with GPT
+  review only at the end; the intermediate review stop of
+  [`cc_review.md` §3](docs/workflows/cc_review.md#3-transport-gpt_github) is waived for THIS
+  task only. **Implementation and measurement are UNREVIEWED**; no merge is authorized.
+- Earlier single-run authorizations are spent: both actor-gradient diagnostics (further tuning
+  stopped, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17) and the
+  three acting-ego diagnostics (role-only, explicit readout, role-only λ = 1). **The confirmatory
+  profile has not been used.**
 - **Closed:** Phase A (fixed cell, FD-BASELINE-v1); the FD-VARIABLE-SEVERITY-v1 actor-only
   baseline; the Phase-B CTDE implementation; GENERALIZED-V1 Tasks 1–5, early stopping and the
   per-wake diagnostics; the deterministic-P1 backend and the certified-FD physical-state repair;
@@ -143,17 +158,18 @@
 
 | Item | State |
 |---|---|
-| Writable repository task | **no scientific or research writable task is active or authorized.** Transient documentation maintenance of this snapshot may hold a short-lived branch and draft PR; it authorizes no research, code, test, configuration, archive or ref work, and no task branch is intended to remain after it is integrated |
+| Writable repository task | **`task/actor-mission-fuel-slack-dev-r1`** (CC; one draft PR — resolve on GitHub): the mission-fuel-slack actor input, its tests and contracts, and ONE authorized development run with its evidence. The only writable task |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
 | Candidates | no research or evidence candidate is active; no merge is authorized. **Resolve GitHub for any transient documentation-maintenance PR** |
-| Scientific runs in progress | none; none authorized. All three acting-ego diagnostic authorizations are spent |
+| Scientific runs in progress | the ONE authorized mission-slack development run of the active task (`graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_<measured-short-sha>`, output under `C:\gruns\`); its measured SHA, path and status are recorded in the task's evidence package. No other run is authorized |
 
 ## 3. Candidates and PRs
 
-**No research or evidence candidate is active.** The closure PRs #71 / #73 / #74 / #75 / #76 / #77
-below are historical states, not open work. **Resolve GitHub for any transient
-documentation-maintenance PR and for live exact heads.**
+**One research candidate is active: the draft PR of `task/actor-mission-fuel-slack-dev-r1`**
+(implementation + evidence, unreviewed, not for merge until GPT review and explicit user
+authorization). The closure PRs #71 / #73 / #74 / #75 / #76 / #77 below are historical states,
+not open work. **Resolve GitHub for live exact heads.**
 
 | PR | Branch | State |
 |---|---|---|
@@ -277,13 +293,13 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: nothing is scheduled.** The recent-research archival and Git cleanup is complete and its
-closure record is integrated (§1, §3); **no research, evidence or task ref awaits cleanup**, and
-**no scientific run is active or authorized**. The next research task starts from the area below
-and needs its own authorized bounded plan
+**Now: the active mission-fuel-slack task (§1, §2)** — implementation, engineering validation,
+the ONE authorized development run and its evidence, returned to GPT for review at the end.
+Nothing else is scheduled or authorized; any further step (review verdict, merge, a further
+arm or run) needs its own decision
 ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)).
 
-**Next research area — for a future orchestrator, not scheduled here:** actor-side optimization /
+**Research area the active task belongs to:** actor-side optimization /
 stability, gradient-to-policy mapping and retention mechanics
 ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-19;
 [measurements §15](docs/history/measurements.md#15-acting-ego--critic-locality-development-investigation--closing-interpretation)).
@@ -295,7 +311,9 @@ explanation; these remain open:
 
 1. **actor private-observation identifiability** — does the acting ego's immediate-FD private
    graph carry an informative, non-saturated MILD-vs-SEVERE signal (fuel normalization,
-   distance / reachability clipping, other actor-visible features)?
+   distance / reachability clipping, other actor-visible features)? *The active task tests one
+   intervention on this question (explicit mission fuel slack); reachability and distance
+   clipping stay unchanged.*
 2. **PPO mechanics** — clipping, normalized advantages, repeated epochs, Adam / gradient clipping as
    mechanisms that could acquire and then erase separation;
 3. **gradient interaction** — why non-FD components sometimes oppose a healthy FD component after
@@ -303,12 +321,9 @@ explanation; these remain open:
 
 No read-only audit of these is open; this list authorizes no run or code change.
 
-**Known low-priority maintenance, not scheduled:** the `graph_encoder` module self-test
-(`python -m match_aou.rl.agent.graph_encoder`) still asserts that a sampled semantic action
-returns an integer node (`isinstance(node, int)`), but global semantic actions (PLAN, ABORT)
-carry `node_v = None` since PR #70, so the self-test fails at that assertion. The defect predates
-the acting-ego work (which did not change the encoder or action modules); the pytest suites
-are unaffected. Fixing it needs its own small code task.
+**Known low-priority maintenance:** the `graph_encoder` module self-test's stale
+`isinstance(node, int)` assertion (global semantic actions carry `node_v = None` since PR #70) is
+corrected on the active task's branch, which had to update that self-test's agent width anyway.
 
 **Recorded, not scheduled and not authorized:**
 
@@ -333,6 +348,11 @@ are unaffected. Fixing it needs its own small code task.
   ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
 
 ## 6. Blocked or unauthorized now
+
+The active mission-fuel-slack task (§2) is authorized ONLY for what its plan names: the one actor
+input, its tests and contracts, and ONE development run with its evidence. Everything below
+stays blocked for it too — in particular any second observation feature, tuning, further arm,
+rerun, resume, extension, confirmatory use, merge or cleanup.
 
 - reopening closed evidence PRs #71 or #73, or deleting the undecided local items of §5, without
   explicit authorization;
