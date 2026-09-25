@@ -1,0 +1,842 @@
+{
+ "files": [
+  {
+   "bytes": 305598,
+   "file": "new__episode_outcomes.jsonl",
+   "lines": [
+    {
+     "key": [
+      "pre_update",
+      null,
+      42,
+      0,
+      14,
+      2000448
+     ],
+     "line_bytes": 39351,
+     "line_number": 43,
+     "line_sha256": "00b4a571af77c825def566c25d629421f119dc660129729f91bf29b89eddf2a1"
+    },
+    {
+     "key": [
+      "pre_update",
+      null,
+      43,
+      0,
+      14,
+      2000448
+     ],
+     "line_bytes": 39397,
+     "line_number": 44,
+     "line_sha256": "aa6bd427b59a303555e78555833a4602360404fe9e700a1c0b0a77313c7831c4"
+    },
+    {
+     "key": [
+      "pre_update",
+      null,
+      44,
+      0,
+      14,
+      2000448
+     ],
+     "line_bytes": 39423,
+     "line_number": 45,
+     "line_sha256": "8549b28661e8a168e919f40549d8537bba87bbfd62f0dfbc78698e0e909b5a6e"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      0,
+      null,
+      null,
+      3000000
+     ],
+     "line_bytes": 17912,
+     "line_number": 61,
+     "line_sha256": "1251ee3e6b33d15d6dd6c614eab22ce3b4240640802b2e3347947e19e013e631"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      1,
+      null,
+      null,
+      3000001
+     ],
+     "line_bytes": 17894,
+     "line_number": 62,
+     "line_sha256": "3deddb8171400d45c162cf064f13c77195bf541bf286bf58ca94855295c94dbb"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      2,
+      null,
+      null,
+      3000002
+     ],
+     "line_bytes": 19457,
+     "line_number": 63,
+     "line_sha256": "d8cdb97d9879c5ead13d66d3fb69ea8b057994fff397cce054d2efda372eb488"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      3,
+      null,
+      null,
+      3000003
+     ],
+     "line_bytes": 30104,
+     "line_number": 64,
+     "line_sha256": "2a2e2b6a6e8a930126b04900b25f8052b29c7afa4a9788637284c0e9a73dfd02"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      4,
+      null,
+      null,
+      3000004
+     ],
+     "line_bytes": 19871,
+     "line_number": 65,
+     "line_sha256": "0d36321e2f060a8602463025fc971cee57a9b50fee93eebf91e220afdc69f4d2"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      5,
+      null,
+      null,
+      3000005
+     ],
+     "line_bytes": 26655,
+     "line_number": 66,
+     "line_sha256": "16ec4d5fc6718c4c88ad9ace7f01a8d7d8f3555e672a1470617f2c60a3bd39cf"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      6,
+      null,
+      null,
+      3000006
+     ],
+     "line_bytes": 15293,
+     "line_number": 67,
+     "line_sha256": "e32ce037b0e023b4e301b50b1a85e3752ddec4c79af7f6d08face3156c2cae3d"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      7,
+      null,
+      null,
+      3000007
+     ],
+     "line_bytes": 15280,
+     "line_number": 68,
+     "line_sha256": "a27b9634250c7b0cc6ef9449f74783904c4bd4585ebde3137f5d7f32ebfcde60"
+    },
+    {
+     "key": [
+      "train",
+      1,
+      0,
+      null,
+      null,
+      3000008
+     ],
+     "line_bytes": 24961,
+     "line_number": 69,
+     "line_sha256": "928381ae0f922e9210b0807af79017d67a78220160e7c2d96733d34edd9bb85e"
+    }
+   ],
+   "n_lines": 12,
+   "run": "new",
+   "sha256": "72767fe8420c4418bce5b1cb8b0c3b5a73adea34bdf9e49dccdad4a7ed48e329",
+   "source_bytes": 29017283,
+   "source_path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\episode_outcomes.jsonl",
+   "source_sha256": "3af8bec228116d3597dc0853b918d7ed81d4df81b69dd61ee36699b2c2816379",
+   "source_stream": "episode_outcomes.jsonl"
+  },
+  {
+   "bytes": 2780,
+   "file": "new__train_records.jsonl",
+   "lines": [
+    {
+     "key": [
+      0
+     ],
+     "line_bytes": 2780,
+     "line_number": 1,
+     "line_sha256": "031d55bccf1ab3bb3802e848507e85d3339683fe70a1ff2f4a89afd9b668b5dd"
+    }
+   ],
+   "n_lines": 1,
+   "run": "new",
+   "sha256": "031d55bccf1ab3bb3802e848507e85d3339683fe70a1ff2f4a89afd9b668b5dd",
+   "source_bytes": 274926,
+   "source_path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\train_records.jsonl",
+   "source_sha256": "42ab2457cdab81cca49dd8d2ada847f48e57cf00efbb9e7cfb0adf07bf99d779",
+   "source_stream": "train_records.jsonl"
+  },
+  {
+   "bytes": 22444,
+   "file": "new__train_credit_diagnostics.jsonl",
+   "lines": [
+    {
+     "key": [
+      0,
+      0
+     ],
+     "line_bytes": 1277,
+     "line_number": 1,
+     "line_sha256": "85a6124830dbe0a219e42f2d424201efd7bdb3a919dfb617407c8c460ee93a8b"
+    },
+    {
+     "key": [
+      0,
+      1
+     ],
+     "line_bytes": 1300,
+     "line_number": 2,
+     "line_sha256": "3680dac1a61f9ab95feff5c12908a73cdf870fc2575f9bf9b666ad2d9c8122d7"
+    },
+    {
+     "key": [
+      0,
+      2
+     ],
+     "line_bytes": 1285,
+     "line_number": 3,
+     "line_sha256": "0f4886634a1d04f548c7e96af0f4b0398fd523fed4adb72e6fcf6a709cfc31e3"
+    },
+    {
+     "key": [
+      0,
+      3
+     ],
+     "line_bytes": 1299,
+     "line_number": 4,
+     "line_sha256": "ae282d08dd94e3d4b6d76a0ef4916cb0ae6bbe5cbae849a0bc6bf2b3a8c1c92c"
+    },
+    {
+     "key": [
+      0,
+      4
+     ],
+     "line_bytes": 1317,
+     "line_number": 5,
+     "line_sha256": "c52f1d085e4c6517360a14655a8a20588863148b5ad1ce9f59f520704d5611d2"
+    },
+    {
+     "key": [
+      0,
+      5
+     ],
+     "line_bytes": 1354,
+     "line_number": 6,
+     "line_sha256": "ddcad7082c622cbfcd052defe413f6c9a5ad8610c7f76f157cb87b734773e883"
+    },
+    {
+     "key": [
+      0,
+      6
+     ],
+     "line_bytes": 1329,
+     "line_number": 7,
+     "line_sha256": "405e099b53fd141473bfbe5afd9edcb076a9f41880084a35249e683dc3c4ae94"
+    },
+    {
+     "key": [
+      0,
+      7
+     ],
+     "line_bytes": 1332,
+     "line_number": 8,
+     "line_sha256": "8efef86a3e87785bf23999b056ad065334caad8162e66265bba549c654776af7"
+    },
+    {
+     "key": [
+      0,
+      8
+     ],
+     "line_bytes": 1329,
+     "line_number": 9,
+     "line_sha256": "85f672bd482897f896491f28228822d4d713126ae6d5292f9adee1b35648bf6c"
+    },
+    {
+     "key": [
+      0,
+      9
+     ],
+     "line_bytes": 1353,
+     "line_number": 10,
+     "line_sha256": "4df91f2c046b60c9159f8115f0cac2e89dece568aaa3e88cb86fccf738425ba7"
+    },
+    {
+     "key": [
+      0,
+      10
+     ],
+     "line_bytes": 1323,
+     "line_number": 11,
+     "line_sha256": "564f6c29504d5fec2547ca4b185507bd0a22a91a78e4410e1986f5f1b3fcc481"
+    },
+    {
+     "key": [
+      0,
+      11
+     ],
+     "line_bytes": 1356,
+     "line_number": 12,
+     "line_sha256": "29515987a423ad14bcf7745aaedab2edcf17cb36e3d0f798ff6406dd082231f6"
+    },
+    {
+     "key": [
+      0,
+      12
+     ],
+     "line_bytes": 1337,
+     "line_number": 13,
+     "line_sha256": "f13edffd6742a957cc00cab95cb6ca5a4f5b4938b6ffbd9b2690f644c598c2a9"
+    },
+    {
+     "key": [
+      0,
+      13
+     ],
+     "line_bytes": 1325,
+     "line_number": 14,
+     "line_sha256": "4602b46289b85aba3fed6c431195b61e14f7e1f2b1444f6a4131d9121d59c2ed"
+    },
+    {
+     "key": [
+      0,
+      14
+     ],
+     "line_bytes": 1342,
+     "line_number": 15,
+     "line_sha256": "04ca110c622cc767cc2a468d2cab6216d77930c4dfae5f5687e716062dcdc616"
+    },
+    {
+     "key": [
+      0,
+      15
+     ],
+     "line_bytes": 1294,
+     "line_number": 16,
+     "line_sha256": "0d9fae2b7b5de96c470c54749b8ac2c3347ab50d5febece18ce4415a65fcf11d"
+    },
+    {
+     "key": [
+      0,
+      16
+     ],
+     "line_bytes": 1292,
+     "line_number": 17,
+     "line_sha256": "c3a39168c56e0dbe5ab3e58b4c366bd632bf4b67005b5e268b8f35fa8987b7f6"
+    }
+   ],
+   "n_lines": 17,
+   "run": "new",
+   "sha256": "f3fee4ad6e3c75f782634712927c6983aa986ba9e4f92bd52627fa1d2c92d9b2",
+   "source_bytes": 3109486,
+   "source_path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\train_credit_diagnostics.jsonl",
+   "source_sha256": "a687b2b0bd451572d8b5201757ae41b7515f5a7c5639de4fdd9ffac1ba9b09ed",
+   "source_stream": "train_credit_diagnostics.jsonl"
+  },
+  {
+   "bytes": 305604,
+   "file": "original__episode_outcomes.jsonl",
+   "lines": [
+    {
+     "key": [
+      "pre_update",
+      null,
+      42,
+      0,
+      14,
+      2000448
+     ],
+     "line_bytes": 39356,
+     "line_number": 43,
+     "line_sha256": "8fcc4d3838990b239b4316f47af077f5a6696eb7a390e927608af793ce2c096a"
+    },
+    {
+     "key": [
+      "pre_update",
+      null,
+      43,
+      0,
+      14,
+      2000448
+     ],
+     "line_bytes": 39407,
+     "line_number": 44,
+     "line_sha256": "de222b5de16912ee7ab05f2781cea0b76916e9fcab557ffb63432c05e11588ec"
+    },
+    {
+     "key": [
+      "pre_update",
+      null,
+      44,
+      0,
+      14,
+      2000448
+     ],
+     "line_bytes": 39413,
+     "line_number": 45,
+     "line_sha256": "59a618e3d307773e0560d6735c711dea0d5f4194114fb2164f80306c45b3e8a5"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      0,
+      null,
+      null,
+      3000000
+     ],
+     "line_bytes": 17914,
+     "line_number": 61,
+     "line_sha256": "52e6cba68b7d5ddbb5960200a0a36402b342f225959c05118504840ea781e06e"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      1,
+      null,
+      null,
+      3000001
+     ],
+     "line_bytes": 17895,
+     "line_number": 62,
+     "line_sha256": "6a5c907a9800dd661cd1c0d17745d34219a3e29127e656677360f7f726d974b1"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      2,
+      null,
+      null,
+      3000002
+     ],
+     "line_bytes": 19456,
+     "line_number": 63,
+     "line_sha256": "71512f920e56ccb5bc42405026f46b417aa04356fd3e316116b1c3d17d8a1576"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      3,
+      null,
+      null,
+      3000003
+     ],
+     "line_bytes": 30106,
+     "line_number": 64,
+     "line_sha256": "ef5cd71212da7a99c2c4c8e9e1e4c0df02fa927dbd857b7c5b8d119c89c4293c"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      4,
+      null,
+      null,
+      3000004
+     ],
+     "line_bytes": 19871,
+     "line_number": 65,
+     "line_sha256": "ece92a65f9467027614cdaacf9485364a6a0d0e72468206652bd483230a44345"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      5,
+      null,
+      null,
+      3000005
+     ],
+     "line_bytes": 26651,
+     "line_number": 66,
+     "line_sha256": "90795b0c4c2bb91197e08bd4c575e12c5e7920350301fa3b6c61dc3156680929"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      6,
+      null,
+      null,
+      3000006
+     ],
+     "line_bytes": 15293,
+     "line_number": 67,
+     "line_sha256": "dc36d32477c834fd3071e948e9cf7b1a27a90177508c8488d082b9b378fb500d"
+    },
+    {
+     "key": [
+      "train",
+      0,
+      7,
+      null,
+      null,
+      3000007
+     ],
+     "line_bytes": 15279,
+     "line_number": 68,
+     "line_sha256": "63c040c8e5b6b8c5d3d1b65850d7c839d2757de158e4740f6d8a85145cfd9d13"
+    },
+    {
+     "key": [
+      "train",
+      1,
+      0,
+      null,
+      null,
+      3000008
+     ],
+     "line_bytes": 24963,
+     "line_number": 69,
+     "line_sha256": "1abe61af9463dc1ec8ec8abe61349550a90508004d9498a95fc6d11ee1c9fdcb"
+    }
+   ],
+   "n_lines": 12,
+   "run": "original",
+   "sha256": "7ffc9612c8e0bee2182fe4d9d1942d4fd5d2b5a138517a98cca926622a3fa160",
+   "source_bytes": 106129593,
+   "source_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_outcomes.jsonl",
+   "source_sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe",
+   "source_stream": "episode_outcomes.jsonl"
+  },
+  {
+   "bytes": 2779,
+   "file": "original__train_records.jsonl",
+   "lines": [
+    {
+     "key": [
+      0
+     ],
+     "line_bytes": 2779,
+     "line_number": 1,
+     "line_sha256": "eb30eb1e4b54281ff8d705264f1a8e9068050b3e1d65414568db8e0ddc3078c3"
+    }
+   ],
+   "n_lines": 1,
+   "run": "original",
+   "sha256": "eb30eb1e4b54281ff8d705264f1a8e9068050b3e1d65414568db8e0ddc3078c3",
+   "source_bytes": 1027772,
+   "source_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_records.jsonl",
+   "source_sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157",
+   "source_stream": "train_records.jsonl"
+  },
+  {
+   "bytes": 22444,
+   "file": "original__train_credit_diagnostics.jsonl",
+   "lines": [
+    {
+     "key": [
+      0,
+      0
+     ],
+     "line_bytes": 1277,
+     "line_number": 1,
+     "line_sha256": "85a6124830dbe0a219e42f2d424201efd7bdb3a919dfb617407c8c460ee93a8b"
+    },
+    {
+     "key": [
+      0,
+      1
+     ],
+     "line_bytes": 1300,
+     "line_number": 2,
+     "line_sha256": "3680dac1a61f9ab95feff5c12908a73cdf870fc2575f9bf9b666ad2d9c8122d7"
+    },
+    {
+     "key": [
+      0,
+      2
+     ],
+     "line_bytes": 1285,
+     "line_number": 3,
+     "line_sha256": "0f4886634a1d04f548c7e96af0f4b0398fd523fed4adb72e6fcf6a709cfc31e3"
+    },
+    {
+     "key": [
+      0,
+      3
+     ],
+     "line_bytes": 1299,
+     "line_number": 4,
+     "line_sha256": "ae282d08dd94e3d4b6d76a0ef4916cb0ae6bbe5cbae849a0bc6bf2b3a8c1c92c"
+    },
+    {
+     "key": [
+      0,
+      4
+     ],
+     "line_bytes": 1317,
+     "line_number": 5,
+     "line_sha256": "c52f1d085e4c6517360a14655a8a20588863148b5ad1ce9f59f520704d5611d2"
+    },
+    {
+     "key": [
+      0,
+      5
+     ],
+     "line_bytes": 1354,
+     "line_number": 6,
+     "line_sha256": "ddcad7082c622cbfcd052defe413f6c9a5ad8610c7f76f157cb87b734773e883"
+    },
+    {
+     "key": [
+      0,
+      6
+     ],
+     "line_bytes": 1329,
+     "line_number": 7,
+     "line_sha256": "405e099b53fd141473bfbe5afd9edcb076a9f41880084a35249e683dc3c4ae94"
+    },
+    {
+     "key": [
+      0,
+      7
+     ],
+     "line_bytes": 1332,
+     "line_number": 8,
+     "line_sha256": "8efef86a3e87785bf23999b056ad065334caad8162e66265bba549c654776af7"
+    },
+    {
+     "key": [
+      0,
+      8
+     ],
+     "line_bytes": 1329,
+     "line_number": 9,
+     "line_sha256": "85f672bd482897f896491f28228822d4d713126ae6d5292f9adee1b35648bf6c"
+    },
+    {
+     "key": [
+      0,
+      9
+     ],
+     "line_bytes": 1353,
+     "line_number": 10,
+     "line_sha256": "4df91f2c046b60c9159f8115f0cac2e89dece568aaa3e88cb86fccf738425ba7"
+    },
+    {
+     "key": [
+      0,
+      10
+     ],
+     "line_bytes": 1323,
+     "line_number": 11,
+     "line_sha256": "564f6c29504d5fec2547ca4b185507bd0a22a91a78e4410e1986f5f1b3fcc481"
+    },
+    {
+     "key": [
+      0,
+      11
+     ],
+     "line_bytes": 1356,
+     "line_number": 12,
+     "line_sha256": "29515987a423ad14bcf7745aaedab2edcf17cb36e3d0f798ff6406dd082231f6"
+    },
+    {
+     "key": [
+      0,
+      12
+     ],
+     "line_bytes": 1337,
+     "line_number": 13,
+     "line_sha256": "bbc3eefc575d194f7f5be2a8698727226a7782afb13df6af8420934189ed4df3"
+    },
+    {
+     "key": [
+      0,
+      13
+     ],
+     "line_bytes": 1325,
+     "line_number": 14,
+     "line_sha256": "70dcdf283892c25088e9ed2b48726dc610ae2575e4a3830be3b0391c8967ce78"
+    },
+    {
+     "key": [
+      0,
+      14
+     ],
+     "line_bytes": 1342,
+     "line_number": 15,
+     "line_sha256": "98013dac31200f537ad1b8164a3fdb6f88bb666f68613f614b27b8230829fafc"
+    },
+    {
+     "key": [
+      0,
+      15
+     ],
+     "line_bytes": 1294,
+     "line_number": 16,
+     "line_sha256": "0d9fae2b7b5de96c470c54749b8ac2c3347ab50d5febece18ce4415a65fcf11d"
+    },
+    {
+     "key": [
+      0,
+      16
+     ],
+     "line_bytes": 1292,
+     "line_number": 17,
+     "line_sha256": "c3a39168c56e0dbe5ab3e58b4c366bd632bf4b67005b5e268b8f35fa8987b7f6"
+    }
+   ],
+   "n_lines": 17,
+   "run": "original",
+   "sha256": "36c57191dc284c04d9e90038100f6d0e807955572c470cf48001cb3c2ca29184",
+   "source_bytes": 12003603,
+   "source_path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_credit_diagnostics.jsonl",
+   "source_sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc",
+   "source_stream": "train_credit_diagnostics.jsonl"
+  }
+ ],
+ "pins_checked_after": [
+  {
+   "bytes": 29017283,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\episode_outcomes.jsonl",
+   "pinned_bytes": 29017283,
+   "pinned_sha256": "3af8bec228116d3597dc0853b918d7ed81d4df81b69dd61ee36699b2c2816379",
+   "run": "new",
+   "sha256": "3af8bec228116d3597dc0853b918d7ed81d4df81b69dd61ee36699b2c2816379",
+   "stream": "episode_outcomes.jsonl"
+  },
+  {
+   "bytes": 274926,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\train_records.jsonl",
+   "pinned_bytes": 274926,
+   "pinned_sha256": "42ab2457cdab81cca49dd8d2ada847f48e57cf00efbb9e7cfb0adf07bf99d779",
+   "run": "new",
+   "sha256": "42ab2457cdab81cca49dd8d2ada847f48e57cf00efbb9e7cfb0adf07bf99d779",
+   "stream": "train_records.jsonl"
+  },
+  {
+   "bytes": 3109486,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\train_credit_diagnostics.jsonl",
+   "pinned_bytes": 3109486,
+   "pinned_sha256": "a687b2b0bd451572d8b5201757ae41b7515f5a7c5639de4fdd9ffac1ba9b09ed",
+   "run": "new",
+   "sha256": "a687b2b0bd451572d8b5201757ae41b7515f5a7c5639de4fdd9ffac1ba9b09ed",
+   "stream": "train_credit_diagnostics.jsonl"
+  },
+  {
+   "bytes": 106129593,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_outcomes.jsonl",
+   "pinned_bytes": 106129593,
+   "pinned_sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe",
+   "run": "original",
+   "sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe",
+   "stream": "episode_outcomes.jsonl"
+  },
+  {
+   "bytes": 1027772,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_records.jsonl",
+   "pinned_bytes": 1027772,
+   "pinned_sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157",
+   "run": "original",
+   "sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157",
+   "stream": "train_records.jsonl"
+  },
+  {
+   "bytes": 12003603,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_credit_diagnostics.jsonl",
+   "pinned_bytes": 12003603,
+   "pinned_sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc",
+   "run": "original",
+   "sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc",
+   "stream": "train_credit_diagnostics.jsonl"
+  }
+ ],
+ "pins_checked_before": [
+  {
+   "bytes": 29017283,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\episode_outcomes.jsonl",
+   "pinned_bytes": 29017283,
+   "pinned_sha256": "3af8bec228116d3597dc0853b918d7ed81d4df81b69dd61ee36699b2c2816379",
+   "run": "new",
+   "sha256": "3af8bec228116d3597dc0853b918d7ed81d4df81b69dd61ee36699b2c2816379",
+   "stream": "episode_outcomes.jsonl"
+  },
+  {
+   "bytes": 274926,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\train_records.jsonl",
+   "pinned_bytes": 274926,
+   "pinned_sha256": "42ab2457cdab81cca49dd8d2ada847f48e57cf00efbb9e7cfb0adf07bf99d779",
+   "run": "new",
+   "sha256": "42ab2457cdab81cca49dd8d2ada847f48e57cf00efbb9e7cfb0adf07bf99d779",
+   "stream": "train_records.jsonl"
+  },
+  {
+   "bytes": 3109486,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b\\train_credit_diagnostics.jsonl",
+   "pinned_bytes": 3109486,
+   "pinned_sha256": "a687b2b0bd451572d8b5201757ae41b7515f5a7c5639de4fdd9ffac1ba9b09ed",
+   "run": "new",
+   "sha256": "a687b2b0bd451572d8b5201757ae41b7515f5a7c5639de4fdd9ffac1ba9b09ed",
+   "stream": "train_credit_diagnostics.jsonl"
+  },
+  {
+   "bytes": 106129593,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\episode_outcomes.jsonl",
+   "pinned_bytes": 106129593,
+   "pinned_sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe",
+   "run": "original",
+   "sha256": "d03c43c8463a1c102a35cf81b2cbb41ed62ba1e7e4b7394b40e2df006c28cfbe",
+   "stream": "episode_outcomes.jsonl"
+  },
+  {
+   "bytes": 1027772,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_records.jsonl",
+   "pinned_bytes": 1027772,
+   "pinned_sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157",
+   "run": "original",
+   "sha256": "5ba09db3ee1c8b46256016cd5a733601ba7230b9423c1bdc36740bb66529a157",
+   "stream": "train_records.jsonl"
+  },
+  {
+   "bytes": 12003603,
+   "match": true,
+   "path": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441\\train_credit_diagnostics.jsonl",
+   "pinned_bytes": 12003603,
+   "pinned_sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc",
+   "run": "original",
+   "sha256": "3db9ca1e155ed5d82bde1a4fec4f9f46b3e0921f8c41fc4b5ad2ae895661bbdc",
+   "stream": "train_credit_diagnostics.jsonl"
+  }
+ ],
+ "record": "prefix_source_extract_index",
+ "record_version": 1
+}
