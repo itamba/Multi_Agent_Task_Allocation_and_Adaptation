@@ -1,6 +1,6 @@
 # sha256  bytes  git_blob  blob_identity  vs_external_original  path (relative to the package)
 # blob_identity raw = the blob is the file's exact bytes; filtered = the blob is the file after the repository's autocrlf clean filter
-5582c8034658818ecf0957c329a9728165cee003f96ab19b3ba0cc51f2be39e6  12145  4a8863f0e2371f6377d661d214026bebd1fc871e  raw  -  README.md
+ff1e3a01a9f33434fc7655d0cff11d79d8e5034e1a1a75df4d81f73b0733cbf9  20044  6972e4c8f082346225add80f9806a7cc03156d9f  raw  -  README.md
 36b27e03514a22250f30e0c60dd800518f3c5b05d3b0fa88d698648f485f6144  7041  89e6d6264253efd3cf307a9f6cf9115b67fc8d80  raw  -  artifact_sha256.txt
 b3402169378ffcf8ce0ccf8d65d7f740449b2d541d6d277bbc6c2e97757f8700  14208  6c1c71aafa5892c1b7036ec28573bb210941051d  raw  -  authorized_plan.json
 c12fdfed3b696c0afe2d0bef90ed5185310660cbd2bbd924318f145ce66b1911  284  ccc9c49dc8d7e408997f94e4fa83c0538cd96260  raw  -  extracted/accounting.json
@@ -10,12 +10,21 @@ bbdb68e5d3e3d47b8b22b57e9298b15addc24f9d78274b38ed164538462038ad  480984  a6f881
 4597a60ff8414f299534a6b4ebece0e2931c0955d08d220271a280abc78f70a0  2941  dfa822993fc84b110ea8837362bf63007c17b6ff  raw  -  extracted/prefix_comparison.json
 bca2bf49d264bf4dfb40d40617799b654cc5b597d162a6b096060068664962c7  43426  497c52f35e75ba76a8cc8e1142b949acb5959ab7  raw  -  extracted/primary_diagnostic.json
 373ad74dc5ad96762f69b14896622c5600c01d0b214ec86ee2e9f7b8462cc7ed  350574  18edc9de94ec7e5c2bea40b22c4b5fe1e4c34b10  raw  -  extracted/primary_diagnostic.png
+930df39ffad5aad03f334b4d30489ffa4defc5477913534918cffd3d7f9c3937  10142  c14e373dcbdc831d59cf5b7923954cc6e9375afd  raw  -  extracted/review_derived_summaries.json
 5336bcb891fde438998e58f968fce5869c21899632c0acce24077db02ffd2495  11326  88c6f60b017cf203baf424bd3863d8a1993c015f  raw  -  extracted/secondary_behaviour.json
 563021def641fefc0add8753002cbff11f811f54f650ce6001c09a0ba51b7dda  26483  198dbe7134ee66f077ecb080586e0f82881dee89  raw  -  extracted/training_stream_divergence.json
 58c3c0c304631373354b986ad2c00fd3f47e939fe465ad9894401cd2cd68900a  4954  2b704dba1759d3b36fbcc83d30a1645c19a5b862  raw  -  extracted/vector_spot_checks.json
 93a9cfbbdf37f92a36bf84d0be33fa9f3d73a2b70d6b88ccfcbc8e87ff5c0e0c  860  57bccf07d662567309004f84f7d2bdc624f07919  raw  -  post_run_checks/numeric_sensitivity_probe.json
 84ff4c0fa0dbb246e0b20de1e7c667856079d45dcac5d253ba2ad2fe142b85c2  645  b19ad309a58e676e5507ff188fcf1185f275138f  raw  -  post_run_checks/realistic_bitwise_probe_process1.json
 84ff4c0fa0dbb246e0b20de1e7c667856079d45dcac5d253ba2ad2fe142b85c2  645  b19ad309a58e676e5507ff188fcf1185f275138f  raw  -  post_run_checks/realistic_bitwise_probe_process2.json
+9b52c4aefdf2b4b05be5de882e89313a048ea178204fd56ffa0a1f0bebe6173f  68502  f6ba24b40e109b0e3353afc097453754594809bb  raw  -  prefix_source_extract/comparison_report.json
+ed9735615e3cef307d102763014d66118db356e52c80c7355a167c39c5f410bf  20673  272eed7468ae13889b97783cfa17c2f8fb9260e3  raw  -  prefix_source_extract/index.json
+72767fe8420c4418bce5b1cb8b0c3b5a73adea34bdf9e49dccdad4a7ed48e329  305598  a950566c56bfdb82ed68abbf7206c753793fe11c  raw  -  prefix_source_extract/new__episode_outcomes.jsonl
+f3fee4ad6e3c75f782634712927c6983aa986ba9e4f92bd52627fa1d2c92d9b2  22444  d02194357f798eb67f6229ccbe9a606d2703ca62  raw  -  prefix_source_extract/new__train_credit_diagnostics.jsonl
+031d55bccf1ab3bb3802e848507e85d3339683fe70a1ff2f4a89afd9b668b5dd  2780  b56a822160c48af24cc21ac0cbfd0193bc960e55  raw  -  prefix_source_extract/new__train_records.jsonl
+7ffc9612c8e0bee2182fe4d9d1942d4fd5d2b5a138517a98cca926622a3fa160  305604  9c461751789005ad8290694d013698df371f4b86  raw  -  prefix_source_extract/original__episode_outcomes.jsonl
+36c57191dc284c04d9e90038100f6d0e807955572c470cf48001cb3c2ca29184  22444  ee77024219b66edbe30a0c4d0f100148de368561  raw  -  prefix_source_extract/original__train_credit_diagnostics.jsonl
+eb30eb1e4b54281ff8d705264f1a8e9068050b3e1d65414568db8e0ddc3078c3  2779  3a8c8d68cf2f2b350072f125f0c39894272090ce  raw  -  prefix_source_extract/original__train_records.jsonl
 47eed6fddf4a630deda719a1ea4aad936b092bb794977661fd37a18c7497870a  2270  5bccb2e9311621afe4a583edbc422a76c3b48b7e  filtered  -  prelaunch/compare_prefix_selfcheck.json
 04f33ba4750dc76b3aa52b5c3ba017b87fce30e583211a42cf3cde2baf10e695  1914  9547197b7510363bed0930df32320dcbd5b51df2  raw  -  prelaunch/nlp_env_step_gate.json
 d4fd739928549a6060353fdfd19ea5aaa80a466aa7204155e0602da555243325  19479  18ccb9e2dee83b637861f7bbb37f04fc61fe2958  raw  -  prelaunch/nlp_env_step_gate.log
@@ -47,10 +56,12 @@ a687b2b0bd451572d8b5201757ae41b7515f5a7c5639de4fdd9ffac1ba9b09ed  3109486  c306b
 8dfe03b8bc9cc263c5f437aa10b858b0ac90bc508b4210411e23b221fc52e508  3157  0a91078c90732d63b6180ab43172a23613875a8b  raw  -  scripts/committed_ledger.py
 010bd3bed2cf2615099542f5d564fe51b8780ba69dbaeb2b6e147e76b4ff6ac0  15453  e1a435e952c28a6ed918d76330a535ca89a5a328  raw  -  scripts/compare_prefix.py
 cccd06ddb46063e84e7d19a63ccd874e72427e93be976dbc135072d8981fab7d  24051  b54f23619e9b8ec35dc7cdaeabcd457239e40585  raw  -  scripts/extract_evidence.py
+469820e2b5e1cbe2fd85288d03917faab0da9b30ca963a3f974d366172edeb96  14350  15be5dde0907e041f0e7d476f8d2518ee4f0677c  raw  -  scripts/extract_prefix_source.py
 4499fdc43ca71d48aa7dea5b2892bf9e6c0ecacafa325800658fde0c59e5e3a2  6687  3c6eb9c04024052743445a99ed11c3f3b16f4238  raw  -  scripts/launch_with_watchdog.py
 6dcbe4e368bcbbb1e2e1597312a448559c44e1230d3f466f0c2cb65f80849e5c  16192  7b10f469b335edcfc556322772b8898f17cfbf81  raw  -  scripts/nlp_env_step_gate.py
 11dd2ecfcdc5b30006a005c254a22df706707f977e83d45d3d00ab33e5514b23  1497  5165d73f32e42f379dd1ca72b5fcb6e2036656df  raw  -  scripts/numeric_sensitivity_probe.py
 b2fec61789fbc900096d3541e02b7d807f9aecf6ca96432e9b0992321bf42911  2658  ad7f72d640d065be79b8ddf2ff84ee408c090bf0  raw  -  scripts/plot_diagnostic.py
 b8f4046379ec73aec255be6dadbe25989e82e53aa473dc443a8ae7ad53f5774c  11586  88a1a56c7f7137a26144085a011b2e4cccd4b9cc  raw  -  scripts/prelaunch_verify.py
 f6f1ec4ae3a27cc318e4e9d5fbcc578e886ef9649d29f024b4dda3dd287d51ad  4935  7f505314a66eb76f2290b4145fabab9fc3a8eea6  raw  -  scripts/realistic_bitwise_probe.py
+99d25bb4ab4511441ea9ea6e47e13a7d0ab0d2f332c060af9e3f1d049432b7a6  4887  c201069bd821f0cfce85316c999f00990b1f8d74  raw  -  scripts/review_derived_summaries.py
 e42091ada1585bcb17455e293e78025540d0559fec5110772a7523298d036ead  3625  690f50e7a2f60d02c223dad27fba845cd412de6f  raw  -  scripts/training_stream_divergence.py
