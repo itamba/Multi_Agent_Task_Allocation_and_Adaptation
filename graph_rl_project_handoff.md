@@ -143,7 +143,10 @@
   [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-25): no intermediate GPT
   review stop for THIS task only. **Implementation and run are UNREVIEWED**; PR #79's approval is
   not inherited; no merge is authorized. **The run has EXECUTED (2026-09-25)** at measured SHA
-  `644883b89c208255f5808432462be64be5d7589f`
+  `644883b89c208255f5808432462be64be5d7589f`. GPT's exact-head review of `5f5e22a…` was
+  **CHANGES_REQUESTED** (2026-09-25; protocol deviations D1 stop-rule narrowing and D2 offline
+  checkpoint loading recorded, prefix consistency UNRESOLVED); the fixes are additive commits on
+  PR #80, which awaits one exact-head re-review
   ([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed)).
 - Earlier single-run authorizations are spent: both actor-gradient diagnostics (further tuning
   stopped, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17) and the
@@ -175,7 +178,7 @@
 | Writable repository task | **`task/actor-credit-update-diagnostic-r1`** (CC; one draft PR — resolve on GitHub): the actor-only step instrumentation, its tests and contracts, ONE authorized 100-update development diagnostic with its evidence, and the PR #79 status closure. The only writable task |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
-| Candidates | **the draft PR of `task/actor-credit-update-diagnostic-r1` is the sole active candidate** — implementation plus evidence, unreviewed; no merge is authorized. **Resolve GitHub for the live number and head** |
+| Candidates | **draft PR #80 (`task/actor-credit-update-diagnostic-r1`) is the sole active candidate** — implementation plus evidence; review CHANGES_REQUESTED on 2026-09-25, fixes added, awaiting exact-head re-review. No merge is authorized. **Resolve GitHub for the live head** |
 | Scientific runs in progress | none. The ONE authorized credit-to-update diagnostic `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` completed on 2026-09-25 (exit code 0) and is EXECUTED / UNREVIEWED; its original directory is `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` (not archived); this authorization is spent. The mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 and is reviewed; its original directory `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` is not archived (any move needs its own authorization) and is read, never modified, by the active task |
 
 ## 3. Candidates and PRs
@@ -234,7 +237,7 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
 | **Explicit acting-ego readout CTDE diagnostic** (FD100, 100 updates; implementation retired) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` (merged with PR #75), reviewed at `557e072b94884bef37ece82a064ad877a5a2f636`; includes the owner-transition audit | [measurements §13](docs/history/measurements.md#13-generalized-v2-explicit-acting-ego-readout-ctde-development-diagnostic-and-owner-transition-audit) |
 | **Role-only `gae_lambda = 1.0` CTDE diagnostic** (FD100, 100 updates; negative, not the final configuration) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` (merged with PR #75), reviewed at `1076208b68ee9abd76f159535c5f38fe98970ce5` | [measurements §14](docs/history/measurements.md#14-generalized-v2-role-only-acting-ego-ctde-gae_lambda--10-development-diagnostic) |
 | **GENERALIZED-V2 actor mission-fuel-slack development R1** (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch, unmerged when measured) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at `26f8bff…`); evidence `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (merged with PR #79) | [measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--reviewed) |
-| **GENERALIZED-V2 actor-only credit-to-update diagnostic R1** (actor-only, mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`) | `644883b89c208255f5808432462be64be5d7589f` (task branch, unmerged when measured) | **EXECUTED / UNREVIEWED** — no verdict; evidence `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on draft PR #80 | [measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed) |
+| **GENERALIZED-V2 actor-only credit-to-update diagnostic R1** (actor-only, mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`) | `644883b89c208255f5808432462be64be5d7589f` (task branch, unmerged when measured) | **EXECUTED; review CHANGES_REQUESTED, fixes added, awaiting re-review** — no verdict; original-trajectory consistency UNRESOLVED; evidence `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on draft PR #80 | [measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed) |
 
 **Current research interpretation (development only; numbers in
 [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure),
@@ -321,12 +324,14 @@ gates, the ONE authorized 100-update development diagnostic, its evidence and ON
 review of the final candidate. Its question: in actor-only training with the mission-slack input,
 do immediate-FD transitions push toward a larger SEVERE-minus-MILD ABORT contrast, do other
 transitions counteract that, and how does the real clipped-gradient Adam step change the contrast
-on the same observations. **The run has executed; the candidate awaits ONE exact-head GPT
-review.** The executing task's own reading (not a verdict): the batch contrast stays near zero,
-the FD raw pressure is weak and sign-inconsistent until late, non-FD and entropy counteraction is
-not the main factor, and the actual Adam step is nearly orthogonal to the contrast gradient, so
-per-update contrast changes are ~1e-3 and do not accumulate; the same-seed prefix diverges at
-float32-ulp level from update 0 (unresolved)
+on the same observations. **The run has executed; the first exact-head review was
+CHANGES_REQUESTED and its fixes are added; the candidate awaits ONE exact-head re-review.** The
+executing task's corrected reading (descriptive, not a verdict): local FD pressure is inconsistent
+across many batches, actual updates do not consistently increase the batch contrast, late steps
+carry a large linearization error, and the fixed-world evaluations show no post-update switches;
+no cause is isolated. The same-seed prefix consistency is UNRESOLVED: the first detected training
+output difference is at iteration 1 (magnitude 7.45e-9) with matching recorded input summaries,
+and when or why parameters diverged is not established
 ([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed)).
 Nothing else is scheduled or authorized; any further step (review verdict, merge, a further arm
 or run) needs its own decision

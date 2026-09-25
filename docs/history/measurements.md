@@ -3179,9 +3179,10 @@ comparator's transient did not occur**, and no stable final severity-conditioned
 
 ## 18. GENERALIZED-V2 actor-only credit-to-update diagnostic R1 — executed, unreviewed
 
-Recorded on 2026-09-25 by the executing task. **Status: EXECUTED / UNREVIEWED.** No verdict
-exists; this is the executing task's reading of its evidence, for GPT review. PR #79's approval
-is not inherited. The authorizing decision is the 2026-09-25 row of
+Recorded on 2026-09-25 by the executing task. **Status: EXECUTED; exact-head review
+CHANGES_REQUESTED (2026-09-25), fixes added, awaiting re-review (§18.5).** No verdict exists;
+this is the executing task's reading of its evidence, corrected under that review. PR #79's
+approval is not inherited. The authorizing decision is the 2026-09-25 row of
 [`decisions.md` §1](decisions.md#1-decision-log); the full record is the package README.
 
 ### 18.1 Identity
@@ -3197,39 +3198,95 @@ is not inherited. The authorizing decision is the 2026-09-25 row of
 
 ### 18.2 Validity facts (the task's pre-check; not a verdict)
 
+Three statuses are separate; none is an "all gates passed" result: **engineering
+non-interference gates on synthetic data — passed as reported by the task; execution and
+accounting — completed; consistency with the original run's trajectory — UNRESOLVED.**
+
 - Complete: exit code 0, walltime 2139 s (cap 4 h), 100 / 100 updates, 400 optimizer steps;
   800 / 800 training episodes, 0 failures; 300 / 300 evaluation episodes, 20 / 20 groups and
   10 / 10 cells in every round; `accounting_reconciled = true`.
 - One diagnostic record per productive update, four epochs each; telescoping and epoch-boundary
-  residuals 0.0; group-sum relative residual ≤ 3.6e-7; the vector files recompute the recorded
-  scalars to ≤ 1.4e-16 relative.
-- **Same-seed prefix:** the declared first divergence is input-side (a pre-update evaluation wake
-  tick, the known BLADE class), so the declared stop rule did not fire. Descriptively, all training
-  seeds and cells match and iteration 0 is fully identical, but **from iteration 1 the actor
-  outputs differ at float32-ulp level from identical recorded inputs** — update 0 produced
-  ulp-different parameters; the trajectories then drift (checkpoint 99 max parameter difference
-  0.045). Synthetic probes show base == OFF == ON bit-identically in one process and across
-  processes, and a thread-count (not allocation) sensitivity of the update's float result; neither
-  run records its thread configuration. **This remains an unresolved discrepancy**; no trajectory
-  reproduction is claimed.
+  residuals 0.0; group-sum relative residual ≤ 3.6e-7 (recomputed by the review from the
+  committed scalar stream); the vector files recompute the recorded scalars to ≤ 1.4e-16 relative
+  (task-reported; the review could not read the NPZ contents).
+- **Same-seed prefix (UNRESOLVED):** the declared first divergence is input-side (one-tick wake
+  differences in the three pre-update members of the seed-2000448 world, the known BLADE class),
+  so the executed stop rule did not fire (protocol deviation D1, §18.5). Descriptively, all
+  training seeds and cells match; iteration 0 matches after normalization (8 / 8 episodes,
+  17 / 17 credit rows; its train record differs in five epoch-mean fields by ≤ 6.0e-8). **The
+  first detected training output difference occurs at iteration 1, seed `3000008`, wake 0,
+  tick 686, `source_scores[0][0]`, magnitude `7.450580596923828e-9`, while the compared recorded
+  input summaries match.** The time and cause of parameter divergence are not established: the
+  outcome records carry selected input summaries, not a serialized observation, and a float32
+  output difference alone does not distinguish different parameters from different forward
+  numerical execution; checkpoints show later parameter differences (0.045 at 99), not their first
+  occurrence. The per-iteration table counts differing EPISODES at their first differing wake
+  (`max_first_field_abs_diff`, not a full-output maximum). Synthetic probes show base == OFF == ON
+  bit-identically in one process and across processes, and a thread-count (not allocation)
+  sensitivity of the update's float result; neither run records its thread configuration. No
+  cause is claimed and no trajectory reproduction is claimed. The decisive records of both runs
+  are extracted byte-for-byte in the package's `prefix_source_extract/`.
 
 ### 18.3 Observed results (descriptive)
 
-- 83 / 100 updates hold both severities. The per-update actual change of the batch contrast is
-  tiny and sign-balanced: median `−4.6e-5`, mean |ΔC_B| `2.8e-3`, 39 positive / 43 negative
-  (1 negligible); `C_B` itself stays near zero (median `+1.6e-3`).
-- Epoch-0 FD raw pressure is positive in 49 / 83 updates and coherent only in 75–99 (14 / 18);
-  non-FD pressure is mostly aligned (positive 55 / 83), opposing FD in 15 / 83 (9 of them in
-  50–74); the entropy component is ~100× smaller and flips the total's sign in 1 / 83.
-- The actual Adam displacement is nearly orthogonal to the contrast gradient (median
-  cos(Δθ, h) `+0.008`); raw-total pressure and the actual-step prediction agree in sign in
-  220 / 332 epochs; 205 / 332 epochs are gradient-norm clipped. Predictions match observed epoch
-  changes closely through update 74; in 75–99 they overstate the change (residual mean `−0.012`).
-- Evaluation: no severity-conditioned behaviour in any round (max macro `+6.9e-3` at update 100,
-  0 / 20 switches from update 25); round 0 identical to §17's.
+- 83 / 100 updates hold both severities; each update's `C_B` is measured on a different
+  training batch, so the per-update values are not one fixed-policy trajectory. The actual change
+  of the batch contrast has median `−4.6e-5` and mean |ΔC_B| `2.8e-3` overall (39 increases /
+  43 decreases / 1 negligible); by window the mean |ΔC_B| is `0.00156`, `0.00043`, `0.00065` and
+  `0.00967` (75–99). `C_B` before an update has median `+1.6e-3`.
+- Epoch-0 FD raw pressure is positive in 49 / 83 updates and consistently positive only in 75–99
+  (14 / 18). Non-FD pressure is positive toward the contrast in 55 / 83. Sign pairs (FD / non-FD;
+  review-derived, |x| < 1e-6 negligible): +/+ 34, +/− 15, −/+ 21, −/− 12, negligible/− 1; the 15
+  is opposition to a POSITIVE FD pressure, and opposing signs of either direction occur in 36 of
+  the 82 non-negligible pairs. The entropy component is ~100× smaller and flips the total's sign
+  in 1 / 83.
+- The actual Adam displacement's alignment with the contrast gradient is small in magnitude:
+  median |cos(Δθ, h)| `0.081`, q90 `0.245` (review-derived; the signed median `+0.008` mixes
+  directions). Raw-total pressure and the actual-step prediction agree in sign in 220 / 332
+  epochs; 205 / 332 defined epochs are gradient-norm clipped.
+- Linear approximation (review-derived): the per-update median |Σ epoch linearization residuals|
+  is `1.29e-4`, `7.0e-7`, `1.95e-6` and `1.47e-2` by window, against a median |epoch actual ΔC_B|
+  of `3.3e-3` in 75–99 — a large late residual whose mechanism is not identified.
+- Evaluation: the post-update rounds (25–100) have no directional or reverse switch (0 / 20);
+  the final measured probability contrast is `+0.00691564`; the pre-update round had 3 directional
+  switches (identical to §17's round 0). A nonzero probability separation is distinct from a
+  change in selected actions.
+- Descriptive reading: local FD pressure is inconsistent across many batches; actual updates do
+  not consistently increase the batch contrast; late steps have a large linearization error;
+  fixed-world evaluations have no post-update switches. The data do not isolate credit
+  assignment, architecture, optimizer or observation sufficiency as a cause; this run is
+  `actor_only`, so no learned critic supplies its advantages.
 
 ### 18.4 Limitations and non-claims
 
-- **Unreviewed.** One seed, 100 updates, development worlds re-measured each round; no causal
+- **Not approved.** One seed, 100 updates, development worlds re-measured each round; no causal
   attribution, no claim of a defective critic, reward or optimizer; `C_B` is a training-batch
-  contrast, not the matched-world endpoint; no confirmatory evidence.
+  contrast on unmatched batches, not the matched-world endpoint; no confirmatory evidence.
+
+### 18.5 Review status and protocol deviations
+
+- **2026-09-25 — GPT exact-head review of `5f5e22ae5f3c108af0a24e18936a87fb5c31dd7b`:
+  CHANGES_REQUESTED** (packet `CC_PR80_Review_Fixes_R1`). The review found no demonstrated change
+  to the PPO learning computation in the production diff; it recomputed the scalar summaries and
+  the five macro endpoints from committed records, and matched the 54 ledger path / blob
+  identities (two `filtered`, not raw). It re-ran no test and loaded no checkpoint; the NPZ
+  vector recomputation remains task-reported. It did not diagnose the prefix discrepancy or claim
+  that the instrumentation caused it.
+- **Deviation D1 (stop rule).** The dispatch required that "A material unexplained discrepancy
+  stops the run; do not adapt tolerances after seeing it." The executed, precommitted rule stopped
+  only on a `policy_side` FIRST divergence of one combined evaluation-then-training stream, so the
+  earlier benign evaluation tick difference disabled stopping on the later training-side
+  difference. Precommitting the narrower rule made it transparent; it does not establish
+  compliance with the dispatch. The historical plan, comparator and launcher are kept unchanged as
+  evidence of what ran; they are not a validated reusable consistency guard (a future run must
+  monitor training / update consistency independently, and a monitor failure must not silently
+  grant continued execution).
+- **Deviation D2 (checkpoint loading).** The dispatch specified "save only. No historical
+  checkpoint loading, warm start or resume"; the final comparison deserialized the new and the
+  original checkpoints 24 / 49 / 74 / 99 with `torch.load` for an offline tensor comparison — not
+  inference, replay, warm start or resume, but unauthorized checkpoint loading. Not repeated.
+- **Fixes added** (additive commits on PR #80): the protocol record above; a byte-exact,
+  hash-pinned source extract of the decisive prefix records with a verify mode; review-derived
+  sign-pair, absolute-cosine and residual summaries; narrowed wording in the package README, this
+  section, the handoff and the PR description. No `src`, `tests` or configuration change; no
+  training, evaluation, replay, inference or checkpoint loading.
