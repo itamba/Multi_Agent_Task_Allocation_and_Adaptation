@@ -1,0 +1,127 @@
+{
+ "identity": {
+  "counts_compared_identical": {
+   "credit": {
+    "compared": 2396,
+    "identical": 2396
+   },
+   "outcome": {
+    "compared": 1100,
+    "identical": 1100
+   },
+   "train_record": {
+    "compared": 100,
+    "identical": 100
+   }
+  },
+  "eval_records": [
+   {
+    "first_difference": null,
+    "identical": true,
+    "round": 0,
+    "updates_completed": 0
+   },
+   {
+    "first_difference": null,
+    "identical": true,
+    "round": 1,
+    "updates_completed": 25
+   },
+   {
+    "first_difference": null,
+    "identical": true,
+    "round": 2,
+    "updates_completed": 50
+   },
+   {
+    "first_difference": null,
+    "identical": true,
+    "round": 3,
+    "updates_completed": 75
+   },
+   {
+    "first_difference": null,
+    "identical": true,
+    "round": 4,
+    "updates_completed": 100
+   }
+  ],
+  "failures": {
+   "compared": 0,
+   "identical": 0
+  },
+  "final": false,
+  "first_divergence": null,
+  "record": "prefix_comparison",
+  "record_version": 1,
+  "stop": false,
+  "tolerance": 0.0
+ },
+ "pass": true,
+ "planted": {
+  "episode_reward": {
+   "difference": {
+    "abs_diff": 1e-09,
+    "new": 1e-09,
+    "original": 0.0,
+    "path": "/reward"
+   },
+   "key": [
+    "train",
+    40,
+    0,
+    null,
+    null,
+    3000320
+   ],
+   "side": "input_side",
+   "stop": false
+  },
+  "policy_output": {
+   "difference": {
+    "abs_diff": 1.0000056338554941e-12,
+    "new": 0.1353527158508764,
+    "original": 0.1353527158498764,
+    "path": "/wake_decisions[0]/semantic_probabilities[0]"
+   },
+   "key": [
+    "train",
+    40,
+    0,
+    null,
+    null,
+    3000320
+   ],
+   "side": "policy_side",
+   "stop": true
+  },
+  "uuid_only": {
+   "first_divergence": null
+  },
+  "wake_tick": {
+   "difference": {
+    "abs_diff": 1.0,
+    "new": 1452,
+    "original": 1451,
+    "path": "/wake_decisions[0]/tick"
+   },
+   "key": [
+    "train",
+    40,
+    0,
+    null,
+    null,
+    3000320
+   ],
+   "side": "input_side",
+   "stop": false
+  }
+ },
+ "prefix_counts": {
+  "episode_failures.jsonl": 0,
+  "episode_outcomes.jsonl": 1100,
+  "eval_records.jsonl": 5,
+  "train_credit_diagnostics.jsonl": 2396,
+  "train_records.jsonl": 100
+ }
+}

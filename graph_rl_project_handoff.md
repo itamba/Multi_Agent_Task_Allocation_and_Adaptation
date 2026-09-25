@@ -7,8 +7,8 @@
 > verification. **The intended durable branch state is `main` plus the three protected historical
 > branches only** (§7); a transient documentation-maintenance branch and PR may exist briefly
 > while this file itself is corrected, and leaves nothing behind once integrated. **Since
-> 2026-09-24 the active task branch `task/actor-mission-fuel-slack-dev-r1` and its draft PR also
-> exist** (§2).
+> 2026-09-25 the active task branch `task/actor-credit-update-diagnostic-r1` and its draft PR also
+> exist** (§2); the earlier mission-fuel-slack task is reviewed and integrated (PR #79).
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -119,25 +119,35 @@
   ignored files hold about 5.2 GB of flat-RL training outputs that are not archived under
   `C:\gra\` and whose deletion or move was not authorized
   ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
-- **ACTIVE (2026-09-24): the actor mission-fuel-slack task** — the first actor-side
-  intervention, owned by CC on branch `task/actor-mission-fuel-slack-dev-r1` (one draft PR; resolve
-  its number and exact head on GitHub). It adds exactly ONE actor input,
-  `mission_fuel_slack_norm` on the ego agent row (actor observation
+- **The actor mission-fuel-slack task is reviewed and integrated** (2026-09-25): one actor
+  input, `mission_fuel_slack_norm` on the ego agent row (actor observation
   `actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`,
-  [policy and CTDE §1](docs/contracts/policy_ctde.md#1-graph-observation-stage-3)), and executes
-  exactly ONE authorized 375-update actor-only `generalized_v2` development run against the
-  reviewed semantic actor-only R1 (§4) as a cross-version comparator. Plan:
-  `research_evidence/generalized_v2/actor_mission_slack_dev_r1/authorized_plan.json`.
-  **Task-specific workflow exception** (user-requested; [`decisions.md` §1](docs/history/decisions.md#1-decision-log),
-  2026-09-24): implementation, validation, training and evidence proceed as one task with GPT
-  review only at the end; the intermediate review stop of
-  [`cc_review.md` §3](docs/workflows/cc_review.md#3-transport-gpt_github) is waived for THIS
-  task only. **Implementation and measurement are UNREVIEWED**; no merge is authorized.
-  **The run has EXECUTED (2026-09-24)** at measured SHA `3bc944119da08af8e25268c9ee83fc63a8d1e533`
-  ([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed)).
-  GPT's exact-head review of `ea60ce3…` was **CHANGES_REQUESTED** (narrow evidence /
-  documentation fixes, 2026-09-24); the fixes are additive commits on PR #79, which awaits one
-  exact-head re-review.
+  [policy and CTDE §1](docs/contracts/policy_ctde.md#1-graph-observation-stage-3)), and one
+  375-update actor-only development run at measured SHA
+  `3bc944119da08af8e25268c9ee83fc63a8d1e533`. After a first exact-head review of `ea60ce3…`
+  (CHANGES_REQUESTED, 2026-09-24) and additive fixes, the implementation was **APPROVED at exact
+  head `26f8bff97b1cbbca64d18626625d2321545080af`** and the run **reviewed as valid negative
+  development evidence**; PR #79 was merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4`
+  (tree equal to the approved head's) and its remote branch is deleted
+  ([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--reviewed)).
+  The measured source worktree `C:/gms1src` and the original run directory are retained.
+- **ACTIVE (2026-09-25): the actor-only credit-to-update diagnostic R1** — owned by CC on branch
+  `task/actor-credit-update-diagnostic-r1` (one draft PR; resolve its number and exact head on
+  GitHub). It adds opt-in observational every-epoch instrumentation of the actor-only
+  `PPOUpdater` (`train_actor_step_diagnostics.jsonl`,
+  [artifacts and metrics §5.3](docs/contracts/artifacts_metrics.md#53-actor-only-step-diagnostics))
+  and executes exactly ONE fresh 100-update actor-only `generalized_v2` development diagnostic,
+  compared with the first 100 updates and rounds 0 / 25 / 50 / 75 / 100 of the mission-slack run.
+  Plan: `research_evidence/generalized_v2/actor_credit_update_diag_r1/authorized_plan.json`.
+  **Task-specific workflow exception** (user-requested;
+  [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-25): no intermediate GPT
+  review stop for THIS task only. **Implementation and run are UNREVIEWED**; PR #79's approval is
+  not inherited; no merge is authorized. **The run has EXECUTED (2026-09-25)** at measured SHA
+  `644883b89c208255f5808432462be64be5d7589f`. GPT's exact-head review of `5f5e22a…` was
+  **CHANGES_REQUESTED** (2026-09-25; protocol deviations D1 stop-rule narrowing and D2 offline
+  checkpoint loading recorded, prefix consistency UNRESOLVED); the fixes are additive commits on
+  PR #80, which awaits one exact-head re-review
+  ([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed)).
 - Earlier single-run authorizations are spent: both actor-gradient diagnostics (further tuning
   stopped, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17) and the
   three acting-ego diagnostics (role-only, explicit readout, role-only λ = 1). **The confirmatory
@@ -157,27 +167,30 @@
   development R1 (2026-09-19; [measurements §16](docs/history/measurements.md#16-generalized-v2-semantic-action-ctde-development-r1--retrospective-review-closure))
   and its record alignment (PR #76, merged as `67cd12a438452aadf61f312e68484f26dfa1e7c7`); the
   recent-research archival and Git cleanup (2026-09-19) and its closure record (PR #77, merged as
-  `7273be2ab563cc70de82651ec62bfa719f4f2758`, branch deleted 2026-09-20).
+  `7273be2ab563cc70de82651ec62bfa719f4f2758`, branch deleted 2026-09-20); the actor
+  mission-fuel-slack implementation and run, their review and integration (PR #79, merged as
+  `bcb1746fbc677b3109f73b36699ac3b3780c32a4`, 2026-09-25).
 
 ## 2. Active owner and task
 
 | Item | State |
 |---|---|
-| Writable repository task | **`task/actor-mission-fuel-slack-dev-r1`** (CC; one draft PR — resolve on GitHub): the mission-fuel-slack actor input, its tests and contracts, and ONE authorized development run with its evidence. The only writable task |
+| Writable repository task | **`task/actor-credit-update-diagnostic-r1`** (CC; one draft PR — resolve on GitHub): the actor-only step instrumentation, its tests and contracts, ONE authorized 100-update development diagnostic with its evidence, and the PR #79 status closure. The only writable task |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
-| Candidates | **draft PR #79 (`task/actor-mission-fuel-slack-dev-r1`) is the sole active candidate** — implementation plus evidence; review CHANGES_REQUESTED on 2026-09-24, fixes added, awaiting exact-head re-review. No job is running; no merge is authorized. **Resolve GitHub for the live head** |
-| Scientific runs in progress | none. The ONE authorized mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 (exit code 0) and is EXECUTED / UNREVIEWED; its original directory is `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` (not archived; any move needs its own authorization). No other run is authorized; this authorization is spent |
+| Candidates | **draft PR #80 (`task/actor-credit-update-diagnostic-r1`) is the sole active candidate** — implementation plus evidence; review CHANGES_REQUESTED on 2026-09-25, fixes added, awaiting exact-head re-review. No merge is authorized. **Resolve GitHub for the live head** |
+| Scientific runs in progress | none. The ONE authorized credit-to-update diagnostic `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` completed on 2026-09-25 (exit code 0) and is EXECUTED / UNREVIEWED; its original directory is `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` (not archived); this authorization is spent. The mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 and is reviewed; its original directory `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` is not archived (any move needs its own authorization) and is read, never modified, by the active task |
 
 ## 3. Candidates and PRs
 
-**One research candidate is active: the draft PR of `task/actor-mission-fuel-slack-dev-r1`**
+**One research candidate is active: the draft PR of `task/actor-credit-update-diagnostic-r1`**
 (implementation + evidence, unreviewed, not for merge until GPT review and explicit user
-authorization). The closure PRs #71 / #73 / #74 / #75 / #76 / #77 below are historical states,
-not open work. **Resolve GitHub for live exact heads.**
+authorization). The PRs below are historical states, not open work. **Resolve GitHub for live
+exact heads.**
 
 | PR | Branch | State |
 |---|---|---|
+| #79 | `task/actor-mission-fuel-slack-dev-r1` | merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4` (2026-09-24) from the approved head `26f8bff97b1cbbca64d18626625d2321545080af` (its second parent; tree `d3a0306e57b8390952a68c521c02a418252ae613`); first review of `ea60ce3…` CHANGES_REQUESTED; remote branch deleted, no local branch (verified 2026-09-25) |
 | #77 | `docs/recent-archive-cleanup-closure` | merged as `7273be2ab563cc70de82651ec62bfa719f4f2758` (2026-09-19) from reviewed head `840d00e3e558f771cf6eb90e439ffacafa27a2ff` (its second parent); branch deleted after merge verification (2026-09-20) |
 | #76 | `docs/recent-research-cleanup-closure` | merged as `67cd12a438452aadf61f312e68484f26dfa1e7c7` (2026-09-19) from reviewed head `c414ec12a708338690fbf6e1317d93f804b2b22f`; branch deleted after ancestry verification (2026-09-19) |
 | #75 | `task/ctde-acting-ego-conditioning` | merged as `ed33b7e24a652fa00b13c708517012f8b3302496` (2026-09-19) from reviewed final head `b3a2350f437afee1c66d4fd5a5efa7cb7a353787`; branch absent; final code = role-only acting-ego critic conditioning, mean-pool readout, `gae_lambda = 0.95`; the explicit readout (measured at `1a1e0c9…`) survives only in history and evidence; the role-only, explicit-readout and λ = 1 evidence packages (measurements §12–§14) are on `main` |
@@ -223,7 +236,8 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
 | **Role-only acting-ego CTDE diagnostic** (FD100, 100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/acting_ego_ctde_fd100_r1/` (merged with PR #75) | [measurements §12](docs/history/measurements.md#12-generalized-v2-role-only-acting-ego-ctde-development-diagnostic) |
 | **Explicit acting-ego readout CTDE diagnostic** (FD100, 100 updates; implementation retired) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` (merged with PR #75), reviewed at `557e072b94884bef37ece82a064ad877a5a2f636`; includes the owner-transition audit | [measurements §13](docs/history/measurements.md#13-generalized-v2-explicit-acting-ego-readout-ctde-development-diagnostic-and-owner-transition-audit) |
 | **Role-only `gae_lambda = 1.0` CTDE diagnostic** (FD100, 100 updates; negative, not the final configuration) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` (merged with PR #75), reviewed at `1076208b68ee9abd76f159535c5f38fe98970ce5` | [measurements §14](docs/history/measurements.md#14-generalized-v2-role-only-acting-ego-ctde-gae_lambda--10-development-diagnostic) |
-| **GENERALIZED-V2 actor mission-fuel-slack development R1** (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch, unmerged when measured) | **EXECUTED / UNREVIEWED** — no verdict; evidence `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` on draft PR #79 | [measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed) |
+| **GENERALIZED-V2 actor mission-fuel-slack development R1** (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch, unmerged when measured) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at `26f8bff…`); evidence `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (merged with PR #79) | [measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--reviewed) |
+| **GENERALIZED-V2 actor-only credit-to-update diagnostic R1** (actor-only, mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`) | `644883b89c208255f5808432462be64be5d7589f` (task branch, unmerged when measured) | **EXECUTED; review CHANGES_REQUESTED, fixes added, awaiting re-review** — no verdict; original-trajectory consistency UNRESOLVED; evidence `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on draft PR #80 | [measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed) |
 
 **Current research interpretation (development only; numbers in
 [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure),
@@ -289,6 +303,12 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
 - **Route-relative representation quality remains open:** distance is near-totally clipped at
   these wakes and reachability is still the round-trip placeholder; this measurement did not
   address either.
+- **Actor mission-fuel-slack input (reviewed valid negative development evidence,
+  [measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--reviewed)):**
+  the input separated MILD from SEVERE in sign at every recorded immediate-FD wake, yet the final
+  endpoint is effectively zero, the semantic actor-only transient did not recur, and the measured
+  immediate-FD outputs showed essentially no severity-conditioned separation — an
+  observed-population result, not proof of zero feature dependence and not a causal attribution.
 
 **Standing interpretation rules:** R1 and the fresh P1 arm are distinct repository and
 population measurements with no causal solver-quality inference; the semantic-action R1 versus
@@ -299,16 +319,22 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: exact-head re-review of PR #79 (§1, §2)** — the implementation, engineering validation, the
-ONE authorized development run and its evidence are on draft PR #79; the first review was
-CHANGES_REQUESTED and its narrow fixes have been added. The executing task's own reading (not a
-verdict): the final endpoint is effectively zero, the semantic actor-only transient did not recur,
-and the measured immediate-FD outputs showed essentially no severity-conditioned separation
-although the new input separated MILD from SEVERE in sign — an observed-population result, not
-proof of zero feature dependence
-([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--executed-unreviewed)).
-Nothing else is scheduled or authorized; any further step (review verdict, merge, a further
-arm or run) needs its own decision
+**Now: the active credit-to-update diagnostic task (§1, §2)** — implementation, engineering
+gates, the ONE authorized 100-update development diagnostic, its evidence and ONE exact-head GPT
+review of the final candidate. Its question: in actor-only training with the mission-slack input,
+do immediate-FD transitions push toward a larger SEVERE-minus-MILD ABORT contrast, do other
+transitions counteract that, and how does the real clipped-gradient Adam step change the contrast
+on the same observations. **The run has executed; the first exact-head review was
+CHANGES_REQUESTED and its fixes are added; the candidate awaits ONE exact-head re-review.** The
+executing task's corrected reading (descriptive, not a verdict): local FD pressure is inconsistent
+across many batches, actual updates do not consistently increase the batch contrast, late steps
+carry a large linearization error, and the fixed-world evaluations show no post-update switches;
+no cause is isolated. The same-seed prefix consistency is UNRESOLVED: the first detected training
+output difference is at iteration 1 (magnitude 7.45e-9) with matching recorded input summaries,
+and when or why parameters diverged is not established
+([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed)).
+Nothing else is scheduled or authorized; any further step (review verdict, merge, a further arm
+or run) needs its own decision
 ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)).
 
 **Research area the active task belongs to:** actor-side optimization /
@@ -327,15 +353,16 @@ explanation; these remain open:
    intervention on this question (explicit mission fuel slack); reachability and distance
    clipping stay unchanged.*
 2. **PPO mechanics** — clipping, normalized advantages, repeated epochs, Adam / gradient clipping as
-   mechanisms that could acquire and then erase separation;
+   mechanisms that could acquire and then erase separation; *the active task measures the actual
+   every-epoch Adam displacement and its first-order effect on the batch contrast*;
 3. **gradient interaction** — why non-FD components sometimes oppose a healthy FD component after
-   acquisition.
+   acquisition; *the active task decomposes the actor-only raw loss gradient by the same four
+   groups at every epoch*.
 
 No read-only audit of these is open; this list authorizes no run or code change.
 
-**Known low-priority maintenance:** the `graph_encoder` module self-test's stale
-`isinstance(node, int)` assertion (global semantic actions carry `node_v = None` since PR #70) is
-corrected on the active task's branch, which had to update that self-test's agent width anyway.
+**Known low-priority maintenance:** none open from PR #79 — the `graph_encoder` module
+self-test's stale `isinstance(node, int)` assertion was corrected with it.
 
 **Recorded, not scheduled and not authorized:**
 
@@ -361,10 +388,11 @@ corrected on the active task's branch, which had to update that self-test's agen
 
 ## 6. Blocked or unauthorized now
 
-The active mission-fuel-slack task (§2) is authorized ONLY for what its plan names: the one actor
-input, its tests and contracts, and ONE development run with its evidence. Everything below
-stays blocked for it too — in particular any second observation feature, tuning, further arm,
-rerun, resume, extension, confirmatory use, merge or cleanup.
+The active credit-to-update diagnostic task (§2) is authorized ONLY for what its plan names: the
+opt-in observational actor-only step instrumentation, its tests and contracts, ONE 100-update
+development diagnostic with its evidence, and the PR #79 status closure. Everything below stays
+blocked for it too — in particular any second run, restart, resume, seed replication, extension,
+tuning, reward / credit redesign, observation change, confirmatory evaluation, merge or cleanup.
 
 - reopening closed evidence PRs #71 or #73, or deleting the undecided local items of §5, without
   explicit authorization;
@@ -377,7 +405,8 @@ rerun, resume, extension, confirmatory use, merge or cleanup.
   documentation-maintenance task; any implementation
   not separately authorized — including re-introducing the explicit critic readout or changing
   the default `gae_lambda` — and in particular training semantics,
-  action-conditioned gradient subgroups, actor-only gradient instrumentation, reachability,
+  action-conditioned gradient subgroups, actor-only gradient instrumentation beyond the active
+  task's observational step diagnostic, reachability,
   distance normalization / clipping or other observation features, the reward or reward shaping,
   FD events or physics, the V2 population / benchmark / profiles, PPO hyperparameters (learning
   rate, lambda, entropy, clipping), batch size, stratified loss weighting, oversampling / replay,
@@ -407,8 +436,12 @@ rerun, resume, extension, confirmatory use, merge or cleanup.
 
 **Registry:** [`environments_cleanup.md` §4](docs/workflows/environments_cleanup.md#4-authorized-cleanup).
 Protected refs: `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and tag `pre-cleanup`.
-Remaining local worktrees: the main checkout and `C:/Users/Itama/PycharmProjects/flat-baseline`
-(branch `flat-final`) only; `C:/grolelambda1` is absent and unregistered
+Remaining local worktrees: the main checkout, `C:/Users/Itama/PycharmProjects/flat-baseline`
+(branch `flat-final`) and the mission-slack measured source `C:/gms1src` (detached at
+`3bc944119da08af8e25268c9ee83fc63a8d1e533`, retained; its removal is not authorized) and the
+active task's measured source `C:/gcud1src` (detached at
+`644883b89c208255f5808432462be64be5d7589f`, retained; no cleanup authorized); `C:/grolelambda1` is absent and
+unregistered
 ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
 Refs awaiting cleanup: none. **The intended durable remote branches are `main`,
 `phase-a-baseline`, `pre-ctde-actor-only` and `flat-final`, with the protected tag
@@ -431,7 +464,9 @@ five runs are indexed compactly by `semantic_ctde_grad_diag_r1/` (merged with PR
   diagnostics and the three acting-ego diagnostics only; no preserved run under the historical
   representation has it, and under actor-only it is episode / chain-level, not local FD-action
   credit (measurements §10.7). `train_actor_gradient_diagnostics.jsonl` exists only for those five
-  CTDE diagnostics, and decomposes PPO epoch 0 only.
+  CTDE diagnostics, and decomposes PPO epoch 0 only. No preserved run before the active task
+  carries actor-only gradients or actual parameter displacements
+  (`train_actor_step_diagnostics.jsonl`).
 - The diagnostics' record streams and checkpoints are not in Git; they are identified by SHA-256
   in the evidence manifests and held only in the `C:\gra\` archive.
 - The two semantic-action R1 credit streams were renamed after their evidence commits

@@ -43,7 +43,8 @@
 | GENERALIZED-V2 explicit acting-ego readout CTDE development diagnostic — FD100 configuration (100 updates) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` — PR #75 explicit-readout candidate, **unmerged when measured, later retired from the code** | local original `C:\gruns\graph_rl_v2_explicit_ego_readout_ctde_fd100_r1_seed3000000_1a1e0c9`; evidence package `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` on PR #75, reviewed at evidence commit `557e072b94884bef37ece82a064ad877a5a2f636` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; primary comparator the role-only run; no locality or behavioural improvement over role-only; includes the read-only owner-transition audit (§13) |
 | GENERALIZED-V2 role-only acting-ego CTDE `gae_lambda = 1.0` development diagnostic — FD100 configuration (100 updates) | `68055e39768d5fa601e5960a9f08823b9e65c08f` — the role-only implementation, run from the isolated detached worktree `C:\grolelambda1` | local original `C:\gruns\graph_rl_v2_role_only_ctde_lambda100_fd100_r1_seed3000000_68055e3`; evidence package `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` on PR #75, reviewed at evidence commit `1076208b68ee9abd76f159535c5f38fe98970ce5` | GPT verdict `APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT` (2026-09-19, as transferred in the user-approved packet); **development diagnostic only**; same-code comparator role-only λ0.95; exact λ = 1 telescoping, held-out separation effectively zero; **negative intervention, not the final configuration** (§14) |
 | GENERALIZED-V2 semantic-action CTDE development R1 (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state, 375 updates; executed 2026-09-16) | `8056266cff89f677911462b29970346bed0a57c1` (the PR #72 merge; run-recorded clean `main`) | evidence PR #73, exact candidate `ad9b545034670a7c7a9d8ff98012d56c0be07f46` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`, assigned **retrospectively on 2026-09-19** (as transferred in the user-approved documentation packet); **development only**; primary comparator semantic actor-only R1 (§10); 0 / 20 directional switches at every one of the 16 evaluation rounds; no comparable actor-only transient observed at any evaluation round; no CTDE benefit established (§16) |
-| GENERALIZED-V2 actor mission-fuel-slack development R1 (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates; executed 2026-09-24) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch `task/actor-mission-fuel-slack-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gms1src`) | local original `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441`; evidence package `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` on draft PR #79 | **EXECUTED / UNREVIEWED** — no verdict; development only; final macro effectively zero, no transient (§17) |
+| GENERALIZED-V2 actor mission-fuel-slack development R1 (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates; executed 2026-09-24) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch `task/actor-mission-fuel-slack-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gms1src`) | local original `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441`; evidence package `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (PR #79, merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4`) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at exact head `26f8bff97b1cbbca64d18626625d2321545080af`); development only; final macro effectively zero, no transient (§17) |
+| GENERALIZED-V2 actor-only credit-to-update diagnostic R1 (mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`; executed 2026-09-25) | `644883b89c208255f5808432462be64be5d7589f` (task branch `task/actor-credit-update-diagnostic-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gcud1src`) | local original `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b`; evidence package `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on draft PR #80 | **EXECUTED / UNREVIEWED** — no verdict; development diagnostic only (§18) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. The local artifacts
 archived in the authorized 2026-09-15 closure now live in the local archive under `C:\gra\`, and
@@ -3074,11 +3075,13 @@ ABORT-vs-not gaps in the package are observational associations, **never action 
   the current role-only acting-ego critic.
 - No confirmatory evidence exists; the confirmatory profile is untouched.
 
-## 17. GENERALIZED-V2 actor mission-fuel-slack development R1 — executed, unreviewed
+## 17. GENERALIZED-V2 actor mission-fuel-slack development R1 — reviewed
 
-Recorded on 2026-09-24 by the executing task. **Status: EXECUTED / UNREVIEWED.** No verdict exists;
-everything below is the executing task's own reading of its evidence, for GPT review. The decision
-that authorized it is the 2026-09-24 row of [`decisions.md` §1](decisions.md#1-decision-log).
+Recorded on 2026-09-24 by the executing task, when it was EXECUTED / UNREVIEWED; §17.1–§17.4 are
+that task's own reading of its evidence and are kept as written. **Review status (2026-09-25,
+§17.5): the implementation is APPROVED at exact head `26f8bff97b1cbbca64d18626625d2321545080af`
+and the run is reviewed as valid negative development evidence.** The decisions are the
+2026-09-24 and 2026-09-25 rows of [`decisions.md` §1](decisions.md#1-decision-log).
 
 ### 17.1 Identity
 
@@ -3136,7 +3139,8 @@ comparator's transient did not occur**, and no stable final severity-conditioned
 
 ### 17.4 Limitations and non-claims
 
-- **Unreviewed.** Nothing here is a verdict or an approval.
+- **Unreviewed when written** (2026-09-24). The review outcome is recorded in §17.5 and adds no
+  claim beyond these non-claims.
 - One run, one training seed, cross-version against §10; a matched seed number does not give
   identical initial weights or RNG trajectories after the input width changed. No robustness claim.
 - **No causal attribution** — neither of the absent transient nor of the near-constant outputs —
@@ -3158,3 +3162,131 @@ comparator's transient did not occur**, and no stable final severity-conditioned
 - The corrections (the four pre-launch logs the manifest declared, the narrowed wording above,
   and the final-round per-node score extract) are additive commits on PR #79; the original
   evidence commit `50c13ee9839a822b12e42fbfed76c8ed55e1f901` is unchanged.
+- **2026-09-25 — exact-head re-review of `26f8bff97b1cbbca64d18626625d2321545080af`: the
+  implementation is APPROVED and the run is reviewed as valid negative development evidence**
+  (GPT review outcome, as transferred in the packet `CC_Actor_Credit_Update_Diagnostic_R1`; the
+  CHANGES_REQUESTED review above stays history). Distinct identities: measured SHA
+  `3bc944119da08af8e25268c9ee83fc63a8d1e533`; evidence commit `50c13ee…`; first reviewed head
+  `ea60ce38e9f1b91fb3cb736bb4dba01f88f92523`; approved head `26f8bff…`.
+- **Integration and branch retirement (verified 2026-09-25):** PR #79 was merged normally as
+  `bcb1746fbc677b3109f73b36699ac3b3780c32a4` (parents `3d05a6ca76a0cbaf5c182d35da8677e7c06f6268`
+  and `26f8bff…`), whose tree equals the approved head tree
+  `d3a0306e57b8390952a68c521c02a418252ae613`; no PR is open; the remote branch
+  `task/actor-mission-fuel-slack-dev-r1` is absent and no local branch of that name exists. The
+  measured source worktree `C:/gms1src` (detached at `3bc9441…`) and the original run directory
+  `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` are retained; no
+  archival or removal of either is authorized.
+
+## 18. GENERALIZED-V2 actor-only credit-to-update diagnostic R1 — executed, unreviewed
+
+Recorded on 2026-09-25 by the executing task. **Status: EXECUTED; exact-head review
+CHANGES_REQUESTED (2026-09-25), fixes added, awaiting re-review (§18.5).** No verdict exists;
+this is the executing task's reading of its evidence, corrected under that review. PR #79's
+approval is not inherited. The authorizing decision is the 2026-09-25 row of
+[`decisions.md` §1](decisions.md#1-decision-log); the full record is the package README.
+
+### 18.1 Identity
+
+| Item | Value |
+|---|---|
+| Run id | `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` |
+| Measured code SHA | `644883b89c208255f5808432462be64be5d7589f` (task branch, draft PR #80, unmerged when measured), run-recorded clean, from the detached worktree `C:\gcud1src`; the imported BLADE engine is Git-blob-identical to the measured tree (byte differences EOL-only, as for §17) |
+| Instrumentation | opt-in `train_actor_step_diagnostics.jsonl` ([artifacts and metrics §5.3](../contracts/artifacts_metrics.md#53-actor-only-step-diagnostics)), vectors at iterations 0 / 24 / 49 / 74 / 99 |
+| Population, budget | `generalized_v2`, `p1_milp_v1`, `actor_only`, mission-slack observation, semantic actions, base seed 3000000, 100 × 8 successful episodes, ≤ 12 attempts per update, 5 evaluation rounds on the development profile of manifest `ef17a68a…46ea8`, no early stopping |
+| Comparator | the first 100 updates and rounds 0–100 of §17's run, read only and pinned; resolved `train_config` differs only in `n_iterations`, `output_dir` and the two diagnostic keys |
+| Evidence | `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on PR #80 |
+
+### 18.2 Validity facts (the task's pre-check; not a verdict)
+
+Three statuses are separate; none is an "all gates passed" result: **engineering
+non-interference gates on synthetic data — passed as reported by the task; execution and
+accounting — completed; consistency with the original run's trajectory — UNRESOLVED.**
+
+- Complete: exit code 0, walltime 2139 s (cap 4 h), 100 / 100 updates, 400 optimizer steps;
+  800 / 800 training episodes, 0 failures; 300 / 300 evaluation episodes, 20 / 20 groups and
+  10 / 10 cells in every round; `accounting_reconciled = true`.
+- One diagnostic record per productive update, four epochs each; telescoping and epoch-boundary
+  residuals 0.0; group-sum relative residual ≤ 3.6e-7 (recomputed by the review from the
+  committed scalar stream); the vector files recompute the recorded scalars to ≤ 1.4e-16 relative
+  (task-reported; the review could not read the NPZ contents).
+- **Same-seed prefix (UNRESOLVED):** the declared first divergence is input-side (one-tick wake
+  differences in the three pre-update members of the seed-2000448 world, the known BLADE class),
+  so the executed stop rule did not fire (protocol deviation D1, §18.5). Descriptively, all
+  training seeds and cells match; iteration 0 matches after normalization (8 / 8 episodes,
+  17 / 17 credit rows; its train record differs in five epoch-mean fields by ≤ 6.0e-8). **The
+  first detected training output difference occurs at iteration 1, seed `3000008`, wake 0,
+  tick 686, `source_scores[0][0]`, magnitude `7.450580596923828e-9`, while the compared recorded
+  input summaries match.** The time and cause of parameter divergence are not established: the
+  outcome records carry selected input summaries, not a serialized observation, and a float32
+  output difference alone does not distinguish different parameters from different forward
+  numerical execution; checkpoints show later parameter differences (0.045 at 99), not their first
+  occurrence. The per-iteration table counts differing EPISODES at their first differing wake
+  (`max_first_field_abs_diff`, not a full-output maximum). Synthetic probes show base == OFF == ON
+  bit-identically in one process and across processes, and a thread-count (not allocation)
+  sensitivity of the update's float result; neither run records its thread configuration. No
+  cause is claimed and no trajectory reproduction is claimed. The decisive records of both runs
+  are extracted byte-for-byte in the package's `prefix_source_extract/`.
+
+### 18.3 Observed results (descriptive)
+
+- 83 / 100 updates hold both severities; each update's `C_B` is measured on a different
+  training batch, so the per-update values are not one fixed-policy trajectory. The actual change
+  of the batch contrast has median `−4.6e-5` and mean |ΔC_B| `2.8e-3` overall (39 increases /
+  43 decreases / 1 negligible); by window the mean |ΔC_B| is `0.00156`, `0.00043`, `0.00065` and
+  `0.00967` (75–99). `C_B` before an update has median `+1.6e-3`.
+- Epoch-0 FD raw pressure is positive in 49 / 83 updates and consistently positive only in 75–99
+  (14 / 18). Non-FD pressure is positive toward the contrast in 55 / 83. Sign pairs (FD / non-FD;
+  review-derived, |x| < 1e-6 negligible): +/+ 34, +/− 15, −/+ 21, −/− 12, negligible/− 1; the 15
+  is opposition to a POSITIVE FD pressure, and opposing signs of either direction occur in 36 of
+  the 82 non-negligible pairs. The entropy component is ~100× smaller and flips the total's sign
+  in 1 / 83.
+- The actual Adam displacement's alignment with the contrast gradient is small in magnitude:
+  median |cos(Δθ, h)| `0.081`, q90 `0.245` (review-derived; the signed median `+0.008` mixes
+  directions). Raw-total pressure and the actual-step prediction agree in sign in 220 / 332
+  epochs; 205 / 332 defined epochs are gradient-norm clipped.
+- Linear approximation (review-derived): the per-update median |Σ epoch linearization residuals|
+  is `1.29e-4`, `7.0e-7`, `1.95e-6` and `1.47e-2` by window, against a median |epoch actual ΔC_B|
+  of `3.3e-3` in 75–99 — a large late residual whose mechanism is not identified.
+- Evaluation: the post-update rounds (25–100) have no directional or reverse switch (0 / 20);
+  the final measured probability contrast is `+0.00691564`; the pre-update round had 3 directional
+  switches (identical to §17's round 0). A nonzero probability separation is distinct from a
+  change in selected actions.
+- Descriptive reading: local FD pressure is inconsistent across many batches; actual updates do
+  not consistently increase the batch contrast; late steps have a large linearization error;
+  fixed-world evaluations have no post-update switches. The data do not isolate credit
+  assignment, architecture, optimizer or observation sufficiency as a cause; this run is
+  `actor_only`, so no learned critic supplies its advantages.
+
+### 18.4 Limitations and non-claims
+
+- **Not approved.** One seed, 100 updates, development worlds re-measured each round; no causal
+  attribution, no claim of a defective critic, reward or optimizer; `C_B` is a training-batch
+  contrast on unmatched batches, not the matched-world endpoint; no confirmatory evidence.
+
+### 18.5 Review status and protocol deviations
+
+- **2026-09-25 — GPT exact-head review of `5f5e22ae5f3c108af0a24e18936a87fb5c31dd7b`:
+  CHANGES_REQUESTED** (packet `CC_PR80_Review_Fixes_R1`). The review found no demonstrated change
+  to the PPO learning computation in the production diff; it recomputed the scalar summaries and
+  the five macro endpoints from committed records, and matched the 54 ledger path / blob
+  identities (two `filtered`, not raw). It re-ran no test and loaded no checkpoint; the NPZ
+  vector recomputation remains task-reported. It did not diagnose the prefix discrepancy or claim
+  that the instrumentation caused it.
+- **Deviation D1 (stop rule).** The dispatch required that "A material unexplained discrepancy
+  stops the run; do not adapt tolerances after seeing it." The executed, precommitted rule stopped
+  only on a `policy_side` FIRST divergence of one combined evaluation-then-training stream, so the
+  earlier benign evaluation tick difference disabled stopping on the later training-side
+  difference. Precommitting the narrower rule made it transparent; it does not establish
+  compliance with the dispatch. The historical plan, comparator and launcher are kept unchanged as
+  evidence of what ran; they are not a validated reusable consistency guard (a future run must
+  monitor training / update consistency independently, and a monitor failure must not silently
+  grant continued execution).
+- **Deviation D2 (checkpoint loading).** The dispatch specified "save only. No historical
+  checkpoint loading, warm start or resume"; the final comparison deserialized the new and the
+  original checkpoints 24 / 49 / 74 / 99 with `torch.load` for an offline tensor comparison — not
+  inference, replay, warm start or resume, but unauthorized checkpoint loading. Not repeated.
+- **Fixes added** (additive commits on PR #80): the protocol record above; a byte-exact,
+  hash-pinned source extract of the decisive prefix records with a verify mode; review-derived
+  sign-pair, absolute-cosine and residual summaries; narrowed wording in the package README, this
+  section, the handoff and the PR description. No `src`, `tests` or configuration change; no
+  training, evaluation, replay, inference or checkpoint loading.

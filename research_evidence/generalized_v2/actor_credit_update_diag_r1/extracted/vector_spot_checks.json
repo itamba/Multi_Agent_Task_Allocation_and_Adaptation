@@ -1,0 +1,197 @@
+[
+ {
+  "bytes": 4544568,
+  "iteration": 0,
+  "layout_entries": 48,
+  "layout_matches_record": true,
+  "max_relative_mismatch": 1.399125810486026e-16,
+  "n_parameters": 109543,
+  "pass": true,
+  "path": "train_actor_step_vectors/iter_0000_epoch0.npz",
+  "recomputed": {
+   "delta_theta_norm": [
+    0.09863708574365483,
+    0.09863708574365483
+   ],
+   "group_sum_residual_norm": [
+    1.6344860663061e-07,
+    1.6344860663061e-07
+   ],
+   "h_norm": [
+    0.3967559658696773,
+    0.39675596586967726
+   ],
+   "predicted_delta": [
+    0.001767382828090989,
+    0.001767382828090989
+   ],
+   "pressure_fd": [
+    0.00035556085000978065,
+    0.00035556085000978065
+   ],
+   "pressure_total": [
+    0.0576442466308604,
+    0.0576442466308604
+   ],
+   "total_loss_grad_norm": [
+    2.4000194845159544,
+    2.4000194845159544
+   ]
+  },
+  "sha256_actual": "b15babe5bd4373fe59c079ea953a72f3606c9faa5540f309dd302c6475843056",
+  "sha256_recorded": "b15babe5bd4373fe59c079ea953a72f3606c9faa5540f309dd302c6475843056"
+ },
+ {
+  "bytes": 4637336,
+  "iteration": 24,
+  "layout_entries": 48,
+  "layout_matches_record": true,
+  "max_relative_mismatch": 0.0,
+  "n_parameters": 109543,
+  "pass": true,
+  "path": "train_actor_step_vectors/iter_0024_epoch0.npz",
+  "recomputed": {
+   "delta_theta_norm": [
+    0.007305359480383392,
+    0.007305359480383392
+   ],
+   "group_sum_residual_norm": [
+    9.530094680046354e-08,
+    9.530094680046354e-08
+   ],
+   "h_norm": [
+    0.3623595769373696,
+    0.3623595769373696
+   ],
+   "predicted_delta": [
+    5.9285841292561195e-05,
+    5.9285841292561195e-05
+   ],
+   "pressure_fd": [
+    0.01697744960003434,
+    0.01697744960003434
+   ],
+   "pressure_total": [
+    0.05824012739456706,
+    0.05824012739456706
+   ],
+   "total_loss_grad_norm": [
+    1.0285058802395415,
+    1.0285058802395415
+   ]
+  },
+  "sha256_actual": "54d4c3eb439ff30e79907ab0a6ced3e4f3c7081fdd8d1c6ab72ed2e76d0da723",
+  "sha256_recorded": "54d4c3eb439ff30e79907ab0a6ced3e4f3c7081fdd8d1c6ab72ed2e76d0da723"
+ },
+ {
+  "bytes": 4603649,
+  "iteration": 49,
+  "layout_entries": 48,
+  "layout_matches_record": true,
+  "max_relative_mismatch": 0.0,
+  "n_parameters": 109543,
+  "pass": true,
+  "path": "train_actor_step_vectors/iter_0049_epoch0.npz",
+  "recomputed": {
+   "delta_theta_norm": [
+    0.0019312621114598327,
+    0.0019312621114598327
+   ],
+   "group_sum_residual_norm": [
+    6.27260424356431e-08,
+    6.27260424356431e-08
+   ],
+   "h_norm": [
+    0.17237370322330076,
+    0.17237370322330076
+   ],
+   "predicted_delta": [
+    1.773096637477143e-05,
+    1.773096637477143e-05
+   ],
+   "pressure_fd": [
+    0.0007352995984218157,
+    0.0007352995984218157
+   ],
+   "pressure_total": [
+    0.03291174030044409,
+    0.03291174030044409
+   ],
+   "total_loss_grad_norm": [
+    0.38207456241340904,
+    0.38207456241340904
+   ]
+  },
+  "sha256_actual": "f1e0a663e0c945ecfefcd530de4c8f3ea5e2689f72efef7fe70aade4b54ee6d5",
+  "sha256_recorded": "f1e0a663e0c945ecfefcd530de4c8f3ea5e2689f72efef7fe70aade4b54ee6d5"
+ },
+ {
+  "bytes": 3717385,
+  "contrast_grad_absent_reason": "no_immediate_fd_mild_transition",
+  "iteration": 74,
+  "layout_entries": 48,
+  "layout_matches_record": true,
+  "max_relative_mismatch": 0.0,
+  "n_parameters": 109543,
+  "pass": true,
+  "path": "train_actor_step_vectors/iter_0074_epoch0.npz",
+  "recomputed": {
+   "delta_theta_norm": [
+    0.05960392285686967,
+    0.05960392285686967
+   ],
+   "group_sum_residual_norm": [
+    7.329554388559024e-09,
+    7.329554388559024e-09
+   ],
+   "total_loss_grad_norm": [
+    0.09172055009812533,
+    0.09172055009812533
+   ]
+  },
+  "sha256_actual": "354ab913c0f252356fa371c35670923754fadac2ff814a0da3d1d7ec59a13124",
+  "sha256_recorded": "354ab913c0f252356fa371c35670923754fadac2ff814a0da3d1d7ec59a13124"
+ },
+ {
+  "bytes": 4621896,
+  "iteration": 99,
+  "layout_entries": 48,
+  "layout_matches_record": true,
+  "max_relative_mismatch": 0.0,
+  "n_parameters": 109543,
+  "pass": true,
+  "path": "train_actor_step_vectors/iter_0099_epoch0.npz",
+  "recomputed": {
+   "delta_theta_norm": [
+    0.04019612860488743,
+    0.04019612860488743
+   ],
+   "group_sum_residual_norm": [
+    1.150195163992243e-08,
+    1.150195163992243e-08
+   ],
+   "h_norm": [
+    0.26442284470414434,
+    0.26442284470414434
+   ],
+   "predicted_delta": [
+    0.00015842224248271224,
+    0.00015842224248271224
+   ],
+   "pressure_fd": [
+    0.007347803394537264,
+    0.007347803394537264
+   ],
+   "pressure_total": [
+    0.005598537306139729,
+    0.005598537306139729
+   ],
+   "total_loss_grad_norm": [
+    0.09149065850570902,
+    0.09149065850570902
+   ]
+  },
+  "sha256_actual": "d8f4dcb8bc831692d03fb5d5f1fa910d75ea0b86069c6cf0bc2e273645c96aa5",
+  "sha256_recorded": "d8f4dcb8bc831692d03fb5d5f1fa910d75ea0b86069c6cf0bc2e273645c96aa5"
+ }
+]

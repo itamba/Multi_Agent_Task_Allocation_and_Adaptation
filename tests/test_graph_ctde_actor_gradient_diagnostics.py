@@ -405,9 +405,13 @@ def test_g7_in_train_the_tags_reach_only_the_trainer_side_join_and_writers():
         if func == "update":
             # the updater call is handed the buffer, sinks and the kwargs dict only
             assert "credit_tags" not in direct
+    # (+ the actor-only step diagnostic's two trainer-side functions, which likewise hand
+    # the updater opaque integer ids only; tests/test_graph_actor_step_diagnostics.py)
     assert sorted(consumers) == sorted(["_persist_credit_diagnostics",
                                         "_actor_gradient_group_ids",
-                                        "_persist_actor_gradient_diagnostics"]), consumers
+                                        "_persist_actor_gradient_diagnostics",
+                                        "_actor_step_group_ids",
+                                        "_persist_actor_step_diagnostics"]), consumers
 
 
 def test_g7_group_ids_are_plain_ints_and_do_not_feed_credit_or_losses(monkeypatch):

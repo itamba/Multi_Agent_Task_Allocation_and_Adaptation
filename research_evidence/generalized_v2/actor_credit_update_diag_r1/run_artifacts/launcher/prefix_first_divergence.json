@@ -1,0 +1,25 @@
+{
+ "seen_at": "2026-09-25T01:43:27.385047+03:00",
+ "first_divergence": {
+  "side": "input_side",
+  "wake_index": 2,
+  "tick": 1804,
+  "wake_kind": "ordinary",
+  "difference": {
+   "path": "/wake_decisions[2]/tick",
+   "new": 1804,
+   "original": 1805,
+   "abs_diff": 1.0
+  },
+  "record_kind": "outcome",
+  "key": [
+   "pre_update",
+   null,
+   42,
+   0,
+   14,
+   2000448
+  ]
+ },
+ "stop": false
+}

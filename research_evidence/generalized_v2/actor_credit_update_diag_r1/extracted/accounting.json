@@ -1,0 +1,13 @@
+{
+ "accounting_reconciled": true,
+ "eval_attempted": 300,
+ "eval_successful": 300,
+ "failures": [],
+ "n_eval_rounds": 5,
+ "n_productive_updates": 100,
+ "n_train_records": 100,
+ "optimizer_steps": 400,
+ "train_attempted": 800,
+ "train_failed": 0,
+ "train_successful": 800
+}

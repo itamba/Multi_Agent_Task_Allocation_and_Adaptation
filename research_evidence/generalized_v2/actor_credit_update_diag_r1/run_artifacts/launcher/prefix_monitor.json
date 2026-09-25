@@ -1,0 +1,99 @@
+{
+ "record": "prefix_comparison",
+ "record_version": 1,
+ "final": false,
+ "tolerance": 0.0,
+ "counts_compared_identical": {
+  "outcome": {
+   "compared": 1100,
+   "identical": 56
+  },
+  "credit": {
+   "compared": 2396,
+   "identical": 657
+  },
+  "train_record": {
+   "compared": 100,
+   "identical": 0
+  }
+ },
+ "failures": {
+  "compared": 0,
+  "identical": 0
+ },
+ "eval_records": [
+  {
+   "round": 0,
+   "updates_completed": 0,
+   "identical": true,
+   "first_difference": null
+  },
+  {
+   "round": 1,
+   "updates_completed": 25,
+   "identical": false,
+   "first_difference": {
+    "path": "/v2_behaviour/by_base_cell/A3-D0/severe_minus_mild_abort_mass_mean",
+    "new": 2.175569534301758e-06,
+    "original": 2.1830201148986816e-06,
+    "abs_diff": 7.450580596923828e-09
+   }
+  },
+  {
+   "round": 2,
+   "updates_completed": 50,
+   "identical": false,
+   "first_difference": {
+    "path": "/v2_behaviour/by_base_cell/A2-D0/severe_minus_mild_abort_mass_mean",
+    "new": 3.725290298461914e-07,
+    "original": 3.762543201446533e-07,
+    "abs_diff": 3.725290298461914e-09
+   }
+  },
+  {
+   "round": 3,
+   "updates_completed": 75,
+   "identical": false,
+   "first_difference": {
+    "path": "/v2_behaviour/by_base_cell/A2-D0/severe_minus_mild_abort_mass_mean",
+    "new": 2.232193946838379e-05,
+    "original": 5.17629086971283e-06,
+    "abs_diff": 1.714564859867096e-05
+   }
+  },
+  {
+   "round": 4,
+   "updates_completed": 100,
+   "identical": false,
+   "first_difference": {
+    "path": "/v2_behaviour/by_base_cell/A2-D0/severe_minus_mild_abort_mass_mean",
+    "new": 0.00435706228017807,
+    "original": 2.8312206268310547e-07,
+    "abs_diff": 0.004356779158115387
+   }
+  }
+ ],
+ "first_divergence": {
+  "side": "input_side",
+  "wake_index": 2,
+  "tick": 1804,
+  "wake_kind": "ordinary",
+  "difference": {
+   "path": "/wake_decisions[2]/tick",
+   "new": 1804,
+   "original": 1805,
+   "abs_diff": 1.0
+  },
+  "record_kind": "outcome",
+  "key": [
+   "pre_update",
+   null,
+   42,
+   0,
+   14,
+   2000448
+  ]
+ },
+ "stop": false,
+ "checked_at": "2026-09-25T02:17:05.414227+03:00"
+}

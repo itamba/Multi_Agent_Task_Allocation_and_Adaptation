@@ -1,0 +1,75 @@
+{
+ "record": "nlp_env_step_gate",
+ "record_version": 1,
+ "python": "3.12.3",
+ "platform": "Windows-10-10.0.19045-SP0",
+ "torch": "2.7.1+cpu",
+ "numpy": "2.2.4",
+ "torch_num_threads": 4,
+ "graph_ppo_file": "C:\\gcud1src\\src\\match_aou\\rl\\training\\graph_ppo.py",
+ "graph_train_file": "C:\\gcud1src\\src\\match_aou\\rl\\training\\graph_train.py",
+ "base_sha": "bcb1746fbc677b3109f73b36699ac3b3780c32a4",
+ "G1": {
+  "advantages_both_signs": true,
+  "later_epoch_clip_fraction_max": 1.0,
+  "off": {
+   "diagnostics_equal": true,
+   "encoder_equal": true,
+   "head_equal": true,
+   "adam_state_equal": true,
+   "torch_rng_equal": true,
+   "numpy_rng_equal": true
+  },
+  "on": {
+   "diagnostics_equal": true,
+   "encoder_equal": true,
+   "head_equal": true,
+   "adam_state_equal": true,
+   "torch_rng_equal": true,
+   "numpy_rng_equal": true
+  },
+  "pass": true
+ },
+ "G2": {
+  "n_reports": 2,
+  "n_epochs": 8,
+  "n_adam_steps_observed": 8,
+  "delta_is_actual_adam_step": true,
+  "records": [
+   {
+    "telescoping_residual": 0.0,
+    "max_epoch_boundary_mismatch": 0.0,
+    "max_group_sum_relative_residual": 1.0583083155485286e-07,
+    "max_total_vs_backward_relative_residual": 0.0
+   },
+   {
+    "telescoping_residual": 0.0,
+    "max_epoch_boundary_mismatch": 0.0,
+    "max_group_sum_relative_residual": 1.1023410756651754e-07,
+    "max_total_vs_backward_relative_residual": 0.0
+   }
+  ],
+  "pass": true
+ },
+ "G3": {
+  "train_records_equal": true,
+  "credit_rows_equal": true,
+  "outcomes_equal": true,
+  "off_wrote_no_step_file": true,
+  "checkpoints_equal": true,
+  "n_step_records": 3,
+  "epochs_per_record": [
+   4,
+   4,
+   4
+  ],
+  "contrast_defined_updates": 1,
+  "vector_files": [
+   "train_actor_step_vectors/iter_0000_epoch0.npz",
+   null,
+   "train_actor_step_vectors/iter_0002_epoch0.npz"
+  ],
+  "pass": true
+ },
+ "pass": true
+}
