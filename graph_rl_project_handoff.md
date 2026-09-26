@@ -6,9 +6,10 @@
 > `7273be2ab563cc70de82651ec62bfa719f4f2758`, and its branch was deleted after merge
 > verification. **The intended durable branch state is `main` plus the three protected historical
 > branches only** (§7); a transient documentation-maintenance branch and PR may exist briefly
-> while this file itself is corrected, and leaves nothing behind once integrated. **Since
-> 2026-09-25 the active task branch `task/actor-credit-update-diagnostic-r1` and its draft PR also
-> exist** (§2); the earlier mission-fuel-slack task is reviewed and integrated (PR #79).
+> while this file itself is corrected, and leaves nothing behind once integrated. The
+> mission-fuel-slack task (PR #79) and the actor-only credit-to-update diagnostic (PR #80) are
+> reviewed and integrated; **no research task is active**. §5.1 records the selected flow / credit
+> research questions of 2026-09-26 — questions, not diagnosed causes or authorized work.
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -131,27 +132,28 @@
   (tree equal to the approved head's) and its remote branch is deleted
   ([measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--reviewed)).
   The measured source worktree `C:/gms1src` and the original run directory are retained.
-- **ACTIVE (2026-09-25): the actor-only credit-to-update diagnostic R1** — owned by CC on branch
-  `task/actor-credit-update-diagnostic-r1` (one draft PR; resolve its number and exact head on
-  GitHub). It adds opt-in observational every-epoch instrumentation of the actor-only
-  `PPOUpdater` (`train_actor_step_diagnostics.jsonl`,
+- **The actor-only credit-to-update diagnostic R1 is reviewed and integrated** (2026-09-25): opt-in
+  observational every-epoch instrumentation of the actor-only `PPOUpdater`
+  (`train_actor_step_diagnostics.jsonl`,
   [artifacts and metrics §5.3](docs/contracts/artifacts_metrics.md#53-actor-only-step-diagnostics))
-  and executes exactly ONE fresh 100-update actor-only `generalized_v2` development diagnostic,
-  compared with the first 100 updates and rounds 0 / 25 / 50 / 75 / 100 of the mission-slack run.
-  Plan: `research_evidence/generalized_v2/actor_credit_update_diag_r1/authorized_plan.json`.
-  **Task-specific workflow exception** (user-requested;
-  [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-25): no intermediate GPT
-  review stop for THIS task only. **Implementation and run are UNREVIEWED**; PR #79's approval is
-  not inherited; no merge is authorized. **The run has EXECUTED (2026-09-25)** at measured SHA
-  `644883b89c208255f5808432462be64be5d7589f`. GPT's exact-head review of `5f5e22a…` was
-  **CHANGES_REQUESTED** (2026-09-25; protocol deviations D1 stop-rule narrowing and D2 offline
-  checkpoint loading recorded, prefix consistency UNRESOLVED); the fixes are additive commits on
-  PR #80, which awaits one exact-head re-review
-  ([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed)).
+  and ONE 100-update actor-only `generalized_v2` development diagnostic at measured SHA
+  `644883b89c208255f5808432462be64be5d7589f`. After a first exact-head review of `5f5e22a…`
+  (CHANGES_REQUESTED) and additive fixes, GPT **APPROVED exact head
+  `eb6401167390513f4dc56a946ea76cc3b314607d`** and the user authorized the merge; PR #80 was merged
+  as `2d5719370d17594297111350007dd0c8bedb54e1` and its remote branch is deleted
+  ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-25). **The approval is
+  limited:** it covers the instrumentation and the preservation of **qualified descriptive
+  development evidence** only. Consistency with the original run's trajectory stays
+  **UNRESOLVED**, protocol deviations **D1** (stop-rule narrowing) and **D2** (offline checkpoint
+  loading) stay recorded and are not retroactively authorized, and no causal mechanism is
+  attributed; merging did not remove these limitations
+  ([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed),
+  whose own status line predates the approval). The measured source worktree `C:/gcud1src` and
+  the original run directory are retained; no local cleanup is recorded for this task.
 - Earlier single-run authorizations are spent: both actor-gradient diagnostics (further tuning
   stopped, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17) and the
-  three acting-ego diagnostics (role-only, explicit readout, role-only λ = 1). **The confirmatory
-  profile has not been used.**
+  three acting-ego diagnostics (role-only, explicit readout, role-only λ = 1), the mission-slack
+  run and the credit-to-update diagnostic. **The confirmatory profile has not been used.**
 - **Closed:** Phase A (fixed cell, FD-BASELINE-v1); the FD-VARIABLE-SEVERITY-v1 actor-only
   baseline; the Phase-B CTDE implementation; GENERALIZED-V1 Tasks 1–5, early stopping and the
   per-wake diagnostics; the deterministic-P1 backend and the certified-FD physical-state repair;
@@ -169,27 +171,29 @@
   recent-research archival and Git cleanup (2026-09-19) and its closure record (PR #77, merged as
   `7273be2ab563cc70de82651ec62bfa719f4f2758`, branch deleted 2026-09-20); the actor
   mission-fuel-slack implementation and run, their review and integration (PR #79, merged as
-  `bcb1746fbc677b3109f73b36699ac3b3780c32a4`, 2026-09-25).
+  `bcb1746fbc677b3109f73b36699ac3b3780c32a4`, 2026-09-25); the actor-only credit-to-update
+  diagnostic, its qualified review and integration (PR #80, merged as
+  `2d5719370d17594297111350007dd0c8bedb54e1`, 2026-09-25); the flow / credit / batch / PPO /
+  evaluation research walkthrough (2026-09-26; its selected questions are §5.1, none started).
 
 ## 2. Active owner and task
 
 | Item | State |
 |---|---|
-| Writable repository task | **`task/actor-credit-update-diagnostic-r1`** (CC; one draft PR — resolve on GitHub): the actor-only step instrumentation, its tests and contracts, ONE authorized 100-update development diagnostic with its evidence, and the PR #79 status closure. The only writable task |
+| Writable repository task | **no research task.** The only writable task is documentation-only: branch `docs/flow-credit-research-handoff` (CC; one draft PR — resolve on GitHub) records the §5.1 research questions and the PR #80 status closure in this file and [`decisions.md` §1](docs/history/decisions.md#1-decision-log); once integrated, none. The §5.1 questions are unassigned and unstarted |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
-| Candidates | **draft PR #80 (`task/actor-credit-update-diagnostic-r1`) is the sole active candidate** — implementation plus evidence; review CHANGES_REQUESTED on 2026-09-25, fixes added, awaiting exact-head re-review. No merge is authorized. **Resolve GitHub for the live head** |
-| Scientific runs in progress | none. The ONE authorized credit-to-update diagnostic `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` completed on 2026-09-25 (exit code 0) and is EXECUTED / UNREVIEWED; its original directory is `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` (not archived); this authorization is spent. The mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 and is reviewed; its original directory `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` is not archived (any move needs its own authorization) and is read, never modified, by the active task |
+| Candidates | no research candidate. The documentation draft PR of the row above is the only candidate; no merge is authorized. **Resolve GitHub for the live head** |
+| Scientific runs in progress | none. The credit-to-update diagnostic `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` completed on 2026-09-25 (exit code 0) and is reviewed as qualified descriptive development evidence (§1); its original directory `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` is not archived; its authorization is spent. The mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 and is reviewed; its original directory `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` is not archived. Moving either needs its own authorization |
 
 ## 3. Candidates and PRs
 
-**One research candidate is active: the draft PR of `task/actor-credit-update-diagnostic-r1`**
-(implementation + evidence, unreviewed, not for merge until GPT review and explicit user
-authorization). The PRs below are historical states, not open work. **Resolve GitHub for live
-exact heads.**
+**No research candidate is active.** The only candidate is the documentation draft PR of §2. The
+PRs below are historical states, not open work. **Resolve GitHub for live exact heads.**
 
 | PR | Branch | State |
 |---|---|---|
+| #80 | `task/actor-credit-update-diagnostic-r1` | merged as `2d5719370d17594297111350007dd0c8bedb54e1` (2026-09-25) from the approved head `eb6401167390513f4dc56a946ea76cc3b314607d` (its second parent); first review of `5f5e22a…` CHANGES_REQUESTED; the approval is limited to the instrumentation and qualified descriptive development evidence (§1); remote branch deleted, no local branch (verified 2026-09-26) |
 | #79 | `task/actor-mission-fuel-slack-dev-r1` | merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4` (2026-09-24) from the approved head `26f8bff97b1cbbca64d18626625d2321545080af` (its second parent; tree `d3a0306e57b8390952a68c521c02a418252ae613`); first review of `ea60ce3…` CHANGES_REQUESTED; remote branch deleted, no local branch (verified 2026-09-25) |
 | #77 | `docs/recent-archive-cleanup-closure` | merged as `7273be2ab563cc70de82651ec62bfa719f4f2758` (2026-09-19) from reviewed head `840d00e3e558f771cf6eb90e439ffacafa27a2ff` (its second parent); branch deleted after merge verification (2026-09-20) |
 | #76 | `docs/recent-research-cleanup-closure` | merged as `67cd12a438452aadf61f312e68484f26dfa1e7c7` (2026-09-19) from reviewed head `c414ec12a708338690fbf6e1317d93f804b2b22f`; branch deleted after ancestry verification (2026-09-19) |
@@ -237,7 +241,7 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
 | **Explicit acting-ego readout CTDE diagnostic** (FD100, 100 updates; implementation retired) | `1a1e0c953c54e9d3f46c871158d5ab6bdd881f24` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/explicit_ego_readout_ctde_fd100_r1/` (merged with PR #75), reviewed at `557e072b94884bef37ece82a064ad877a5a2f636`; includes the owner-transition audit | [measurements §13](docs/history/measurements.md#13-generalized-v2-explicit-acting-ego-readout-ctde-development-diagnostic-and-owner-transition-audit) |
 | **Role-only `gae_lambda = 1.0` CTDE diagnostic** (FD100, 100 updates; negative, not the final configuration) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` (merged with PR #75), reviewed at `1076208b68ee9abd76f159535c5f38fe98970ce5` | [measurements §14](docs/history/measurements.md#14-generalized-v2-role-only-acting-ego-ctde-gae_lambda--10-development-diagnostic) |
 | **GENERALIZED-V2 actor mission-fuel-slack development R1** (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch, unmerged when measured) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at `26f8bff…`); evidence `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (merged with PR #79) | [measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--reviewed) |
-| **GENERALIZED-V2 actor-only credit-to-update diagnostic R1** (actor-only, mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`) | `644883b89c208255f5808432462be64be5d7589f` (task branch, unmerged when measured) | **EXECUTED; review CHANGES_REQUESTED, fixes added, awaiting re-review** — no verdict; original-trajectory consistency UNRESOLVED; evidence `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on draft PR #80 | [measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed) |
+| **GENERALIZED-V2 actor-only credit-to-update diagnostic R1** (actor-only, mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`) | `644883b89c208255f5808432462be64be5d7589f` (task branch, unmerged when measured) | **APPROVED at exact head `eb64011…`** (GPT, 2026-09-25) as instrumentation plus **qualified descriptive development evidence** — original-trajectory consistency UNRESOLVED; deviations D1 / D2 recorded, not retroactively authorized; no causal attribution; evidence `research_evidence/generalized_v2/actor_credit_update_diag_r1/` (merged with PR #80) | [measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed) |
 
 **Current research interpretation (development only; numbers in
 [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure),
@@ -309,6 +313,14 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
   endpoint is effectively zero, the semantic actor-only transient did not recur, and the measured
   immediate-FD outputs showed essentially no severity-conditioned separation — an
   observed-population result, not proof of zero feature dependence and not a causal attribution.
+- **Actor-only credit-to-update diagnostic (qualified descriptive development evidence,
+  [measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed)):**
+  local FD pressure is inconsistent across many batches, actual updates do not consistently
+  increase the batch contrast, late steps carry a large linearization error, and the fixed-world
+  evaluations show no post-update switches. It isolates no cause — not the reward, `c`, critic,
+  architecture or optimizer — and its same-seed prefix consistency is UNRESOLVED (first detected
+  training-output difference at iteration 1, magnitude `7.45e-9`, with matching recorded input
+  summaries).
 
 **Standing interpretation rules:** R1 and the fresh P1 arm are distinct repository and
 population measurements with no causal solver-quality inference; the semantic-action R1 versus
@@ -319,47 +331,340 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: the active credit-to-update diagnostic task (§1, §2)** — implementation, engineering
-gates, the ONE authorized 100-update development diagnostic, its evidence and ONE exact-head GPT
-review of the final candidate. Its question: in actor-only training with the mission-slack input,
-do immediate-FD transitions push toward a larger SEVERE-minus-MILD ABORT contrast, do other
-transitions counteract that, and how does the real clipped-gradient Adam step change the contrast
-on the same observations. **The run has executed; the first exact-head review was
-CHANGES_REQUESTED and its fixes are added; the candidate awaits ONE exact-head re-review.** The
-executing task's corrected reading (descriptive, not a verdict): local FD pressure is inconsistent
-across many batches, actual updates do not consistently increase the batch contrast, late steps
-carry a large linearization error, and the fixed-world evaluations show no post-update switches;
-no cause is isolated. The same-seed prefix consistency is UNRESOLVED: the first detected training
-output difference is at iteration 1 (magnitude 7.45e-9) with matching recorded input summaries,
-and when or why parameters diverged is not established
-([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed)).
-Nothing else is scheduled or authorized; any further step (review verdict, merge, a further arm
-or run) needs its own decision
+**Now: nothing is scheduled or authorized.** No research task is active (§2). The §5.1 questions
+are recorded for future read-only research chats; each is unassigned and unstarted, and any
+further step — a research chat that changes the repository, an implementation or a run — needs
+its own decision
 ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)).
+`gamma = 1` remains the user's design requirement.
 
-**Research area the active task belongs to:** actor-side optimization /
-stability, gradient-to-policy mapping and retention mechanics
+**Earlier research area and its open list.** Since 2026-09-19 the area has been actor-side
+optimization / stability, gradient-to-policy mapping and retention mechanics
 ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-19;
-[measurements §15](docs/history/measurements.md#15-acting-ego--critic-locality-development-investigation--closing-interpretation)).
+[measurements §15](docs/history/measurements.md#15-acting-ego--critic-locality-development-investigation--closing-interpretation));
+the mission-slack run (§17) and the credit-to-update diagnostic (§18) were its two measurements.
 **No actor-side mechanism has been identified.** Of the open questions of
 [measurements §11.9](docs/history/measurements.md#119-unresolved-hypotheses-and-next-research-action)
 — an investigation list, not a finding that any item is defective — question 2 (**critic
 conditioning**) has been taken up by §12–§14 and is not supported as a sufficient or primary
-explanation; these remain open:
+explanation; these remain open, now linked to §5.1:
 
 1. **actor private-observation identifiability** — does the acting ego's immediate-FD private
    graph carry an informative, non-saturated MILD-vs-SEVERE signal (fuel normalization,
-   distance / reachability clipping, other actor-visible features)? *The active task tests one
-   intervention on this question (explicit mission fuel slack); reachability and distance
-   clipping stay unchanged.*
+   distance / reachability clipping, other actor-visible features)? *The mission-slack run tested
+   one intervention (reviewed negative development evidence); reachability and distance clipping
+   are unchanged. Related representation questions: HEAD-01, OBS-01.*
 2. **PPO mechanics** — clipping, normalized advantages, repeated epochs, Adam / gradient clipping as
-   mechanisms that could acquire and then erase separation; *the active task measures the actual
-   every-epoch Adam displacement and its first-order effect on the batch contrast*;
+   mechanisms that could acquire and then erase separation; *§18 measured the actual every-epoch
+   Adam displacement and its first-order effect on the batch contrast (qualified). Its reading
+   continues under BASELINE-01; the PPO / clipping walkthrough selected no standalone change.*
 3. **gradient interaction** — why non-FD components sometimes oppose a healthy FD component after
-   acquisition; *the active task decomposes the actor-only raw loss gradient by the same four
-   groups at every epoch*.
+   acquisition; *§18 decomposed the actor-only raw loss gradient by four groups at every epoch;
+   reading under BASELINE-01.*
 
 No read-only audit of these is open; this list authorizes no run or code change.
+
+### 5.1 Flow / credit research questions (recorded 2026-09-26)
+
+Selected in the user's flow / credit / batch / PPO / evaluation walkthrough, closed 2026-09-26
+([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-26). **Research questions
+— not diagnosed defects, approved fixes or active ownership.** Each future chat starts read-only.
+No reward coefficient, architecture, estimator or experiment is selected. **Keep the representation
+of a decision separate from the learning signal assigned to it:** better ego context or readout
+cannot be assumed to repair credit, and different scalar credit cannot supply information the
+actor lacks.
+
+**Navigation order (not an experiment schedule):** REWARD-01, CREDIT-01, BASELINE-01 and
+CRITIC-01 form the credit / critic research track. HEAD-01 and OBS-01 are deferred architecture
+candidates; HEAD-01 is the stronger of the two, but it is not a diagnosed cause and not a
+mandate to change the action head first.
+
+**Reuse, do not repeat** ([measurements §12–§16](docs/history/measurements.md#15-acting-ego--critic-locality-development-investigation--closing-interpretation)):
+role-only acting-ego conditioning improved critic locality without the desired behaviour; the
+explicit ego readout added nothing and is retired; at `gamma = lambda = 1` the total CTDE
+advantage telescoped to `R − V_t` and no separation emerged
+([§14.4](docs/history/measurements.md#144-structural-telescoping-identity)). §18 isolates no cause
+(qualified, §1). These results constrain simple explanations, not every redesign. One negative
+development result is not a universal impossibility claim. Confirm the exact run and evidence
+identity, including `run_config`, before reusing a measurement.
+
+#### REWARD-01 — Does the scored objective express the intended mission / survival trade-off?
+
+- **Status:** selected. A high-priority read-only formulation and calibration question. A larger
+  `c` is a candidate, not a diagnosed fix.
+- **Known** (`graph_reward._event_conditioned_breakdown`): `D = |U_ref| + eps`
+  (`regret_epsilon = 1e-5`); `R = (U_prefix + U_post − U_ref − c · U_aircraft · n_lost) / D`;
+  `U_ref = U_prefix + U_cont_ref`. `U_aircraft` is the maximum task utility over the prefix plus
+  the continuation-ALLOCATED tasks (0 if empty; `graph_episode_setup._reference_aircraft_utility`).
+  It is a target-utility valuation, not a measured aircraft value. The trainer default is
+  `TrainConfig.aircraft_penalty_coeff = 2.25`, and `RewardConfig`'s standalone default is `0.0`.
+  A run's `run_config` is authoritative. At `U_aircraft = 80`, `c = 2.25` prices one loss at 180
+  utility units before normalization. `U_post` scores only continuation-allocated reference tasks;
+  other confirmed targets are accounting-only (`unscored_completed_target_ids`). `U_prefix`
+  cancels from the regret numerator (leaving `U_post − U_cont_ref`) but stays in `D`.
+- **Question:** which objective is intended? The candidates are absolute utility minus an
+  airframe cost; reference-relative utility (the current form, dimensionally coherent); or relative
+  mission success minus the fleet-loss fraction `c_fleet · n_lost / N_initial`, with `N_initial`
+  fixed and independent of losses. Coefficients are not interchangeable without calibration: with
+  `U_ref = K·u` and `U_aircraft = u` the current loss term is ≈ `c · n_lost / K`, and dividing
+  both sides by `u` adds no information. Is the reward-bearing target scope intended? Keep
+  physical kills, confirmed completion and scoring distinct. The reference is frozen before the FD
+  response, but its prefix, resources and continuation agents can depend on earlier actions, so
+  removing it is not one global action-independent shift. A larger `c` changes the trade-off, not
+  causal information or decision specificity. It may favour ABORT in both MILD and SEVERE. After
+  standardization, a larger raw penalty need not produce a proportionally larger update.
+- **First read-only deliverable:** state the intended objective in plain language, map its terms
+  to exact-run reward and accounting records, and assess whether the loss cost is actually weak.
+  For the same fixed reference, `E[R_PLAN − R_ABORT] = (ΔU − c · U_aircraft · ΔL) / D`. When
+  `ΔL > 0` and `U_aircraft > 0`, the crossover is `c* = ΔU / (U_aircraft · ΔL)`. Ask whether
+  evidence can identify a range that favours PLAN in recoverable MILD states and ABORT in SEVERE
+  states; sampled-action means across different worlds cannot. Algebraic rescoring
+  `R_i(c) = q_i − c · p_i` of complete saved batches can describe sensitivity on fixed trajectories
+  only, not retrained behaviour. No sweep, replay or rollout. Examine empty or near-zero reference
+  cases only where records contain them.
+- **Anchors:** [reward and solvers §1–§2](docs/contracts/reward_solvers.md#2-event-conditioned-continuation-reference);
+  `graph_episode_setup._reference_universe`, `_reference_aircraft_utility`,
+  `build_continuation_reference`; `graph_reward.realized_utility`, `_event_conditioned_breakdown`;
+  `graph_train.TrainConfig` and its `reward_config`.
+
+#### CREDIT-01 — What should one sparse, multi-owner decision's learning signal estimate?
+
+- **Status:** selected. Not a diagnosed ordering bug, and no replacement algorithm is chosen.
+- **Known:** one `Transition` is one policy wake, not one tick. Execution continues between wakes
+  and after the last one, and that physical tail enters `R`. After ABORT the `rtb_issued` latch
+  removes the ego from Phase 1, so it makes no further decisions, but its physical return or loss
+  still counts. No-comms, long gaps and `gamma = 1` do not make decisions independent, and a
+  private observation is not automatically Markov. actor_only groups by ego
+  (`EpisodeRecord.from_trajectory`), but at `gamma = 1` `_chain_returns` gives every transition
+  the episode `R`. Reordering therefore cannot change its scalar credit
+  ([measurements §10.7](docs/history/measurements.md#107-structural-credit-limitation)). CTDE's
+  `_gae_pass` runs per episode over the global decision order. The next sample may belong to
+  another ego or to the same tick. `gamma` and `lambda` advance per decision, not per elapsed
+  tick, and `lambda = 0.95` still weights later TD residuals at `gamma = 1`. `lambda` is an
+  estimator parameter, not a preference for earlier actions.
+- **Question:** should a decision's signal estimate its association with team return, its
+  improvement over the expected continuation at that decision, or its incremental value against a
+  meaningful alternative? First state the sequential team objective: decision state, action,
+  consequence interval, reward and terminal boundary. Only then choose per-ego or global credit.
+- **CREDIT-02 (linked subquestion):** compare full-return plus conditional-baseline estimates, the
+  current GAE, temporal redistribution and counterfactual team contribution for asynchronous,
+  partially observed cooperative execution. Separate temporal from inter-agent credit, prediction
+  error from estimator bias and variance, and objective preservation from numerical conditioning.
+  The ENGAGE(A) → completion(A) idea is a motivation, not a selected rule:
+  - an `(ego, target)` confirmation does not prove that ego's decision caused the kill;
+  - ABORT can have value with no positive target event;
+  - target-only rewards can change the team objective;
+  - preserving the return is necessary for a redistribution, but not proof of correct credit.
+
+  **Implementation fact:** actor_only consumes `EpisodeRecord.episode_reward` through
+  `_chain_returns`, not the per-transition reward fields, so editing only `Transition.reward`
+  leaves its signal unchanged. CTDE does read `Transition.reward` (`episode_rewards_sequence`; the
+  terminal `R` sits on the last transition). A proposal must specify both the reward assignment and
+  the estimator that consumes it. Literature starting points (no winner is inferred from
+  success elsewhere): [COMA](https://arxiv.org/abs/1705.08926) (use the corrected v3),
+  [Difference Rewards Policy Gradients](https://www.ifaamas.org/Proceedings/aamas2021/pdfs/p1475.pdf),
+  [RUDDER](https://proceedings.neurips.cc/paper/2019/hash/16105fb9cc614fc29e1bda00dab60d41-Abstract.html)
+  ([author project](https://github.com/ml-jku/rudder)), and
+  [baseline background](https://spinningup.openai.com/en/latest/spinningup/rl_intro3.html).
+- **RECORD-01 (conditional subcheck):** `EpisodeResult` and `graph_train._EpisodeOutcome` keep
+  `ended` (`done` / `terminated` / `truncated`, where the tick cap gives `truncated`) and `ticks`.
+  `EpisodeRecord` and `CTDEEpisodeRecord` do not carry the end reason, and `_gae_pass` uses
+  `V_next = 0` at every episode's last decision. First check the exact runs' outcome end reasons
+  and the intended horizon. A finite task horizon can legitimately use a zero bootstrap. If the
+  relevant runs do not truncate unfinished tasks, close this explanation for them. Do not require
+  `next_obs` / `done` fields, or samples for deterministic executor ticks, merely because they are
+  conventional elsewhere. Preserve the alignment of pre-action graph, action and old log-prob, and
+  keep same-tick sequence order.
+- **First read-only deliverable:** trace one small existing episode across owners, wake kinds and
+  the physical tail. Define successor and terminal meaning. Compare the exact actor_only and CTDE
+  formulas with the candidate credit targets, stating information needs, bias and variance, and
+  team-objective implications. Reuse existing identifiers, ticks and diagnostics. No replay, new
+  instrumentation, CTDE repartitioning or replacement algorithm.
+- **Reuse:** the cross-owner value discontinuities of
+  [measurements §13.7](docs/history/measurements.md#137-owner-transition-audit-read-only-descriptive).
+  Also the `lambda = 1` diagnostic of §14 (`68055e3…`, 100 updates, FD100): evidence against
+  intermediate cross-owner bootstrap as a sufficient explanation. It did not test a per-ego CTDE
+  redesign and must not be rerun.
+- **Anchors:** [policy and CTDE §4](docs/contracts/policy_ctde.md#4-phase-b-ctde),
+  [runtime §5](docs/contracts/runtime.md#5-resync-stage-6-and-the-two-phase-tick-loop);
+  `graph_tick_loop.Transition`, `EpisodeResult`, `_wake_decision`, `run_episode`;
+  `graph_ppo.EpisodeRecord.from_trajectory`, `_chain_returns`, `compute_returns_and_advantages`,
+  `CTDEEpisodeRecord.from_episode`, `_gae_pass`, `compute_ctde_advantages`;
+  `graph_train._run_one_episode`, `_EpisodeOutcome`; `graph_reward.compute_episode_reward`.
+
+#### BASELINE-01 — Conditional baseline, decision weighting and the actual update direction
+
+- **Status:** selected. It also carries the credit-to-update question left by the PPO / clipping
+  walkthrough. Actor-only's coarse baseline is an intentional simple estimator, not automatically a
+  bug. CTDE already uses `V(global_state, acting_ego)`, so "add a critic" is not a new proposal.
+- **Known** (`compute_returns_and_advantages`, `gamma = 1`):
+  - `b` = the mean episode `R` over all records, zero-wake records included;
+  - `raw_i = R_episode(i) − b`;
+  - `A_i = (raw_i − mean_T(raw)) / (std_T(raw) + eps) = (R_episode(i) − mean_T(R)) / (std_T(R) + eps)`,
+    using the population std over transitions.
+
+  Any shared `b` therefore cancels. Episodes with more wakes contribute more samples to these
+  moments and to the transition-mean surrogate, but not necessarily proportionally more net
+  parameter influence. Assess event frequency and policy-induced stopping before mandating
+  per-episode weighting.
+- **SEVERE both-negative interpretation (belongs here, not in a sign fix).**
+  [Measurements §10.6](docs/history/measurements.md#106-credit-findings) records 752 SEVERE
+  immediate-FD rows: 202 ABORT and 550 NON-ABORT. Group means derived from its counts, means and
+  gaps (not new runs) are ≈ `−0.176053` / `−0.380680` raw and ≈ `−1.017052` / `−1.193543`
+  normalized. They pool different worlds and updates, so they are neither paired action values
+  nor a gradient direction. For one observation with exactly two legal actions, pushing PLAN
+  down pushes ABORT up, so both groups being negative does not imply that both probabilities
+  fall. Other states, or additional legal ENGAGE actions, need a separate reading. An exact
+  conditional advantage is policy-mean-zero at each state; a sampled estimate or global batch
+  centering need not be. The ideal invariance to an action-independent baseline does not carry
+  over to finite-batch, normalized, clipped PPO epochs with Adam.
+- **Question:** would a baseline conditioned on the relevant pre-action state or history reduce
+  between-world difficulty variance and give a useful local comparison? It must never condition
+  on the sampled action. Does the available within-SEVERE signal actually move `P(ABORT)` the
+  desired way once sample counts, probabilities, state-dependent gradients, non-FD samples and
+  PPO / Adam are combined? A better `V` predictor need not estimate counterfactual contribution.
+- **First read-only deliverable:** assess conditioning first. Then trace existing credit through
+  sample counts and probabilities, local gradients, non-FD contributions and the actual parameter
+  and probability change. Keep raw versus normalized advantages, group means, local pressure and
+  actual steps distinct. Reuse the existing per-update diagnostics. Do not, by default, force ABORT
+  advantages positive, normalize by chosen action or split MILD / SEVERE batches.
+- **Reuse:** measurements §10.6–§10.7, §11 and §12–§16, and the qualified §18.
+- **Anchors:** `graph_ppo.compute_returns_and_advantages`, `clipped_surrogate`, `PPOUpdater`,
+  `compute_ctde_advantages`, `CTDEUpdater`;
+  [artifacts and metrics §5](docs/contracts/artifacts_metrics.md#5-per-wake-fd-policy-diagnostics).
+
+#### CRITIC-01 — Central-graph and acting-ego walkthrough / review
+
+- **Status:** selected. The user requested a deep, intuitive read-only review. It is not a critic
+  intervention, so it is consistent with the 2026-09-19 direction that excluded another critic,
+  readout or `lambda` intervention.
+- **Known:** current `main` already marks the acting agent's node EGO and every other live agent
+  node PEER (`CentralGraphObservation.ego_index` feeding the encoder's role embedding). It
+  mean-pools all node embeddings (`GraphEncoder.pool`) and applies `ValueHead`; there is no
+  explicit ego concatenation. The critic has its own encoder instance with the central widths and
+  receives the central `edge_attr`. The retired `[mean pool ; acting-node embedding]` readout
+  took the acting node's embedding from that same critic encoder, not from a separately trained
+  ego encoder ([measurements §13](docs/history/measurements.md#13-generalized-v2-explicit-acting-ego-readout-ctde-development-diagnostic-and-owner-transition-audit)).
+- **First read-only deliverable:**
+  1. Map node populations and liveness, node and edge features, normalization, topology, capture
+     timing, roles, message passing, pooling and the value head.
+  2. Explain what the critic can know about the scored continuation, what may be absent
+     (executor, history or reference context; a privileged snapshot is not automatically Markov)
+     and what is merely a different encoding.
+  3. Explain why the decision owner could change the expected continuation.
+  4. Only then compare role-only pooling, the tested explicit readout and any justified
+     alternative, naming the missing capability each would address.
+
+  Keep representation, prediction quality, advantage quality and behaviour separate. No automatic
+  feature addition, concat / attention / readout change or duplicate experiment. Training-only
+  central information must never reach actor inputs, masks or runtime knowledge.
+- **Anchors:** [policy and CTDE §4](docs/contracts/policy_ctde.md#4-phase-b-ctde);
+  `central_graph_builder.CentralGraphObservation`, `build_central_graph_observation`,
+  `CentralStateRecorder.capture`; `graph_encoder.GraphEncoder._node_inputs`, `pool`;
+  `graph_ppo.CentralCritic`, `ValueHead`; measurements §12–§16.
+
+#### HEAD-01 — How should the actor's global PLAN / ABORT scores be read from its private graph?
+
+- **Status:** deferred architecture candidate, the stronger of the two. No defect or cause is
+  established.
+- **Known:** `ActionHead` emits k × 3 SOURCE scores. `graph_action._semantic_dist` already forms
+  the semantic k + 2 leaves of `semantic_k_plus_2_logmeanexp_v1` (PR #70; do not propose that
+  migration again):
+  - PLAN is the logmeanexp of all k PLAN scores;
+  - ABORT is the logmeanexp of the ABORT scores on ego-assigned task nodes only;
+  - there is one ENGAGE(task_i) leaf per task.
+
+  Legality comes from `build_action_mask`. ENGAGE is legal iff the task is unassigned AND sensed
+  AND capable AND reachable, which is not the same as newly discovered this tick. ABORT is legal
+  iff the ego has at least one assignment, and PLAN is always legal. The legal count is therefore
+  `1 + I(ABORT legal) + #legal ENGAGE`. Masked leaves carry zero mass, and PLAN / ABORT are stored
+  with `node_v = None`.
+- **Question and first read-only deliverable:** what information and gradient paths does the
+  current aggregation keep or lose? PLAN includes task components disconnected from the ego;
+  ABORT uses only the ego-assigned subset. Would a direct ego / mission readout for PLAN and
+  ABORT, keeping target-specific ENGAGE, be a better decision representation? Masks settle
+  legality, not readout design. Gathering unchanged legal logits into a smaller vector preserves
+  the distribution, whereas deleting task nodes changes the representation. Use actor-private
+  information only; the critic readout experiments do not test this actor question.
+- **Anchors:** [policy and CTDE §2](docs/contracts/policy_ctde.md#2-encoder-action-head-and-selection-stage-4)
+  and [§6](docs/contracts/policy_ctde.md#6-known-limitations-and-open-items);
+  `graph_action.ActionHead`, `build_action_mask`, `_semantic_dist`, `sample_action`,
+  `evaluate_action`; `graph_encoder.GraphEncoder.forward`. Test bodies in
+  `tests/test_graph_semantic_action_credit.py`:
+  `test_s2_plan_is_exact_logmeanexp_and_duplication_gives_no_bonus`,
+  `test_s3_abort_is_logmeanexp_over_abort_legal_nodes_only`,
+  `test_s8_gradients_route_only_through_legal_source_scores`.
+
+#### OBS-01 — Does an unassigned target need direct ego / remaining-mission context?
+
+- **Status:** deferred architecture candidate, behind the credit track. The structural restriction
+  is verified; its behavioural importance is unproven, and no current ENGAGE failure is
+  established.
+- **Known:** `_wake_decision` passes `precedence_relations=[]`, and the builder constructs only
+  ASSIGNMENT edges (SPATIAL is reserved and unbuilt). An unassigned target therefore has only its
+  encoder self-loop. It keeps its own ego-relative distance, capability, reachability and sensing
+  columns, plus time. But with the other features and topology fixed, the ego row's `fuel_norm`
+  and `mission_fuel_slack_norm` cannot message into its embedding
+  (`test_po6_slack_reaches_the_assigned_task_scores_only_through_the_graph`). Its final ENGAGE
+  probability can still depend on ego context through the competing global PLAN / ABORT leaves,
+  and fuel can affect its reachability column and legality.
+- **Question:** when judging whether a legal opportunity is worth adding, would an ego-private
+  sensed / context relation supply useful mission context? Such a relation must stay semantically
+  distinct from ASSIGNMENT: sensing a target is never an engagement already chosen. It may use only
+  the acting ego's allowed knowledge — no peer sensing, live peer plans, privileged positions,
+  hidden inventory or future outcomes. Strong opportunistic-ENGAGE learning is user-reported
+  context unless tied to an exact run, metric and denominator. Frequent engagement alone would not
+  test the rejection of costly opportunities.
+- **OBS-02 (linked subquestion):** distance, capability, reachability and sensing are ego–target
+  relations. Storing them on task nodes is still well-defined in a one-ego graph, and relocating
+  unchanged values adds no information. In the encoder, `edge_attr` enters only the additive
+  attention bias, not node or value payloads, and the actor passes none today. Moving features
+  onto edges is therefore not automatically equivalent. A sensing-only edge would leave known
+  out-of-range tasks without that relation. Separate added connectivity from relocation, and never
+  copy the critic's pairwise graph into the actor.
+- **First read-only deliverable:** trace the actor-private context available to an unassigned
+  target and compare designs without peer-state leaks, preserving mask semantics and feature
+  access. No graph refactor is selected.
+- **Anchors:** [policy and CTDE §1](docs/contracts/policy_ctde.md#1-graph-observation-stage-3)
+  and [§6](docs/contracts/policy_ctde.md#6-known-limitations-and-open-items);
+  `graph_builder.build_graph_observation`; `graph_tick_loop._wake_decision`;
+  `graph_encoder.GraphEncoder._node_inputs`, `_build_adj_bias`, `_GraphAttentionLayer.forward`;
+  `tests/test_graph_mission_fuel_slack.py`.
+
+#### Closed dispositions (not open repair tasks)
+
+- **REWARD-00 — realized prefix.** `U_prefix` is realized CONFIRMED all-steps task utility over
+  the retained t = 0 tasks. It is taken from a copy of `executor.done` at the post-damage,
+  pre-response checkpoint (`build_continuation_reference`). It is frozen there: not a solver
+  prediction and not an end-of-episode recomputation. The solver supplies `U_cont_ref`. No repair.
+- **PEER-01 — zero peer rows.** Peer rows carry no physical state. That makes neither their
+  embeddings zero nor a statement that the peer has zero fuel: the shared agent projection's
+  learned (zero-initialized) bias, the PEER role, time and assignment neighbours all contribute.
+  No independent repair. A new peer feature needs an explicit allowed-knowledge argument, such as
+  an explicitly shared initial fact, kept separate from runtime estimates and hidden live state.
+- **SCALE-01 — reward sign and units.** On an unchanged actor_only batch at `gamma = 1`, a common
+  return shift cancels and a positive global rescale preserves normalized advantages up to eps and
+  numerics. A positive reward is therefore not in itself a fix. Per-step bonuses, per-world
+  scaling, `c` changes and target-universe changes are different operations. CTDE value fitting
+  need not be scale-invariant. `log π ≤ 0` is normal; keep logits, log-probs and losses distinct
+  from advantages. PPO's ratio compares the same stored action's probabilities, not old and new
+  episode outcomes.
+- **The k × 3 action misconception** is covered by HEAD-01's known facts.
+- **PPO / evaluation walkthrough — interpretation guard only.** No standalone repair and no
+  clipping, epoch, Adam, entropy or benchmark change is selected. The guard:
+  - probability separation, selected-action switches and mission utility / losses are different
+    quantities;
+  - the primary V2 endpoint is the paired SEVERE-minus-MILD semantic `P(ABORT)` at the certified
+    ego's immediate-FD wake, summarized per base cell and then macro-averaged equally over the ten
+    cells, with eligibility and denominators reported
+    ([training and benchmarks §9](docs/contracts/training_benchmarks.md#9-generalized-v2-benchmark-and-evaluation));
+    development is 20 triads / 60 members, not 20 episodes;
+  - deterministic argmax removes action-sampling randomness, not all simulator nondeterminism;
+  - a 0.5 threshold applies only when exactly two actions are legal;
+  - repeated development evaluation is not confirmatory, and the profile split stays;
+  - a changed reward definition requires reading raw outcomes alongside reward values.
+
+  This guard authorizes no new evaluation, seeds, metrics or threshold changes.
 
 **Known low-priority maintenance:** none open from PR #79 — the `graph_encoder` module
 self-test's stale `isinstance(node, int)` assertion was corrected with it.
@@ -370,10 +675,12 @@ self-test's stale `isinstance(node, int)` assertion was corrected with it.
   round-trip placeholder and route-relative distance representation / clipping
   ([policy and CTDE §6](docs/contracts/policy_ctde.md#6-known-limitations-and-open-items));
 - local causal credit at the immediate-FD decision: actor-only instrumentation cannot provide it
-  (measurements §10.7); any change to reward or credit structure would need its own decision;
+  (measurements §10.7). This is now framed as CREDIT-01 / CREDIT-02 (§5.1); any change to reward
+  or credit structure would need its own decision;
 - undecided local items left untouched by the 2026-09-19 cleanup, each needing its own decision:
   `src/match_aou/rl.zip`, `legacy/run_capture.log`, `src/match_aou/rl/observation/rollouts/` and
-  the now-empty directory `C:\gruns\`
+  the directory `C:\gruns\` (empty at that cleanup; it now holds the two unarchived run directories
+  of §2)
   ([`environments_cleanup.md` §4.7](docs/workflows/environments_cleanup.md#47-cleanup-already-performed));
 - a separate code task to correct the V2 `generalized.cardinality_sampler` summary label in
   `graph_train._generalized_summary`, without touching archived artifacts;
@@ -388,11 +695,12 @@ self-test's stale `isinstance(node, int)` assertion was corrected with it.
 
 ## 6. Blocked or unauthorized now
 
-The active credit-to-update diagnostic task (§2) is authorized ONLY for what its plan names: the
-opt-in observational actor-only step instrumentation, its tests and contracts, ONE 100-update
-development diagnostic with its evidence, and the PR #79 status closure. Everything below stays
-blocked for it too — in particular any second run, restart, resume, seed replication, extension,
-tuning, reward / credit redesign, observation change, confirmatory evaluation, merge or cleanup.
+No research task is active. The documentation task of §2 is authorized ONLY to record the §5.1
+questions and the PR #80 status closure in this file and the decision log. **Recording a §5.1
+question authorizes nothing**, neither for that task nor for a future research chat: no code,
+test, configuration, preset, reward, observation, action, critic or optimizer change; no training,
+evaluation, preflight, replay, checkpoint loading, tuning, cleanup or merge. The credit-to-update
+diagnostic's authorization is spent: no second run, restart, resume, seed replication or extension.
 
 - reopening closed evidence PRs #71 or #73, or deleting the undecided local items of §5, without
   explicit authorization;
@@ -405,8 +713,8 @@ tuning, reward / credit redesign, observation change, confirmatory evaluation, m
   documentation-maintenance task; any implementation
   not separately authorized — including re-introducing the explicit critic readout or changing
   the default `gae_lambda` — and in particular training semantics,
-  action-conditioned gradient subgroups, actor-only gradient instrumentation beyond the active
-  task's observational step diagnostic, reachability,
+  action-conditioned gradient subgroups, actor-only gradient instrumentation beyond the integrated
+  observational step diagnostic, any implementation arising from a §5.1 question, reachability,
   distance normalization / clipping or other observation features, the reward or reward shaping,
   FD events or physics, the V2 population / benchmark / profiles, PPO hyperparameters (learning
   rate, lambda, entropy, clipping), batch size, stratified loss weighting, oversampling / replay,
@@ -439,7 +747,7 @@ Protected refs: `phase-a-baseline`, `pre-ctde-actor-only`, `flat-final` and tag 
 Remaining local worktrees: the main checkout, `C:/Users/Itama/PycharmProjects/flat-baseline`
 (branch `flat-final`) and the mission-slack measured source `C:/gms1src` (detached at
 `3bc944119da08af8e25268c9ee83fc63a8d1e533`, retained; its removal is not authorized) and the
-active task's measured source `C:/gcud1src` (detached at
+credit-to-update diagnostic's measured source `C:/gcud1src` (detached at
 `644883b89c208255f5808432462be64be5d7589f`, retained; no cleanup authorized); `C:/grolelambda1` is absent and
 unregistered
 ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
@@ -464,9 +772,13 @@ five runs are indexed compactly by `semantic_ctde_grad_diag_r1/` (merged with PR
   diagnostics and the three acting-ego diagnostics only; no preserved run under the historical
   representation has it, and under actor-only it is episode / chain-level, not local FD-action
   credit (measurements §10.7). `train_actor_gradient_diagnostics.jsonl` exists only for those five
-  CTDE diagnostics, and decomposes PPO epoch 0 only. No preserved run before the active task
-  carries actor-only gradients or actual parameter displacements
+  CTDE diagnostics, and decomposes PPO epoch 0 only. Only the credit-to-update diagnostic
+  (measurements §18) carries actor-only gradients and actual parameter displacements
   (`train_actor_step_diagnostics.jsonl`).
+- Measurements §18's own heading, status line and registry row still record the pre-approval
+  state ("executed, unreviewed", awaiting re-review). The approval and merge are recorded here
+  (§1) and in [`decisions.md` §1](docs/history/decisions.md#1-decision-log) (2026-09-25); §18 is
+  not rewritten by the documentation task that added this note.
 - The diagnostics' record streams and checkpoints are not in Git; they are identified by SHA-256
   in the evidence manifests and held only in the `C:\gra\` archive.
 - The two semantic-action R1 credit streams were renamed after their evidence commits
