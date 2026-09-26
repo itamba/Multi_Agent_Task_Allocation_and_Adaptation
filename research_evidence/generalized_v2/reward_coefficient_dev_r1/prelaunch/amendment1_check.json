@@ -1,0 +1,146 @@
+{
+ "record": "amendment1_check",
+ "record_version": 1,
+ "scientific_execution": "none",
+ "argv_after_python": [
+  "-m",
+  "match_aou.rl.training.graph_train",
+  "--config",
+  "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+  "--out",
+  "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019"
+ ],
+ "checks": [
+  {
+   "check": "v2_passes_recorded_launch1_round",
+   "pass": true,
+   "detail": {
+    "stop_reasons": [],
+    "n_ego_id_diffs": 24,
+    "n_tick_diffs": 12,
+    "max_dp": 1.7881393432617188e-07
+   }
+  },
+  {
+   "check": "v2_records_the_ego_and_tick_differences",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "v2_stops_on_selected_action_flip",
+   "pass": true,
+   "detail": [
+    "wake sequence / selected action differs"
+   ]
+  },
+  {
+   "check": "v2_stops_on_probability_shift_1e-5",
+   "pass": true,
+   "detail": [
+    "semantic probability differs by 1e-05 > 1e-06"
+   ]
+  },
+  {
+   "check": "v2_stops_on_frozen_world_seed_change",
+   "pass": true,
+   "detail": [
+    "frozen-world identity differs"
+   ]
+  },
+  {
+   "check": "v2_stops_on_wake_removed",
+   "pass": true,
+   "detail": [
+    "wake sequence / selected action differs"
+   ]
+  },
+  {
+   "check": "launch2_config_equals_preflight_except_output_dir",
+   "pass": true,
+   "detail": []
+  },
+  {
+   "check": "launch2_config_source",
+   "pass": true,
+   "detail": {
+    "path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+    "absolute_path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+    "format": "json",
+    "config_fields": [
+     "actor_gradient_diagnostics",
+     "actor_step_diagnostics",
+     "actor_step_vector_iterations",
+     "aircraft_penalty_coeff",
+     "base_seed",
+     "benchmark_manifest",
+     "benchmark_profile",
+     "checkpoint_every",
+     "ctde.critic_lr",
+     "ctde.gae_lambda",
+     "ctde.value_coeff",
+     "early_stopping",
+     "early_stopping_min_delta",
+     "early_stopping_min_iterations",
+     "early_stopping_patience_windows",
+     "early_stopping_window_iterations",
+     "episode_design",
+     "episodes_per_iteration",
+     "eval_base_seed",
+     "eval_episodes",
+     "eval_every",
+     "fuel_damage_leg_progress",
+     "fuel_damage_mild_probability",
+     "fuel_damage_mode",
+     "fuel_damage_probability",
+     "fuel_damage_rtb_margin",
+     "generalized_max_attempts_per_iteration",
+     "include_sams",
+     "match_aou_backend",
+     "max_ticks",
+     "min_known_separation_km",
+     "min_target_distance_km",
+     "n_hidden",
+     "n_iterations",
+     "n_known",
+     "num_agents",
+     "num_red_airbases",
+     "partial_ratio",
+     "ppo.adv_norm_eps",
+     "ppo.clip_ratio",
+     "ppo.entropy_coeff",
+     "ppo.gamma",
+     "ppo.lr",
+     "ppo.max_grad_norm",
+     "ppo.n_epochs",
+     "randomize_red_airbase_positions",
+     "stretch_target_ratio",
+     "training_mode",
+     "visual_artifacts"
+    ],
+    "cli_overrides": [],
+    "resolved_from": "config_file"
+   }
+  },
+  {
+   "check": "launch2_reward_coefficient",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "worktree_head_measured_and_clean",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "match_aou_from_worktree",
+   "pass": true,
+   "detail": "C:\\grc1src\\src\\match_aou\\__init__.py"
+  },
+  {
+   "check": "launch2_output_absent",
+   "pass": true,
+   "detail": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019"
+  }
+ ],
+ "pass": true
+}
