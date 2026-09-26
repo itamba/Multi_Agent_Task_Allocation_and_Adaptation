@@ -15,6 +15,11 @@ It reads the two runs' ``episode_outcomes.jsonl`` and the launcher's
 ``pre_update_identity.json``, hashes them before and after, and writes one JSON record.
 
 Usage: python audit_pre_update_stop.py <out.json>
+
+This audit describes the VERSION-1 rule that stopped arm B's first launch. It reproduces
+``stop_record/pre_update_stop_audit.json`` only with ``compare_pre_update.py`` at record
+version 1 (evidence commit ``7f5ed25b1b6172cb7891dc2d038dccecf938041f``); amendment 1 later
+moved ``ego_id`` / ``tick`` to record-only.
 """
 
 import hashlib

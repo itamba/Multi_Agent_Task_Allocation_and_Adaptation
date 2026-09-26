@@ -6,12 +6,20 @@ load. The rule is fixed in ``authorized_plan.json:/pre_update_mismatch_rule``:
 
   STOP (``stop = True``) if
     * the member sets differ, or any frozen-world identity field differs for a member;
-    * any member's wake sequence differs in count, wake kind, ego, tick, selected meta-action
-      or selected leaf;
+    * any member's wake sequence differs in count, wake kind, selected meta-action or
+      selected leaf;
     * any recorded semantic meta-action probability differs by more than ``PROB_TOL``.
 
-  RECORD ONLY: episode outcomes (utility, deaths, ticks, end reason, FD fields), the reward
-  ratio, and whether arm B's penalty is exactly twice arm A's (4.5 / 2.25).
+  RECORD ONLY: wake ``ego_id`` and ``tick`` differences, episode outcomes (utility, deaths,
+  ticks, end reason, FD fields), the reward ratio, and whether arm B's penalty is exactly
+  twice arm A's (4.5 / 2.25).
+
+Record version 2 (amendment 1, user-authorized 2026-09-26): version 1 also stopped on wake
+``ego_id`` and ``tick``. That stopped arm B's first launch although no world, action or
+probability difference existed: in the A5 / A6 worlds ego ids are generated per episode (they
+differ even between arm A's own rounds of one frozen world), and wake ticks differ by 1-2 ticks
+between same-seed runs (the recorded simulator timing class). See
+``stop_record/README.md`` and ``authorized_plan_amendment_1.json``.
 
 ``compare(b_run, a_run)`` returns ``None`` while arm B's pre-update round is incomplete, and
 otherwise a report dict. It never writes into either run directory.
@@ -28,7 +36,8 @@ PENALTY_RATIO = 4.5 / 2.25
 IDENTITY_FIELDS = ("seed", "episode_tag", "benchmark_group_key", "benchmark_manifest_id",
                    "benchmark_stratum", "benchmark_world_ordinal", "benchmark_world_identity",
                    "fuel_damage_mode", "cell", "severity")
-WAKE_FIELDS = ("wake_kind", "ego_id", "tick", "selected_meta_action_name", "selected_leaf")
+WAKE_FIELDS = ("wake_kind", "selected_meta_action_name", "selected_leaf")
+WAKE_RECORD_ONLY_FIELDS = ("ego_id", "tick")
 OUTCOME_FIELDS = ("u_achieved", "u_ref", "u_prefix", "u_cont_ref", "u_post", "u_aircraft",
                   "n_dead", "ticks", "ended", "n_wakes", "targets_confirmed_unique",
                   "unique_completed_targets", "scored_completed_targets",
@@ -72,7 +81,7 @@ def compare(b_run: Path, a_run: Path):
     a = load_pre_update(a_run)
     if a is None:
         raise ValueError("arm A's pre_update round is incomplete: %s" % a_run)
-    reasons, identity_mismatch, wake_mismatch = [], [], []
+    reasons, identity_mismatch, wake_mismatch, wake_record_only = [], [], [], []
     max_dp, n_wakes, outcome_diff, penalty_ratio_bad = 0.0, 0, [], []
     if set(a) != set(b):
         reasons.append("member sets differ")
@@ -91,6 +100,10 @@ def compare(b_run: Path, a_run: Path):
                 if x.get(f) != y.get(f):
                     wake_mismatch.append({"member": list(key), "wake": i, "field": f,
                                           "a": x.get(f), "b": y.get(f)})
+            for f in WAKE_RECORD_ONLY_FIELDS:
+                if x.get(f) != y.get(f):
+                    wake_record_only.append({"member": list(key), "wake": i, "field": f,
+                                             "a": x.get(f), "b": y.get(f)})
             px, py = _probs(x), _probs(y)
             if set(px) != set(py):
                 wake_mismatch.append({"member": list(key), "wake": i,
@@ -111,14 +124,18 @@ def compare(b_run: Path, a_run: Path):
     if max_dp > PROB_TOL:
         reasons.append("semantic probability differs by %.3g > %.0e" % (max_dp, PROB_TOL))
     return {
-        "record": "pre_update_identity", "record_version": 1,
-        "rule": "authorized_plan.json:/pre_update_mismatch_rule",
+        "record": "pre_update_identity", "record_version": 2,
+        "rule": "authorized_plan_amendment_1.json:/pre_update_mismatch_rule_v2",
         "arm_a_run": str(a_run), "arm_b_run": str(b_run),
         "n_members_a": len(a), "n_members_b": len(b), "n_wakes_compared": n_wakes,
         "identity_mismatches": identity_mismatch, "wake_mismatches": wake_mismatch,
         "max_abs_semantic_probability_difference": max_dp, "probability_tolerance": PROB_TOL,
         "stop": bool(reasons), "stop_reasons": reasons,
         "record_only": {
+            "wake_ego_id_or_tick_differences": wake_record_only,
+            "n_wake_ego_id_differences": sum(1 for d in wake_record_only
+                                             if d["field"] == "ego_id"),
+            "n_wake_tick_differences": sum(1 for d in wake_record_only if d["field"] == "tick"),
             "outcome_field_differences": outcome_diff,
             "n_members_with_outcome_differences": len({tuple(d["member"])
                                                        for d in outcome_diff}),

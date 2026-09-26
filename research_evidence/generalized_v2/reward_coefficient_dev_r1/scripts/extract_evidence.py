@@ -49,9 +49,13 @@ PKG = "research_evidence/generalized_v2/reward_coefficient_dev_r1"
 ARMS = {
     "A": {"coeff": 2.25, "label": "control", "preset": "arm_a_c2p25.json",
           "run": Path(r"C:\gruns") / ("reward_c225_r1_s3000000_" + SHORT)},
+    # Arm B's SECOND launch (amendment 1). Its first launch,
+    # C:\gruns\reward_c450_r1_s3000000_2b57019, was stopped at 120 s by the version-1
+    # pre-update rule; it is preserved (stop_record/) and not used here.
     "B": {"coeff": 4.5, "label": "intervention", "preset": "arm_b_c4p5.json",
-          "run": Path(r"C:\gruns") / ("reward_c450_r1_s3000000_" + SHORT)},
+          "run": Path(r"C:\gruns") / ("reward_c450_r1_l2_s3000000_" + SHORT)},
 }
+PLANNED_OUTPUT_DIR_OVERRIDE = {"B": str(ARMS["B"]["run"])}   # amendment 1: new fresh --out
 COMMON_C = (2.25, 4.5)
 REPRESENTATION = "semantic_k_plus_2_logmeanexp_v1"
 ACTOR_OBSERVATION_ID = "actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1"
@@ -252,12 +256,14 @@ def precheck(arm, a, rc, summary, train_records, eval_records, failures, launche
     require(rc["training"]["action_representation_id"] == REPRESENTATION, "%s: repr", arm)
     require(rc["training"]["mode"] == "actor_only", "%s: training mode", arm)
     pf = preflight["arms"][arm]
-    require(tc == pf["train_config"], "%s: train_config differs from the pre-launch resolution",
-            arm)
+    want_tc, want_argv = dict(pf["train_config"]), list(pf["argv_after_python"][2:])
+    if arm in PLANNED_OUTPUT_DIR_OVERRIDE:          # amendment 1: only --out changes
+        want_tc["output_dir"] = PLANNED_OUTPUT_DIR_OVERRIDE[arm]
+        want_argv[want_argv.index("--out") + 1] = PLANNED_OUTPUT_DIR_OVERRIDE[arm]
+    require(tc == want_tc, "%s: train_config differs from the pre-launch resolution", arm)
     require(rc["config_source"] == pf["config_source"], "%s: config_source differs", arm)
     argv = prov["invocation"]["argv"][1:]
-    require(argv == pf["argv_after_python"][2:], "%s: argv %s differs from the plan %s", arm,
-            argv, pf["argv_after_python"][2:])
+    require(argv == want_argv, "%s: argv %s differs from the plan %s", arm, argv, want_argv)
     require(Path(tc["output_dir"]) == run_dir, "%s: output_dir", arm)
     require(rc["difficulty"]["reward"]["aircraft_penalty_coeff"] == a["coeff"]
             and rc["difficulty"]["reward"]["formula_changed"] is False, "%s: reward block", arm)
