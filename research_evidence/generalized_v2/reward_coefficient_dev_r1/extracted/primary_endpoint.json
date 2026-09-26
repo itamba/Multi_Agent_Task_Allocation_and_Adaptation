@@ -1,0 +1,178 @@
+{
+ "B_minus_A_macro": 0.0016851983964443207,
+ "arms": {
+  "A": {
+   "aircraft_penalty_coeff": 2.25,
+   "both_abort": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "both_non_abort": {
+    "count": 20,
+    "denominator": 20,
+    "rate": 1.0
+   },
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.725290298461914e-08
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.2351741790771484e-08
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 6.332993507385254e-08
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.725290298461914e-08
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.2351741790771484e-08
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.60770320892334e-08
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 1.1175870895385742e-08
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 4.470348358154297e-08
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 2.2351741790771484e-08
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 3.725290298461914e-08
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "p_abort_mild_mean": 0.03149368800222874,
+   "p_abort_severe_mean": 0.03149372041225433,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "selected_abort_mild": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "selected_abort_severe": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 3.241002559661865e-08,
+   "updates_completed": 375
+  },
+  "B": {
+   "aircraft_penalty_coeff": 4.5,
+   "both_abort": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "both_non_abort": {
+    "count": 20,
+    "denominator": 20,
+    "rate": 1.0
+   },
+   "by_base_cell": {
+    "A2-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0003658495843410492
+    },
+    "A2-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0014141499996185303
+    },
+    "A3-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.002015627920627594
+    },
+    "A3-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.002626553177833557
+    },
+    "A4-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.001409873366355896
+    },
+    "A4-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.002330690622329712
+    },
+    "A5-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0007233023643493652
+    },
+    "A5-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0030724406242370605
+    },
+    "A6-D0": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0008123219013214111
+    },
+    "A6-D2": {
+     "n_metric_eligible_groups": 2,
+     "severe_minus_mild_mean": 0.0020814985036849976
+    }
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "eval_round_ordinal": 15,
+   "evaluation_stage": "post_update",
+   "macro_n_base_cells_defined": 10,
+   "n_groups_complete": 20,
+   "n_groups_metric_eligible": 20,
+   "p_abort_mild_mean": 0.2293906707316637,
+   "p_abort_severe_mean": 0.23107590153813362,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "selected_abort_mild": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "selected_abort_severe": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "severe_minus_mild_macro_over_base_cells": 0.0016852308064699173,
+   "updates_completed": 375
+  }
+ },
+ "common_group_contrast": null,
+ "eligibility_identical_between_arms": true,
+ "final_round_selection": "semantic: evaluation_stage post_update, updates_completed 375 (cross-checked against each trainer's final_eval_selection)",
+ "missing_is_never_zero": true,
+ "primary_endpoint": "per arm: final-round ten-base-cell macro P(ABORT|SEVERE) - P(ABORT|MILD) at the certified ego's immediate-FD wake; B minus A"
+}

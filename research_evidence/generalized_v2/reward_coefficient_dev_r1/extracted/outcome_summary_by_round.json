@@ -1,0 +1,5190 @@
+{
+ "A": [
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.6150414648555245,
+    "R_c4p5_mean": -0.6900414554805255,
+    "agents_sum": 240,
+    "deaths_sum": 2,
+    "ended_counts": {
+     "done": 57,
+     "truncated": 3
+    },
+    "episodes_with_any_death": {
+     "count": 2,
+     "denominator": 60,
+     "rate": 0.03333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 29,
+     "denominator": 40,
+     "rate": 0.725
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.03333332916666719,
+    "q_ratio_mean": -0.5400414742305233,
+    "reward_native_mean": -0.6150414648555245,
+    "scored_completed_targets_sum": 162,
+    "survivors_at_physical_completion_sum": 220,
+    "survivors_sum": 238,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 216.0,
+    "u_achieved_sum": 12960.0,
+    "u_post_mean": 202.66666666666666,
+    "u_ref_mean": 512.0,
+    "unique_completed_targets_sum": 172,
+    "unscored_completed_targets_sum": 10
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.5334036692876254,
+     "R_c4p5_mean": -0.5334036692876254,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 19,
+      "truncated": 1
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.5334036692876254,
+     "reward_native_mean": -0.5334036692876254,
+     "scored_completed_targets_sum": 61,
+     "survivors_at_physical_completion_sum": 74,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 244.0,
+     "u_achieved_sum": 4880.0,
+     "u_post_mean": 244.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 62,
+     "unscored_completed_targets_sum": 1
+    },
+    "mild": {
+     "R_c2p25_mean": -0.5737175187778533,
+     "R_c4p5_mean": -0.5737175187778533,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 19,
+      "truncated": 1
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 13,
+      "denominator": 20,
+      "rate": 0.65
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.5737175187778533,
+     "reward_native_mean": -0.5737175187778533,
+     "scored_completed_targets_sum": 52,
+     "survivors_at_physical_completion_sum": 74,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 208.0,
+     "u_achieved_sum": 4160.0,
+     "u_post_mean": 188.0,
+     "u_ref_mean": 512.0,
+     "unique_completed_targets_sum": 57,
+     "unscored_completed_targets_sum": 5
+    },
+    "severe": {
+     "R_c2p25_mean": -0.7380032065010946,
+     "R_c4p5_mean": -0.9630031783760982,
+     "agents_sum": 80,
+     "deaths_sum": 2,
+     "ended_counts": {
+      "done": 19,
+      "truncated": 1
+     },
+     "episodes_with_any_death": {
+      "count": 2,
+      "denominator": 20,
+      "rate": 0.1
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 16,
+      "denominator": 20,
+      "rate": 0.8
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.09999998750000157,
+     "q_ratio_mean": -0.5130032346260911,
+     "reward_native_mean": -0.7380032065010946,
+     "scored_completed_targets_sum": 49,
+     "survivors_at_physical_completion_sum": 72,
+     "survivors_sum": 78,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 196.0,
+     "u_achieved_sum": 3920.0,
+     "u_post_mean": 176.0,
+     "u_ref_mean": 460.0,
+     "unique_completed_targets_sum": 53,
+     "unscored_completed_targets_sum": 4
+    }
+   },
+   "eval_round_ordinal": 0,
+   "updates_completed": 0
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 1,
+   "updates_completed": 25
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 2,
+   "updates_completed": 50
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 3,
+   "updates_completed": 75
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 4,
+   "updates_completed": 100
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 5,
+   "updates_completed": 125
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 6,
+   "updates_completed": 150
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 7,
+   "updates_completed": 175
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 8,
+   "updates_completed": 200
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 9,
+   "updates_completed": 225
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 10,
+   "updates_completed": 250
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 11,
+   "updates_completed": 275
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 12,
+   "updates_completed": 300
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 13,
+   "updates_completed": 325
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 14,
+   "updates_completed": 350
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.22090772519138296,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -0.6502231757694614,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 15,
+   "updates_completed": 375
+  }
+ ],
+ "B": [
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.6150414648555245,
+    "R_c4p5_mean": -0.6900414554805255,
+    "agents_sum": 240,
+    "deaths_sum": 2,
+    "ended_counts": {
+     "done": 57,
+     "truncated": 3
+    },
+    "episodes_with_any_death": {
+     "count": 2,
+     "denominator": 60,
+     "rate": 0.03333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 29,
+     "denominator": 40,
+     "rate": 0.725
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.03333332916666719,
+    "q_ratio_mean": -0.5400414742305233,
+    "reward_native_mean": -0.6900414554805255,
+    "scored_completed_targets_sum": 162,
+    "survivors_at_physical_completion_sum": 220,
+    "survivors_sum": 238,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 216.0,
+    "u_achieved_sum": 12960.0,
+    "u_post_mean": 202.66666666666666,
+    "u_ref_mean": 512.0,
+    "unique_completed_targets_sum": 172,
+    "unscored_completed_targets_sum": 10
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.5334036692876254,
+     "R_c4p5_mean": -0.5334036692876254,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 19,
+      "truncated": 1
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.5334036692876254,
+     "reward_native_mean": -0.5334036692876254,
+     "scored_completed_targets_sum": 61,
+     "survivors_at_physical_completion_sum": 74,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 244.0,
+     "u_achieved_sum": 4880.0,
+     "u_post_mean": 244.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 62,
+     "unscored_completed_targets_sum": 1
+    },
+    "mild": {
+     "R_c2p25_mean": -0.5737175187778533,
+     "R_c4p5_mean": -0.5737175187778533,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 19,
+      "truncated": 1
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 13,
+      "denominator": 20,
+      "rate": 0.65
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.5737175187778533,
+     "reward_native_mean": -0.5737175187778533,
+     "scored_completed_targets_sum": 52,
+     "survivors_at_physical_completion_sum": 74,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 208.0,
+     "u_achieved_sum": 4160.0,
+     "u_post_mean": 188.0,
+     "u_ref_mean": 512.0,
+     "unique_completed_targets_sum": 57,
+     "unscored_completed_targets_sum": 5
+    },
+    "severe": {
+     "R_c2p25_mean": -0.7380032065010946,
+     "R_c4p5_mean": -0.9630031783760982,
+     "agents_sum": 80,
+     "deaths_sum": 2,
+     "ended_counts": {
+      "done": 19,
+      "truncated": 1
+     },
+     "episodes_with_any_death": {
+      "count": 2,
+      "denominator": 20,
+      "rate": 0.1
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 16,
+      "denominator": 20,
+      "rate": 0.8
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.09999998750000157,
+     "q_ratio_mean": -0.5130032346260911,
+     "reward_native_mean": -0.9630031783760981,
+     "scored_completed_targets_sum": 49,
+     "survivors_at_physical_completion_sum": 72,
+     "survivors_sum": 78,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 196.0,
+     "u_achieved_sum": 3920.0,
+     "u_post_mean": 176.0,
+     "u_ref_mean": 460.0,
+     "unique_completed_targets_sum": 53,
+     "unscored_completed_targets_sum": 4
+    }
+   },
+   "eval_round_ordinal": 0,
+   "updates_completed": 0
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.4145860136449692,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -1.23125804113022,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 1,
+   "updates_completed": 25
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.4145860136449692,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -1.23125804113022,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 2,
+   "updates_completed": 50
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.4145860136449692,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -1.23125804113022,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 3,
+   "updates_completed": 75
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.4145860136449692,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -1.23125804113022,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 4,
+   "updates_completed": 100
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.4145860136449692,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -1.23125804113022,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 5,
+   "updates_completed": 125
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.22865108131023648,
+    "R_c4p5_mean": -0.3762998792781699,
+    "agents_sum": 240,
+    "deaths_sum": 11,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 11,
+     "denominator": 60,
+     "rate": 0.18333333333333332
+    },
+    "fd_rtb_command_issued": {
+     "count": 39,
+     "denominator": 40,
+     "rate": 0.975
+    },
+    "fd_wake_selected_abort": {
+     "count": 18,
+     "denominator": 40,
+     "rate": 0.45
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.06562168798574816,
+    "q_ratio_mean": -0.08100228334230311,
+    "reward_native_mean": -0.3762998792781699,
+    "scored_completed_targets_sum": 358,
+    "survivors_at_physical_completion_sum": 158,
+    "survivors_sum": 229,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 477.3333333333333,
+    "u_achieved_sum": 28640.0,
+    "u_post_mean": 432.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 390,
+    "unscored_completed_targets_sum": 32
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.0966504313036907,
+     "R_c4p5_mean": -0.0966504313036907,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 9,
+      "denominator": 20,
+      "rate": 0.45
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.0966504313036907,
+     "reward_native_mean": -0.0966504313036907,
+     "scored_completed_targets_sum": 118,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 472.0,
+     "u_achieved_sum": 9440.0,
+     "u_post_mean": 404.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 128,
+     "unscored_completed_targets_sum": 10
+    },
+    "severe": {
+     "R_c2p25_mean": -0.583052812724675,
+     "R_c4p5_mean": -1.0259992066284753,
+     "agents_sum": 80,
+     "deaths_sum": 11,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 11,
+      "denominator": 20,
+      "rate": 0.55
+     },
+     "fd_rtb_command_issued": {
+      "count": 19,
+      "denominator": 20,
+      "rate": 0.95
+     },
+     "fd_wake_selected_abort": {
+      "count": 9,
+      "denominator": 20,
+      "rate": 0.45
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.1968650639572445,
+     "q_ratio_mean": -0.14010641882087485,
+     "reward_native_mean": -1.025999206628475,
+     "scored_completed_targets_sum": 100,
+     "survivors_at_physical_completion_sum": 46,
+     "survivors_sum": 69,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 400.0,
+     "u_achieved_sum": 8000.0,
+     "u_post_mean": 332.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 118,
+     "unscored_completed_targets_sum": 18
+    }
+   },
+   "eval_round_ordinal": 6,
+   "updates_completed": 150
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.25674962586628747,
+    "R_c4p5_mean": -0.34424961597045534,
+    "agents_sum": 240,
+    "deaths_sum": 3,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 3,
+     "denominator": 60,
+     "rate": 0.05
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 34,
+     "denominator": 40,
+     "rate": 0.85
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.03888888449074127,
+    "q_ratio_mean": -0.16924963576211957,
+    "reward_native_mean": -0.3442496159704553,
+    "scored_completed_targets_sum": 327,
+    "survivors_at_physical_completion_sum": 165,
+    "survivors_sum": 237,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 436.0,
+    "u_achieved_sum": 26160.0,
+    "u_post_mean": 390.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 353,
+    "unscored_completed_targets_sum": 26
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.247662332815321,
+     "R_c4p5_mean": -0.247662332815321,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 17,
+      "denominator": 20,
+      "rate": 0.85
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.247662332815321,
+     "reward_native_mean": -0.247662332815321,
+     "scored_completed_targets_sum": 99,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 396.0,
+     "u_achieved_sum": 7920.0,
+     "u_post_mean": 328.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 106,
+     "unscored_completed_targets_sum": 7
+    },
+    "severe": {
+     "R_c2p25_mean": -0.5163365448811976,
+     "R_c4p5_mean": -0.7788365151937012,
+     "agents_sum": 80,
+     "deaths_sum": 3,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 3,
+      "denominator": 20,
+      "rate": 0.15
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 17,
+      "denominator": 20,
+      "rate": 0.85
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.11666665347222382,
+     "q_ratio_mean": -0.253836574568694,
+     "reward_native_mean": -0.7788365151937011,
+     "scored_completed_targets_sum": 88,
+     "survivors_at_physical_completion_sum": 53,
+     "survivors_sum": 77,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 352.0,
+     "u_achieved_sum": 7040.0,
+     "u_post_mean": 284.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 103,
+     "unscored_completed_targets_sum": 15
+    }
+   },
+   "eval_round_ordinal": 7,
+   "updates_completed": 175
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.2289222452949868,
+    "R_c4p5_mean": -0.40734485212798777,
+    "agents_sum": 240,
+    "deaths_sum": 16,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 16,
+     "denominator": 60,
+     "rate": 0.26666666666666666
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 8,
+     "denominator": 40,
+     "rate": 0.2
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.07929893637022264,
+    "q_ratio_mean": -0.05049963846198584,
+    "reward_native_mean": -0.40734485212798777,
+    "scored_completed_targets_sum": 370,
+    "survivors_at_physical_completion_sum": 155,
+    "survivors_sum": 224,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 493.3333333333333,
+    "u_achieved_sum": 29600.0,
+    "u_post_mean": 448.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 404,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.046174241816162344,
+     "R_c4p5_mean": -0.046174241816162344,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 4,
+      "denominator": 20,
+      "rate": 0.2
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.046174241816162344,
+     "reward_native_mean": -0.046174241816162344,
+     "scored_completed_targets_sum": 125,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 500.0,
+     "u_achieved_sum": 10000.0,
+     "u_post_mean": 432.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 136,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6343424941664544,
+     "R_c4p5_mean": -1.1696103146654573,
+     "agents_sum": 80,
+     "deaths_sum": 16,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 16,
+      "denominator": 20,
+      "rate": 0.8
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 4,
+      "denominator": 20,
+      "rate": 0.2
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.23789680911066796,
+     "q_ratio_mean": -0.09907467366745143,
+     "reward_native_mean": -1.1696103146654573,
+     "scored_completed_targets_sum": 105,
+     "survivors_at_physical_completion_sum": 43,
+     "survivors_sum": 64,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 420.0,
+     "u_achieved_sum": 8400.0,
+     "u_post_mean": 352.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 124,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 8,
+   "updates_completed": 200
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.22865108131023648,
+    "R_c4p5_mean": -0.3762998792781699,
+    "agents_sum": 240,
+    "deaths_sum": 11,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 11,
+     "denominator": 60,
+     "rate": 0.18333333333333332
+    },
+    "fd_rtb_command_issued": {
+     "count": 39,
+     "denominator": 40,
+     "rate": 0.975
+    },
+    "fd_wake_selected_abort": {
+     "count": 18,
+     "denominator": 40,
+     "rate": 0.45
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.06562168798574816,
+    "q_ratio_mean": -0.08100228334230311,
+    "reward_native_mean": -0.3762998792781699,
+    "scored_completed_targets_sum": 358,
+    "survivors_at_physical_completion_sum": 158,
+    "survivors_sum": 229,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 477.3333333333333,
+    "u_achieved_sum": 28640.0,
+    "u_post_mean": 432.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 390,
+    "unscored_completed_targets_sum": 32
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.0966504313036907,
+     "R_c4p5_mean": -0.0966504313036907,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 9,
+      "denominator": 20,
+      "rate": 0.45
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.0966504313036907,
+     "reward_native_mean": -0.0966504313036907,
+     "scored_completed_targets_sum": 118,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 472.0,
+     "u_achieved_sum": 9440.0,
+     "u_post_mean": 404.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 128,
+     "unscored_completed_targets_sum": 10
+    },
+    "severe": {
+     "R_c2p25_mean": -0.583052812724675,
+     "R_c4p5_mean": -1.0259992066284753,
+     "agents_sum": 80,
+     "deaths_sum": 11,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 11,
+      "denominator": 20,
+      "rate": 0.55
+     },
+     "fd_rtb_command_issued": {
+      "count": 19,
+      "denominator": 20,
+      "rate": 0.95
+     },
+     "fd_wake_selected_abort": {
+      "count": 9,
+      "denominator": 20,
+      "rate": 0.45
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.1968650639572445,
+     "q_ratio_mean": -0.14010641882087485,
+     "reward_native_mean": -1.025999206628475,
+     "scored_completed_targets_sum": 100,
+     "survivors_at_physical_completion_sum": 46,
+     "survivors_sum": 69,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 400.0,
+     "u_achieved_sum": 8000.0,
+     "u_post_mean": 332.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 118,
+     "unscored_completed_targets_sum": 18
+    }
+   },
+   "eval_round_ordinal": 9,
+   "updates_completed": 225
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.26786073664464394,
+    "R_c4p5_mean": -0.3428607272696451,
+    "agents_sum": 240,
+    "deaths_sum": 2,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 2,
+     "denominator": 60,
+     "rate": 0.03333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 36,
+     "denominator": 40,
+     "rate": 0.9
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.03333332916666719,
+    "q_ratio_mean": -0.19286074601964273,
+    "reward_native_mean": -0.3428607272696451,
+    "scored_completed_targets_sum": 322,
+    "survivors_at_physical_completion_sum": 166,
+    "survivors_sum": 238,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 429.3333333333333,
+    "u_achieved_sum": 25760.0,
+    "u_post_mean": 384.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 346,
+    "unscored_completed_targets_sum": 24
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.285162331643446,
+     "R_c4p5_mean": -0.285162331643446,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.285162331643446,
+     "reward_native_mean": -0.285162331643446,
+     "scored_completed_targets_sum": 96,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 384.0,
+     "u_achieved_sum": 7680.0,
+     "u_post_mean": 316.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 102,
+     "unscored_completed_targets_sum": 6
+    },
+    "severe": {
+     "R_c2p25_mean": -0.5121698783881421,
+     "R_c4p5_mean": -0.7371698502631456,
+     "agents_sum": 80,
+     "deaths_sum": 2,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 2,
+      "denominator": 20,
+      "rate": 0.1
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.09999998750000157,
+     "q_ratio_mean": -0.28716990651313845,
+     "reward_native_mean": -0.7371698502631455,
+     "scored_completed_targets_sum": 86,
+     "survivors_at_physical_completion_sum": 54,
+     "survivors_sum": 78,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 344.0,
+     "u_achieved_sum": 6880.0,
+     "u_post_mean": 276.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 100,
+     "unscored_completed_targets_sum": 14
+    }
+   },
+   "eval_round_ordinal": 10,
+   "updates_completed": 250
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.26786073664464394,
+    "R_c4p5_mean": -0.3428607272696451,
+    "agents_sum": 240,
+    "deaths_sum": 2,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 2,
+     "denominator": 60,
+     "rate": 0.03333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 36,
+     "denominator": 40,
+     "rate": 0.9
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.03333332916666719,
+    "q_ratio_mean": -0.19286074601964273,
+    "reward_native_mean": -0.3428607272696451,
+    "scored_completed_targets_sum": 322,
+    "survivors_at_physical_completion_sum": 166,
+    "survivors_sum": 238,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 429.3333333333333,
+    "u_achieved_sum": 25760.0,
+    "u_post_mean": 384.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 346,
+    "unscored_completed_targets_sum": 24
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.285162331643446,
+     "R_c4p5_mean": -0.285162331643446,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.285162331643446,
+     "reward_native_mean": -0.285162331643446,
+     "scored_completed_targets_sum": 96,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 384.0,
+     "u_achieved_sum": 7680.0,
+     "u_post_mean": 316.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 102,
+     "unscored_completed_targets_sum": 6
+    },
+    "severe": {
+     "R_c2p25_mean": -0.5121698783881421,
+     "R_c4p5_mean": -0.7371698502631456,
+     "agents_sum": 80,
+     "deaths_sum": 2,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 2,
+      "denominator": 20,
+      "rate": 0.1
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.09999998750000157,
+     "q_ratio_mean": -0.28716990651313845,
+     "reward_native_mean": -0.7371698502631455,
+     "scored_completed_targets_sum": 86,
+     "survivors_at_physical_completion_sum": 54,
+     "survivors_sum": 78,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 344.0,
+     "u_achieved_sum": 6880.0,
+     "u_post_mean": 276.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 100,
+     "unscored_completed_targets_sum": 14
+    }
+   },
+   "eval_round_ordinal": 11,
+   "updates_completed": 275
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.25952740643631006,
+    "R_c4p5_mean": -0.25952740643631006,
+    "agents_sum": 240,
+    "deaths_sum": 0,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 0,
+     "denominator": 60,
+     "rate": 0.0
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.0,
+    "q_ratio_mean": -0.25952740643631006,
+    "reward_native_mean": -0.25952740643631006,
+    "scored_completed_targets_sum": 316,
+    "survivors_at_physical_completion_sum": 168,
+    "survivors_sum": 240,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 421.3333333333333,
+    "u_achieved_sum": 25280.0,
+    "u_post_mean": 376.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 336,
+    "unscored_completed_targets_sum": 20
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.3851623253934464,
+     "R_c4p5_mean": -0.3851623253934464,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.3851623253934464,
+     "reward_native_mean": -0.3851623253934464,
+     "scored_completed_targets_sum": 92,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 368.0,
+     "u_achieved_sum": 7360.0,
+     "u_post_mean": 300.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 96,
+     "unscored_completed_targets_sum": 4
+    },
+    "severe": {
+     "R_c2p25_mean": -0.38716989401314006,
+     "R_c4p5_mean": -0.38716989401314006,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.38716989401314006,
+     "reward_native_mean": -0.38716989401314006,
+     "scored_completed_targets_sum": 84,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 336.0,
+     "u_achieved_sum": 6720.0,
+     "u_post_mean": 268.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 96,
+     "unscored_completed_targets_sum": 12
+    }
+   },
+   "eval_round_ordinal": 12,
+   "updates_completed": 300
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.25952740643631006,
+    "R_c4p5_mean": -0.25952740643631006,
+    "agents_sum": 240,
+    "deaths_sum": 0,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 0,
+     "denominator": 60,
+     "rate": 0.0
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.0,
+    "q_ratio_mean": -0.25952740643631006,
+    "reward_native_mean": -0.25952740643631006,
+    "scored_completed_targets_sum": 316,
+    "survivors_at_physical_completion_sum": 168,
+    "survivors_sum": 240,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 421.3333333333333,
+    "u_achieved_sum": 25280.0,
+    "u_post_mean": 376.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 336,
+    "unscored_completed_targets_sum": 20
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.3851623253934464,
+     "R_c4p5_mean": -0.3851623253934464,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.3851623253934464,
+     "reward_native_mean": -0.3851623253934464,
+     "scored_completed_targets_sum": 92,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 368.0,
+     "u_achieved_sum": 7360.0,
+     "u_post_mean": 300.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 96,
+     "unscored_completed_targets_sum": 4
+    },
+    "severe": {
+     "R_c2p25_mean": -0.38716989401314006,
+     "R_c4p5_mean": -0.38716989401314006,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.38716989401314006,
+     "reward_native_mean": -0.38716989401314006,
+     "scored_completed_targets_sum": 84,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 336.0,
+     "u_achieved_sum": 6720.0,
+     "u_post_mean": 268.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 96,
+     "unscored_completed_targets_sum": 12
+    }
+   },
+   "eval_round_ordinal": 13,
+   "updates_completed": 325
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.25952740643631006,
+    "R_c4p5_mean": -0.25952740643631006,
+    "agents_sum": 240,
+    "deaths_sum": 0,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 0,
+     "denominator": 60,
+     "rate": 0.0
+    },
+    "fd_rtb_command_issued": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "fd_wake_selected_abort": {
+     "count": 40,
+     "denominator": 40,
+     "rate": 1.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.0,
+    "q_ratio_mean": -0.25952740643631006,
+    "reward_native_mean": -0.25952740643631006,
+    "scored_completed_targets_sum": 316,
+    "survivors_at_physical_completion_sum": 168,
+    "survivors_sum": 240,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 421.3333333333333,
+    "u_achieved_sum": 25280.0,
+    "u_post_mean": 376.0,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 336,
+    "unscored_completed_targets_sum": 20
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.3851623253934464,
+     "R_c4p5_mean": -0.3851623253934464,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.3851623253934464,
+     "reward_native_mean": -0.3851623253934464,
+     "scored_completed_targets_sum": 92,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 368.0,
+     "u_achieved_sum": 7360.0,
+     "u_post_mean": 300.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 96,
+     "unscored_completed_targets_sum": 4
+    },
+    "severe": {
+     "R_c2p25_mean": -0.38716989401314006,
+     "R_c4p5_mean": -0.38716989401314006,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.38716989401314006,
+     "reward_native_mean": -0.38716989401314006,
+     "scored_completed_targets_sum": 84,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 336.0,
+     "u_achieved_sum": 6720.0,
+     "u_post_mean": 268.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 96,
+     "unscored_completed_targets_sum": 12
+    }
+   },
+   "eval_round_ordinal": 14,
+   "updates_completed": 350
+  },
+  {
+   "all_members": {
+    "R_c2p25_mean": -0.220907725191383,
+    "R_c4p5_mean": -0.4145860136449693,
+    "agents_sum": 240,
+    "deaths_sum": 20,
+    "ended_counts": {
+     "done": 45,
+     "truncated": 15
+    },
+    "episodes_with_any_death": {
+     "count": 20,
+     "denominator": 60,
+     "rate": 0.3333333333333333
+    },
+    "fd_rtb_command_issued": {
+     "count": 38,
+     "denominator": 40,
+     "rate": 0.95
+    },
+    "fd_wake_selected_abort": {
+     "count": 0,
+     "denominator": 40,
+     "rate": 0.0
+    },
+    "n_episodes": 60,
+    "p_loss_per_unit_c_mean": 0.086079239312705,
+    "q_ratio_mean": -0.02722943673779674,
+    "reward_native_mean": -0.4145860136449692,
+    "scored_completed_targets_sum": 384,
+    "survivors_at_physical_completion_sum": 153,
+    "survivors_sum": 220,
+    "targets_realized_sum": 435,
+    "u_achieved_mean": 512.0,
+    "u_achieved_sum": 30720.0,
+    "u_post_mean": 466.6666666666667,
+    "u_ref_mean": 528.0,
+    "unique_completed_targets_sum": 418,
+    "unscored_completed_targets_sum": 34
+   },
+   "by_member_cell": {
+    "clean": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 0,
+      "rate": null
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 140,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 560.0,
+     "u_achieved_sum": 11200.0,
+     "u_post_mean": 560.0,
+     "u_ref_mean": 564.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 4
+    },
+    "mild": {
+     "R_c2p25_mean": -0.006249999902343752,
+     "R_c4p5_mean": -0.006249999902343752,
+     "agents_sum": 80,
+     "deaths_sum": 0,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.0,
+     "q_ratio_mean": -0.006249999902343752,
+     "reward_native_mean": -0.006249999902343752,
+     "scored_completed_targets_sum": 133,
+     "survivors_at_physical_completion_sum": 56,
+     "survivors_sum": 80,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 532.0,
+     "u_achieved_sum": 10640.0,
+     "u_post_mean": 464.0,
+     "u_ref_mean": 536.0,
+     "unique_completed_targets_sum": 144,
+     "unscored_completed_targets_sum": 11
+    },
+    "severe": {
+     "R_c2p25_mean": -0.6502231757694614,
+     "R_c4p5_mean": -1.23125804113022,
+     "agents_sum": 80,
+     "deaths_sum": 20,
+     "ended_counts": {
+      "done": 15,
+      "truncated": 5
+     },
+     "episodes_with_any_death": {
+      "count": 20,
+      "denominator": 20,
+      "rate": 1.0
+     },
+     "fd_rtb_command_issued": {
+      "count": 18,
+      "denominator": 20,
+      "rate": 0.9
+     },
+     "fd_wake_selected_abort": {
+      "count": 0,
+      "denominator": 20,
+      "rate": 0.0
+     },
+     "n_episodes": 20,
+     "p_loss_per_unit_c_mean": 0.258237717938115,
+     "q_ratio_mean": -0.06918831040870271,
+     "reward_native_mean": -1.23125804113022,
+     "scored_completed_targets_sum": 111,
+     "survivors_at_physical_completion_sum": 41,
+     "survivors_sum": 60,
+     "targets_realized_sum": 145,
+     "u_achieved_mean": 444.0,
+     "u_achieved_sum": 8880.0,
+     "u_post_mean": 376.0,
+     "u_ref_mean": 484.0,
+     "unique_completed_targets_sum": 130,
+     "unscored_completed_targets_sum": 19
+    }
+   },
+   "eval_round_ordinal": 15,
+   "updates_completed": 375
+  }
+ ]
+}

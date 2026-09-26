@@ -1,0 +1,451 @@
+{
+ "record": "pre_update_identity",
+ "record_version": 2,
+ "rule": "authorized_plan_amendment_1.json:/pre_update_mismatch_rule_v2",
+ "arm_a_run": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+ "arm_b_run": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019",
+ "n_members_a": 60,
+ "n_members_b": 60,
+ "n_wakes_compared": 161,
+ "identity_mismatches": [],
+ "wake_mismatches": [],
+ "max_abs_semantic_probability_difference": 1.1920928955078125e-07,
+ "probability_tolerance": 1e-06,
+ "stop": false,
+ "stop_reasons": [],
+ "record_only": {
+  "wake_ego_id_or_tick_differences": [
+   {
+    "member": [
+     "A5-D0-w001",
+     "clean"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "82521785-9b9b-44e3-95b0-1084c7c5b033",
+    "b": "dedaf16d-1cac-4c62-aa5f-963fdb984706"
+   },
+   {
+    "member": [
+     "A5-D0-w001",
+     "mild"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "5d481f16-7dc9-42b0-8b49-97a45e717d52",
+    "b": "06490358-d81b-41ab-ada2-1e8ec9bc98ee"
+   },
+   {
+    "member": [
+     "A5-D0-w001",
+     "mild"
+    ],
+    "wake": 1,
+    "field": "tick",
+    "a": 912,
+    "b": 913
+   },
+   {
+    "member": [
+     "A5-D0-w001",
+     "mild"
+    ],
+    "wake": 2,
+    "field": "tick",
+    "a": 2864,
+    "b": 2865
+   },
+   {
+    "member": [
+     "A5-D0-w001",
+     "severe"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "93dd3a7f-1a96-41d8-a6b2-91392b52e9db",
+    "b": "97f167d8-5111-45a4-b8fb-5473022f81c4"
+   },
+   {
+    "member": [
+     "A5-D2-w000",
+     "clean"
+    ],
+    "wake": 4,
+    "field": "ego_id",
+    "a": "a6d924c8-8c2c-481a-88d9-868e950a6b4b",
+    "b": "38cd6570-c000-4b14-b263-a6ce3e8b5878"
+   },
+   {
+    "member": [
+     "A5-D2-w000",
+     "mild"
+    ],
+    "wake": 4,
+    "field": "ego_id",
+    "a": "5806d92f-ce8c-46df-9713-cd1b1c8334c5",
+    "b": "36612bae-0847-498a-b61f-981807a0fdba"
+   },
+   {
+    "member": [
+     "A5-D2-w000",
+     "severe"
+    ],
+    "wake": 4,
+    "field": "ego_id",
+    "a": "02e6313a-9d8b-47fe-a90c-f173e24ec2dc",
+    "b": "e5954fff-565b-40a4-98c1-219d0a892cb1"
+   },
+   {
+    "member": [
+     "A5-D2-w000",
+     "severe"
+    ],
+    "wake": 4,
+    "field": "tick",
+    "a": 4083,
+    "b": 4084
+   },
+   {
+    "member": [
+     "A5-D2-w001",
+     "clean"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "c679bc94-4718-4c11-9862-497802da7f87",
+    "b": "3a5ddeff-2c3d-475a-a659-e1d27cf65f99"
+   },
+   {
+    "member": [
+     "A5-D2-w001",
+     "clean"
+    ],
+    "wake": 2,
+    "field": "tick",
+    "a": 7184,
+    "b": 7183
+   },
+   {
+    "member": [
+     "A5-D2-w001",
+     "mild"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "69caa1aa-6e17-4349-865c-2da8ecea155b",
+    "b": "0f87233f-1cd7-4fed-8af6-8c5ca4e38fac"
+   },
+   {
+    "member": [
+     "A5-D2-w001",
+     "severe"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "5f175bd9-595a-45a0-b341-cdeb5c911bb4",
+    "b": "cde7cee1-0da5-48ed-bbaa-3d719315dc07"
+   },
+   {
+    "member": [
+     "A5-D2-w001",
+     "severe"
+    ],
+    "wake": 2,
+    "field": "tick",
+    "a": 7183,
+    "b": 7184
+   },
+   {
+    "member": [
+     "A6-D0-w000",
+     "clean"
+    ],
+    "wake": 1,
+    "field": "ego_id",
+    "a": "3f2106a0-b2ab-4671-94d9-a3ceac735c4f",
+    "b": "d9623e97-4ffc-402c-b367-d8e5875bf78a"
+   },
+   {
+    "member": [
+     "A6-D0-w000",
+     "mild"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "e095b533-d6a5-4c79-8248-9ee1cd612f0c",
+    "b": "0ec79ceb-ae06-4680-8cd6-acac2a449264"
+   },
+   {
+    "member": [
+     "A6-D0-w000",
+     "mild"
+    ],
+    "wake": 2,
+    "field": "tick",
+    "a": 1269,
+    "b": 1268
+   },
+   {
+    "member": [
+     "A6-D0-w000",
+     "severe"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "b4a14307-d963-4935-8c30-204202ff34ca",
+    "b": "ec4af30c-25a4-4ad8-86a0-c8c17d2ceb57"
+   },
+   {
+    "member": [
+     "A6-D0-w000",
+     "severe"
+    ],
+    "wake": 2,
+    "field": "tick",
+    "a": 1268,
+    "b": 1269
+   },
+   {
+    "member": [
+     "A6-D0-w001",
+     "clean"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "db1a3b83-5034-4703-bc3c-d297a900e1d8",
+    "b": "cd71fa4e-fa14-4ef0-a07b-3d63d6117d14"
+   },
+   {
+    "member": [
+     "A6-D0-w001",
+     "mild"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "01c5e69f-4d52-41d9-be24-18b76d73e310",
+    "b": "43de6288-d79d-4285-b5a3-e42563c042d8"
+   },
+   {
+    "member": [
+     "A6-D0-w001",
+     "mild"
+    ],
+    "wake": 3,
+    "field": "tick",
+    "a": 7516,
+    "b": 7515
+   },
+   {
+    "member": [
+     "A6-D0-w001",
+     "severe"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "85a12c0f-d5c5-4740-ab6e-01a688b7d2d4",
+    "b": "7359d44e-fe3c-4ff0-887d-7b18642fdc90"
+   },
+   {
+    "member": [
+     "A6-D2-w000",
+     "clean"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "73c1c2e5-5f4b-4991-93af-8654ea53030f",
+    "b": "1ea7db06-2cee-4fab-8809-d4726b5daf8c"
+   },
+   {
+    "member": [
+     "A6-D2-w000",
+     "clean"
+    ],
+    "wake": 1,
+    "field": "tick",
+    "a": 2246,
+    "b": 2247
+   },
+   {
+    "member": [
+     "A6-D2-w000",
+     "mild"
+    ],
+    "wake": 1,
+    "field": "ego_id",
+    "a": "26ed5dea-993f-4e3f-bf94-7bb36f900524",
+    "b": "84ca10d0-a94e-4f73-811a-ea1721410403"
+   },
+   {
+    "member": [
+     "A6-D2-w000",
+     "severe"
+    ],
+    "wake": 1,
+    "field": "ego_id",
+    "a": "535587f0-0c0f-415e-be77-d64387c6979a",
+    "b": "8083b5f0-32b2-4653-99c6-801091c36503"
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "clean"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "489f8961-c28d-4d8c-b539-8182eed35493",
+    "b": "31e9fdb5-abe2-465d-95ff-1ad86f443a4f"
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "clean"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "7fc44102-ceee-4437-8162-95bfa25b57e4",
+    "b": "871f103b-475f-44db-a333-aabb3a18754d"
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "mild"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "d0adb520-bb87-4e48-a002-bca67e611896",
+    "b": "f79707bb-52e1-4cdc-9594-f381fca40130"
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "mild"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "12eeee50-69f4-40e0-bcce-21a003ec3de8",
+    "b": "c3df06c9-ed77-4c8c-b747-7683e1eda5bc"
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "severe"
+    ],
+    "wake": 0,
+    "field": "ego_id",
+    "a": "4ab67c9b-51da-4612-b727-7818dcc0ceb2",
+    "b": "df97950e-2153-4243-8402-ec91bffe84c7"
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "severe"
+    ],
+    "wake": 2,
+    "field": "ego_id",
+    "a": "ca464102-795b-49c8-a2ec-2874842f76aa",
+    "b": "5352bfd5-25be-4cb0-a7cb-951b25aa967e"
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "severe"
+    ],
+    "wake": 2,
+    "field": "tick",
+    "a": 1430,
+    "b": 1431
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "severe"
+    ],
+    "wake": 3,
+    "field": "tick",
+    "a": 1751,
+    "b": 1749
+   }
+  ],
+  "n_wake_ego_id_differences": 24,
+  "n_wake_tick_differences": 11,
+  "outcome_field_differences": [
+   {
+    "member": [
+     "A5-D0-w001",
+     "mild"
+    ],
+    "field": "ticks",
+    "a": 5726,
+    "b": 5727
+   },
+   {
+    "member": [
+     "A5-D0-w001",
+     "mild"
+    ],
+    "field": "fd_event_tick",
+    "a": 912,
+    "b": 913
+   },
+   {
+    "member": [
+     "A5-D0-w001",
+     "mild"
+    ],
+    "field": "reference_checkpoint_tick",
+    "a": 912,
+    "b": 913
+   },
+   {
+    "member": [
+     "A5-D2-w000",
+     "severe"
+    ],
+    "field": "ticks",
+    "a": 6677,
+    "b": 6679
+   },
+   {
+    "member": [
+     "A5-D2-w001",
+     "clean"
+    ],
+    "field": "ticks",
+    "a": 9158,
+    "b": 9157
+   },
+   {
+    "member": [
+     "A5-D2-w001",
+     "severe"
+    ],
+    "field": "ticks",
+    "a": 9157,
+    "b": 9158
+   },
+   {
+    "member": [
+     "A6-D0-w001",
+     "mild"
+    ],
+    "field": "ticks",
+    "a": 10556,
+    "b": 10555
+   },
+   {
+    "member": [
+     "A6-D2-w001",
+     "mild"
+    ],
+    "field": "ticks",
+    "a": 10378,
+    "b": 10379
+   }
+  ],
+  "n_members_with_outcome_differences": 6,
+  "penalty_b_equals_2x_a_all_members": true,
+  "penalty_ratio_exceptions": []
+ },
+ "checked_at": "2026-09-26T21:43:58.334427+03:00",
+ "elapsed_seconds_at_check": 120.18799999999464
+}
