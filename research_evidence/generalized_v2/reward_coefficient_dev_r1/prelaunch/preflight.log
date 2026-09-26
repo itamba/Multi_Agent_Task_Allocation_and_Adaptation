@@ -1,0 +1,27 @@
+[WARN] episode_design=generalized_v2: num_agents / n_known / n_hidden are NOT read. A training episode's cardinality is SAMPLED in TWO STAGES: A ~ U[2, 3, 4, 5, 6] and K | A ~ U{A + o : o in [0, 2]} BEFORE the known-only solve, then H_requested ~ U{1..R} AFTER it, where R is the number of egos that solve routed. Proceeding.
+[WARN] episode_design=generalized_v2: num_agents / n_known / n_hidden are NOT read. A training episode's cardinality is SAMPLED in TWO STAGES: A ~ U[2, 3, 4, 5, 6] and K | A ~ U{A + o : o in [0, 2]} BEFORE the known-only solve, then H_requested ~ U{1..R} AFTER it, where R is the number of egos that solve routed. Proceeding.
+PASS  head_is_measured_sha
+PASS  worktree_clean
+PASS  modules_import_from_worktree
+PASS  actor_observation_id
+PASS  action_representation_id
+PASS  coefficient_wiring
+PASS  arm_A_planned_values
+PASS  arm_A_reward_config_coefficient
+PASS  arm_A_config_source_file_no_override
+PASS  arm_A_output_dir
+PASS  arm_A_diff_vs_section17_train_config
+PASS  arm_B_planned_values
+PASS  arm_B_reward_config_coefficient
+PASS  arm_B_config_source_file_no_override
+PASS  arm_B_output_dir
+PASS  arm_B_diff_vs_section17_train_config
+PASS  arms_differ_only_in_coefficient_and_output
+PASS  reward_algebra_event_conditioned
+PASS  manifest_file_sha256
+PASS  manifest_id
+PASS  development_profile_worlds
+PASS  held_out_full_manifest
+PASS  arm_A_output_absent
+PASS  arm_B_output_absent
+OVERALL PASS

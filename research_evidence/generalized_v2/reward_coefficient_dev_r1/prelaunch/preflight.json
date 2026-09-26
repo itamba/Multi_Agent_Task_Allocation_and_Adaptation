@@ -1,0 +1,943 @@
+{
+ "record": "preflight",
+ "record_version": 1,
+ "development_only": true,
+ "confirmatory_profile_untouched": true,
+ "scientific_execution": "none",
+ "code": {
+  "measured_code_sha": "2b570194dea3612f3796999fc589b73d7082ae31",
+  "head": "2b570194dea3612f3796999fc589b73d7082ae31",
+  "working_tree_clean": true,
+  "worktree": "C:\\grc1src",
+  "module_paths": {
+   "match_aou": "C:\\grc1src\\src\\match_aou\\__init__.py",
+   "match_aou.rl.training.graph_train": "C:\\grc1src\\src\\match_aou\\rl\\training\\graph_train.py",
+   "match_aou.rl.training.graph_reward": "C:\\grc1src\\src\\match_aou\\rl\\training\\graph_reward.py",
+   "match_aou.rl.action.graph_action": "C:\\grc1src\\src\\match_aou\\rl\\action\\graph_action.py",
+   "match_aou.rl.observation.graph_builder": "C:\\grc1src\\src\\match_aou\\rl\\observation\\graph_builder.py"
+  },
+  "blade_imported_from": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade",
+  "blade_imported_tree_digest": "73f326d78f1ad65a9d546b55fdf43be29be8a0e74fdebce659d8d497ed8da5f6",
+  "blade_worktree_tree_digest": "18c416b11776194e945ef40d5215945b702b0728888da575f2d24d22ba5afef5",
+  "blade_byte_digest_equal": false,
+  "blade_note": "byte digests may differ by line endings only (core.autocrlf); Git-blob identity is the gate, prelaunch/preflight_blade_blob_identity.json"
+ },
+ "arms": {
+  "A": {
+   "preset": "research_evidence/generalized_v2/reward_coefficient_dev_r1/configs/arm_a_c2p25.json",
+   "preset_sha256": "636d1eecc0eabc0bc6902c08fb89142a5ca02dd9949226df2b86c71e9079892f",
+   "argv_after_python": [
+    "-m",
+    "match_aou.rl.training.graph_train",
+    "--config",
+    "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_a_c2p25.json",
+    "--out",
+    "C:\\gruns\\reward_c225_r1_s3000000_2b57019"
+   ],
+   "output_dir": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+   "launcher_dir": "C:\\gruns\\reward_c225_r1_s3000000_2b57019__launcher",
+   "train_config": {
+    "n_iterations": 375,
+    "episodes_per_iteration": 8,
+    "base_seed": 3000000,
+    "output_dir": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+    "ppo": {
+     "clip_ratio": 0.2,
+     "entropy_coeff": 0.01,
+     "lr": 0.0003,
+     "n_epochs": 4,
+     "gamma": 1.0,
+     "max_grad_norm": 0.5,
+     "adv_norm_eps": 1e-08
+    },
+    "training_mode": "actor_only",
+    "ctde": {
+     "critic_lr": 0.0003,
+     "value_coeff": 0.5,
+     "gae_lambda": 0.95
+    },
+    "checkpoint_every": 25,
+    "eval_every": 25,
+    "eval_episodes": 8,
+    "eval_base_seed": 1000000,
+    "max_ticks": null,
+    "episode_design": "generalized_v2",
+    "match_aou_backend": "p1_milp_v1",
+    "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+    "benchmark_profile": "development",
+    "generalized_max_attempts_per_iteration": 12,
+    "early_stopping": false,
+    "early_stopping_min_iterations": 100,
+    "early_stopping_window_iterations": 25,
+    "early_stopping_patience_windows": 3,
+    "early_stopping_min_delta": 0.01,
+    "num_agents": 3,
+    "n_known": 3,
+    "n_hidden": 3,
+    "min_target_distance_km": 200.0,
+    "min_known_separation_km": 100.0,
+    "include_sams": false,
+    "randomize_red_airbase_positions": true,
+    "stretch_target_ratio": 0.5,
+    "fuel_damage_mode": "seeded_variable",
+    "fuel_damage_probability": 0.5,
+    "fuel_damage_leg_progress": 0.3,
+    "fuel_damage_rtb_margin": 1.1,
+    "fuel_damage_mild_probability": 0.5,
+    "aircraft_penalty_coeff": 2.25,
+    "visual_artifacts": false,
+    "actor_gradient_diagnostics": false,
+    "actor_step_diagnostics": false,
+    "actor_step_vector_iterations": [],
+    "num_red_airbases": [
+     6,
+     6
+    ],
+    "partial_ratio": 0.5
+   },
+   "config_source": {
+    "path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_a_c2p25.json",
+    "absolute_path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_a_c2p25.json",
+    "format": "json",
+    "config_fields": [
+     "actor_gradient_diagnostics",
+     "actor_step_diagnostics",
+     "actor_step_vector_iterations",
+     "aircraft_penalty_coeff",
+     "base_seed",
+     "benchmark_manifest",
+     "benchmark_profile",
+     "checkpoint_every",
+     "ctde.critic_lr",
+     "ctde.gae_lambda",
+     "ctde.value_coeff",
+     "early_stopping",
+     "early_stopping_min_delta",
+     "early_stopping_min_iterations",
+     "early_stopping_patience_windows",
+     "early_stopping_window_iterations",
+     "episode_design",
+     "episodes_per_iteration",
+     "eval_base_seed",
+     "eval_episodes",
+     "eval_every",
+     "fuel_damage_leg_progress",
+     "fuel_damage_mild_probability",
+     "fuel_damage_mode",
+     "fuel_damage_probability",
+     "fuel_damage_rtb_margin",
+     "generalized_max_attempts_per_iteration",
+     "include_sams",
+     "match_aou_backend",
+     "max_ticks",
+     "min_known_separation_km",
+     "min_target_distance_km",
+     "n_hidden",
+     "n_iterations",
+     "n_known",
+     "num_agents",
+     "num_red_airbases",
+     "partial_ratio",
+     "ppo.adv_norm_eps",
+     "ppo.clip_ratio",
+     "ppo.entropy_coeff",
+     "ppo.gamma",
+     "ppo.lr",
+     "ppo.max_grad_norm",
+     "ppo.n_epochs",
+     "randomize_red_airbase_positions",
+     "stretch_target_ratio",
+     "training_mode",
+     "visual_artifacts"
+    ],
+    "cli_overrides": [],
+    "resolved_from": "config_file"
+   },
+   "reward_config": {
+    "regret_epsilon": 1e-05,
+    "aircraft_penalty_coeff": 2.25
+   }
+  },
+  "B": {
+   "preset": "research_evidence/generalized_v2/reward_coefficient_dev_r1/configs/arm_b_c4p5.json",
+   "preset_sha256": "00d1e8d22805fd87a6d045d0313a0acc8a9bce681cff3ad622277d4e1185406e",
+   "argv_after_python": [
+    "-m",
+    "match_aou.rl.training.graph_train",
+    "--config",
+    "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+    "--out",
+    "C:\\gruns\\reward_c450_r1_s3000000_2b57019"
+   ],
+   "output_dir": "C:\\gruns\\reward_c450_r1_s3000000_2b57019",
+   "launcher_dir": "C:\\gruns\\reward_c450_r1_s3000000_2b57019__launcher",
+   "train_config": {
+    "n_iterations": 375,
+    "episodes_per_iteration": 8,
+    "base_seed": 3000000,
+    "output_dir": "C:\\gruns\\reward_c450_r1_s3000000_2b57019",
+    "ppo": {
+     "clip_ratio": 0.2,
+     "entropy_coeff": 0.01,
+     "lr": 0.0003,
+     "n_epochs": 4,
+     "gamma": 1.0,
+     "max_grad_norm": 0.5,
+     "adv_norm_eps": 1e-08
+    },
+    "training_mode": "actor_only",
+    "ctde": {
+     "critic_lr": 0.0003,
+     "value_coeff": 0.5,
+     "gae_lambda": 0.95
+    },
+    "checkpoint_every": 25,
+    "eval_every": 25,
+    "eval_episodes": 8,
+    "eval_base_seed": 1000000,
+    "max_ticks": null,
+    "episode_design": "generalized_v2",
+    "match_aou_backend": "p1_milp_v1",
+    "benchmark_manifest": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+    "benchmark_profile": "development",
+    "generalized_max_attempts_per_iteration": 12,
+    "early_stopping": false,
+    "early_stopping_min_iterations": 100,
+    "early_stopping_window_iterations": 25,
+    "early_stopping_patience_windows": 3,
+    "early_stopping_min_delta": 0.01,
+    "num_agents": 3,
+    "n_known": 3,
+    "n_hidden": 3,
+    "min_target_distance_km": 200.0,
+    "min_known_separation_km": 100.0,
+    "include_sams": false,
+    "randomize_red_airbase_positions": true,
+    "stretch_target_ratio": 0.5,
+    "fuel_damage_mode": "seeded_variable",
+    "fuel_damage_probability": 0.5,
+    "fuel_damage_leg_progress": 0.3,
+    "fuel_damage_rtb_margin": 1.1,
+    "fuel_damage_mild_probability": 0.5,
+    "aircraft_penalty_coeff": 4.5,
+    "visual_artifacts": false,
+    "actor_gradient_diagnostics": false,
+    "actor_step_diagnostics": false,
+    "actor_step_vector_iterations": [],
+    "num_red_airbases": [
+     6,
+     6
+    ],
+    "partial_ratio": 0.5
+   },
+   "config_source": {
+    "path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+    "absolute_path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+    "format": "json",
+    "config_fields": [
+     "actor_gradient_diagnostics",
+     "actor_step_diagnostics",
+     "actor_step_vector_iterations",
+     "aircraft_penalty_coeff",
+     "base_seed",
+     "benchmark_manifest",
+     "benchmark_profile",
+     "checkpoint_every",
+     "ctde.critic_lr",
+     "ctde.gae_lambda",
+     "ctde.value_coeff",
+     "early_stopping",
+     "early_stopping_min_delta",
+     "early_stopping_min_iterations",
+     "early_stopping_patience_windows",
+     "early_stopping_window_iterations",
+     "episode_design",
+     "episodes_per_iteration",
+     "eval_base_seed",
+     "eval_episodes",
+     "eval_every",
+     "fuel_damage_leg_progress",
+     "fuel_damage_mild_probability",
+     "fuel_damage_mode",
+     "fuel_damage_probability",
+     "fuel_damage_rtb_margin",
+     "generalized_max_attempts_per_iteration",
+     "include_sams",
+     "match_aou_backend",
+     "max_ticks",
+     "min_known_separation_km",
+     "min_target_distance_km",
+     "n_hidden",
+     "n_iterations",
+     "n_known",
+     "num_agents",
+     "num_red_airbases",
+     "partial_ratio",
+     "ppo.adv_norm_eps",
+     "ppo.clip_ratio",
+     "ppo.entropy_coeff",
+     "ppo.gamma",
+     "ppo.lr",
+     "ppo.max_grad_norm",
+     "ppo.n_epochs",
+     "randomize_red_airbase_positions",
+     "stretch_target_ratio",
+     "training_mode",
+     "visual_artifacts"
+    ],
+    "cli_overrides": [],
+    "resolved_from": "config_file"
+   },
+   "reward_config": {
+    "regret_epsilon": 1e-05,
+    "aircraft_penalty_coeff": 4.5
+   }
+  }
+ },
+ "config_diff_between_arms": {
+  "aircraft_penalty_coeff": {
+   "A": 2.25,
+   "B": 4.5
+  },
+  "output_dir": {
+   "A": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+   "B": "C:\\gruns\\reward_c450_r1_s3000000_2b57019"
+  }
+ },
+ "reward_algebra": [
+  {
+   "case": "one_loss_partial",
+   "c_2p25": {
+    "ratio_q": -0.1999999900000005,
+    "penalty": 0.8999999550000022,
+    "reward": -1.0999999450000026,
+    "n_lost": 1,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.399999980000001,
+    "terminal_reward_on_last_transition": -1.0999999450000026,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "c_4p5": {
+    "ratio_q": -0.1999999900000005,
+    "penalty": 1.7999999100000044,
+    "reward": -1.9999999000000048,
+    "n_lost": 1,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.399999980000001,
+    "terminal_reward_on_last_transition": -1.9999999000000048,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "checks": {
+    "q_unchanged": true,
+    "penalty_doubles_exactly": true,
+    "reward_is_q_minus_penalty": true,
+    "reward_is_q_minus_c_p": true,
+    "rescore_identity_R45_eq_R225_minus_2p25p": true,
+    "zero_loss_reward_unchanged": true,
+    "loss_penalty_positive": true,
+    "terminal_placement": true,
+    "direct_breakdown_equal": true
+   }
+  },
+  {
+   "case": "two_losses_full",
+   "c_2p25": {
+    "ratio_q": 0.0,
+    "penalty": 1.7999999100000044,
+    "reward": -1.7999999100000044,
+    "n_lost": 2,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.799999960000002,
+    "terminal_reward_on_last_transition": -1.7999999100000044,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "c_4p5": {
+    "ratio_q": 0.0,
+    "penalty": 3.5999998200000087,
+    "reward": -3.5999998200000087,
+    "n_lost": 2,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.799999960000002,
+    "terminal_reward_on_last_transition": -3.5999998200000087,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "checks": {
+    "q_unchanged": true,
+    "penalty_doubles_exactly": true,
+    "reward_is_q_minus_penalty": true,
+    "reward_is_q_minus_c_p": true,
+    "rescore_identity_R45_eq_R225_minus_2p25p": true,
+    "zero_loss_reward_unchanged": true,
+    "loss_penalty_positive": true,
+    "terminal_placement": true,
+    "direct_breakdown_equal": true
+   }
+  },
+  {
+   "case": "zero_loss_partial",
+   "c_2p25": {
+    "ratio_q": -0.399999980000001,
+    "penalty": 0.0,
+    "reward": -0.399999980000001,
+    "n_lost": 0,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.0,
+    "terminal_reward_on_last_transition": -0.399999980000001,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "c_4p5": {
+    "ratio_q": -0.399999980000001,
+    "penalty": 0.0,
+    "reward": -0.399999980000001,
+    "n_lost": 0,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.0,
+    "terminal_reward_on_last_transition": -0.399999980000001,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "checks": {
+    "q_unchanged": true,
+    "penalty_doubles_exactly": true,
+    "reward_is_q_minus_penalty": true,
+    "reward_is_q_minus_c_p": true,
+    "rescore_identity_R45_eq_R225_minus_2p25p": true,
+    "zero_loss_reward_unchanged": true,
+    "loss_penalty_positive": true,
+    "terminal_placement": true,
+    "direct_breakdown_equal": true
+   }
+  },
+  {
+   "case": "zero_loss_nothing",
+   "c_2p25": {
+    "ratio_q": -0.5999999700000015,
+    "penalty": 0.0,
+    "reward": -0.5999999700000015,
+    "n_lost": 0,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.0,
+    "terminal_reward_on_last_transition": -0.5999999700000015,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "c_4p5": {
+    "ratio_q": -0.5999999700000015,
+    "penalty": 0.0,
+    "reward": -0.5999999700000015,
+    "n_lost": 0,
+    "u_aircraft": 80.0,
+    "u_ref": 200.0,
+    "p": 0.0,
+    "terminal_reward_on_last_transition": -0.5999999700000015,
+    "other_transition_rewards": [
+     0.0
+    ],
+    "direct_breakdown_equal": true
+   },
+   "checks": {
+    "q_unchanged": true,
+    "penalty_doubles_exactly": true,
+    "reward_is_q_minus_penalty": true,
+    "reward_is_q_minus_c_p": true,
+    "rescore_identity_R45_eq_R225_minus_2p25p": true,
+    "zero_loss_reward_unchanged": true,
+    "loss_penalty_positive": true,
+    "terminal_placement": true,
+    "direct_breakdown_equal": true
+   }
+  }
+ ],
+ "benchmark": {
+  "manifest_path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+  "manifest_file_sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103",
+  "manifest_id": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8",
+  "profile": "development",
+  "development_worlds": [
+   {
+    "world_ordinal": 0,
+    "seed": 2000000,
+    "key": "A2-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000001,
+    "key": "A2-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000064,
+    "key": "A2-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000065,
+    "key": "A2-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000128,
+    "key": "A3-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000129,
+    "key": "A3-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000192,
+    "key": "A3-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000193,
+    "key": "A3-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000256,
+    "key": "A4-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000257,
+    "key": "A4-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000320,
+    "key": "A4-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000321,
+    "key": "A4-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000384,
+    "key": "A5-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000385,
+    "key": "A5-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000448,
+    "key": "A5-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000449,
+    "key": "A5-D2-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000512,
+    "key": "A6-D0-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000513,
+    "key": "A6-D0-w001"
+   },
+   {
+    "world_ordinal": 0,
+    "seed": 2000576,
+    "key": "A6-D2-w000"
+   },
+   {
+    "world_ordinal": 1,
+    "seed": 2000577,
+    "key": "A6-D2-w001"
+   }
+  ],
+  "regenerated_or_mutated": false,
+  "train_band_half_open": [
+   3000000,
+   3004500
+  ]
+ },
+ "checks": [
+  {
+   "check": "head_is_measured_sha",
+   "pass": true,
+   "detail": "2b570194dea3612f3796999fc589b73d7082ae31"
+  },
+  {
+   "check": "worktree_clean",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "modules_import_from_worktree",
+   "pass": true,
+   "detail": {
+    "match_aou": "C:\\grc1src\\src\\match_aou\\__init__.py",
+    "match_aou.rl.training.graph_train": "C:\\grc1src\\src\\match_aou\\rl\\training\\graph_train.py",
+    "match_aou.rl.training.graph_reward": "C:\\grc1src\\src\\match_aou\\rl\\training\\graph_reward.py",
+    "match_aou.rl.action.graph_action": "C:\\grc1src\\src\\match_aou\\rl\\action\\graph_action.py",
+    "match_aou.rl.observation.graph_builder": "C:\\grc1src\\src\\match_aou\\rl\\observation\\graph_builder.py"
+   }
+  },
+  {
+   "check": "actor_observation_id",
+   "pass": true,
+   "detail": "actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1"
+  },
+  {
+   "check": "action_representation_id",
+   "pass": true,
+   "detail": "semantic_k_plus_2_logmeanexp_v1"
+  },
+  {
+   "check": "coefficient_wiring",
+   "pass": true,
+   "detail": {
+    "compute_episode_reward_call_sites_in_graph_train": 1,
+    "call_inside__run_one_episode": true,
+    "reward_config_passes_field": true,
+    "cli_dest_maps_to_field": true
+   }
+  },
+  {
+   "check": "arm_A_planned_values",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "arm_A_reward_config_coefficient",
+   "pass": true,
+   "detail": {
+    "reward_config": {
+     "regret_epsilon": 1e-05,
+     "aircraft_penalty_coeff": 2.25
+    },
+    "train_config": 2.25
+   }
+  },
+  {
+   "check": "arm_A_config_source_file_no_override",
+   "pass": true,
+   "detail": {
+    "path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_a_c2p25.json",
+    "absolute_path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_a_c2p25.json",
+    "format": "json",
+    "config_fields": [
+     "actor_gradient_diagnostics",
+     "actor_step_diagnostics",
+     "actor_step_vector_iterations",
+     "aircraft_penalty_coeff",
+     "base_seed",
+     "benchmark_manifest",
+     "benchmark_profile",
+     "checkpoint_every",
+     "ctde.critic_lr",
+     "ctde.gae_lambda",
+     "ctde.value_coeff",
+     "early_stopping",
+     "early_stopping_min_delta",
+     "early_stopping_min_iterations",
+     "early_stopping_patience_windows",
+     "early_stopping_window_iterations",
+     "episode_design",
+     "episodes_per_iteration",
+     "eval_base_seed",
+     "eval_episodes",
+     "eval_every",
+     "fuel_damage_leg_progress",
+     "fuel_damage_mild_probability",
+     "fuel_damage_mode",
+     "fuel_damage_probability",
+     "fuel_damage_rtb_margin",
+     "generalized_max_attempts_per_iteration",
+     "include_sams",
+     "match_aou_backend",
+     "max_ticks",
+     "min_known_separation_km",
+     "min_target_distance_km",
+     "n_hidden",
+     "n_iterations",
+     "n_known",
+     "num_agents",
+     "num_red_airbases",
+     "partial_ratio",
+     "ppo.adv_norm_eps",
+     "ppo.clip_ratio",
+     "ppo.entropy_coeff",
+     "ppo.gamma",
+     "ppo.lr",
+     "ppo.max_grad_norm",
+     "ppo.n_epochs",
+     "randomize_red_airbase_positions",
+     "stretch_target_ratio",
+     "training_mode",
+     "visual_artifacts"
+    ],
+    "cli_overrides": [],
+    "resolved_from": "config_file"
+   }
+  },
+  {
+   "check": "arm_A_output_dir",
+   "pass": true,
+   "detail": "C:\\gruns\\reward_c225_r1_s3000000_2b57019"
+  },
+  {
+   "check": "arm_A_diff_vs_section17_train_config",
+   "pass": true,
+   "detail": {
+    "actor_step_diagnostics": {
+     "arm": false,
+     "section17": "<absent>"
+    },
+    "actor_step_vector_iterations": {
+     "arm": [],
+     "section17": "<absent>"
+    },
+    "output_dir": {
+     "arm": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+     "section17": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441"
+    }
+   }
+  },
+  {
+   "check": "arm_B_planned_values",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "check": "arm_B_reward_config_coefficient",
+   "pass": true,
+   "detail": {
+    "reward_config": {
+     "regret_epsilon": 1e-05,
+     "aircraft_penalty_coeff": 4.5
+    },
+    "train_config": 4.5
+   }
+  },
+  {
+   "check": "arm_B_config_source_file_no_override",
+   "pass": true,
+   "detail": {
+    "path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+    "absolute_path": "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+    "format": "json",
+    "config_fields": [
+     "actor_gradient_diagnostics",
+     "actor_step_diagnostics",
+     "actor_step_vector_iterations",
+     "aircraft_penalty_coeff",
+     "base_seed",
+     "benchmark_manifest",
+     "benchmark_profile",
+     "checkpoint_every",
+     "ctde.critic_lr",
+     "ctde.gae_lambda",
+     "ctde.value_coeff",
+     "early_stopping",
+     "early_stopping_min_delta",
+     "early_stopping_min_iterations",
+     "early_stopping_patience_windows",
+     "early_stopping_window_iterations",
+     "episode_design",
+     "episodes_per_iteration",
+     "eval_base_seed",
+     "eval_episodes",
+     "eval_every",
+     "fuel_damage_leg_progress",
+     "fuel_damage_mild_probability",
+     "fuel_damage_mode",
+     "fuel_damage_probability",
+     "fuel_damage_rtb_margin",
+     "generalized_max_attempts_per_iteration",
+     "include_sams",
+     "match_aou_backend",
+     "max_ticks",
+     "min_known_separation_km",
+     "min_target_distance_km",
+     "n_hidden",
+     "n_iterations",
+     "n_known",
+     "num_agents",
+     "num_red_airbases",
+     "partial_ratio",
+     "ppo.adv_norm_eps",
+     "ppo.clip_ratio",
+     "ppo.entropy_coeff",
+     "ppo.gamma",
+     "ppo.lr",
+     "ppo.max_grad_norm",
+     "ppo.n_epochs",
+     "randomize_red_airbase_positions",
+     "stretch_target_ratio",
+     "training_mode",
+     "visual_artifacts"
+    ],
+    "cli_overrides": [],
+    "resolved_from": "config_file"
+   }
+  },
+  {
+   "check": "arm_B_output_dir",
+   "pass": true,
+   "detail": "C:\\gruns\\reward_c450_r1_s3000000_2b57019"
+  },
+  {
+   "check": "arm_B_diff_vs_section17_train_config",
+   "pass": true,
+   "detail": {
+    "actor_step_diagnostics": {
+     "arm": false,
+     "section17": "<absent>"
+    },
+    "actor_step_vector_iterations": {
+     "arm": [],
+     "section17": "<absent>"
+    },
+    "aircraft_penalty_coeff": {
+     "arm": 4.5,
+     "section17": 2.25
+    },
+    "output_dir": {
+     "arm": "C:\\gruns\\reward_c450_r1_s3000000_2b57019",
+     "section17": "C:\\gruns\\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441"
+    }
+   }
+  },
+  {
+   "check": "arms_differ_only_in_coefficient_and_output",
+   "pass": true,
+   "detail": {
+    "aircraft_penalty_coeff": {
+     "A": 2.25,
+     "B": 4.5
+    },
+    "output_dir": {
+     "A": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+     "B": "C:\\gruns\\reward_c450_r1_s3000000_2b57019"
+    }
+   }
+  },
+  {
+   "check": "reward_algebra_event_conditioned",
+   "pass": true,
+   "detail": [
+    {
+     "q_unchanged": true,
+     "penalty_doubles_exactly": true,
+     "reward_is_q_minus_penalty": true,
+     "reward_is_q_minus_c_p": true,
+     "rescore_identity_R45_eq_R225_minus_2p25p": true,
+     "zero_loss_reward_unchanged": true,
+     "loss_penalty_positive": true,
+     "terminal_placement": true,
+     "direct_breakdown_equal": true
+    },
+    {
+     "q_unchanged": true,
+     "penalty_doubles_exactly": true,
+     "reward_is_q_minus_penalty": true,
+     "reward_is_q_minus_c_p": true,
+     "rescore_identity_R45_eq_R225_minus_2p25p": true,
+     "zero_loss_reward_unchanged": true,
+     "loss_penalty_positive": true,
+     "terminal_placement": true,
+     "direct_breakdown_equal": true
+    },
+    {
+     "q_unchanged": true,
+     "penalty_doubles_exactly": true,
+     "reward_is_q_minus_penalty": true,
+     "reward_is_q_minus_c_p": true,
+     "rescore_identity_R45_eq_R225_minus_2p25p": true,
+     "zero_loss_reward_unchanged": true,
+     "loss_penalty_positive": true,
+     "terminal_placement": true,
+     "direct_breakdown_equal": true
+    },
+    {
+     "q_unchanged": true,
+     "penalty_doubles_exactly": true,
+     "reward_is_q_minus_penalty": true,
+     "reward_is_q_minus_c_p": true,
+     "rescore_identity_R45_eq_R225_minus_2p25p": true,
+     "zero_loss_reward_unchanged": true,
+     "loss_penalty_positive": true,
+     "terminal_placement": true,
+     "direct_breakdown_equal": true
+    }
+   ]
+  },
+  {
+   "check": "manifest_file_sha256",
+   "pass": true,
+   "detail": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103"
+  },
+  {
+   "check": "manifest_id",
+   "pass": true,
+   "detail": "ef17a68a1d41b04cf6cb9b4ed92d91f3a687b600376ff1dc7bd5b83b21a46ea8"
+  },
+  {
+   "check": "development_profile_worlds",
+   "pass": true,
+   "detail": 20
+  },
+  {
+   "check": "held_out_full_manifest",
+   "pass": true,
+   "detail": {
+    "train_band_half_open": [
+     3000000,
+     3004500
+    ],
+    "manifest_n_seeds": 120,
+    "manifest_seed_min": 2000000,
+    "manifest_seed_max": 2000587,
+    "overlap": []
+   }
+  },
+  {
+   "check": "arm_A_output_absent",
+   "pass": true,
+   "detail": "C:\\gruns\\reward_c225_r1_s3000000_2b57019"
+  },
+  {
+   "check": "arm_B_output_absent",
+   "pass": true,
+   "detail": "C:\\gruns\\reward_c450_r1_s3000000_2b57019"
+  }
+ ],
+ "pass": true
+}
