@@ -8,8 +8,11 @@
 > branches only** (§7); a transient documentation-maintenance branch and PR may exist briefly
 > while this file itself is corrected, and leaves nothing behind once integrated. The
 > mission-fuel-slack task (PR #79) and the actor-only credit-to-update diagnostic (PR #80) are
-> reviewed and integrated; **no research task is active**. §5.1 records the selected flow / credit
-> research questions of 2026-09-26 — questions, not diagnosed causes or authorized work.
+> reviewed and integrated. §5.1 records the selected flow / credit research questions of
+> 2026-09-26. **One research task is active: REWARD-01's coefficient development comparison R1**
+> (draft PR #82) — both arms executed on 2026-09-26, **EXECUTED / UNREVIEWED**, awaiting GPT
+> exact-candidate review (§2,
+> [measurements §19](docs/history/measurements.md#19-generalized-v2-reward-01-aircraft-loss-coefficient-development-comparison-r1--executed-unreviewed)).
 > **GitHub is authoritative for live branch, PR and ownership state**: resolve live `main` and
 > open PRs first ([`cc_review.md` §8](docs/workflows/cc_review.md#8-receiving-a-hand-off)).
 > Contracts live in [`docs/contracts/`](docs/contracts/); everything before this snapshot lives in
@@ -150,6 +153,15 @@
   ([measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed),
   whose own status line predates the approval). The measured source worktree `C:/gcud1src` and
   the original run directory are retained; no local cleanup is recorded for this task.
+- **The REWARD-01 aircraft-loss coefficient development comparison R1 is EXECUTED / UNREVIEWED**
+  (2026-09-26, task branch `task/reward-coefficient-dev-r1`, draft PR #82): two fresh 375-update
+  actor-only arms at ONE measured SHA `2b570194dea3612f3796999fc589b73d7082ae31`,
+  `aircraft_penalty_coeff` 2.25 (control) and 4.5, everything else from the §17 `train_config`.
+  Arm B ran twice under a user-authorized amendment after the task's own pre-update identity
+  rule stopped its first launch on non-material ego-id / tick differences
+  ([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-26;
+  [measurements §19](docs/history/measurements.md#19-generalized-v2-reward-01-aircraft-loss-coefficient-development-comparison-r1--executed-unreviewed)).
+  The measured source worktree `C:/grc1src` and the three run directories are retained.
 - Earlier single-run authorizations are spent: both actor-gradient diagnostics (further tuning
   stopped, [`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-17) and the
   three acting-ego diagnostics (role-only, explicit readout, role-only λ = 1), the mission-slack
@@ -180,19 +192,21 @@
 
 | Item | State |
 |---|---|
-| Writable repository task | **no research task.** The only writable task is documentation-only: branch `docs/flow-credit-research-handoff` (CC; one draft PR — resolve on GitHub) records the §5.1 research questions and the PR #80 status closure in this file and [`decisions.md` §1](docs/history/decisions.md#1-decision-log); once integrated, none. The §5.1 questions are unassigned and unstarted |
+| Writable repository task | **REWARD-01 coefficient development comparison R1** — branch `task/reward-coefficient-dev-r1` from `79afdd4364d6f4bab777ce52f311c314da1f23be` (CC; draft PR #82). The other §5.1 questions are unassigned and unstarted |
 | Reviewer | GPT orchestrator (read-only; exact-candidate review) |
 | Evidence PRs | none open. #71 and #73 were closed without merge on 2026-09-19, at `0d136fa89286c4bbd9e89dfb6bd0a3326c70b670` and `ad9b545034670a7c7a9d8ff98012d56c0be07f46`; their branches are deleted |
-| Candidates | no research candidate. The documentation draft PR of the row above is the only candidate; no merge is authorized. **Resolve GitHub for the live head** |
-| Scientific runs in progress | none. The credit-to-update diagnostic `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` completed on 2026-09-25 (exit code 0) and is reviewed as qualified descriptive development evidence (§1); its original directory `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` is not archived; its authorization is spent. The mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 and is reviewed; its original directory `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` is not archived. Moving either needs its own authorization |
+| Candidates | draft PR #82 (REWARD-01 plan, presets, scripts, evidence and this documentation); **EXECUTED / UNREVIEWED**, awaiting GPT exact-candidate review; no merge authorized. **Resolve GitHub for the live head** |
+| Scientific runs in progress | none. **REWARD-01 R1 (2026-09-26), measured SHA `2b570194dea3612f3796999fc589b73d7082ae31`:** arm A `C:\gruns\reward_c225_r1_s3000000_2b57019` (exit 0, 8431 s) and arm B `C:\gruns\reward_c450_r1_l2_s3000000_2b57019` (second launch, exit 0, 5294 s) completed; arm B's first launch `C:\gruns\reward_c450_r1_s3000000_2b57019` was stopped at 120 s by the pre-update rule and is preserved, unused. Its authorization is spent: no further launch, arm or coefficient. The credit-to-update diagnostic `graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` completed on 2026-09-25 (exit code 0) and is reviewed as qualified descriptive development evidence (§1); its original directory `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b` is not archived; its authorization is spent. The mission-slack run `graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` completed on 2026-09-24 and is reviewed; its original directory `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441` is not archived. Moving any of these run directories needs its own authorization |
 
 ## 3. Candidates and PRs
 
-**No research candidate is active.** The only candidate is the documentation draft PR of §2. The
-PRs below are historical states, not open work. **Resolve GitHub for live exact heads.**
+**One research candidate is active: draft PR #82 (§2).** The other PRs below are historical
+states, not open work. **Resolve GitHub for live exact heads.**
 
 | PR | Branch | State |
 |---|---|---|
+| #82 | `task/reward-coefficient-dev-r1` | **draft, open** — REWARD-01 coefficient development comparison R1; measured SHA `2b570194dea3612f3796999fc589b73d7082ae31` (both arms); EXECUTED / UNREVIEWED; awaiting GPT exact-candidate review; no merge authorized |
+| #81 | `docs/flow-credit-research-handoff` | merged as `79afdd4364d6f4bab777ce52f311c314da1f23be` (2026-09-26; the base of #82); records the §5.1 questions; remote branch absent (observed 2026-09-26) |
 | #80 | `task/actor-credit-update-diagnostic-r1` | merged as `2d5719370d17594297111350007dd0c8bedb54e1` (2026-09-25) from the approved head `eb6401167390513f4dc56a946ea76cc3b314607d` (its second parent); first review of `5f5e22a…` CHANGES_REQUESTED; the approval is limited to the instrumentation and qualified descriptive development evidence (§1); remote branch deleted, no local branch (verified 2026-09-26) |
 | #79 | `task/actor-mission-fuel-slack-dev-r1` | merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4` (2026-09-24) from the approved head `26f8bff97b1cbbca64d18626625d2321545080af` (its second parent; tree `d3a0306e57b8390952a68c521c02a418252ae613`); first review of `ea60ce3…` CHANGES_REQUESTED; remote branch deleted, no local branch (verified 2026-09-25) |
 | #77 | `docs/recent-archive-cleanup-closure` | merged as `7273be2ab563cc70de82651ec62bfa719f4f2758` (2026-09-19) from reviewed head `840d00e3e558f771cf6eb90e439ffacafa27a2ff` (its second parent); branch deleted after merge verification (2026-09-20) |
@@ -242,6 +256,7 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
 | **Role-only `gae_lambda = 1.0` CTDE diagnostic** (FD100, 100 updates; negative, not the final configuration) | `68055e39768d5fa601e5960a9f08823b9e65c08f` | **`APPROVE — VALID DEVELOPMENT DIAGNOSTIC MEASUREMENT`** (GPT, 2026-09-19); evidence `research_evidence/generalized_v2/role_only_ctde_lambda100_fd100_r1/` (merged with PR #75), reviewed at `1076208b68ee9abd76f159535c5f38fe98970ce5` | [measurements §14](docs/history/measurements.md#14-generalized-v2-role-only-acting-ego-ctde-gae_lambda--10-development-diagnostic) |
 | **GENERALIZED-V2 actor mission-fuel-slack development R1** (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch, unmerged when measured) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at `26f8bff…`); evidence `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (merged with PR #79) | [measurements §17](docs/history/measurements.md#17-generalized-v2-actor-mission-fuel-slack-development-r1--reviewed) |
 | **GENERALIZED-V2 actor-only credit-to-update diagnostic R1** (actor-only, mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`) | `644883b89c208255f5808432462be64be5d7589f` (task branch, unmerged when measured) | **APPROVED at exact head `eb64011…`** (GPT, 2026-09-25) as instrumentation plus **qualified descriptive development evidence** — original-trajectory consistency UNRESOLVED; deviations D1 / D2 recorded, not retroactively authorized; no causal attribution; evidence `research_evidence/generalized_v2/actor_credit_update_diag_r1/` (merged with PR #80) | [measurements §18](docs/history/measurements.md#18-generalized-v2-actor-only-credit-to-update-diagnostic-r1--executed-unreviewed) |
+| **GENERALIZED-V2 REWARD-01 coefficient development comparison R1** (two actor-only arms, `aircraft_penalty_coeff` 2.25 vs 4.5, mission-slack observation, 375 updates each) | `2b570194dea3612f3796999fc589b73d7082ae31` for both arms (task branch, unmerged when measured) | **EXECUTED / UNREVIEWED** — no verdict; development only, one seed pair; arm B launched twice under a user-authorized amendment; evidence `research_evidence/generalized_v2/reward_coefficient_dev_r1/` on draft PR #82 | [measurements §19](docs/history/measurements.md#19-generalized-v2-reward-01-aircraft-loss-coefficient-development-comparison-r1--executed-unreviewed) |
 
 **Current research interpretation (development only; numbers in
 [measurements §8](docs/history/measurements.md#8-generalized-v2-development-closure),
@@ -321,6 +336,14 @@ original locations recorded in measurements §10.2–§16.2 are historical and n
   architecture or optimizer — and its same-seed prefix consistency is UNRESOLVED (first detected
   training-output difference at iteration 1, magnitude `7.45e-9`, with matching recorded input
   summaries).
+- **REWARD-01 coefficient comparison R1 (EXECUTED / UNREVIEWED, one seed pair,
+  [measurements §19](docs/history/measurements.md#19-generalized-v2-reward-01-aircraft-loss-coefficient-development-comparison-r1--executed-unreviewed)):**
+  final macro `+3.24e−8` (c = 2.25) and `+1.69e−3` (c = 4.5), 0 / 20 switches in both, identical
+  final outcomes. Doubling `c` raised P(ABORT) in **both** severities together (20 / 20
+  both-ABORT at updates 300–350: no airframe lost, MILD utility forfeited) and was not retained at
+  375; no MILD / SEVERE conditioning appeared in either arm. Algebraic rescoring of the saved
+  trajectories found ABORT-in-SEVERE already scoring higher than PLAN-in-SEVERE at c = 2.25 on these
+  worlds — a descriptive paired-policy contrast, not a counterfactual or a cause.
 
 **Standing interpretation rules:** R1 and the fresh P1 arm are distinct repository and
 population measurements with no causal solver-quality inference; the semantic-action R1 versus
@@ -331,10 +354,13 @@ fixed-cell CTDE measurement stays out of scope unless the user explicitly asks
 
 ## 5. Concrete unresolved next actions
 
-**Now: nothing is scheduled or authorized.** No research task is active (§2). The §5.1 questions
-are recorded for future read-only research chats; each is unassigned and unstarted, and any
-further step — a research chat that changes the repository, an implementation or a run — needs
-its own decision
+**Now: GPT exact-candidate review of draft PR #82** (REWARD-01 coefficient comparison R1, both
+arms executed, UNREVIEWED; §2). Its result informs one decision only: whether this ONE
+coefficient increase is promising enough for a later, separately authorized robustness /
+calibration step, or whether CREDIT-01 / BASELINE-01 comes next. Nothing further is scheduled
+or authorized. The other §5.1 questions are recorded for future read-only research chats; each
+is unassigned and unstarted, and any further step — a research chat that changes the
+repository, an implementation or a run — needs its own decision
 ([`experiments.md` §2](docs/workflows/experiments.md#2-execution-authority--the-authorized-bounded-plan)).
 `gamma = 1` remains the user's design requirement.
 
@@ -391,7 +417,10 @@ identity, including `run_config`, before reusing a measurement.
 #### REWARD-01 — Does the scored objective express the intended mission / survival trade-off?
 
 - **Status:** selected. A high-priority read-only formulation and calibration question. A larger
-  `c` is a candidate, not a diagnosed fix.
+  `c` is a candidate, not a diagnosed fix. **First intervention executed (2026-09-26, UNREVIEWED):**
+  a one-factor development comparison `c` 2.25 vs 4.5 (draft PR #82,
+  [measurements §19](docs/history/measurements.md#19-generalized-v2-reward-01-aircraft-loss-coefficient-development-comparison-r1--executed-unreviewed));
+  it does not answer the formulation question below, and no other coefficient is authorized.
 - **Known** (`graph_reward._event_conditioned_breakdown`): `D = |U_ref| + eps`
   (`regret_epsilon = 1e-5`); `R = (U_prefix + U_post − U_ref − c · U_aircraft · n_lost) / D`;
   `U_ref = U_prefix + U_cont_ref`. `U_aircraft` is the maximum task utility over the prefix plus
@@ -679,8 +708,8 @@ self-test's stale `isinstance(node, int)` assertion was corrected with it.
   or credit structure would need its own decision;
 - undecided local items left untouched by the 2026-09-19 cleanup, each needing its own decision:
   `src/match_aou/rl.zip`, `legacy/run_capture.log`, `src/match_aou/rl/observation/rollouts/` and
-  the directory `C:\gruns\` (empty at that cleanup; it now holds the two unarchived run directories
-  of §2)
+  the directory `C:\gruns\` (empty at that cleanup; it now holds the unarchived run directories
+  of §2, including the three REWARD-01 R1 directories)
   ([`environments_cleanup.md` §4.7](docs/workflows/environments_cleanup.md#47-cleanup-already-performed));
 - a separate code task to correct the V2 `generalized.cardinality_sampler` summary label in
   `graph_train._generalized_summary`, without touching archived artifacts;
@@ -695,9 +724,11 @@ self-test's stale `isinstance(node, int)` assertion was corrected with it.
 
 ## 6. Blocked or unauthorized now
 
-No research task is active. The documentation task of §2 is authorized ONLY to record the §5.1
-questions and the PR #80 status closure in this file and the decision log. **Recording a §5.1
-question authorizes nothing**, neither for that task nor for a future research chat: no code,
+The only active task is REWARD-01's coefficient comparison R1 (§2). Its authorization
+([`decisions.md` §1](docs/history/decisions.md#1-decision-log), 2026-09-26, with amendment 1)
+covered exactly its two arms and arm B's one authorized relaunch; it is **spent**: no further
+launch, arm, coefficient, seed replication, follow-up run, confirmatory evaluation, cleanup or
+merge. **Recording a §5.1 question authorizes nothing** for a future research chat: no code,
 test, configuration, preset, reward, observation, action, critic or optimizer change; no training,
 evaluation, preflight, replay, checkpoint loading, tuning, cleanup or merge. The credit-to-update
 diagnostic's authorization is spent: no second run, restart, resume, seed replication or extension.
@@ -748,8 +779,9 @@ Remaining local worktrees: the main checkout, `C:/Users/Itama/PycharmProjects/fl
 (branch `flat-final`) and the mission-slack measured source `C:/gms1src` (detached at
 `3bc944119da08af8e25268c9ee83fc63a8d1e533`, retained; its removal is not authorized) and the
 credit-to-update diagnostic's measured source `C:/gcud1src` (detached at
-`644883b89c208255f5808432462be64be5d7589f`, retained; no cleanup authorized); `C:/grolelambda1` is absent and
-unregistered
+`644883b89c208255f5808432462be64be5d7589f`, retained; no cleanup authorized) and the REWARD-01
+R1 measured source `C:/grc1src` (detached at `2b570194dea3612f3796999fc589b73d7082ae31`, retained;
+no cleanup authorized); `C:/grolelambda1` is absent and unregistered
 ([`environments_cleanup.md` §4.6](docs/workflows/environments_cleanup.md#46-local-worktrees)).
 Refs awaiting cleanup: none. **The intended durable remote branches are `main`,
 `phase-a-baseline`, `pre-ctde-actor-only` and `flat-final`, with the protected tag

@@ -45,6 +45,7 @@
 | GENERALIZED-V2 semantic-action CTDE development R1 (`semantic_k_plus_2_logmeanexp_v1`, symmetric central state, 375 updates; executed 2026-09-16) | `8056266cff89f677911462b29970346bed0a57c1` (the PR #72 merge; run-recorded clean `main`) | evidence PR #73, exact candidate `ad9b545034670a7c7a9d8ff98012d56c0be07f46` (not for merge); local original `C:\Users\Itama\PycharmProjects\graph_rl_v2_semantic_action_ctde_dev_r1_seed3000000_8056266` | GPT verdict `APPROVE — VALID DEVELOPMENT MEASUREMENT`, assigned **retrospectively on 2026-09-19** (as transferred in the user-approved documentation packet); **development only**; primary comparator semantic actor-only R1 (§10); 0 / 20 directional switches at every one of the 16 evaluation rounds; no comparable actor-only transient observed at any evaluation round; no CTDE benefit established (§16) |
 | GENERALIZED-V2 actor mission-fuel-slack development R1 (`actor_graph_task6_agent2_fuel_norm_mission_fuel_slack_v1`, actor-only, 375 updates; executed 2026-09-24) | `3bc944119da08af8e25268c9ee83fc63a8d1e533` (task branch `task/actor-mission-fuel-slack-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gms1src`) | local original `C:\gruns\graph_rl_v2_actor_mission_slack_dev_r1_seed3000000_3bc9441`; evidence package `research_evidence/generalized_v2/actor_mission_slack_dev_r1/` (PR #79, merged as `bcb1746fbc677b3109f73b36699ac3b3780c32a4`) | **reviewed as valid negative development evidence** (GPT, 2026-09-25; implementation APPROVED at exact head `26f8bff97b1cbbca64d18626625d2321545080af`); development only; final macro effectively zero, no transient (§17) |
 | GENERALIZED-V2 actor-only credit-to-update diagnostic R1 (mission-slack observation, 100 updates, `train_actor_step_diagnostics.jsonl`; executed 2026-09-25) | `644883b89c208255f5808432462be64be5d7589f` (task branch `task/actor-credit-update-diagnostic-r1`, **unmerged when measured**; run from the clean detached worktree `C:\gcud1src`) | local original `C:\gruns\graph_rl_v2_actor_credit_update_diag_r1_seed3000000_644883b`; evidence package `research_evidence/generalized_v2/actor_credit_update_diag_r1/` on draft PR #80 | **EXECUTED / UNREVIEWED** — no verdict; development diagnostic only (§18) |
+| GENERALIZED-V2 REWARD-01 aircraft-loss coefficient development comparison R1 — two actor-only arms, `aircraft_penalty_coeff` 2.25 (control) vs 4.5, mission-slack observation, 375 updates each; executed 2026-09-26 | `2b570194dea3612f3796999fc589b73d7082ae31` for both arms (task branch `task/reward-coefficient-dev-r1`, **unmerged when measured**; run from the clean detached worktree `C:\grc1src`) | local originals `C:\gruns\reward_c225_r1_s3000000_2b57019` (arm A) and `C:\gruns\reward_c450_r1_l2_s3000000_2b57019` (arm B, second launch; the stopped first launch `C:\gruns\reward_c450_r1_s3000000_2b57019` is preserved, not used); evidence package `research_evidence/generalized_v2/reward_coefficient_dev_r1/` on draft PR #82 | **EXECUTED / UNREVIEWED** — no verdict; development only; one seed pair (§19) |
 
 Locations above are **as recorded on their own dates** and are not rewritten. The local artifacts
 archived in the authorized 2026-09-15 closure now live in the local archive under `C:\gra\`, and
@@ -3290,3 +3291,70 @@ accounting — completed; consistency with the original run's trajectory — UNR
   sign-pair, absolute-cosine and residual summaries; narrowed wording in the package README, this
   section, the handoff and the PR description. No `src`, `tests` or configuration change; no
   training, evaluation, replay, inference or checkpoint loading.
+
+## 19. GENERALIZED-V2 REWARD-01 aircraft-loss coefficient development comparison R1 — executed, unreviewed
+
+Recorded on 2026-09-26 by the executing task. **Status: EXECUTED / UNREVIEWED** — no verdict
+exists; this is the executing task's reading of its evidence. The authorizing decision and the
+user-authorized amendment are the 2026-09-26 REWARD-01 rows of
+[`decisions.md` §1](decisions.md#1-decision-log); the full record is the package README
+(`research_evidence/generalized_v2/reward_coefficient_dev_r1/README.md`).
+
+### 19.1 Identity
+
+| Item | Value |
+|---|---|
+| Question | REWARD-01 (handoff §5.1): does doubling `aircraft_penalty_coeff` 2.25 → 4.5, everything else fixed, improve acquisition and retention of conditional MILD / SEVERE behaviour and the mission / survival trade-off? |
+| Measured code SHA | `2b570194dea3612f3796999fc589b73d7082ae31` for **both** arms (task branch, draft PR #82, unmerged when measured), run-recorded clean, from the detached worktree `C:\grc1src`; imported BLADE engine Git-blob-identical to the measured tree |
+| Arms | A `c = 2.25` (contemporaneous control) `reward_c225_r1_s3000000_2b57019`; B `c = 4.5` `reward_c450_r1_l2_s3000000_2b57019` (second launch) |
+| Configuration | two `--config` presets resolving to `train_config`s that differ only in `aircraft_penalty_coeff` and `output_dir`; otherwise the §17 `train_config` (actor-only, mission-slack observation, semantic actions, `generalized_v2`, `p1_milp_v1`, base seed 3000000, 375 × 8 successful, ≤ 12 attempts / update, no early stopping); manifest `ef17a68a…46ea8`, development profile, 16 rounds |
+| Environment | LOCAL `nlp_env`, CPU, torch 2.7.1+cpu, 4 / 4 threads (defaults, no thread variable set); identical probes for both arms |
+| Evidence | `research_evidence/generalized_v2/reward_coefficient_dev_r1/` on PR #82 |
+
+### 19.2 Validity facts (the task's pre-check; not a verdict)
+
+- Both arms: exit 0 under the 4-hour cap (A 8431 s, B 5294 s); 375 / 375 updates; 3000 / 3008
+  training attempts with the **same 8** accounted `no_fd_eligible_ego` setup failures;
+  960 / 960 evaluation episodes; 10 / 10 cells and 20 / 20 groups eligible in every round;
+  `accounting_reconciled = true`; no non-finite optimisation value; tracebacks exactly the
+  accounted failures. Reproduced endpoints match each trainer's `v2_behaviour`; every evaluation
+  reward is reproduced from its recorded `q`, `p` and `c`; the extractor re-runs byte-identically.
+- **Deviation — arm B launched twice, user-authorized.** The first launch was stopped at 120 s by
+  the task's own pre-update identity rule, which also compared wake `ego_id` and `tick`. The audit
+  found no world, action or probability difference (max 1.79e−7): per-episode generated ego ids
+  in the A5 / A6 worlds (unstable even across arm A's own rounds) and 1–2-tick timing. Amendment 1
+  moved those two fields to record-only, committed before the second launch; launch 1 is
+  preserved, hash-referenced and unused. Launch 2 passed: 0 world / action mismatches at 161
+  wakes, max probability difference 1.19e−7.
+
+### 19.3 Observed results (descriptive)
+
+- **Primary endpoint (final round, 375 updates):** macro `P(ABORT|SEVERE) − P(ABORT|MILD)` =
+  **+3.24e−8 (A)** and **+1.69e−3 (B)**, **B − A = +1.69e−3**, over the same 20 / 20 groups;
+  0 / 20 directional and reverse switches, 20 / 20 both-non-ABORT in both arms. Final-round
+  outcomes are identical in all 60 members.
+- **Trajectory:** arm A drifted toward PLAN (mean P(ABORT) 0.03 at 375; MILD and SEVERE means
+  within 1.12e−4 in every post-update round). Arm B raised P(ABORT) **in both severities
+  together** (0.57 at 175, 0.67–0.69 at 300–350, MILD ≈ SEVERE, |macro| ≤ 6.3e−4 before 375);
+  both-ABORT groups reached 17 / 20 at 175 and **20 / 20 at 300–350**, then the policy **reverted**
+  to PLAN at 375 (P(ABORT) 0.23, both-non-ABORT 20 / 20). No post-update round of either arm had a
+  directional switch. Training immediate-FD ABORT: B 351 / 774 MILD, 357 / 752 SEVERE; A 97 / 774
+  and 108 / 752.
+- **Trade-off:** arm A loses the certified ego in every SEVERE member from update 25 (20 airframes
+  per round), utility 512. At B's both-ABORT rounds B loses 0 airframes, utility 421: MILD 368 vs
+  532 (no death to save), SEVERE 336 vs 444.
+- **Rescoring (same saved trajectories, own references, no replay),** round 12 paired B − A:
+  SEVERE `+0.263` at `c = 2.25` and `+0.844` at `c = 4.5` (20 / 20 worlds better); MILD `−0.379`
+  at either `c`. On these fixed trajectories ABORT-in-SEVERE already scored higher than
+  PLAN-in-SEVERE at `c = 2.25`. Different learned policies on the same frozen worlds, not a
+  within-state counterfactual.
+
+### 19.4 Limitations and non-claims
+
+One training seed pair; 20 frozen development worlds re-measured every round; no confirmatory
+evidence. The larger coefficient changed behaviour (unconditional ABORT for a long stretch) but
+produced no MILD / SEVERE conditioning, and the ABORT regime was not retained. The final endpoint
+difference is not a conditional response. No crossover coefficient, cause or general statement
+about `c` or reward design is established; a null result rejects neither. Peaks and plateaus are
+exploratory. Same seed and source were not bit-identical (ego ids, 1–2 ticks); recorded, not
+investigated.
