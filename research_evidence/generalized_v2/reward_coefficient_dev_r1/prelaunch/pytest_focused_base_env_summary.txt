@@ -1,0 +1,4 @@
+# cwd C:\grc1src (measured SHA 2b570194dea3612f3796999fc589b73d7082ae31), base-env pytest, PYTHONPATH=C:/grc1src/src
+# python -m pytest -p no:cacheprovider -q tests/test_graph_fuel_damage.py tests/test_graph_train.py -k "p3_2 or config or preset"
+................................                                         [100%]
+32 passed, 237 deselected in 29.73s

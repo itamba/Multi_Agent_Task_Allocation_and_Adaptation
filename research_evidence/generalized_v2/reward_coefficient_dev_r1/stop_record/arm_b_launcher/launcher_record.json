@@ -1,0 +1,40 @@
+{
+ "record": "launcher_record",
+ "record_version": 3,
+ "cwd": "C:\\grc1src",
+ "env": {
+  "PYTHONPATH": "C:\\grc1src\\src",
+  "PYTHONNOUSERSITE": "1"
+ },
+ "command": [
+  "conda",
+  "run",
+  "-n",
+  "nlp_env",
+  "--no-capture-output",
+  "python",
+  "-m",
+  "match_aou.rl.training.graph_train",
+  "--config",
+  "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+  "--out",
+  "C:\\gruns\\reward_c450_r1_s3000000_2b57019"
+ ],
+ "output_dir": "C:\\gruns\\reward_c450_r1_s3000000_2b57019",
+ "launcher_dir": "C:\\gruns\\reward_c450_r1_s3000000_2b57019__launcher",
+ "reference_run": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+ "cap_hours": 4.0,
+ "heartbeat_seconds": 60.0,
+ "started_at": "2026-09-26T21:04:35.347374+03:00",
+ "launcher_pid": 4032,
+ "child_pid": 20984,
+ "status": "finished",
+ "pre_update_check": "stop",
+ "monitor_errors": 0,
+ "heartbeat_at": "2026-09-26T21:06:35.559235+03:00",
+ "elapsed_seconds": 120.0619999999908,
+ "termination_reason": "pre_update_mismatch_stop",
+ "exit_code": 1,
+ "ended_at": "2026-09-26T21:06:35.661964+03:00",
+ "walltime_seconds": 120.3119999999908
+}
