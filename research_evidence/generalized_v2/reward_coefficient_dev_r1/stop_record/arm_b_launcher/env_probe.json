@@ -1,0 +1,69 @@
+{
+ "record": "env_probe",
+ "record_version": 1,
+ "python": "3.12.3 | packaged by conda-forge | (main, Apr 15 2024, 18:20:11) [MSC v.1938 64 bit (AMD64)]",
+ "executable": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\python.exe",
+ "platform": "Windows-10-10.0.19045-SP0",
+ "machine": "AMD64",
+ "cpu_count": 8,
+ "packages": {
+  "torch": {
+   "version": "2.7.1+cpu",
+   "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\torch\\__init__.py"
+  },
+  "numpy": {
+   "version": "2.2.4",
+   "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\numpy\\__init__.py"
+  },
+  "scipy": {
+   "version": "1.13.1",
+   "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\scipy\\__init__.py"
+  },
+  "pyomo": {
+   "version": "6.9.1",
+   "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\pyomo\\__init__.py"
+  },
+  "gymnasium": {
+   "version": "1.0.0",
+   "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\gymnasium\\__init__.py"
+  },
+  "shapely": {
+   "version": "2.0.6",
+   "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\shapely\\__init__.py"
+  },
+  "haversine": {
+   "version": null,
+   "path": "C:\\Users\\Itama\\anaconda3\\envs\\nlp_env\\Lib\\site-packages\\haversine\\__init__.py"
+  },
+  "blade": {
+   "version": null,
+   "path": "C:\\Users\\Itama\\PycharmProjects\\Multi_Agent_Task_Allocation_and_Adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade\\__init__.py"
+  },
+  "match_aou": {
+   "version": null,
+   "path": "C:\\grc1src\\src\\match_aou\\__init__.py"
+  }
+ },
+ "torch": {
+  "num_threads": 4,
+  "num_interop_threads": 4,
+  "cuda_available": false,
+  "default_dtype": "torch.float32",
+  "deterministic_algorithms": false,
+  "parallel_info": "ATen/Parallel:\n\tat::get_num_threads() : 4\n\tat::get_num_interop_threads() : 4\nOpenMP 2019\n\tomp_get_max_threads() : 4\nIntel(R) oneAPI Math Kernel Library Version 2025.1-Product Build 20250306 for Intel(R) 64 architecture applications\n\tmkl_get_max_threads() : 4\nIntel(R) MKL-DNN v3.7.1 (Git Hash 8d263e693366ef8db40acc569cc7d8edf644556d)\nstd::thread::hardware_concurrency() : 8\nEnvironment variables:\n\tOMP_NUM_THREADS : [not set]\n\tMKL_NUM_THREADS : [not set]\nATen parallel backend: OpenMP\n"
+ },
+ "device": "cpu",
+ "env": {
+  "OMP_NUM_THREADS": null,
+  "MKL_NUM_THREADS": null,
+  "OPENBLAS_NUM_THREADS": null,
+  "NUMEXPR_NUM_THREADS": null,
+  "VECLIB_MAXIMUM_THREADS": null,
+  "KMP_AFFINITY": null,
+  "PYTHONHASHSEED": null,
+  "CUDA_VISIBLE_DEVICES": null,
+  "PYTHONPATH": "C:\\grc1src\\src",
+  "PYTHONNOUSERSITE": "1",
+  "CONDA_DEFAULT_ENV": "nlp_env"
+ }
+}
