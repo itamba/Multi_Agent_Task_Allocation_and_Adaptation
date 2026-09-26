@@ -1,0 +1,15 @@
+{
+ "final_round": {
+  "A": {
+   "R_c2p25_mean": -0.220907725191383,
+   "R_c4p5_mean": -0.4145860136449693
+  },
+  "B": {
+   "R_c2p25_mean": -0.220907725191383,
+   "R_c4p5_mean": -0.4145860136449693
+  }
+ },
+ "native_reward_reproduced_exactly": true,
+ "note": "native rewards at different c are NOT one scale; policies are compared only under a common c; references can differ between policies (see paired contrasts reference_terms_identical)",
+ "rule": "R(c) = q - c*p with each trajectory's own recorded reference; algebra only"
+}

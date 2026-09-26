@@ -1,0 +1,13 @@
+{
+ "check": "blade_engine_git_blob_identity",
+ "measured_sha": "2b570194dea3612f3796999fc589b73d7082ae31",
+ "n_tree_files": 25,
+ "imported_copy": "c:\\users\\itama\\pycharmprojects\\multi_agent_task_allocation_and_adaptation\\src\\match_aou\\integrations\\panopticon-main\\gym\\blade",
+ "worktree_copy": "C:/grc1src/src/match_aou/integrations/panopticon-main/gym/blade",
+ "imported_matches_measured_blobs": true,
+ "worktree_matches_measured_blobs": true,
+ "mismatches_imported": [],
+ "byte_differences_between_copies": 25,
+ "all_byte_differences_eol_only": true,
+ "pass": true
+}

@@ -1,0 +1,2498 @@
+[
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "eval_round_ordinal": 0,
+  "fd_action_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 59,
+   "denominator": 60,
+   "rate": 0.9833333333333333
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 0,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 0,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 19,
+   "denominator": 20,
+   "rate": 0.95
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 0,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "eval_round_ordinal": 1,
+  "fd_action_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 1,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 1,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 1,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "eval_round_ordinal": 2,
+  "fd_action_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 2,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 2,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 2,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "eval_round_ordinal": 3,
+  "fd_action_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 3,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 3,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 3,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "eval_round_ordinal": 4,
+  "fd_action_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 4,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 4,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 4,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "eval_round_ordinal": 5,
+  "fd_action_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 5,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 5,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 5,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.007743356118853502,
+   "n_B_greater": 9,
+   "n_B_less": 8,
+   "n_equal": 43
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.03828613436679936,
+   "n_B_greater": 9,
+   "n_B_less": 8,
+   "n_equal": 43
+  },
+  "eval_round_ordinal": 6,
+  "fd_action_identical": {
+   "count": 42,
+   "denominator": 60,
+   "rate": 0.7
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.15,
+   "n_B_greater": 0,
+   "n_B_less": 9,
+   "n_equal": 51
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -34.666666666666664,
+   "n_B_greater": 0,
+   "n_B_less": 16,
+   "n_equal": 44
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 6,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.09040043140134696,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.09040043140134696,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  },
+  "eval_round_ordinal": 6,
+  "fd_action_identical": {
+   "count": 11,
+   "denominator": 20,
+   "rate": 0.55
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -60.0,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.06717036304478645,
+   "n_B_greater": 9,
+   "n_B_less": 0,
+   "n_equal": 11
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.20525883450174504,
+   "n_B_greater": 9,
+   "n_B_less": 0,
+   "n_equal": 11
+  },
+  "eval_round_ordinal": 6,
+  "fd_action_identical": {
+   "count": 11,
+   "denominator": 20,
+   "rate": 0.55
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -0.45,
+   "n_B_greater": 0,
+   "n_B_less": 9,
+   "n_equal": 11
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -44.0,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.03584190067490444,
+   "n_B_greater": 17,
+   "n_B_less": 16,
+   "n_equal": 27
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.07033639767451394,
+   "n_B_greater": 17,
+   "n_B_less": 16,
+   "n_equal": 27
+  },
+  "eval_round_ordinal": 7,
+  "fd_action_identical": {
+   "count": 26,
+   "denominator": 60,
+   "rate": 0.43333333333333335
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.2833333333333333,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 43
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -76.0,
+   "n_B_greater": 0,
+   "n_B_less": 31,
+   "n_equal": 29
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 7,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.24141233291297723,
+   "n_B_greater": 0,
+   "n_B_less": 16,
+   "n_equal": 4
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.24141233291297723,
+   "n_B_greater": 0,
+   "n_B_less": 16,
+   "n_equal": 4
+  },
+  "eval_round_ordinal": 7,
+  "fd_action_identical": {
+   "count": 3,
+   "denominator": 20,
+   "rate": 0.15
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -136.0,
+   "n_B_greater": 0,
+   "n_B_less": 16,
+   "n_equal": 4
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.13388663088826389,
+   "n_B_greater": 17,
+   "n_B_less": 0,
+   "n_equal": 3
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.4524215259365191,
+   "n_B_greater": 17,
+   "n_B_less": 0,
+   "n_equal": 3
+  },
+  "eval_round_ordinal": 7,
+  "fd_action_identical": {
+   "count": 3,
+   "denominator": 20,
+   "rate": 0.15
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -0.85,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 3
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -92.0,
+   "n_B_greater": 0,
+   "n_B_less": 15,
+   "n_equal": 5
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.008014520103603808,
+   "n_B_greater": 4,
+   "n_B_less": 4,
+   "n_equal": 52
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.007241161516981486,
+   "n_B_greater": 4,
+   "n_B_less": 4,
+   "n_equal": 52
+  },
+  "eval_round_ordinal": 8,
+  "fd_action_identical": {
+   "count": 52,
+   "denominator": 60,
+   "rate": 0.8666666666666667
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.06666666666666667,
+   "n_B_greater": 0,
+   "n_B_less": 4,
+   "n_equal": 56
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -18.666666666666668,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 52
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 8,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.03992424191381859,
+   "n_B_greater": 0,
+   "n_B_less": 4,
+   "n_equal": 16
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.03992424191381859,
+   "n_B_greater": 0,
+   "n_B_less": 4,
+   "n_equal": 16
+  },
+  "eval_round_ordinal": 8,
+  "fd_action_identical": {
+   "count": 16,
+   "denominator": 20,
+   "rate": 0.8
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -32.0,
+   "n_B_greater": 0,
+   "n_B_less": 4,
+   "n_equal": 16
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.01588068160300717,
+   "n_B_greater": 4,
+   "n_B_less": 0,
+   "n_equal": 16
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.061647726464763054,
+   "n_B_greater": 4,
+   "n_B_less": 0,
+   "n_equal": 16
+  },
+  "eval_round_ordinal": 8,
+  "fd_action_identical": {
+   "count": 16,
+   "denominator": 20,
+   "rate": 0.8
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -0.2,
+   "n_B_greater": 0,
+   "n_B_less": 4,
+   "n_equal": 16
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -24.0,
+   "n_B_greater": 0,
+   "n_B_less": 4,
+   "n_equal": 16
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.007743356118853502,
+   "n_B_greater": 9,
+   "n_B_less": 8,
+   "n_equal": 43
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.03828613436679936,
+   "n_B_greater": 9,
+   "n_B_less": 8,
+   "n_equal": 43
+  },
+  "eval_round_ordinal": 9,
+  "fd_action_identical": {
+   "count": 42,
+   "denominator": 60,
+   "rate": 0.7
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.15,
+   "n_B_greater": 0,
+   "n_B_less": 9,
+   "n_equal": 51
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -34.666666666666664,
+   "n_B_greater": 0,
+   "n_B_less": 16,
+   "n_equal": 44
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 9,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.09040043140134696,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.09040043140134696,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  },
+  "eval_round_ordinal": 9,
+  "fd_action_identical": {
+   "count": 11,
+   "denominator": 20,
+   "rate": 0.55
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -60.0,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.06717036304478645,
+   "n_B_greater": 9,
+   "n_B_less": 0,
+   "n_equal": 11
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.20525883450174504,
+   "n_B_greater": 9,
+   "n_B_less": 0,
+   "n_equal": 11
+  },
+  "eval_round_ordinal": 9,
+  "fd_action_identical": {
+   "count": 11,
+   "denominator": 20,
+   "rate": 0.55
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -0.45,
+   "n_B_greater": 0,
+   "n_B_less": 9,
+   "n_equal": 11
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -44.0,
+   "n_B_greater": 0,
+   "n_B_less": 8,
+   "n_equal": 12
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.04695301145326094,
+   "n_B_greater": 18,
+   "n_B_less": 17,
+   "n_equal": 25
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.07172528637532413,
+   "n_B_greater": 18,
+   "n_B_less": 17,
+   "n_equal": 25
+  },
+  "eval_round_ordinal": 10,
+  "fd_action_identical": {
+   "count": 24,
+   "denominator": 60,
+   "rate": 0.4
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.3,
+   "n_B_greater": 0,
+   "n_B_less": 18,
+   "n_equal": 42
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -82.66666666666667,
+   "n_B_greater": 0,
+   "n_B_less": 33,
+   "n_equal": 27
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 10,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.2789123317411023,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 3
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.2789123317411023,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 3
+  },
+  "eval_round_ordinal": 10,
+  "fd_action_identical": {
+   "count": 2,
+   "denominator": 20,
+   "rate": 0.1
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -148.0,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 3
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.13805329738131947,
+   "n_B_greater": 18,
+   "n_B_less": 0,
+   "n_equal": 2
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.4940881908670747,
+   "n_B_greater": 18,
+   "n_B_less": 0,
+   "n_equal": 2
+  },
+  "eval_round_ordinal": 10,
+  "fd_action_identical": {
+   "count": 2,
+   "denominator": 20,
+   "rate": 0.1
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -0.9,
+   "n_B_greater": 0,
+   "n_B_less": 18,
+   "n_equal": 2
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -100.0,
+   "n_B_greater": 0,
+   "n_B_less": 16,
+   "n_equal": 4
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.04695301145326094,
+   "n_B_greater": 18,
+   "n_B_less": 17,
+   "n_equal": 25
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.07172528637532413,
+   "n_B_greater": 18,
+   "n_B_less": 17,
+   "n_equal": 25
+  },
+  "eval_round_ordinal": 11,
+  "fd_action_identical": {
+   "count": 24,
+   "denominator": 60,
+   "rate": 0.4
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.3,
+   "n_B_greater": 0,
+   "n_B_less": 18,
+   "n_equal": 42
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -82.66666666666667,
+   "n_B_greater": 0,
+   "n_B_less": 33,
+   "n_equal": 27
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 11,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.2789123317411023,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 3
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.2789123317411023,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 3
+  },
+  "eval_round_ordinal": 11,
+  "fd_action_identical": {
+   "count": 2,
+   "denominator": 20,
+   "rate": 0.1
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -148.0,
+   "n_B_greater": 0,
+   "n_B_less": 17,
+   "n_equal": 3
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.13805329738131947,
+   "n_B_greater": 18,
+   "n_B_less": 0,
+   "n_equal": 2
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.4940881908670747,
+   "n_B_greater": 18,
+   "n_B_less": 0,
+   "n_equal": 2
+  },
+  "eval_round_ordinal": 11,
+  "fd_action_identical": {
+   "count": 2,
+   "denominator": 20,
+   "rate": 0.1
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -0.9,
+   "n_B_greater": 0,
+   "n_B_less": 18,
+   "n_equal": 2
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -100.0,
+   "n_B_greater": 0,
+   "n_B_less": 16,
+   "n_equal": 4
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.03861968124492708,
+   "n_B_greater": 20,
+   "n_B_less": 19,
+   "n_equal": 21
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.1550586072086592,
+   "n_B_greater": 20,
+   "n_B_less": 19,
+   "n_equal": 21
+  },
+  "eval_round_ordinal": 12,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 60,
+   "rate": 0.3333333333333333
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.3333333333333333,
+   "n_B_greater": 0,
+   "n_B_less": 20,
+   "n_equal": 40
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -90.66666666666667,
+   "n_B_greater": 0,
+   "n_B_less": 37,
+   "n_equal": 23
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 12,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.37891232549110265,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.37891232549110265,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  },
+  "eval_round_ordinal": 12,
+  "fd_action_identical": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -164.0,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.2630532817563214,
+   "n_B_greater": 20,
+   "n_B_less": 0,
+   "n_equal": 0
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.8440881471170802,
+   "n_B_greater": 20,
+   "n_B_less": 0,
+   "n_equal": 0
+  },
+  "eval_round_ordinal": 12,
+  "fd_action_identical": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -1.0,
+   "n_B_greater": 0,
+   "n_B_less": 20,
+   "n_equal": 0
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -108.0,
+   "n_B_greater": 0,
+   "n_B_less": 18,
+   "n_equal": 2
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.03861968124492708,
+   "n_B_greater": 20,
+   "n_B_less": 19,
+   "n_equal": 21
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.1550586072086592,
+   "n_B_greater": 20,
+   "n_B_less": 19,
+   "n_equal": 21
+  },
+  "eval_round_ordinal": 13,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 60,
+   "rate": 0.3333333333333333
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.3333333333333333,
+   "n_B_greater": 0,
+   "n_B_less": 20,
+   "n_equal": 40
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 59,
+   "denominator": 60,
+   "rate": 0.9833333333333333
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -90.66666666666667,
+   "n_B_greater": 0,
+   "n_B_less": 37,
+   "n_equal": 23
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 13,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.37891232549110265,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.37891232549110265,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  },
+  "eval_round_ordinal": 13,
+  "fd_action_identical": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 19,
+   "denominator": 20,
+   "rate": 0.95
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -164.0,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.2630532817563214,
+   "n_B_greater": 20,
+   "n_B_less": 0,
+   "n_equal": 0
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.8440881471170802,
+   "n_B_greater": 20,
+   "n_B_less": 0,
+   "n_equal": 0
+  },
+  "eval_round_ordinal": 13,
+  "fd_action_identical": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -1.0,
+   "n_B_greater": 0,
+   "n_B_less": 20,
+   "n_equal": 0
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -108.0,
+   "n_B_greater": 0,
+   "n_B_less": 18,
+   "n_equal": 2
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.03861968124492708,
+   "n_B_greater": 20,
+   "n_B_less": 19,
+   "n_equal": 21
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.1550586072086592,
+   "n_B_greater": 20,
+   "n_B_less": 19,
+   "n_equal": 21
+  },
+  "eval_round_ordinal": 14,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 60,
+   "rate": 0.3333333333333333
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": -0.3333333333333333,
+   "n_B_greater": 0,
+   "n_B_less": 20,
+   "n_equal": 40
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -90.66666666666667,
+   "n_B_greater": 0,
+   "n_B_less": 37,
+   "n_equal": 23
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 14,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": -0.37891232549110265,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": -0.37891232549110265,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  },
+  "eval_round_ordinal": 14,
+  "fd_action_identical": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -164.0,
+   "n_B_greater": 0,
+   "n_B_less": 19,
+   "n_equal": 1
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.2630532817563214,
+   "n_B_greater": 20,
+   "n_B_less": 0,
+   "n_equal": 0
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.8440881471170802,
+   "n_B_greater": 20,
+   "n_B_less": 0,
+   "n_equal": 0
+  },
+  "eval_round_ordinal": 14,
+  "fd_action_identical": {
+   "count": 0,
+   "denominator": 20,
+   "rate": 0.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": -1.0,
+   "n_B_greater": 0,
+   "n_B_less": 20,
+   "n_equal": 0
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": -108.0,
+   "n_B_greater": 0,
+   "n_B_less": 18,
+   "n_equal": 2
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "eval_round_ordinal": 15,
+  "fd_action_identical": {
+   "count": 60,
+   "denominator": 60,
+   "rate": 1.0
+  },
+  "member_cell": "all",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  },
+  "n_worlds": 60,
+  "reference_terms_identical": {
+   "count": 59,
+   "denominator": 60,
+   "rate": 0.9833333333333333
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 60
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 15,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "clean",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 15,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "mild",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ },
+ {
+  "R_c2p25": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "R_c4p5": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "eval_round_ordinal": 15,
+  "fd_action_identical": {
+   "count": 20,
+   "denominator": 20,
+   "rate": 1.0
+  },
+  "member_cell": "severe",
+  "n_dead": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  },
+  "n_worlds": 20,
+  "reference_terms_identical": {
+   "count": 19,
+   "denominator": 20,
+   "rate": 0.95
+  },
+  "u_achieved": {
+   "B_minus_A_mean": 0.0,
+   "n_B_greater": 0,
+   "n_B_less": 0,
+   "n_equal": 20
+  }
+ }
+]

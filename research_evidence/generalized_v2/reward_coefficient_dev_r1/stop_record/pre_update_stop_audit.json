@@ -1,0 +1,592 @@
+{
+ "ego_id_mismatch_members": [
+  "A5-D0-w001/clean",
+  "A5-D0-w001/mild",
+  "A5-D0-w001/severe",
+  "A5-D2-w000/clean",
+  "A5-D2-w000/mild",
+  "A5-D2-w000/severe",
+  "A5-D2-w001/clean",
+  "A5-D2-w001/mild",
+  "A5-D2-w001/severe",
+  "A6-D0-w000/clean",
+  "A6-D0-w000/mild",
+  "A6-D0-w000/severe",
+  "A6-D0-w001/clean",
+  "A6-D0-w001/mild",
+  "A6-D0-w001/severe",
+  "A6-D2-w000/clean",
+  "A6-D2-w000/mild",
+  "A6-D2-w000/severe",
+  "A6-D2-w001/clean",
+  "A6-D2-w001/mild",
+  "A6-D2-w001/severe"
+ ],
+ "ego_id_stability_within_arm_A": {
+  "A5-D0-w001/clean": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D0-w001/mild": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D0-w001/severe": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D2-w000/clean": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D2-w000/mild": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D2-w000/severe": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D2-w001/clean": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D2-w001/mild": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A5-D2-w001/severe": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D0-w000/clean": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D0-w000/mild": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D0-w000/severe": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D0-w001/clean": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D0-w001/mild": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D0-w001/severe": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D2-w000/clean": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D2-w000/mild": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D2-w000/severe": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D2-w001/clean": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D2-w001/mild": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  },
+  "A6-D2-w001/severe": {
+   "distinct_ego_id_sets_over_A_rounds": 16,
+   "rounds": 16
+  }
+ },
+ "fd_ego_id_equal_all_members": true,
+ "frozen_world_identity_mismatches": 0,
+ "live_report_reproduced_exactly": true,
+ "max_abs_semantic_probability_difference": 1.7881393432617188e-07,
+ "mismatch_members": [
+  "A5-D0-w001/clean",
+  "A5-D0-w001/mild",
+  "A5-D0-w001/severe",
+  "A5-D2-w000/clean",
+  "A5-D2-w000/mild",
+  "A5-D2-w000/severe",
+  "A5-D2-w001/clean",
+  "A5-D2-w001/mild",
+  "A5-D2-w001/severe",
+  "A6-D0-w000/clean",
+  "A6-D0-w000/mild",
+  "A6-D0-w000/severe",
+  "A6-D0-w001/clean",
+  "A6-D0-w001/mild",
+  "A6-D0-w001/severe",
+  "A6-D2-w000/clean",
+  "A6-D2-w000/mild",
+  "A6-D2-w000/severe",
+  "A6-D2-w001/clean",
+  "A6-D2-w001/mild",
+  "A6-D2-w001/severe"
+ ],
+ "n_members": {
+  "A": 60,
+  "B": 60
+ },
+ "n_wakes_compared": 161,
+ "outcome_field_differences": [
+  {
+   "a": 6677,
+   "b": 6679,
+   "field": "ticks",
+   "member": [
+    "A5-D2-w000",
+    "severe"
+   ]
+  },
+  {
+   "a": 9157,
+   "b": 9158,
+   "field": "ticks",
+   "member": [
+    "A5-D2-w001",
+    "mild"
+   ]
+  },
+  {
+   "a": 10556,
+   "b": 10555,
+   "field": "ticks",
+   "member": [
+    "A6-D0-w001",
+    "mild"
+   ]
+  },
+  {
+   "a": 10380,
+   "b": 10379,
+   "field": "ticks",
+   "member": [
+    "A6-D2-w001",
+    "clean"
+   ]
+  },
+  {
+   "a": 10378,
+   "b": 10379,
+   "field": "ticks",
+   "member": [
+    "A6-D2-w001",
+    "mild"
+   ]
+  },
+  {
+   "a": 10379,
+   "b": 10380,
+   "field": "ticks",
+   "member": [
+    "A6-D2-w001",
+    "severe"
+   ]
+  }
+ ],
+ "probability_tolerance": 1e-06,
+ "record": "pre_update_stop_audit",
+ "record_only": {
+  "members_with_outcome_differences": 6,
+  "outcome_difference_fields": {
+   "ticks": 6
+  },
+  "penalty_b_equals_2x_a_all_members": true
+ },
+ "record_version": 1,
+ "scope": "read-only classification of recorded outputs; no training, evaluation, replay or checkpoint load",
+ "sources_sha256": {
+  "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\episode_outcomes.jsonl": "12b60d2e580ea1463c5ff2dd123afb495386a4697af711ddbfe5988162ddbfff",
+  "C:\\gruns\\reward_c450_r1_s3000000_2b57019\\episode_outcomes.jsonl": "8d807795caae3fe702eccfcd4c724bddc597f27e6451460a1827c8abaa397cc6",
+  "C:\\gruns\\reward_c450_r1_s3000000_2b57019__launcher\\pre_update_identity.json": "b01f1591d00fab53b86a68d5ef9b787dc9252c664b4e7aa246680f6790e7b700"
+ },
+ "stop": true,
+ "stop_reasons": [
+  "wake sequence / selected action differs"
+ ],
+ "tick_deltas_b_minus_a": {
+  "-1": 5,
+  "-2": 1,
+  "1": 5,
+  "2": 1
+ },
+ "wake_mismatches": [
+  {
+   "a": "82521785-9b9b-44e3-95b0-1084c7c5b033",
+   "b": "b58c1e87-fb42-4877-a343-562072834211",
+   "field": "ego_id",
+   "member": [
+    "A5-D0-w001",
+    "clean"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "5d481f16-7dc9-42b0-8b49-97a45e717d52",
+   "b": "8e3d318f-7729-4a9d-b9c1-6d6ac992ea7d",
+   "field": "ego_id",
+   "member": [
+    "A5-D0-w001",
+    "mild"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "93dd3a7f-1a96-41d8-a6b2-91392b52e9db",
+   "b": "4f17c819-d04e-43e4-b21e-86e246d4a445",
+   "field": "ego_id",
+   "member": [
+    "A5-D0-w001",
+    "severe"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "a6d924c8-8c2c-481a-88d9-868e950a6b4b",
+   "b": "c90a476a-bcfa-4a6a-998f-c2075ca1e2ba",
+   "field": "ego_id",
+   "member": [
+    "A5-D2-w000",
+    "clean"
+   ],
+   "wake": 4
+  },
+  {
+   "a": "5806d92f-ce8c-46df-9713-cd1b1c8334c5",
+   "b": "94b68057-0b56-4f0d-aa38-d3da4869dfec",
+   "field": "ego_id",
+   "member": [
+    "A5-D2-w000",
+    "mild"
+   ],
+   "wake": 4
+  },
+  {
+   "a": 1806,
+   "b": 1805,
+   "field": "tick",
+   "member": [
+    "A5-D2-w000",
+    "severe"
+   ],
+   "wake": 2
+  },
+  {
+   "a": "02e6313a-9d8b-47fe-a90c-f173e24ec2dc",
+   "b": "3eb66c30-b982-42c8-909e-5945d9a663ea",
+   "field": "ego_id",
+   "member": [
+    "A5-D2-w000",
+    "severe"
+   ],
+   "wake": 4
+  },
+  {
+   "a": 4083,
+   "b": 4084,
+   "field": "tick",
+   "member": [
+    "A5-D2-w000",
+    "severe"
+   ],
+   "wake": 4
+  },
+  {
+   "a": "c679bc94-4718-4c11-9862-497802da7f87",
+   "b": "e75ab74c-5395-4914-b357-7a9309c7105d",
+   "field": "ego_id",
+   "member": [
+    "A5-D2-w001",
+    "clean"
+   ],
+   "wake": 2
+  },
+  {
+   "a": "69caa1aa-6e17-4349-865c-2da8ecea155b",
+   "b": "a8a636bd-31c8-4745-9bd6-e7b22e8af4a3",
+   "field": "ego_id",
+   "member": [
+    "A5-D2-w001",
+    "mild"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 7183,
+   "b": 7184,
+   "field": "tick",
+   "member": [
+    "A5-D2-w001",
+    "mild"
+   ],
+   "wake": 2
+  },
+  {
+   "a": "5f175bd9-595a-45a0-b341-cdeb5c911bb4",
+   "b": "0a5ea58c-f18d-4db1-98a4-50ef7503a479",
+   "field": "ego_id",
+   "member": [
+    "A5-D2-w001",
+    "severe"
+   ],
+   "wake": 2
+  },
+  {
+   "a": "3f2106a0-b2ab-4671-94d9-a3ceac735c4f",
+   "b": "e8ab96fc-79df-4ead-9f51-14c392e45b71",
+   "field": "ego_id",
+   "member": [
+    "A6-D0-w000",
+    "clean"
+   ],
+   "wake": 1
+  },
+  {
+   "a": "e095b533-d6a5-4c79-8248-9ee1cd612f0c",
+   "b": "3c3ac493-a5da-4fef-99e8-0eba7f556eec",
+   "field": "ego_id",
+   "member": [
+    "A6-D0-w000",
+    "mild"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1269,
+   "b": 1268,
+   "field": "tick",
+   "member": [
+    "A6-D0-w000",
+    "mild"
+   ],
+   "wake": 2
+  },
+  {
+   "a": "b4a14307-d963-4935-8c30-204202ff34ca",
+   "b": "e4c5fc45-821a-41af-855b-d2a5e302374d",
+   "field": "ego_id",
+   "member": [
+    "A6-D0-w000",
+    "severe"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1268,
+   "b": 1269,
+   "field": "tick",
+   "member": [
+    "A6-D0-w000",
+    "severe"
+   ],
+   "wake": 2
+  },
+  {
+   "a": "db1a3b83-5034-4703-bc3c-d297a900e1d8",
+   "b": "fb8e1e87-c91d-4e01-9a6c-18810562de84",
+   "field": "ego_id",
+   "member": [
+    "A6-D0-w001",
+    "clean"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "01c5e69f-4d52-41d9-be24-18b76d73e310",
+   "b": "4878200a-f4bf-43a4-8f37-2010cdc64f75",
+   "field": "ego_id",
+   "member": [
+    "A6-D0-w001",
+    "mild"
+   ],
+   "wake": 0
+  },
+  {
+   "a": 7516,
+   "b": 7515,
+   "field": "tick",
+   "member": [
+    "A6-D0-w001",
+    "mild"
+   ],
+   "wake": 3
+  },
+  {
+   "a": "85a12c0f-d5c5-4740-ab6e-01a688b7d2d4",
+   "b": "da94694b-409f-4018-bb05-ed9252725249",
+   "field": "ego_id",
+   "member": [
+    "A6-D0-w001",
+    "severe"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "73c1c2e5-5f4b-4991-93af-8654ea53030f",
+   "b": "a0731dbf-5748-4ee5-be21-2e2f5db2e07d",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w000",
+    "clean"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "26ed5dea-993f-4e3f-bf94-7bb36f900524",
+   "b": "94f6ee44-eec0-492a-9e37-d8a5ebdf5d49",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w000",
+    "mild"
+   ],
+   "wake": 1
+  },
+  {
+   "a": "535587f0-0c0f-415e-be77-d64387c6979a",
+   "b": "1d5031e0-b0d7-47be-9ef1-2115a81afa8c",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w000",
+    "severe"
+   ],
+   "wake": 1
+  },
+  {
+   "a": "489f8961-c28d-4d8c-b539-8182eed35493",
+   "b": "a2c3c982-20d9-493c-a3eb-1b8034ebad80",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w001",
+    "clean"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "7fc44102-ceee-4437-8162-95bfa25b57e4",
+   "b": "27b8f386-8bb2-4c4e-b73d-e6fcfb17ccba",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w001",
+    "clean"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1431,
+   "b": 1430,
+   "field": "tick",
+   "member": [
+    "A6-D2-w001",
+    "clean"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1749,
+   "b": 1750,
+   "field": "tick",
+   "member": [
+    "A6-D2-w001",
+    "clean"
+   ],
+   "wake": 3
+  },
+  {
+   "a": "d0adb520-bb87-4e48-a002-bca67e611896",
+   "b": "c3f10232-f5a2-442d-a38f-f7629ebad419",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w001",
+    "mild"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "12eeee50-69f4-40e0-bcce-21a003ec3de8",
+   "b": "bd7171ae-30d9-483c-af69-571888a63fbc",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w001",
+    "mild"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1430,
+   "b": 1431,
+   "field": "tick",
+   "member": [
+    "A6-D2-w001",
+    "mild"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1750,
+   "b": 1749,
+   "field": "tick",
+   "member": [
+    "A6-D2-w001",
+    "mild"
+   ],
+   "wake": 3
+  },
+  {
+   "a": "4ab67c9b-51da-4612-b727-7818dcc0ceb2",
+   "b": "6a42a1e1-4171-4bf2-ae97-6e16ca20e1b7",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w001",
+    "severe"
+   ],
+   "wake": 0
+  },
+  {
+   "a": "ca464102-795b-49c8-a2ec-2874842f76aa",
+   "b": "b744d554-28a3-4602-b530-4278e0270227",
+   "field": "ego_id",
+   "member": [
+    "A6-D2-w001",
+    "severe"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1430,
+   "b": 1432,
+   "field": "tick",
+   "member": [
+    "A6-D2-w001",
+    "severe"
+   ],
+   "wake": 2
+  },
+  {
+   "a": 1751,
+   "b": 1749,
+   "field": "tick",
+   "member": [
+    "A6-D2-w001",
+    "severe"
+   ],
+   "wake": 3
+  }
+ ],
+ "wake_mismatches_by_field": {
+  "ego_id": 24,
+  "tick": 12
+ },
+ "wakes_with_different_wake_kind_or_selected_action_or_leaf": 0
+}

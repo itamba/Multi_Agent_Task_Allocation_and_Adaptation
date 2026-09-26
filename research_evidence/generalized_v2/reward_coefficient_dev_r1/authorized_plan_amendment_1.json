@@ -1,0 +1,32 @@
+{
+ "record": "authorized_plan_amendment",
+ "amendment": 1,
+ "record_version": 1,
+ "written_before_the_amended_launch": true,
+ "amends": "authorized_plan.json (unchanged; this record supersedes only the fields named here)",
+ "authorization": {
+  "source": "the user's explicit chat decision of 2026-09-26, after the stop was reported: 'Relaunch B, fixed rule' - authorize ONE new arm-B launch at the same measured SHA and configuration into a new fresh directory, with the corrected pre-update rule committed before launch; arm A is not rerun",
+  "scope": "exactly one additional launch attempt of arm B; nothing else in authorized_plan.json changes"
+ },
+ "trigger": {
+  "event": "arm B launch 1 (C:\\gruns\\reward_c450_r1_s3000000_2b57019) stopped at 120 s by the version-1 pre-update rule (pre_update_mismatch_stop), exit 1, after the complete pre_update round and 3 recorded updates",
+  "audit": "stop_record/README.md and stop_record/pre_update_stop_audit.json (evidence commit 7f5ed25b1b6172cb7891dc2d038dccecf938041f): 0 frozen-world identity mismatches, identical wake kind / selected action / leaf at all 161 wakes, max probability difference 1.79e-7; the 36 mismatches were 24 per-episode generated ego ids (not stable even across arm A's own rounds of one world) and 12 wake ticks off by 1-2",
+  "launch_1_disposition": "preserved unchanged, hash-referenced in stop_record/original_artifacts_sha256.txt; not used by the comparison"
+ },
+ "pre_update_mismatch_rule_v2": {
+  "implementation": "scripts/compare_pre_update.py record_version 2",
+  "stop_if": ["the set of pre_update members differs", "any frozen-world identity field differs for a member (unchanged list)", "any member's wake count differs, or any wake differs in wake kind, selected meta-action or selected leaf", "any recorded semantic meta-action probability differs by more than 1e-6 absolute"],
+  "moved_to_record_only": ["wake ego_id (per-episode generated in some worlds; cannot identify an ego across runs)", "wake tick (1-2-tick same-seed timing differences, measurements section 18)"],
+  "record_only_unchanged": "episode outcomes, reward ratio, exact 2x penalty relation"
+ },
+ "arm_b_launch_2": {
+  "measured_code_sha": "2b570194dea3612f3796999fc589b73d7082ae31 (unchanged; training source is the same clean worktree C:\\grc1src)",
+  "preset": "research_evidence/generalized_v2/reward_coefficient_dev_r1/configs/arm_b_c4p5.json (unchanged)",
+  "output_dir": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019",
+  "argv_after_python": ["-m", "match_aou.rl.training.graph_train", "--config", "C:\\grc1src\\research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json", "--out", "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019"],
+  "launcher": "scripts/launch_with_watchdog.py from the MAIN checkout at the amendment commit (so it imports compare_pre_update v2), with --worktree C:\\grc1src and --reference-run C:\\gruns\\reward_c225_r1_s3000000_2b57019; 4-hour cap",
+  "resolved_config": "identical to prelaunch/preflight.json arms.B.train_config except output_dir (verified in prelaunch/amendment1_check.json)"
+ },
+ "unchanged": ["question, factor, both coefficients, population, budget, endpoints, secondary outcomes, other stop conditions, interpretation limits", "arm A and its results", "one attempt for this launch: no further relaunch without a new authorization"],
+ "budget_note": "combined scientific walltime: arm A 8431 s + arm B launch 1 120 s; launch 2 capped at 4 h, keeping the total within the 8-hour combined cap"
+}

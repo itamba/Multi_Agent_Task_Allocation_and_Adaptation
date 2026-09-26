@@ -1,0 +1,369 @@
+{
+ "arms": {
+  "A": "C:\\gruns\\reward_c225_r1_s3000000_2b57019",
+  "B": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019"
+ },
+ "measured_code_sha": "2b570194dea3612f3796999fc589b73d7082ae31",
+ "sources": [
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\run_config.json",
+   "bytes": 24651,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/run_config.json",
+   "group": "arm_a_run",
+   "name": "run_config.json",
+   "role": "trainer-resolved configuration and provenance",
+   "sha256": "269f10dbc7fc0b5997c3d8c0d7223bb5e8bbdcd2ef2beb879838165815ba0f52"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\run_summary.json",
+   "bytes": 122992,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/run_summary.json",
+   "group": "arm_a_run",
+   "name": "run_summary.json",
+   "role": "trainer run summary: accounting, final round",
+   "sha256": "bf4eb93439611746ede79dadbbf62a37226bfaa06720629a203333d04144dc44"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\train_records.jsonl",
+   "bytes": 1027563,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/train_records.jsonl",
+   "group": "arm_a_run",
+   "name": "train_records.jsonl",
+   "role": "one record per training update",
+   "sha256": "7041860cfafd86a89f48b1bbdc30669898a7f6a0372f6d2bfa5cfd88f2f7b742"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\eval_records.jsonl",
+   "bytes": 410128,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/eval_records.jsonl",
+   "group": "arm_a_run",
+   "name": "eval_records.jsonl",
+   "role": "one record per evaluation round, incl. v2_behaviour",
+   "sha256": "9e84ab2fe8f7c2a6eb8ae6f90ff55cdca8d1e849508c6c11d593aabd50f21383"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\episode_failures.jsonl",
+   "bytes": 30169,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/episode_failures.jsonl",
+   "group": "arm_a_run",
+   "name": "episode_failures.jsonl",
+   "role": "failure ledger",
+   "sha256": "922feaa544485c797be80ef32e5f884ee3eba8bdf34d32865171402f540a91e1"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\episode_outcomes.jsonl",
+   "bytes": 106086673,
+   "disposition": "external_only; evaluation outcomes and wakes, training summaries extracted",
+   "git_path": null,
+   "group": "arm_a_run",
+   "name": "episode_outcomes.jsonl",
+   "role": "per-episode outcomes incl. wake diagnostics (train + eval)",
+   "sha256": "12b60d2e580ea1463c5ff2dd123afb495386a4697af711ddbfe5988162ddbfff"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\train_credit_diagnostics.jsonl",
+   "bytes": 11995343,
+   "disposition": "external_only; counts and FD-selected-ego immediate-FD rows extracted",
+   "git_path": null,
+   "group": "arm_a_run",
+   "name": "train_credit_diagnostics.jsonl",
+   "role": "per-transition credit of every productive update",
+   "sha256": "fc3a6b8f23ef43d818664c3c82a5066311b826d7f38e4e3e4d2ab2f9fec5fd2a"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019\\checkpoints\\ckpt_iter0374.pt",
+   "bytes": 1371147,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "arm_a_run",
+   "name": "checkpoints/ckpt_iter0374.pt",
+   "role": "final actor checkpoint (never loaded)",
+   "sha256": "e6a1f38861aa9441b1efe2f06a8c608d8e8f6779ecae8db6b8ec0f64018195bd"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019__launcher\\launcher_record.json",
+   "bytes": 1128,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/launcher/launcher_record.json",
+   "group": "arm_a_launcher",
+   "name": "launcher_record.json",
+   "role": "launcher / watchdog record",
+   "sha256": "1adff6e98910571ec54ae1f6b43d1514c271693f954446b5df5b70b731cbdd96"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019__launcher\\native_exit_code.txt",
+   "bytes": 3,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/launcher/native_exit_code.txt",
+   "group": "arm_a_launcher",
+   "name": "native_exit_code.txt",
+   "role": "exit code written by the Python launcher",
+   "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019__launcher\\invocation_start_local.txt",
+   "bytes": 34,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/launcher/invocation_start_local.txt",
+   "group": "arm_a_launcher",
+   "name": "invocation_start_local.txt",
+   "role": "launcher start timestamp",
+   "sha256": "6ae7fb94d05640e938dcc43403759a695235d84ad633e92f339668fed4815b46"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019__launcher\\env_probe.json",
+   "bytes": 2724,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_a/launcher/env_probe.json",
+   "group": "arm_a_launcher",
+   "name": "env_probe.json",
+   "role": "environment probe run just before the training process",
+   "sha256": "bbb7a4280a4ad6b42f3b6ca2b7e533a4132cac1137fd779c51aded915eb3decc"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c225_r1_s3000000_2b57019__launcher\\training_console.log",
+   "bytes": 6343673,
+   "disposition": "external_only; hash reference; scanned for Traceback / CRASH",
+   "git_path": null,
+   "group": "arm_a_launcher",
+   "name": "training_console.log",
+   "role": "trainer console output (*.log is git-ignored)",
+   "sha256": "0ded4b3c6138cf973b69fbed7d57d613d57680f920f7e8603e98e1031879c44d"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\run_config.json",
+   "bytes": 24652,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/run_config.json",
+   "group": "arm_b_run",
+   "name": "run_config.json",
+   "role": "trainer-resolved configuration and provenance",
+   "sha256": "35ffea1ee99d082398ea9a6800ef65196641c972ec401875f0e074f135a828e6"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\run_summary.json",
+   "bytes": 122956,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/run_summary.json",
+   "group": "arm_b_run",
+   "name": "run_summary.json",
+   "role": "trainer run summary: accounting, final round",
+   "sha256": "4afc186f91e2ac6435bef85ddb63d53856f6a47c556905967db19f11614531c5"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\train_records.jsonl",
+   "bytes": 1031620,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/train_records.jsonl",
+   "group": "arm_b_run",
+   "name": "train_records.jsonl",
+   "role": "one record per training update",
+   "sha256": "b636b66075e88950d480a6654ba788746ea22719bda2edf8c36092314de4108b"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\eval_records.jsonl",
+   "bytes": 413929,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/eval_records.jsonl",
+   "group": "arm_b_run",
+   "name": "eval_records.jsonl",
+   "role": "one record per evaluation round, incl. v2_behaviour",
+   "sha256": "0ba5ffb4e955571cc7fb19f7f28fe161214e41429d97375e5faffcac25261160"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\episode_failures.jsonl",
+   "bytes": 30169,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/episode_failures.jsonl",
+   "group": "arm_b_run",
+   "name": "episode_failures.jsonl",
+   "role": "failure ledger",
+   "sha256": "4e2ac6f0b0133e077f010e31022cc7780f9e316ad4d51db6ac4309eb311df0cd"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\episode_outcomes.jsonl",
+   "bytes": 99193969,
+   "disposition": "external_only; evaluation outcomes and wakes, training summaries extracted",
+   "git_path": null,
+   "group": "arm_b_run",
+   "name": "episode_outcomes.jsonl",
+   "role": "per-episode outcomes incl. wake diagnostics (train + eval)",
+   "sha256": "d3e467a639a6e4fb6107c905d6bd4469e835ba7d184944023e42721f7bca2a1b"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\train_credit_diagnostics.jsonl",
+   "bytes": 10919470,
+   "disposition": "external_only; counts and FD-selected-ego immediate-FD rows extracted",
+   "git_path": null,
+   "group": "arm_b_run",
+   "name": "train_credit_diagnostics.jsonl",
+   "role": "per-transition credit of every productive update",
+   "sha256": "6368f75c8acd461c8da767b6753adfd55008bd2acec797b9d98e8f24925d92bc"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019\\checkpoints\\ckpt_iter0374.pt",
+   "bytes": 1371147,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "arm_b_run",
+   "name": "checkpoints/ckpt_iter0374.pt",
+   "role": "final actor checkpoint (never loaded)",
+   "sha256": "79e25db67feedfa0379531d3584c2c12c908b8c15320e26fa9329418e256c760"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019__launcher\\launcher_record.json",
+   "bytes": 1166,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/launcher/launcher_record.json",
+   "group": "arm_b_launcher",
+   "name": "launcher_record.json",
+   "role": "launcher / watchdog record",
+   "sha256": "39d03b8d7e4f8ca3045c058dd27a6585b31b8ee35256b7cb38a01d454d2d48a9"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019__launcher\\native_exit_code.txt",
+   "bytes": 3,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/launcher/native_exit_code.txt",
+   "group": "arm_b_launcher",
+   "name": "native_exit_code.txt",
+   "role": "exit code written by the Python launcher",
+   "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019__launcher\\invocation_start_local.txt",
+   "bytes": 34,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/launcher/invocation_start_local.txt",
+   "group": "arm_b_launcher",
+   "name": "invocation_start_local.txt",
+   "role": "launcher start timestamp",
+   "sha256": "1f87f61fec5c31952a30abdb22c08f38f140670ad4f32b187bc15c5d5bda2d75"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019__launcher\\env_probe.json",
+   "bytes": 2724,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/launcher/env_probe.json",
+   "group": "arm_b_launcher",
+   "name": "env_probe.json",
+   "role": "environment probe run just before the training process",
+   "sha256": "bbb7a4280a4ad6b42f3b6ca2b7e533a4132cac1137fd779c51aded915eb3decc"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019__launcher\\training_console.log",
+   "bytes": 6311358,
+   "disposition": "external_only; hash reference; scanned for Traceback / CRASH",
+   "git_path": null,
+   "group": "arm_b_launcher",
+   "name": "training_console.log",
+   "role": "trainer console output (*.log is git-ignored)",
+   "sha256": "a5e8d9ea6ab8f1bc0b535397eb4afdaffc4fd3d57e9c702347dac31fac27d43f"
+  },
+  {
+   "absolute_path": "C:\\gruns\\reward_c450_r1_l2_s3000000_2b57019__launcher\\pre_update_identity.json",
+   "bytes": 8577,
+   "disposition": "copied",
+   "git_path": "run_artifacts/arm_b/launcher/pre_update_identity.json",
+   "group": "arm_b_launcher",
+   "name": "pre_update_identity.json",
+   "role": "arm-B live pre-update identity check",
+   "sha256": "296dcbcd821f33df7543db739f3158b0182f2f680d8171c7d3f52be242ec4ee3"
+  },
+  {
+   "absolute_path": "C:\\gra\\benchmarks\\v2_preflight_seed2000000_ae42cb0\\benchmark_manifest.json",
+   "bytes": 204244,
+   "disposition": "external_only; hash reference",
+   "git_path": null,
+   "group": "benchmark",
+   "name": "benchmark_manifest.json",
+   "role": "frozen GENERALIZED-V2 benchmark manifest consumed by both arms",
+   "sha256": "dd72afc9cc0d2d1fe494ddbebe53734dc36bd5890997125d3e96a2a59641a103"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\prelaunch\\amendment1_check.json",
+   "bytes": 3514,
+   "disposition": "committed",
+   "git_path": "prelaunch/amendment1_check.json",
+   "group": "prelaunch",
+   "name": "amendment1_check.json",
+   "role": "pre-launch verification record",
+   "sha256": "614df8b00b767b459801137e8437cb1e590e1448203d02f56b1efe2d0f543420"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\prelaunch\\preflight.json",
+   "bytes": 26623,
+   "disposition": "committed",
+   "git_path": "prelaunch/preflight.json",
+   "group": "prelaunch",
+   "name": "preflight.json",
+   "role": "pre-launch verification record",
+   "sha256": "a99609f1c39502860610cb8b0125da4cf0e60ec6f268eed807bff4ef78559853"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\prelaunch\\preflight.log",
+   "bytes": 1453,
+   "disposition": "committed",
+   "git_path": "prelaunch/preflight.log",
+   "group": "prelaunch",
+   "name": "preflight.log",
+   "role": "pre-launch verification record",
+   "sha256": "04f9cbcafec4b755052e5445f4266c36af10a1230fc6eb0d4a430d6332b6e32e"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\prelaunch\\preflight_blade_blob_identity.json",
+   "bytes": 590,
+   "disposition": "committed",
+   "git_path": "prelaunch/preflight_blade_blob_identity.json",
+   "group": "prelaunch",
+   "name": "preflight_blade_blob_identity.json",
+   "role": "pre-launch verification record",
+   "sha256": "2e58e97fa09e477b80643e2a316c118c5bf99e1c3f2af8de6c240135996340dc"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\prelaunch\\pytest_focused_base_env_summary.txt",
+   "bytes": 365,
+   "disposition": "committed",
+   "git_path": "prelaunch/pytest_focused_base_env_summary.txt",
+   "group": "prelaunch",
+   "name": "pytest_focused_base_env_summary.txt",
+   "role": "pre-launch verification record",
+   "sha256": "61459021f62280bd7da67bde274c8e9aa12773716d7f4b4843da051f5c3f76d7"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\authorized_plan.json",
+   "bytes": 13273,
+   "disposition": "committed",
+   "git_path": "authorized_plan.json",
+   "group": "plan",
+   "name": "authorized_plan.json",
+   "role": "committed before launch",
+   "sha256": "ca9a2ced62047c7faab19a81eb1c0b9f4ebe41dba593a50f245fe821eda9b0bb"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_a_c2p25.json",
+   "bytes": 2140,
+   "disposition": "committed",
+   "git_path": "configs/arm_a_c2p25.json",
+   "group": "plan",
+   "name": "configs/arm_a_c2p25.json",
+   "role": "committed before launch",
+   "sha256": "dfb46034292e20db0ae160356ee80bc4a3463795917af9a54265128d43e5b17d"
+  },
+  {
+   "absolute_path": "research_evidence\\generalized_v2\\reward_coefficient_dev_r1\\configs\\arm_b_c4p5.json",
+   "bytes": 2143,
+   "disposition": "committed",
+   "git_path": "configs/arm_b_c4p5.json",
+   "group": "plan",
+   "name": "configs/arm_b_c4p5.json",
+   "role": "committed before launch",
+   "sha256": "d9e817ab82167664959fb26d0c469d41a3ed560c7b7b231b2fa2b9532f1cadca"
+  }
+ ]
+}

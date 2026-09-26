@@ -1,0 +1,76 @@
+{
+ "A": {
+  "acquisition_exploratory": {
+   "first_post_update_round_with_directional_switch": null,
+   "max_directional_switches": 0,
+   "max_post_update_macro": 0.00011214334517717361,
+   "max_post_update_macro_round": 3,
+   "max_post_update_macro_updates": 75,
+   "rounds_with_any_directional_switch": [
+    0
+   ]
+  },
+  "note": "peaks and first rounds are exploratory, never a replacement endpoint",
+  "retention_final_round": {
+   "both_abort": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "both_non_abort": {
+    "count": 20,
+    "denominator": 20,
+    "rate": 1.0
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "macro": 3.241002559661865e-08,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "updates_completed": 375
+  }
+ },
+ "B": {
+  "acquisition_exploratory": {
+   "first_post_update_round_with_directional_switch": null,
+   "max_directional_switches": 0,
+   "max_post_update_macro": 0.0016852308064699173,
+   "max_post_update_macro_round": 15,
+   "max_post_update_macro_updates": 375,
+   "rounds_with_any_directional_switch": [
+    0
+   ]
+  },
+  "note": "peaks and first rounds are exploratory, never a replacement endpoint",
+  "retention_final_round": {
+   "both_abort": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "both_non_abort": {
+    "count": 20,
+    "denominator": 20,
+    "rate": 1.0
+   },
+   "directional_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "macro": 0.0016852308064699173,
+   "reverse_switches": {
+    "count": 0,
+    "denominator": 20,
+    "rate": 0.0
+   },
+   "updates_completed": 375
+  }
+ }
+}
